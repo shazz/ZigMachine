@@ -1,6 +1,7 @@
 // --------------------------------------------------------------------------
-// HMD "HMDFAC": the timeline. hmdfac.zig carries the port notes; assets.zig
-// the rips, cube.zig the frustum, scroll.zig phase 4.
+// HMD "Factory Cracktro": the timeline. hmdfac.zig carries the port notes;
+// assets.zig the rips, rasters.zig the Timer B chain, cube_run.zig +
+// cube.zig + cube_fill.zig the frustum, scroll.zig phase 4.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -8,98 +9,73 @@ const Color = zg.Color;
 const blit = zg.blit;
 
 const A = @import("assets.zig");
-const cube = @import("cube.zig");
+const R = @import("rasters.zig");
+const run = @import("cube_run.zig");
 const scroll = @import("scroll.zig");
 
 pub const MUSIC = "hmd_cracoucass.sndh";
 pub const MUSIC_TUNE = 1;
 pub const PLANE = 0;
 
-// --- the frame timeline (all from the dis) ----------------------------------
-const BOOT_FRAMES = 200;
-const FLASH_FRAMES = 12; // 3 iterations of $1d0..$1f0, 2 frames per word
-const CUBE_FRAMES = [3]u32{ 120, 250, 128 }; // the $78/$fa/$80 counters
-pub const BOOT_END = BOOT_FRAMES; // 200
-pub const FLASH_END = BOOT_END + FLASH_FRAMES; // 212
-pub const CUBE1_END = FLASH_END + CUBE_FRAMES[0]; // 332
-pub const CUBE2_END = CUBE1_END + CUBE_FRAMES[1]; // 582
-pub const CUBE_END = CUBE2_END + CUBE_FRAMES[2]; // 710
+// --- the frame timeline (from the original, frames from the first loop VBL)
+pub const OPEN_END = 193; // $b9dc: 192 bob words, then word 0 once more
+pub const FLASH_END = OPEN_END + 12; // $ac6a: 3 x (-$888, 2 frames, +$777, 2 frames)
+pub const HOLD_END = FLASH_END + 4; // band A pasted into both pages, still $ccc
+pub const CUBE1_END = HOLD_END + 120; // the $78 / $fa / $80 loop counters
+pub const CUBE2_END = CUBE1_END + 250;
+pub const CUBE_END = CUBE2_END + 128;
+pub const P4_START = CUBE_END + 17; // pages cleared, band B, $1108c/$1103a precalc
 
-/// The flash's visible color0 words, two frames each (the instant #$fff
-/// write before the loop never lands on a frame).
 const FLASH_C0 = [6]u16{ 0x777, 0xeee, 0x666, 0xddd, 0x555, 0xccc };
-const CUBE_C0: u16 = 0xccc; // the flash's last word stands through the cube
-const SCROLL_C0: u16 = 0x011; // $3e8, rewritten every phase-4 frame
-const SCROLL_POP: u16 = 0x711; // $41a: move.b #$7 into color0's high byte
-
-// --- machine state constants ----------------------------------------------------
-const CX0: u32 = 0x1356; // $1660c at boot
-const CX_HOLD: u32 = 0x79e; // phase 1's stop value
-const CX_STEP: u32 = 0x28;
-const WHEEL_MAX: u16 = 0x2ce; // counters wrap to 0 above this
-const CNT_INIT: u16 = 0x80; // cc's boot value
+const HOLD_C0: u16 = 0xccc;
+const POP_C0: u16 = 0x711; // the $38 key: move.b #$7 into colour 0's high byte
+const BUF_H = zg.PHYSICAL_HEIGHT + 32; // the bob reads up to 32 lines below
 
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = 32;
 const DIR_BACK: u8 = 6;
 
-/// $fa4's wheel counter: add the step, wrap to 0 above $2ce.
-fn adv(c: u16, step: u16) u16 {
-    const v = c +% step;
-    return if (v > WHEEL_MAX) 0 else v;
-}
-
 // --- state: module level, so testapi.zig can read every word ---------------
 pub var wants_quit: bool = false;
-pub var frame: u32 = 0; // frames since boot; update() arms the frame render() shows
-pub var wheel: cube.Wheel = undefined; // ca/cb/cc, camera, this frame's queue pair
-pub var qi: u16 = 0; // the $16612 pair walk
-pub var popped: bool = false; // SPACE: the $38 key's color0 pop, as a toggle
-var pal_key: u32 = 0xFFFF_FFFF; // which register story is installed
-var dirty: cube.Rows = .{}; // plate rows the last cube frame drew on
-var scroll_on: bool = false; // phase 4's one-time clear + band B done
+pub var frame: u32 = 0; // frames since start; update() arms the one render() shows
+pub var popped: bool = false;
+pub var bob_off: u32 = 0; // lines the opening's screen address is moved down by
 
-/// Install palette `words` with color0 = `c0`, only when that changed: the
-/// registers hold their colours between frames, as on the machine.
-fn setPalette(fb: *zg.LogicalFB, which: u32, words: *const [16]u16, c0: ?u16) void {
-    const k_ = (which << 16) | (if (c0) |c| @as(u32, c) else 0xFFFF);
-    if (k_ == pal_key) return;
-    pal_key = k_;
-    for (0..16) |ci| fb.palette[ci] = A.st(words[ci]);
-    if (c0) |c| fb.palette[0] = A.st(c);
+/// Frames the Timer B chain has run before frame f (it is off in the flash).
+pub fn laserCount(f: u32) u32 {
+    if (f < OPEN_END) return f;
+    if (f < HOLD_END) return OPEN_END;
+    return OPEN_END + f - HOLD_END;
 }
 
-/// The plate's static art (logo + band A) over plate rows [lo, hi] only:
-/// $5444's undo of the last frame's overdraw, as CHISEL copies.
-fn restoreRows(plate: blit.Dst, lo: i32, hi: i32) void {
-    if (lo > hi) return;
-    const n: usize = @intCast(hi - lo + 1);
-    const y0: usize = @intCast(lo);
-    blit.blit(plate, blit.Image.init(A.logo_data, A.ART_W), .{ .x = 0, .y = y0, .w = A.ART_W, .h = n }, 0, lo, null, .copy);
-    const a_lo = @max(lo, A.BAND_A_Y);
-    const a_hi = @min(hi, A.BAND_A_Y + A.BAND_A_H - 1);
-    if (a_lo > a_hi) return;
-    const part = blit.Rect{ .x = 0, .y = @intCast(a_lo - A.BAND_A_Y), .w = A.ART_W, .h = @intCast(a_hi - a_lo + 1) };
-    blit.blit(plate, blit.Image.init(A.band_a_data, A.ART_W), part, 0, a_lo, null, .copy);
+/// The opening's screen offset in lines: $2d1ea words / 160.
+pub fn bobLines(f: u32) u32 {
+    const i = if (f < A.BOB_N) f else 0;
+    return A.bob[i] / 160;
 }
 
-fn stepCube(f: u32) void {
-    if (f < CUBE1_END) {
-        // phase 1: step the camera down until it reaches $79e
-        if (wheel.camera != CX_HOLD) {
-            const next = wheel.camera -% CX_STEP;
-            wheel.camera = if (next <= CX_HOLD) CX_HOLD else next;
-        }
-    } else if (f >= CUBE2_END) {
-        wheel.camera += CX_STEP; // phase 3: back up, no stop
+/// The opening: the logo page read from `off` lines down, stripes kept on
+/// their physical rows.
+fn setOffset(fb: *zg.LogicalFB, whole: blit.Dst, off: u32) void {
+    if (off == bob_off) return;
+    R.unstamp(whole, bob_off);
+    bob_off = off;
+    fb.setScroll(0, off);
+    R.stamp(whole, off, false);
+}
+
+/// The register story of frame f: which palettes the chain installs and
+/// what the lasers show.
+fn palettes(fb: *zg.LogicalFB, f: u32) void {
+    if (f >= OPEN_END and f < HOLD_END) {
+        const c0 = if (f < FLASH_END) FLASH_C0[(f - OPEN_END) / 2] else HOLD_C0;
+        R.setPalettes(&A.art_pal, &A.art_pal, c0, null);
+        return R.lasers(fb, 0, c0);
     }
-    wheel.ca = adv(wheel.ca, 4);
-    wheel.cb = adv(wheel.cb, 2);
-    wheel.cc = adv(wheel.cc, 4);
-    wheel.sy = A.queue[@as(usize, qi) * 2];
-    wheel.sx = A.queue[@as(usize, qi) * 2 + 1];
-    qi += 1;
-    if (qi >= A.QUEUE_PAIRS) qi = 0;
+    const pop: ?u16 = if (popped) POP_C0 else null;
+    const bottom = if (f < CUBE1_END) &A.boot_pal else if (f < CUBE_END) &A.art_pal else &A.band_pal;
+    R.setPalettes(if (f < CUBE_END) &A.art_pal else &A.pal4, bottom, null, pop);
+    R.lasers(fb, laserCount(f), null);
 }
 
 // --------------------------------------------------------------------------
@@ -108,34 +84,30 @@ pub const Demo = struct {
         _ = self;
         wants_quit = false;
         frame = 0;
-        wheel = .{ .ca = 0, .cb = 0, .cc = CNT_INIT, .camera = CX0, .sy = 0, .sx = 0 };
-        qi = 0;
         popped = false;
-        pal_key = 0xFFFF_FFFF;
-        dirty = .{};
-        scroll_on = false;
+        run.reset();
 
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
 
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
-        fb.openBorders(.all);
-
-        // The boot story: sixteen $0011 registers hide the already-painted
-        // art; the machine's pages carry the logo + the strip from $1f4 on.
-        setPalette(fb, 0, &A.boot_pal, null);
-        fb.clearFrameBuffer(0);
-        const plate = blit.Dst.plane(fb).window(A.ART_X, A.ART_Y, A.ART_W, A.ART_H);
-        restoreRows(plate, 0, A.ART_H - 1);
+        fb.setOverscanScrollPlane(zg.PHYSICAL_WIDTH, BUF_H);
+        R.install(fb);
+        const whole = blit.Dst.plane(fb);
+        const plate = whole.window(A.ART_X, A.ART_Y, A.ART_W, A.ART_H);
+        blit.blit(plate, blit.Image.init(A.logo_data, A.ART_W), null, 0, 0, null, .copy);
+        bob_off = bobLines(0);
+        fb.setScroll(0, bob_off);
+        R.stamp(whole, bob_off, false);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = self;
         _ = zigos;
         _ = dt; // frame-based: one step a rendered frame
-        // the cube phases' per-frame state, in the machine's own order
-        if (frame >= FLASH_END and frame < CUBE_END) stepCube(frame);
+        const f = frame;
+        if (f >= HOLD_END and f < CUBE_END) run.step(if (f < CUBE1_END) 1 else if (f < CUBE2_END) 2 else 3);
         frame += 1;
     }
 
@@ -145,25 +117,24 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const whole = blit.Dst.plane(fb);
         const plate = whole.window(A.ART_X, A.ART_Y, A.ART_W, A.ART_H);
-        const f = frame;
-        if (f < BOOT_END) {
-            setPalette(fb, 0, &A.boot_pal, null); // sixteen $0011: the roll stays dark
-        } else if (f < FLASH_END) {
-            setPalette(fb, 1, &A.art_pal, FLASH_C0[(f - BOOT_END) / 2]);
-        } else if (f < CUBE_END) {
-            setPalette(fb, 1, &A.art_pal, CUBE_C0);
-            restoreRows(plate, dirty.lo, dirty.hi);
-            dirty = cube.drawFaces(plate, cube.project(wheel));
-        } else {
-            setPalette(fb, 2, &A.pal4, if (popped) SCROLL_POP else SCROLL_C0);
-            if (!scroll_on) scroll.enter(whole);
-            scroll_on = true;
-            scroll.frame(whole, f - CUBE_END);
+        const f = frame - 1; // update() already counted this frame
+        palettes(fb, f);
+        if (f < OPEN_END) return setOffset(fb, whole, bobLines(f));
+        if (f == OPEN_END) setOffset(fb, whole, 0); // the cube page
+        if (f == HOLD_END) {
+            run.restoreRows(plate, A.BAND_A_Y, A.BAND_A_Y + A.BAND_A_H - 1);
+            R.stamp(whole, 0, true); // band A's blank top rows covered line 196
         }
+        if (f >= HOLD_END and f < CUBE_END) return run.frame(whole, plate);
+        if (f == CUBE_END) {
+            scroll.enter(whole);
+            R.stamp(whole, 0, false);
+        }
+        if (f >= P4_START and scroll.frame(whole, f - P4_START)) R.stamp(whole, 0, true);
     }
 
-    /// SPACE toggles the $38 key's color0 pop ($0711 over $0011, only
-    /// meaningful in phase 4 — hmdfac.zig departure 4); Escape and the host's
+    /// SPACE toggles the $38 key's colour-0 pop ($0711 over lines 0..1 and
+    /// the top border, until the top palette reload); Escape and the host's
     /// Back leave (declaring key() owns every key).
     pub fn key(self: *Demo, cp: u32) void {
         _ = self;

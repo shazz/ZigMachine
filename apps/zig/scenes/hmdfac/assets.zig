@@ -13,6 +13,9 @@ const wave_data = @embedFile(DIR ++ "wave.raw"); // 189 LE words
 const boot_pal_data = @embedFile(DIR ++ "boot_pal.raw"); // 16 LE words
 const art_pal_data = @embedFile(DIR ++ "art_pal.raw"); // 16 LE words
 const pal4_data = @embedFile(DIR ++ "pal4.raw"); // 16 LE words
+const band_pal_data = @embedFile(DIR ++ "band_pal.raw"); // 16 LE words
+const laser_data = @embedFile(DIR ++ "laser.raw"); // 124 LE words
+const bob_data = @embedFile(DIR ++ "bob.raw"); // 192 LE words
 pub const text_data = @embedFile(DIR ++ "text.raw"); // 2105 chars + 0xFF
 const font_data = @embedFile(DIR ++ "font.bin"); // rebuilt 32x16, 0x20..0x5F
 // font_machine.bin (the ripped $9e48 glyph records) and charmap.bin ($9a0e)
@@ -27,7 +30,8 @@ comptime {
     if (queue_data.len != 360 * 2 * 2) @compileError("queue.raw must be 360 pairs");
     if (rows_data.len != 5040 * 2) @compileError("rows.raw must be 5040 words");
     if (wave_data.len != 189 * 2) @compileError("wave.raw must be 189 words");
-    if (boot_pal_data.len != 32 or art_pal_data.len != 32 or pal4_data.len != 32)
+    if (laser_data.len != LASER_N * 2 or bob_data.len != BOB_N * 2) @compileError("laser.raw / bob.raw sizes");
+    if (boot_pal_data.len != 32 or art_pal_data.len != 32 or pal4_data.len != 32 or band_pal_data.len != 32)
         @compileError("palette rips must be 16 words");
     if (text_data.len != 2105 + 1) @compileError("text.raw must be 2105 chars + terminator");
     if (font_data.len != 64 * 64) @compileError("font.bin must be 64 glyphs x 64 B");
@@ -37,6 +41,8 @@ pub const TEXT_LEN = 2105;
 pub const ROWS_N = 5040;
 pub const WAVE_N = 189;
 pub const QUEUE_PAIRS = 360;
+pub const LASER_N = 124;
+pub const BOB_N = 192;
 
 // --- geometry: the 320x249 plate at (40,15) of the 400x280 plane ----------
 pub const ART_X = 40;
@@ -74,6 +80,9 @@ pub const wave: [WAVE_N]u16 = words(wave_data);
 pub const boot_pal: [16]u16 = words(boot_pal_data);
 pub const art_pal: [16]u16 = words(art_pal_data);
 pub const pal4: [16]u16 = words(pal4_data);
+pub const band_pal: [16]u16 = words(band_pal_data);
+pub const laser: [LASER_N]u16 = words(laser_data);
+pub const bob: [BOB_N]u16 = words(bob_data);
 
 /// font.bin's 16 rows of 4 bytes per glyph as big-endian u32s (bit 31 = the
 /// leftmost pixel), decoded at comptime for the same reason as words().

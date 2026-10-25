@@ -16,7 +16,7 @@ pub const GLYPHS = 9; // the walk draws a 9-column strip per frame
 pub const ADV = 40; // the glyph advance in px
 pub const GLYPH_W = 32;
 pub const GLYPH_H = 16;
-pub const INK = 13; // pal4 word 13 = $0f6f, the text ink
+pub const INK = 4; // pal4 word 4 = $0594: the magenta the real glyphs show
 
 const NONE: i32 = -1000; // an empty box slot
 
@@ -67,14 +67,22 @@ pub fn enter(whole: blit.Dst) void {
     for (&last) |*b| b.* = .{ NONE, 0 };
 }
 
-/// One frame at scroller time t.
-pub fn frame(whole: blit.Dst, t: usize) void {
+/// Does a glyph box at plate row y cover a laser row (plate rows 2, 3, 196)?
+fn onLaser(y: i32) bool {
+    return (y <= 3 and y + GLYPH_H > 2) or (y <= 196 and y + GLYPH_H > 196);
+}
+
+/// One frame at scroller time t; true when a box drawn or erased covered a
+/// laser row (the caller re-lays the stripes there).
+pub fn frame(whole: blit.Dst, t: usize) bool {
     const plate = whole.window(A.ART_X, A.ART_Y, A.ART_W, A.ART_H);
     var touched_band = false;
+    var lasers = false;
     for (last) |b| {
         if (b[0] == NONE) continue;
         plate.fill(b[0], b[1], GLYPH_W, GLYPH_H, 0);
         if (b[1] + GLYPH_H > A.BAND_B_Y) touched_band = true;
+        if (onLaser(b[1])) lasers = true;
     }
     if (touched_band) pasteBandB(whole);
     for (0..GLYPHS) |i| {
@@ -82,5 +90,7 @@ pub fn frame(whole: blit.Dst, t: usize) void {
         const g = place(t, i) orelse continue;
         drawGlyph(plate, A.text_data[g.ci], g.x, g.y);
         last[i] = .{ g.x, g.y };
+        if (onLaser(g.y)) lasers = true;
     }
+    return lasers;
 }

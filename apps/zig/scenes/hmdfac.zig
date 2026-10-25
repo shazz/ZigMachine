@@ -4,113 +4,89 @@
 // Pandafox, music AD. fujiology.org/ST/H/HMD/HMDFAC.ZIP. An Atari STe
 // cracktro (Pouet 103795 / Demozoo 369835 say STe, and it runs on Hatari
 // STe: no Falcon hardware, STe 4-bit palette words; an earlier version of
-// this header called it a Falcon 030 intro, wrongly). The ZIP's PRG (UPX
-// 3.91) was unpacked to /tmp work as
-// HMDFAC_DEPACKED.PRG — every rip below is a byte-exact copy from that
-// depacked image and the offsets in this file are its own offsets; note
-// stutils.load strips the PRG's 28-byte header, so they are also the
-// offsets used by /tmp/opencode/hmdfac/genassets.py, the certified model
-// this file mirrors line for line. The model's 498 cube frames and its
-// scroller frames were the eyeball gate; its div stats over the whole arc:
-// 0 overflows, 0 divides-by-zero, camera $1356 → $79e → $1b9e.)
+// this header called it a Falcon 030 intro, wrongly).
 //
-// WHAT THE INTRO IS. One 320x249 art plate inside full overscan, five beats:
-//   * 200 dark frames: the chrome HMD logo is already in screen memory,
-//     hidden by a flat boot palette of sixteen $0011 (the machine
-//     pre-painted its double-buffered pages during the loading look),
-//   * a 12-frame color0 flash: the plate's own 16 registers come up, then
-//     color0 ramps 777/EEE/666/DDD/555/CCC, two frames per word (the code
-//     writes #$fff once, then subi #888 / addi #777 re-entered by the dbra
-//     at $1d0 — so $fff itself never shows, and the ramp's last word, $ccc,
-//     is what the art's zero pixels keep showing through the cube phases),
-//   * three cube phases (120 + 250 + 128 = 498 frames): a five-face
-//     frustum, each face a $58fa triangle fill under a stripe word, in
-//     exact 68k word math — a 9-word Q9 rotation matrix, asr #9 products,
-//     divs.w with the overflow-keeps-dividend rule, add.w 16-bit wraps.
-//     The camera walks $1356 → $79e (steps of −$28 while not $79e), holds,
-//     then walks back up +$28 a frame to $1b9e,
-//   * then phase 4, forever: both pages cleared to color0 once ($346),
-//     PAL4 installed, the band-B thanks strip pasted at page rows
-//     199..249 ($7c60 = 199 rows x 160 B rows), and a 2105-character text
-//     rolls by in a 9-glyph wave over rows 3..196: y = rows[(t+i)%5040] +
-//     ((wave[(t+i)%189]-100)>>1), x = i*40 − 4*(t%10).
+// HOW IT WAS READ. The PRG is UPX 3.91 packed. It was run in Hatari (STe,
+// TOS 1.62, 1 MB) through shirazmcp and read from RAM: it loads at $aa9a,
+// so RAM address - $aa9a = the depacked-image offset the first port used
+// (both are given below where they differ). RAM dumps and the 68000 reading
+// live in prototypes/hmdfac_re/ (untracked); the original's drawn cube
+// pages are pinned in apps/hmdfac_original.json.
 //
-// EXACTLY FROM THE ORIGINAL (depacked.bin offsets), assets/screens/hmdfac/:
-//   * logo.raw   — the art, $18ae0..$22680, 4bpp nibbles -> 320x249 chunky
-//     palette indices (its zeros are background = color0),
-//   * band_a.raw — the thanks strip, page rows 194..239 ($7940 = 194 x
-//     160 B rows), 320x46, pasted opaque,
-//   * band_b.raw — the phase-4 strip, page rows 199..249 ($7c60 = 199 x
-//     160 B rows), 320x51, pasted opaque,
-//   * sine.blob  — the 720-word wheel at $16054: cos 0..359 then sin
-//     360..719, here as little-endian words (the machine's counters are
-//     byte addresses, so the wheel word index = counter >> 1),
-//   * queue.raw  — the 360 (sy, sx) addend pairs at $16612, LE,
-//   * rows.raw   — the 5040-word walk table at $10f3c, LE,
-//   * wave.raw   — the 189-word wave at $9058, LE,
-//   * boot_pal.raw / art_pal.raw / pal4.raw — 32-byte rips of the palettes
-//     at $228f2 / $22720 / $22912, sixteen little-endian register words
-//     each; st() below is machine/beam.zig stToRgba verbatim, so any word
-//     this scene writes renders exactly as the machine would render it,
-//   * text.raw   — the 2105-char scrolltext at $91d2 (ASCII, one 0xFF end),
-//   * font_machine.bin — the machine's OWN font, 50 glyphs x 64 B at $9e48
-//     (plus its charmap, 256 B at $9a0e, as charmap.bin). RIPPED AND SHIPPED
-//     FOR PROVENANCE, NOT RENDERED — see the blocker below. They stay in the
-//     assets directory but the cart does not @embedFile them (dead bytes).
-//   * "cracoucass.sndh" -> docs/music/hmd_cracoucass.sndh (md5-matched
-//     copy; subtune 1 at init).
+// WHAT THE INTRO IS. One 320x249 art plate in a 416x276 frame, and a Timer B
+// chain under all of it (rasters.zig): a LASER line at display line 2 and
+// another at line 196 (colour 0 rewritten every 12 pixels from a sweeping
+// gradient table), and a SPLIT palette — a top palette from line 3, a bottom
+// one from line 197. Beats, in frames from the first loop VBL:
+//   * 193 frames, the BOB ($b9dc): the chrome HMD logo on its own page, the
+//     STe video address counter ($ff8205/07/09) set each frame to the page
+//     plus a word of the $2d1ea table (192 words, multiples of 160: the logo
+//     drops 32 lines and bounces), then word 0 once more. Top palette = the
+//     art palette, bottom = sixteen $0011 (whatever lies below line 196 is
+//     hidden),
+//   * 12 frames, the FLASH ($ac6a): the chain off, art palette everywhere,
+//     colour 0 $777/$eee/$666/$ddd/$555/$ccc two frames each ($fff, then
+//     subi #$888 / addi #$777 three times), then 4 more grey frames while
+//     band A is pasted into both pages,
+//   * 498 frames, the CUBE (120 + 250 + 128, $acd2/$ad3c/$ad8a): the chain
+//     back on, colour 0 $0011 again. A solid six-face frustum, flat colours
+//     (cube.zig, cube_fill.zig), flown by a 360-pair queue; camera $1356
+//     down to $79e by $28, hold, then up to $1b9e. Phase 2 switches the
+//     bottom palette to the art palette: band A ("HAD THE PLEASURE ...")
+//     appears,
+//   * then PHASE 4 forever: pages cleared, the top palette $2d3ac (pal4.raw),
+//     the bottom $2d36c (band_pal.raw: the teal FACTORY logo), band B pasted
+//     at page row 199, ~11 frames of precalc ($1108c/$1103a), then each frame
+//     $1119a: a 3D dot figure plotted into one bitplane in turn (cleared every
+//     8 frames: trails), the wave scroller, the queue.
 //
-// THE FONT BLOCKER. Phase-4 glyphs are drawn by a live preshift/slab
-// machine ($63ae): slot cells $54 apart, runtime OR-smears into $aac8 of
-// scratch, move.b strips at $a0 row pitch. Eight static decodes of the
-// 64-byte glyph records (rows/columns, bit order, halves) produced noise;
-// several letters even share identical leading words, so the stored bytes
-// are the machinery's INPUT, not its display form — and the port's
-// emulator step is permanently skipped (no TOS ROM in this environment),
-// so no capture of the real display exists to pin the mapping down. So
-// THIS SCENE RENDERS A REBUILT 32x16 MONOCHROME FONT (font.bin: ASCII
-// 0x20..0x5F, 64 glyphs, row-major 1 bpp, glyph = char - 0x20) on the
-// original's 40 px advance — the same stand-in the certified sim frames
-// rendered. The letter shapes are a documented approximation, not the
-// original's glyphs (same pattern as the gnomes cart's big-font note).
+// THE RIPS (assets/screens/hmdfac/; RAM / depacked offset):
+//   * logo.raw — the art, $2357a / $18ae0, 320x249 chunky indices,
+//   * band_a.raw / band_b.raw — the two strips (page rows 194.., 199..),
+//   * art_pal.raw $2d1ba / $22720, boot_pal.raw $2d38c / $228f2 (sixteen
+//     $0011), pal4.raw $2d3ac / $22912, band_pal.raw $2d36c / $228d2,
+//   * laser.raw — the laser gradient, 124 words at $2ee54 / $243ba,
+//   * bob.raw — the opening's 192 screen offsets at $2d1ea / $22750,
+//   * sine.blob $20aee / $16054, queue.raw $210ac, rows.raw, wave.raw,
+//     text.raw $13c6c / $91d2 (the 2105-char scrolltext),
+//   * font_machine.bin + charmap.bin ($9e48 / $9a0e depacked): the scroller's
+//     own font records, not rendered yet — see STILL TO DO,
+//   * "cracoucass.sndh" -> docs/music/hmd_cracoucass.sndh (md5-matched;
+//     maxYMiser, timer C, YM only).
+//
+// THE CUBE IS THE ORIGINAL'S, PIXEL FOR PIXEL. The face list at $2348c has
+// SIX faces (count word 5), each four vertex pairs and a COLOUR word (15, 2,
+// 13, 14, 7, 6) that the fill expands to plane masks; the projection's first
+// word is x (an earlier reading had x and y swapped, the facing test's sign
+// inverted, five faces, and took the colour word for a row-stripe mask).
+// The fill is reproduced down to the 68k flags (cube_fill.zig), and four
+// pages the original drew match the model the harness holds this cart to.
 //
 // DELIBERATE DEPARTURES (all documented):
-//   1. color0 story = the machine's literal flow: $0011 flat through the
-//      boot, the flash ramp two frames per word, then $ccc standing
-//      through ALL cube phases, then PAL4 with #$11 rewritten every phase-4
-//      frame ($3e8). (An earlier session modelled $0011 through the cube;
-//      the $1d0 dbra re-entry proved the $ccc reading.)
-//   2. $5444 — the machine's per-frame undo of the previous frame's cube
-//      overdraw — becomes a per-frame re-blit of the art; phase 4 (whose
-//      $6710 machinery this replaces wholesale) becomes a per-frame full
-//      redraw: clear, band, text. Both render what the sim frames render.
-//   3. Face-edge x intersections use integer @divTrunc where the sim used
-//      float + trunc: crossings can land ±1 px. Invisible on 3-of-4
-//      row striping.
-//   4. Keys: scancode $39 (SPACE) was the machine's EXIT and $38 its
-//      color0 pop (move.b #$7, $ff8240 = $0711 over $0011, one frame per
-//      poll — the machine's own loop re-arms #$11 the next frame). The
-//      port keeps both effects under the harness keys: ESC = quit (the
-//      machine's $4b0 vector route), SPACE = the pop as a toggle.
-//   5. The wave scroller's per-column timing is the certified model —
-//      y = rows[(t+i)%5040] + wave shift, clamped >= -2 — a simplification
-//      of the $62cc 45-slot delay ring; the sim's test frames were the
-//      eyeball reference.
+//   1. The machine double-buffers and restores the last bounding box from the
+//      art; the port has one plane and restores only the rows the last frame
+//      drew (CHISEL copies from cart RAM). Same pixels.
+//   2. The flash-to-cube handover is modelled as 12 + 4 frames; the original
+//      takes 16 to 18 VBLs there (two strip copies), measured to +-2.
+//   3. The bottom laser's read pointer is 39 words ahead of the top's on the
+//      displayed frame (three captures and an in-frame RAM read agree; the
+//      stored gap between frames is 38).
+//   4. Keys: scancode $39 (SPACE) was the machine's exit and $38 its colour-0
+//      pop. The port: ESC = quit, SPACE = the pop as a toggle (colour 0 $711
+//      over the top border and lines 0..1, as the machine shows it until the
+//      top palette load).
 //
-// No floats anywhere in the frame loop: counters, the Q9 matrix, asr
-// shifts, divs semantics, wrap adds — all integer, matching the machine's
-// registers word for word.
+// STILL TO DO (phase 4): the 3D dot figure is not drawn yet, and the
+// scroller still renders the rebuilt 32x16 stand-in font (font.bin) on the
+// first port's timing model; both are being re-derived from $13a74 and
+// $10d66/$10e48 in the RAM dumps.
 //
-// BOARD COST (same pixels as re-blitting everything, which the harness pins
-// against its own model of the full redraw): the palette is written only when
-// the register story changes; the cube restores only the rows its last frame
-// drew on (CHISEL copies from cart RAM); phase 4 clears the plane and pastes
-// band B once, then each frame erases only the nine glyph boxes it drew last
-// frame. Glyphs and faces are drawn as runs, never pixel by pixel.
+// No float in the frame loop: counters, the Q9 matrix, asr, divs semantics,
+// 16-bit wraps and the fill's split 16.16 register are all integer.
 //
 // Files: hmdfac/app.zig (the timeline), assets.zig (the rips + st()),
-// cube.zig (the 68k projection and the striped face fill), scroll.zig (the
-// phase-4 wave scroller), testapi.zig (apps/hmdfac_headless.mjs's exports).
+// rasters.zig (the Timer B chain), cube.zig + cube_fill.zig (the frustum),
+// scroll.zig (phase 4's scroller), testapi.zig (the harness's exports).
 // --------------------------------------------------------------------------
 const app = @import("hmdfac/app.zig");
 

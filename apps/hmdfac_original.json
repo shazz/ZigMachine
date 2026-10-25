@@ -1,0 +1,9 @@
+{
+  "about": "Pins of HMDFAC.PRG (Hemoroids' Factory Cracktro) taken in Hatari (STe, TOS 1.62, 1 MB) with shirazmcp, 2026-10-24. Each cube pin is the page the original had just drawn (the 320x249 plate as 4-bit palette indices, decoded from the planar page at [$af46] with the PC at the loop's counter add: $ad14 / $ad6a / $adc0), hashed with FNV-1a 32, beside the wheel words it was drawn from ($2108e ca, $21090 cb, $21092 cc, $210a6 camera, then the queue pair added to x and y). cube_frame counts cube frames from the first (phase 1 iteration 0); phase 2 starts at 120, phase 3 at 370.",
+  "cube": [
+    { "cube_frame": 0, "wheel": [4, 2, 132, 4910, 160, 101], "fnv": "0x81688d39" },
+    { "cube_frame": 60, "wheel": [244, 122, 372, 2510, 249, 152], "fnv": "0x278afbcd" },
+    { "cube_frame": 220, "wheel": [164, 442, 292, 1950, 84, 158], "fnv": "0x7f517590" },
+    { "cube_frame": 434, "wheel": [300, 150, 428, 4550, 221, 132], "fnv": "0x689816a5" }
+  ]
+}
