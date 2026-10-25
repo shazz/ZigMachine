@@ -120,9 +120,15 @@ word shift.
 
 ### Copying inside one plane
 **Error:** a CHISEL copy whose source and destination are in the same plane.
-**Why it costs:** the overlap check runs it ordered, waiting on every write.
+**Why it costs:** the overlap check (zm_blit_chk.v) runs it ordered, waiting on every write (~28
+cycles a unit against ~2: `BLIT_UNIT_ORDERED`). Its destination span runs from the plane's BASE to the
+box's last byte, so any source above or inside the box overlaps; one wholly below the box does not. A
+source passed as a linear address (`CON2.SRC_ABS`, e.g. `blitter.blitRow` given a slice of the
+plane) is still in the plane.
 **Fix:** keep the source in cart RAM and copy from there.
-**Seen:** deltaforce 60 → 40 fps until it did.
+**Seen:** deltaforce 60 → 40 fps until it did; dbug's zoomed scroller built each line in the plane and
+`blitRow`ed it down (~77 K units a frame: 2.33 Mc of cart on the board, 33 fps).
+**Found by:** `perf_audit` / `frame_cost` (`inplane_copy`, naming the site).
 
 ### Planar engines on a chunky machine
 **Error:** a port that keeps the ST's interleaved bitplanes and converts them every frame.

@@ -13,6 +13,7 @@ export const WASTE_HINTS = {
     static_plane: "draw it once (it never changes); the dirty-line compositor (perf/vseq-dirty) then skips it",
     palette_rewrite: "write only the colour registers that change (a raster coder never rewrites one)",
     tiny_blits: "batch tiny ops into one blit, or do them with CPU word stores",
+    inplane_copy: "never CHISEL-copy within one plane: it runs ordered on the board; build the source in cart RAM (zg.mem) and blit from there, or copy from another plane",
     scroll_band: "pan it (REG_HSCROLL / FB_BASE) and draw only the new column",
 };
 const MIN_BYTES = 1024;            // per frame: below this, nothing worth reporting
@@ -82,6 +83,16 @@ function planeFindings(W, F) {
             + `; FRESCO still paints it (${Mc(FRESCO_PLANE)} Mc)`, hint: WASTE_HINTS.static_plane }));
 }
 
+function inplaneFindings(W, profiles, F) {
+    return [...W.blits.values()].filter((b) => b.inplane / F >= 1).map((b) => {
+        const P = profiles.find((x) => x.tag === b.mod);
+        return { pattern: "inplane_copy", mod: b.mod, fi: b.fi, func: b.fi >= 0 ? funcName(P.plan.module, b.fi) : "?", loop: -1,
+            at: b.site >= 0 ? hex(P.plan.blits[b.site].at) : "-", waste: Mc(b.inplaneExtra / F),
+            detail: `${Math.round(b.inplane / F)} of ${Math.round(b.ops / F)} copies a frame read a source that overlaps the destination span (the plane base to the box's end): ordered on the board`,
+            hint: WASTE_HINTS.inplane_copy };
+    });
+}
+
 function blitFindings(W, profiles, F) {
     return [...W.blits.values()].filter((b) => b.tiny / F >= 1).map((b) => {
         const P = profiles.find((x) => x.tag === b.mod);
@@ -124,7 +135,7 @@ function paletteFindings(profiles, overflow) {
 export function wasteReport(W, profiles, planesOn, overflow = 0) {
     const F = Math.max(1, W.frames);
     const findings = [...redundantStores(profiles, F), ...fillFindings(W, profiles, F), ...clearFindings(W, profiles),
-        ...planeFindings(W, F), ...blitFindings(W, profiles, F), ...scrollFindings(W, F),
+        ...planeFindings(W, F), ...blitFindings(W, profiles, F), ...inplaneFindings(W, profiles, F), ...scrollFindings(W, F),
         ...paletteFindings(profiles, overflow), ...cycleReport(profiles, F)].sort((a, b) => b.waste - a.waste);
     const lines = W.lines / F;
     return { stored: Math.round(W.stored / F), changed: Math.round(W.changed / F), lines: Math.round(lines),

@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
 import { makeDrive } from "../scene_hash_disk.mjs";
 import { instrument } from "./instrument.mjs";
-import { blitCycles } from "./cost_model.mjs";
+import { blitCycles, BLIT_CALL, BLIT_UNIT_ORDERED } from "./cost_model.mjs";
 import { BLIT_SITE, STORE_TOTAL, PAL_TOTAL, MIS_LOADS, MIS_STORES } from "./hooks.mjs";
 import { SNOOP_QUEUE } from "./cost_model.mjs";
 
@@ -15,6 +15,29 @@ const PAGES = 112;          // SHARED_PAGES in machine/sdk/memmap.zig
 export const OFF_PAL = 0x100, PAL_BYTES = 4 * 1024, OFF_VRAM = 0x1100;
 export const REG_GLOBAL_HBL_ID = 0x10, REG_FB_HBL_ID = 0x20, REG_FB_MODE = 0x54;
 const BLIT_COMMAND = 0x80, BLIT_W = 0xa8, BLIT_H = 0xaa, BLIT_CYCLES = 0xe0;
+const BLIT_CON = 0x82, BLIT_CON2 = 0x87, BLIT_A_BASE = 0x88, BLIT_A_STRIDE = 0x8c, BLIT_B_BASE = 0x90, BLIT_B_STRIDE = 0x94;
+const BLIT_D_BASE = 0xa0, BLIT_D_STRIDE = 0xa4, BLIT_X0 = 0xac, BLIT_Y0 = 0xae, CON_USEA = 1, CON_USEB = 2, CON2_SRC_ABS = 1;
+
+// Whether this BLIT runs ORDERED on the board (cost_model.mjs BLIT_UNIT_ORDERED): the overlap test of
+// fpga/rtl/blitter/zm_blit_chk.v, on spans and conservative. The destination span runs from D_BASE
+// (the plane's base) to the box's last byte, d + (y0 + h - 1) * ds + x0 + w; a used source (A or B,
+// as CON enables them) overlaps it unless its span [base, base + (h - 1) * stride + w) lies wholly
+// before or after. Everything compared as video-region offsets (CON2.SRC_ABS sources are linear).
+// The clip is ignored, which only widens the destination: conservative, like the RTL.
+function inPlane(view, base) {
+    const u16 = (o) => view.getUint16(base + o, true), i16 = (o) => view.getInt16(base + o, true);
+    const con = view.getUint8(base + BLIT_CON), abs = view.getUint8(base + BLIT_CON2) & CON2_SRC_ABS;
+    const w = u16(BLIT_W), h = u16(BLIT_H);
+    if (!w || !h) return -1;
+    const d = view.getUint32(base + BLIT_D_BASE, true);
+    const dHi = d + (i16(BLIT_Y0) + h - 1) * u16(BLIT_D_STRIDE) + i16(BLIT_X0) + w;
+    for (const [bit, reg, sreg] of [[CON_USEA, BLIT_A_BASE, BLIT_A_STRIDE], [CON_USEB, BLIT_B_BASE, BLIT_B_STRIDE]]) {
+        if (!(con & bit)) continue;
+        const raw = view.getUint32(base + reg, true), lo = abs ? raw - base : raw, hi = lo + (h - 1) * u16(sreg) + w;
+        if (!(hi <= d || dHi <= lo)) return 0;
+    }
+    return -1;
+}
 
 function envFor(machine, extra) {
     const env = { ...extra };
@@ -31,13 +54,15 @@ function blitter(machine, memory, base, hw, mods) {
     return () => {
         const cmd = view.getUint8(base + BLIT_COMMAND), minterm = view.getUint8(base + BLIT_COMMAND + 1);
         const area = view.getUint16(base + BLIT_W, true) * view.getUint16(base + BLIT_H, true);
+        const plane = cmd === 1 ? inPlane(view, base) : -1;
         machine.hwBlit();
-        const units = view.getUint32(base + BLIT_CYCLES, true), cycles = blitCycles(cmd, units, minterm);
+        const units = view.getUint32(base + BLIT_CYCLES, true);
+        const normal = blitCycles(cmd, units, minterm), cycles = plane >= 0 ? BLIT_CALL + units * BLIT_UNIT_ORDERED : normal;
         hw.blits++; hw.blitUnits += units; hw.blitCycles += cycles;
         if (cmd < hw.cmd.length) hw.cmd[cmd] += units;
         const m = mods.findIndex((x) => x.mem && new Int32Array(x.mem.buffer)[BLIT_SITE] >= 0);
         const site = m >= 0 ? new Int32Array(mods[m].mem.buffer)[BLIT_SITE] : -1;
-        hw.blitLog.push({ mod: m, site, cmd, bytes: cmd === 1 || cmd === 2 ? area : units, cycles });
+        hw.blitLog.push({ mod: m, site, cmd, bytes: cmd === 1 || cmd === 2 ? area : units, cycles, inplane: plane >= 0, extra: cycles - normal });
     };
 }
 
@@ -103,7 +128,10 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
 }
 
 // One host frame, exactly scene_hash.mjs's loop body.
-export function hostFrame({ machine, demo }) {
+// songMs: what the host mirrors into zigos.song_ms from the playing tune (the board's BARD does it
+// every frame); a cart that paces its parts on the music never leaves its first part without it.
+export function hostFrame({ machine, demo, memory }, songMs = null) {
+    if (songMs !== null && demo.getSongMsPointer) new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = songMs;
     machine.hwClear();
     demo.frame(Number(process.env.PERF_DT ?? 16.6)); // PERF_DT: a slower host frame (a cart that runs ST VBLs per elapsed ms does more work per frame)
     const planes = machine.hwPlanesNumber();

@@ -22,6 +22,17 @@ const blit = (w, h, x) => [
 ];
 const BAND = 50 * 320, BAND_LEN = 20 * 320;
 
+// a 320 x 10 BLIT copy (channel B, MT_B) to plane 0's row 20, from `src`: a video-region offset (abs 0)
+// or a linear address (abs 1, CON2.SRC_ABS)
+const copyRows = (src, abs) => [
+    ...I.i32(VB + 0x80), ...I.i32(1), ...I.store8(0), ...I.i32(VB + 0x81), ...I.i32(0xcc), ...I.store8(0),
+    ...I.i32(VB + 0x82), ...I.i32(2), ...I.store8(0), ...I.i32(VB + 0x87), ...I.i32(abs), ...I.store8(0),
+    ...I.i32(VB + 0x90), ...I.i32(src), ...I.store(0), ...I.i32(VB + 0x94), ...I.i32(320), ...I.store16(0),
+    ...I.i32(VB + 0xa0), ...I.i32(0x1100), ...I.store(0), ...I.i32(VB + 0xa4), ...I.i32(320), ...I.store16(0),
+    ...I.i32(VB + 0xa8), ...I.i32(320), ...I.store16(0), ...I.i32(VB + 0xaa), ...I.i32(10), ...I.store16(0),
+    ...I.i32(VB + 0xac), ...I.i32(0), ...I.store16(0), ...I.i32(VB + 0xae), ...I.i32(20), ...I.store16(0), ...I.call(HW_BLIT),
+];
+
 export const WASTE_CASES = [
     { pattern: "redundant_store", waste: true, opts: P, // the same page redrawn every frame, vs a page that changes
         with: page(16000, I.i32(0x01020304)), without: [...counter, ...page(16000, frameWord)] },
@@ -36,6 +47,8 @@ export const WASTE_CASES = [
     { pattern: "tiny_blits", waste: true, opts: P, // 200 4x4 fills vs one 320x200 fill
         with: loop(1, 200, blit(4, 4, [...I.get(1), ...I.i32(31), ...I.and, ...I.i32(8), ...I.mul])),
         without: blit(320, 200, I.i32(0)) },
+    { pattern: "inplane_copy", waste: true, opts: P, // a copy from plane 0's own rows, vs the same copy from cart RAM
+        with: copyRows(0x1100, 0), without: copyRows(BUF2, 1) },
     { pattern: "scroll_band", waste: true, // a 20-row band moved 1 px left by the CPU, vs redrawn with new content
         opts: { ...P, boot: loop(1, BAND_LEN, [...I.get(1), ...I.get(1), ...I.i32(7), ...I.mul, ...I.store8(PLANE + BAND)]) },
         with: loop(1, BAND_LEN, [...I.get(1), ...I.get(1), ...I.load8(PLANE + BAND + 1), ...I.store8(PLANE + BAND)]),

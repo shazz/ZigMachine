@@ -35,6 +35,8 @@ const OPTIONS = {
     "--names": [true, (o, v) => { o.namesDir = v; }, true],
     "--machine": [true, (o, v) => { o.machineDir = v; }, true],
     "--no-pal": [false, (o) => { o.pal = false; }, true],
+    // the song clock (zigos.song_ms = frame x 1000/60) is ON by default: the board's music always runs
+    "--no-song-clock": [false, (o) => { o.songClock = false; }, true],
     "--json": [false, (o) => { o.json = true; }, false],
     "--budget": [false, (o) => { o.budget = true; }, false],
     "--all": [false, (o) => { o.all = true; }, false],

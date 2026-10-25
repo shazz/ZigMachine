@@ -51,6 +51,11 @@ export const BLIT_CALL = BLIT_START + BLIT_DFLUSH;
 export const BLIT_UNIT = [0, 2.0, 1.85, 1.9, 9.2];
 export const BLIT_UNIT_RMW = [0, 7.7, 7.7, 7.7, 9.2];
 const readsDest = (minterm) => ((minterm ^ (minterm >> 1)) & 0x55) !== 0;
+// A BLIT whose source is inside its destination's plane runs ORDERED on the board: CHISEL's overlap
+// check (fpga/rtl/blitter/zm_blit_chk.v) measures the destination span from the plane base, so each
+// read waits for the previous write. Fitted to dbug (2026-10-25): its in-plane zoom-row copies, ~77 K
+// units a frame, cost the board 2.33 Mc of cart against the model's 0.32: ~28 cycles a unit.
+export const BLIT_UNIT_ORDERED = 28;
 export const blitCycles = (cmd, units, minterm) =>
     BLIT_CALL + units * ((readsDest(minterm) ? BLIT_UNIT_RMW : BLIT_UNIT)[cmd] ?? 1.5);
 // FRESCO paints each ENABLED plane in a pass the CPU waits for (cycles/bmain.c: the plane

@@ -14,8 +14,8 @@ const pct = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s[Math.
 const Mc = (c) => Math.round(c / 1e4) / 100;
 
 // One host frame and its cost parts: [cart, rom, icache, blit, hbl, fresco, disk] cycles.
-function stepFrame(run, profiles, acc, hw0) {
-    hostFrame(run);
+function stepFrame(run, profiles, acc, hw0, songMs) {
+    hostFrame(run, songMs);
     const cyc = profiles.map((P) => P.frame(acc));
     const mis = run.misaligned();
     run.hw.misaligned = mis;
@@ -49,7 +49,7 @@ export async function measure(cartPath, opts) {
         const acc = f > opts.warmup, hw0 = { ...run.hw, cmd: [...run.hw.cmd], hblBy: [...run.hw.hblBy] };
         if (acc && !w.hw) { w.hw = hw0; w.mis = misSnapshot(run.mods); }
         waste.before(profiles);
-        const { parts, code, planes } = stepFrame(run, profiles, acc, hw0);
+        const { parts, code, planes } = stepFrame(run, profiles, acc, hw0, opts.songClock === false ? null : Math.floor((f * 1000) / 60));
         waste.after(profiles, acc);
         budget.frame(acc);
         if (!acc) continue;
