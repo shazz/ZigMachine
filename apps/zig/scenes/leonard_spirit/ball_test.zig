@@ -1,10 +1,13 @@
 // Native test of the generated ball code (ball.zig) and the path (path.zig):
 // the store programs paint exactly a keyed blit of the sprite at every shift,
 // over each other in painter's order, never touch a transparent pixel, are
-// 72 stores at every shift, and the chain stays on screen.
+// 72 stores at every shift, the chain and the pan stay inside the overscan
+// buffer, and the show opens each border and eases the scroll in.
 const std = @import("std");
 const ball = @import("ball.zig");
 const path = @import("path.zig");
+const show = @import("show.zig");
+const lay = @import("layout.zig");
 
 const W = 320;
 const H = 200;
@@ -73,14 +76,33 @@ test "72 aligned stores a ball at every shift" {
     }
 }
 
-test "every ball of every frame of the period stays on screen, above the scroller's last rows" {
+test "every ball of every frame of the period stays inside the overscan window" {
     for (0..path.PERIOD) |f| for (0..path.SNAKES) |k| {
         var c = path.Chain.start(@intCast(f), @intCast(k));
         for (0..path.SNAKE_LEN) |_| {
-            try std.testing.expect(c.x() <= W - 16 and c.y() + 16 <= 196);
+            try std.testing.expect(c.x() + 16 <= lay.WIN_W and c.y() + 16 <= lay.WIN_H);
             c.next();
         }
     };
+}
+
+test "every pan keeps the window inside the buffer" {
+    for (path.SCROLL) |s| try std.testing.expect(s.x + lay.WIN_W <= lay.BUF_W and s.y + lay.WIN_H <= lay.BUF_H);
+}
+
+test "the show: still, then each side shakes open and stays, then the scroll eases in" {
+    try std.testing.expectEqual(@as(u8, 0), show.openMask(show.STATIC_END - 1));
+    try std.testing.expectEqual(@as(u8, 7), show.openMask(show.OPEN_END));
+    try std.testing.expect(!show.isOpen(.bottom, show.stageStart(.bottom) - 1));
+    var toggles: u32 = 0;
+    var t: u32 = show.stageStart(.sides);
+    while (t < show.stageStart(.bottom)) : (t += 1) {
+        if (show.isOpen(.sides, t) != show.isOpen(.sides, t + 1)) toggles += 1;
+    }
+    try std.testing.expectEqual(@as(u32, show.SHAKE.len - 1), toggles); // closed first, open last
+    try std.testing.expectEqual(@as(u32, 0), show.scrollSpeed(show.EASE_START));
+    try std.testing.expect(show.scrollSpeed(show.CRUISE - 1) < 1 << 16);
+    try std.testing.expectEqual(@as(u32, 1 << 16), show.scrollSpeed(show.CRUISE));
 }
 
 test "the sine table is Q15 and the degree table a u32 turn" {

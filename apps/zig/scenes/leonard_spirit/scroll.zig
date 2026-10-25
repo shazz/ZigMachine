@@ -2,14 +2,14 @@
 // The 6x6 scrolltext as ONE pre-rendered strip (CODEF's scroll_canvas): the
 // whole text laid out at compile time, 6 pixels a letter like the `leonard`
 // cart's scroller, ink already at its merged-palette index, followed by the
-// text's first 54 letters again so a 320-pixel window never wraps. Each frame
+// text's first 67 letters again so a 400-pixel window never wraps. Each frame
 // the window moves 2 pixels and is ONE keyed CHISEL blit from cart RAM.
 // --------------------------------------------------------------------------
 const std = @import("std");
 
 pub const CW = 6; // letter width and height
 pub const SPEED = 2;
-pub const VIEW = 320;
+pub const VIEW = 400; // the overscan window
 const FONT_FIRST = ' ';
 const FONT_GLYPHS = 60; // ' ' .. '[' in font.raw, 6x6 bytes each
 
