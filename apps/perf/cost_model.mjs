@@ -28,7 +28,14 @@
 //     op (docs/BLITTER_HW_SPEC.md 10.5: FILL 1.03, keyed BLIT 0.9-2.2, TRIANGLE 4.6-6.1);
 //     the CPU spins on BUSY, so blitter time is cart time.
 
-export const CPI = 1.06;          // cycles per modelled rv32 instruction (fitted 2026-10-23 to the board's cart_c, 56 carts)
+// cycles per modelled rv32 instruction. 1.06 on the 2026-10-23 fit (56 carts' cart_c), when the cart
+// codegen reloaded the memory base after every wasm store (lw; lw; add; sw, each load waiting on the
+// posted stores: ~5 cycles a store, measured by the ZM_LOCAL_BASE A/B), folded into CPI so store-heavy
+// carts came out 1.7x low. Since ZM_LOCAL_BASE (fc8758ad) the base is a local: refitted 2026-10-25 to
+// the whole shelf's cart_c on a card of fc8758ad lean carts (board_fps 12 s after load, 77 carts over
+// 0.1 Mc; the FPU twins, stniccc's unpriced disk streaming and the node-finished mandelbrot/raytrace
+// left out): cart side median error 29% (1.06) -> 17%; the ZM_LOCAL_BASE A/B's six carts gave 0.88.
+export const CPI = 0.86;
 export const STORE_DRAIN = 2.26;  // cycles a store, sustained (bench st.sw/st.sb/st.pal 256 KB: posted stores; was 27 before them)
 // CPU cycles per hwBlit beyond the blitter's own time: start + spin, and the FULL D$
 // invalidate fpga/cycles/bblit.c does after every op (128 lines of a 4 KiB D$, and the

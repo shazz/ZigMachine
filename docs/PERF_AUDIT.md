@@ -147,7 +147,24 @@ Known misses: polkadots_f32 still estimates 28 % low (music, also f32-heavy, 6 %
 f32 latency is not refitted on it); mandelbrot/raytrace finish their picture in the node window
 but not on the board at 12 s; stniccc streams its disk (DISK_BLOCK is 0).
 
-**A per-cart CPI miss: branchy byte loops (union_deltaforce, 2026-10-24).** The board measured
+**The memory-base reload, and CPI 0.88 (2026-10-25).** The cart codegen reloaded
+`instance->memory->data` after every wasm store (lw; lw; add before each sw, the loads waiting on the
+posted stores). The ZM_LOCAL_BASE A/B (board_fps, 20 s after load; cart_c without -> with the base
+kept in a local) measured it: leonard_spirit 1.54 -> 0.77 Mc, stniccc 1.12 -> 0.85, ancool 0.41 ->
+0.33, tcb_colorshock 0.58 -> 0.49, union_deltaforce 0.46 -> 0.40, big_demo 0.42 -> 0.27: ~5 cycles a
+store on the store-heavy carts (leonard_spirit 158 K stores a frame, stniccc 53 K). The 2026-10-23 fit
+had folded that into CPI 1.06, so store-heavy carts read low. With the base local (fc8758ad) CPI
+refits to 0.86 on the whole shelf (a card of fc8758ad lean carts, board_fps 12 s after load, 112
+carts; cart_c of the 77 over 0.1 Mc, with the FPU twins, stniccc's unpriced disk streaming and the
+node-finished mandelbrot/raytrace left out): cart side median error 29% at 1.06 -> 17%, p90 ~84%.
+The A/B's six carts alone gave 0.88 (leonard_spirit x0.99 -> est 0.77 Mc). The frame-time stage is
+censored (nearly every cart runs 60 fps) and does not identify FRESCO_PLANE, which stays; the budget's
+COMP_PASS constants are fitted to comp_busy and do not move. The worst cart-side misses are not CPI:
+sysinfo and st_replay (~0 modelled vs 0.57 Mc: ROM/GEM work outside the cart model), dbug (0.29 vs
+2.33, a different phase at 12 s), dyno_paradis3 x2.3 and union_superscroller x1.8 high.
+
+**A per-cart CPI miss: branchy byte loops (union_deltaforce, 2026-10-24).** With the base local
+(above) its x1.7 is ~x1.4: part of the miss was the reload, the rest stays as described here. The board measured
 union_deltaforce's cart at 1.56 Mc (cart_c, 50.8 fps) where the budget said 0.91: x1.7, the same
 factor as on its older code (x0.59 the other way, model 2.3 vs board 3.93 Mc, excluded from the
 2026-10-23 fit). Not the phase (0.8-0.9 Mc in every window 100-1000), not a stale card; the live YM
