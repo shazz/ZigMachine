@@ -213,6 +213,15 @@ What it cannot see: D$ misses (a column walk over a row-major picture), the I$ b
 working-set estimate, DDR contention, BARD (music runs there, not in the cart). stcs before perf/board-slow-carts
 (1 fps on the board) is matched only through the snoop-queue hypothesis above.
 
+Open (2026-10-25): the GEM carts wait about 0.57 Mc inside their frame. gem, sysinfo and st_replay
+read `cart_c` 572-573 K on the board (also on 10-23) whatever they do: the model has 0.39 Mc of ROM
+desktop work for gem and ~0.01 for the other two. Their `swap` column is ~0.61 M where other light
+carts (scroll, north_south) show ~1.23 M, so the time moved from the present wait into the cart's
+frame (fpga/cycles/bmain.c, `HOST_CART_FRAME` + `bdiskapp_frame`): something in the shared GEM path
+blocks, likely the hwBlit BUSY spin or a wait. It costs no fps (all three at 60). It is a wait, not
+work, so it is not priced: the three are left out of the cart-side fits until board
+instrumentation finds the call.
+
 ## In the gate
 
 `apps/perf_audit_test.mjs` plants every pattern in a tiny hand-assembled cart
