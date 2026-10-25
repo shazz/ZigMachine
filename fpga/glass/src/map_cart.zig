@@ -37,6 +37,30 @@ pub const CART_REQ_NAME_MAX: u32 = 48;
 pub const BOOTSEC_SKIP_FROM_TOP: u32 = 0x3E0;
 pub const BOOTSEC_SKIP: u32 = 0x5342_4D5A; // "ZMBS"
 
+// --- KOS's boot words, at window end - KOS_BOOT_FROM_TOP (CPU 0x41FF_FC28) -------------
+// KOS, the KESTREL Operating System (docs/ZIGTOS_BOOT.md): a reset the glass makes (power-on,
+// R, W, the shelf's Enter) writes KOS_BOOT_MAGIC, then flags: KOS_WARM for W, and in bits
+// 23:8 the POST's frames (0: none, glass.cfg post=0 or a key held). The firmware
+// (cycles/bkos.c) reads them once at boot. A load that is no reset (a program run off the
+// disk, back to the desktop, a door's cart) writes neither, so no POST runs, as the browser's
+// swaps show none. Between the boot sector's skip word and the request block.
+pub const KOS_BOOT_FROM_TOP: u32 = 0x3D8;
+pub const KOS_BOOT_MAGIC: u32 = 0x424B_4D5A; // "ZMKB"
+pub const KOS_BOOT_WORDS: u32 = 2;
+pub const KOS_WARM: u32 = 1 << 0;
+pub const KOS_POST_SHIFT: u32 = 8;
+pub const KOS_POST_MASK: u32 = 0xFFFF;
+pub const KOS_POST_FRAMES: u32 = 180; // rom/kos/kos.zig POST_FRAMES: 3 s
+// Drive A's media change while a cart runs (app_drive.zig, docs/ZIGTOS_BOOT.md 4.1): the glass
+// zeroes the disk descriptor, writes the new disk after the running image (or none: eject), the
+// descriptor again, then bumps this word: KOS_MEDIA_TAG | a count in bits 23:0. The firmware
+// (cycles/bdiskapp.c) reads it once a frame past its D-cache line; a new value means the drive
+// changed: it reads the descriptor again, tells the cart (insertDisk) and KOS (kosMediaChange).
+// A load zeroes it, so the firmware starts from the value it finds at boot.
+pub const KOS_MEDIA_FROM_TOP: u32 = 0x3D0;
+pub const KOS_MEDIA_TAG: u32 = 0x4D00_0000;
+pub const KOS_MEDIA_COUNT: u32 = 0x00FF_FFFF;
+
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk
 // hands it the listing). DISK_MAGIC_PROGRAM: the cart is a program GEM launched off

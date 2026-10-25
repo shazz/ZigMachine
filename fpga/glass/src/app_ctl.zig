@@ -57,7 +57,7 @@ fn load(app: *App, file: []const u8, program: ?[]const u8, w: *std.Io.Writer) vo
     if (find(app, file) == null) @import("app_shelf.zig").rescan(app); // copied since start-up?
     const i = find(app, file) orelse return reply(w, "err no disk {s} on the shelf (try `list`)\n", .{file});
     if (program) |name| return runProgram(app, i, name, w);
-    cart.load(app, i);
+    @import("app_drive.zig").insertAndBoot(app, i); // KOS: into drive A and booted, no POST
     const name = app.disks.disks[i].file;
     if (app.current != i) return reply(w, "err {s}: {t}\n", .{ name, app.stats.last_err orelse error.NotLoaded });
     reply(w, "ok {s} running, loaded in {d} ms\n", .{ name, app.stats.last_load_ms });
@@ -71,6 +71,7 @@ fn runProgram(app: *App, i: usize, name: []const u8, w: *std.Io.Writer) void {
         return reply(w, "err {s} {s}: {t}\n", .{ app.disks.disks[i].file, name, err });
     };
     app.current = i;
+    app.running = true;
     app.menu.loaded = i;
     if (app.open) app.setOpen(false);
     reply(w, "ok {s} {s} running, loaded in {d} ms\n", .{ app.disks.disks[i].file, name, app.stats.last_load_ms });
@@ -98,7 +99,7 @@ fn joy(app: *App, bits: u32, w: *std.Io.Writer) void {
 
 fn osd(app: *App, open: bool, w: *std.Io.Writer) void {
     if (open == app.open) return reply(w, "ok the menu is already {s}\n", .{if (open) "open" else "closed"});
-    if (!open and app.current == null) return reply(w, "err no cart to go back to\n", .{});
+    if (!open and !app.running) return reply(w, "err no cart to go back to\n", .{});
     app.setOpen(open);
     reply(w, "ok menu {s}\n", .{if (open) "open" else "closed"});
 }
@@ -107,6 +108,7 @@ fn quit(app: *App, w: *std.Io.Writer) void {
     loader.hold(app.regs) catch |err| return reply(w, "err {t}: the cart CPU did not stop\n", .{err});
     const was = app.current;
     app.current = null;
+    app.running = false;
     app.stats.stop = .quit;
     app.menu.setStatus("cart stopped (control channel)", .{});
     app.setOpen(true);
@@ -123,14 +125,14 @@ pub fn statLine(app: *App, secs: u32) zmstat.Line {
     const shown = app.current orelse app.menu.loaded;
     return .{
         .cart = if (shown) |i| app.disks.disks[i].file else "-",
-        .state = zmstat.state(app.current != null, app.regs.read(map.REG_CART_STATE), app.stats.beats.stillMs(now), &app.stats),
+        .state = zmstat.state(app.running, app.regs.read(map.REG_CART_STATE), app.stats.beats.stillMs(now), &app.stats),
         .secs = secs,
-        .rate = if (app.current != null) app.stats.beats.rate(secs) else null,
-        .snd = if (app.current != null) snd_info.read(app.ddr) else .{},
+        .rate = if (app.running) app.stats.beats.rate(secs) else null,
+        .snd = if (app.running) snd_info.read(app.ddr) else .{},
         .beat = app.regs.read(map.REG_CART_BEAT),
         .trap = app.stats.last_trap,
         .err = app.stats.last_err,
-        .vs = if (app.current != null) vstat.read(app.ddr) else .{},
+        .vs = if (app.running) vstat.read(app.ddr) else .{},
     };
 }
 

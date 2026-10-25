@@ -43,11 +43,15 @@ pub const Options = struct {
     /// The disk's boot sector already ran: a program quitting back to the OS over it
     /// (app_request.zig, map_cart.zig BOOTSEC_SKIP).
     skip_boot_sector: bool = false,
+    /// A reset KOS makes (app_drive.zig): its flags (map_cart.zig KOS_WARM, the POST's frames),
+    /// written as the KOS boot words for the firmware (cycles/bkos.c). null: a load that is no
+    /// reset (a program, back to the desktop, a door's cart): no words, no POST.
+    kos: ?u32 = null,
 };
 
 fn noIdle() void {}
 
-pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0, fw: u32 = 0, disk_at: u32 = 0, disk_bytes: u32 = 0 };
+pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0, fw: u32 = 0, disk_at: u32 = 0, disk_bytes: u32 = 0, disk_from: u32 = 0 };
 
 /// Both OSD bits, which a load or a reset leaves as they are: the window the user sees
 /// is the app's (app_stats.place), and a program run off a disk (app_request.zig) loads
@@ -90,18 +94,33 @@ pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const 
     try checkGlass(regs);
     var p = try planFor(gpa, disk, ddr.bytes(), opt);
     defer p.deinit(gpa);
+    return start(regs, ddr, &p, opt);
+}
+
+/// The KOS boot words (map_cart.zig KOS_BOOT_*), when the load is a reset.
+fn kosWords(ddr: bus.Ddr, opt: Options) void {
+    const flags = opt.kos orelse return;
+    const at = (ddr.bytes() - mc.KOS_BOOT_FROM_TOP) / 4;
+    ddr.words[at + 1] = flags;
+    ddr.words[at] = mc.KOS_BOOT_MAGIC;
+}
+
+/// Steps 4 to 8 for a plan already made (load, or KOS's desktop: app_drive.zig).
+pub fn start(regs: bus.Regs, ddr: bus.Ddr, p: *const Plan, opt: Options) Error!Report {
+    try checkGlass(regs);
     const parts = p.parts();
     try hold(regs);
     ddr.placeParts(&parts);
     if (opt.verify and ddr.verifyParts(&parts) != null) return error.DdrMismatch;
     if (opt.fw_opt) |o| ddr.words[(ddr.bytes() - mc.FW_OPT_FROM_TOP) / 4] = mc.FW_OPT_TAG | (o & mc.FW_OPT_MASK);
     if (opt.skip_boot_sector) ddr.words[(ddr.bytes() - mc.BOOTSEC_SKIP_FROM_TOP) / 4] = mc.BOOTSEC_SKIP;
+    kosWords(ddr, opt);
     regs.write(map.REG_LOAD_BASE, map.DDR_CART_BASE);
     regs.write(map.REG_LOAD_SIZE, p.imageEnd());
     // Keys typed for the previous cart (or the menu) must not reach this one.
     regs.write(map.REG_CTRL, (regs.read(map.REG_CTRL) & OSD_BITS) | map.CTRL_KEY_FLUSH);
     regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) | map.CTRL_RUN);
-    var report = Report{ .image_bytes = @intCast(p.image.len), .packed_bytes = p.packed_bytes, .polls = 0, .disk_at = p.disk_at, .disk_bytes = @intCast(p.disk.len) };
+    var report = Report{ .image_bytes = @intCast(p.image.len), .packed_bytes = p.packed_bytes, .polls = 0, .disk_at = p.disk_at, .disk_bytes = @intCast(p.disk.len), .disk_from = p.disk_from };
     if (opt.wait_boot) try waitBoot(regs, opt, &report);
     return report;
 }
@@ -109,9 +128,10 @@ pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const 
 /// The ST's reset button: the cart CPU restarts over the memory it has, which
 /// nothing here touches. The firmware sees CTRL_WARM at boot (glass_boot.h); a
 /// cold load writes CTRL without it, and so does this once the cart is up.
-pub fn warm(regs: bus.Regs, opt: Options) Error!Report {
+pub fn warm(regs: bus.Regs, ddr: bus.Ddr, opt: Options) Error!Report {
     try checkGlass(regs);
     try hold(regs);
+    kosWords(ddr, opt); // two words of the top 4 KiB the link keeps free: the cart's memory stays
     const osd_bits = regs.read(map.REG_CTRL) & OSD_BITS;
     regs.write(map.REG_CTRL, osd_bits | map.CTRL_WARM | map.CTRL_KEY_FLUSH);
     regs.write(map.REG_CTRL, osd_bits | map.CTRL_WARM | map.CTRL_RUN);

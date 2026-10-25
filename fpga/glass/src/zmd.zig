@@ -43,6 +43,15 @@ pub const Disk = struct {
         return self.image[f.start..][0..f.length];
     }
 
+    /// The disk boots a cart of its own (docs/zmdisk.js parseDisk, host/zmd_dir_fat.h): a v1 boot
+    /// sector summing to $1234, or a v2 wasm sector summing to $1234 whose descriptor names a cart
+    /// (one naming none, sysinfo's, runs and hands over to the OS: a data disk).
+    pub fn bootable(self: Disk) bool {
+        if (self.version == 1) return beSum(self.image[0..BLOCK]) == 0x1234;
+        if (self.image.len < 0x410) return false;
+        return beSum(self.image[0 .. 2 * BLOCK]) == 0x1234 and std.mem.readInt(u32, self.image[0x40C..][0..4], .little) != 0;
+    }
+
     /// The cart's rv32 board image: the FAT file of type ZMD_TYPE_RV32.
     pub fn boardImage(self: Disk) Error![]const u8 {
         for (0..self.file_count) |i| {

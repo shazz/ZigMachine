@@ -73,7 +73,7 @@ const Rig = struct {
         var p = try loader.planAs(gpa, disk, WORDS * 4, magic);
         defer p.deinit(gpa);
         const parts = p.parts();
-        return r.ddr().verifyParts(&parts);
+        return @import("test_rig.zig").verifyNoKos(&r.words, &parts);
     }
 };
 

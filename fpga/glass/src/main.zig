@@ -143,6 +143,8 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     app.clock = nowMs;
     app.stats.start_ms = nowMs();
     app.sd_writable = sdWritable;
+    // KOS's power-on: ZIGGY starts at once over drive A, the OSD closed (app_drive.zig).
+    @import("app_drive.zig").powerOn(&app);
     var inputs = evdev.Inputs{};
     defer inputs.closeAll();
     inputs.extra = ctl_sock.listen(ctl_sock.PATH) catch |err| blk: {

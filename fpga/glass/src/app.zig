@@ -42,7 +42,10 @@ pub const App = struct {
     pad: pad.Pad = .{},
     mouse: mouse.Mouse = .{},
     open: bool = true,
-    current: ?usize = null, // the cart running now
+    current: ?usize = null, // the shelf disk the running cart came from (null: none, or KOS's empty drive)
+    running: bool = false, // a cart runs (KOS's desktop with an empty drive has no `current`)
+    drive: ?usize = null, // KOS's drive A: the shelf disk in it (app_drive.zig), null = empty
+    disk_from: u32 = 0, // where the running cart's window may take a disk (a media change, app_drive.zig)
     held: [HELD_MAX]u32 = undefined,
     n_held: usize = 0,
     opt: loader.Options = .{},
@@ -96,7 +99,8 @@ pub const App = struct {
     pub fn redraw(self: *App) void {
         if (!self.open) return overlay.draw(self);
         self.menu.disks = self.disks.disks;
-        self.menu.fps_x10 = if (self.current != null) self.stats.fps_x10 else null;
+        self.menu.fps_x10 = if (self.running) self.stats.fps_x10 else null;
+        self.menu.drive = self.drive;
         const view = if (self.menu.page == .debug) cart.debugView(self) else @import("page_debug.zig").View{};
         const bview = if (self.menu.page == .budget) budget_page.view(self) else @import("page_budget.zig").View{};
         self.menu.draw(&self.osd, &view, &bview);

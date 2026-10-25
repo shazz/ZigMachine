@@ -70,7 +70,7 @@ pub fn draw(app: *App) void {
     app.osd.put(0, 0, rate, false);
     if (app.bard.len == 0 or app.ticks -% app.bard.at >= BARD_TICKS) {
         // As the debug page: with no cart running the mailbox is the last cart's.
-        const info = if (app.current != null) snd_info.read(app.ddr) else snd_info.Info{};
+        const info = if (app.running) snd_info.read(app.ddr) else snd_info.Info{};
         app.bard.len = bardText(&info, &app.bard.buf).len;
         app.bard.at = app.ticks;
     }

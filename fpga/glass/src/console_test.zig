@@ -72,8 +72,8 @@ test "a reset with no cart, or with its disk gone from the card, says so" {
     defer r.deinit();
     var a = try r.app();
     defer a.deinit();
-    press(&a, KEY_R);
-    try std.testing.expect(has(a.menu.status.?, "no cart to reset"));
+    press(&a, KEY_R); // KOS: an empty drive boots the desktop, which this card lacks
+    try std.testing.expect(has(a.menu.status.?, "no kos/desktop.rv32 on the card"));
     press(&a, KEY_W);
     try std.testing.expect(has(a.menu.status.?, "no cart to reset"));
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN == 0);

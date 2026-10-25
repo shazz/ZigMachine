@@ -121,20 +121,20 @@ test "a warm reset restarts the cart over its memory; a cold load leaves none to
     _ = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{});
     rig.words[100] = 0x1234_5678; // the cart wrote its memory
     rig.glass.push(map.KEY_DOWN | 'x'); // a key typed for the menu
-    const rep = try loader.warm(rig.glass.regs(), .{});
+    const rep = try loader.warm(rig.glass.regs(), rig.ddr(), .{});
     try std.testing.expectEqual(@as(u32, 0x1234_5678), rig.words[100]); // DDR untouched
     try std.testing.expectEqual(@as(u32, 1), rig.glass.warm_boots);
     try std.testing.expectEqual(@as(u32, 0), rig.glass.key_len);
     try std.testing.expectEqual(sim.FW_VERSION, rep.fw);
     try std.testing.expectEqual(map.CTRL_RUN, rig.glass.ctrl); // WARM dropped once up
     rig.glass.marked = false; // as if the cold boot never got as far as marking
-    try std.testing.expectError(error.WarmLost, loader.warm(rig.glass.regs(), .{}));
+    try std.testing.expectError(error.WarmLost, loader.warm(rig.glass.regs(), rig.ddr(), .{}));
     try std.testing.expectEqual(@as(u32, 0), rig.glass.ctrl & (map.CTRL_RUN | map.CTRL_WARM));
 }
 
 test "a CPU that will not stop is never written to" {
     var rig = Rig{ .glass = .{ .stuck = true } };
-    try std.testing.expectError(error.WontStop, loader.warm(rig.glass.regs(), .{}));
+    try std.testing.expectError(error.WontStop, loader.warm(rig.glass.regs(), rig.ddr(), .{}));
     try std.testing.expectEqual(@as(u32, 0), rig.glass.ctrl & map.CTRL_RUN);
 }
 

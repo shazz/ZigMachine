@@ -8,6 +8,7 @@ const zmd = @import("zmd.zig");
 const App = @import("app.zig").App;
 const bus = @import("bus.zig");
 const loader = @import("loader.zig");
+const mc = @import("map_cart.zig");
 
 const gpa = std.testing.allocator;
 const io = std.testing.io;
@@ -46,13 +47,30 @@ pub const Rig = struct {
         var p = try loader.plan(gpa, disk, r.words.len * 4);
         defer p.deinit(gpa);
         const parts = p.parts();
-        return (bus.Ddr{ .words = &r.words }).verifyParts(&parts);
+        return verifyNoKos(&r.words, &parts);
     }
 
     pub fn app(r: *Rig) !App {
         return App.init(gpa, io, r.glass.regs(), .{ .words = &r.words }, r.dir);
     }
 };
+
+/// verifyParts with KOS's words (map_cart.zig: the boot words and the media word after them) left
+/// out: a reset writes them after the window is verified, a media change later (app_drive.zig).
+pub fn verifyNoKos(words: []u32, parts: []const bus.Part) ?usize {
+    const at = (words.len * 4 - mc.KOS_BOOT_FROM_TOP) / 4;
+    comptime std.debug.assert(mc.KOS_MEDIA_FROM_TOP == mc.KOS_BOOT_FROM_TOP - 8);
+    const keep = [3]u32{ words[at], words[at + 1], words[at + 2] };
+    @memset(words[at..][0..3], 0);
+    defer @memcpy(words[at..][0..3], &keep);
+    return (bus.Ddr{ .words = words }).verifyParts(parts);
+}
+
+/// KOS's boot words as a reset left them: the flags, or null when none was written.
+pub fn kos(words: []const u32) ?u32 {
+    const at = (words.len * 4 - mc.KOS_BOOT_FROM_TOP) / 4;
+    return if (words[at] == mc.KOS_BOOT_MAGIC) words[at + 1] else null;
+}
 
 pub fn press(a: *App, code: u16) void {
     a.key(code, 1);

@@ -42,6 +42,7 @@ pub const Plan = struct {
     desc: [map.DISK_DESC_WORDS * 4]u8,
     desc_at: u32,
     packed_bytes: u32,
+    disk_from: u32 = 0, // the first window offset a disk may take: after the image (a lean cart's .bss)
 
     pub fn parts(self: *const Plan) [4]bus.Part {
         return .{
@@ -67,10 +68,25 @@ pub const Plan = struct {
 /// DISK_MAGIC_PROGRAM for a program launched off the disk); `sys` for a lean cart.
 pub fn planAs(gpa: std.mem.Allocator, disk: []const u8, window: usize, magic: u32, sys: ?system.System) Error!Plan {
     const d = try zmd.parse(disk);
-    const board = try d.boardImage();
+    return withImage(gpa, try d.boardImage(), .{ .fat = d }, window, magic, sys);
+}
+
+/// KOS's desktop (app_drive.zig): its board image `desktop` (kos/desktop.rv32), and the disk in
+/// drive A as it is (a data disk carries no board image), or none: then no descriptor either.
+pub fn planDesktop(gpa: std.mem.Allocator, desktop: []const u8, disk: ?[]const u8, window: usize, sys: ?system.System) Error!Plan {
+    if (disk) |b| _ = try zmd.parse(b);
+    return withImage(gpa, desktop, .{ .raw = disk orelse &.{} }, window, map.DISK_MAGIC, sys);
+}
+
+/// Where the shelf disk comes from: a fat disk's (zmd_fat.py undone), or bytes as they are.
+const DiskSource = union(enum) { fat: zmd.Disk, raw: []const u8 };
+
+/// The plan of board image `board` (packed or not) with the disk of `src` (empty: no disk and
+/// no descriptor). The image is checked before the disk, as the loader always did.
+fn withImage(gpa: std.mem.Allocator, board: []const u8, src: DiskSource, window: usize, magic: u32, sys: ?system.System) Error!Plan {
     const image = try unpack(gpa, board, window);
     errdefer gpa.free(image);
-    var p = Plan{ .image = image, .disk = &.{}, .disk_at = 0, .desc = undefined, .desc_at = @intCast(window - map.DISK_DESC_FROM_TOP), .packed_bytes = @intCast(board.len) };
+    var p = Plan{ .image = image, .disk = &.{}, .disk_at = 0, .desc = [_]u8{0} ** (map.DISK_DESC_WORDS * 4), .desc_at = @intCast(window - map.DISK_DESC_FROM_TOP), .packed_bytes = @intCast(board.len) };
     var end: usize = image.len;
     if (system.isCart(image)) {
         const c = try system.check(sys, image);
@@ -79,8 +95,13 @@ pub fn planAs(gpa: std.mem.Allocator, disk: []const u8, window: usize, magic: u3
         p.image_at = mc.CART_IMG_AT;
         end = c.bss_end;
     }
-    p.disk = try d.shelfDisk(gpa);
+    p.disk_from = @intCast(std.mem.alignForward(usize, end, map.DISK_ALIGN));
+    p.disk = switch (src) {
+        .fat => |d| try d.shelfDisk(gpa),
+        .raw => |b| try gpa.dupe(u8, b),
+    };
     errdefer gpa.free(p.disk);
+    if (p.disk.len == 0) return p;
     p.disk_at = try diskAt(end, p.disk.len, window);
     const size: u32 = @intCast(p.disk.len);
     const words = [map.DISK_DESC_WORDS]u32{ magic, p.disk_at, size, ~(magic ^ p.disk_at ^ size) };

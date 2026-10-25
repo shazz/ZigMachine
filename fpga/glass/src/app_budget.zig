@@ -10,13 +10,13 @@ const page_budget = @import("page_budget.zig");
 /// One look at the probe (main.zig's 100 ms tick). Nothing while no cart runs: the block is
 /// then the last cart's, and the next cart starts from an empty history.
 pub fn sample(app: *App) void {
-    if (app.current == null) return app.frame_budget.reset();
+    if (!app.running) return app.frame_budget.reset();
     const info = vstat.read(app.ddr);
     if (budget.sample(&info)) |s| app.frame_budget.push(s);
 }
 
 pub fn view(app: *const App) page_budget.View {
-    const r = if (app.current != null) app.stats.beats.rate(1) else null;
+    const r = if (app.running) app.stats.beats.rate(1) else null;
     return .{
         .avg = app.frame_budget.avg(),
         .peak = app.frame_budget.peak(),

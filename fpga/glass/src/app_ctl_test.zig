@@ -49,7 +49,7 @@ test "load by file name runs the cart and closes the menu; a wrong name is an er
     defer a.deinit();
     try expectStarts(run(&a, "list"), "a.zmd\tFat Disk\nb.zmd\tWasm Only\nok 2 disks");
     try expectStarts(run(&a, "load nope.zmd"), "err no disk nope.zmd");
-    try expectStarts(run(&a, "load b.zmd"), "err b.zmd: NoBoardImage");
+    try expectStarts(run(&a, "load b.zmd"), "err b.zmd: NoDesktop"); // a data disk: KOS's desktop over it
     try expectStarts(run(&a, "load A.ZMD"), "ok a.zmd running");
     try std.testing.expectEqual(@as(?usize, 0), a.current);
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD == 0);

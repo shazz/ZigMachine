@@ -115,7 +115,7 @@ pub fn runProgram(app: *App, i: usize, name: []const u8) !void {
     const t0 = app.clock();
     const rep = loader.load(app.gpa, app.regs, app.ddr, disk, opt) catch |err| {
         cart.failed(app, i, err);
-        if (app.current == null) app.setOpen(true);
+        if (!app.running) app.setOpen(true);
         return err;
     };
     app.stats.loaded(app.clock() - t0, rep.fw);

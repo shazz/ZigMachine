@@ -20,7 +20,9 @@ pub const DETAIL = 11;
 const DESC_ROWS = 3;
 const NAME_W = osd.COLS - 1; // column 0 is the loaded mark
 
-pub const Key = enum { none, close, load, console, cold, warm };
+pub const Key = enum { none, close, load, insert, eject, console, cold, warm };
+/// The marks in column 0: 'A' the disk in drive A, '*' the disk in the window (when not in A).
+pub const Marks = struct { loaded: ?usize = null, drive: ?usize = null };
 
 pub const State = struct {
     cursor: usize = 0,
@@ -42,6 +44,8 @@ pub const State = struct {
             map.KEY_ARROW_RIGHT => return .console,
             map.KEY_ESCAPE => return .close,
             map.KEY_ENTER, ' ' => return if (n > 0) .load else .none,
+            'i', 'I' => return if (n > 0) .insert else .none,
+            'e', 'E' => return .eject,
             'r', 'R' => return .cold,
             'w', 'W' => return .warm,
             else => return .none,
@@ -53,7 +57,7 @@ pub const State = struct {
     }
 
     /// `fps_x10`: the running cart's frame rate, shown in the title instead of SHELF.
-    pub fn draw(self: *const State, o: *osd.Osd, disks: []const shelf.Disk, loaded: ?usize, fps_x10: ?u32) void {
+    pub fn draw(self: *const State, o: *osd.Osd, disks: []const shelf.Disk, marks: Marks, fps_x10: ?u32) void {
         var bar: [osd.COLS]u8 = undefined;
         const at = if (disks.len == 0) 0 else self.cursor + 1;
         const title = if (fps_x10) |f|
@@ -67,15 +71,16 @@ pub const State = struct {
         while (i < disks.len and row < FIRST + SHOWN) : ({
             i += 1;
             row += 1;
-        }) self.drawRow(o, row, disks[i].title, i, loaded);
+        }) self.drawRow(o, row, disks[i].title, i, marks);
         o.line(RULE, "-" ** osd.COLS, false);
         if (disks.len > 0) details(o, disks[self.cursor]);
     }
 
-    fn drawRow(self: *const State, o: *osd.Osd, row: u32, title: []const u8, i: usize, loaded: ?usize) void {
+    fn drawRow(self: *const State, o: *osd.Osd, row: u32, title: []const u8, i: usize, marks: Marks) void {
         var cell = [_]u8{' '} ** osd.COLS;
         var cut: [osd.COLS]u8 = undefined;
-        if (loaded == i) cell[0] = '*';
+        if (marks.loaded == i) cell[0] = '*';
+        if (marks.drive == i) cell[0] = 'A';
         const name = if (i == self.cursor) text.marquee(title, NAME_W, self.phase) else text.fit(&cut, title, NAME_W);
         @memcpy(cell[1..][0..name.len], name);
         o.line(row, &cell, i == self.cursor);

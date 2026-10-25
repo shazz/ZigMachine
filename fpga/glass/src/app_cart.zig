@@ -20,17 +20,20 @@ const App = @import("app.zig").App;
 const map_cart = @import("map_cart.zig");
 const request = @import("app_request.zig");
 const system = @import("system.zig");
+const drive = @import("app_drive.zig");
 
 pub fn act(app: *App, action: menu.Action) void {
     switch (action) {
         .none => {},
-        .close => if (app.current != null) app.setOpen(false),
+        .close => if (app.running) app.setOpen(false),
         .load => |i| {
             app.prev_cart = null; // picked in the menu: no cart to go back to
-            load(app, i);
+            drive.insertAndReset(app, i);
         },
-        .cold => if (app.menu.loaded) |i| load(app, i) else app.menu.setStatus("no cart to reset", .{}),
-        .warm => warm(app),
+        .insert => |i| drive.insert(app, i),
+        .eject => drive.eject(app),
+        .cold => drive.reset(app, false),
+        .warm => drive.reset(app, true),
         .settings => applySettings(app),
         .save => saveSettings(app),
     }
@@ -55,18 +58,19 @@ pub fn load(app: *App, i: usize) void {
     };
     app.stats.loaded(app.clock() - t0, rep.fw);
     app.current = i;
+    app.running = true;
+    app.disk_from = rep.disk_from;
     app.menu.loaded = i;
     app.menu.setStatus("{s} running", .{app.disks.titles[i]});
     app.setOpen(false);
 }
 
-/// REQ_BACK_TO_OS: disk `i` again, its boot sector not run a second time (map_cart.zig
-/// BOOTSEC_SKIP): the browser's req 4 brings GEM back with the disk still in the drive.
+/// REQ_BACK_TO_OS: the desktop over drive A again (KOS's boot without a reset: no POST), the
+/// disk's boot sector not run a second time (map_cart.zig BOOTSEC_SKIP): the browser's req 4
+/// brings GEM back with the disk still in the drive. `i`: the disk the program ran off.
 pub fn backToOs(app: *App, i: usize) void {
-    const keep = app.opt;
-    defer app.opt = keep;
-    app.opt.skip_boot_sector = true;
-    load(app, i);
+    app.drive = i;
+    drive.boot(app, null, true);
 }
 
 // A disk refused before the CPU was stopped leaves the old cart running and in
@@ -75,9 +79,13 @@ pub fn backToOs(app: *App, i: usize) void {
 pub fn failed(app: *App, i: usize, err: anyerror) void {
     app.stats.failed(err);
     switch (err) {
-        error.WontStop => app.current = null,
+        error.WontStop => {
+            app.current = null;
+            app.running = false;
+        },
         error.DdrMismatch, error.CartTrapped, error.CartSilent, error.SystemRefused, error.NoCart => {
             app.current = null;
+            app.running = false;
             app.menu.loaded = i;
         },
         else => {},
@@ -93,11 +101,15 @@ fn loadDisk(app: *App, i: usize) !loader.Report {
     return rep;
 }
 
-/// The ST's reset button: only for a cart that is in the window now.
-fn warm(app: *App) void {
-    const i = app.menu.loaded orelse return app.menu.setStatus("no cart to reset", .{});
-    const rep = loader.warm(app.regs, app.opt) catch |err| {
+/// The ST's reset button: only for a cart that is in the window now; `kos`: KOS's boot flags
+/// (app_drive.zig), the POST included.
+pub fn warmReset(app: *App, kos: u32) void {
+    if (!app.running and app.menu.loaded == null) return app.menu.setStatus("no cart to reset", .{});
+    var opt = app.opt;
+    opt.kos = kos;
+    const rep = loader.warm(app.regs, app.ddr, opt) catch |err| {
         app.current = null;
+        app.running = false;
         app.stats.failed(err);
         app.stats.last_trap = if (err == error.WarmLost) map.TRAP_WARM_LOST else app.stats.last_trap;
         if (err == error.WarmLost) return app.menu.setStatus("warm reset: memory lost, use R", .{});
@@ -105,15 +117,16 @@ fn warm(app: *App) void {
         return std.log.warn("warm reset: {t}", .{err});
     };
     app.stats.fw = rep.fw;
-    app.current = i;
-    app.menu.setStatus("{s} warm reset", .{app.disks.titles[i]});
+    app.current = app.menu.loaded;
+    app.running = true;
+    app.menu.setStatus("{s} warm reset", .{if (app.menu.loaded) |i| app.disks.titles[i] else "desktop"});
     app.setOpen(false);
 }
 
 /// Called a few times a second: a cart that trapped brings the menu back; a cart asking
 /// for a cart swap gets it (app_request.zig).
 pub fn watch(app: *App) void {
-    if (app.current == null) return;
+    if (!app.running) return;
     app.stats.sample(app.clock(), app.regs.read(map.REG_CART_BEAT));
     const state = app.regs.read(map.REG_CART_STATE);
     if (state & map.CART_STATE_MASK == map_cart.CART_REQUEST) return request.poll(app, state);
@@ -125,6 +138,7 @@ pub fn watch(app: *App) void {
     app.stats.stop = .trapped;
     app.menu.setStatus("cart trapped (code {d})", .{state >> map.CART_ARG_SHIFT});
     app.current = null;
+    app.running = false;
     app.setOpen(true);
 }
 
@@ -169,7 +183,7 @@ pub fn debugView(app: *App) page_debug.View {
         .git = build_info.git,
         .pl_id = r.read(map.REG_ID),
         .pl_version = r.read(map.REG_VERSION),
-        .fw = if (app.current != null) app.stats.fw else null,
+        .fw = if (app.running) app.stats.fw else null,
         .cart_state = r.read(map.REG_CART_STATE),
         .beat = r.read(map.REG_CART_BEAT),
         .fps_x10 = app.stats.fps_x10,
@@ -182,6 +196,6 @@ pub fn debugView(app: *App) page_debug.View {
         .board = board_info.read(app.io, app.sys_root),
         .pad = app.pad_name[0..app.pad_name_len],
         .inputs = app.inputs,
-        .snd = if (app.current != null) snd_info.read(app.ddr) else .{},
+        .snd = if (app.running) snd_info.read(app.ddr) else .{},
     };
 }

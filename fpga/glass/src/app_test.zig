@@ -48,7 +48,7 @@ test "keys reach the cart only while the OSD is closed, and are released when it
     try std.testing.expectEqual(@as(?u32, null), r.glass.pop());
 }
 
-test "a disk without a board image says so and nothing runs" {
+test "a data disk with no desktop on the card says so and nothing runs" {
     const r = try Rig.init();
     defer r.deinit();
     var a = try r.app();
@@ -57,7 +57,7 @@ test "a disk without a board image says so and nothing runs" {
     press(&a, keymap.KEY_ENTER);
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN == 0);
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD != 0);
-    try std.testing.expect(std.mem.indexOf(u8, a.menu.status.?, "NoBoardImage") != null);
+    try std.testing.expect(std.mem.indexOf(u8, a.menu.status.?, "no kos/desktop.rv32 on the card") != null);
     a.key(keymap.KEY_ESC, 1); // with no cart to go back to, the menu stays
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD != 0);
 }

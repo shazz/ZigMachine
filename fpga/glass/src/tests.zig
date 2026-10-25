@@ -24,6 +24,7 @@ test {
     _ = @import("devmem.zig");
     _ = @import("app_test.zig");
     _ = @import("app_request_test.zig");
+    _ = @import("app_drive_test.zig");
     _ = @import("app_stats_test.zig");
     _ = @import("budget_test.zig");
     _ = @import("app_shelf_test.zig");

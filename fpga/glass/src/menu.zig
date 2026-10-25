@@ -18,10 +18,11 @@ const page_budget = @import("page_budget.zig");
 
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
-pub const Action = union(enum) { none, close, load: usize, cold, warm, settings, save };
+/// `load`: Enter, insert + reset; `insert` / `eject`: drive A without a reset (app_drive.zig).
+pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, cold, warm, settings, save };
 pub const Page = enum { shelf, console, debug, budget };
 
-pub const HINT = "ENTER load  > console  F12 close";
+pub const HINT = "ENTER boot  I/E disk  > console";
 const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > budget       Esc back", "Shift+F11 close  < debug  Esc" };
 
 pub const Menu = struct {
@@ -31,6 +32,7 @@ pub const Menu = struct {
     console: page_console.State = .{},
     settings: config.Settings = .{},
     loaded: ?usize = null, // the disk in the cart window, marked '*'
+    drive: ?usize = null, // the disk in KOS's drive A, marked 'A' (app_drive.zig)
     fps_x10: ?u32 = null, // the running cart's frame rate: the shelf's title shows it
     status: ?[]const u8 = null, // null: the page's own hint
     status_buf: [osd.COLS]u8 = undefined,
@@ -52,6 +54,8 @@ pub const Menu = struct {
             .none => .none,
             .close => .close,
             .load => .{ .load = self.list.cursor },
+            .insert => .{ .insert = self.list.cursor },
+            .eject => .eject,
             .console => self.go(.console),
             .cold => .cold,
             .warm => .warm,
@@ -102,7 +106,7 @@ pub const Menu = struct {
     pub fn draw(self: *const Menu, o: *osd.Osd, view: *const page_debug.View, bview: *const page_budget.View) void {
         o.clear();
         switch (self.page) {
-            .shelf => self.list.draw(o, self.disks, self.loaded, self.fps_x10),
+            .shelf => self.list.draw(o, self.disks, .{ .loaded = self.loaded, .drive = self.drive }, self.fps_x10),
             .console => self.console.draw(o, self.settings),
             .debug => page_debug.draw(o, view),
             .budget => page_budget.draw(o, bview),
