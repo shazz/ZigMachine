@@ -55,6 +55,7 @@ const Scroller = @import("scroller.zig").Scroller;
 const Credits = @import("credits.zig").Credits;
 const sq = @import("dragonball_squash.zig");
 const split = @import("p1_split.zig");
+const WorldRing = @import("world_ring.zig").Ring;
 
 pub const Demo = struct {
     px: Parallax5 = undefined,
@@ -62,6 +63,7 @@ pub const Demo = struct {
     balls: Dragonballs = .{},
     scroller: Scroller = .{},
     credits: Credits = .{},
+    ring: WorldRing = .{}, // map rows 3..7 (plane rows 83..163), on plane 2, never enabled
     pos: f32 = 0, // world scroll in tiles
     speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
     frame: u32 = 0,
@@ -92,6 +94,7 @@ pub const Demo = struct {
         self.balls.init(zigos, BOTTOM_RGB); // dragonballs on plane 0, over the bottom band
         self.credits.init(zigos); // credits pages on plane 1 (top, faded)
         self.scroller.init(zigos); // scrolltext on plane 1, under the split
+        self.ring.init(&zigos.lfbs[2]);
         self.px = .{ .layers = .{
             .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 },
             .{ .raw = layer_b2, .w = 384, .h = 16, .y = 179, .speed = 7 },
@@ -125,9 +128,10 @@ pub const Demo = struct {
         _ = dt;
         const p0: *LogicalFB = &zigos.lfbs[0];
         // Index 0 = sky, recoloured per scanline by the HBL. Rows 0..34 are never drawn
-        // on and rows 163.. are covered whole by the floor, the parallax and the bottom
-        // band, so after the first frame only the rows between are erased (a CHISEL fill).
-        if (self.fresh) gpu.clear(p0, 0) else gpu.fill(p0, 0, CLOUDS_END, @intCast(p0.fb_w), FLOOR_TOP - CLOUDS_END, 0);
+        // on, the clouds repaint 35..82 whole, rows 83..162 are copied whole out of the
+        // world ring (world_ring.zig: the cells over 0) and rows 163.. are covered whole
+        // by the floor, the parallax and the bottom band: only the first frame clears.
+        if (self.fresh) gpu.clear(p0, 0);
         wd.parallax(&self.px, p0, @intCast(PW)); // CHISEL strips (zg.parallax's CPU copies were a megacycle)
         // Ground: floorback is a 16px pink strip (behind world row 8); the
         // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
@@ -136,7 +140,7 @@ pub const Demo = struct {
         fill(p0, FLOOR_TOP, 179, FLOOR);
         fill(p0, BOTTOM_TOP, @intCast(PH), BOTTOM);
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
-        wd.world(p0, self.pos); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
+        wd.world(p0, self.pos, &self.ring); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
         self.balls.draw(zigos); // dragonballs on plane 0, last
         split.erase(&zigos.lfbs[1], self.fresh);
         self.fresh = false;
@@ -175,4 +179,6 @@ pub const Demo = struct {
 
 comptime { // the cloud strips (Demo.init) cover WORLD_TOP..CLOUDS_END, one after the other
     if (WORLD_TOP + 3 * 16 != CLOUDS_END) @compileError("the cloud strips no longer tile WORLD_TOP..CLOUDS_END");
+    const rows = @import("world_ring.zig");
+    if (rows.TOP != CLOUDS_END or rows.TOP + (rows.ROW1 - rows.ROW0) * 16 != FLOOR_TOP) @compileError("the world ring no longer covers CLOUDS_END..FLOOR_TOP");
 }

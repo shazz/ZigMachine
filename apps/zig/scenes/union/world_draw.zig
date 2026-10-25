@@ -13,6 +13,7 @@ const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 const gpu = @import("../union_common/gpu.zig");
 const cells = @import("world_cells.zig");
+const ring = @import("world_ring.zig"); // map rows 3..7: one opaque copy out of a ring
 
 const DST_X: i16 = 8; // tilemap.Layer.dst_x
 const VIS_COLS: usize = 25;
@@ -35,12 +36,15 @@ pub fn parallax(px: anytype, fb: *LogicalFB, dst_w: u16) void {
     }
 }
 
-/// The tile world at `pos_tiles` (clouds, animated rows and world in one pass).
-pub fn world(fb: *LogicalFB, pos_tiles: f32) void {
+/// The tile world at `pos_tiles` (clouds, animated rows and world in one pass). Map rows
+/// ring.ROW0..ring.ROW1 come from `rows`, which also stands for their erase to 0.
+pub fn world(fb: *LogicalFB, pos_tiles: f32, rows: *ring.Ring) void {
     const abs: usize = @intFromFloat(pos_tiles);
     const frac: f32 = pos_tiles - @floor(pos_tiles);
     const sub: i16 = @intFromFloat(frac * 16.0);
+    rows.draw(fb, abs, @intCast(sub));
     for (0..cells.ROWS) |r| {
+        if (r >= ring.ROW0 and r < ring.ROW1) continue;
         const y: i32 = cells.TOP + @as(i32, @intCast(r)) * 16;
         for (0..VIS_COLS) |vc| {
             const id = cells.idAt(r, vc + abs);
