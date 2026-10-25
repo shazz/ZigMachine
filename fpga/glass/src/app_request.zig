@@ -119,6 +119,7 @@ pub fn runProgram(app: *App, i: usize, name: []const u8) !void {
         return err;
     };
     app.stats.loaded(app.clock() - t0, rep.fw);
+    app.disk_from = rep.disk_from; // the program's own image end: a media change goes after it
     app.menu.setStatus("{s} running", .{name});
     std.log.info("{s}: {s} off the disk, {d} bytes", .{ app.disks.disks[i].file, name, rep.image_bytes });
 }

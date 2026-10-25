@@ -154,3 +154,28 @@ test "W writes the warm flag over the running cart's memory" {
     try std.testing.expectEqual(@as(?u32, mc.KOS_WARM | POST), rig.kos(&r.words));
     try std.testing.expect(a.running and !a.open);
 }
+
+test "a media change under a program goes after the program's image, not the desktop's" {
+    const r = try card(true);
+    defer r.deinit();
+    const big = try gpa.alloc(u8, 9000); // the program's image: past the desktop's first 4 KiB
+    defer gpa.free(big);
+    @memset(big, 0x5A);
+    const packed_big = try zx0.pack(gpa, big, .{});
+    defer gpa.free(packed_big);
+    const files = .{ .{ "BOOT.WSM", map.ZMD_TYPE_WASM, "\x00asm" }, .{ "CART.RV32", map.ZMD_TYPE_RV32, packed_big } };
+    const prog = try zmd.testDisk(gpa, "data disk", &files);
+    defer gpa.free(prog);
+    try r.tmp.dir.createDirPath(io, "progs/b");
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "progs/b/BOOT.WSM.zmd", .data = prog });
+    var a = try powered(r, "drive_a=b.zmd\n"); // the desktop over b.zmd
+    defer a.deinit();
+    try @import("app_request.zig").runProgram(&a, 1, "BOOT.WSM");
+    try std.testing.expectEqual(@as(u32, 12288), a.disk_from); // 9000 bytes, 4 KiB-aligned
+    rig.press(&a, keymap.OSD_HOTKEY);
+    rig.press(&a, keymap.KEY_DOWN);
+    rig.press(&a, KEY_I);
+    const desc = (r.words.len * 4 - map.DISK_DESC_FROM_TOP) / 4;
+    try std.testing.expectEqual(map.DISK_MAGIC, r.words[desc]);
+    try std.testing.expectEqual(a.disk_from, r.words[desc + 1]);
+}
