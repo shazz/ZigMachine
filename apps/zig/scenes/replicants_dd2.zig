@@ -158,7 +158,9 @@ const SCROLL_TEXT =
 // --------------------------------------------------------------------------
 const screen_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps5/screen_pal.dat"));
 const logo_b = @embedFile("../assets/screens/reps5/logo.raw");
-const font_b = @embedFile("../assets/screens/reps5/font.raw");
+// align(4): fillStrip copies 12-byte glyph rows as u64 + u32, and an @embedFile
+// is align 1 (a misaligned access traps on the board: 216 a frame).
+const font_b: [NB_GLYPHS * GLYPH_H * GLYPH_W]u8 align(4) = @embedFile("../assets/screens/reps5/font.raw").*;
 // The snake's fill: one palette index per screen row (see the header note).
 const gradient_row = @embedFile("../assets/screens/reps5/gradient_idx.dat");
 
@@ -224,7 +226,7 @@ fn cosF(x: f32) f32 {
 
 pub const Demo = struct {
     // the vertical scroll strip, as palette indices
-    strip: [STRIP_H][STRIP_W]u8,
+    strip: [STRIP_H][STRIP_W]u8 align(4), // rows 12 apart: u32-aligned copies
     // which character sits at the top of the strip, and how far into it
     top_char: usize,
     top_row: usize,
