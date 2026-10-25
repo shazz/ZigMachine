@@ -41,9 +41,10 @@
 //
 // All of it is ONE plane. Every enabled plane costs the browser a full-screen
 // RGBA copy and a composited layer per frame, which is what held earlier
-// three-plane ports to 20fps. Each frame therefore restores frame.raw and draws
-// the glyphs and the logo window over it, and one copper sets both per-line
-// entries. This works because the frame's reds are the mask's reds, so a single
+// three-plane ports to 20fps. frame.raw is drawn ONCE (init); each frame then
+// restores from it only what moved -- the glyph band and the rows the logo window
+// covered last frame -- and draws the glyphs and the window again. One copper sets
+// both per-line entries. This works because the frame's reds are the mask's reds, so a single
 // 8-entry palette holds everything (checked at comptime below).
 // --------------------------------------------------------------------------
 
@@ -58,7 +59,6 @@ const assert = std.debug.assert;
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
-const blit = zg.blit;
 const copper = zg.copper;
 
 // --------------------------------------------------------------------------
@@ -245,6 +245,19 @@ const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 align(8) = blk: { // aligned like
     break :blk f;
 };
 
+// Where render() redraws over the frame each frame, 8-aligned so the copies stay
+// word-wide: the glyph band (composed whole, no restore) and the logo's columns
+// under any sine shift (restored from frame_px). They share no row, so their
+// order is free.
+const BAND_Y: usize = SCROLL_Y_ST + TEXT_Y_ST;
+const BAND_X: usize = SCROLL_X_ST;
+const LOGO_X0: usize = LOGO_X_ST - SIN_AMP / 2;
+const LOGO_X1: usize = LOGO_X_ST + SIN_AMP / 2 + LOGO_W;
+comptime {
+    assert(BAND_X % 8 == 0 and MASK_W % 8 == 0 and LOGO_X0 % 8 == 0 and LOGO_X1 % 8 == 0);
+    assert(LOGO_Y_ST + LOGO_H <= BAND_Y); // the window never reaches the band
+}
+
 comptime {
     // the tube lines: 11 top + 11 middle + 34 behind the band + 8 bottom
     var n: usize = 0;
@@ -268,15 +281,23 @@ const mask_remap: [256]u8 = blk: {
 };
 
 /// fontmask.raw already in palette indices: the 'source-atop' colouring image.
-const fontmask_ink: [MASK_W * MASK_H]u8 = blk: {
+const fontmask_ink: [MASK_W * MASK_H]u8 align(4) = blk: { // read a word at a time by the band
     @setEvalBranchQuota(100_000);
     var out: [MASK_W * MASK_H]u8 = undefined;
     for (fontmask_b, &out) |ti, *o| o.* = mask_remap[ti];
     break :blk out;
 };
 
-const font_img = blit.Image.init(font_b, FONT_COLS * GLYPH);
-const mask_ink = blit.Ink{ .pattern = .{ .img = blit.Image.init(&fontmask_ink, MASK_W), .ox = 0, .oy = 0 } };
+/// The glyph band, composed word by word over the frame (replicants_garfield_band.zig).
+const band = @import("replicants_garfield_band.zig").Band(.{
+    .glyph = GLYPH,
+    .font_cols = FONT_COLS,
+    .first = FONT_FIRST,
+    .w = MASK_W,
+    .mask_y = TEXT_Y_ST,
+    .stride = WIDTH,
+    .x_frac = 2, // the ring's x is in quarter ST pixels
+}, font_b, FONT_COLS * FONT_ROWS);
 
 // --------------------------------------------------------------------------
 // The logo as horizontal ink runs, built at comptime: a window row becomes a
@@ -313,6 +334,9 @@ pub const Demo = struct {
     bar_drawn: [4]i32,
     grad_pos: i32,
     grad_drawn: i32,
+    logo_first: usize, // the rows drawLogoWindow drew last frame: [first, end)
+    logo_end: usize,
+    blitter: zg.Blitter,
     ring: zg.scrollring.Ring(i32, SCROLL_LETTERS), // scroll canvas x, quarter ST pixels
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -326,6 +350,10 @@ pub const Demo = struct {
         self.bar_drawn = BAR_START;
         self.grad_pos = 0;
         self.grad_drawn = 0;
+        self.logo_first = 0;
+        self.logo_end = 0;
+        self.blitter = .{};
+        self.blitter.init();
         self.ring = zg.scrollring.Ring(i32, SCROLL_LETTERS).init(SCROLL_TEXT, SCROLL_START_Q, GLYPH_Q);
 
         zg.requestSong(MUSIC);
@@ -333,7 +361,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
         fb.setPalette(palette);
-        @memcpy(fb.fb[0..frame_px.len], &frame_px);
+        @memcpy(fb.fb[0..frame_px.len], &frame_px); // the only full draw
         // seeds every line with the palette's own black bars / logo ink
         copper.install(fb, &.{ RASTER_INK, LOGO_INK }, &copper_tables, .{});
         // The plane is 320 wide, so the border is the MACHINE background: on an
@@ -382,10 +410,21 @@ pub const Demo = struct {
         buildRasterLines(&border_table, self.bar_pos);
         self.buildInkLines(copper.visible(fb, INK_SLOT));
 
-        // paint order: bars and tubes (index 0) + frame, glyphs, logo
-        @memcpy(fb.fb[0..frame_px.len], &frame_px);
-        self.drawScroller(fb);
+        // paint order: bars and tubes (index 0) + frame, glyphs, logo. The frame
+        // stays in the plane from init: only what moved is redrawn (see BAND_Y).
+        const at = BAND_Y * WIDTH + BAND_X;
+        band.draw(@alignCast(fb.fb + at), frame_px[at..].ptr, &fontmask_ink, &self.ring.x, &self.ring.c);
+        self.restoreLogoRows(fb);
         self.drawLogoWindow(fb);
+    }
+
+    /// The rows the logo window covered last frame, back to frame_px: one CHISEL
+    /// copy from cart RAM (~9 Kc for 288x29, a third of the CPU's word copy).
+    fn restoreLogoRows(self: *Demo, fb: *LogicalFB) void {
+        const h = self.logo_end - self.logo_first;
+        if (h == 0) return;
+        const y: u16 = @intCast(self.logo_first);
+        self.blitter.blitImage(fb, LOGO_X0, @intCast(y), &frame_px, WIDTH, LOGO_X0, y, LOGO_X1 - LOGO_X0, @intCast(h), null);
     }
 
     /// Paint colour 0's whole table, borders included (they stay black): the
@@ -423,8 +462,9 @@ pub const Demo = struct {
         // the window clipped to the logo; both ends are >= LOGO_Y_ST, so non-negative
         const first = @max(top, LOGO_Y_ST);
         const end = @min(top + LOGO_WINDOW_ST, LOGO_Y_ST + LOGO_H, HEIGHT);
-        if (end <= first) return;
-        for (@as(usize, @intCast(first))..@as(usize, @intCast(end))) |y| {
+        self.logo_first = @intCast(first);
+        self.logo_end = @intCast(@max(first, end));
+        for (self.logo_first..self.logo_end) |y| {
             const s = y - LOGO_Y_ST;
             // fx.sinx: source row i (640-space, = 2*s) shifted by sin(phase + i*0.06)*20
             const a: u32 = @bitCast(self.sin_drawn + @as(i32, @intCast(2 * s)));
@@ -434,22 +474,6 @@ pub const Demo = struct {
             for (logo.row(s)) |span| {
                 fb.drawScanline(@intCast(x + span.x0), @intCast(x + span.x1), @intCast(y), LOGO_INK);
             }
-        }
-    }
-
-    /// Each 16x16 glyph takes fontsMask3's colour at the same scroll-canvas
-    /// pixel ('source-atop'), clipped to the mask, which is also the hole
-    /// backgroundMask leaves open.
-    fn drawScroller(self: *Demo, fb: *LogicalFB) void {
-        const hole = blit.Dst.plane(fb).window(SCROLL_X_ST, SCROLL_Y_ST, MASK_W, MASK_H);
-        // the ring's array order is rotated (unlike the old head model, where
-        // index order was left-to-right), so every letter is offered to blit,
-        // which clips out anything past the mask on its own — no early exit.
-        for (self.ring.x, self.ring.c) |q, c| {
-            const gx = @divFloor(q, 4); // ST x within the scroll canvas
-            const nb: usize = c - FONT_FIRST;
-            const cell = blit.Rect{ .x = (nb % FONT_COLS) * GLYPH, .y = (nb / FONT_COLS) * GLYPH, .w = GLYPH, .h = GLYPH };
-            blit.blit(hole, font_img, cell, gx, TEXT_Y_ST, 0, mask_ink);
         }
     }
 };

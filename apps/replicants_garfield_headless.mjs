@@ -15,6 +15,13 @@
 // edge to edge, the moving bars reach the border, and the top and bottom borders
 // stay black. --break noclear skips hwClear: the border is never painted, and
 // the checks must fail.
+//
+// The cart draws its frame ONCE and then redraws only what moves (the glyph
+// band, the logo window's rows), so plane 0 is also checked against the static
+// frame: outside the band, every pixel that differs from it must lie in ONE run
+// of at most 29 logo rows (the window) between the logo's columns. A missed
+// restore leaves a stale row behind the window and fails. The check proves
+// itself at the end: one pixel poked far from the window must be reported.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -71,6 +78,11 @@ const { memory, machine, demo } = await boot("docs/demo-replicants_garfield.wasm
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const pfb = () => new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
 const X0 = 80, Y0 = 40, VW = 640, VH = 200; // the window in the 800x280 raster
+const VIDEO = machine.hwVideoBase();
+const plane0 = () => new Uint8Array(memory.buffer, VIDEO + new DataView(memory.buffer).getUint32(VIDEO + 0x44, true), 320 * 200); // REG_FB_BASE[0]
+const staticFrame = await framePx();
+const LOGO_ROWS = [8, 171], LOGO_COLS = [24, 312], WINDOW = 29; // ST rows/columns the logo window can cover
+const BAND = { y0: 171, y1: 187, x0: 16, x1: 304 }; // the glyph band, composed whole every frame
 let frames = 0;
 
 // one host frame: hwClear (global HBL -> border), the cart, its plane
@@ -111,10 +123,42 @@ function checkFrame() {
     }
 }
 
+// frame.raw as the cart's frame_px: tube rows go to the raster (index 0); in the
+// octagon band (158-191) only the edge runs of the tube colour do
+async function framePx() {
+    const f = new Uint8Array(await readFile("apps/zig/assets/screens/replicants_garfield/frame.raw"));
+    for (let y = 0; y < 200; y++) {
+        const row = f.subarray(y * 320, y * 320 + 320);
+        if (y >= 158 && y <= 191) {
+            for (let x = 0, e = row[0]; x < 320 && row[x] === e; x++) row[x] = 0;
+            for (let x = 319, e = row[319]; x >= 0 && row[x] === e; x--) row[x] = 0;
+        } else if (row[0] !== 0 && row.every((p) => p === row[0])) row.fill(0);
+    }
+    return f;
+}
+
+// plane 0 against the static frame: what differs must be the band or the window
+function checkPlane(errs) {
+    const p = plane0();
+    let lo = 200, hi = -1;
+    for (let y = 0; y < 200; y++)
+        for (let x = 0; x < 320; x++) {
+            if (p[y * 320 + x] === staticFrame[y * 320 + x]) continue;
+            if (y >= BAND.y0 && y < BAND.y1 && x >= BAND.x0 && x < BAND.x1) continue;
+            if (y < LOGO_ROWS[0] || y >= LOGO_ROWS[1] || x < LOGO_COLS[0] || x >= LOGO_COLS[1]) {
+                errs.push(`frame ${frames} plane (${x},${y}): ${p[y * 320 + x]}, frame has ${staticFrame[y * 320 + x]}: stale pixel outside every moving part`);
+                continue;
+            }
+            lo = Math.min(lo, y); hi = Math.max(hi, y);
+        }
+    if (hi - lo + 1 > WINDOW) errs.push(`frame ${frames} plane: logo rows ${lo}..${hi} differ from the frame, more than the ${WINDOW}-row window: a row was not restored`);
+    return [lo, hi];
+}
+
 const shots = new Set([1, 61, 151, 301]);
 for (let f = 1; f <= 600; f++) {
     step();
-    if (f % 7 === 0 || shots.has(f)) checkFrame();
+    if (f % 7 === 0 || shots.has(f)) { checkFrame(); checkPlane(errors); }
     if (shots.has(f)) await shot(`${out}/${String(f).padStart(3, "0")}.ppm`);
 }
 
@@ -131,10 +175,23 @@ async function shot(path) {
 }
 
 if (barsInBorder === 0) errors.push("no moving bar ever reached the border");
+const checkedFrames = frames;
 const N = 600;
 let t = performance.now();
 for (let i = 0; i < N; i++) step();
 const cost = (performance.now() - t) / N;
+
+// the plane check proves itself: a pixel poked far from the window (a missed
+// restore) must be reported on the next frame
+{
+    const [lo] = checkPlane(errors);
+    const y = lo < 90 ? 160 : 12, at = y * 320 + 100;
+    plane0()[at] = (staticFrame[at] + 1) & 7;
+    step();
+    const caught = [];
+    checkPlane(caught);
+    if (caught.length === 0) errors.push(`a stale plane pixel at (100,${y}) was NOT caught by the plane check`);
+}
 
 const unique = [...new Set(errors)];
 if (BREAK) {
@@ -147,4 +204,4 @@ if (unique.length) {
     for (const e of unique.slice(0, 12)) console.log("  " + e);
     process.exit(1);
 }
-console.log(`replicants_garfield: ${checkedLines} raster lines checked edge to edge over ${frames - N} frames: the six red tubes (ST reds) and the moving bars reach both borders, which follow colour 0 line by line; top and bottom borders black; bars in the border on ${barsInBorder} lines; ${cost.toFixed(3)} ms/frame (clear + cart + plane); shots in ${out}`);
+console.log(`replicants_garfield: ${checkedLines} raster lines checked edge to edge over ${checkedFrames} frames: the six red tubes (ST reds) and the moving bars reach both borders, which follow colour 0 line by line; top and bottom borders black; bars in the border on ${barsInBorder} lines; ${cost.toFixed(3)} ms/frame (clear + cart + plane); shots in ${out}`);
