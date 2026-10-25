@@ -1,9 +1,10 @@
 // Drive A's media change while a cart runs (app_drive.zig I / E; docs/ZIGTOS_BOOT.md 4.1): the
-// running cart is not reset. In the window, after the running image (Plan.disk_from, a lean
-// cart's .bss), the glass:
+// running cart is not reset. The new disk is read and placed on paper first (a disk that does not
+// fit after the running image changes nothing); then, in the window, the glass:
 //
 //   1. zeroes the disk descriptor, so a firmware that looks now finds no disk;
-//   2. writes the disk the browser would mount (a fat disk with zmd_fat undone), or nothing;
+//   2. writes the disk the browser would mount (a fat disk with zmd_fat undone) after the
+//      running image (Plan.disk_from, a lean cart's .bss), or nothing for an eject;
 //   3. writes the descriptor (DISK_MAGIC) for it;
 //   4. bumps the media word (map_cart.zig KOS_MEDIA_*).
 //
@@ -19,23 +20,28 @@ const App = @import("app.zig").App;
 const drive = @import("app_drive.zig");
 
 pub fn change(app: *App) !void {
+    const disk = if (app.drive) |i| try shelfDisk(app, i) else null;
+    defer if (disk) |d| app.gpa.free(d);
+    const at = if (disk) |d| try plan.diskAt(app.disk_from, d.len, app.ddr.bytes()) else 0;
     const words = app.ddr.words;
     const desc = (app.ddr.bytes() - map.DISK_DESC_FROM_TOP) / 4;
     @memset(words[desc..][0..map.DISK_DESC_WORDS], 0);
-    if (app.drive) |i| try place(app, i, desc);
+    if (disk) |d| place(app, d, at, desc);
     const media = (app.ddr.bytes() - mc.KOS_MEDIA_FROM_TOP) / 4;
     words[media] = mc.KOS_MEDIA_TAG | ((words[media] +% 1) & mc.KOS_MEDIA_COUNT);
 }
 
-/// Steps 2 and 3 for disk `i`: its shelf disk, then the descriptor that names it.
-fn place(app: *App, i: usize, desc: usize) !void {
+/// Disk `i` as the browser mounts it: a fat disk with its board image cut off, else as it is.
+fn shelfDisk(app: *App, i: usize) ![]u8 {
     const file = try drive.readDisk(app, i);
     defer app.gpa.free(file);
     const d = try zmd.parse(file);
-    const disk = if (d.boardImage()) |_| try d.shelfDisk(app.gpa) else |_| try app.gpa.dupe(u8, file);
-    defer app.gpa.free(disk);
-    const at = try plan.diskAt(app.disk_from, disk.len, app.ddr.bytes());
-    for (0..(disk.len + 3) / 4) |k| { // a word at a time, as the loader writes the window
+    if (d.boardImage()) |_| return d.shelfDisk(app.gpa) else |_| return app.gpa.dupe(u8, file);
+}
+
+/// Steps 2 and 3: the disk a word at a time (as the loader writes the window), its descriptor.
+fn place(app: *App, disk: []const u8, at: u32, desc: usize) void {
+    for (0..(disk.len + 3) / 4) |k| {
         var w = [_]u8{0} ** 4;
         const part = disk[k * 4 .. @min(disk.len, k * 4 + 4)];
         @memcpy(w[0..part.len], part);

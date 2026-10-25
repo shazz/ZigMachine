@@ -141,19 +141,24 @@ fn setDrive(app: *App, i: ?usize) void {
 
 /// I on the shelf: disk `i` into drive A, no reset; a running cart sees the media change.
 pub fn insert(app: *App, i: usize) void {
-    setDrive(app, i);
-    change(app);
+    change(app, i);
 }
 
 /// E on the shelf: drive A emptied, no reset.
 pub fn eject(app: *App) void {
-    setDrive(app, null);
-    change(app);
+    change(app, null);
 }
 
-fn change(app: *App) void {
-    const what = if (app.drive) |i| app.disks.titles[i] else "empty";
+/// Drive A takes `to`; under a running cart only if the media change can be made (else the
+/// drive keeps its disk and the status says why).
+fn change(app: *App, to: ?usize) void {
+    const was = app.drive;
+    setDrive(app, to);
+    const what = if (to) |i| app.disks.titles[i] else "empty";
     if (!app.running) return app.menu.setStatus("drive A: {s}", .{what});
-    @import("app_media.zig").change(app) catch |err| return app.menu.setStatus("drive A: {t}", .{err});
+    @import("app_media.zig").change(app) catch |err| {
+        setDrive(app, was);
+        return app.menu.setStatus("drive A: {t}", .{err});
+    };
     app.menu.setStatus("drive A: {s} (media change)", .{what});
 }

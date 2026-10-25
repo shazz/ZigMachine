@@ -155,6 +155,26 @@ test "W writes the warm flag over the running cart's memory" {
     try std.testing.expect(a.running and !a.open);
 }
 
+test "a disk that does not fit after the running image changes nothing" {
+    const r = try card(true);
+    defer r.deinit();
+    const raw = try gpa.alloc(u8, 20_000); // past the 16 KiB test window
+    defer gpa.free(raw);
+    @memset(raw, 1);
+    const huge = try zmd.testDisk(gpa, "huge", &.{.{ "BIG.RAW", map.ZMD_TYPE_RAW, raw }});
+    defer gpa.free(huge);
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "c.zmd", .data = huge });
+    var a = try powered(r, "drive_a=b.zmd\n");
+    defer a.deinit();
+    const before = r.words;
+    rig.press(&a, keymap.OSD_HOTKEY);
+    rig.press(&a, keymap.KEY_DOWN);
+    rig.press(&a, KEY_I); // c.zmd ("huge": the shelf is in title order)
+    try std.testing.expect(has(&a, "drive A: DiskTooBig"));
+    try std.testing.expectEqualStrings("b.zmd", a.disks.disks[a.drive.?].file); // still in
+    try std.testing.expectEqualSlices(u32, &before, &r.words); // nothing written, no media count
+}
+
 test "a media change under a program goes after the program's image, not the desktop's" {
     const r = try card(true);
     defer r.deinit();
