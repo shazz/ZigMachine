@@ -98,12 +98,38 @@ export fn kosPostStart(frames: u32) void {
 
 /// One POST frame drawn; 1 once the last one is (the host then boots drive A).
 export fn kosPostFrame() u32 {
+    const ram = post.counter_ram;
+    const boot = post.counter_boot;
     post.update();
-    post.render();
-    post.text(VERSION_TEXT, VERSION_X, VERSION_Y, 0, 7);
+    if (post_n == 0) {
+        post.render();
+        post.text(VERSION_TEXT, VERSION_X, VERSION_Y, BLACK, WHITE);
+    } else changed(ram, boot);
     post_n += 1;
     return @intFromBool(post_n >= post_frames);
 }
+
+/// What Boot.render() would change this frame, and only that. render() redraws the logo and
+/// every line byte by byte each frame, which held the board's POST under 60 fps (38.8); plane 0
+/// keeps the last frame's pixels, so the next dash of the memory bar, the RAM total and the next
+/// cell of the boot bar are all that move. The picture is render()'s, frame for frame.
+fn changed(ram: u16, boot: u16) void {
+    const bar_y = POST_TOP + 10;
+    if (post.counter_ram != ram) {
+        post.text("-", BAR_X + (post.counter_ram - 1) * 8, bar_y, WHITE, BLACK);
+        if (post.counter_ram == 16) {
+            post.text("  2048 KB", 8 + 19 * 8, bar_y, WHITE, BLACK);
+            post.text("Memory Test Complete.", 8, POST_TOP + 20, BLACK, WHITE);
+        }
+    }
+    if (post.counter_boot != boot) post.text(" ", 8 + (post.counter_boot - 1) * 8, POST_TOP + 30, WHITE, BLACK);
+}
+
+// machine/boot.zig's layout: its palette's white and black, the text block's top, the bar's left.
+const WHITE: u8 = 7;
+const BLACK: u8 = 0;
+const POST_TOP: u16 = 74;
+const BAR_X: u16 = 8 + 12 * 8;
 
 // Right of the logo (65x60 at 20,10), on its middle row: black on the POST's white.
 const VERSION_X: u16 = 104;
