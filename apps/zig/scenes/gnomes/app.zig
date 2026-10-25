@@ -1,12 +1,16 @@
 // --------------------------------------------------------------------------
-// THE GNOMES GROUP "BB25": the frame loop. gnomes.zig carries the port notes;
-// tables.zig the raster tables, text.zig the strings, draw.zig the font/art,
-// tty.zig the cyan panel.
+// THE GNOMES GROUP "BB25": the frame loop (the original's main loop $13974).
+// gnomes.zig carries the port notes. One overscan plane holds everything:
 //
-// Board cost: the logo, the boxes and SpongeBob are drawn once; per frame the
-// copper's rainbow table is rolled (280 copies of precomputed words), the big
-// band is cleared by one CHISEL fill and redrawn as ink runs, and the TTY draws
-// one 8x8 glyph. No float anywhere.
+//   rasters.zig  colour 0 + colour 1 per line: two copper slots, borders open
+//   logo.zig     the 36 logo lines, each at its own x every frame (sway/shear)
+//   vu.zig       the three VU meters under the logo (YM registers 10/9/8)
+//   tty.zig      the 13 typed pages
+//   scroller.zig the big 32x25 scroller, 8 px a frame
+//   SpongeBob    drawn once (his regs 2..7 below line SPLIT are the scroller's)
+//
+// Frame n here is the original's loop n: its screen buffer as loop n leaves it,
+// with the raster list loop n-1 built (rasters.zig). No float anywhere.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -14,87 +18,59 @@ const Color = zg.Color;
 const blit = zg.blit;
 const copper = zg.copper;
 
-const T = @import("tables.zig");
-const text = @import("text.zig");
-const draw = @import("draw.zig");
+const A = @import("assets.zig");
+pub const rasters = @import("rasters.zig");
+pub const logo = @import("logo.zig");
+pub const vu = @import("vu.zig");
 pub const tty = @import("tty.zig");
+pub const scroller = @import("scroller.zig");
 
-/// The intro's SNDH: David Whittaker's "Custodian", 6 subtunes, F1-F6 as the
-/// screen's own message says. The SNDH archive's rip (docs/music/custodian.sndh,
-/// = prototypes/sndh_lf/Whittaker_David/Custodian.sndh), NOT the intro's
-/// embedded Grazey rip: the two write the same periods frame for frame, but the
-/// intro's copy left every volume at 0 on subtune 3 (silent for 20 s here) and
-/// on the first frames of the others.
+/// David Whittaker's "Custodian", the SNDH the intro embeds (Grazey's rip, 6 subtunes, F1-F6).
+/// The SNDH archive's copy is played: same periods, but the embedded rip leaves subtune 3 silent here.
 pub const MUSIC = "custodian.sndh";
-
 pub const PLANE = 0;
-
-// --- geometry (physical rows of the 400x280 overscan plane) ----------------
-pub const BAND_Y = 244;
-pub const BAND_GLYPH = 32; // the 8x8 font at 4x
-pub const BAND_ADV = 40;
-const BAND_STEP = 2; // px a frame, rolling left
-const BAND_SLOTS = (zg.PHYSICAL_WIDTH + BAND_ADV - 1) / BAND_ADV + 1;
-
-// --- palette layout --------------------------------------------------------
-pub const INK_BAND = 0; // rainbow; the copper rewrites it every line
-pub const INK_BRICK = 1; // T2; boxes + big-band glyphs
-pub const INK_LOGO = 2; // T1; the logo's fill rows
-const INK_RIM = 3; // boot-table orange, static
-pub const INK_STRIP = 4; // T1[15], static cyan, the TTY ink
-const SPRITE_BASE = 16; // 18..31: SpongeBob's registers 2..15 (16/17 unused)
 
 const K_F1: u32 = 0xE001;
 const K_F6: u32 = 0xE006;
 const K_ESC: u32 = 0xE012;
+const K_SPACE: u32 = ' '; // the original leaves on SPACE ($13D0E)
 const DIR_BACK: u8 = 6;
 
-// --- rasters: one copper on the overscan plane, three slots ----------------
-const SLOTS = [3]u8{ INK_BAND, INK_BRICK, INK_LOGO };
-var tables: [SLOTS.len]copper.Table = undefined;
-
-fn fillTables() void {
-    for (0..zg.PHYSICAL_HEIGHT) |y| {
-        tables[0][y] = T.RAINBOW_RGBA[y % T.RAINBOW.len];
-        tables[1][y] = T.st(T.T2[y % T.T2.len]);
-        // T1 rides the logo's own rows: rows 12..35 = one full 24-word cycle.
-        tables[2][y] = T.st(T.T1[(y + zg.PHYSICAL_HEIGHT - draw.LOGO_Y) % T.T1.len]);
-    }
-}
-
-fn rollRainbow(rot: u16) void {
-    for (0..zg.PHYSICAL_HEIGHT) |y|
-        tables[0][y] = T.RAINBOW_RGBA[(y + rot) % T.RAINBOW.len];
-}
-
-// --- state: module level, so testapi.zig can read every word ---------------
-pub var wants_quit: bool = false;
+pub var wants_quit = false;
 pub var frame: u32 = 0;
-pub var rain_rot: u16 = 0;
-pub var band_first: usize = 0; // the text index of the left-most glyph slot
-pub var band_pos: i32 = 0; // scroll position within one glyph advance
+pub var ym: [16]u8 = [_]u8{0} ** 16; // the YM mirror as this frame's VU read it
 
-fn drawBand(whole: blit.Dst) void {
-    const band = whole.window(0, BAND_Y, zg.PHYSICAL_WIDTH, BAND_GLYPH);
-    band.fill(0, 0, band.w, band.h, 0); // one CHISEL fill
-    for (0..BAND_SLOTS) |i| {
-        const ch = text.BIG_TEXT[(band_first + i) % text.BIG_TEXT.len];
-        if (ch == ' ') continue;
-        const x: i32 = @as(i32, @intCast(i * BAND_ADV)) - band_pos;
-        draw.drawGlyph(band, ch, x, 0, 4, INK_BRICK);
+fn installPalette(fb: anytype) void {
+    for (A.LOGO_PAL, 2..) |w, i| fb.palette[i] = A.st(w);
+    for (A.SBOB_PAL[6..], 8..) |w, i| fb.palette[i] = A.st(w); // regs 8..15, shared
+    for (A.SBOB_PAL[0..6], A.SBOB_LO..) |w, i| fb.palette[i] = A.st(w);
+    for (A.SCROLL_PAL, A.SCROLL_LO..) |w, i| fb.palette[i] = A.st(w);
+}
+
+/// SpongeBob at (176, 80) ($13912: screen + $3258), opaque as the original's longword copy.
+fn drawSpongeBob(d: blit.Dst) void {
+    const screen = d.window(A.X0, A.Y0, 320, A.LINES);
+    const img = blit.Image.init(A.sbob_raw, 144);
+    var map: [256]u8 = undefined;
+    for (&map, 0..) |*e, i| e.* = @truncate(i);
+    const split = A.SPLIT - 80;
+    for ([2]u8{ A.SBOB_LO, A.SCROLL_LO }, 0..) |lo, half| {
+        for (2..8) |i| map[i] = lo + @as(u8, @intCast(i - 2));
+        const y0: usize = if (half == 0) 0 else split;
+        const h: usize = if (half == 0) split else 158 - split;
+        blit.blit(screen, img, .{ .x = 0, .y = y0, .w = 144, .h = h }, 176, @intCast(80 + y0), null, .{ .lut = &map });
     }
 }
 
-// --------------------------------------------------------------------------
 pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         _ = self;
         wants_quit = false;
         frame = 0;
-        rain_rot = 0;
-        band_first = 0;
-        band_pos = 0;
+        ym = [_]u8{0} ** 16;
         tty.reset();
+        logo.reset();
+        vu.reset();
 
         zg.requestSongTune(MUSIC, 1);
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -102,56 +78,39 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
         fb.openBorders(.all);
-        // The copper replaces openBorders()'s handler and flickers every line
-        // itself, so the rainbow runs through all four open borders.
-        copper.install(fb, &SLOTS, &tables, .{ .flicker = true });
-        // AFTER install: install() seeds every table with the entry's current
-        // colour, so the per-line rasters are written over them here.
-        fillTables();
-        fb.palette[INK_RIM] = T.st(0x760);
-        fb.palette[INK_STRIP] = T.st(T.T1[15]); // 0x077, cyan
-        for (T.SBOB_PAL, 2..) |w, i| fb.palette[SPRITE_BASE + i] = T.st(w);
-
-        fb.clearFrameBuffer(0);
-        // the static art, drawn once (the original kept these in screen
-        // memory between VBLs too)
-        const d = blit.Dst.plane(fb);
-        draw.drawSprite(d, SPRITE_BASE, INK_BRICK);
-        draw.drawBoxes(d, INK_BRICK);
-        draw.drawLogo(d, INK_RIM, INK_LOGO);
+        // The copper replaces openBorders()'s handler and flickers every line itself.
+        copper.install(fb, &rasters.SLOTS, &rasters.tables, .{ .flicker = true });
+        rasters.initTables();
+        installPalette(fb);
+        fb.clearFrameBuffer(A.C0);
+        drawSpongeBob(blit.Dst.plane(fb));
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = self;
-        _ = zigos;
-        _ = dt; // frame-based: one step a rendered frame
+        _ = dt; // frame-based: one loop a rendered frame
         frame += 1;
-        rain_rot += 1; // the rainbow rolls one word a frame
-        if (rain_rot >= T.RAINBOW.len) rain_rot -= T.RAINBOW.len;
-        rollRainbow(rain_rot);
-        band_pos += BAND_STEP; // the big band: 2 px a frame, a slot every 40
-        if (band_pos >= BAND_ADV) {
-            band_pos -= BAND_ADV;
-            band_first = (band_first + 1) % text.BIG_TEXT.len;
-        }
-        tty.step(); // one action per frame, exactly as the dis drives it
+        ym = zigos.ym_regs;
+        rasters.build(frame);
+        tty.step();
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = self;
         _ = dt;
-        const whole = blit.Dst.plane(&zigos.lfbs[PLANE]);
-        drawBand(whole);
-        tty.render(whole, INK_STRIP);
+        const d = blit.Dst.plane(&zigos.lfbs[PLANE]);
+        vu.draw(d, &ym);
+        logo.draw(d, frame);
+        scroller.draw(d, frame);
+        tty.render(d);
     }
 
-    /// F1-F6: the six "Custodian" subtunes, as the message says. Escape and
-    /// the host's Back leave (declaring key() owns every key).
+    /// F1-F6: the six "Custodian" subtunes ($13D16). SPACE, Escape and Back leave.
     pub fn key(self: *Demo, cp: u32) void {
         _ = self;
         if (cp >= K_F1 and cp <= K_F6) {
             zg.requestSongTune(MUSIC, @intCast(1 + (cp - K_F1)));
-        } else if (cp == K_ESC) {
+        } else if (cp == K_ESC or cp == K_SPACE) {
             wants_quit = true;
         }
     }
