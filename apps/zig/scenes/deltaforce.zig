@@ -29,7 +29,11 @@ const MUSIC = "renegade.sndh";
 
 // scrolltext
 pub const NB_FONTS: u8 = 11;
-const fonts_b = @embedFile("../assets/screens/df/fonts2_pal.raw");
+// 4-aligned (a plain @embedFile is align 1): the letters' rows then copy word to
+// word into the strip, not four byte loads a word (the board's memcpy, misaligned).
+const fonts_b: *align(4) const [@embedFile(fonts_path).len]u8 = &fonts_words;
+const fonts_words: [@embedFile(fonts_path).len]u8 align(4) = @embedFile(fonts_path).*;
+const fonts_path = "../assets/screens/df/fonts2_pal.raw";
 const SCROLL_TEXT = "               TESTDRIVE WAS CRACKED BY CHAOS, INC. OF THE DELTAFORCE CRACKING GROUP.    THIS INTRO WAS CODED BY CHAOS, INC., TOO.  FIRST OF ALL I WANT TO THANK GUIDO OF THE MAD MAX COPORATION FOR THE ORIGINAL!      GREETINGS TO: NEW-MODE, ABC, QUESTLORD, JOE COOL, GREEN BERET CRACKERS, PSYCHO.     ALSO GREETINGS TO: 42-CREW, TNT-CREW, TNT, COPY SERVICE STUTTGART, TEX, CERTAINLY MAD MAX COPORATION AND, LAST BUT NOT LEAST, ACCOLADE!      WAIT FOR OUR NEXT INTRO, WHICH WILL INCLUDE SOME DIGISOUNDS.     HEY ACCOLADE, CAN'T YOU MAKE A BETTER SOUND? IT'S REALLY AWFUL AND BORING! SOME DIGISOUND, WHILE  THE CAR IS CRASHING?    WHY NOT?      THAT'S IT FOR TODAY.....   CHAOS, INC.                            WHAT'S UP FOLKS?                        YOU WAIT FOR THE END?           HERE IT IS!   ";
 const SCROLL_CHAR_WIDTH = 32; 
 const SCROLL_CHAR_HEIGHT = 30;
@@ -41,8 +45,13 @@ const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/df/fonts2_
 const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/df/top_logo_pal.dat"));
 
 // rasters
-const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/df/rasters_pal.dat"));
-const top_rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/df/top_raster_pal.dat"));
+// Each line's HBL loads its Color as one word, which traps on the board when
+// misaligned. Indexed through a 4-aligned POINTER: a comptime-known array indexed
+// by value is lowered to an anonymous align-1 copy, whatever its own align says.
+const rasters_b: *align(4) const [256]Color = &rasters_words;
+const top_rasters_b: *align(4) const [256]Color = &top_rasters_words;
+const rasters_words: [256]Color align(4) = convertU8ArraytoColors(@embedFile("../assets/screens/df/rasters_pal.dat"));
+const top_rasters_words: [256]Color align(4) = convertU8ArraytoColors(@embedFile("../assets/screens/df/top_raster_pal.dat"));
 
 // logo
 const logo_b = @embedFile("../assets/screens/df/top_logo.raw");
