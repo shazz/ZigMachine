@@ -9,7 +9,8 @@
  * mounts a data disk and plays the browser's GEM-over-a-data-disk step (host/disk_app.h);
  * --program: the cart is a program launched off it, which gets no listing. --bootsec X.zmd runs
  * X's executable boot sector in the cart's place (host/bootsec_host.h), the board's interpreter
- * against scene_hash.mjs given the same X.zmd.
+ * against scene_hash.mjs given the same X.zmd. --kos X.zmd|none [--post-frames N]: KOS's power-on,
+ * the ROM's POST then drive A (host/kos_host.h), as scene_hash.mjs --kos.
  *
  * <cart-label> is only echoed into the JSON (the cart is linked in).
  *
@@ -27,6 +28,7 @@
 
 #include "boot.h"
 #include "bootsec_host.h"
+#include "kos_host.h"
 #include "host_io.h"
 #include "sha256.h"
 #include "wasm-rt-exceptions.h" /* wasm_rt_impl_try needs wasm_rt_set_unwind_target */
@@ -46,6 +48,8 @@
 
 static struct w2c_env g_env; /* static: 7 MiB of memory is heap, the instances are not */
 static const char* g_bootsec;  /* --bootsec: the disk whose boot sector runs instead of the cart */
+static const char* g_kos;      /* --kos: drive A at power-on ("none": empty) */
+static uint32_t g_post = 180;  /* --post-frames: the POST's length (0: none), rom/kos/kos.zig's default */
 
 
 /* One frame of the host loop (docs/sealed-loader.js): clear, frame, then render
@@ -119,9 +123,11 @@ static void run(const char* cart, long n, long k) {
         host_io_run_calls(&g_env, f);
         host_io_glass_keys(&g_env, f);
         host_io_glass_mouse(&g_env, f);
+        if (g_kos) host_kos_between(&g_env);
         int sample = f % k == 0;
         if (sample) sha256_init(&h);
         if (g_bootsec) host_bootsec_frame(&g_env, sample ? &h : NULL, planes, size);
+        else if (g_kos && !host_kos_in_cart()) host_kos_frame(&g_env, sample ? &h : NULL, planes, size);
         else frame(sample ? &h : NULL, planes, size, f);
         if (!sample) continue;
         sha256_hex(&h, hashes[f / k - 1]);
@@ -148,6 +154,8 @@ int main(int argc, char** argv) {
         else if (strcmp(argv[i], "--data-disk") == 0 && i + 1 < argc) host_io_data_disk(argv[++i]);
         else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (strcmp(argv[i], "--bootsec") == 0 && i + 1 < argc) g_bootsec = argv[++i];
+        else if (strcmp(argv[i], "--kos") == 0 && i + 1 < argc) g_kos = argv[++i];
+        else if (strcmp(argv[i], "--post-frames") == 0 && i + 1 < argc) g_post = (uint32_t)strtoul(argv[++i], NULL, 10);
         else if (npos < 3) pos[npos++] = argv[i];
     }
     if (!pos[0]) { fprintf(stderr, "usage: host <cart> [frames] [every] [--call F:name:args] [--disk X.zmd] [--data-disk X.zmd]\n"); return 2; }
@@ -156,7 +164,10 @@ int main(int argc, char** argv) {
     wasm_rt_init();
     wasm_rt_trap_t trap = wasm_rt_impl_try();
     if (trap) { fprintf(stderr, "host: %s: trap: %s\n", pos[0], wasm_rt_strerror(trap)); return 1; }
-    if (!g_bootsec) host_boot(&g_env);
+    if (g_kos) {
+        host_boot_machine(&g_env);
+        if (host_kos_start(&g_env, g_kos, g_post)) return 1;
+    } else if (!g_bootsec) host_boot(&g_env);
     else if (host_boot_machine(&g_env), host_bootsec_start(&g_env, g_bootsec)) return 1;
     AUDIO(audio_soft_boot());
     run(pos[0], n, k);

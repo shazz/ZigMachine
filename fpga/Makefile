@@ -138,9 +138,10 @@ INPUT_CFLAGS := -Iglass/firmware -Igen
 # The native host's scripted inputs (--call, --disk, ZM_GLASS_KEYS / ZM_GLASS_POINTER).
 HOST_IO := host/host_io.c host/host_io.h
 # --bootsec (host/bootsec_host.c): the board's boot-sector interpreter, linked into every host.
-HOST_BOOTSEC := host/bootsec_host.c host/bootsec.c $(addprefix host/wint_,load.c link.c scan.c num.c flow.c exec.c)
+# --kos (host/kos_host.c): KOS's power-on, the POST then drive A; it runs the same interpreter.
+HOST_BOOTSEC := host/bootsec_host.c host/kos_host.c host/bootsec.c $(addprefix host/wint_,load.c link.c scan.c num.c flow.c exec.c)
 $(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(HOST_IO) $(INPUT_DEPS) \
-		host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h $(HOST_BOOTSEC) host/bootsec_host.h host/bootsec.h host/wint.h \
+		host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h $(HOST_BOOTSEC) host/bootsec_host.h host/kos_host.h host/bootsec.h host/wint.h \
 		host/wint_leb.h host/wint_exec.h
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $(HOST)/$*/env.c -o $(HOST)/$*/env.o
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c host/boot.c -o $(HOST)/$*/boot.o

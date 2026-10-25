@@ -356,6 +356,17 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // machine/boot.zig — the boot ROM (POST screen). Machine firmware: depends ONLY
+    // on the HW ABI, no libs. Linked into rom.wasm, which draws
+    // KOS's POST with it (rom/kos/kos.zig), and still into every cart, whose own
+    // copy no host shows any more (each calls skipBoot after the ROM's POST).
+    const boot_rom_mod = b.createModule(.{
+        .root_source_file = b.path("machine/boot.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "hardware", .module = sdk_video }},
+    });
+
     // rom.wasm — the ROM CHIP. Its own module, its own RAM window above the video
     // region, linked against the sealed HW ABI exactly like a cart. It exports the
     // flat ABI declared in rom/sdk/rom.zig; the host wires an app's env to it.
@@ -371,6 +382,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "hardware", .module = sdk_video },
                 // romDepack: a disk's cart is stored ZX0-packed and the ROM unpacks it.
                 .{ .name = "depackers", .module = depackers_mod },
+                .{ .name = "boot_rom", .module = boot_rom_mod }, // KOS's POST (rom/kos/kos.zig)
             },
         }),
     });
@@ -384,16 +396,6 @@ pub fn build(b: *std.Build) void {
     rom_chip.global_base = rom_global_base;
     b.getInstallStep().dependOn(&b.addInstallFileWithDir(
         rom_chip.getEmittedBin(), .{ .custom = "../docs" }, "rom.wasm").step);
-
-    // machine/boot.zig — the boot ROM (POST screen). Machine firmware: depends ONLY
-    // on the HW ABI, no libs. Still app-linked into every cart; moving it inside
-    // machine-video.wasm is an open idea, unrelated to the ROM chip.
-    const boot_rom_mod = b.createModule(.{
-        .root_source_file = b.path("machine/boot.zig"),
-        .target = wasm_target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "hardware", .module = sdk_video }},
-    });
 
     const sealed_step = b.step("sealed", "Compiles the sealed machine + open demo wasm");
 

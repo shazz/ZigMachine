@@ -19,6 +19,8 @@
 // do by reaching through is an entry point of its own — see fill().
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+/// KOS's system variables (rom/sdk/kos.zig): what booted, the drive, the frame counter.
+pub const kos = @import("kos.zig");
 
 // --- values, not calls ---
 // Defined HERE, not re-exported from the ROM: a header that imported rom/gem

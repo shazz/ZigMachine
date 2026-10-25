@@ -23,6 +23,11 @@ const gui = @import("rom").gui;
 
 const Rect = gui.Rect;
 
+// KOS: the POST screen and the system variables (rom/kos/kos.zig), exported from here.
+comptime {
+    _ = @import("kos/kos.zig");
+}
+
 pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
 
 // --------------------------------------------------------------------------

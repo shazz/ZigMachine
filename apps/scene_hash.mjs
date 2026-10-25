@@ -5,7 +5,7 @@
 // a fingerprint before the change, rebuild, take one after, compare.
 //
 //   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd] [--composite] [--song-clock]
-//                            [--data-disk X.zmd [--program]]
+//                            [--data-disk X.zmd [--program]] [--kos X.zmd|none [--post-frames N]]
 //   node apps/scene_hash.mjs --compare a.json b.json
 //
 // Writes JSON to stdout: { cart, frames, every, samples: [{frame, hash}], total }.
@@ -21,6 +21,9 @@
 // A .zmd in the cart's place runs its executable BOOT SECTOR (format v2: the disk's first 1 KB,
 // as docs/zmdisk.js slices it), as the browser runs it before the disk's cart; the board runs
 // the same bytes through its interpreter (fpga/host/bootsec.h, `host --bootsec X.zmd`).
+// `--kos X.zmd|none` boots as KOS powers on (scene_hash_kos.mjs): the ROM's POST for
+// --post-frames frames (default 180, 0 = none), then drive A decides what runs: X's boot
+// sector, X's cart (the cart given must be it) or the desktop (the cart given: demo-gem.wasm).
 // `--composite` hashes only the COMPOSED picture (each enabled plane's physical
 // render, borders included, stacked as the browser's canvases are: stackOver),
 // not each plane: it proves a change that moves pixels between planes (merging
@@ -31,10 +34,11 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
+import { kosBoot } from "./scene_hash_kos.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 
-async function boot(cartPath, machineDir, diskPath, dataDiskPath, program) {
+async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
@@ -62,13 +66,23 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program) {
         hwRomRamFree: machine.hwRomRamFree,
         ...rom,
     };
+    // One cart over the shared memory; KOS instantiates the boot sector and then the cart.
+    const instantiate = async (bytes) => {
+        const e = { ...env };
+        for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(bytes)))
+            if (imp.module === "env" && !(imp.name in e)) e[imp.name] = noop;
+        demo = (await WebAssembly.instantiate(bytes, { env: e })).instance.exports;
+        machine.hwSetCartHigh(cartRam(bytes).high ?? 0);
+        return demo;
+    };
+    if (kos) {
+        const k = await kosBoot({ memory, machine, rom, env, cartBytes, instantiate, drivePath: kos.drive, postFrames: kos.post });
+        return { memory, machine, demo: k, kos: k };
+    }
     if (diskPath) env.diskReadBlock = makeDrive(memory, { buf: new Uint8Array(await readFile(diskPath)) });
     const mounted = dataDiskPath ? await mountDataDisk(dataDiskPath) : null;
     if (mounted) env.diskReadBlock = makeDrive(memory, mounted);
-    for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
-        if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;
-    demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
+    await instantiate(cartBytes);
     machine.hwInit();
     demo.boot();
     demo.skipBoot?.(); // a boot sector has none: the browser boots it as it is
@@ -96,7 +110,7 @@ function parseCalls(list) {
 
 async function fingerprint(argv) {
     const pos = [], callSpecs = [];
-    let disk = null, dataDisk = null, program = false, composite = false, songClock = false;
+    let disk = null, dataDisk = null, program = false, composite = false, songClock = false, kos = null;
     for (let i = 0; i < argv.length; i++) {
         if (argv[i] === "--call") callSpecs.push(argv[++i]);
         else if (argv[i] === "--composite") composite = true;
@@ -104,12 +118,15 @@ async function fingerprint(argv) {
         else if (argv[i] === "--disk") disk = argv[++i];
         else if (argv[i] === "--data-disk") dataDisk = argv[++i];
         else if (argv[i] === "--program") program = true;
+        else if (argv[i] === "--kos") kos = { drive: argv[++i], post: kos?.post ?? 180 };
+        else if (argv[i] === "--post-frames") kos = { drive: kos?.drive, post: Number(argv[++i]) };
         else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;
     const N = Number(frames), K = Number(every);
     const calls = parseCalls(callSpecs);
-    const { memory, machine, demo, dataDisk: step } = await boot(cart, process.env.MACHINE_DIR || "docs", disk, dataDisk, program);
+    if (kos && !kos.drive) throw new Error("--post-frames needs --kos");
+    const { memory, machine, demo, dataDisk: step, kos: k } = await boot(cart, process.env.MACHINE_DIR || "docs", disk, dataDisk, program, kos);
     const size = machine.hwPhysWidth() * machine.hwPhysHeight() * 4;
     const planes = machine.hwPlanesNumber();
     const total = createHash("sha256");
@@ -117,18 +134,20 @@ async function fingerprint(argv) {
     const comp = new Uint32Array(size >> 2);
     for (let f = 1; f <= N; f++) {
         for (const [name, args] of calls.get(f) ?? []) {
+            const cur = k ? k.current() : demo; // KOS: the cart running now
             if (name.startsWith("set8@")) { // the bytes `args` at the address export `name` returns
-                new Uint8Array(memory.buffer).set(args, demo[name.slice(5)]());
+                new Uint8Array(memory.buffer).set(args, cur[name.slice(5)]());
                 continue;
             }
-            if (typeof demo[name] !== "function") throw new Error(`cart has no export ${name}`);
-            demo[name](...args);
+            if (typeof cur?.[name] !== "function") throw new Error(`cart has no export ${name}`);
+            cur[name](...args);
         }
         // The host loop, exactly (docs/sealed-loader.js): clear, frame, then render
         // every ENABLED plane EVERY frame. HBL handlers only run inside
         // hwRenderPlane, so sampling-only rendering would starve HBL-driven state.
         const sample = f % K === 0;
         const h = sample ? createHash("sha256") : null;
+        if (k) await k.between(); // KOS: a phase change, then kosTick (sealed-loader.js's frame)
         if (songClock) new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = Math.floor((f * 1000) / 60);
         machine.hwClear();
         demo.frame(16.6);

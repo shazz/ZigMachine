@@ -125,6 +125,11 @@ async function swapCart(req, channelTag) {
     let url = null;
     let failed = false;
     try {
+        // ZMKos.BOOT_DRIVE: the POST is over, drive A boots (kosBootDrive).
+        if (globalThis.ZMKos && req === ZMKos.BOOT_DRIVE) {
+            await kosBootDrive();
+            return;
+        }
         // req 2 = CHAINLOAD (format v2): the boot sector is done — instantiate this
         // disk's cart (pointer in the descriptor, already parsed) over the same memory.
         // A v2 DATA disk (its descriptor names no cart) is one whose executable boot
@@ -142,6 +147,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             if (demo.skipBoot) demo.skipBoot(); // straight into the cart (boot sector already showed)
+            kosDesktop = false;
             heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
             swapping = false;
             return;
@@ -164,6 +170,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             demo.skipBoot(); // GEM already booted the machine; no second boot screen
+            kosDesktop = false;
             heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
             swapping = false;
             return;
@@ -180,6 +187,7 @@ async function swapCart(req, channelTag) {
             heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
             diskApp = true;      // the disk is still mounted: FLOPPY still opens it
             diskDirSet = false;  // re-hand GEM the FAT listing
+            kosDesktop = true;
             swapping = false;
             return;
         }
@@ -208,6 +216,7 @@ async function swapCart(req, channelTag) {
         heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
         currentTag = tag; // null = the menu
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
+        kosDesktop = !bootable;
         diskDirSet = false;            // re-hand GEM the new disk's FAT listing
     } catch (e) {
         // The running cart keeps going. Without remembering the failure the menu
@@ -475,10 +484,11 @@ async function boot() {
             loadSample: () => {},
         }),
     };
-    // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
-    // docs/FLOPPY_DISK.md); ?demo=X.wasm loads a raw cart; ?menu boots the menu.
-    // With none of those the machine powers up like the TV it sits in: straight
-    // into a channel (?channel=<tag>, else the first), boot ROM first.
+    // What to boot. A disk in drive A powers on through KOS (docs/kos-boot.js): the ROM's
+    // POST, then the disk boots (its boot sector, its cart) or the desktop comes up over it.
+    // ?disk=X.zmd inserts X; ?disk=none leaves the drive empty (the desktop); with neither
+    // ?demo=X.wasm (a raw cart) nor ?menu (the menu cart), the machine powers up like the TV
+    // it sits in: a channel's disk is in the drive (?channel=<tag>, else the first).
     const params = new URLSearchParams(window.location.search);
     let diskUrl = params.get("disk");
     if (!diskUrl && !params.has("demo") && !params.has("menu")) {
@@ -488,29 +498,14 @@ async function boot() {
             currentTag = tag;
         }
     }
-    let demoMod;
     if (diskUrl) {
-        const { bootable, cart } = await mountDisk(diskUrl);
-        if (bootable) {
-            demoMod = await instantiateCart(cart, diskUrl);
-            console.log("Booted cart from disk:", diskUrl);
-            // Power-on into a channel (or ?disk=): name the cart once it is up.
-            if (window.armCartOsd) window.armCartOsd(currentTag || window.osdTagFromDiskUrl(diskUrl));
-        } else {
-            // A data disk isn't bootable — bring up the OS (GEM); the disk stays
-            // mounted so GEM can open its app + read its files (e.g. SAMPLE.RAW).
-            demoMod = await instantiateCart(
-                await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer()), "demo-gem.wasm");
-            diskApp = true; // GEM's FLOPPY icon opens this disk's app
-            console.log("Data disk inserted → booting GEM");
-        }
-    } else {
-        const demoWasm = params.get("demo") || "demo.wasm";
-        demoMod = await instantiateCart(
-            await fetch(demoWasm + BUST).then((r) => r.arrayBuffer()), demoWasm);
-        console.log("Open demo.wasm loaded");
+        await kosPowerOn(diskUrl === "none" ? null : diskUrl, params);
+        return start();
     }
-    demo = demoMod.instance.exports;
+    const demoWasm = params.get("demo") || "demo.wasm";
+    demo = (await instantiateCart(
+        await fetch(demoWasm + BUST).then((r) => r.arrayBuffer()), demoWasm)).instance.exports;
+    console.log("Open demo.wasm loaded");
 
     machine.hwInit();
     demo.boot();
@@ -540,6 +535,57 @@ async function boot() {
     start();
 }
 
+
+// --------------------------------------------------------------------------
+// KOS's power-on (docs/kos-boot.js): drive A is mounted first, so the system
+// variables say what is in it; the POST runs as the "cart" until its request
+// (ZMKos.BOOT_DRIVE) makes swapCart call kosBootDrive.
+// --------------------------------------------------------------------------
+let kosDrive = null; // { url, bootable, v2, cart } of the disk in drive A at power-on, or null
+let kosDesktop = false; // the running cart is KOS's desktop (demo-gem.wasm) over drive A
+
+async function kosPowerOn(url, params) {
+    kosDrive = url ? { url, ...(await mountDisk(url)) } : null;
+    if (!url) mountedDisk = null;
+    ZMKos.power(rom, machine, kosDrive, mountedDisk);
+    const frames = ZMKos.postFrames(params);
+    if (frames > 0) demo = ZMKos.postCart(rom, frames);
+    else await kosBootDrive();
+}
+
+// Stages 7-9, 12: the disk's boot sector or cart, else the desktop over the disk (a data
+// disk) or with the drive empty. The POST already showed: no cart shows its own boot screen.
+async function kosBootDrive() {
+    const d = kosDrive;
+    const own = d && d.bootable; // a bootable disk, or a boot sector (it chainloads, swapCart req 2)
+    const bytes = own ? d.cart : await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+    demo = (await instantiateCart(bytes, own ? d.url : "demo-gem.wasm (the desktop)")).instance.exports;
+    machine.hwInit();
+    demo.boot();
+    if (demo.skipBoot) demo.skipBoot();
+    if (own && window.armCartOsd) window.armCartOsd(currentTag || window.osdTagFromDiskUrl(d.url));
+    heldDirs.clear(); heldKeys.clear(); // the POST had the keys: no releases for them
+    diskApp = !!d && !own;              // a data disk: GEM's FLOPPY opens it
+    diskDirSet = false;
+    kosDesktop = !own;
+    console.log(own ? `Drive A: ${d.url} boots` : d ? `Drive A: ${d.url} is a data disk: the desktop` : "Drive A is empty: the desktop");
+}
+
+// KOS's media change (docs/ZIGTOS_BOOT.md 4.1): drive A takes the disk at `url` (null:
+// ejected) under the running cart, which is not reset; the drive reads the new disk from now
+// on. The desktop opens a data disk (its FLOPPY, the listing handed again); KOS counts the
+// change (sysvars.drive_a). The board's glass does the same (I / E on the shelf).
+async function kosMedia(url) {
+    const d = url ? await mountDisk(url) : null;
+    if (!url) mountedDisk = null;
+    if (kosDesktop) {
+        diskApp = !!d && !d.bootable;
+        diskDirSet = false;
+    }
+    if (rom && rom.kosMediaChange) rom.kosMediaChange(d ? 1 : 0);
+}
+window.kosInsert = (url) => kosMedia(url);
+window.kosEject = () => kosMedia(null);
 
 // --------------------------------------------------------------------------
 // Render loop
@@ -616,6 +662,7 @@ function start() {
         // that half-written memory and traps. So during a swap, and after a trap,
         // the cart is not called and the canvases keep their last picture.
         if (swapping || cartTrapped) return;
+        if (rom && rom.kosTick) rom.kosTick(); // KOS's frame counter (sysvars.frames)
         machine.hwClear();          // sealed: clear PFB + global HBL
         demo.frame(elapsed_time);   // open: scene draws into shared LFBs (+ overscan poke)
 

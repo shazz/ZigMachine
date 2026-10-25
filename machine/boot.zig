@@ -84,7 +84,7 @@ pub const Boot = struct {
     // Clean 8x8 glyph blit: 1 byte/pixel, one exact square cell per character.
     // (ZigOS printText had a char*64-1 slice + a per-row over-advance that bled a
     // 9th column, leaving the first inverse-video cell non-square — fixed here.)
-    fn text(self: *Boot, s: []const u8, x: u16, y: u16, fg: u8, bg: u8) void {
+    pub fn text(self: *Boot, s: []const u8, x: u16, y: u16, fg: u8, bg: u8) void {
         const f = self.fb();
         for (s, 0..) |char, nb| {
             if (char == 0) continue;

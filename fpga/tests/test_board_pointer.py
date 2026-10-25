@@ -87,6 +87,7 @@ def mutant(tmp_path: Path, src: str, old: str, new: str) -> Path:
                    check=True)  # fmt: skip
     keep = "in_glass_router.o" if src == "input_bridge.c" else "in_input_bridge.o"
     objs = [obj / n for n in ("host.o", "env.o", "boot.o", "host_io.o", keep, "cart.o")]
+    objs += sorted(obj.glob("bs_*.o"))  # host/main.c's --bootsec and --kos (Makefile HOST_BOOTSEC)
     common = [FPGA / f"build/host/common/{n}.o" for n in ("machine", "rom", "rt", "rt-mem", "rt-exc", "sha256")]
     exe = tmp_path / "host"
     subprocess.run(["clang", *map(str, objs), str(tmp_path / "m.o"), *map(str, common), "-lm", "-lpthread",

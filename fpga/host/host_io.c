@@ -76,6 +76,14 @@ void host_io_data_disk(const char* path) {
     g_data_disk = 1;
 }
 
+/* KOS booted the desktop over the disk in the drive (host/kos_host.c): GEM's step, as
+ * --data-disk gives it, including a disk whose boot sector ran first (sysinfo's). */
+void host_io_kos_data_disk(void) {
+    if (zmd_dir_parse(host_disk.data, host_disk.size, &g_dir)) exit(2); /* kos_host.c parsed it already */
+    g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = 0};
+    g_data_disk = 1;
+}
+
 void host_io_program(void) {
     g_program = 1;
     g_dapp.dir_set = 1;
