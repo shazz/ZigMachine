@@ -4,6 +4,17 @@ The finished items of the KESTREL roadmap, newest first. The open items live in 
 artifact's Roadmap tab (https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W). Moved here on
 25 Oct 2026.
 
+## Done 25 Oct
+
+| Prio | Item | Area | Notes | Who |
+|---|---|---|---|---|
+| P1 | Carts address memory from a local base (ZM_LOCAL_BASE) | firmware | The board's cart codegen re-read the wasm memory base after every store, each load waiting for the posted stores: ~10 cycles a store. One flag (fc8758ad): leonard_spirit cart 1.54 → 0.77 Mc, stniccc 1.12 → 0.85, big_demo 0.42 → 0.27, every cart faster | optimizer agent · kestrel-engineer |
+| P1 | leonard_spirit fullscreen at 60 fps | screens | 2,184 balls, the borders shake open, hw-scrolled background: 39 → 60.2 fps (u64 ball stores + ZM_LOCAL_BASE) | zm-scene-optimizer |
+| P1 | Board card rebuilt from main | board | Every cart from fc8758ad with ZM_LOCAL_BASE, system 955fee1a, glass a62c1a3e, bitstream c72c58ca; 319 stale files removed. Sweep: 112 carts run, 108 at 60 (open: dbug, cuddly_starwars, mpp_truecolor's default mode, polkadots_f32 = FPU twin) | lead · kestrel-engineer |
+| P2 | Misaligned copies and accesses | screens / tools | frame_cost prices a memcpy from a misaligned source (misaligned_memcpy); replicants_garfield, joust, automation442, deltaforce fixed | worker |
+| P2 | replicants_garfield draws its frame once | screens | cart 0.42 → 0.18 Mc, 71 KB → 9 KB stored a frame | worker |
+| P2 | Branches and worktrees cleaned | repo | 90 merged branches and ~45 worktrees removed; kept: fpu-study, gate-and-rules, scope-mirror, chisel-queue-v2, ziggy-read-bypass | lead |
+
 ## Done 24–25 Oct
 
 | Prio | Done | Item | Area | Notes | Who |
