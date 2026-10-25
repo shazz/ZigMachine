@@ -97,7 +97,9 @@ var logo_raster_dir: i16 = 1;
 pub const Raster = struct {
     position: u16 = undefined,
     direction: i8 = undefined,
-    colors: [256]Color = undefined,
+    // align(4): a Color is read as one u32, and after position + direction the
+    // array sat 2 mod 4 (a misaligned access traps on the board, 44 a frame).
+    colors: [256]Color align(4) = undefined,
 };
 
 var rasters: [4]Raster = undefined;
