@@ -139,7 +139,7 @@ static void print_json(char* total) {
 }
 
 /* ZM_FRAMES frames (forever if 0), hashing every ZM_EVERY-th. */
-static void run(void) {
+static void run(uint32_t beat0) {
     u32 size = w2c_machine_hwPhysWidth(&g_env.machine) * w2c_machine_hwPhysHeight(&g_env.machine) * 4;
     u32 planes = w2c_machine_hwPlanesNumber(&g_env.machine);
     sha256_ctx total, h;
@@ -162,7 +162,7 @@ static void run(void) {
         vstat_begin();
         frame(sample ? &h : NULL, planes, size, f);
         vstat_end(f, g_cart, g_seq);
-        board_beat((uint32_t)f);
+        board_beat(beat0 + (uint32_t)f); /* on from the POST's and the boot sector's beats */
         mb_frame_done((uint32_t)f);
         printf("ZM HF %ld %lu\n", f, (unsigned long)(board_cycles() - t0));
         board_counters(c1);
@@ -178,7 +178,8 @@ static void run(void) {
     print_json(hex);
 }
 
-static void boot(void) {
+/* Returns the CART_BEATs the POST and a boot sector already gave (run() goes on from there). */
+static uint32_t boot(void) {
     uint32_t t0 = board_cycles();
 #ifdef ZM_SPLIT_SYS
     bsys_link(); /* the lean cart image first (bsys.h): its header says where the disk may start */
@@ -202,11 +203,13 @@ static void boot(void) {
     vstat_boot(); /* its block of the page mb_init just zeroed */
     printf("ZM MB pfb %08lx %lu x %lu\n", (unsigned long)pfb, (unsigned long)w2c_machine_hwPhysWidth(m),
            (unsigned long)w2c_machine_hwPhysHeight(m));
-    if (post) bkos_run(&g_env, post);
-    if (sector) bbootsec_run(&g_env);
+    uint32_t beat = 0;
+    if (post) beat = bkos_run(&g_env, post, beat);
+    if (sector) beat = bbootsec_run(&g_env, beat);
     if (sector || post) host_boot_cart(&g_env); /* the compositor snoops the cart's boot */
     AUDIO(baudio_boot());
     printf("ZM BOOT %lu\n", (unsigned long)(board_cycles() - t0));
+    return beat;
 }
 
 int main(void) {
@@ -219,9 +222,9 @@ int main(void) {
         printf("ZM WASMTRAP %s\n", wasm_rt_strerror(trap));
         board_finish(1);
     }
-    boot();
+    uint32_t beat = boot();
     board_state(ZM_CART_RUNNING);
-    run();
+    run(beat);
     uint32_t st = zmv_status();
     printf("ZM VSTAT %lu %lu %lu %lu %lu\n", (unsigned long)((st & ZMV_BIT(UNDERRUN)) != 0),
            (unsigned long)((st & ZMV_BIT(OVERFLOW)) != 0), (unsigned long)ZMV_REG(SWAPS),

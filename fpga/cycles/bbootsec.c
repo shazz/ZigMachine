@@ -65,7 +65,7 @@ static int frame(struct w2c_env* e, bootsec_t* b, unsigned planes) {
     return rc;
 }
 
-void bbootsec_run(struct w2c_env* e) {
+uint32_t bbootsec_run(struct w2c_env* e, uint32_t beat) {
     bootsec_t b; /* ~10 KB of the 1 MiB stack, for the phase only */
     struct w2c_machine* m = &e->machine;
     unsigned planes = w2c_machine_hwPlanesNumber(m);
@@ -78,7 +78,8 @@ void bbootsec_run(struct w2c_env* e) {
                                    w2c_machine_hwVideoBase(m), NULL);
     printf("ZM BOOTSEC start %s %lu\n", bootsec_status(st), (unsigned long)b.w.steps);
     int rc = st || hbl_set(e, planes) ? -1 : 0;
-    while (rc == 0) rc = frame(e, &b, planes);
+    while (rc == 0) rc = frame(e, &b, planes), board_beat(++beat); /* a sector is no hang */
     drop_keys();
     printf("ZM BOOTSEC end %lu %s %lu\n", (unsigned long)b.frames, bootsec_status(b.st), (unsigned long)b.w.steps);
+    return beat;
 }

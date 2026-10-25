@@ -24,6 +24,7 @@
 #include "host.h"
 
 int bbootsec_wanted(void);              /* after bdisk_boot() */
-void bbootsec_run(struct w2c_env* e);   /* after host_boot_machine() and vseq_init() */
+/* After host_boot_machine() and vseq_init(); each frame a CART_BEAT from `beat` on; returns the last. */
+uint32_t bbootsec_run(struct w2c_env* e, uint32_t beat);
 
 #endif

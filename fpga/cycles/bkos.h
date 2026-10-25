@@ -22,6 +22,8 @@
 
 uint32_t bkos_post_frames(void);                  /* after bdisk_boot(): 0 = no POST */
 void bkos_boot(struct w2c_env* e, int bootable);  /* after host_boot_machine(): the system variables, hwInit */
-void bkos_run(struct w2c_env* e, uint32_t post);  /* after vseq_init(): the POST's frames */
+/* After vseq_init(): the POST's frames, each a CART_BEAT from `beat` on (the glass counts them: a POST
+ * is no hang); returns the last beat. */
+uint32_t bkos_run(struct w2c_env* e, uint32_t post, uint32_t beat);
 
 #endif

@@ -96,12 +96,16 @@ static int frame(struct w2c_env* e, unsigned planes, long f) {
     return done;
 }
 
-void bkos_run(struct w2c_env* e, uint32_t post) {
+uint32_t bkos_run(struct w2c_env* e, uint32_t post, uint32_t beat) {
     unsigned planes = w2c_machine_hwPlanesNumber(&e->machine);
     board_state(ZM_CART_RUNNING); /* the glass waits 10 s for it; the POST holds 3 (it paints its border) */
     w2c_rom_kosPostStart(&e->rom, post);
     long f = 1;
-    while (!frame(e, planes, f)) f++;
+    for (int done = 0; !done; f++) {
+        done = frame(e, planes, f);
+        board_beat(++beat);
+    }
     drop_keys();
-    printf("ZM KOS post %ld\n", f);
+    printf("ZM KOS post %ld\n", f - 1);
+    return beat;
 }
