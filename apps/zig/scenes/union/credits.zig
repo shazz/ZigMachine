@@ -48,6 +48,7 @@ pub const Credits = struct {
     page: usize = 0,
     alpha: f32 = 0,
     on_plane: ?usize = null, // the page drawn on P1 now (P1 starts cleared)
+    shown: ?usize = null, // the last page drawn on P1
 
     pub fn init(self: *Credits, zigos: *ZigOS) void {
         self.* = .{};
@@ -76,8 +77,17 @@ pub const Credits = struct {
         if (want == self.on_plane) return;
         const p1: *LogicalFB = &zigos.lfbs[1];
         if (self.on_plane != null) gpu.fill(p1, OX, OY, PAGE_W, PAGE_H, 0);
-        if (want) |page| gpu.putTile(p1, OX, OY, pageImage(page), PAGE_W, 0, 0, PAGE_W, PAGE_H);
+        if (want) |page| {
+            gpu.putTile(p1, OX, OY, pageImage(page), PAGE_W, 0, 0, PAGE_W, PAGE_H);
+            self.shown = page;
+        }
         self.on_plane = want;
+    }
+
+    /// One step of the next page's picture a frame, while the page on show needs none:
+    /// building a page at once was a ~0.7 Mc frame every 800 (a dropped frame on the board).
+    pub fn prepare(self: *const Credits) void {
+        buildStep(if (self.shown == self.page) (self.page + 1) % PAGES.len else self.page);
     }
 };
 
@@ -89,20 +99,38 @@ const PAGE_W: u16 = 328; // 40 glyphs at pitch 8, + the 9 px glyph, + the shadow
 const PAGE_H: u16 = 80; // 4 lines of pitch 16 + 10 rows + the shadow
 pub const ROWS = .{ OY, OY + @as(i16, PAGE_H) }; // the rows a page is drawn on
 var page_buf: []u8 = &.{};
-var page_built: usize = PAGES.len; // which page page_buf holds; none yet
+var page_built: usize = PAGES.len; // which page page_buf holds whole; none yet
+var building: usize = PAGES.len; // which page the steps below are building
+var step: usize = 0; // its next step: 0 clears, then each line's shadow, then its face
+const STEPS = 1 + 2 * PAGES[0].len;
 
 fn pageImage(page: usize) []const u8 {
-    if (page_buf.len == 0) page_buf = zg.mem.mustAlloc(u8, @as(usize, PAGE_W) * PAGE_H);
-    if (page_built != page) {
-        @memset(page_buf, 0);
-        for (PAGES[page], 0..) |line, i| {
-            const y = @as(i16, @intCast(i)) * LINE_PITCH;
-            cf.drawLine(page_buf, PAGE_W, PAGE_H, line, SHADOW_DX, y + SHADOW_DY, SHADOW);
-            cf.drawLine(page_buf, PAGE_W, PAGE_H, line, 0, y, FACE);
-        }
-        page_built = page;
-    }
+    while (page_built != page) buildStep(page);
     return page_buf;
+}
+
+// The page picture as the one-pass build drew it, a step at a time and in the same order.
+fn buildStep(page: usize) void {
+    if (page_built == page) return;
+    if (page_buf.len == 0) page_buf = zg.mem.mustAlloc(u8, @as(usize, PAGE_W) * PAGE_H);
+    if (building != page) {
+        building = page;
+        step = 0;
+        page_built = PAGES.len; // the picture is about to change
+    }
+    if (step == 0) {
+        @memset(page_buf, 0);
+    } else {
+        const i = (step - 1) / 2;
+        const y = @as(i16, @intCast(i)) * LINE_PITCH;
+        if ((step - 1) % 2 == 0) {
+            cf.drawLine(page_buf, PAGE_W, PAGE_H, PAGES[page][i], SHADOW_DX, y + SHADOW_DY, SHADOW);
+        } else {
+            cf.drawLine(page_buf, PAGE_W, PAGE_H, PAGES[page][i], 0, y, FACE);
+        }
+    }
+    step += 1;
+    if (step == STEPS) page_built = page;
 }
 
 // Into P1's bank A (p1_split.zig): the slots hold the scrolltext's colours below the split.

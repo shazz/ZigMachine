@@ -148,6 +148,7 @@ pub const Demo = struct {
         self.fresh = false;
         self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
         self.credits.draw(zigos); // credits pages on plane 1 (top area)
+        self.credits.prepare(); // the next page's picture, a line a frame
         self.scroller.draw(zigos); // scrolltext on plane 1, under the split
     }
 
