@@ -45,7 +45,6 @@ const GRAD_RED_A: u8 = 35;
 const GRAD_RED_B: u8 = 36;
 const SCROLL_WRAP: f32 = 778; // pinpinPos wraps here (map tail repeats the head)
 
-
 const wd = @import("world_draw.zig");
 const sky = @import("sky.zig"); // P0's HBL: the sky raster + its borders open
 const Parallax5 = zg.parallax.Parallax(5);
@@ -147,8 +146,10 @@ pub const Demo = struct {
         split.erase(&zigos.lfbs[1], self.fresh, !self.runner.paintsBox(self.speed / 0.3));
         self.fresh = false;
         self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
+        // The next page's picture, a line a frame, BEFORE draw: on the frame draw copies a
+        // page out of the picture, nothing rewrites it (the copy never races a CPU store).
+        self.credits.prepare();
         self.credits.draw(zigos); // credits pages on plane 1 (top area)
-        self.credits.prepare(); // the next page's picture, a line a frame
         self.scroller.draw(zigos); // scrolltext on plane 1, under the split
     }
 
