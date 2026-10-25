@@ -64,6 +64,7 @@ pub const Demo = struct {
     scroller: Scroller = .{},
     credits: Credits = .{},
     ring: WorldRing = .{}, // map rows 3..7 (plane rows 83..163), on plane 2, never enabled
+    floor: wd.Span = .{}, // where last frame's map row 8 cells covered the floor band
     pos: f32 = 0, // world scroll in tiles
     speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
     frame: u32 = 0,
@@ -137,10 +138,11 @@ pub const Demo = struct {
         // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
         // white to the screen bottom. (Don't over-fill and hide the floor
         // parallax.)
-        fill(p0, FLOOR_TOP, 179, FLOOR);
+        // The floor band is FLOOR but under map row 8's cells: refill only where they were.
+        if (self.fresh) fill(p0, FLOOR_TOP, 179, FLOOR) else if (self.floor.x1 > self.floor.x0) gpu.fill(p0, self.floor.x0, FLOOR_TOP, self.floor.x1 - self.floor.x0, 179 - FLOOR_TOP, FLOOR);
         fill(p0, BOTTOM_TOP, @intCast(PH), BOTTOM);
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
-        wd.world(p0, self.pos, &self.ring); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
+        self.floor = wd.world(p0, self.pos, &self.ring); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
         self.balls.draw(zigos); // dragonballs on plane 0, last
         split.erase(&zigos.lfbs[1], self.fresh, !self.runner.paintsBox(self.speed / 0.3));
         self.fresh = false;
@@ -180,5 +182,6 @@ pub const Demo = struct {
 comptime { // the cloud strips (Demo.init) cover WORLD_TOP..CLOUDS_END, one after the other
     if (WORLD_TOP + 3 * 16 != CLOUDS_END) @compileError("the cloud strips no longer tile WORLD_TOP..CLOUDS_END");
     const rows = @import("world_ring.zig");
+    if (wd.FLOOR_ROW != 8 or WORLD_TOP + 8 * 16 != FLOOR_TOP or FLOOR_TOP + 16 != 179) @compileError("map row 8 no longer covers the floor band exactly");
     if (rows.TOP != CLOUDS_END or rows.TOP + (rows.ROW1 - rows.ROW0) * 16 != FLOOR_TOP) @compileError("the world ring no longer covers CLOUDS_END..FLOOR_TOP");
 }

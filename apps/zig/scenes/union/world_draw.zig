@@ -36,13 +36,20 @@ pub fn parallax(px: anytype, fb: *LogicalFB, dst_w: u16) void {
     }
 }
 
+/// The columns [x0, x1) of the plane a map row's cells were drawn in (none when x1 <= x0).
+pub const Span = struct { x0: i32 = 0, x1: i32 = 0 };
+/// The last map row: it lies on main.zig's floor band.
+pub const FLOOR_ROW: usize = cells.ROWS - 1;
+
 /// The tile world at `pos_tiles` (clouds, animated rows and world in one pass). Map rows
-/// ring.ROW0..ring.ROW1 come from `rows`, which also stands for their erase to 0.
-pub fn world(fb: *LogicalFB, pos_tiles: f32, rows: *ring.Ring) void {
+/// ring.ROW0..ring.ROW1 come from `rows`, which also stands for their erase to 0. Returns
+/// where FLOOR_ROW's cells went, the only pixels of the floor band anything draws over.
+pub fn world(fb: *LogicalFB, pos_tiles: f32, rows: *ring.Ring) Span {
     const abs: usize = @intFromFloat(pos_tiles);
     const frac: f32 = pos_tiles - @floor(pos_tiles);
     const sub: i16 = @intFromFloat(frac * 16.0);
     rows.draw(fb, abs, @intCast(sub));
+    var floor = Span{ .x0 = @intCast(fb.fb_w), .x1 = 0 };
     for (0..cells.ROWS) |r| {
         if (r >= ring.ROW0 and r < ring.ROW1) continue;
         const y: i32 = cells.TOP + @as(i32, @intCast(r)) * 16;
@@ -51,6 +58,8 @@ pub fn world(fb: *LogicalFB, pos_tiles: f32, rows: *ring.Ring) void {
             if (id == cells.NONE) continue;
             const x: i32 = DST_X + @as(i32, @intCast(vc)) * 16 - sub;
             gpu.putTile(fb, x, y, &cells.sheet, 16, 0, @as(u16, id) * 16, 16, 16);
+            if (r == FLOOR_ROW) floor = .{ .x0 = @min(floor.x0, @max(x, 0)), .x1 = @max(floor.x1, @min(x + 16, @as(i32, @intCast(fb.fb_w)))) };
         }
     }
+    return floor;
 }
