@@ -44,8 +44,10 @@ pub const Clock = struct {
 
     pub fn step(self: *Clock) void {
         // copy(History[:65], History[1:]): shift left by one, History[65] set below.
-        var i: usize = 0;
-        while (i < 65) : (i += 1) self.history[i] = self.history[i + 1];
+        // One memmove, not a Point loop: LLVM moved each 6-byte Point as u32 + u16,
+        // and every other one sat 2 mod 4 (54 misaligned reads a frame, each a trap
+        // on the board); memory.copy goes to the C library, which aligns itself.
+        @memmove(self.history[0..65], self.history[1..66]);
         self.position[0] +%= self.velocity[0];
         self.position[1] +%= self.velocity[1];
         self.position[2] +%= self.velocity[2];
