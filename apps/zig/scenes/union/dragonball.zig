@@ -38,7 +38,8 @@ fn mix(c: u8, a: u8, d: u8) u8 {
     return @intCast(((r + (r >> 8)) >> 8) + ((@as(u32, d) * (256 - @as(u32, a))) >> 8));
 }
 
-var ball_buf: raster.Buf = undefined; // module-level scratch (heap-free)
+var ball_buf: raster.Buf = undefined;
+var ball_spans: raster.Spans = undefined; // where ball_buf's rows are not 0 // module-level scratch (heap-free)
 var sprite: sq.Sprite = undefined; // the squashed ball, stamped 6 times by CHISEL
 
 pub const Dragonballs = struct {
@@ -68,13 +69,13 @@ pub const Dragonballs = struct {
     }
 
     pub fn draw(self: *Dragonballs, zigos: *ZigOS) void {
-        raster.renderBall(&ball_buf, self.rotx, self.roty); // stars + disc, dragonball_raster.zig
+        raster.renderBall(&ball_buf, &ball_spans, self.rotx, self.roty); // stars + disc, dragonball_raster.zig
         // Squash the WHOLE ball (stars + disc together) at blit time — matches
         // the original (scale the composited sprite), so star tips never poke
         // outside the disc when it shrinks.
         const sx = 1.0 + @sin(self.u) / 6.0;
         const sy = 1.0 + @sin(self.u + 10.0) / 6.0;
-        sprite.build(&ball_buf, sx, sy); // one resample for all six balls
+        sprite.build(&ball_buf, &ball_spans, sx, sy); // one resample for all six balls
         const p0: *LogicalFB = &zigos.lfbs[0];
         var i: usize = 0;
         while (i < 6) : (i += 1) {

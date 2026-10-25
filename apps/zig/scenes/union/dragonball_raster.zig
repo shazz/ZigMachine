@@ -25,12 +25,15 @@ pub const PAL_BACK: u8 = 129; // star back, opaque, dimmer (drawn under the disc
 pub const PAL_DISC_ON_BACK: u8 = 192; // the disc over PAL_BACK, opaque
 
 pub const Buf = [BS * BS]u8;
+/// Per row, columns [lo, hi) hold every non-zero pixel of the row (lo >= hi: none).
+pub const Spans = [BS][2]u8;
 const Tri = [3]gm.Vec2;
 
-/// The ball at star rotation (rotx, roty) into `buf`.
-pub fn renderBall(buf: *Buf, rotx: f32, roty: f32) void {
+/// The ball at star rotation (rotx, roty) into `buf`, and where each row is not 0 into `spans`.
+pub fn renderBall(buf: *Buf, spans: *Spans, rotx: f32, roty: f32) void {
     @memset(buf, 0);
     for (gm.DISC_SPAN, 0..) |span, y| @memset(buf[y * BS + span[0] ..][0 .. span[1] - span[0]], PAL_DISC);
+    spans.* = gm.DISC_SPAN;
 
     var tris: [gm.NSTARS * gm.NTRIS]Tri = undefined;
     var front: [gm.NSTARS * gm.NTRIS]bool = undefined;
@@ -45,8 +48,8 @@ pub fn renderBall(buf: *Buf, rotx: f32, roty: f32) void {
             front[k] = gm.signedArea(proj[t[0]], proj[t[1]], proj[t[2]]) <= 0;
         }
     }
-    for (tris, front) |t, f| if (!f) fill(buf, t, .back); // under the disc
-    for (tris, front) |t, f| if (f) fill(buf, t, .front); // on top, opaque
+    for (tris, front) |t, f| if (!f) fill(buf, spans, t, .back); // under the disc
+    for (tris, front) |t, f| if (f) fill(buf, spans, t, .front); // on top, opaque
 }
 
 const Edge = struct { ay: f32, ax: f32, by: f32, dx: f32, dy: f32, flat: bool };
@@ -61,7 +64,7 @@ fn edge(a: gm.Vec2, b: gm.Vec2) Edge {
 const Pass = enum { back, front };
 
 // gm.fillTriangle, clipped the same way; a back row is split at the disc's run.
-fn fill(buf: *Buf, t: Tri, pass: Pass) void {
+fn fill(buf: *Buf, spans: *Spans, t: Tri, pass: Pass) void {
     const edges = [3]Edge{ edge(t[0], t[1]), edge(t[1], t[2]), edge(t[2], t[0]) };
     var ymin = @min(t[0].y, @min(t[1].y, t[2].y));
     var ymax = @max(t[0].y, @max(t[1].y, t[2].y));
@@ -88,11 +91,20 @@ fn fill(buf: *Buf, t: Tri, pass: Pass) void {
         const yu: usize = @intCast(y);
         const lu: usize = @intCast(l);
         const ru: usize = @intCast(r + 1);
+        widen(&spans[yu], lu, ru);
         if (pass == .front) {
             @memset(buf[yu * BS + lu .. yu * BS + ru], PAL_FRONT);
         } else {
             backRow(buf[yu * BS ..][0..BS], lu, ru, gm.DISC_SPAN[yu]);
         }
+    }
+}
+
+fn widen(span: *[2]u8, lo: usize, hi: usize) void {
+    if (span[1] <= span[0]) {
+        span.* = .{ @intCast(lo), @intCast(hi) };
+    } else {
+        span.* = .{ @min(span[0], @as(u8, @intCast(lo))), @max(span[1], @as(u8, @intCast(hi))) };
     }
 }
 

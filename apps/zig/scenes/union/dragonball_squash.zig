@@ -28,7 +28,8 @@ pub const Sprite = struct {
     /// Resample `ball` (BS x BS, index 0 transparent) scaled by (sx, sy) about
     /// its centre, for a ball centred on a whole pixel. Same texel test as the
     /// old per-ball CPU blit: a destination pixel samples at its centre (+0.5).
-    pub fn build(self: *Sprite, ball: *const [BS * BS]u8, sx: f32, sy: f32) void {
+    /// `spans`: where each ball row is not 0 (dragonball_raster.renderBall's).
+    pub fn build(self: *Sprite, ball: *const [BS * BS]u8, spans: *const [BS][2]u8, sx: f32, sy: f32) void {
         const x0 = @floor(-gm.CENTER * sx);
         const y0 = @floor(-gm.CENTER * sy);
         self.ox = @intFromFloat(x0);
@@ -39,30 +40,50 @@ pub const Sprite = struct {
         // The texel column of each sprite column. texel() grows with k, so the columns off
         // the ball are a run at each end, [0, lo) and [hi, w): they read column 0 here and
         // are zeroed after each row, which keeps the inner loop free of tests.
-        var cols: [MAX_SPAN]u8 = [_]u8{0} ** MAX_SPAN;
-        var lo: usize = self.w;
-        var hi: usize = 0;
+        var m = Map{};
         for (0..self.w) |k| {
             const c = texel(x0, k, sx);
             if (c < 0) continue;
-            cols[k] = @intCast(c);
-            lo = @min(lo, k);
-            hi = k + 1;
+            m.cols[k] = @intCast(c);
+            m.lo = @min(m.lo, k);
+            m.hi = k + 1;
         }
-        for (0..self.h) |r| self.row(ball, r, texel(y0, r, sy), &cols, lo, hi);
+        // first[c]: the first sprite column on the ball reading texel column c or right of it.
+        var k: usize = m.lo;
+        for (&m.first, 0..) |*f, c| {
+            while (k < m.hi and m.cols[k] < c) k += 1;
+            f.* = @intCast(k);
+        }
+        for (0..self.h) |r| self.row(ball, spans, r, texel(y0, r, sy), &m);
     }
 
-    fn row(self: *Sprite, ball: *const [BS * BS]u8, r: usize, ty: i16, cols: *const [MAX_SPAN]u8, lo: usize, hi: usize) void {
+    const Map = struct {
+        cols: [MAX_SPAN]u8 = [_]u8{0} ** MAX_SPAN,
+        first: [BS + 1]u8 = undefined,
+        lo: usize = MAX_SPAN,
+        hi: usize = 0,
+    };
+
+    // Only the words whose texels can be non-zero (the row's span) are gathered.
+    fn row(self: *Sprite, ball: *const [BS * BS]u8, spans: *const [BS][2]u8, r: usize, ty: i16, m: *const Map) void {
         const out = self.buf[r * self.stride ..][0..self.stride];
         const words: []u32 = @as([*]u32, @ptrCast(@alignCast(out.ptr)))[0 .. self.stride / 4];
-        if (ty < 0 or hi <= lo) return @memset(words, 0);
+        if (ty < 0) return @memset(words, 0);
+        const span = spans[@intCast(ty)];
+        const k0: usize = m.first[span[0]];
+        const k1: usize = if (span[1] > span[0]) m.first[span[1]] else k0;
+        if (k1 <= k0) return @memset(words, 0);
+        const w0 = k0 / 4;
+        const w1 = (k1 + 3) / 4;
+        @memset(words[0..w0], 0);
+        @memset(words[w1..], 0);
         const src = ball[@as(usize, @intCast(ty)) * BS ..][0..BS];
-        for (words, 0..) |*wd, i| {
-            const c = cols[i * 4 ..][0..4];
+        for (words[w0..w1], w0..) |*wd, i| {
+            const c = m.cols[i * 4 ..][0..4];
             wd.* = @as(u32, src[c[0]]) | @as(u32, src[c[1]]) << 8 | @as(u32, src[c[2]]) << 16 | @as(u32, src[c[3]]) << 24;
         }
-        @memset(out[0..lo], 0);
-        @memset(out[hi..self.w], 0);
+        if (w0 * 4 < m.lo) @memset(out[w0 * 4 .. m.lo], 0);
+        if (w1 * 4 > m.hi) @memset(out[m.hi..@min(w1 * 4, self.w)], 0);
     }
 };
 
@@ -88,6 +109,7 @@ pub const DISC_TOP: i16 = 211;
 test "the disc never leaves the bottom band" {
     const std = @import("std");
     var ball = [_]u8{0} ** (BS * BS);
+    const spans = gm.DISC_SPAN; // the disc is all this ball holds
     for (gm.DISC_SPAN, 0..) |span, y| @memset(ball[y * BS + span[0] ..][0 .. span[1] - span[0]], 1);
     var top: i16 = 1000;
     var angle: f32 = 0;
@@ -102,7 +124,7 @@ test "the disc never leaves the bottom band" {
         u = @mod(u + 0.2, std.math.pi * 2.0);
         const sweep = 5.0 / 6.0 + @as(f32, @floatFromInt(k -| 20_000)) / 60_000.0;
         const sy = if (k < 20_000) 1.0 + @sin(u + 10.0) / 6.0 else sweep;
-        s.build(&ball, 7.0 / 6.0, sy);
+        s.build(&ball, &spans, 7.0 / 6.0, sy);
         var first: usize = s.h;
         for (0..s.h) |r| {
             if (std.mem.indexOfScalar(u8, s.pixels()[r * s.stride ..][0..s.w], 1) != null) {

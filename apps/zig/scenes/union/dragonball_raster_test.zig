@@ -45,13 +45,15 @@ test "renderBall paints what the first version painted" {
     var b: raster.Buf = undefined;
     var rotx: f32 = 0;
     var roty: f32 = 0;
+    var spans: raster.Spans = undefined;
     var back_seen = false; // the comparison covers balls with back faces on and off the disc
     for (0..20_000) |_| {
         rotx = @mod(rotx + 0.01, TWO_PI); // Dragonballs.update
         roty = @mod(roty + 0.06, TWO_PI);
         refRender(&a, rotx, roty);
-        raster.renderBall(&b, rotx, roty);
+        raster.renderBall(&b, &spans, rotx, roty);
         try std.testing.expectEqualSlices(u8, &a, &b);
+        try expectSpansCover(&b, &spans);
         back_seen = back_seen or std.mem.indexOfScalar(u8, &a, raster.PAL_DISC_ON_BACK) != null;
     }
     try std.testing.expect(back_seen);
@@ -60,10 +62,18 @@ test "renderBall paints what the first version painted" {
 test "a mutant raster is caught" {
     var a: raster.Buf = undefined;
     var b: raster.Buf = undefined;
+    var spans: raster.Spans = undefined;
     refRender(&a, 0.3, 1.1);
-    raster.renderBall(&b, 0.3, 1.1);
+    raster.renderBall(&b, &spans, 0.3, 1.1);
     b[BS * 32 + 32] +%= 1;
     try std.testing.expect(!std.mem.eql(u8, &a, &b));
+}
+
+// Every non-zero pixel of a row lies in its span (Sprite.build gathers only there).
+fn expectSpansCover(buf: *const raster.Buf, spans: *const raster.Spans) !void {
+    for (spans, 0..) |span, y| for (buf[y * BS ..][0..BS], 0..) |px, x| {
+        if (px != 0) try std.testing.expect(x >= span[0] and x < span[1]);
+    };
 }
 
 // The first Sprite.build: a w x h picture, one pixel at a time.
@@ -97,6 +107,7 @@ test "Sprite.build resamples what the first version resampled" {
     var ball: raster.Buf = undefined;
     var ref: [sq.MAX_SPAN * sq.MAX_SPAN]u8 = undefined;
     var s: sq.Sprite = .{};
+    var spans: raster.Spans = undefined;
     var rotx: f32 = 0;
     var roty: f32 = 0;
     var u: f32 = 0;
@@ -104,11 +115,11 @@ test "Sprite.build resamples what the first version resampled" {
         rotx = @mod(rotx + 0.01, TWO_PI); // Dragonballs.update
         roty = @mod(roty + 0.06, TWO_PI);
         u = @mod(u + 0.2, TWO_PI);
-        raster.renderBall(&ball, rotx, roty);
+        raster.renderBall(&ball, &spans, rotx, roty);
         const sx = 1.0 + @sin(u) / 6.0; // Dragonballs.draw
         const sy = 1.0 + @sin(u + 10.0) / 6.0;
         const d = refBuild(&ref, &ball, sx, sy);
-        s.build(&ball, sx, sy);
+        s.build(&ball, &spans, sx, sy);
         try std.testing.expectEqual(d.w, s.w);
         try std.testing.expectEqual(d.h, s.h);
         for (0..d.h) |r| try std.testing.expectEqualSlices(u8, ref[r * d.w ..][0..d.w], s.pixels()[r * s.stride ..][0..s.w]);
