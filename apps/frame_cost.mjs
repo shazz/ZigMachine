@@ -81,6 +81,7 @@ export async function costOf(cart, o, keep = false) {
         names: { cart: cn.names, rom: rn.names } });
     const src = { cart: cn.src, rom: rn.src };
     for (const h of r.hot) h.src = src[h.mod](parseInt(h.at, 16));
+    for (const m of r.misSites) m.src = src[m.mod]?.(parseInt(m.at, 16)) ?? null;
     if (keep) Object.assign(r, { cartNames: cn.names, cartSrc: cn.src });
     else delete r.profiles;
     return { tag, ...r, disk, namesWhy: `cart ${cn.why}, rom ${rn.why}` };

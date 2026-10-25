@@ -27,7 +27,10 @@ export function printOne(r, out = console.log) {
     out(`  causes %: ${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(", ")}`);
     out(`  per frame: ${Object.entries(r.classes).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(", ")}`);
     if (r.misaligned) out(`  MISALIGNED wide accesses/frame: ${r.misaligned} (each traps on the board, ~${TRAP_CYCLES} cycles: ${(r.misaligned * TRAP_CYCLES / 1e6).toFixed(2)} Mc in the estimate)`);
-    if (r.misaligned) for (const m of r.misSites) out(`      ${lpad(m.count, 7)} misaligned, whole run  ${m.mod}:${short(m.func)} @${m.at}`);
+    // every site (a one-off at init shows with 0 a frame), most per frame first
+    if (r.misSites.length) out(`  misaligned sites (a frame in the window / the whole run incl. warmup):`);
+    for (const m of r.misSites)
+        out(`      ${lpad(m.perFrame, 8)} /${lpad(m.count, 7)}  ${m.mod}:${short(m.func)} @${m.at}${m.src ? "  " + m.src : ""}`);
     if (r.misaligned) for (const h of r.hints) out(`      ${lpad(h.hints, 7)} wide accesses of unproven alignment  ${h.mod}:${short(h.func)} ${h.loop >= 0 ? "loop@" + h.at : "body@" + h.at}`);
     if (Object.keys(r.libm).length) out(`  libm calls/frame: ${Object.entries(r.libm).map(([k, v]) => `${k} ${v}`).join(", ")}`);
     if (r.palette.writes) out(`  palette stores/frame: ${r.palette.writes}, ${r.palette.unchanged} of them rewrite the colour already there`);

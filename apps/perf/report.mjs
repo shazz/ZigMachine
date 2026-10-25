@@ -115,15 +115,27 @@ export function hintRegions(profiles, n) {
 
 /// The sites that really trapped (a misaligned address), by function, from the per-site counters
 /// of the whole run (warm-up included): where to look when MISALIGNED is large.
-export function misSites(mods, n) {
+/// Every misaligned site's counter, per module, as it is now: subtract a snapshot taken at the
+/// window's start to get the window's own counts (misSites' `perFrame`).
+export function misSnapshot(mods) {
+    return mods.map((m) => (m.mem && m.plan?.mis ? m.plan.mis.map((s) => new Uint32Array(m.mem.buffer)[s.word]) : []));
+}
+
+/// ALL the sites that trapped, most per frame in the window first, then by whole-run count:
+/// `perFrame` is the measured window's (from `snap`, misSnapshot at its start, over `frames`),
+/// `count` the whole run's (warmup included, where one-off init traps show).
+export function misSites(mods, snap = null, frames = 1) {
     const all = [];
-    for (const m of mods) {
-        if (!m.mem || !m.plan?.mis) continue;
+    mods.forEach((m, mi) => {
+        if (!m.mem || !m.plan?.mis) return;
         const w = new Uint32Array(m.mem.buffer);
-        for (const s of m.plan.mis) {
+        m.plan.mis.forEach((s, si) => {
             const k = w[s.word];
-            if (k) all.push({ mod: m.tag, func: funcName(m.plan.module, s.fi), at: hex(s.at), count: k });
-        }
-    }
-    return all.sort((a, b) => b.count - a.count).slice(0, n);
+            if (!k) return;
+            const inWindow = snap ? k - snap[mi][si] : 0;
+            all.push({ mod: m.tag, func: funcName(m.plan.module, s.fi), at: hex(s.at), count: k,
+                perFrame: Math.round((100 * inWindow) / Math.max(1, frames)) / 100 });
+        });
+    });
+    return all.sort((a, b) => b.perFrame - a.perFrame || b.count - a.count);
 }
