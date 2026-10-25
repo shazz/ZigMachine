@@ -45,49 +45,47 @@ pub fn clearStale(page: []u8, prev: Dirty, band: Dirty) void {
 }
 
 /// Blow the narrow scrolltext strip up by ZOOM in both axes into the overscan
-/// page, its top edge at `top`. The strip is rendered 50 px wide precisely so
-/// that 50*8 == 400 covers the opened borders as well. Each 8-row block is one
-/// line built with two u32 stores a pixel (page must be 4-aligned: it is a u32
-/// arena allocation) and seven 400-byte copies of it.
-pub fn zoomScroller(dst: RenderTarget, src: RenderTarget, top: u16, rows: u16) void {
+/// page (the plane itself in the cart), its top edge at `top`. The strip is
+/// rendered 50 pixels wide precisely so that 50*8 == 400 covers the opened
+/// borders as well. Each zoomed line is built once as 100 words in a local, then
+/// stored on its 8 page rows (page must be 4-aligned: a plane is) through a
+/// volatile pointer: as a plain loop LLVM turns that copy into a memcpy (~11
+/// cycles a word on the board), this is a load and a posted store a word.
+///
+/// All CPU: it used to store the first row and let CHISEL repeat it (a stride-0
+/// blit) over the other seven, but that source row lies in the plane the blit
+/// writes, and CHISEL's overlap check (measured from the plane's base) then runs
+/// the op ORDERED, each read waiting for the previous write: ~2 Mc a frame on
+/// the board for 24 such blits (cart_c 2.33 Mc, 33.5 fps).
+pub fn zoomScroller(page: []u8, src: RenderTarget, top: u16, rows: u16) void {
     const strip = src.render_buffer;
-    const page = dst.render_buffer;
-
+    const words: [*]volatile u32 = @ptrCast(@alignCast(page.ptr));
+    var line: [LINE_WORDS]u32 = undefined;
     var char_row: u32 = 0;
     while (char_row < rows) : (char_row += 1) {
         const y0 = @as(u32, top) + char_row * ZOOM;
         if (y0 >= OVERSCAN_H) return;
-        const line = page.buffer[y0 * OVERSCAN_W ..][0..OVERSCAN_W];
-        buildLine(line, strip.buffer[char_row * strip.width ..][0..strip.width]);
-        var row: u32 = 1;
-        while (row < ZOOM and y0 + row < OVERSCAN_H) : (row += 1) {
-            @memcpy(page.buffer[(y0 + row) * OVERSCAN_W ..][0..OVERSCAN_W], line);
-        }
+        buildLine(&line, strip.buffer[char_row * strip.width ..][0..strip.width]);
+        const y1 = @min(y0 + ZOOM, OVERSCAN_H);
+        var y = y0;
+        while (y < y1) : (y += 1) storeLine(words + y * LINE_WORDS, &line);
     }
 }
 
-/// One zoomed line: each strip pixel as 8 equal pixels, two u32 stores a pixel.
-fn buildLine(line: []u8, strip_row: []const u8) void {
-    const words: [*]u32 = @ptrCast(@alignCast(line.ptr));
+const LINE_WORDS = OVERSCAN_W / 4;
+
+/// One zoomed line: each strip pixel as 8 equal pixels, two words a pixel.
+fn buildLine(line: *[LINE_WORDS]u32, strip_row: []const u8) void {
     for (strip_row, 0..) |pal_entry, col| {
         const v = @as(u32, pal_entry) * 0x01010101;
-        words[col * 2] = v;
-        words[col * 2 + 1] = v;
+        line[col * 2] = v;
+        line[col * 2 + 1] = v;
     }
 }
 
-/// zoomScroller on the plane itself, the seven copies of each line made by CHISEL: a blit whose
-/// source row has stride 0 repeats the line over its seven rows (the CPU copied 400 bytes x 7
-/// x 30 lines of blocking stores a frame). Same pixels.
-pub fn zoomScrollerGpu(fb: *zg.LogicalFB, blitter: *zg.Blitter, src: RenderTarget, top: u16, rows: u16) void {
-    const strip = src.render_buffer;
-    var char_row: u32 = 0;
-    while (char_row < rows) : (char_row += 1) {
-        const y0 = @as(u32, top) + char_row * ZOOM;
-        if (y0 >= OVERSCAN_H) return;
-        const line = fb.fb[y0 * OVERSCAN_W ..][0..OVERSCAN_W];
-        buildLine(line, strip.buffer[char_row * strip.width ..][0..strip.width]);
-        const copies: u16 = @intCast(@min(@as(u32, ZOOM) - 1, OVERSCAN_H - 1 - y0));
-        if (copies > 0) blitter.blitRow(fb, 0, @intCast(y0 + 1), line, copies, null);
+fn storeLine(dst: [*]volatile u32, line: *const [LINE_WORDS]u32) void {
+    var i: usize = 0;
+    while (i < LINE_WORDS) : (i += 4) {
+        inline for (0..4) |k| dst[i + k] = line[i + k];
     }
 }

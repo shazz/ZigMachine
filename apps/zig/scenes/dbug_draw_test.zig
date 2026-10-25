@@ -17,8 +17,6 @@ test "dirty rows give the same plane as clearing and copying everything" {
     var page: [400 * 280]u8 align(4) = @splat(0);
     var ref: [400 * 280]u8 align(4) = @splat(0);
     var plane: [400 * 280]u8 = @splat(0);
-    var page_rb: zg.RenderBuffer = .{ .buffer = &page, .width = 400, .height = 280 };
-    var ref_rb: zg.RenderBuffer = .{ .buffer = &ref, .width = 400, .height = 280 };
     var dirty: draw.Dirty = .{};
 
     for (0..400) |_| {
@@ -27,9 +25,9 @@ test "dirty rows give the same plane as clearing and copying everything" {
         const band = draw.Dirty.rows(top, @as(i32, top) + 24 * draw.ZOOM);
 
         draw.clearStale(&page, dirty, band);
-        draw.zoomScroller(.{ .render_buffer = &page_rb }, strip, top, 24);
+        draw.zoomScroller(&page, strip, top, 24);
         @memset(&ref, 0);
-        draw.zoomScroller(.{ .render_buffer = &ref_rb }, strip, top, 24);
+        draw.zoomScroller(&ref, strip, top, 24);
         for ([_]*[400 * 280]u8{ &page, &ref }) |p| {
             const lo: usize = @intCast(@max(ly, 0));
             const hi: usize = @intCast(@min(ly + logo_h, 280));

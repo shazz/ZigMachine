@@ -60,7 +60,7 @@ const layers = @import("dbug_layers.zig");
 // in a RAM copy and memcpy'd to the plane: every store of a ZIGGY frame is a
 // blocking DDR write). Rows of it that are not all 0:
 var dirty: draw.Dirty = .{};
-var chisel: zg.Blitter = .{}; // the zoomed lines' copies; init() points it at the video region
+var chisel: zg.Blitter = .{}; // stale-row fills, the logo, the panel; init() points it at the video region
 
 // The scroller is drawn 50 pixels wide and zoomed 8 times into the overscan
 // ((320 + 80) / 8). Small, so a static; cleared in init.
@@ -153,14 +153,14 @@ pub const Demo = struct {
 
         // draw the zoomed scrolltext straight into the overscan plane: the zoom
         // repaints its whole band, so only the rows the last frame touched outside
-        // it are cleared (by CHISEL: a memset is ~60 cycles a word on the board)
+        // it are cleared (by CHISEL fills: no copy, so never ordered)
         const fb = &zigos.lfbs[0];
         const top = layers.start_raster_line;
         const band = draw.Dirty.rows(top, @as(i32, top) + SCROLL_CHAR_HEIGHT * draw.ZOOM);
         for (draw.staleRuns(dirty, band)) |r| {
             if (r.hi > r.lo) chisel.fill(fb, 0, @intCast(r.lo), draw.OVERSCAN_W, r.hi - r.lo, 0);
         }
-        draw.zoomScrollerGpu(fb, &chisel, self.scroller_target, top, SCROLL_CHAR_HEIGHT);
+        draw.zoomScroller(fb.fb[0 .. @as(u32, draw.OVERSCAN_W) * draw.OVERSCAN_H], self.scroller_target, top, SCROLL_CHAR_HEIGHT);
         const ly = LOGO_Y + self.sync.logo_dy;
         layers.drawLogo(&chisel, fb, ly);
 
