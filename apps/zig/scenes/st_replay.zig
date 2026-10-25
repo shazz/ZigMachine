@@ -76,7 +76,9 @@ pub const App = struct {
     g: rom.Gui = .{},
     dialog: rom.Dialog = .{},
     fsel: rom.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
-    sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
+    // align(4), and shown_sample too: draw.waveSame compares the two with std.mem.eql,
+    // which reads them as u32s, and a misaligned one traps on the board (320 a frame).
+    sample: [WAVE_LEN]u8 align(4) = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
     replay: Replay = .{}, // the replay, through the INTERNAL or EXTERNAL output (Alt)
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
     looping: bool = false,
@@ -93,7 +95,7 @@ pub const App = struct {
     // is up and once more after they close. It was ~200 ROM draw calls a frame
     // (4 Mc of the 4.2) to repaint a picture that had not changed.
     shown: draw.View = undefined,
-    shown_sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN,
+    shown_sample: [WAVE_LEN]u8 align(4) = [_]u8{SILENCE} ** WAVE_LEN,
     shown_valid: bool = false,
     was_busy: bool = false,
 
