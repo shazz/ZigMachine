@@ -5,6 +5,8 @@ minutes a frame. The perf suite runs the REAL cart in node (the way `apps/scene_
 does), counts what it executes, and turns the counts into an **estimate** of ZIGGY's
 Mc/frame plus a ranked list of the bad patterns behind it. Deterministic: fixed dt, no wall
 clock, the same cart gives the same numbers.
+The typical errors behind those findings, with their fixes and the carts they cost, are in
+[BAD_PATTERNS.md](BAD_PATTERNS.md).
 
 ```sh
 tools/perf_audit.sh <tag|cart.wasm>        # one cart: est. Mc/frame + ranked findings with fixes
