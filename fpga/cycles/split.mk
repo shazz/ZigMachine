@@ -16,8 +16,10 @@
 # no TLS (-D_Thread_local=: its call-depth counter is its own, the ADR says why).
 SPLIT       := $(HCYC)/split
 SPL_CFLAGS   = $(HRV_CFLAGS) -DZM_SPLIT_SYS
+# ZM_LOCAL_BASE (cycles/zm_variant.h): a lean cart addresses its memory from the base taken at function
+# entry, not by reloading instance->memory->data after every store; ZM_CART_LOCAL_BASE=0 builds without.
 CART_CFLAGS  = $(RV_CFLAGS) $(V_$(HV)) -DZM_SPLIT_CART -D_Thread_local= -Igen \
-	$(if $(ZM_CART_VERSION),-DZM_CART_VERSION=$(ZM_CART_VERSION))
+	$(if $(filter 0,$(ZM_CART_LOCAL_BASE)),,-DZM_LOCAL_BASE) $(if $(ZM_CART_VERSION),-DZM_CART_VERSION=$(ZM_CART_VERSION))
 CART_BASE    = 0x$(shell printf '%08x' $$(( $(shell awk '/define CART_CPU_BASE/{print $$3}' gen/glass_map.h | tr -d u) \
 	+ $(shell awk '/define CART_IMG_AT/{print $$3}' gen/glass_cart.h | tr -d u) )))
 CART_LDFLAGS = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -nostdlib -nostartfiles -Wl,--no-warn-rwx-segments \
