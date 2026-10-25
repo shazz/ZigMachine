@@ -9,6 +9,17 @@
 //   placement  — efmain_intro: 17 back_layer strips slide/fade in -> main screen
 //   -> main    — hands off to the doors launcher (walk to a door + Fire to enter)
 //
+// 2026-10-25: union_intro's wave and triangle edges run in fixed point (no per-frame
+// float on ZIGGY). Against the old f32 picture over 13,000 frames: 141 frames /
+// 6,370 pixels differ, all in the scrolltext and dragonball band (a wave column group
+// one raster row up or down, dragonball edge texels): 5,447 within 1 px, 709 within
+// 2, 92 a raster row's colour change. With the slow-down key held (10,000 frames, 62
+// presses) far more moves: 3,388 frames / 3.9 M pixels, because the Q16 ramp snaps
+// back to exactly 0.3 where the f32 one never did, so the world ends a fraction of a
+// pixel elsewhere after each slow-down (~1,200 px a frame while slowed).
+// The f32 accumulators (scroll, counters, fades, phases) are stepped bit for bit by
+// union/f32emu.zig, the sines come from union/fixsin.zig.
+//
 // ESC during the intro, or on the main screen, bubbles `wants_quit` to the
 // menu host (same contract menu.zig uses for the standalone UNION MAIN entry).
 // --------------------------------------------------------------------------

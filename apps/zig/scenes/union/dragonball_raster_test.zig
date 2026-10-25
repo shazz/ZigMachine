@@ -1,14 +1,55 @@
-// dragonball_raster.renderBall and dragonball_squash's Sprite.build against their first
-// versions (dragonball.zig's renderBall, drawStars and drawDisc over gm.fillTriangle, and the
-// per-pixel resample, kept here verbatim), byte for byte, at every rotation and squash the
-// main screen's f32 accumulators take over 20,000 frames.
+// dragonball_raster.renderBall and dragonball_squash's Sprite.build (fixed point since
+// 2026-10-25) against their first, f32 versions (dragonball.zig's renderBall, drawStars and
+// drawDisc over gm.fillTriangle, and the per-pixel resample, kept here verbatim) at the same
+// angles and squashes, over 20,000 frames of the accumulators: only a handful of pixels may
+// differ (measured: 107 ball texels in 20,000 frames, at most 1 a frame -- the rows a
+// triangle seen edge-on covers or not -- and none in the squash).
 const std = @import("std");
 const gm = @import("dragonball_math.zig");
 const raster = @import("dragonball_raster.zig");
 const sq = @import("dragonball_squash.zig");
+const fixsin = @import("fixsin.zig");
 
-const TWO_PI: f32 = std.math.pi * 2.0;
+const TWO_PI: f32 = std.math.pi * 2.0; // the reference's star phases
 const BS = gm.BALL_SIZE;
+
+// The five stars' y rotations, 72 degrees apart (dragonball.zig rounds them as the f32 sums).
+fn phases(roty: u32) [gm.NSTARS]u32 {
+    var t: [gm.NSTARS]u32 = undefined;
+    for (&t, 0..) |*p, k| p.* = roty +% @as(u32, @intCast(k)) *% 858993459;
+    return t;
+}
+
+fn radians(a: u32) f32 {
+    return @floatCast(@as(f64, @floatFromInt(a)) / 4294967296.0 * 2.0 * std.math.pi);
+}
+
+var worst_reach: usize = 0;
+const MAX_A_FRAME = 4; // differing ball texels allowed in one frame
+
+// Pixels of `got` (w x h) that differ from `want`; worst_reach keeps how far the nearest pixel
+// of the same colour in `want` was (9: none within 8).
+fn edgeDiffs(want: []const u8, got: []const u8, w: usize, h: usize) usize {
+    var n: usize = 0;
+    for (0..h) |y| for (0..w) |x| {
+        const v = got[y * w + x];
+        if (want[y * w + x] == v) continue;
+        n += 1;
+        const d = distance(want, w, h, x, y, v, 8);
+        worst_reach = @max(worst_reach, d);
+    };
+    return n;
+}
+
+// The Chebyshev distance from (x, y) to the nearest `v` in `pic`, up to `max` (else max + 1).
+fn distance(pic: []const u8, w: usize, h: usize, x: usize, y: usize, v: u8, max: usize) usize {
+    for (1..max + 1) |r| {
+        for (y -| r..@min(y + r + 1, h)) |yy| for (x -| r..@min(x + r + 1, w)) |xx| {
+            if (pic[yy * w + xx] == v) return r;
+        };
+    }
+    return max + 1;
+}
 
 fn refRender(buf: *raster.Buf, rotx: f32, roty: f32) void {
     @memset(buf, 0);
@@ -40,33 +81,40 @@ fn refStars(buf: *raster.Buf, proj: *const [gm.NSTARS][gm.NVERTS]gm.Vec2, front:
     }
 }
 
-test "renderBall paints what the first version painted" {
+test "renderBall paints the first version's picture but for edge pixels" {
     var a: raster.Buf = undefined;
     var b: raster.Buf = undefined;
-    var rotx: f32 = 0;
-    var roty: f32 = 0;
+    var rotx: u32 = 0;
+    var roty: u32 = 0;
     var spans: raster.Spans = undefined;
     var back_seen = false; // the comparison covers balls with back faces on and off the disc
+    var diffs: usize = 0;
+    var worst: usize = 0;
     for (0..20_000) |_| {
-        rotx = @mod(rotx + 0.01, TWO_PI); // Dragonballs.update
-        roty = @mod(roty + 0.06, TWO_PI);
-        refRender(&a, rotx, roty);
-        raster.renderBall(&b, &spans, rotx, roty);
-        try std.testing.expectEqualSlices(u8, &a, &b);
+        rotx +%= fixsin.rad(0.01); // Dragonballs.update
+        roty +%= fixsin.rad(0.06);
+        refRender(&a, radians(rotx), radians(roty));
+        raster.renderBall(&b, &spans, rotx, &phases(roty));
+        const n = edgeDiffs(&a, &b, BS, BS);
+        diffs += n;
+        worst = @max(worst, n);
         try expectSpansCover(&b, &spans);
         back_seen = back_seen or std.mem.indexOfScalar(u8, &a, raster.PAL_DISC_ON_BACK) != null;
     }
+    std.debug.print("raster: {d} differing texels in 20000 frames, worst frame {d}, worst reach {d} px\n", .{ diffs, worst, worst_reach });
     try std.testing.expect(back_seen);
+    try std.testing.expect(worst <= MAX_A_FRAME);
+    try std.testing.expect(diffs < 1_000); // of ~2,000 star texels a frame
 }
 
 test "a mutant raster is caught" {
     var a: raster.Buf = undefined;
     var b: raster.Buf = undefined;
     var spans: raster.Spans = undefined;
-    refRender(&a, 0.3, 1.1);
-    raster.renderBall(&b, &spans, 0.3, 1.1);
-    b[BS * 32 + 32] +%= 1;
-    try std.testing.expect(!std.mem.eql(u8, &a, &b));
+    refRender(&a, radians(1 << 28), radians(3 << 29));
+    raster.renderBall(&b, &spans, 1 << 28, &phases(3 << 29));
+    @memset(b[BS * 32 ..][0..8], raster.PAL_FRONT ^ 1); // 8 wrong pixels: more than an edge moves
+    try std.testing.expect(edgeDiffs(&a, &b, BS, BS) > MAX_A_FRAME);
 }
 
 // Every non-zero pixel of a row lies in its span (Sprite.build gathers only there).
@@ -103,25 +151,30 @@ fn refTexel(o: f32, k: usize, s: f32) i16 {
     return @intFromFloat(v);
 }
 
-test "Sprite.build resamples what the first version resampled" {
+test "Sprite.build resamples the first version's picture but for edge pixels" {
     var ball: raster.Buf = undefined;
     var ref: [sq.MAX_SPAN * sq.MAX_SPAN]u8 = undefined;
+    var got: [sq.MAX_SPAN * sq.MAX_SPAN]u8 = undefined;
     var s: sq.Sprite = .{};
     var spans: raster.Spans = undefined;
-    var rotx: f32 = 0;
-    var roty: f32 = 0;
-    var u: f32 = 0;
+    var rotx: u32 = 0;
+    var roty: u32 = 0;
+    var u: u32 = 0;
+    var diffs: usize = 0;
     for (0..20_000) |_| {
-        rotx = @mod(rotx + 0.01, TWO_PI); // Dragonballs.update
-        roty = @mod(roty + 0.06, TWO_PI);
-        u = @mod(u + 0.2, TWO_PI);
-        raster.renderBall(&ball, &spans, rotx, roty);
-        const sx = 1.0 + @sin(u) / 6.0; // Dragonballs.draw
-        const sy = 1.0 + @sin(u + 10.0) / 6.0;
-        const d = refBuild(&ref, &ball, sx, sy);
+        rotx +%= fixsin.rad(0.01); // Dragonballs.update
+        roty +%= fixsin.rad(0.06);
+        u +%= fixsin.rad(0.2);
+        raster.renderBall(&ball, &spans, rotx, &phases(roty));
+        const sx = sq.squash(u); // Dragonballs.draw
+        const sy = sq.squash(u +% fixsin.rad(10.0));
+        const d = refBuild(&ref, &ball, @as(f32, @floatFromInt(sx)) / 65536.0, @as(f32, @floatFromInt(sy)) / 65536.0);
         s.build(&ball, &spans, sx, sy);
         try std.testing.expectEqual(d.w, s.w);
         try std.testing.expectEqual(d.h, s.h);
-        for (0..d.h) |r| try std.testing.expectEqualSlices(u8, ref[r * d.w ..][0..d.w], s.pixels()[r * s.stride ..][0..s.w]);
+        for (0..d.h) |r| @memcpy(got[r * d.w ..][0..d.w], s.pixels()[r * s.stride ..][0..s.w]);
+        diffs += edgeDiffs(ref[0 .. d.w * d.h], got[0 .. d.w * d.h], d.w, d.h);
     }
+    std.debug.print("squash: {d} differing pixels in 20000 frames\n", .{diffs});
+    try std.testing.expect(diffs < 100);
 }

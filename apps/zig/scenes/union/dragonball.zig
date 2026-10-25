@@ -11,14 +11,20 @@
 // Geometry/animation constants faithful to codef_dragonball.js + efmain.js
 // (:207-210, :317-324) — see dragonball_math.zig for the vertex/triangle data.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const LogicalFB = zg.LogicalFB;
 const sq = @import("dragonball_squash.zig");
 
-const TWO_PI: f32 = std.math.pi * 2.0;
+const emu = @import("f32emu.zig");
+const TWO_PI: f32 = @import("std").math.pi * 2.0;
+
+// x = @mod(x + d, 2 pi) in f32: x + d < 4 pi, so the mod is one exact subtraction.
+fn step(x: emu.Value, d: emu.Value) emu.Value {
+    const s = emu.add(x, d);
+    return if (s >= emu.of(TWO_PI)) emu.sub(s, emu.of(TWO_PI)) else s;
+}
 
 const raster = @import("dragonball_raster.zig");
 const PAL_DISC = raster.PAL_DISC;
@@ -43,10 +49,12 @@ var ball_spans: raster.Spans = undefined; // where ball_buf's rows are not 0 // 
 var sprite: sq.Sprite = undefined; // the squashed ball, stamped 6 times by CHISEL
 
 pub const Dragonballs = struct {
-    rotx: f32 = 0, // shared star rotation.x (all 5 phases share one accumulator)
-    roty: f32 = 0, // shared star rotation.y
-    u: f32 = 0, // disc squash phase
-    angle: f32 = 0, // bounce phase
+    // The f32 accumulators (@mod 2 pi) kept by f32emu.zig, step for step; their sines come
+    // from fixsin.zig. Integers since 2026-10-25: no float a frame on ZIGGY.
+    rotx: emu.Value = 0, // shared star rotation.x (all 5 phases share one accumulator)
+    roty: emu.Value = 0, // shared star rotation.y
+    u: emu.Value = 0, // disc squash phase
+    angle: emu.Value = 0, // bounce phase
     blitter: zg.Blitter = .{},
 
     /// `under`: the opaque colour of the band the discs lie on (main.zig's bottom band).
@@ -62,27 +70,28 @@ pub const Dragonballs = struct {
     }
 
     pub fn update(self: *Dragonballs) void {
-        self.rotx = @mod(self.rotx + 0.01, TWO_PI);
-        self.roty = @mod(self.roty + 0.06, TWO_PI);
-        self.u = @mod(self.u + 0.2, TWO_PI);
-        self.angle = @mod(self.angle + 0.05, TWO_PI);
+        self.rotx = step(self.rotx, emu.of(0.01));
+        self.roty = step(self.roty, emu.of(0.06));
+        self.u = step(self.u, emu.of(0.2));
+        self.angle = step(self.angle, emu.of(0.05));
     }
 
     pub fn draw(self: *Dragonballs, zigos: *ZigOS) void {
-        raster.renderBall(&ball_buf, &ball_spans, self.rotx, self.roty); // stars + disc, dragonball_raster.zig
+        var phases: [5]u32 = undefined; // roty + s * (2 pi / 5), rounded as the f32 sum was
+        inline for (&phases, 0..) |*ph, s| ph.* = emu.angle(emu.add(self.roty, comptime emu.of(@as(f32, s) * (TWO_PI / 5.0))));
+        raster.renderBall(&ball_buf, &ball_spans, emu.angle(self.rotx), &phases); // stars + disc, dragonball_raster.zig
         // Squash the WHOLE ball (stars + disc together) at blit time — matches
         // the original (scale the composited sprite), so star tips never poke
         // outside the disc when it shrinks.
-        const sx = 1.0 + @sin(self.u) / 6.0;
-        const sy = 1.0 + @sin(self.u + 10.0) / 6.0;
+        const sx = sq.squash(emu.angle(self.u)); // 1 + sin(u) / 6, Q16
+        const sy = sq.squash(emu.angle(emu.add(self.u, emu.of(10.0))));
         sprite.build(&ball_buf, &ball_spans, sx, sy); // one resample for all six balls
         const p0: *LogicalFB = &zigos.lfbs[0];
         var i: usize = 0;
         while (i < 6) : (i += 1) {
-            const fi: f32 = @floatFromInt(i);
             const cx: i16 = 40 + 64 * @as(i16, @intCast(i));
             // the bounce height lands on a whole pixel, so all six share the sprite
-            const cy: i16 = sq.centreY(self.angle, fi);
+            const cy: i16 = sq.centreY(emu.angle(emu.add(self.angle, emu.of(0.25) * i))); // angle + 0.25 i
             self.blitter.blitImage(p0, cx + sprite.ox, cy + sprite.oy, sprite.pixels(), sprite.stride, 0, 0, sprite.w, sprite.h, 0);
         }
     }

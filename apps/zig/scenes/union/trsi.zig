@@ -18,7 +18,7 @@ const FW: usize = 180;
 const FH: usize = 42;
 const FRAMES: usize = 26;
 const FRAME_HOLD: u32 = 8;
-const ALPHA_INCR: f32 = 0.02; // faster logo fade-out (author's call; JS base is 0.005)
+const ALPHA_INCR = emu.of(0.02); // faster logo fade-out (author's call; JS base is 0.005)
 // The turn animation ships ZX0-packed (build.zig packs it, with the RASTERS depack
 // effect). union_intro.zig depacks it into a zg.mem block before the part starts
 // and points `turn_raw` at the result. A static buffer would not save anything:
@@ -40,11 +40,14 @@ const NT: usize = NX * NY; // 210
 // so a tile that starts late (bigger svbl) has a shorter travel window and a
 // bigger per-frame step — the blocks visibly accelerate and snap into place
 // together at ENDVBL, instead of each drifting a fixed MOVE frames.
-const ENDVBL: f32 = 60.0;
+const ENDVBL: i32 = 60;
 const STAGGER: u16 = 40; // ~ Math.ceil(40*Math.random())
 const ENTRY_END: u32 = 60; // all tiles home by ENDVBL -> straight into the turn
 
 const BG = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
+
+const pal_fade = @import("pal_fade.zig");
+const emu = @import("f32emu.zig");
 
 const Phase = enum { entry, turn };
 
@@ -54,9 +57,11 @@ pub const Part = struct {
     t: u32 = 0,
     turn_tick: u32 = 0,
     turn_idx: usize = 0,
-    fade: f32 = 1.0,
-    sx: [NT]f32 = undefined,
-    sy: [NT]f32 = undefined,
+    // Integers since 2026-10-25 (no float a frame on ZIGGY): the fade an f32 kept by
+    // f32emu.zig, the tiles' random start points in Q16 (drawn as floats once, at init).
+    fade: emu.Value = emu.ONE,
+    sx: [NT]i32 = undefined,
+    sy: [NT]i32 = undefined,
     svbl: [NT]u16 = undefined,
 
     pub fn init(self: *Part, zigos: *ZigOS) void {
@@ -66,8 +71,8 @@ pub const Part = struct {
         const rnd = prng.random();
         var i: usize = 0;
         while (i < NT) : (i += 1) {
-            self.sx[i] = rnd.float(f32) * @as(f32, @floatFromInt(WIDTH));
-            self.sy[i] = rnd.float(f32) * @as(f32, @floatFromInt(HEIGHT));
+            self.sx[i] = @intFromFloat(rnd.float(f32) * @as(f32, @floatFromInt(WIDTH)) * 65536.0);
+            self.sy[i] = @intFromFloat(rnd.float(f32) * @as(f32, @floatFromInt(HEIGHT)) * 65536.0);
             self.svbl[i] = rnd.intRangeAtMost(u16, 0, STAGGER);
         }
         zigos.setBackgroundColor(BG);
@@ -89,10 +94,10 @@ pub const Part = struct {
                 self.turn_tick += 1;
                 if (self.turn_idx + 1 < FRAMES) {
                     if (self.turn_tick % FRAME_HOLD == 0) self.turn_idx += 1;
-                } else if (self.fade > 0.0) {
-                    self.fade = @max(0.0, self.fade - ALPHA_INCR);
+                } else if (self.fade > 0) {
+                    self.fade = emu.add(self.fade, -@as(i64, @intCast(ALPHA_INCR)));
                     self.applyFade(zigos);
-                    if (self.fade <= 0.0) return true;
+                    if (self.fade == 0) return true;
                 }
             },
         }
@@ -115,12 +120,13 @@ pub const Part = struct {
             if (self.t <= self.svbl[i]) continue;
             const tx = i % NX;
             const ty = i / NX;
-            const home_x: f32 = @floatFromInt(OX + @as(i32, @intCast(tx * TW)));
-            const home_y: f32 = @floatFromInt(OY + @as(i32, @intCast(ty * TH)));
-            var p: f32 = @as(f32, @floatFromInt(self.t - self.svbl[i])) / (ENDVBL - @as(f32, @floatFromInt(self.svbl[i])));
-            if (p > 1.0) p = 1.0;
-            const cx: i32 = @intFromFloat(self.sx[i] + (home_x - self.sx[i]) * p);
-            const cy: i32 = @intFromFloat(self.sy[i] + (home_y - self.sy[i]) * p);
+            const home_x: i32 = (OX + @as(i32, @intCast(tx * TW))) << 16;
+            const home_y: i32 = (OY + @as(i32, @intCast(ty * TH))) << 16;
+            // s + (home - s) * p, p = (t - svbl) / (ENDVBL - svbl) at most 1, in Q16
+            const num: i32 = @min(@as(i32, @intCast(self.t - self.svbl[i])), ENDVBL - self.svbl[i]);
+            const den: i32 = ENDVBL - self.svbl[i];
+            const cx: i32 = (self.sx[i] + @divTrunc((home_x - self.sx[i]) * num, den)) >> 16;
+            const cy: i32 = (self.sy[i] + @divTrunc((home_y - self.sy[i]) * num, den)) >> 16;
             var yy: usize = 0;
             while (yy < TH) : (yy += 1) {
                 const dy = cy + @as(i32, @intCast(yy));
@@ -146,6 +152,6 @@ pub const Part = struct {
     // from the base turn_pal every frame (never a compounding re-scale).
     fn applyFade(self: *Part, zigos: *ZigOS) void {
         const p0: *LogicalFB = &zigos.lfbs[0];
-        zg.palette.scaleRange(p0, turn_pal, 1, 255, self.fade, .{ .alpha = .{ .set = 255 } });
+        pal_fade.scaleRange(p0, &turn_pal, 1, 255, self.fade);
     }
 };

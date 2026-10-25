@@ -12,10 +12,11 @@ const MainScreen = @import("main.zig").Demo;
 
 // Hold Left to slow the world; release re-accelerates. One keydown holds the
 // slow for HOLD frames (bridging the browser's key-repeat gap); speed ramps.
-const NORMAL: f32 = 0.3;
-const SLOW: f32 = 0.05;
+// Speeds in Q16 tiles a frame (main.zig Demo.speed); no float a frame.
+const NORMAL: i32 = MainScreen.NORMAL_SPEED; // 0.3
+const SLOW: i32 = 3277; // 0.05
 const HOLD: u32 = 24;
-const RAMP: f32 = 0.15;
+const RAMP: i32 = 9830; // 0.15, Q16
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 
 pub const Doors = struct {
@@ -30,8 +31,11 @@ pub const Doors = struct {
 
     pub fn update(self: *Doors, zigos: *ZigOS, dt: f32) void {
         // Hold-Left slowdown: ramp toward SLOW while armed, else back to NORMAL.
-        const target: f32 = if (self.slow > 0) SLOW else NORMAL;
-        self.main.speed += (target - self.main.speed) * RAMP;
+        const target: i32 = if (self.slow > 0) SLOW else NORMAL;
+        // speed += (target - speed) * RAMP, landing on the target once a step rounds to 0
+        const d = target - self.main.speed;
+        const step = @divTrunc(d * RAMP, 1 << 16);
+        self.main.speed += if (step == 0) d else step;
         if (self.slow > 0) self.slow -= 1;
         self.main.update(zigos, dt);
     }

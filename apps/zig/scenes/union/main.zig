@@ -43,11 +43,12 @@ const RED_A = [5]u8{ 224, 192, 128, 64, 0 };
 const RED_B = [5]u8{ 255, 192, 128, 64, 0 };
 const GRAD_RED_A: u8 = 35;
 const GRAD_RED_B: u8 = 36;
-const SCROLL_WRAP: f32 = 778; // pinpinPos wraps here (map tail repeats the head)
+const SCROLL_WRAP = emu.of(778.0); // pinpinPos wraps here (map tail repeats the head)
+const emu = @import("f32emu.zig");
 
 const wd = @import("world_draw.zig");
 const sky = @import("sky.zig"); // P0's HBL: the sky raster + its borders open
-const Parallax5 = zg.parallax.Parallax(5);
+const Parallax5 = wd.Parallax(5);
 const Runner = @import("runner.zig").Runner;
 const Dragonballs = @import("dragonball.zig").Dragonballs;
 const Scroller = @import("scroller.zig").Scroller;
@@ -57,6 +58,8 @@ const split = @import("p1_split.zig");
 const WorldRing = @import("world_ring.zig").Ring;
 
 pub const Demo = struct {
+    /// 0.3 tiles a frame, Q16 (fixed point since 2026-10-25: no float a frame on ZIGGY).
+    pub const NORMAL_SPEED: i32 = 19661;
     px: Parallax5 = undefined,
     runner: Runner = .{},
     balls: Dragonballs = .{},
@@ -64,8 +67,8 @@ pub const Demo = struct {
     credits: Credits = .{},
     ring: WorldRing = .{}, // map rows 3..7 (plane rows 83..163), on plane 2, never enabled
     floor: wd.Span = .{}, // where last frame's map row 8 cells covered the floor band
-    pos: f32 = 0, // world scroll in tiles
-    speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
+    pos: emu.Value = 0, // world scroll in tiles, an f32 kept by f32emu.zig
+    speed: i32 = NORMAL_SPEED, // scroll Q16 tiles/frame; host may slow it
     frame: u32 = 0,
     fresh: bool = true, // the planes have not been cleared whole yet
     grad_idx: u8 = 0, // gradTiles palette-animation step
@@ -96,19 +99,20 @@ pub const Demo = struct {
         self.scroller.init(zigos); // scrolltext on plane 1, under the split
         self.ring.init(&zigos.lfbs[2]);
         self.px = .{ .layers = .{
-            .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 },
-            .{ .raw = layer_b2, .w = 384, .h = 16, .y = 179, .speed = 7 },
-            .{ .raw = clouds1, .w = 320, .h = 16, .y = 67, .speed = 1 },
-            .{ .raw = clouds2, .w = 320, .h = 16, .y = 51, .speed = 1.5 },
-            .{ .raw = clouds3, .w = 320, .h = 16, .y = 35, .speed = 2 },
+            .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 << 16 },
+            .{ .raw = layer_b2, .w = 384, .h = 16, .y = 179, .speed = 7 << 16 },
+            .{ .raw = clouds1, .w = 320, .h = 16, .y = 67, .speed = 1 << 16 },
+            .{ .raw = clouds2, .w = 320, .h = 16, .y = 51, .speed = 3 << 15 },
+            .{ .raw = clouds3, .w = 320, .h = 16, .y = 35, .speed = 2 << 16 },
         } };
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
-        self.px.update(self.speed / 0.3); // parallax follows the scroll speed
-        self.pos += self.speed; // world scroll (nominal 0.3 tiles/frame)
-        if (self.pos >= SCROLL_WRAP) self.pos -= SCROLL_WRAP;
+        self.px.update(self.scale()); // parallax follows the scroll speed
+        // world scroll (nominal the f32 0.3 tiles/frame; the slow-down's Q16 speed otherwise)
+        self.pos = emu.add(self.pos, if (self.speed == NORMAL_SPEED) emu.of(0.3) else @as(u64, @intCast(self.speed)) << (emu.FRAC_BITS - 16));
+        if (self.pos >= SCROLL_WRAP) self.pos = emu.sub(self.pos, SCROLL_WRAP);
         self.frame += 1;
         if (self.frame % 12 == 0) { // gradTiles palette ping-pong
             const p0: *LogicalFB = &zigos.lfbs[0];
@@ -143,14 +147,19 @@ pub const Demo = struct {
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
         self.floor = wd.world(p0, self.pos, &self.ring); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
         self.balls.draw(zigos); // dragonballs on plane 0, last
-        split.erase(&zigos.lfbs[1], self.fresh, !self.runner.paintsBox(self.speed / 0.3));
+        split.erase(&zigos.lfbs[1], self.fresh, !self.runner.paintsBox(self.scale()));
         self.fresh = false;
-        self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
+        self.runner.draw(zigos, self.scale()); // ghost trail scales with speed
         // The next page's picture, a line a frame, BEFORE draw: on the frame draw copies a
         // page out of the picture, nothing rewrites it (the copy never races a CPU store).
         self.credits.prepare();
         self.credits.draw(zigos); // credits pages on plane 1 (top area)
         self.scroller.draw(zigos); // scrolltext on plane 1, under the split
+    }
+
+    /// speed / 0.3 in Q16 (runner.SCALE_ONE at full speed).
+    fn scale(self: *const Demo) i32 {
+        return @divTrunc(self.speed << 16, NORMAL_SPEED);
     }
 
     // Keys 1-6 switch the YM tune — request the track BY NAME (host plays it).

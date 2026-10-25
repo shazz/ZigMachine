@@ -13,10 +13,38 @@ const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 const gpu = @import("../union_common/gpu.zig");
 const cells = @import("world_cells.zig");
-const ring = @import("world_ring.zig"); // map rows 3..7: one opaque copy out of a ring
+const ring = @import("world_ring.zig");
+const emu = @import("f32emu.zig"); // map rows 3..7: one opaque copy out of a ring
 
 const DST_X: i16 = 8; // tilemap.Layer.dst_x
 const VIS_COLS: usize = 25;
+
+/// A parallax strip (zg.parallax.Layer in fixed point: `speed` and `pos` in Q16 px).
+pub const Layer = struct {
+    raw: []const u8, // w*h indexed pixels
+    w: u16,
+    h: u16,
+    y: i16, // destination top
+    speed: i32, // leftward Q16 pixels a frame at full speed
+    transparent: bool = false, // skip index 0
+    pos: i32 = 0, // Q16
+};
+
+/// zg.parallax.Parallax's update without float (since 2026-10-25): `scale` in Q16.
+pub fn Parallax(comptime n: usize) type {
+    return struct {
+        layers: [n]Layer,
+
+        pub fn update(self: *@This(), scale: i32) void {
+            for (&self.layers) |*l| {
+                l.pos += @intCast((@as(i64, l.speed) * scale) >> 16);
+                const w: i32 = @as(i32, l.w) << 16;
+                while (l.pos >= w) l.pos -= w;
+                while (l.pos < 0) l.pos += w;
+            }
+        }
+    };
+}
 
 /// Every layer of `px` across the first `dst_w` columns of `fb`: one copy a layer out of its
 /// strip laid out wide (below), else the strip's few wrapped runs.
@@ -25,7 +53,7 @@ pub fn parallax(px: anytype, fb: *LogicalFB, dst_w: u16) void {
     for (&px.layers, 0..) |*l, i| {
         const w: usize = l.w;
         const key: ?u8 = if (l.transparent) 0 else null;
-        var srcx: usize = @as(usize, @intFromFloat(l.pos)) % w;
+        var srcx: usize = @as(usize, @intCast(l.pos >> 16)) % w;
         if (wideStrip(i, l.raw, w, l.h, cols)) |img| {
             gpu.put(fb, img, .{ .x = srcx, .y = 0, .w = cols, .h = l.h }, 0, l.y, key);
             continue;
@@ -75,10 +103,10 @@ pub const FLOOR_ROW: usize = cells.ROWS - 1;
 /// The tile world at `pos_tiles` (clouds, animated rows and world in one pass). Map rows
 /// ring.ROW0..ring.ROW1 come from `rows`, which also stands for their erase to 0. Returns
 /// where FLOOR_ROW's cells went, the only pixels of the floor band anything draws over.
-pub fn world(fb: *LogicalFB, pos_tiles: f32, rows: *ring.Ring) Span {
-    const abs: usize = @intFromFloat(pos_tiles);
-    const frac: f32 = pos_tiles - @floor(pos_tiles);
-    const sub: i16 = @intFromFloat(frac * 16.0);
+/// `pos_tiles`: an f32 kept by f32emu.zig.
+pub fn world(fb: *LogicalFB, pos_tiles: emu.Value, rows: *ring.Ring) Span {
+    const abs: usize = @intCast(emu.int(pos_tiles));
+    const sub: i16 = @intCast((pos_tiles & (emu.ONE - 1)) >> (emu.FRAC_BITS - 4)); // floor(frac * 16)
     rows.draw(fb, abs, @intCast(sub));
     var floor = Span{ .x0 = @intCast(fb.fb_w), .x1 = 0 };
     for (0..cells.ROWS) |r| {

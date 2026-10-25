@@ -212,6 +212,8 @@ NATIVE_TESTS="
     apps/zig/scenes/union/dragonball_squash.zig
     apps/zig/scenes/union/dragonball_raster_test.zig
     apps/zig/scenes/union/wave_sin_test.zig
+    apps/zig/scenes/union/fixsin.zig
+    apps/zig/scenes/union/f32emu.zig
     apps/zig/scenes/blitter_demo/wobble.zig
     apps/zig/scenes/blitter_demo/soft.zig
     apps/zig/scenes/leonard_spirit/ball_test.zig
@@ -334,7 +336,7 @@ gate union_intro_music node apps/union_intro_music_check.mjs --fail-proof   # ..
 gate union_intro_music node apps/union_tracks_play_check.mjs   # keys 1-6: every cracktro tune PLAYS after the one before (a YM dump after an SNDH once left the SNDH running over it: keys 3+ "crashed")
 gate union_intro_music node apps/audio_switch_check.mjs   # a SAP or a YM dump loaded over a playing SNDH takes over (mode, sound, no runaway 68000), then an SNDH plays again
 gate union_demo_doors node apps/union_demo_doors_check.mjs   # the hub's doors launch the Union screens by tag (they are hub-only)
-gate union_intro_main node apps/composite_hash.mjs docs/demo-union_intro.wasm 12000 12 --disk docs/demo-union_intro.zmd --expect 457d60d279a2e769cbb62998d3e843ca3fc579eabff37ed3a41719505e5df559   # UNION cracktro into its MAIN screen: 1000 composited pictures over 12000 frames (the parts, then ~11000 frames of the main screen: all 8 credits pages, sky raster, balls, scrolltext) = the three-plane build's (cecc6dd0), now two planes (balls on P0, scrolltext under P1's palette split)
+gate union_intro_main node apps/composite_hash.mjs docs/demo-union_intro.wasm 12000 12 --disk docs/demo-union_intro.zmd --expect 0085826630925e290c96c9968069b8dfd886cbd89e9d2501cb3837b99b48a8ad   # UNION cracktro into its MAIN screen: 1000 composited pictures over 12000 frames (the parts, then ~11000 frames of the main screen: all 8 credits pages, sky raster, balls, scrolltext); two planes (balls on P0, scrolltext under P1's palette split). 2026-10-25: union_intro's wave and triangle edges run in fixed point (no per-frame float on ZIGGY); 141 of 13000 frames / 6370 pixels differ from the old f32, in the scrolltext and dragonball band, mostly by 1 px (a wave column group one raster row, dragonball edge texels); after a hold-Left slow-down far more (the Q16 ramp snaps back to exactly 0.3), see the union_intro.zig header; the f32 accumulators are kept bit-exact by union/f32emu.zig
 gate_timed union_demo node apps/union_demo_headless.mjs "$SHOTS/union_demo"   # hub: street wraps, view eases, keys stop at 60/144 Hz and on key-up, door memory
 gate_timed union_demo node apps/union_demo_headless.mjs --break return "$SHOTS/union_demo"   # ...and a lost ROM note fails the door-memory check
 gate_timed union_demo node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_demo"   # ...and a door entered before the seam fails the wrap check

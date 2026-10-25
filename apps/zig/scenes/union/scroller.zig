@@ -20,16 +20,24 @@ const LogicalFB = zg.LogicalFB;
 const st2 = zg.scrolltext2;
 const ss = @import("scroll_strip.zig"); // the strip and the wave, by the CPU
 const wave_sin = @import("wave_sin.zig");
+const emu = @import("f32emu.zig");
+
+// A phase moved by less than 2 pi back into [0, 2 pi).
+fn wrap(r: i64) i64 {
+    if (r < 0) return r + emu.TWO_PI;
+    if (r >= emu.TWO_PI) return r - emu.TWO_PI;
+    return r;
+}
 
 const NUM_SLOTS: usize = 14;
 const GLYPH: u16 = 32;
 const STRIP_W: u16 = 400; // == PHYSICAL_WIDTH; the strip spans the full plane
 const STRIP_H: u16 = 32;
 const BASE_Y: i16 = 217; // Codef scrollraster canvas y=424 -> plane y (half)
-const WAVE_AMP: f32 = 10.0; // half of orig 20
+const WAVE_AMP: i32 = 10; // half of orig 20
 const WAVE_COL: u16 = 3; // half of orig 6px column step
-const WAVE_INC: f32 = 0.03; // per-column phase step (unchanged, unitless)
-const WAVE_DRIFT: f32 = -0.03; // per-frame phase drift (unchanged)
+const WAVE_INC: i64 = @intCast(emu.of(0.03)); // per-column phase step (unchanged), f32emu units
+const WAVE_DRIFT: i64 = -WAVE_INC; // per-frame phase drift (unchanged)
 pub const BAND_TOP: i32 = BASE_Y - 10; // BASE_Y - WAVE_AMP
 pub const BAND_ROWS: i32 = 20 + STRIP_H + 1; // the wave's swing, the strip, and a row for the rounding
 const SCROLL_SPEED: i32 = 3; // half of EFMAIN_SCROLL_SPEED=6
@@ -54,12 +62,16 @@ const ScrollerFx = st2.Scroller(NUM_SLOTS);
 
 pub const Scroller = struct {
     fx: ScrollerFx = .{},
-    wave_v: f32 = 0,
+    // The f32 phase, kept by f32emu.zig (signed), and the same phase mod 2 pi, moved by the
+    // exact amount the phase moves (integers since 2026-10-25: no float a frame on ZIGGY).
+    wave_v: i64 = 0,
+    wave_r: i64 = 0,
 
     pub fn init(self: *Scroller, zigos: *ZigOS) void {
         // the text is drawn on P1, in p2.pal's colours (p1_split.zig)
         ss.init(&zigos.lfbs[3]); // the flat strip, before the wave bends it: plane 3, never enabled
         self.wave_v = 0;
+        self.wave_r = 0;
         self.fx.init(.{
             .glyph_w = GLYPH,
             .glyph_h = GLYPH,
@@ -85,15 +97,20 @@ pub const Scroller = struct {
         // FX.siny(0,20,6): column groups of WAVE_COL px, each offset vertically by
         // sin(phase)*amp; the phase advances per group during the sweep but the persisted
         // state only carries the per-frame drift (Codef's oldvalue+offset reset after the loop).
-        // zg.wave.SineSum(f32, 1){ amp WAVE_AMP, phase wave_v, inc WAVE_INC, .round }'s sweep,
-        // phase by phase as it accumulates them, each rounded sine by wave_sin.zig.
-        var p: f32 = self.wave_v;
+        // zg.wave.SineSum's .accumulate sweep (amp WAVE_AMP, phase wave_v, inc WAVE_INC,
+        // .round): the phases the f32 sums took, each rounded sine by wave_sin.zig.
+        var p = self.wave_v;
+        var r = self.wave_r;
         var top: [GROUPS]i32 = undefined; // band row of text row 0, per group
         for (&top) |*t| {
-            t.* = @as(i32, BASE_Y) + wave_sin.rounded(p) - BAND_TOP;
-            p += WAVE_INC;
+            t.* = @as(i32, BASE_Y) + wave_sin.rounded(emu.turns(r)) - BAND_TOP;
+            const next = emu.sadd(p, WAVE_INC);
+            r = wrap(r + (next - p));
+            p = next;
         }
-        self.wave_v += WAVE_DRIFT;
+        const v = emu.sadd(self.wave_v, WAVE_DRIFT);
+        self.wave_r = wrap(self.wave_r + (v - self.wave_v));
+        self.wave_v = v;
         ss.wave(&zigos.lfbs[1], &zigos.lfbs[3], @intCast(BAND_TOP), @intCast(BAND_ROWS), &top, WAVE_COL);
     }
 };

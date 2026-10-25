@@ -7,6 +7,9 @@
 // resamples (~6x fewer CPU stores on the board).
 // --------------------------------------------------------------------------
 const gm = @import("dragonball_math.zig");
+const fixsin = @import("fixsin.zig");
+// Fixed point since 2026-10-25 (no float a frame on ZIGGY): scales in Q16, angles u32 turns.
+const C: i32 = 32; // gm.CENTER
 
 const BS = gm.BALL_SIZE; // 64
 // The widest squashed ball: 64 * (1 + 1/6) = 74.7, plus the floor/ceil pixel.
@@ -29,20 +32,22 @@ pub const Sprite = struct {
     /// its centre, for a ball centred on a whole pixel. Same texel test as the
     /// old per-ball CPU blit: a destination pixel samples at its centre (+0.5).
     /// `spans`: where each ball row is not 0 (dragonball_raster.renderBall's).
-    pub fn build(self: *Sprite, ball: *const [BS * BS]u8, spans: *const [BS][2]u8, sx: f32, sy: f32) void {
-        const x0 = @floor(-gm.CENTER * sx);
-        const y0 = @floor(-gm.CENTER * sy);
-        self.ox = @intFromFloat(x0);
-        self.oy = @intFromFloat(y0);
-        self.w = @intCast(@min(@as(i32, @intFromFloat(@ceil(gm.CENTER * sx) - x0)), MAX_SPAN));
-        self.h = @intCast(@min(@as(i32, @intFromFloat(@ceil(gm.CENTER * sy) - y0)), MAX_SPAN));
+    /// `sx`, `sy`: the squash, Q16.
+    pub fn build(self: *Sprite, ball: *const [BS * BS]u8, spans: *const [BS][2]u8, sx: i32, sy: i32) void {
+        const x0: i32 = (-C * sx) >> 16; // floor
+        const y0: i32 = (-C * sy) >> 16;
+        self.ox = @intCast(x0);
+        self.oy = @intCast(y0);
+        self.w = @intCast(@min(((C * sx + 0xFFFF) >> 16) - x0, MAX_SPAN)); // ceil
+        self.h = @intCast(@min(((C * sy + 0xFFFF) >> 16) - y0, MAX_SPAN));
         self.stride = (self.w + 3) & ~@as(u16, 3);
         // The texel column of each sprite column. texel() grows with k, so the columns off
         // the ball are a run at each end, [0, lo) and [hi, w): they read column 0 here and
         // are zeroed after each row, which keeps the inner loop free of tests.
         var m = Map{};
+        var tx = Texels.init(x0, sx);
         for (0..self.w) |k| {
-            const c = texel(x0, k, sx);
+            const c = tx.next();
             if (c < 0) continue;
             m.cols[k] = @intCast(c);
             m.lo = @min(m.lo, k);
@@ -54,7 +59,8 @@ pub const Sprite = struct {
             while (k < m.hi and m.cols[k] < c) k += 1;
             f.* = @intCast(k);
         }
-        for (0..self.h) |r| self.row(ball, spans, r, texel(y0, r, sy), &m);
+        var ty = Texels.init(y0, sy);
+        for (0..self.h) |r| self.row(ball, spans, r, ty.next(), &m);
     }
 
     const Map = struct {
@@ -87,16 +93,35 @@ pub const Sprite = struct {
     }
 };
 
-/// The texel index for sprite pixel `k` (origin `o` from the centre), or -1.
-fn texel(o: f32, k: usize, s: f32) i16 {
-    const v = gm.CENTER + (o + @as(f32, @floatFromInt(k)) + 0.5) / s;
-    if (v < 0 or v >= @as(f32, BS)) return -1;
-    return @intFromFloat(v);
+/// The texel of sprite pixel k = 0, 1, ... (origin `o` from the centre) at scale `sc` (Q16):
+/// floor(32 + (o + k + 0.5) / sc), or -1 off the ball. One divide for 1/sc (Q32), then an add
+/// a pixel.
+const Texels = struct {
+    v: i64, // pixel k's 32 + (o + k + 0.5) / sc, Q32
+    step: i64, // 1 / sc, Q32
+
+    fn init(o: i32, sc: i32) Texels {
+        const step = @divFloor(@as(i64, 1) << 48, sc);
+        return .{ .v = (@as(i64, C) << 32) + @divFloor((2 * @as(i64, o) + 1) * step, 2), .step = step };
+    }
+
+    fn next(t: *Texels) i16 {
+        defer t.v += t.step;
+        if (t.v < 0 or t.v >= @as(i64, BS) << 32) return -1;
+        return @intCast(t.v >> 32);
+    }
+};
+
+/// A ball's centre row at bounce angle `a` (its phase + 0.25 i): round(307 - 64 |sin a|), a
+/// whole pixel, so all six share the sprite.
+pub fn centreY(a: u32) i16 {
+    const s: i64 = @abs(fixsin.sin(a)); // Q30
+    return @intCast(307 - ((64 * s + (1 << 29)) >> 30));
 }
 
-/// Ball `fi`'s centre row at bounce phase `angle`: a whole pixel, so all six share the sprite.
-pub fn centreY(angle: f32, fi: f32) i16 {
-    return @intFromFloat(@round(307.0 - 64.0 * @abs(@sin(angle + 0.25 * fi))));
+/// 1 + sin(a) / 6 in Q16 (the squash's scale).
+pub fn squash(a: u32) i32 {
+    return (1 << 16) + @divTrunc(fixsin.sin(a) >> 14, 6);
 }
 
 /// The first row the disc may cover: main.zig's bottom band starts here, and its colour is
@@ -104,7 +129,7 @@ pub fn centreY(angle: f32, fi: f32) i16 {
 pub const DISC_TOP: i16 = 211;
 
 // The disc is pre-blended over the bottom band, so it must never reach above it: every squash
-// the f32 accumulator takes as update() runs it, then a fine sweep of the whole range, at the
+// the accumulator takes as update() runs it, then a fine sweep of the whole range, at the
 // highest centre any ball reaches.
 test "the disc never leaves the bottom band" {
     const std = @import("std");
@@ -112,19 +137,20 @@ test "the disc never leaves the bottom band" {
     const spans = gm.DISC_SPAN; // the disc is all this ball holds
     for (gm.DISC_SPAN, 0..) |span, y| @memset(ball[y * BS + span[0] ..][0 .. span[1] - span[0]], 1);
     var top: i16 = 1000;
-    var angle: f32 = 0;
+    var angle: u32 = 0;
     for (0..20_000) |_| {
-        angle = @mod(angle + 0.05, std.math.pi * 2.0);
-        for (0..6) |i| top = @min(top, centreY(angle, @floatFromInt(i)));
+        angle +%= fixsin.rad(0.05);
+        for (0..6) |i| top = @min(top, centreY(angle +% fixsin.rad(0.25) *% @as(u32, @intCast(i))));
     }
     try std.testing.expectEqual(@as(i16, 243), top);
     var s: Sprite = .{};
-    var u: f32 = 0;
+    var u: u32 = 0;
     for (0..40_000) |k| {
-        u = @mod(u + 0.2, std.math.pi * 2.0);
-        const sweep = 5.0 / 6.0 + @as(f32, @floatFromInt(k -| 20_000)) / 60_000.0;
-        const sy = if (k < 20_000) 1.0 + @sin(u + 10.0) / 6.0 else sweep;
-        s.build(&ball, &spans, 7.0 / 6.0, sy);
+        u +%= fixsin.rad(0.2);
+        const lo: i32 = @divTrunc(5 << 16, 6); // the sweep: every Q16 squash from 5/6 to 7/6
+        const sweep: i32 = lo + @as(i32, @intCast((k -| 20_000) * 21846 / 20_000));
+        const sy = if (k < 20_000) squash(u +% fixsin.rad(10.0)) else sweep;
+        s.build(&ball, &spans, squash(1 << 30), sy);
         var first: usize = s.h;
         for (0..s.h) |r| {
             if (std.mem.indexOfScalar(u8, s.pixels()[r * s.stride ..][0..s.w], 1) != null) {

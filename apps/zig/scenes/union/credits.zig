@@ -30,7 +30,8 @@ const SHADOW: u8 = 0x31;
 const T_IN: u32 = 200;
 const T_OUT: u32 = 600;
 const T_PAGE: u32 = 800;
-const FADE_STEP: f32 = 1.0 / 30.0;
+const FADE_STEP = emu.of(@as(f32, 1.0 / 30.0)); // efmain.js: 1/30 a frame
+const emu = @import("f32emu.zig");
 
 const PAGES = [8][5][]const u8{
     .{ "  Welcome to the new TRSI and WAB demo", "", "   Please use 1-6 to change the zik", "     (only Chrome or browser die)", "       And enjoy the show !!!!!" },
@@ -46,7 +47,7 @@ const PAGES = [8][5][]const u8{
 pub const Credits = struct {
     timer: u32 = 0,
     page: usize = 0,
-    alpha: f32 = 0,
+    alpha: emu.Value = 0, // an f32 kept by f32emu.zig (2026-10-25: no float a frame)
     on_plane: ?usize = null, // the page drawn on P1 now (P1 starts cleared)
     shown: ?usize = null, // the last page drawn on P1
 
@@ -58,22 +59,22 @@ pub const Credits = struct {
     pub fn update(self: *Credits, zigos: *ZigOS) void {
         self.timer += 1;
         if (self.timer >= T_IN and self.timer < T_IN + 30) {
-            self.alpha = @min(1.0, self.alpha + FADE_STEP);
+            self.alpha = @min(emu.ONE, emu.add(self.alpha, FADE_STEP));
         } else if (self.timer >= T_OUT and self.timer < T_OUT + 30) {
-            self.alpha = @max(0.0, self.alpha - FADE_STEP);
+            self.alpha = emu.add(self.alpha, -@as(i64, @intCast(FADE_STEP)));
         }
         if (self.timer >= T_PAGE) {
             self.timer = 0;
             self.alpha = 0;
             self.page = (self.page + 1) % PAGES.len;
         }
-        setAlpha(zigos, @intFromFloat(self.alpha * 255.0));
+        setAlpha(zigos, @intCast(emu.int(emu.mul(self.alpha, 255))));
     }
 
     /// The page is drawn once when it starts to show and erased (its box) once it is gone:
     /// while it shows only its palette alpha changes (split.setA), so its pixels stay.
     pub fn draw(self: *Credits, zigos: *ZigOS) void {
-        const want: ?usize = if (self.alpha > 0.0) self.page else null;
+        const want: ?usize = if (self.alpha > 0) self.page else null;
         if (want == self.on_plane) return;
         const p1: *LogicalFB = &zigos.lfbs[1];
         if (self.on_plane != null) gpu.fill(p1, OX, OY, PAGE_W, PAGE_H, 0);

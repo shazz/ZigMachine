@@ -23,7 +23,8 @@ const N: usize = STRIPS.len;
 const NFRAMES: u32 = 200;
 const ORIGIN_X: i32 = 8;
 const ORIGIN_Y: i32 = 5;
-const FADE_STEP: f32 = 0.005;
+const FADE_STEP = emu.of(0.005);
+const emu = @import("f32emu.zig");
 
 // Runner sheet: 224x28 half-scale = 7 frames of 32x28. spriteNb advances
 // 0.08 per LAYER in the JS (17 layers/frame => ~1.36/frame); we track it
@@ -31,8 +32,8 @@ const FADE_STEP: f32 = 0.005;
 // allows in place of the exact per-layer accumulation.
 const RUNNER_FW: u16 = 32;
 const RUNNER_FH: u16 = 28;
-const RUNNER_FRAMES: f32 = 7.0;
-const RUNNER_STEP: f32 = 17.0 * 0.08;
+const RUNNER_FRAMES = emu.of(7.0);
+const RUNNER_STEP = emu.of(@as(f32, 17.0 * 0.08));
 
 const placement_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_intro/placement/placement.pal"));
 const BG = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
@@ -49,11 +50,12 @@ fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
 pub const Placement = struct {
     blitter: zg.Blitter = .{},
-    pos_x: [N]f32 = undefined,
-    pos_y: [N]f32 = undefined,
-    alpha: [N]f32 = undefined,
+    pos_x: [N]i32 = undefined, // half units (placement_strips.zig)
+    pos_y: [N]i32 = undefined,
+    // f32 values kept by f32emu.zig (2026-10-25: no float a frame on ZIGGY)
+    alpha: [N]emu.Value = undefined,
     frame: u32 = 0,
-    sprite_nb: f32 = 0,
+    sprite_nb: emu.Value = 0,
 
     pub fn init(self: *Placement, zigos: *ZigOS) void {
         self.blitter.init();
@@ -84,17 +86,15 @@ pub const Placement = struct {
         for (STRIPS, 0..) |s, i| {
             switch (s.kind) {
                 .fade => {
-                    self.alpha[i] = @min(1.0, self.alpha[i] + FADE_STEP);
+                    self.alpha[i] = @min(emu.ONE, emu.add(self.alpha[i], FADE_STEP));
                 },
                 .scroll, .anim => {
-                    const dirx_f: f32 = @floatFromInt(s.dirx);
-                    const diry_f: f32 = @floatFromInt(s.diry);
-                    self.pos_x[i] = clampAxis(self.pos_x[i] + dirx_f * s.sx, s.dx, s.dirx);
-                    self.pos_y[i] = clampAxis(self.pos_y[i] + diry_f * s.sy, s.dy, s.diry);
+                    self.pos_x[i] = clampAxis(self.pos_x[i] + s.dirx * s.sx, s.dx, s.dirx);
+                    self.pos_y[i] = clampAxis(self.pos_y[i] + s.diry * s.sy, s.dy, s.diry);
                 },
             }
         }
-        self.sprite_nb += RUNNER_STEP;
+        self.sprite_nb = emu.add(self.sprite_nb, RUNNER_STEP);
         if (self.sprite_nb >= RUNNER_FRAMES) self.sprite_nb = 0;
         self.frame += 1;
         return self.frame >= NFRAMES;
@@ -106,10 +106,10 @@ pub const Placement = struct {
         p0.clearFrameBuffer(0);
         for (STRIPS, 0..) |s, i| {
             if (s.kind == .fade) applyFade(p0, s, self.alpha[i]);
-            const dx: i16 = @intCast(ORIGIN_X + @as(i32, @intFromFloat(@round(self.pos_x[i]))));
-            const dy: i16 = @intCast(ORIGIN_Y + @as(i32, @intFromFloat(@round(self.pos_y[i]))));
+            const dx: i16 = @intCast(ORIGIN_X + roundHalves(self.pos_x[i]));
+            const dy: i16 = @intCast(ORIGIN_Y + roundHalves(self.pos_y[i]));
             if (s.kind == .anim) {
-                const f: u16 = @intFromFloat(self.sprite_nb);
+                const f: u16 = @intCast(emu.int(self.sprite_nb));
                 self.blitter.blitImage(p0, dx, dy, s.raw, s.w, f * RUNNER_FW, 0, RUNNER_FW, RUNNER_FH, 0);
             } else {
                 self.blitter.blitImage(p0, dx, dy, s.raw, s.w, 0, 0, s.w, s.h, 0);
@@ -118,7 +118,12 @@ pub const Placement = struct {
     }
 };
 
-fn clampAxis(pos: f32, dest: f32, dir: i8) f32 {
+// round(h / 2), halves away from zero (@round of the f32 position it replaces).
+fn roundHalves(h: i32) i32 {
+    return if (h >= 0) @divTrunc(h + 1, 2) else -@divTrunc(-h + 1, 2);
+}
+
+fn clampAxis(pos: i32, dest: i32, dir: i8) i32 {
     if (dir == 1 and pos >= dest) return dest;
     if (dir == -1 and pos <= dest) return dest;
     return pos;
@@ -128,7 +133,7 @@ fn clampAxis(pos: f32, dest: f32, dir: i8) f32 {
 // other strip — see tools/union_intro_assets.py) from the original color by
 // the current alpha, each frame, from the base placement_pal (never from an
 // already-scaled value, or the fade would compound).
-fn applyFade(fb: *LogicalFB, s: strips.StripDef, alpha: f32) void {
-    if (alpha >= 1.0) return;
-    zg.palette.scaleRange(fb, placement_pal, s.lo, s.hi, alpha, .{ .alpha = .{ .set = 255 } });
+fn applyFade(fb: *LogicalFB, s: strips.StripDef, alpha: emu.Value) void {
+    if (alpha >= emu.ONE) return;
+    @import("pal_fade.zig").scaleRange(fb, &placement_pal, s.lo, s.hi, alpha);
 }

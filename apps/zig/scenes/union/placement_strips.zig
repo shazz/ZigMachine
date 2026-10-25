@@ -18,16 +18,18 @@ pub const StripDef = struct {
     h: u16,
     lo: u8, // first palette index owned by this strip (placement.pal)
     hi: u8, // last palette index owned by this strip (inclusive)
-    ox: f32, // origin position (halved canvas units)
-    oy: f32,
-    sx: f32, // speed (halved units/frame)
-    sy: f32,
-    dx: f32, // destination (clamp target, halved units)
-    dy: f32,
+    // In HALF units of the halved canvas (the JS values halved are whole or .5), integers
+    // since 2026-10-25: no float a frame on ZIGGY, and the same positions exactly.
+    ox: i32, // origin position
+    oy: i32,
+    sx: i32, // speed a frame
+    sy: i32,
+    dx: i32, // destination (clamp target)
+    dy: i32,
     dirx: i8,
     diry: i8,
     kind: Kind,
-    alpha0: f32,
+    alpha0: u64, // an f32 kept by f32emu.zig
 };
 
 const RAWS = [17][]const u8{
@@ -50,24 +52,30 @@ const RAWS = [17][]const u8{
     @embedFile("../../assets/screens/union_intro/placement/back_layer16.raw"),
 };
 
-fn def(i: usize, ox: f32, oy: f32, sx: f32, sy: f32, dx: f32, dy: f32, dirx: i8, diry: i8, kind: Kind, alpha0: f32) StripDef {
+fn def(comptime i: usize, comptime ox: f32, comptime oy: f32, comptime sx: f32, comptime sy: f32, comptime dx: f32, comptime dy: f32, dirx: i8, diry: i8, kind: Kind, comptime alpha0: f32) StripDef {
     return .{
         .raw = RAWS[i],
         .w = dims.STRIP_DIMS[i][0],
         .h = dims.STRIP_DIMS[i][1],
         .lo = dims.STRIP_RANGE[i][0],
         .hi = dims.STRIP_RANGE[i][1],
-        .ox = ox,
-        .oy = oy,
-        .sx = sx,
-        .sy = sy,
-        .dx = dx,
-        .dy = dy,
+        .ox = halves(ox),
+        .oy = halves(oy),
+        .sx = halves(sx),
+        .sy = halves(sy),
+        .dx = halves(dx),
+        .dy = halves(dy),
         .dirx = dirx,
         .diry = diry,
         .kind = kind,
-        .alpha0 = alpha0,
+        .alpha0 = @import("f32emu.zig").of(alpha0),
     };
+}
+
+fn halves(comptime v: f32) i32 {
+    const h = v * 2.0;
+    if (h != @round(h)) @compileError("placement_strips: a value that is not a whole half");
+    return @intFromFloat(h);
 }
 
 // oriX,oriY,speedX,speedY,destX,destY,dirX,dirY,alpha0,kind — halved from the JS source.

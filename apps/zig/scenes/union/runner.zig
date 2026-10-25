@@ -11,6 +11,7 @@ const Color = zg.Color;
 const gpu = @import("../union_common/gpu.zig");
 const LogicalFB = zg.LogicalFB;
 const box = @import("runner_box.zig");
+const emu = @import("f32emu.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 pub const SW: usize = 224; // sprite sheet width
@@ -28,17 +29,21 @@ pub const sprites = @embedFile("../../assets/screens/union_main/sprites.raw");
 const p1_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_main/p1.pal"));
 
 const CENTER_X: f32 = 216; // X0 + FW/2 (the runner is drawn centred here)
+/// The speed scale the runner takes, Q16 (SCALE_ONE = full speed).
+pub const SCALE_ONE: i32 = 1 << 16;
 // Trailing ghost copies: progressively further left and MORE x-zoomed than the
 // literal efmain.js values (which, under an opaque main, barely showed) so the
 // speed streak reads clearly. Centre offset + horizontal zoom + alpha per copy.
 const GHOST_CX = [4]f32{ -4, -10, -17, -25 };
 const GHOST_Z = [4]f32{ 1.5, 2.0, 2.5, 3.0 };
+const GHOST_CX_I = [4]i32{ -4, -10, -17, -25 }; // GHOST_CX and GHOST_Z * 2, for the stretch in Q16
+const GHOST_Z2 = [4]i32{ 3, 4, 5, 6 };
 const GHOST_A = [4]u8{ 179, 128, 77, 26 }; // 0.7/0.5/0.3/0.1
 const GHOST_BASE: u8 = 16; // ghost g uses palette [GHOST_BASE + g*8 + idx]
 
 pub const Runner = struct {
     blitter: zg.Blitter = .{},
-    nb: f32 = 0,
+    nb: emu.Value = 0, // efmain.js pinpinNb += 0.6, wraps above 7: an f32 kept by f32emu.zig
 
     pub fn init(self: *Runner, zigos: *ZigOS) void {
         self.blitter.init();
@@ -60,8 +65,8 @@ pub const Runner = struct {
     }
 
     pub fn update(self: *Runner) void {
-        self.nb += 0.6;
-        if (self.nb > 7) self.nb = 0;
+        self.nb = emu.add(self.nb, emu.of(0.6));
+        if (self.nb > emu.of(7.0)) self.nb = 0;
     }
 
     // `scale` (1.0 = full speed) attenuates the ghost trail: as it → 0 the ghosts
@@ -70,25 +75,25 @@ pub const Runner = struct {
     /// At full speed the runner and its ghosts are one ready picture of the whole BOX
     /// (runner_box.zig), 0 around them: draw() then paints the box itself, and the caller
     /// does not erase it first.
-    pub fn paintsBox(self: *const Runner, scale: f32) bool {
-        return scale == 1.0 and @as(usize, @intFromFloat(self.nb)) < FRAMES;
+    pub fn paintsBox(self: *const Runner, scale: i32) bool {
+        return scale == SCALE_ONE and emu.int(self.nb) < FRAMES;
     }
 
-    pub fn draw(self: *Runner, zigos: *ZigOS, scale: f32) void {
+    pub fn draw(self: *Runner, zigos: *ZigOS, scale: i32) void {
         const p1: *LogicalFB = &zigos.lfbs[1]; // erased by the caller (main.zig) unless paintsBox
-        const f: usize = @intFromFloat(self.nb);
+        const f: usize = @intCast(emu.int(self.nb));
         if (self.paintsBox(scale)) return gpu.put(p1, zg.blit.Image.init(&box.pictures[f], box.W), null, BOX[0], Y0, null);
         // Ghosts outermost (dimmest) first — each horizontally x-zoomed about its
         // centre for the speed streak — then the opaque runner on top.
         var g: usize = 4;
         while (g > 0) {
             g -= 1;
-            if (scale == 1.0) { // full speed (the main screen's whole life): the ghost is a ready picture
+            if (scale == SCALE_ONE) { // full speed (the main screen's whole life): the ghost is a ready picture
                 blitFixed(p1, f, g);
                 continue;
             }
-            const cx = CENTER_X + GHOST_CX[g] * scale;
-            const z = 1.0 + (GHOST_Z[g] - 1.0) * scale;
+            const cx = (216 << 16) + GHOST_CX_I[g] * scale; // CENTER_X + GHOST_CX * scale, Q16
+            const z = SCALE_ONE + @divTrunc((GHOST_Z2[g] - 2) * scale, 2); // 1 + (GHOST_Z - 1) * scale
             blitStretch(p1, f, cx, Y0, z, g);
         }
         self.blitter.blitImage(p1, X0, Y0, sprites, @intCast(SW), @as(u16, @intCast(f)) * @as(u16, @intCast(FW)), 0, @intCast(FW), @intCast(FH), 0);
@@ -111,15 +116,16 @@ const ghost_sheets: [4][sprites.len]u8 = blk: {
 // Blit sprite frame `f` centred at x=cx, stretched horizontally by `z` (the
 // ghost speed-streak): one source column per destination column, one keyed
 // 1-wide CHISEL blit each, clipped by the machine like the CPU loop was.
-fn blitStretch(fb: *LogicalFB, f: usize, cx: f32, y: i16, z: f32, g: usize) void {
+// `cx` and `z` in Q16 (fixed point since 2026-10-25: no float a frame).
+fn blitStretch(fb: *LogicalFB, f: usize, cx: i32, y: i16, z: i32, g: usize) void {
     const pw: i16 = @intCast(fb.fb_w);
-    const scaled: f32 = @as(f32, @floatFromInt(FW)) * z;
-    const x0: i16 = @intFromFloat(cx - scaled * 0.5);
-    const cols: i16 = @intFromFloat(@ceil(scaled));
+    const scaled: i32 = FW * z;
+    const x0: i16 = @intCast((cx - @divTrunc(scaled, 2)) >> 16);
+    const cols: i16 = @intCast((scaled + 0xFFFF) >> 16);
     const sx0: u16 = @intCast(f * @as(usize, @intCast(FW)));
     var dc: i16 = 0;
     while (dc < cols) : (dc += 1) {
-        const src: usize = @intFromFloat(@as(f32, @floatFromInt(dc)) / z);
+        const src: usize = @intCast(@divTrunc(@as(i32, dc) << 16, z));
         if (src >= @as(usize, @intCast(FW))) break;
         const px = x0 + dc;
         if (px < 0 or px >= pw) continue;
@@ -144,7 +150,8 @@ fn zoom(g: usize) f32 {
 fn ghostCols(g: usize) usize {
     return @intFromFloat(@ceil(@as(f32, @floatFromInt(FWU)) * zoom(g)));
 }
-pub fn left(g: usize) i16 {
+const LEFT = [4]i16{ left(0), left(1), left(2), left(3) };
+pub fn left(comptime g: usize) i16 {
     const cx = CENTER_X + GHOST_CX[g] * @as(f32, 1.0);
     return @intFromFloat(cx - @as(f32, @floatFromInt(FWU)) * zoom(g) * 0.5);
 }
@@ -174,5 +181,5 @@ fn blitFixed(fb: *LogicalFB, f: usize, g: usize) void {
     if (f >= FRAMES) return; // nb can read exactly 7: the old code found no sheet column there either
     const w = FIXED_COLS[g];
     const img = fixed_sheet[FIXED_OFF[g]..][0 .. FRAMES * FHU * w];
-    gpu.putTile(fb, left(g), Y0, img, @intCast(FRAMES * w), @intCast(f * w), 0, @intCast(w), @intCast(FHU));
+    gpu.putTile(fb, LEFT[g], Y0, img, @intCast(FRAMES * w), @intCast(f * w), 0, @intCast(w), @intCast(FHU));
 }

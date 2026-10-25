@@ -1,57 +1,53 @@
-// wave_sin.fast against an f64 sine: whenever it answers, its integer is round(10 sin p)
-// with 10 sin p further than 2e-6 from a half-integer -- more than libm_f32's 1.1 ulp plus
-// the f32 product's rounding -- so the f32 sum the cart would compute (libm sine, 10 *, @round)
-// rounds to the same integer. Over a sample of every f32 in its range, and over the phases
-// scroller.zig's accumulators take in two hours of frames.
+// wave_sin.rounded against an f64 sine: it is round(10 sin p) wherever 10 sin p is further
+// than the table's error (2e-6 * 10, rounded up to 1e-4) from a half-integer, and never more
+// than half a step plus that error off anywhere -- over a sample of every angle, and over the
+// phases scroller.zig's accumulators take in two hours of frames.
 const std = @import("std");
 const ws = @import("wave_sin.zig");
+const fixsin = @import("fixsin.zig");
 
-const LIBM_AND_PRODUCT: f64 = 2e-6; // 10 * (1.1 ulp of a sine <= 1) + half an ulp of 10, rounded up
+const MARGIN: f64 = 1e-4;
 
-fn check(p: f32, declined: *usize) !void {
-    const got = ws.fast(p) orelse {
-        declined.* += 1;
+fn check(p: u32, near: *usize) !void {
+    const got = ws.rounded(p);
+    const v = 10.0 * @sin(@as(f64, @floatFromInt(p)) / 4294967296.0 * 2.0 * std.math.pi);
+    if (@abs(v - (@floor(v) + 0.5)) <= MARGIN) {
+        near.* += 1;
+        try std.testing.expect(@abs(@as(f64, @floatFromInt(got)) - v) <= 0.5 + MARGIN);
         return;
-    };
-    const v = 10.0 * @sin(@as(f64, p));
-    const half = @floor(v) + 0.5;
-    try std.testing.expect(@abs(v - half) > LIBM_AND_PRODUCT);
+    }
     try std.testing.expectEqual(@as(i32, @intFromFloat(@round(v))), got);
 }
 
-test "fast answers only where the f32 sum cannot round the other way" {
-    var declined: usize = 0;
-    var n: usize = 0;
-    // Every 61st f32 from 2^-12 to 2^20, both signs.
-    var bits: u32 = 0x39800000;
-    while (bits < 0x49800000) : (bits += 61) {
-        const p: f32 = @bitCast(bits);
-        try check(p, &declined);
-        try check(-p, &declined);
-        n += 2;
+test "rounded is round(10 sin p) away from the half-integers" {
+    var near: usize = 0;
+    var p: u32 = 0;
+    for (0..4_000_000) |_| {
+        try check(p, &near);
+        p +%= 1073; // odd: every table interval at many fractions
     }
-    try std.testing.expect(declined * 100 < n); // the fast path answers almost always
+    try std.testing.expect(near * 100 < 4_000_000); // the uncertain band is thin
 }
 
 test "the scroller's own phases" {
-    var declined: usize = 0;
-    var wave_v: f32 = 0;
+    var near: usize = 0;
+    const D = fixsin.rad(0.03);
+    var wave_v: u32 = 0;
     for (0..432_000) |frame| { // two hours at 60 Hz
-        if (frame % 7 == 0) { // a sample of the frames, every column group
+        if (frame % 7 == 0) {
             var p = wave_v;
             for (0..134) |_| {
-                try check(p, &declined);
-                p += 0.03;
+                try check(p, &near);
+                p +%= D;
             }
         }
-        wave_v += -0.03;
+        wave_v -%= D;
     }
 }
 
-test "out of range and NaN go to the f32 sum" {
-    try std.testing.expectEqual(@as(?i32, null), ws.fast(0.0));
-    try std.testing.expectEqual(@as(?i32, null), ws.fast(1e-5));
-    try std.testing.expectEqual(@as(?i32, null), ws.fast(3e6));
-    try std.testing.expectEqual(@as(?i32, null), ws.fast(std.math.nan(f32)));
-    try std.testing.expectEqual(ws.slow(1e-5), ws.rounded(1e-5));
+test "the extremes and the zeros" {
+    try std.testing.expectEqual(@as(i32, 0), ws.rounded(0));
+    try std.testing.expectEqual(@as(i32, 10), ws.rounded(1 << 30));
+    try std.testing.expectEqual(@as(i32, -10), ws.rounded(3 << 30));
+    try std.testing.expectEqual(@as(i32, 0), ws.rounded(1 << 31));
 }
