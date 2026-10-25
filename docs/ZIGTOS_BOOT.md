@@ -1,4 +1,6 @@
-# ZigTOS boot: KESTREL starts like an ST
+# KOS boot: KESTREL starts like an ST
+
+KOS = the KESTREL Operating System (Matt, 25 Oct): ZigGEM grown into a small OS in ROM. "ZigTOS" below is the same thing.
 
 Status: **design, 25 Oct 2026**, decisions in §11, nothing built yet. Matt's brief: at reset the boot program
 initialises KESTREL, looks for a cart, checks its boot sector and runs it, or else loads GEM.
