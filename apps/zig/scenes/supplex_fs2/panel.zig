@@ -43,7 +43,16 @@ pub const LAST_CHAR: u8 = 91; // 60 tiles, ' '..'['
 
 // the raster gradient (raster.png, horizontally uniform), halved: 731 x RGB
 const raster_b = @embedFile(DIR ++ "raster.dat");
-const RASTER_LINES: i32 = 731;
+const RASTER_LINES = 731; // comptime_int: an array length and a clamp bound
+/// raster.dat's RGB triples as Colors, built at compile time, on a 4-byte
+/// boundary: shiftRaster read each triple as a u16 + u8 at stride 3, a
+/// misaligned access every other line (80 a frame, each a trap on the board).
+const raster_colors: [RASTER_LINES]zg.Color align(4) = blk: {
+    @setEvalBranchQuota(10_000);
+    var out: [RASTER_LINES]zg.Color = undefined;
+    for (&out, 0..) |*c, i| c.* = .{ .r = raster_b[i * 3], .g = raster_b[i * 3 + 1], .b = raster_b[i * 3 + 2], .a = 255 };
+    break :blk out;
+};
 
 // the text panel: CODEF prints at x=56, y=216 stepping 32 — halved, x=28+X_OFF
 // and y=108 stepping 16. Ten lines of 20 chars = a 320x160 block.
@@ -122,12 +131,6 @@ pub fn shiftRaster(fb: *LogicalFB, raster_y: i32) void {
     var r: i32 = 0;
     while (r < TEXT_H) : (r += 1) {
         const src = std.math.clamp(TEXT_TOP + r - raster_y, 0, RASTER_LINES - 1);
-        const o: usize = @intCast(src * 3);
-        fb.setPaletteEntry(@intCast(r + PANEL_FIRST), .{
-            .r = raster_b[o],
-            .g = raster_b[o + 1],
-            .b = raster_b[o + 2],
-            .a = 255,
-        });
+        fb.setPaletteEntry(@intCast(r + PANEL_FIRST), raster_colors[@intCast(src)]);
     }
 }
