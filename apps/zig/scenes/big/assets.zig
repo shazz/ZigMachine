@@ -149,7 +149,7 @@ pub const CYCLE_STEP: f64 = 0.4;
 pub const DIGITAL_CYCLE_STEP: f64 = 0.2;
 
 // ---- the files ----------------------------------------------------------
-/// align(8): screen.expandBand copies its 32-byte rows as u64s, and an
+/// align(8): page.expandBand copies its 32-byte rows as u64s, and an
 /// @embedFile is align 1 (a misaligned access traps on the board).
 pub const cycle: [8 * CYCLE_H * CYCLE_W]u8 align(8) = @embedFile("../../assets/screens/big_demo/cycle.raw").*; // 8 tiles of 32x5, tile-major
 /// The pictures and fonts are aligned too, for the board's memcpy (fpga/cycles/zm_string.c):

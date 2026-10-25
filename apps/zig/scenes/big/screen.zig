@@ -8,23 +8,7 @@ const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 const list = @import("list.zig");
 const paint = @import("paint.zig");
-const row = paint.row;
-
-/// The current cycle tile, already repeated across the screen: a band costs 5
-/// row builds and 20 row copies a frame, not a per-pixel fill of 6,400.
-/// align(8), like A.cycle: the row copies go out as u64s, and on the board a
-/// misaligned one traps (~210 cycles; it was 400 traps a frame).
-var band_rows: [A.CYCLE_H][A.W]u8 align(8) = undefined;
-
-/// Repeat cycle tile `t`'s 5 rows across the full width, once for the frame.
-fn expandBand(t: usize) void {
-    const tile = A.cycle[t * A.CYCLE_H * A.CYCLE_W ..][0 .. A.CYCLE_H * A.CYCLE_W];
-    for (&band_rows, 0..) |*dst, y| {
-        const line = tile[y * A.CYCLE_W ..][0..A.CYCLE_W];
-        var x: usize = 0;
-        while (x < A.W) : (x += A.CYCLE_W) @memcpy(dst[x..][0..A.CYCLE_W], line);
-    }
-}
+const page = @import("page.zig");
 
 pub const Screen = struct {
     /// texbg, accumulated as go() does it: `texbg += 0.4` in DOUBLE precision.
@@ -48,8 +32,11 @@ pub const Screen = struct {
     // main.png's rows that carry transparent holes (the three cycler windows);
     // every other row is a straight memcpy.
     holed: [A.H]bool,
+    /// What is on the plane, so go() redraws only what changed (big/page.zig).
+    drawn: page.Drawn,
 
     pub fn init(self: *Screen) void {
+        self.drawn = .{};
         self.frame = 0;
         self.texbg = 0;
         self.digital_cycle = 0;
@@ -76,8 +63,12 @@ pub const Screen = struct {
     }
 
     pub fn drawWait(self: *Screen, fb: *LogicalFB) void {
-        _ = self;
-        for (0..A.H) |y| @memcpy(row(fb, y), A.wait_img[y * A.W ..][0..A.W]);
+        page.drawWait(&self.drawn, fb);
+    }
+
+    /// A sub-screen or restore() repainted the plane: the next frame draws all.
+    pub fn invalidate(self: *Screen) void {
+        self.drawn.invalidate();
     }
 
     /// scrolltext_horizontal.draw() advances the letters BEFORE painting them,
@@ -176,35 +167,16 @@ pub const Screen = struct {
     /// One whole go(): advance the scroller, paint, then step the counters.
     pub fn go(self: *Screen, fb: *LogicalFB) void {
         self.advance();
-        // cycler[Math.floor(texbg)%8].draw(mycanvas,0,498/378/104): each band is
-        // cycle.png's tile i, tiled 10 across and 4 down. texbg += 0.4 a frame.
-        expandBand(self.cycleTile());
-        for (A.BAND_Y) |by| {
-            for (0..A.BAND_H) |i| @memcpy(row(fb, by + i), &band_rows[i % A.CYCLE_H]);
-        }
-        // mymain.draw(mycanvas,0,0): opaque everywhere but the cycler windows.
-        for (0..A.H) |y| {
-            const src = A.main_img[y * A.W ..][0..A.W];
-            const dst = row(fb, y);
-            if (!self.holed[y]) {
-                @memcpy(dst, src);
-            } else {
-                for (src, dst) |s, *d| {
-                    if (s != A.TRANSPARENT) d.* = s;
-                }
-            }
-        }
-        self.drawScrollerAt(fb, A.SCROLL_Y);
-        paint.shadows(fb);
-        paint.listRows(fb, self.curent, self.curentlplay);
+        // go()'s whole canvas, of which only the rows that changed are redrawn.
+        page.draw(&self.drawn, fb, &self.holed, self.cycleTile(), self.curent, self.curentlplay, .{
+            .bgscrposx = self.bgscrposx,
+            .posx = &self.posx,
+            .ltr = &self.ltr,
+        });
         // The two rules that bracket the cursor row. ONE live colour, stepped
         // one gradient word per frame: the same single palette write the real
         // HBL stage makes at display lines 92 and 100 (= content 107 and 115).
         fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[@as(usize, self.frame)]);
-        for (A.RULE_Y) |ry| @memset(row(fb, ry), A.PULSE);
         self.tick();
     }
-
-
-
 };

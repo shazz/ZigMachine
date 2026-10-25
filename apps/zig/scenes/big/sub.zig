@@ -70,7 +70,10 @@ pub const Sub = struct {
                 .keyb => self.kb.enter(zigos, fb),
                 .key2 => self.k2.enter(zigos, fb),
                 .key3 => self.k3.enter(fb),
-                .jukebox => restore(zigos, fb),
+                .jukebox => {
+                    restore(zigos, fb);
+                    screen.invalidate(); // the jukebox's page is gone: redraw it whole
+                },
                 .digital => {}, // draws over the jukebox's own palette
             }
             self.shown = self.mode;

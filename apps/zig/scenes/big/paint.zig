@@ -66,11 +66,21 @@ pub fn scroller(fb: *LogicalFB, y0: usize, bgscrposx: i32, posx: []const i32, lt
 /// alpha is exactly a palette lookup once the palette is fixed.
 pub fn shadows(fb: *LogicalFB) void {
     for (A.SHADOW_Y) |sy| {
-        for (A.SHADOW_TONE, 0..) |tone, r| {
-            const lut = A.shadow_lut[@as(usize, tone) * 256 ..][0..256];
-            for (row(fb, sy + r)) |*d| d.* = lut[d.*];
-        }
+        for (0..A.SHADOW_TONE.len) |r| shadeRow(fb, sy + r, A.SHADOW_TONE[r]);
     }
+}
+
+/// The shadow on content row `y`, if a strip covers it (big/page.zig rebuilds
+/// rows one at a time). Shade a row once per repaint: the LUT is not idempotent.
+pub fn shadowRow(fb: *LogicalFB, y: usize) void {
+    for (A.SHADOW_Y) |sy| {
+        if (y >= sy and y < sy + A.SHADOW_TONE.len) shadeRow(fb, y, A.SHADOW_TONE[y - sy]);
+    }
+}
+
+fn shadeRow(fb: *LogicalFB, y: usize, tone: u8) void {
+    const lut = A.shadow_lut[@as(usize, tone) * 256 ..][0..256];
+    for (row(fb, y)) |*d| d.* = lut[d.*];
 }
 
 /// Five entries around the cursor. The selected one is a filled bar with the
