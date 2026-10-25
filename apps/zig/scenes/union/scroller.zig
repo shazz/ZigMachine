@@ -19,6 +19,7 @@ const LogicalFB = zg.LogicalFB;
 
 const st2 = zg.scrolltext2;
 const ss = @import("scroll_strip.zig"); // the strip and the wave, by the CPU
+const wave_sin = @import("wave_sin.zig");
 
 const NUM_SLOTS: usize = 14;
 const GLYPH: u16 = 32;
@@ -84,10 +85,14 @@ pub const Scroller = struct {
         // FX.siny(0,20,6): column groups of WAVE_COL px, each offset vertically by
         // sin(phase)*amp; the phase advances per group during the sweep but the persisted
         // state only carries the per-frame drift (Codef's oldvalue+offset reset after the loop).
-        const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{self.wave_v}, .inc = .{WAVE_INC}, .rounding = .round };
-        var it = sum.sweep(0);
+        // zg.wave.SineSum(f32, 1){ amp WAVE_AMP, phase wave_v, inc WAVE_INC, .round }'s sweep,
+        // phase by phase as it accumulates them, each rounded sine by wave_sin.zig.
+        var p: f32 = self.wave_v;
         var top: [GROUPS]i32 = undefined; // band row of text row 0, per group
-        for (&top) |*t| t.* = @as(i32, BASE_Y) + it.next() - BAND_TOP;
+        for (&top) |*t| {
+            t.* = @as(i32, BASE_Y) + wave_sin.rounded(p) - BAND_TOP;
+            p += WAVE_INC;
+        }
         self.wave_v += WAVE_DRIFT;
         ss.wave(&zigos.lfbs[1], &zigos.lfbs[3], @intCast(BAND_TOP), @intCast(BAND_ROWS), &top, WAVE_COL);
     }
@@ -95,5 +100,6 @@ pub const Scroller = struct {
 
 const GROUPS = (STRIP_W + WAVE_COL - 1) / WAVE_COL; // 134 column groups
 comptime {
+    if (WAVE_AMP != wave_sin.AMP) @compileError("wave_sin rounds another amplitude");
     if (STRIP_W != ss.W or 2 * (BASE_Y - BAND_TOP) != ss.PAD or BAND_ROWS != ss.PAD + STRIP_H + 1) @compileError("scroll_strip's geometry");
 }
