@@ -12,20 +12,29 @@ const DIR = "../../assets/screens/stcs_css3/";
 
 /// The ST screen at the start of the star release ($1F2): pic1 (ByteRun1,
 /// DATA $4100) with the four STCS letters already lifted off it by $A7C.
-pub const screen = @embedFile(DIR ++ "screen.bin");
+pub const screen = embed4(DIR ++ "screen.bin");
 /// $E720: the lifted letters S, T, C, S, 17 words each at a $22 stride.
-pub const letters = @embedFile(DIR ++ "letters.bin");
+pub const letters = embed4(DIR ++ "letters.bin");
 /// $16E24: pic2 lines 0..111, the scroller font (every glyph the scroller
 /// reads lies there; lines 112.. are the scroll buffers' at run time).
-pub const font = @embedFile(DIR ++ "font.bin");
+pub const font = embed4(DIR ++ "font.bin");
 /// $D3FE..$D668: the top palette, the 16 Timer B blocks, the 28-word bar
 /// ring at $D620 and the 17 Timer B event counts at $D658.
-pub const raster = @embedFile(DIR ++ "raster.bin");
+pub const raster = embed4(DIR ++ "raster.bin");
 /// $5E6A and $992A: the letters' path, one byte a step (Billy Octet's).
 pub const path_x = @embedFile(DIR ++ "path_x.bin");
 pub const path_y = @embedFile(DIR ++ "path_y.bin");
 /// $D6AA: 3335 character codes then $3F (wrap). $F0 = pause.
 pub const text = @embedFile(DIR ++ "text.bin");
+
+/// An embedded file on a 4-byte boundary: be16/be32 read it as u16/u32s, and a
+/// plain @embedFile is align 1 (a misaligned read traps on the board, ~210 cycles).
+fn embed4(comptime path: []const u8) *align(4) const [@embedFile(path).len]u8 {
+    const S = struct {
+        const data: [@embedFile(path).len]u8 align(4) = @embedFile(path).*;
+    };
+    return &S.data;
+}
 
 pub const SCREEN_BYTES: usize = 32000;
 pub const LINE: usize = 160;
