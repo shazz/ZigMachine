@@ -2,8 +2,8 @@
 // from the 68000 code and the RAM rips, not from the Zig: the cube's exact
 // projection, the $1047e edge walk and $bc08 span fill (checked against the
 // original's drawn pages: hmdfac_original.json), the Timer B chain's laser
-// lines and split palette, the opening's screen-address bob, and phase 4's
-// stand-in scroller. apps/hmdfac_headless.mjs drives it.
+// lines and split palette, the opening's screen-address bob; phase 4 is
+// hmdfac_p4_model.mjs. apps/hmdfac_headless.mjs drives it.
 import { readFile } from "node:fs/promises";
 
 const A = "apps/zig/assets/screens/hmdfac/";
@@ -11,8 +11,7 @@ const raw = (f) => readFile(A + f);
 const words = async (f) => { const b = await raw(f); return Array.from({ length: b.length / 2 }, (_, i) => b.readUInt16LE(2 * i)); };
 export const R = {
     logo: await raw("logo.raw"), bandA: await raw("band_a.raw"), bandB: await raw("band_b.raw"),
-    font: await raw("font.bin"), text: await raw("text.raw"),
-    SINE: await words("sine.blob"), QUEUE: await words("queue.raw"), ROWS: await words("rows.raw"), WAVE: await words("wave.raw"),
+    SINE: await words("sine.blob"), QUEUE: await words("queue.raw"),
     BOOT: await words("boot_pal.raw"), ART: await words("art_pal.raw"), PAL4: await words("pal4.raw"),
     BAND: await words("band_pal.raw"), LASER: await words("laser.raw"), BOB: await words("bob.raw"),
 };
@@ -84,21 +83,12 @@ export function artPage(withBandA) {
     if (withBandA) page.set(R.bandA, 194 * 320);
     return page;
 }
-export function scrollerPage(t) {
+/// Phase 4's plate: band B from page row 199, over it the planar page's
+/// rows 0..198 as indices (null = the precalc frames: band B alone).
+export function p4Page(ch) {
     const page = new Uint8Array(320 * 249);
     page.set(R.bandB.subarray(0, 320 * 50), 199 * 320); // band B's last row lies below the plate
-    for (let i = 0; i < 9 && t >= 0; i++) {
-        const ci = Math.floor(t / 10) + i, x0 = i * 40 - 4 * (t % 10);
-        if (ci >= 2105 || x0 <= -40 || x0 >= 320) continue;
-        const y0 = Math.max(R.ROWS[(t + i) % 5040] + ((R.WAVE[(t + i) % 189] - 100) >> 1), -2);
-        const ch = R.text[ci];
-        if (ch < 0x20 || ch >= 0x60) continue;
-        for (let py = 0; py < 16; py++) for (let px = 0; px < 32; px++) {
-            if (!(R.font[(ch - 0x20) * 64 + py * 4 + (px >> 3)] & (0x80 >> (px & 7)))) continue;
-            const x = x0 + px, y = y0 + py;
-            if (x >= 0 && x < 320 && y >= 0 && y < 249) page[y * 320 + x] = 4;
-        }
-    }
+    if (ch) page.set(ch.subarray(0, 320 * 199));
     return page;
 }
 

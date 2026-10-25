@@ -112,6 +112,12 @@ fn put(d: blit.Dst, y: usize, s: *const [zg.PHYSICAL_WIDTH]u8, keep: bool) void 
     }
 }
 
+/// The stripe index at plane column x of a laser row (plate row 2 or 196):
+/// what a colour-0 pixel there shows.
+pub fn stripeAt(x: usize, plate_row: usize) u8 {
+    return if (plate_row == TOP_ROW - A.ART_Y) top_stripe[x] else bot_stripe[x];
+}
+
 /// Clear the three stripe pixels' rows at offset y0 (the bob moved them).
 pub fn unstamp(d: blit.Dst, y0: usize) void {
     d.fill(0, @intCast(y0 + TOP_ROW), zg.PHYSICAL_WIDTH, 2, 0);

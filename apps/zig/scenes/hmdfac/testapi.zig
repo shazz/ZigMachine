@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------
 const app = @import("app.zig");
 const run = @import("cube_run.zig");
+const p4 = @import("p4.zig");
 
 /// 0 frame, 1 ca, 2 cb, 3 cc, 4 camera, 5 queue x, 6 queue y, 7 qi,
 /// 8 popped, 9 the opening's screen offset in lines.
@@ -36,4 +37,11 @@ export fn hmPhaseEnd(i: u32) u32 {
         5 => app.CUBE_END,
         else => app.P4_START,
     };
+}
+
+/// Phase 4's planar page i (0, 1) as a memory address, and (i = 2) the page
+/// the next frame draws on: the harness compares them with its model's.
+export fn hmP4Page(i: u32) u32 {
+    if (i >= 2) return p4.drawn;
+    return @intCast(@intFromPtr(p4.pages[i].ptr));
 }

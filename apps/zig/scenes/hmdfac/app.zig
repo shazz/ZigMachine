@@ -1,7 +1,8 @@
 // --------------------------------------------------------------------------
 // HMD "Factory Cracktro": the timeline. hmdfac.zig carries the port notes;
 // assets.zig the rips, rasters.zig the Timer B chain, cube_run.zig +
-// cube.zig + cube_fill.zig the frustum, scroll.zig phase 4.
+// cube.zig + cube_fill.zig the frustum, p4.zig + p4_dots.zig + p4_scroll.zig
+// phase 4.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -11,7 +12,7 @@ const blit = zg.blit;
 const A = @import("assets.zig");
 const R = @import("rasters.zig");
 const run = @import("cube_run.zig");
-const scroll = @import("scroll.zig");
+const p4 = @import("p4.zig");
 
 pub const MUSIC = "hmd_cracoucass.sndh";
 pub const MUSIC_TUNE = 1;
@@ -29,7 +30,7 @@ pub const P4_START = CUBE_END + 17; // pages cleared, band B, $1108c/$1103a prec
 const FLASH_C0 = [6]u16{ 0x777, 0xeee, 0x666, 0xddd, 0x555, 0xccc };
 const HOLD_C0: u16 = 0xccc;
 const POP_C0: u16 = 0x711; // the $38 key: move.b #$7 into colour 0's high byte
-const BUF_H = zg.PHYSICAL_HEIGHT + 32; // the bob reads up to 32 lines below
+const BUF_H = 2 * p4.HALF; // two pages; the bob reads up to 32 lines into the first's spare
 
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = 32;
@@ -86,6 +87,7 @@ pub const Demo = struct {
         frame = 0;
         popped = false;
         run.reset();
+        p4.alloc();
 
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -126,11 +128,8 @@ pub const Demo = struct {
             R.stamp(whole, 0, true); // band A's blank top rows covered line 196
         }
         if (f >= HOLD_END and f < CUBE_END) return run.frame(whole, plate);
-        if (f == CUBE_END) {
-            scroll.enter(whole);
-            R.stamp(whole, 0, false);
-        }
-        if (f >= P4_START and scroll.frame(whole, f - P4_START)) R.stamp(whole, 0, true);
+        if (f == CUBE_END) p4.reset(whole); // $ade0..$ae76
+        if (f >= P4_START) p4.frame(fb, whole);
     }
 
     /// SPACE toggles the $38 key's colour-0 pop ($0711 over lines 0..1 and

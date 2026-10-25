@@ -1,14 +1,18 @@
 // Headless HMDFAC driver (cart 105): Hemoroids' "Factory Cracktro" (HMDFAC.PRG),
 // a Team Factory tribute for the Atari STe, ported from the original. This
-// harness holds the cart to its OWN model of the machine (apps/hmdfac_model.mjs,
-// written from the 68000 code and the RAM rips, not from the Zig), and holds
+// harness holds the cart to its OWN model of the machine (apps/hmdfac_model.mjs
+// and hmdfac_p4_model.mjs, written from the 68000 code and the RAM rips, not
+// from the Zig), and holds
 // that model to the ORIGINAL (apps/hmdfac_original.json, pages the original drew
 // in Hatari):
 //
 //   original  at four cube frames across the three phases, the model's wheel
 //             words equal the original's, and the page the model draws (logo,
 //             band A, the solid six-face frustum by the $1047e edge walk and
-//             $bc08 span fill) hashes to the page the original drew
+//             $bc08 span fill) hashes to the page the original drew; and at
+//             phase-4 frames 0, 1 and 301 the model's planar page (the dot
+//             figure in its four cycled bitplanes, the wave scroller in plane
+//             1) hashes to the original's
 //   state     every frame, the wheel counters, the camera walk ($1356 down to
 //             $79e, hold, back up), the queue pair and index, and the opening's
 //             screen offset (the $2d1ea bob words / 160) equal the model's
@@ -16,8 +20,9 @@
 //             every frame to 1300 then checkpoints past the text's end: the
 //             bobbing logo (193 frames), the 777/EEE/666/DDD/555/CCC flash and
 //             4 grey frames, the 498 cube frames over a FULL art re-blit (so the
-//             cart's dirty-row restore is pinned), phase 4's stand-in scroller
-//             over a FULL clear; on every line the Timer B chain's palettes
+//             cart's dirty-row restore is pinned), phase 4 converted from the
+//             model's WHOLE planar page (pinning the cart's partial
+//             conversion); on every line the Timer B chain's palettes
 //             (bottom palette to line 17, top from 18, bottom from 212) and the
 //             two laser lines' 12-pixel colour-0 writes
 //   music     hmd_cracoucass.sndh #1 requested once at start
@@ -30,6 +35,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam } from "../docs/wasm_hiwater.js";
 import * as H from "./hmdfac_model.mjs";
+import * as P from "./hmdfac_p4_model.mjs";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/hmdfac";
@@ -95,12 +101,17 @@ function step() {
     }
     M.frame++;
 }
-/// The plate page of the frame just stepped (the cube's tables run every cube frame).
+/// The frame just stepped, run on the model (the cube's tables and phase 4's
+/// pages are state: this runs every frame); `.plate()` is the plate's indices.
+let P4 = null;
 function page() {
     const f = M.frame - 1;
-    if (f < H.HOLD_END) return H.artPage(false);
-    if (f < H.CUBE_END) { const p = H.artPage(true); H.drawCube(p, H.project(M), T); return p; }
-    return H.scrollerPage(f < H.P4_START ? -1 : f - H.P4_START);
+    if (f < H.HOLD_END) return { plate: () => H.artPage(false) };
+    if (f < H.CUBE_END) { const p = H.artPage(true); H.drawCube(p, H.project(M), T); return { plate: () => p, cube: p }; }
+    if (!P4) P4 = P.create();
+    if (f < H.P4_START) return { plate: () => H.p4Page(null) };
+    const pg = P.step(P4);
+    return { plate: () => H.p4Page(P.chunky(pg)), planar: pg, t: f - H.P4_START };
 }
 
 const pfb = new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), 800 * 280);
@@ -108,9 +119,10 @@ const hx = (v) => "0x" + (v >>> 0).toString(16).padStart(8, "0");
 function compare(frame, pg) {
     const want = H.composite(pg, { f: frame - 1, popped: M.popped });
     if (broke === "pixels" && frame === 400) want[(100 * 800) + 300] ^= 0x10;
-    for (let i = 0; i < want.length; i++)
-        if (pfb[i] !== want[i]) return `frame ${frame}: physical (${i % 800},${(i / 800) | 0}) is ${hx(pfb[i])} not ${hx(want[i])}`;
-    return null;
+    let first = -1, n = 0;
+    for (let i = 0; i < want.length; i++) if (pfb[i] !== want[i]) { if (first < 0) first = i; n++; }
+    if (first < 0) return null;
+    return `frame ${frame}: physical (${first % 800},${(first / 800) | 0}) is ${hx(pfb[first])} not ${hx(want[first])} (${n / 2} plane pixels differ)`;
 }
 function checkState(frame) {
     const got = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((f) => demo.hmState(f));
@@ -136,40 +148,55 @@ function ppm(px) {
     const model = [H.OPEN_END, H.FLASH_END, H.HOLD_END, H.CUBE1_END, H.CUBE2_END, H.CUBE_END, H.P4_START].join();
     ok(ends === model, `timeline: phase ends ${ends} (193 bob, 12 flash, 4 grey, 120+250+128 cube, 17 precalc)`);
     const fm = (await readFile("apps/zig/assets/screens/hmdfac/font_machine.bin")).length;
-    ok(fm === 50 * 64, `provenance rip: font_machine.bin ${fm} B (50 glyphs x 64)`);
+    ok(fm === 50 * 64, `the machine's font: font_machine.bin ${fm} B (50 glyphs x 64)`);
 }
 
 // ---------------- 2. state every frame, pixels, the original's pages ------------
-const PINS = JSON.parse(await readFile("apps/hmdfac_original.json", "utf8")).cube;
+const ORIG = JSON.parse(await readFile("apps/hmdfac_original.json", "utf8"));
+const PINS = ORIG.cube, P4PINS = ORIG.p4;
 if (broke === "original") PINS[1].fnv = "0x00000000";
 const EVERY = 1300;
 const CHECK = [2000, 5000, 10000, 15000, 21000, 21800];
 const LAST = CHECK[CHECK.length - 1];
-let compared = 0, failure = null, camLow = 1e9, pinned = 0;
+let compared = 0, failure = null, camLow = 1e9, pinned = 0, p4pinned = 0, p4planar = 0;
 for (let frame = 1; frame <= LAST && !failure; frame++) {
     machine.hwClear();
     step();
     demo.frame(TICK_MS);
     failure = checkState(frame);
     camLow = Math.min(camLow, M.camera);
-    const f = frame - 1, inCube = f >= H.HOLD_END && f < H.CUBE_END;
-    if (failure || !(frame <= EVERY || CHECK.includes(frame) || inCube)) continue;
+    const f = frame - 1;
+    if (failure) continue;
     const pg = page();
-    const pin = PINS.find((p) => p.cube_frame === f - H.HOLD_END);
+    const pin = pg.cube && PINS.find((p) => p.cube_frame === f - H.HOLD_END);
     if (pin) {
-        const w = [M.ca, M.cb, M.cc, M.camera, M.qx, M.qy].join(), h = H.fnv(pg);
+        const w = [M.ca, M.cb, M.cc, M.camera, M.qx, M.qy].join(), h = H.fnv(pg.cube);
         if (w !== pin.wheel.join() || h !== pin.fnv) failure = `original: cube frame ${pin.cube_frame} wheel ${w} page ${h}, the original drew ${pin.wheel.join()} page ${pin.fnv}`;
         else pinned++;
     }
+    const p4pin = pg.planar && P4PINS.find((p) => p.frame === pg.t);
+    if (p4pin) {
+        const h = H.fnv(pg.planar);
+        if (h !== p4pin.fnv) failure = `original: phase-4 frame ${pg.t} page ${h}, the original drew ${p4pin.fnv}`;
+        else p4pinned++;
+    }
     if (failure || !(frame <= EVERY || CHECK.includes(frame))) continue;
+    if (pg.planar) {
+        const cp = new Uint8Array(memory.buffer, demo.hmP4Page(demo.hmP4Page(2) ^ 1), 32000);
+        const at = cp.findIndex((v, i) => v !== pg.planar[i]);
+        if (at >= 0) { failure = `phase-4 frame ${pg.t}: the cart's planar page byte ${at} is ${cp[at]}, model ${pg.planar[at]}`; continue; }
+        p4planar++;
+    }
     machine.hwRenderPlane(0);
-    failure = compare(frame, pg);
+    failure = compare(frame, pg.plate());
     compared++;
     if ([20, 100, 200, 215, 400, 600, 708, 724, 1000].includes(frame)) await writeFile(`${OUT}/frame_${String(frame).padStart(6, "0")}.ppm`, ppm(pfb));
 }
 if (failure) errors.push(failure);
 else {
     ok(pinned === PINS.length, `original: ${pinned} of ${PINS.length} cube pages the original drew are the model's (wheel words + page hash)`);
+    ok(p4pinned === P4PINS.length, `original: ${p4pinned} of ${P4PINS.length} phase-4 planar pages the original drew are the model's (dot figure, wave scroller)`);
+    ok(p4planar > 500, `phase 4: the cart's own planar page equals the model's on all ${p4planar} compared frames`);
     ok(compared === EVERY + CHECK.length, `${compared} frames equal the model pixel for pixel (every frame to ${EVERY}: bob, flash, all 498 cube frames, phase 4; then ${CHECK.join("/")})`);
     ok(camLow === 0x79e && M.camera === 0x1b9e, `camera: $1356 walks down to $${camLow.toString(16)}, holds, and phase 3 climbs to $${M.camera.toString(16)} (the dis: $79e, $1b9e)`);
     ok(machine.hwRamAllocFailures() === 0, "no zg.mem allocation refused");

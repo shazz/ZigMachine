@@ -5,5 +5,11 @@
     { "cube_frame": 60, "wheel": [244, 122, 372, 2510, 249, 152], "fnv": "0x278afbcd" },
     { "cube_frame": 220, "wheel": [164, 442, 292, 1950, 84, 158], "fnv": "0x7f517590" },
     { "cube_frame": 434, "wheel": [300, 150, 428, 4550, 221, 132], "fnv": "0x689816a5" }
+  ],
+  "about_p4": "Phase 4 pins: the planar page (rows 0..199, 32000 bytes, the ST's own layout) the original had just drawn with $1119a, PC at $ae94 before the page swap, for loop frames 0, 1 and 301, hashed with FNV-1a 32.",
+  "p4": [
+    { "frame": 0, "fnv": "0xb71b04e8" },
+    { "frame": 1, "fnv": "0x387c6fd6" },
+    { "frame": 301, "fnv": "0x04153878" }
   ]
 }

@@ -17,10 +17,8 @@ const band_pal_data = @embedFile(DIR ++ "band_pal.raw"); // 16 LE words
 const laser_data = @embedFile(DIR ++ "laser.raw"); // 124 LE words
 const bob_data = @embedFile(DIR ++ "bob.raw"); // 192 LE words
 pub const text_data = @embedFile(DIR ++ "text.raw"); // 2105 chars + 0xFF
-const font_data = @embedFile(DIR ++ "font.bin"); // rebuilt 32x16, 0x20..0x5F
-// font_machine.bin (the ripped $9e48 glyph records) and charmap.bin ($9a0e)
-// sit beside these for provenance only: the cart does not embed them, since
-// nothing renders them (hmdfac.zig, THE FONT BLOCKER).
+pub const font = @embedFile(DIR ++ "font_machine.bin"); // $148e2: 50 glyphs x 64 B
+pub const charmap = @embedFile(DIR ++ "charmap.bin"); // $144a8: text byte -> glyph
 
 comptime {
     if (logo_data.len != 320 * 249) @compileError("logo.raw must be 320x249 chunky");
@@ -34,7 +32,7 @@ comptime {
     if (boot_pal_data.len != 32 or art_pal_data.len != 32 or pal4_data.len != 32 or band_pal_data.len != 32)
         @compileError("palette rips must be 16 words");
     if (text_data.len != 2105 + 1) @compileError("text.raw must be 2105 chars + terminator");
-    if (font_data.len != 64 * 64) @compileError("font.bin must be 64 glyphs x 64 B");
+    if (font.len != 50 * 64 or charmap.len != 256) @compileError("font_machine.bin / charmap.bin sizes");
 }
 
 pub const TEXT_LEN = 2105;
@@ -83,13 +81,3 @@ pub const pal4: [16]u16 = words(pal4_data);
 pub const band_pal: [16]u16 = words(band_pal_data);
 pub const laser: [LASER_N]u16 = words(laser_data);
 pub const bob: [BOB_N]u16 = words(bob_data);
-
-/// font.bin's 16 rows of 4 bytes per glyph as big-endian u32s (bit 31 = the
-/// leftmost pixel), decoded at comptime for the same reason as words().
-pub const font_rows: [64 * 16]u32 = blk: {
-    @setEvalBranchQuota(100_000);
-    var out: [64 * 16]u32 = undefined;
-    for (&out, 0..) |*r, i| r.* = (@as(u32, font_data[4 * i]) << 24) | (@as(u32, font_data[4 * i + 1]) << 16) |
-        (@as(u32, font_data[4 * i + 2]) << 8) | font_data[4 * i + 3];
-    break :blk out;
-};
