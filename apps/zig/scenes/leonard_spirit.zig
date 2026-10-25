@@ -46,6 +46,11 @@ const Color = zg.Color;
 // --budget: cart 0.85 of 1.13 Mc. 8 snakes would be ~1.63 Mc (over the
 // 1.6 aim). Two planes (background on its own scrolled plane) measured
 // 2.16 Mc with these 7 snakes: ~46 fps.
+// The BOARD (2026-10-25, 72-store balls): cart 1.93 Mc, 39 fps. The model
+// prices a wasm store ~3.7 cycles; the board's wasm2c build pays ~10 (it
+// reloads the memory base after every store and a load waits for the posted
+// stores to drain: ball.zig). Fewer, wider stores help ~12 %; 60 fps with 7
+// snakes needs the board's cart build to keep the base in a register.
 pub const NB: u32 = path.SNAKES * path.SNAKE_LEN;
 
 // Mad Max, "S.O.S." from the So Watt demo (1989), as the leonard cart.
@@ -70,7 +75,7 @@ const palette: [256]Color = blk: {
     break :blk p;
 };
 
-pub const Ball = ball_mod.Sprite(16, 16, ball_b.*, BALL_INK, lay.BUF_W);
+pub const Ball = ball_mod.Sprite(16, 16, ball_b.*, BALL_INK);
 pub const Strip = scroll.Strip(font_b, text.full(NB, path.SNAKES), FONT_INK);
 const SCROLL_TICKS: u32 = Strip.TEXT_W / scroll.SPEED; // one lap of the text
 
@@ -127,7 +132,7 @@ pub const Demo = struct {
         open_mask = show.openMask(t);
         fb.setScroll(s.x, s.y);
         restore.window(&self.blitter, fb, back_b, s.x, s.y, OX, OY);
-        drawBalls(frame, s);
+        drawBalls(frame, s, fb.stride); // = lay.BUF_W, but a run-time value: see ball.zig
         var band = restore.rowView(fb, s.y + lay.SCROLL_Y);
         self.blitter.blitImage(&band, @intCast(s.x), 0, &Strip.pixels, Strip.W, Strip.windowX(tick), 0, lay.WIN_W, scroll.CW, 0);
         phase = show.stepPhase(phase, t);
@@ -137,13 +142,13 @@ pub const Demo = struct {
     }
 };
 
-fn drawBalls(f: u32, s: path.Pan) void {
+fn drawBalls(f: u32, s: path.Pan, stride: u32) void {
     var k: u32 = 0;
     while (k < path.SNAKES) : (k += 1) {
         var c = path.Chain.start(f, k);
         var i: u32 = 0;
         while (i < path.SNAKE_LEN) : (i += 1) {
-            Ball.draw(plane, c.x() + s.x, c.y() + s.y);
+            Ball.draw(plane, stride, c.x() + s.x, c.y() + s.y);
             c.next();
         }
     }

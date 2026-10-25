@@ -1,7 +1,7 @@
 // Native test of the generated ball code (ball.zig) and the path (path.zig):
 // the store programs paint exactly a keyed blit of the sprite at every shift,
 // over each other in painter's order, never touch a transparent pixel, are
-// 72 stores at every shift, the chain and the pan stay inside the overscan
+// 52-60 stores at every shift (u64 where 8 pixels allow), the chain and the pan stay inside the overscan
 // buffer, and the show opens each border and eases the scroll in.
 const std = @import("std");
 const ball = @import("ball.zig");
@@ -53,26 +53,34 @@ fn check(comptime S: type, img: []const u8, ink: u8) !void {
     for (0..3000) |_| {
         const x = rng.random().uintLessThan(u32, W - S.W + 1);
         const y = rng.random().uintLessThan(u32, H - S.H + 1);
-        S.draw(&a, x, y);
+        S.draw(&a, W, x, y);
         keyed(&b, img, S.W, S.H, ink, x, y);
     }
     try std.testing.expectEqualSlices(u8, &b, &a);
 }
 
 test "generated ball = keyed blit, painter's order, all four shifts" {
-    try check(ball.Sprite(16, 16, IMG, 3, W), &IMG, 3);
+    try check(ball.Sprite(16, 16, IMG, 3), &IMG, 3);
 }
 
 test "generated code handles rows with several runs" {
-    try check(ball.Sprite(9, 6, HOLES, 40, W), &HOLES, 40);
+    try check(ball.Sprite(9, 6, HOLES, 40), &HOLES, 40);
 }
 
-test "72 aligned stores a ball at every shift" {
-    const B = ball.Sprite(16, 16, IMG, 3, W);
+test "52-60 aligned stores a ball, 208 bytes, at every shift" {
+    // Every wasm store costs ~10 cycles on the board (ball.zig), so the count
+    // is the ball's price: 72 u8/u16/u32 stores before the u64s.
+    const B = ball.Sprite(16, 16, IMG, 3);
+    const want = [4]usize{ 52, 58, 60, 58 };
     inline for (0..4) |s| {
         const p = comptime B.program(s);
-        try std.testing.expectEqual(@as(usize, 72), p.len);
-        inline for (p) |st| try std.testing.expectEqual(@as(u32, 0), st.off % st.width);
+        try std.testing.expectEqual(want[s], p.len);
+        var bytes: u32 = 0;
+        inline for (p) |st| {
+            try std.testing.expectEqual(@as(u32, 0), st.x % @min(st.width, 4)); // rv32: a u64 is two sw
+            bytes += st.width;
+        }
+        try std.testing.expectEqual(@as(u32, 208), bytes);
     }
 }
 
