@@ -1,10 +1,12 @@
 """The SD card's shelf (tools/glass_sd.py stages it): a fat disk per cart, the shelf disk the
 browser mounts plus the rv32 board image ZWINDOW loads (tools/zmd_fat.py), and shelf.txt.
 
-A DATA disk (not bootable: ST Replay's) is what the browser boots GEM for
-(docs/sealed-loader.js), so its fat disk carries GEM's board image (OS_CART), and GEM's
-firmware does the rest from the disk itself (cycles/bdiskapp.c: docs/FPGA_GLASS.md,
-"GEM over a data disk"). Nothing else marks it: the boot sector says, as in the browser.
+A DATA disk (not bootable: ST Replay's) is what KOS boots its desktop over (docs/ZIGTOS_BOOT.md,
+KOS = ZigTOS), as the browser does: the card carries the desktop ONCE, as zigmachine/kos/desktop.rv32
+(OS_CART's board image, ZX0-packed), and a data disk is staged as it is, just files: the glass puts
+the desktop and the disk in DDR (glass/src/app_drive.zig), and the desktop's firmware does the rest
+from the disk itself (cycles/bdiskapp.c: docs/FPGA_GLASS.md, "GEM over a data disk"). Nothing else
+marks it: the boot sector says, as in the browser.
 
 A program on a data disk (a type-0 FAT file: ST Replay's BOOT.WSM) is wasm GEM asks the
 browser to run (request 3); on the board it must be native code built beforehand. Each one
@@ -26,6 +28,7 @@ ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import shelf_meta  # after the path insert
 import split_image
+from glass_zx0 import program_cart, zx0pack, zx0unpack  # re-exported: the shelf's tests use them
 import zmd_fat
 
 # The board firmwares (cycles/board.mk `board-fw`): linked for the bitstream's CSR map. NOT
@@ -35,10 +38,11 @@ CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 # The carts the card carries: `make -C fpga board-shelf` builds a board firmware for each, and the
 # staging names any of them without one (MISSING) instead of leaving it off the card unnoticed. A
 # firmware in --fw-dir that is not listed is staged too (a cart being tried out). st_replay and
-# sysinfo are data disks: each fat disk carries GEM's image, and the cart's own firmware is the
-# program GEM launches (progs/demo-<tag>/BOOT.WSM.zmd).
+# sysinfo are data disks: staged as they are (KOS's desktop boots over them), and the cart's own
+# firmware is the program GEM launches (progs/demo-<tag>/BOOT.WSM.zmd). GEM itself is no shelf disk:
+# it is KOS's desktop (OS_CART, kos/desktop.rv32), which an empty drive boots.
 SHELF = (
-    "blitter", "fuji_hobbytronic", "gem", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
+    "blitter", "fuji_hobbytronic", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
     "sap_test", "skystrike", "st_replay", "stniccc", "sysinfo", "tsl_hybridglenz", "tutorial", "ulm_dsots",
     "union_beatdis",
     # The Union Demo's street and the carts its doors boot (apps/zig/scenes/union_demo/doors.zig): on the
@@ -46,7 +50,8 @@ SHELF = (
     "union_demo", "union_deltaforce", "union_tnt3", "union_superscroller", "union_tnt1", "union_reps",
     "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker",
 )  # fmt: skip
-OS_CART = "gem"  # what the browser boots for a data disk
+OS_CART = "gem"  # KOS's desktop: what the browser boots for a data disk or an empty drive
+DESKTOP_FILE = "kos/desktop.rv32"  # glass/src/app_drive.zig DESKTOP
 SYS_FILE = "system.rv32"  # glass/src/system.zig FILE
 
 
@@ -76,48 +81,6 @@ class Images:
         return None
 
 
-def zx0pack() -> Path:
-    """The repo's own packer, built once into build/glass/."""
-    exe = FPGA / "build/glass/zx0pack"
-    if not exe.exists():
-        exe.parent.mkdir(parents=True, exist_ok=True)
-        zig = Path.home() / ".local/zig/0.16.0/zig"
-        subprocess.run([zig, "build-exe", "-OReleaseFast", "--dep", "zx0_pack", f"-Mroot={ROOT}/tools/zx0pack/main.zig",
-                        f"-Mzx0_pack={ROOT}/libs/zig/depackers/zx0_pack.zig", f"-femit-bin={exe}"],
-                       check=True, cwd=exe.parent)  # fmt: skip
-    return exe
-
-
-def zx0unpack() -> Path:
-    """The machine's own depacker as a tool (tools/zx0unpack.zig), built once into build/glass/."""
-    exe = FPGA / "build/glass/zx0unpack"
-    if not exe.exists():
-        exe.parent.mkdir(parents=True, exist_ok=True)
-        zig = Path.home() / ".local/zig/0.16.0/zig"
-        subprocess.run([zig, "build-exe", "-OReleaseFast", "--dep", "zx0", f"-Mroot={FPGA}/tools/zx0unpack.zig",
-                        f"-Mzx0={ROOT}/libs/zig/depackers/zx0.zig", f"-femit-bin={exe}"],
-                       check=True, cwd=exe.parent)  # fmt: skip
-    return exe
-
-
-def program_cart(packed: bytes, work: Path) -> str | None:
-    """The cart whose docs/demo-<cart>.wasm a disk's program is (ZX0-packed or raw), or None."""
-    raw = packed
-    if packed[:4] == b"ZX0!":
-        (work / "prog.zx0").write_bytes(packed)
-        try:
-            subprocess.run([zx0unpack(), work / "prog.zx0", work / "prog.wasm"], check=True, capture_output=True)
-            raw = (work / "prog.wasm").read_bytes()
-        finally:  # `work` is the card's staging directory: leave nothing behind on it
-            (work / "prog.zx0").unlink(missing_ok=True)
-            (work / "prog.wasm").unlink(missing_ok=True)
-    size = len(raw)
-    hits = [
-        w for w in sorted((ROOT / "docs").glob("demo-*.wasm")) if w.stat().st_size == size and w.read_bytes() == raw
-    ]
-    return hits[0].name.removeprefix("demo-").removesuffix(".wasm") if hits else None
-
-
 def programs(tag: str, img: bytes, images: Images, dest: Path) -> list[tuple[str, str]]:
     """A fat disk per program on data disk `tag` (`img`): progs/demo-<tag>/<NAME>.zmd."""
     rows = []
@@ -141,8 +104,20 @@ def programs(tag: str, img: bytes, images: Images, dest: Path) -> list[tuple[str
 
 
 def boots(disk: bytes) -> str:
-    """The cart whose board image a disk's fat disk carries: its own, or GEM for a data disk."""
-    return "" if zmd_fat.bootable(disk) else OS_CART
+    """The cart whose board image a disk's fat disk carries: its own; "" for a data disk, which
+    carries none (KOS's desktop boots over it)."""
+    return "" if not zmd_fat.bootable(disk) else "own"
+
+
+def stage_desktop(images: Images, dest: Path) -> tuple[str, str]:
+    """KOS's desktop, once: OS_CART's board image, ZX0-packed, at kos/desktop.rv32."""
+    name = f"zigmachine/{DESKTOP_FILE}"
+    if why := images.problem(OS_CART):
+        return (name, why)
+    fw = images.path(OS_CART)
+    (dest / "kos").mkdir(parents=True, exist_ok=True)
+    subprocess.run([zx0pack(), fw, dest / DESKTOP_FILE], check=True, capture_output=True)
+    return (name, f"{fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw} (KOS's desktop)")
 
 
 def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple[str, str]]:
@@ -152,7 +127,11 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple
     if not disk.exists():
         return [(name, f"MISSING: no {disk.name} on the shelf")]
     img = disk.read_bytes()
-    cart = boots(img) or tag
+    if not boots(img):  # a data disk: just files, the desktop boots over it
+        (dest / f"demo-{tag}.zmd").write_bytes(img)
+        rel = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
+        return [(name, f"{rel} (a data disk: KOS's desktop boots over it)"), *programs(tag, img, images, dest)]
+    cart = tag
     fw = images.path(cart)
     if why := images.problem(cart):
         return [(name, why)]
@@ -164,8 +143,7 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple
     packed.unlink()
     src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
     disk = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
-    return [(name, f"{disk} + {src}" + (" (a data disk: GEM boots)" if cart != tag else "")),
-            *(programs(tag, img, images, dest) if cart != tag else [])]  # fmt: skip
+    return [(name, f"{disk} + {src}")]
 
 
 def stage_system(dest: Path, system: Path, csr_map: Path) -> tuple[tuple[str, str], int]:
@@ -193,7 +171,8 @@ def build_shelf(
     if system is not None:
         row, version = stage_system(dest, system, csr_map)
         rows, images = [row], Images(fw_dir, version)
-    every = sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob(f"*/{images.path('x').name}")})
+    every = sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob(f"*/{images.path('x').name}")} - {OS_CART})
+    rows += [stage_desktop(images, dest)]
     rows += [row for tag in every for row in _fat_disk(tag, images, csr_map, dest)]
     shelf_rows = [r for r in rows if r[0].startswith("zigmachine/demo-") and not r[1].startswith("MISSING")]
     tags = [r[0].removeprefix("zigmachine/demo-").removesuffix(".zmd") for r in shelf_rows]

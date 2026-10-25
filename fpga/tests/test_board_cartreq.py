@@ -83,7 +83,8 @@ def test_sysinfo_is_a_data_disk_whose_boot_wsm_is_the_sysinfo_carts_image(tmp_pa
     _fw(fws, "gem")
     _fw(fws, "sysinfo")
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("sysinfo",)))
-    assert rows["zigmachine/demo-sysinfo.zmd"].endswith("gem/fw.bin (a data disk: GEM boots)")  # Q has a GEM to go back to
+    assert rows["zigmachine/demo-sysinfo.zmd"].endswith("(a data disk: KOS's desktop boots over it)")  # Q has a GEM to go back to
+    assert rows["zigmachine/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")
     assert rows["zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd"].endswith("sysinfo/fw.bin (BOOT.WSM)")
     fat = (tmp_path / "sd/progs/demo-sysinfo/BOOT.WSM.zmd").read_bytes()
     assert [f[0] for f in zmd_fat.files(fat)] == ["BOOT.WSM", "JINKS.SND", "GAUNTLET.SAP", "SAMPLE.RAW", "CART.RV32"]
@@ -96,7 +97,7 @@ def test_a_program_without_its_carts_firmware_is_missing(tmp_path: Path) -> None
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("st_replay",)))
     want = f"MISSING: no {fws / 'st_replay' / 'fw.bin'}; make -C fpga board-fw CART=st_replay"
     assert rows["zigmachine/progs/demo-st_replay/BOOT.WSM.zmd"] == want
-    assert rows["zigmachine/demo-st_replay.zmd"].endswith("(a data disk: GEM boots)")  # GEM is still staged
+    assert rows["zigmachine/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")  # the desktop is still staged
 
 
 def test_a_program_that_is_no_cart_of_the_matrix_is_missing(tmp_path: Path) -> None:

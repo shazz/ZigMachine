@@ -137,7 +137,7 @@ def test_the_split_card_carries_the_system_once_and_lean_carts(tmp_path: Path) -
     subprocess.run([glass_shelf.zx0unpack(), packed, tmp_path / "sys.raw"], check=True, capture_output=True)
     assert split_image.sys_unfile((tmp_path / "sys.raw").read_bytes()) == (V1, system_image(V1))
     assert sorted(p.name for p in (tmp_path / "sd").iterdir()) == [
-        "demo-gem.zmd", "demo-tutorial.zmd", "shelf.txt", "system.rv32"]  # fmt: skip
+        "demo-tutorial.zmd", "kos", "shelf.txt", "system.rv32"]  # fmt: skip: GEM is KOS's desktop, kos/desktop.rv32
 
 
 def test_a_card_never_carries_a_cart_its_system_refuses_or_lacks(tmp_path: Path) -> None:

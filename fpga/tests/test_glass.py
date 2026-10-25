@@ -190,9 +190,12 @@ def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) ->
     assert (out / "boot.scr").read_bytes()[:4] == bytes.fromhex("27051956")
     assert rows["zImage"].endswith("zImage")
     shelf = {k: v for k, v in rows.items() if k.startswith("zigmachine/")}
-    assert set(shelf) == {f"zigmachine/demo-{t}.zmd" for t in glass_sd.SHELF}  # every listed cart is named...
-    assert all(v.startswith("MISSING: no ") for v in shelf.values())  # ...as missing its firmware
-    assert not list((out / "zigmachine").glob("*.zmd"))
+    data = {"zigmachine/demo-st_replay.zmd", "zigmachine/demo-sysinfo.zmd"}  # just files: KOS's desktop boots them
+    carts = {f"zigmachine/demo-{t}.zmd" for t in glass_sd.SHELF} - data | {"zigmachine/kos/desktop.rv32"}
+    assert carts | data <= set(shelf)  # every listed cart is named...
+    assert all(shelf[k].startswith("MISSING: no ") for k in carts)  # ...as missing its firmware
+    assert all(shelf[k].endswith("(a data disk: KOS's desktop boots over it)") for k in data)
+    assert sorted(p.name for p in (out / "zigmachine").glob("*.zmd")) == ["demo-st_replay.zmd", "demo-sysinfo.zmd"]
     with pytest.raises(SystemExit, match="device"):
         glass_sd.stage(Path("/dev/null"), None)
 

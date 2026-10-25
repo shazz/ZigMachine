@@ -35,9 +35,9 @@ def test_bootable_is_the_browsers_boot_sector_rule() -> None:
         zmd_fat.bootable(b"PK\3\4" + bytes(4096))
 
 
-def test_a_data_disk_boots_gem_and_a_bootable_one_its_own_cart() -> None:
-    assert glass_shelf.boots((ROOT / "docs/demo-st_replay.zmd").read_bytes()) == "gem"
-    assert glass_shelf.boots((ROOT / "docs/demo-stniccc.zmd").read_bytes()) == ""
+def test_a_data_disk_carries_no_image_and_a_bootable_one_its_own_cart() -> None:
+    assert glass_shelf.boots((ROOT / "docs/demo-st_replay.zmd").read_bytes()) == ""
+    assert glass_shelf.boots((ROOT / "docs/demo-stniccc.zmd").read_bytes()) == "own"
 
 
 def _fw(fws: Path, tag: str) -> None:
@@ -45,26 +45,27 @@ def _fw(fws: Path, tag: str) -> None:
     (fws / tag / "fw.bin").write_bytes(tag.encode() * 16)
 
 
-def test_the_shelf_stages_st_replay_with_gems_image(tmp_path: Path) -> None:
+def test_the_shelf_stages_st_replay_as_it_is_and_kos_desktop_once(tmp_path: Path) -> None:
     fws = tmp_path / "board"
     _fw(fws, "gem")
     csr = tmp_path / "csr_addr.h"
     csr.write_text("x")
     os.utime(csr, (100, 100))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, csr, ("st_replay",)))
-    assert rows["zigmachine/demo-st_replay.zmd"].endswith(f"{fws / 'gem' / 'fw.bin'} (a data disk: GEM boots)")
-    fat = (tmp_path / "sd" / "demo-st_replay.zmd").read_bytes()
-    shelf = (ROOT / "docs/demo-st_replay.zmd").read_bytes()
-    assert fat[0x300:0x340] == shelf[0x300:0x340] and fat[0x340:0x349] == b"CART.RV32"  # its files, + the image
-    assert fat[0x600 : len(shelf)] == shelf[0x600:] and not zmd_fat.bootable(fat)  # still a data disk
+    assert rows["zigmachine/demo-st_replay.zmd"] == "docs/demo-st_replay.zmd (a data disk: KOS's desktop boots over it)"
+    assert (tmp_path / "sd" / "demo-st_replay.zmd").read_bytes() == (ROOT / "docs/demo-st_replay.zmd").read_bytes()
+    assert rows["zigmachine/kos/desktop.rv32"].endswith(f"{fws / 'gem' / 'fw.bin'} (KOS's desktop)")
+    packed = (tmp_path / "sd" / "kos" / "desktop.rv32").read_bytes()
+    assert packed[:4] == b"ZX0!" and "zigmachine/demo-gem.zmd" not in rows  # GEM is no shelf disk now
 
 
-def test_a_data_disk_without_gems_firmware_is_missing_gems(tmp_path: Path) -> None:
+def test_without_gems_firmware_kos_desktop_is_missing(tmp_path: Path) -> None:
     fws = tmp_path / "board"
-    _fw(fws, "st_replay")  # the program's own image is not what boots
+    _fw(fws, "st_replay")  # the program's own image is not the desktop
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("st_replay",)))
     want = f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
-    assert rows["zigmachine/demo-st_replay.zmd"] == want
+    assert rows["zigmachine/kos/desktop.rv32"] == want
+    assert rows["zigmachine/demo-st_replay.zmd"].endswith("(a data disk: KOS's desktop boots over it)")
 
 
 def test_the_disk_bridge_takes_each_export_of_the_right_type_else_null() -> None:

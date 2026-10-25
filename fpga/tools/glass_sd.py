@@ -17,7 +17,8 @@ On the card:
                              this glass at /usr/bin/glass (S99glass runs it; tools/rootfs_glass.py)
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
     zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin;
-                             a data disk carries GEM's: tools/glass_shelf.py)
+                             a data disk is staged as it is: tools/glass_shelf.py)
+    zigmachine/kos/desktop.rv32  KOS's desktop (GEM's board image), booted for a data disk or an empty drive
     zigmachine/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
     zigmachine/system.rv32   --system: firmware + machine + ROM + BARD, once; the fat disks then carry lean
                              carts (<fw-dir>/<cart>/cart.bin) that it runs (tools/glass_shelf.py Images)
@@ -40,7 +41,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import rootfs_glass  # after the path insert
-from glass_shelf import BOARD_FW, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
+from glass_shelf import BOARD_FW, OS_CART, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
 ZEST_TAR = ZEST / "zeST-20260518.tar.xz"
@@ -148,7 +149,7 @@ def main() -> None:
     p.add_argument("--system", type=Path, help="the split system image (sys.bin): --fw-dir then holds lean carts")
     a = p.parse_args()
     if a.shelf:
-        print(" ".join(SHELF))
+        print(" ".join((*SHELF, OS_CART)))  # the shelf, and KOS's desktop
         return
     print(manifest(a.out, stage(a.out, a.buildroot, a.fw_dir, a.bit, a.system)), end="")
 
