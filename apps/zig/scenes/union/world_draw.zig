@@ -18,14 +18,19 @@ const ring = @import("world_ring.zig"); // map rows 3..7: one opaque copy out of
 const DST_X: i16 = 8; // tilemap.Layer.dst_x
 const VIS_COLS: usize = 25;
 
-/// Every layer of `px` across the first `dst_w` columns of `fb`.
+/// Every layer of `px` across the first `dst_w` columns of `fb`: one copy a layer out of its
+/// strip laid out wide (below), else the strip's few wrapped runs.
 pub fn parallax(px: anytype, fb: *LogicalFB, dst_w: u16) void {
     const cols: usize = @min(@as(usize, dst_w), @as(usize, fb.fb_w));
-    for (&px.layers) |*l| {
+    for (&px.layers, 0..) |*l, i| {
         const w: usize = l.w;
         const key: ?u8 = if (l.transparent) 0 else null;
-        const img = zg.blit.Image.init(l.raw, w);
         var srcx: usize = @as(usize, @intFromFloat(l.pos)) % w;
+        if (wideStrip(i, l.raw, w, l.h, cols)) |img| {
+            gpu.put(fb, img, .{ .x = srcx, .y = 0, .w = cols, .h = l.h }, 0, l.y, key);
+            continue;
+        }
+        const img = zg.blit.Image.init(l.raw, w);
         var done: usize = 0;
         while (done < cols) {
             const len = @min(cols - done, w - srcx);
@@ -34,6 +39,32 @@ pub fn parallax(px: anytype, fb: *LogicalFB, dst_w: u16) void {
             srcx = 0;
         }
     }
+}
+
+// Layer i's strip with its first `cols` columns repeated after its end (w + cols wide), so
+// any window of `cols` columns from x < w is one rectangle. Built once per cart load in
+// zg.mem (60 KB for the five layers); null if there is no room (then the runs are drawn).
+const MAX_LAYERS = 8;
+const Wide = struct { raw: ?[*]const u8 = null, img: zg.blit.Image = undefined };
+var wide = [_]Wide{.{}} ** MAX_LAYERS;
+
+fn wideStrip(i: usize, raw: []const u8, w: usize, h: usize, cols: usize) ?zg.blit.Image {
+    if (i >= MAX_LAYERS) return null;
+    const c = &wide[i];
+    if (c.raw == raw.ptr and c.img.w == w + cols) return c.img;
+    const ww = w + cols;
+    const buf = zg.mem.alloc(u8, ww * h) orelse return null;
+    for (0..h) |y| {
+        const src = raw[y * w ..][0..w];
+        const dst = buf[y * ww ..][0..ww];
+        var x: usize = 0;
+        while (x < ww) : (x += w) {
+            const n = @min(w, ww - x);
+            @memcpy(dst[x..][0..n], src[0..n]);
+        }
+    }
+    c.* = .{ .raw = raw.ptr, .img = zg.blit.Image.init(buf, ww) };
+    return c.img;
 }
 
 /// The columns [x0, x1) of the plane a map row's cells were drawn in (none when x1 <= x0).
