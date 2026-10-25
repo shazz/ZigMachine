@@ -73,8 +73,9 @@ static int vdl_moved(const vd_frame* fr, int p) {
 
 /* Whether plane p's list opens with a PALREF record (its first line's body holds one): a list
  * whose lines name their palettes in VRAM, which vdl_moved always counts as changed. A cheap look
- * (the first record only), made before planning: it decides only whether to plan, never what is
- * skipped, so a list whose PALREFs come later just keeps being planned. */
+ * (the first record only): vd_plan then leaves the plane's rows uncompared (its covered lines are
+ * new, as a handler plane's), so the plan costs nothing there and the borders still skip. A list
+ * whose PALREFs come later has its rows compared, for nothing; never a wrong skip. */
 static int vdl_palref_first(const vd_frame* fr, int p) {
 #ifdef VD_BREAK_PALREF /* tests/test_vdirty.py's mutant: never seen */
     (void)fr, (void)p;

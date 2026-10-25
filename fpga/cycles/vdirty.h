@@ -16,7 +16,10 @@
  *     RESOLUTION in medium) and its palette;
  *   - per plane and line: the bytes the line's pass fetches.
  * The lines a plane with an HBL handler covers are always new: its stores land
- * between passes. If it is not the last enabled plane, or what cannot be
+ * between passes. So are those of a plane whose copper list opens with a PALREF
+ * (vdlist.h: its palettes live elsewhere in VRAM, so its list always counts as
+ * changed): its rows are not compared at all, so planning it costs the background
+ * and nothing else, and the lines no plane covers (the borders) still skip. If it is not the last enabled plane, or what cannot be
  * compared, the whole frame is UNKNOWN (every line new): an overscan plane (its
  * borders open from state carried down the frame, its noise follows FRAME), a
  * fetch outside the cart's memory or longer than a row.
@@ -46,7 +49,7 @@ typedef struct {
     uint32_t frames, unknown, bumped; /* frames planned, UNKNOWN ones, lines whose version moved */
     uint32_t mask_moved;              /* frames whose planes a handler switched */
     uint32_t cmp_bytes;               /* bytes compared with their copies (the plan's cost, vadapt.h) */
-    uint32_t palref;                  /* frames not planned: every plane's list names its palettes (vd_unplannable) */
+    uint32_t palref;                  /* frames planned with a plane whose list opens with a PALREF (uncompared) */
 } vd_stats;
 extern vd_stats vd;
 
@@ -56,11 +59,11 @@ extern vd_stats vd;
  * from fr->enabled (a handler switched a plane; the plan no longer holds). */
 int vd_plan(const vd_frame* fr);
 void vd_mask_moved(void);
-/* Before planning: 1 if no line of this frame can be skipped because every enabled plane's list
- * opens with a PALREF (vdlist.h: such a list always counts as changed, and its plane's lines with
- * it). The caller then plans nothing (vd_unknown) and keeps the frame out of vadapt.h's timing:
- * its probes would compare a whole frame that cannot pay (mpp_truecolor 4 PLANES lost a frame each). */
-int vd_unplannable(const vd_frame* fr);
+/* 1 if every enabled plane's list opens with a PALREF (vdlist.h): vd_plan compares none of their
+ * rows, so the plan costs the background alone and always pays (the borders skip). The caller then
+ * plans without asking vadapt.h and keeps the frame out of its timing: a frame that moves between
+ * 1 and 4 such planes would otherwise read as a slow window and turn the plan OFF for 120 frames. */
+int vd_uncompared(const vd_frame* fr);
 /* Nothing can be compared this frame (a handler plane): every line is new, and
  * neither picture's rows are trusted again until rebuilt. */
 void vd_unknown(void);

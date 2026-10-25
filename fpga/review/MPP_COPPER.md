@@ -153,3 +153,15 @@ are the dirty-line planner's probes (vadapt: 4 PROBE frames every 120; the 25 s 
 frame 2.06 M with plan 0.35 Mc): every PALREF line counts as changed (vdlist.h), so a probe compares
 the whole frame and can never pay. Follow-up (firmware, not done here): do not probe a frame whose
 lists name PALREF on most of their lines; that should take 4 PLANES to 60.
+
+## 10. The planner over PALREF planes (2026-10-25, fix/palref-plan)
+
+d6676137 took section 9's follow-up literally: a frame whose every plane opens with a PALREF was
+not planned at all. That stopped the probes but also every border skip, so the 1-plane modes went
+from 200 passes a frame (the handler cart: its plane's lines new, the 80 border lines skipped) to
+280, and the 25 Oct card ran PER-LINE at 54.5 fps (passes 280, wait_ready 421 K, 27 missed in
+5 s). Now a PALREF plane is planned like a handler plane: its covered lines are new and its rows
+are never compared, so the plan costs the background alone; a frame of only such planes plans
+without vadapt and is not timed (no probe, and a 1 -> 4 plane switch cannot turn the plan off).
+Native proof (test_vdirty.py, 1500 frames over every mode): 80 lines a frame skipped, 0 bypassed,
+0 mismatched; VD_BREAK_PALREF puts the frames back under vadapt, which bypasses them.

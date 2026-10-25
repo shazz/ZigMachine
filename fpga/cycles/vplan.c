@@ -71,12 +71,8 @@ int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
 #endif
     vd_frame fr = {e->memory.data, (uint32_t)e->memory.size, enabled, vseq_rec.fill, vseq_rec.bg, vseq_rec.beam};
 #ifndef ZM_VSEQ_CHECK /* a check plans every frame: what it checks is the plan */
-    if (vd_unplannable(&fr)) { /* nothing can skip (vdirty.h): no plan, and no frame for vadapt to time */
-        vd_unknown();
-        return 1;
-    }
-    g_timed = 1;
-    if (!va_plans()) { /* it does not pay here (vadapt.h): nothing compared, every line composited */
+    g_timed = !vd_uncompared(&fr); /* such a frame always plans, untimed (vdirty.h) */
+    if (g_timed && !va_plans()) { /* it does not pay here (vadapt.h): nothing compared, every line composited */
         vd_unknown();
         return 1;
     }

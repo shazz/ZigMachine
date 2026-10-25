@@ -8,9 +8,10 @@ several planes (empire), the GEM pointer drawn over each picture (gem, ZM_VD_CUR
 The board only plans while planning pays (cycles/vadapt.h): with ZM_VD_ADAPT=1 the proof runs
 that bypass on a cost model, and it must engage where nothing can be skipped (medium_overscan,
 whose rows are all compared and all new), stay out of the way where most lines are skipped
-(gem), and never cost a mismatch across the switches. A frame whose every plane's list opens with a
-PALREF (vdirty.h vd_unplannable: such lists always count as changed) is not planned at all, and not
-timed, so the bypass never probes it (mpp_truecolor, tcb_colorshock).
+(gem), and never cost a mismatch across the switches. A plane whose list opens with a PALREF (such
+lists always count as changed) has its covered lines new and its rows uncompared, so the plan costs
+nothing there; a frame of only such planes (vdirty.h vd_uncompared) is planned without vadapt and
+never timed: mpp_truecolor's borders skip in every mode, tcb_colorshock (overscan) is never probed.
 
 Break tests (ZM_RTL_BREAK=1): each VD_BREAK mutant forgets one input, and the proof must then
 find a skipped row that a full composite paints differently."""
@@ -33,12 +34,17 @@ LINE = re.compile(
 
 
 def proof(cart: str, mutant: str = "", adapt: bool = False) -> tuple[int, int, int, int, int, int]:
-    """(lines, skipped, moved, mismatched, bypassed frames, unplanned PALREF frames) over FRAMES frames."""
+    """(lines, skipped, moved, mismatched, bypassed frames, frames planned with a PALREF plane) over FRAMES."""
+    return proof_n(cart, FRAMES, mutant, adapt)
+
+
+def proof_n(cart: str, frames: str, mutant: str = "", adapt: bool = False) -> tuple[int, int, int, int, int, int]:
+    """proof() over `frames` frames."""
     subprocess.run(["make", "-s", "memmap", "host-vdirty", f"CART={cart}", f"VD_BREAK={mutant}"], cwd=FPGA,
                    check=True, capture_output=True)  # fmt: skip
     binary = FPGA / f"build/host/{cart}/host_vdirty{'_' + mutant if mutant else ''}"
     env = dict(os.environ, ZM_VD_CURSOR="1" if cart == "gem" else "0", ZM_VD_ADAPT="1" if adapt else "0")
-    out = subprocess.run([str(binary), cart, FRAMES], env=env, capture_output=True, text=True, check=False)
+    out = subprocess.run([str(binary), cart, frames], env=env, capture_output=True, text=True, check=False)
     m = LINE.search(out.stdout)
     assert m, out.stdout + out.stderr
     return int(m[1]), int(m[2]), int(m[3]), int(m[5]), int(m[4]), int(m[6])
@@ -91,13 +97,25 @@ def test_the_plan_stays_on_where_it_pays() -> None:
     assert bypassed < 16 and skipped > lines * 9 // 10  # the first OFF frames, then planned
 
 
-@pytest.mark.parametrize("cart", ["mpp_truecolor", "tcb_colorshock"])
-def test_palref_frames_are_neither_planned_nor_probed(cart: str) -> None:
-    """Every plane's list opens with a PALREF: no frame is planned, none reaches vadapt (no OFF frame
-    counted, so no probe), and the pictures stay exact."""
-    lines, skipped, moved, bad, bypassed, palref = proof(cart, adapt=True)
-    assert bad == 0 and skipped == 0
-    assert palref == int(FRAMES) and bypassed == 0
+MPP_FRAMES = "1500"  # mpp_truecolor's modes switch every 480 frames: 1, 1 and 4 planes, then the next picture
+
+
+def test_palref_planes_skip_their_borders_uncompared() -> None:
+    """mpp_truecolor: every plane's list opens with a PALREF. Its covered lines are new, its rows
+    uncompared, and its 80 border lines a frame skip in every mode and across the switches; the
+    frames are planned without vadapt (none bypassed: a 1 -> 4 plane switch reads as no slow window)."""
+    for adapt in (False, True):
+        out = proof_n("mpp_truecolor", MPP_FRAMES, adapt=adapt)
+        lines, skipped, moved, bad, bypassed, palref = out
+        assert bad == 0 and moved == 0
+        assert skipped >= 80 * (int(MPP_FRAMES) - 10) and bypassed == 0 and palref == int(MPP_FRAMES)
+
+
+def test_palref_frames_that_cannot_skip_are_not_probed() -> None:
+    """tcb_colorshock: one overscan plane with a PALREF list. Nothing can skip, and its frames are
+    planned without vadapt (vd_uncompared), so no probe ever costs it a frame."""
+    lines, skipped, moved, bad, bypassed, palref = proof("tcb_colorshock", adapt=True)
+    assert bad == 0 and skipped == 0 and bypassed == 0
 
 
 def test_comparable_lists_are_still_planned() -> None:
@@ -108,6 +126,8 @@ def test_comparable_lists_are_still_planned() -> None:
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 def test_a_forgotten_palref_rule_is_caught() -> None:
-    """VD_BREAK_PALREF: the rule never sees a PALREF, so mpp_truecolor's frames go back to vadapt."""
-    *_, bypassed, palref = proof("mpp_truecolor", "PALREF", adapt=True)
-    assert palref == 0 and bypassed > 0  # test_palref_frames_are_neither_planned_nor_probed fails on it
+    """VD_BREAK_PALREF: the rule never sees a PALREF, so mpp_truecolor's rows are compared, its frames
+    go back to vadapt, and the plan, which cannot pay, is bypassed: the borders stop skipping."""
+    lines, skipped, moved, bad, bypassed, palref = proof_n("mpp_truecolor", MPP_FRAMES, "PALREF", adapt=True)
+    assert palref == 0 and bypassed > 0
+    assert skipped < 80 * (int(MPP_FRAMES) - 10)  # test_palref_planes_skip_their_borders_uncompared fails on it

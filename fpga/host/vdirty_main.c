@@ -98,16 +98,14 @@ static uint32_t frame(long f, u32 planes, uint32_t* composited) {
     uint32_t bytes0 = vd.cmp_bytes;
     *composited = VD_LINES;
     memset(g_skip, 0, sizeof g_skip);
-    int unplannable = adapt && vd_unplannable(&fr); /* as vplan.c: no plan, and not timed */
-    if (unplannable)
-        vd_unknown();
-    else if (!adapt || va_plans()) {
+    int timed = adapt && !vd_uncompared(&fr); /* as vplan.c: planned, not timed */
+    if (!timed || va_plans()) {
         handler = vd_plan(&fr);
         *composited = 0;
         for (uint32_t y = 0; y < VD_LINES; y++) *composited += !(g_skip[y] = (uint8_t)vd_line(pic, y));
     } else
         vd_unknown();
-    if (adapt && !unplannable) va_frame(*composited * 1000u * (uint32_t)(__builtin_popcount(on) + !on) + 2 * (vd.cmp_bytes - bytes0));
+    if (timed) va_frame(*composited * 1000u * (uint32_t)(__builtin_popcount(on) + !on) + 2 * (vd.cmp_bytes - bytes0));
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
         int en = (on >> p) & 1;

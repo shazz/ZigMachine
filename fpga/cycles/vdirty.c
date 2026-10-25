@@ -124,10 +124,12 @@ int vd_plan(const vd_frame* fr) {
     s.rows_on = 0;
     int h = handler_plane(fr);
     if (h == -2) return vd_unknown(), 1;
+    unsigned listed = 0; /* planes whose list opens with a PALREF: their lines are new, uncompared */
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         if (!((fr->enabled >> p) & 1)) continue;
         int ok = geom(fr, p, &cur[p]);
-        for (uint32_t y = cur[p].oy; ok && p != h && y < cur[p].oy + cur[p].rows; y++)
+        if (p != h && vdl_palref_first(fr, p)) listed |= 1u << p;
+        for (uint32_t y = cur[p].oy; ok && p != h && !((listed >> p) & 1) && y < cur[p].oy + cur[p].rows; y++)
             ok = (s.src[p][y] = fetch(fr, p, &cur[p], y)) != 0;
         if (!ok) return vd_unknown(), h >= 0;
     }
@@ -138,9 +140,11 @@ int vd_plan(const vd_frame* fr) {
     }
     plan_bg(fr);
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
-        if (((fr->enabled >> p) & 1) && p != h) plan_plane(fr, p, &cur[p]);
+        if (((fr->enabled >> p) & 1) && p != h && !((listed >> p) & 1)) plan_plane(fr, p, &cur[p]);
         else s.row_ok[p] = 0;
+        if ((listed >> p) & 1) bump(cur[p].oy, cur[p].rows); /* as a handler plane's, below */
     }
+    vd.palref += listed != 0;
 #ifndef VD_BREAK_HANDLER
     if (h >= 0) bump(cur[h].oy, cur[h].rows);
 #endif
@@ -151,11 +155,10 @@ int vd_plan(const vd_frame* fr) {
     return h >= 0;
 }
 
-int vd_unplannable(const vd_frame* fr) {
+int vd_uncompared(const vd_frame* fr) {
     if (!fr->enabled) return 0;
     for (int p = 0; p < (int)ZM_NB_PLANES; p++)
         if (((fr->enabled >> p) & 1) && !vdl_palref_first(fr, p)) return 0;
-    vd.palref++;
     return 1;
 }
 
