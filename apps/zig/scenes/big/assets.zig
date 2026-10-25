@@ -149,7 +149,9 @@ pub const CYCLE_STEP: f64 = 0.4;
 pub const DIGITAL_CYCLE_STEP: f64 = 0.2;
 
 // ---- the files ----------------------------------------------------------
-pub const cycle = @embedFile("../../assets/screens/big_demo/cycle.raw"); // 8 tiles of 32x5, tile-major
+/// align(8): screen.expandBand copies its 32-byte rows as u64s, and an
+/// @embedFile is align 1 (a misaligned access traps on the board).
+pub const cycle: [8 * CYCLE_H * CYCLE_W]u8 align(8) = @embedFile("../../assets/screens/big_demo/cycle.raw").*; // 8 tiles of 32x5, tile-major
 pub const main_img = @embedFile("../../assets/screens/big_demo/main.raw"); // 320x270, 0 = hole
 pub const wait_img = @embedFile("../../assets/screens/big_demo/wait.raw"); // 320x270, opaque
 pub const fontin = @embedFile("../../assets/screens/big_demo/fontin.raw"); // 70 x 32x16 MASK

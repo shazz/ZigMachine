@@ -12,7 +12,9 @@ const row = paint.row;
 
 /// The current cycle tile, already repeated across the screen: a band costs 5
 /// row builds and 20 row copies a frame, not a per-pixel fill of 6,400.
-var band_rows: [A.CYCLE_H][A.W]u8 = undefined;
+/// align(8), like A.cycle: the row copies go out as u64s, and on the board a
+/// misaligned one traps (~210 cycles; it was 400 traps a frame).
+var band_rows: [A.CYCLE_H][A.W]u8 align(8) = undefined;
 
 /// Repeat cycle tile `t`'s 5 rows across the full width, once for the frame.
 fn expandBand(t: usize) void {
