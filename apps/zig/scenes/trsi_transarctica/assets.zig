@@ -16,9 +16,9 @@ pub const logo = @embedFile(DIR ++ "logo_idx.bin");
 pub const LOGO_H = 102;
 /// The PNT's permille palette through $235C: 256 big-endian Falcon longs
 /// (RRRRRRxx GGGGGGxx 00 BBBBBBxx).
-pub const logo_pal = @embedFile(DIR ++ "logo_pal.bin");
+pub const logo_pal = embed4(DIR ++ "logo_pal.bin");
 /// $1C22 as stored in the file: the intro handler's palette buffer, all white.
-pub const init_pal = @embedFile(DIR ++ "init_pal.bin");
+pub const init_pal = embed4(DIR ++ "init_pal.bin");
 /// Planes 0-6 of the 320x136 bitmap at DATA $171AE: the "hump", 0..127.
 pub const bg_map = @embedFile(DIR ++ "bg_map.bin");
 pub const BG_H = 136;
@@ -31,8 +31,17 @@ pub const FONT_SLOTS = 59;
 pub const text = @embedFile(DIR ++ "text.bin");
 /// DATA $29DB2: the colour list, 2108 big-endian Falcon longs with $FFFE page
 /// markers and a $FFFF restart.
-pub const colours = @embedFile(DIR ++ "colours.bin");
+pub const colours = embed4(DIR ++ "colours.bin");
 pub const COLOURS = colours.len / 4;
+
+/// An embedded file on a 4-byte boundary: `long` reads it as u32s, and a plain
+/// @embedFile is align 1 (a misaligned read traps on the board, ~210 cycles).
+fn embed4(comptime path: []const u8) *align(4) const [@embedFile(path).len]u8 {
+    const S = struct {
+        const data: [@embedFile(path).len]u8 align(4) = @embedFile(path).*;
+    };
+    return &S.data;
+}
 
 pub fn long(bytes: []const u8, i: usize) u32 {
     return std.mem.readInt(u32, bytes[i * 4 ..][0..4], .big);
