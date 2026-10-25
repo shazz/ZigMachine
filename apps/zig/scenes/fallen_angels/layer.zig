@@ -95,7 +95,9 @@ pub fn uniqueEdges(comptime edges: []const [2]u16) []const [2]u16 {
                 n += 1;
             }
         }
-        const final = out[0..n].*;
+        // align(4): drawGrid reads each [2]u16 edge as one u32, and the table
+        // landed 2 mod 4 (a misaligned read traps on the board, 39 a frame).
+        const final: [n][2]u16 align(4) = out[0..n].*;
         return &final;
     }
 }
