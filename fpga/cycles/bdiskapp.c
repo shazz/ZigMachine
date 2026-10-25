@@ -6,6 +6,7 @@
 
 #include "bboard.h"
 #include "bcartreq.h"
+#include "bdinval.h"
 #include "bdisk.h"
 #include "disk.h"
 #include "disk_app.h"
@@ -14,6 +15,7 @@
 
 /* The request block (glass/src/map_cart.zig), between the descriptor and the diagnostic's control. */
 #define REQ_ADDR (CART_CPU_BASE + DDR_CART_BYTES - CART_REQ_FROM_TOP)
+#define MEDIA_ADDR (CART_CPU_BASE + DDR_CART_BYTES - KOS_MEDIA_FROM_TOP)
 _Static_assert(CART_REQ_FROM_TOP < DISK_DESC_FROM_TOP - DISK_DESC_WORDS * 4, "the block is over the descriptor");
 _Static_assert(CART_REQ_FROM_TOP - CART_REQ_HEAD_WORDS * 4 - CART_REQ_NAME_MAX >= 0x200, "the block is over bdiag");
 _Static_assert(CART_REQ_NAME_MAX >= ZMD_DIR_KEY, "a FAT name must fit the block");
@@ -22,11 +24,17 @@ static zmd_dir_t g_dir; /* 15 KB: the parsed FAT, in .bss */
 static disk_app_t g_dapp;
 static int g_on;
 static int g_asked; /* a bootable cart's swap was signalled: no more polls (the browser's `swapping`) */
+int bdiskapp_bootable;
+static int g_desktop;    /* the cart was booted as KOS's desktop: no disk, or a data disk */
+static uint32_t g_media; /* the media word as last seen (map_cart.zig KOS_MEDIA_*) */
 
-void bdiskapp_boot(void) {
-    g_asked = 0;
+/* The disk's state: g_on (GEM over a data disk) from what the drive holds now. */
+static void parse(void) {
+    g_on = 0;
+    bdiskapp_bootable = 0;
     if (!host_disk.data) return; /* no disk: nothing to tell GEM, as the browser with none */
     int rc = zmd_dir_parse(host_disk.data, host_disk.size, &g_dir);
+    bdiskapp_bootable = !rc && g_dir.bootable;
     if (rc || g_dir.bootable) { /* a bootable disk runs its own cart: the browser's diskApp = false */
         printf("ZM GEMDISK off %d\n", rc);
         return;
@@ -35,6 +43,28 @@ void bdiskapp_boot(void) {
     g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = bdisk_role == BDISK_PROGRAM};
     g_on = 1;
     printf("ZM GEMDISK data %lu%s\n", (unsigned long)g_dir.n, g_dapp.dir_set ? " program" : "");
+}
+
+void bdiskapp_boot(void) {
+    g_asked = 0;
+    g_media = *(volatile uint32_t*)(uintptr_t)MEDIA_ADDR;
+    parse();
+    g_desktop = !bdiskapp_bootable && bdisk_role != BDISK_PROGRAM;
+}
+
+void bdiskapp_media(struct w2c_env* e, long f) {
+    bdi_inval_line(MEDIA_ADDR); /* the glass wrote it through HP0, past this D$ line */
+    uint32_t m = *(volatile uint32_t*)(uintptr_t)MEDIA_ADDR;
+    if (m == g_media) return;
+    g_media = m;
+    zm_dflush(); /* the disk and its descriptor too */
+    bdisk_media();
+    parse();
+    uint32_t present = host_disk.data != 0;
+    if (!g_desktop) g_on = 0; /* a cart booted for its own disk: the drive reads the new one, nothing more */
+    if (g_desktop && host_dapp.insert_disk) host_dapp.insert_disk(HOST_CART(e), g_on);
+    w2c_rom_kosMediaChange(&e->rom, present);
+    printf("ZM KOS media %ld %lu\n", f, (unsigned long)present);
 }
 
 /* The swap is ZWINDOW's (glass/src/app_request.zig): the block, then CART_STATE. The cart

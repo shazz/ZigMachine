@@ -45,6 +45,11 @@ void bdisk_boot(void) {
            bdisk_role == BDISK_PROGRAM ? " program" : "");
 }
 
+void bdisk_media(void) {
+    host_disk = (host_disk_t){0};
+    bdisk_boot();
+}
+
 void bdisk_report(void) {
     printf("ZM DISK reads %lu bytes %lu\n", (unsigned long)host_disk.reads, (unsigned long)host_disk.bytes);
 }

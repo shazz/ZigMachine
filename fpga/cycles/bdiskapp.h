@@ -9,7 +9,14 @@
 
 #include "host.h"
 
-void bdiskapp_boot(void);                       /* after bdisk_boot() and host_boot() */
+void bdiskapp_boot(void);                       /* after bdisk_boot(): it reads only the disk */
+/* After bdiskapp_boot: the disk boots its own cart (zmd_dir's bootable; KOS's boot_dev, bkos.h). */
+extern int bdiskapp_bootable;
 void bdiskapp_frame(struct w2c_env* e, long f); /* after cart.frame() */
+/* KOS's media change (glass/src/app_media.zig): once a frame, before cart.frame(). When the glass
+ * changed drive A, the drive is read again; the desktop (a cart booted for a data disk or an empty
+ * drive) gets insertDisk and, for a data disk, the listing anew; KOS gets kosMediaChange. Line
+ * "ZM KOS media f present". */
+void bdiskapp_media(struct w2c_env* e, long f);
 
 #endif

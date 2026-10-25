@@ -69,9 +69,10 @@ $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf: $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HC
 	$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c cycles/bmain.c -o $$(@D)/o/main.o
 	@mkdir -p $$(@D)/bb
 	$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c cycles/bbootsec.c -o $$(@D)/bb/bbootsec.o
+	$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c cycles/bkos.c -o $$(@D)/bb/bkos.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/o/*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
 		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a \
-		$$(@D)/bb/bbootsec.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a -lm
+		$$(@D)/bb/bbootsec.o $$(@D)/bb/bkos.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a -lm
 $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.bin: $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf
 	$(RV_OBJCOPY) -O binary $$< $$@
 	truncate -s %8 $$@

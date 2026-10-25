@@ -17,7 +17,8 @@
  * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late.
  * The drive (bdisk.h): "ZM DISK ..." at boot, before the cart's init can read it, and at the end;
  * GEM over a data disk (bdiskapp.h): "ZM GEMDISK ..." at boot, "ZM CARTREQ ..." on a request.
- * A disk's boot sector (bbootsec.h, board images): "ZM BOOTSEC ..." before the cart boots. */
+ * A disk's boot sector (bbootsec.h, board images): "ZM BOOTSEC ..." before the cart boots.
+ * KOS (bkos.h): "ZM KOS boot ..." at boot, and with a POST "ZM KOSHASH f hash" (sim) and "ZM KOS post n". */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -26,6 +27,7 @@
 #include "bbootsec.h"
 #include "bdisk.h"
 #include "bdiskapp.h"
+#include "bkos.h"
 #include "bcursor.h"
 #include "binput.h"
 #include "bboard.h"
@@ -95,8 +97,10 @@ static void hash_plane(unsigned p, int on) {
 static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     uint32_t tc = board_cycles();
+    w2c_rom_kosTick(&e->rom); /* KOS's frame counter (sysvars.frames), as the browser's frame */
     vseq_clear(e);
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
+    bdiskapp_media(e, f); /* KOS: drive A changed under the running cart (glass I / E)? */
     uint32_t t0 = board_cycles();
     HOST_CART_FRAME(e, f == 1 && ZM_WARP_MS ? (float)ZM_WARP_MS : 16.6f);
     bdiskapp_frame(e, f); /* GEM over a data disk: the browser's step after the frame */
@@ -180,10 +184,12 @@ static void boot(void) {
     bsys_link(); /* the lean cart image first (bsys.h): its header says where the disk may start */
 #endif
     bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
-    int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
-    if (sector) host_boot_machine(&g_env);
-    else host_boot(&g_env);
     bdiskapp_boot(); /* after bdisk_boot: the disk it found decides */
+    int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
+    uint32_t post = bkos_post_frames(); /* KOS's POST before both (bkos.h) */
+    host_boot_machine(&g_env);
+    bkos_boot(&g_env, bdiskapp_bootable); /* the system variables, hwInit */
+    if (!sector && !post) host_boot_cart(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
     for (uint32_t i = 0; i < PICTURE_BYTES / 4; i++) {
         ((volatile uint32_t*)ZM_FB0_ADDR)[i] = 0;
@@ -196,7 +202,9 @@ static void boot(void) {
     vstat_boot(); /* its block of the page mb_init just zeroed */
     printf("ZM MB pfb %08lx %lu x %lu\n", (unsigned long)pfb, (unsigned long)w2c_machine_hwPhysWidth(m),
            (unsigned long)w2c_machine_hwPhysHeight(m));
-    if (sector) bbootsec_run(&g_env), host_boot_cart(&g_env); /* the compositor snoops the cart's boot */
+    if (post) bkos_run(&g_env, post);
+    if (sector) bbootsec_run(&g_env);
+    if (sector || post) host_boot_cart(&g_env); /* the compositor snoops the cart's boot */
     AUDIO(baudio_boot());
     printf("ZM BOOT %lu\n", (unsigned long)(board_cycles() - t0));
 }

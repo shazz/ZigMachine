@@ -41,8 +41,9 @@ HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bb
 # cycles/bbootsec.c (per image: it sees the cart's w2c_env, as bmain.c does) both linked AFTER fw.a,
 # so the code and constants already in the image keep their places (the I$ and D$ sets the hot code
 # and data fall in); it adds no .data or .bss. Only the board's images run it (ZM_BOOTSEC).
+# KOS's POST (cycles/bkos.c, the glass's KOS boot words) is linked beside it, for the same reason.
 BOOTSEC_SRC := host/bootsec.c $(addprefix host/wint_,load.c link.c scan.c num.c flow.c exec.c)
-BOOTSEC_DEPS := $(BOOTSEC_SRC) cycles/bbootsec.c cycles/bbootsec.h host/bootsec.h host/wint.h host/wint_leb.h \
+BOOTSEC_DEPS := $(BOOTSEC_SRC) cycles/bbootsec.c cycles/bbootsec.h cycles/bkos.c cycles/bkos.h host/bootsec.h host/wint.h host/wint_leb.h \
 	host/wint_exec.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.
@@ -77,6 +78,9 @@ ZM_MODES ?=
 # ZM_BOOTSEC=1 (sim): run the disk's boot sector before the cart, as the board's images always do
 # (cycles/bbootsec.h); off by default: a sector holds 120-240 frames, and the hashes start after it.
 ZM_BOOTSEC ?=
+# ZM_KOS_POST=n (sim): KOS's POST for n frames before the cart, as the glass's KOS boot words ask on
+# the board (cycles/bkos.h); each POST frame is hashed ("ZM KOSHASH"), against scene_hash.mjs --kos.
+ZM_KOS_POST ?=
 # ZM_AUDIO_MIRROR=1 (sim): the players' state into the cart, as on the board (cycles/aud_state.h);
 # off by default, since the browser's hashes it is compared with have no audio.
 ZM_AUDIO_MIRROR ?=
@@ -95,7 +99,7 @@ VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c cycles/vstat.c cycle
 H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VPLAN) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
 	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES)) \
-	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR) $(if $(ZM_BOOTSEC),-DZM_BOOTSEC) $(if $(ZM_LINEMAJOR),-DZM_LINEMAJOR) $(if $(ZM_LM_CHECK),-DZM_LINEMAJOR -DZM_LM_CHECK)
+	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR) $(if $(ZM_BOOTSEC),-DZM_BOOTSEC) $(if $(ZM_KOS_POST),-DZM_KOS_POST=$(ZM_KOS_POST)) $(if $(ZM_LINEMAJOR),-DZM_LINEMAJOR) $(if $(ZM_LM_CHECK),-DZM_LINEMAJOR -DZM_LM_CHECK)
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=
@@ -163,10 +167,11 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/m
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
 	@mkdir -p $$(@D)/bb
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c cycles/bbootsec.c -o $$(@D)/bb/bbootsec.o
+	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c cycles/bkos.c -o $$(@D)/bb/bkos.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/vp_*.o $$(@D)/env.o $$(@D)/boot.o $$(@D)/in_*.o $$< \
 		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
 		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a \
-		$$(@D)/bb/bbootsec.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a -lm
+		$$(@D)/bb/bbootsec.o $$(@D)/bb/bkos.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.
 $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.bin: $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf
 	$(RV_OBJCOPY) -O binary $$< $$@

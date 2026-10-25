@@ -22,6 +22,8 @@ int bdisk_parse(const uint32_t w[4], uint32_t image_end, uint32_t* at, uint32_t*
 extern uint32_t bdisk_image_end;
 /* At boot (cold or warm: the descriptor and the disk are ZWINDOW's, never the cart's). */
 void bdisk_boot(void);
+/* KOS's media change (bdiskapp.c): the drive emptied, then the descriptor read again. */
+void bdisk_media(void);
 void bdisk_report(void);
 
 #endif
