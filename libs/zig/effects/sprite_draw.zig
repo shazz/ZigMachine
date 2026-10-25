@@ -29,13 +29,26 @@ pub const Job = struct {
     left_x_clamped: u16,
     left_clamp: bool,
     right_clamp: bool,
-    /// source value that is not drawn; null draws every pixel
-    skip: ?u8,
+    /// source value that is not drawn, or NO_SKIP to draw every pixel (skipOf).
+    /// A u16, not a ?u8: Sprite.render built the optional in a 2-byte stack
+    /// temporary at an odd address and LLVM moved it as one u16, two misaligned
+    /// accesses a sprite (each a trap on the board).
+    skip: u16,
     y_table: ?[]const i16,
     y_index: u16,
     x_table: ?[]const i16,
     x_index: u16,
 };
+
+pub const NO_SKIP: u16 = 0x100;
+
+pub fn skipOf(key: ?u8) u16 {
+    return if (key) |k| k else NO_SKIP;
+}
+
+fn keyOf(j: Job) ?u8 {
+    return if (j.skip == NO_SKIP) null else @intCast(j.skip);
+}
 
 /// A sprite with no offset tables is a w x h box: rows `width` apart in data
 /// (every clamp combination above advances dc by exactly `width` a row) and
@@ -45,7 +58,7 @@ fn onChisel(j: Job) bool {
     if (j.y_table != null or j.x_table != null) return false;
     if (@as(usize, j.nb_cols) * j.rows < chisel.MIN_BYTES) return false;
     const f = chisel.copy orelse return false;
-    return f(j.out.ptr + j.offset, j.screen_width, j.data.ptr + j.data_counter, j.width, j.nb_cols, j.rows, j.skip);
+    return f(j.out.ptr + j.offset, j.screen_width, j.data.ptr + j.data_counter, j.width, j.nb_cols, j.rows, keyOf(j));
 }
 
 /// The u16 distance the y table moves column `col` (negative offsets wrap).
@@ -72,7 +85,7 @@ pub fn plot(j: Job) void {
             const col: u16 = @intCast(c);
             const pal = j.data[dc];
             dc += 1;
-            if (j.skip) |k| if (pal == k) continue;
+            if (j.skip == pal) continue; // never true for NO_SKIP (0x100)
             var base = offset;
             if (j.y_table) |t| base +%= if (tabled) shifts[c] else yShift(j, t, col);
             const at = base +% col;

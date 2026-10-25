@@ -8,8 +8,8 @@ fn oldPlot(j: draw.Job) void {
     var offset = j.offset;
     var data_counter = j.data_counter;
     var row_counter: u16 = 0;
-    const is_tranparent = j.skip != null;
-    const transparent_color = j.skip orelse 0;
+    const is_tranparent = j.skip != draw.NO_SKIP;
+    const transparent_color: u8 = if (is_tranparent) @intCast(j.skip) else 0;
     while (row_counter < j.rows) : (row_counter += 1) {
         var col_counter: u16 = 0;
         while (col_counter < j.nb_cols) : (col_counter += 1) {
@@ -82,7 +82,7 @@ test "plot leaves the target as the original loop did" {
             .left_x_clamped = clamp,
             .left_clamp = clamp > 0,
             .right_clamp = rclamp > 0,
-            .skip = if (round % 3 == 0) null else if (round % 3 == 1) 0 else 7,
+            .skip = draw.skipOf(if (round % 3 == 0) null else if (round % 3 == 1) 0 else 7),
             .y_table = if (use_y) &y_tab else null,
             .y_index = rnd.intRangeAtMost(u16, 0, 63),
             .x_table = if (use_x) &x_tab else null,

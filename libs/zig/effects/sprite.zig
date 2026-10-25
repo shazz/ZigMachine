@@ -176,7 +176,7 @@ pub const Sprite = struct {
                 .left_x_clamped = left_x_clamped,
                 .left_clamp = left_clamp,
                 .right_clamp = right_clamp,
-                .skip = if (is_tranparent) transparent_color else null,
+                .skip = if (is_tranparent) transparent_color else draw.NO_SKIP,
                 .y_table = self.y_offset_table,
                 .y_index = if (self.y_offset_table != null) self.y_offset_index else 0,
                 .x_table = self.x_offset_table,
