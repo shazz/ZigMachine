@@ -210,6 +210,7 @@ NATIVE_TESTS="
     apps/zig/scenes/union/wab_table_test.zig
     apps/zig/scenes/ancool/stars_test.zig
     apps/zig/scenes/union/dragonball_squash.zig
+    apps/zig/scenes/union/dragonball_raster_test.zig
     apps/zig/scenes/blitter_demo/wobble.zig
     apps/zig/scenes/blitter_demo/soft.zig
     apps/zig/scenes/leonard_spirit/ball_test.zig

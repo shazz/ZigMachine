@@ -16,16 +16,15 @@ const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const LogicalFB = zg.LogicalFB;
-const gm = @import("dragonball_math.zig");
 const sq = @import("dragonball_squash.zig");
 
 const TWO_PI: f32 = std.math.pi * 2.0;
-const BS = gm.BALL_SIZE; // 64
 
-const PAL_DISC: u8 = 64; // the translucent disc, pre-blended over the bottom band
-const PAL_FRONT: u8 = 128; // star front (kolor 0xD94345), opaque
-const PAL_BACK: u8 = 129; // star back, opaque, dimmer (drawn under the disc)
-const PAL_DISC_ON_BACK: u8 = 192; // precomputed disc(a=0.5) over PAL_BACK, opaque
+const raster = @import("dragonball_raster.zig");
+const PAL_DISC = raster.PAL_DISC;
+const PAL_FRONT = raster.PAL_FRONT;
+const PAL_BACK = raster.PAL_BACK;
+const PAL_DISC_ON_BACK = raster.PAL_DISC_ON_BACK; // precomputed disc(a=0.5) over PAL_BACK, opaque
 
 // The disc as it was on its own plane (a = 128) over an opaque colour, as the board's mixer
 // (fpga/rtl/video/zm_video_mix.v) and the browser's canvases fold it: P = round(c * a / 255),
@@ -39,7 +38,7 @@ fn mix(c: u8, a: u8, d: u8) u8 {
     return @intCast(((r + (r >> 8)) >> 8) + ((@as(u32, d) * (256 - @as(u32, a))) >> 8));
 }
 
-var ball_buf: [BS * BS]u8 = undefined; // module-level scratch (heap-free)
+var ball_buf: raster.Buf = undefined; // module-level scratch (heap-free)
 var sprite: sq.Sprite = undefined; // the squashed ball, stamped 6 times by CHISEL
 
 pub const Dragonballs = struct {
@@ -69,7 +68,7 @@ pub const Dragonballs = struct {
     }
 
     pub fn draw(self: *Dragonballs, zigos: *ZigOS) void {
-        self.renderBall();
+        raster.renderBall(&ball_buf, self.rotx, self.roty); // stars + disc, dragonball_raster.zig
         // Squash the WHOLE ball (stars + disc together) at blit time — matches
         // the original (scale the composited sprite), so star tips never poke
         // outside the disc when it shrinks.
@@ -83,49 +82,7 @@ pub const Dragonballs = struct {
             const cx: i16 = 40 + 64 * @as(i16, @intCast(i));
             // the bounce height lands on a whole pixel, so all six share the sprite
             const cy: i16 = sq.centreY(self.angle, fi);
-            self.blitter.blitImage(p0, cx + sprite.ox, cy + sprite.oy, sprite.pixels(), sprite.w, 0, 0, sprite.w, sprite.h, 0);
-        }
-    }
-
-    // Render one ball (5 overlapping spinning stars + squashed translucent
-    // disc) into `ball_buf`. Painter's order: back-facing tris -> disc
-    // (composited via precomputed palette entries, see PAL_DISC_ON_BACK) ->
-    // front-facing tris on top, matching mycanvasb/mycanvas3d/mycanvas3d2
-    // compositing in codef_dragonball.js draw().
-    fn renderBall(self: *Dragonballs) void {
-        @memset(&ball_buf, 0);
-
-        var proj: [gm.NSTARS][gm.NVERTS]gm.Vec2 = undefined;
-        for (0..gm.NSTARS) |s| {
-            const phase: f32 = @as(f32, @floatFromInt(s)) * (TWO_PI / @as(f32, gm.NSTARS));
-            const ay = self.roty + phase;
-            for (0..gm.NVERTS) |v| proj[s][v] = gm.project(gm.rotate(gm.VERTS[v], self.rotx, ay));
-        }
-
-        drawStars(&proj, false); // back-facing first (under the disc)
-        drawDisc(); // fixed-size disc; the squash is applied to the whole ball at blit time
-        drawStars(&proj, true); // front-facing on top, opaque
-    }
-
-    fn drawStars(proj: *const [gm.NSTARS][gm.NVERTS]gm.Vec2, front: bool) void {
-        for (0..gm.NSTARS) |s| {
-            for (gm.TRIS) |t| {
-                const v0 = proj[s][t[0]];
-                const v1 = proj[s][t[1]];
-                const v2 = proj[s][t[2]];
-                const is_front = gm.signedArea(v0, v1, v2) <= 0;
-                if (is_front != front) continue;
-                gm.fillTriangle(&ball_buf, v0, v1, v2, if (front) PAL_FRONT else PAL_BACK);
-            }
-        }
-    }
-
-    fn drawDisc() void {
-        for (gm.DISC_SPAN, 0..) |span, y| {
-            for (ball_buf[y * BS + span[0] ..][0 .. span[1] - span[0]]) |*px| {
-                // a store only where the pixel changes (the star's own pixels stay)
-                if (px.* == PAL_BACK) px.* = PAL_DISC_ON_BACK else if (px.* == 0) px.* = PAL_DISC;
-            }
+            self.blitter.blitImage(p0, cx + sprite.ox, cy + sprite.oy, sprite.pixels(), sprite.stride, 0, 0, sprite.w, sprite.h, 0);
         }
     }
 };

@@ -13,14 +13,16 @@ const BS = gm.BALL_SIZE; // 64
 pub const MAX_SPAN: usize = 80;
 
 pub const Sprite = struct {
-    buf: [MAX_SPAN * MAX_SPAN]u8 = undefined,
+    buf: [MAX_SPAN * MAX_SPAN]u8 align(4) = undefined,
     w: u16 = 0,
     h: u16 = 0,
+    stride: u16 = 0, // w rounded up to whole words: each row is written a word at a time
     ox: i16 = 0, // top-left offset from the ball's centre pixel
     oy: i16 = 0,
 
+    /// h rows of `stride` bytes, the first w of each the sprite (blit with src_w = stride).
     pub fn pixels(self: *const Sprite) []const u8 {
-        return self.buf[0 .. @as(usize, self.w) * self.h];
+        return self.buf[0 .. @as(usize, self.stride) * self.h];
     }
 
     /// Resample `ball` (BS x BS, index 0 transparent) scaled by (sx, sy) about
@@ -33,18 +35,34 @@ pub const Sprite = struct {
         self.oy = @intFromFloat(y0);
         self.w = @intCast(@min(@as(i32, @intFromFloat(@ceil(gm.CENTER * sx) - x0)), MAX_SPAN));
         self.h = @intCast(@min(@as(i32, @intFromFloat(@ceil(gm.CENTER * sy) - y0)), MAX_SPAN));
-        var cols: [MAX_SPAN]i16 = undefined; // texel column a sprite column, -1 = off the ball
-        for (cols[0..self.w], 0..) |*c, k| c.* = texel(x0, k, sx);
-        for (0..self.h) |r| {
-            const row = self.buf[r * self.w ..][0..self.w];
-            const ty = texel(y0, r, sy);
-            if (ty < 0) {
-                @memset(row, 0);
-                continue;
-            }
-            const src = ball[@as(usize, @intCast(ty)) * BS ..][0..BS];
-            for (row, cols[0..self.w]) |*px, c| px.* = if (c < 0) 0 else src[@intCast(c)];
+        self.stride = (self.w + 3) & ~@as(u16, 3);
+        // The texel column of each sprite column. texel() grows with k, so the columns off
+        // the ball are a run at each end, [0, lo) and [hi, w): they read column 0 here and
+        // are zeroed after each row, which keeps the inner loop free of tests.
+        var cols: [MAX_SPAN]u8 = [_]u8{0} ** MAX_SPAN;
+        var lo: usize = self.w;
+        var hi: usize = 0;
+        for (0..self.w) |k| {
+            const c = texel(x0, k, sx);
+            if (c < 0) continue;
+            cols[k] = @intCast(c);
+            lo = @min(lo, k);
+            hi = k + 1;
         }
+        for (0..self.h) |r| self.row(ball, r, texel(y0, r, sy), &cols, lo, hi);
+    }
+
+    fn row(self: *Sprite, ball: *const [BS * BS]u8, r: usize, ty: i16, cols: *const [MAX_SPAN]u8, lo: usize, hi: usize) void {
+        const out = self.buf[r * self.stride ..][0..self.stride];
+        const words: []u32 = @as([*]u32, @ptrCast(@alignCast(out.ptr)))[0 .. self.stride / 4];
+        if (ty < 0 or hi <= lo) return @memset(words, 0);
+        const src = ball[@as(usize, @intCast(ty)) * BS ..][0..BS];
+        for (words, 0..) |*wd, i| {
+            const c = cols[i * 4 ..][0..4];
+            wd.* = @as(u32, src[c[0]]) | @as(u32, src[c[1]]) << 8 | @as(u32, src[c[2]]) << 16 | @as(u32, src[c[3]]) << 24;
+        }
+        @memset(out[0..lo], 0);
+        @memset(out[hi..self.w], 0);
     }
 };
 
@@ -87,7 +105,7 @@ test "the disc never leaves the bottom band" {
         s.build(&ball, 7.0 / 6.0, sy);
         var first: usize = s.h;
         for (0..s.h) |r| {
-            if (std.mem.indexOfScalar(u8, s.pixels()[r * s.w ..][0..s.w], 1) != null) {
+            if (std.mem.indexOfScalar(u8, s.pixels()[r * s.stride ..][0..s.w], 1) != null) {
                 first = r;
                 break;
             }
