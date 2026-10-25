@@ -1,6 +1,6 @@
 # ZigTOS boot: KESTREL starts like an ST
 
-Status: **design, 25 Oct 2026**, nothing built yet. Matt's brief: at reset the boot program
+Status: **design, 25 Oct 2026**, decisions in §11, nothing built yet. Matt's brief: at reset the boot program
 initialises KESTREL, looks for a cart, checks its boot sector and runs it, or else loads GEM.
 "It doesn't have to be exactly like the TOS", but it is the foundation for making ZigGEM a
 real small OS in ROM.
@@ -68,7 +68,7 @@ with a **boot program** in it. Power-on and every reset run this, in order:
 | 1 | **cold or warm**: the `ZMME` mark decides (exists). Cold clears the cart RAM and the machine arena | 6, 8-10 |
 | 2 | (v3) **resident hook**: a warm boot with a valid `resvalid`-style mark runs the resident routine first | 7, 25 |
 | 3 | **hardware init**: video, FRESCO, CHISEL, BARD and the sound path, the drive, input; system variables (§5) | 11-15 |
-| 4 | **POST screen**: logo, ZigTOS version, memory count (the `machine/boot.zig` look, moved into the ROM) | 21 |
+| 4 | **POST screen**: logo, ZigTOS version, memory count (the `machine/boot.zig` look, moved into the ROM); skipped with a key held or `post=0` | 21 |
 | 5 | (v2) **diagnostic cartridge**: if one is fitted, run it | 3 |
 | 6 | (v2) **application cartridge**: if one is fitted, run it | 16-20 |
 | 7 | **drive A**: read the disk's boot sector. Executable (`$1234`) → run it sandboxed (exists) | 22 |
@@ -126,6 +126,12 @@ KESTREL has no ROM port; a cartridge is a disk file glass places in a **cartridg
   OS does beyond the hardware. First users: sysinfo's hardware tests and the bench cart, so
   the board can self-test at power-on without the shelf.
 - An **application** cartridge runs at stage 6 and wins over drive A.
+- A **tool** cartridge (Matt, 25 Oct: the reason for the slot) stays resident and wakes on a
+  hot key: a monitor and debugger for the running cart, the freezer of the ST era. It runs on
+  ZWINDOW's side or as a ROM extension with the cart held, never inside the cart's memory:
+  freeze (hold ZIGGY), registers and `CART_STATE`, memory and VRAM dumps, the planes and the
+  copper lists, BARD's state, breakpoints on frame boundaries, then resume. The OSD's debug
+  and frame-budget pages are the first pieces of it. Its design is a doc of its own, after v1.
 
 ### 4.5 AUTO and COMMAND (v2)
 
@@ -176,7 +182,7 @@ and reset". Today's "boot the menu cart" becomes "the desktop with the menu disk
 | Version | What | Visible result |
 |---|---|---|
 | **v1** | stages 0-1, 3-4, 7-9, 12-13; GEM in the ROM (§4.2); the drive as insert/eject (§4.1); `glass.cfg drive_a=`; the system variables block (§5); browser parity (§7) | power on → POST → the disk in drive A boots, or the desktop |
-| **v2** | cartridge slot with diagnostic + application cartridges (§4.4); AUTO and COMMAND (§4.5) | the board self-tests at power-on; a disk configures the OS |
+| **v2** | cartridge slot: diagnostic, application and tool cartridges, the debugger first (§4.4); AUTO and COMMAND (§4.5) | a freezer/debugger on a hot key; the board self-tests at power-on; a disk configures the OS |
 | **v3** | resident programs (§4.6); hard disk C: from SD folders (roadmap idea); desk accessories | the ROM is a small real OS |
 
 ## 9. What v1 changes, and what it doesn't
@@ -187,8 +193,8 @@ and reset". Today's "boot the menu cart" becomes "the desktop with the menu disk
   for appended exports (`tools/sys_abi.py`), so today's carts keep running.
 - **Lean carts are unchanged.** A bootable disk boots exactly as now, one stage later.
 - **Data disks lose their `gem` cart** (smaller fat disks); `glass_shelf.py` stops adding it.
-- **The menu carts** (`demo.zmd`, the Union doors) stay carts. Whether the shelf's default
-  disk should be the menu or nothing (the desktop) is a choice for Matt.
+- **The menu carts** (`demo.zmd`, the Union doors) stay carts; with no disk inserted the
+  console boots to the desktop (§11).
 
 ## 10. How it is proved
 
@@ -198,8 +204,13 @@ frame for frame; glass's state machine for insert/eject/reset is tested against 
 simulated glass (`app_request_test.zig`'s style); one board-SoC sim of power-on → POST →
 desktop (≤ 6 frames after boot); then the board.
 
-## 11. Open questions for Matt
+## 11. Decisions (Matt, 25 Oct)
 
-1. With no disk in drive A at power-on: the desktop (the ST answer) or the menu disk?
-2. Should the POST screen be skippable (a key, or a `glass.cfg` flag) for fast demo work?
-3. The cartridge slot in v2: wanted, or drive A only?
+1. **No disk in drive A at power-on → the desktop**, the ST answer. The menu disk is a disk like
+   any other: insert it to boot it.
+2. **The POST screen is skippable**: a key held at reset, and `post=0` in `glass.cfg` for fast
+   demo work.
+3. **The cartridge slot: yes, because it is where the glass tools live.** On the ST the
+   cartridge port held monitors, debuggers and freezers (the Action Replay / Ultimate Ripper
+   family, ShirazMCP's model). A KESTREL **tool cartridge** runs beside the program instead of
+   before it: see §4.4.
