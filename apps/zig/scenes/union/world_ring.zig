@@ -40,12 +40,13 @@ pub const Ring = struct {
     v: u32 = 0, // virtual column (slot v mod 64) of map column `abs`
     abs: usize = 0,
     built: bool = false,
+    zeroed: bool = false, // the ring reads 0 everywhere (setScrollPlane cleared it)
 
     /// `plane` must stay disabled; its buffer is taken from VRAM here (call from main.init).
     pub fn init(self: *Ring, plane: *LogicalFB) void {
         chisel.init();
         plane.setScrollPlane(RW, H); // cleared to 0
-        self.* = .{ .plane = plane };
+        self.* = .{ .plane = plane, .zeroed = true };
     }
 
     /// Rows 83..162 of `fb` as world_draw.world() left them after the erase, for scroll
@@ -65,7 +66,8 @@ pub const Ring = struct {
     }
 
     fn rebuild(self: *Ring, ring: *LogicalFB, abs: usize) void {
-        chisel.clear(ring, 0);
+        if (!self.zeroed) chisel.clear(ring, 0); // the first build finds it clear: no 82K-px fill
+        self.zeroed = false;
         self.abs = abs;
         for (0..VIS) |vc| drawColumn(ring, self.v +% @as(u32, @intCast(vc)), abs + vc);
         self.built = true;
