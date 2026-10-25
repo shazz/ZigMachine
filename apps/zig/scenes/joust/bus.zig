@@ -39,9 +39,17 @@ pub fn rd16(st: *St, a: i64) i64 {
     return std.mem.readInt(u16, b, .big);
 }
 
+// A 68000 long only has to be word-aligned: one at 2 mod 4 would be a misaligned
+// wide access, which TRAPS on the board's rv32 (~210 cycles). mem and scr are
+// 4-aligned (zg.mem) and BASE/LO are multiples of 4, so x's low bits are the host
+// pointer's: such a long goes byte by byte, through a volatile pointer, or LLVM
+// folds the four byte loads (or stores) back into one misaligned word access.
 pub fn rd32(st: *St, a: i64) i64 {
-    const b = where(st, bus(a), 4) orelse return 0;
-    return std.mem.readInt(u32, b, .big);
+    const x = bus(a);
+    const b = where(st, x, 4) orelse return 0;
+    if (x & 3 == 0) return std.mem.readInt(u32, b, .big);
+    const v: *volatile const [4]u8 = b;
+    return @as(u32, v[0]) << 24 | @as(u32, v[1]) << 16 | @as(u32, v[2]) << 8 | v[3];
 }
 
 pub fn wr8(st: *St, a: i64, v: i64) void {
@@ -62,7 +70,13 @@ pub fn wr32(st: *St, a: i64, v: i64) void {
     const x = bus(a);
     const b = where(st, x, 4) orelse return;
     if (x >= SCREEN) screen.touch(x - SCREEN, 4);
-    std.mem.writeInt(u32, b, @truncate(@as(u64, @bitCast(v))), .big);
+    const y: u32 = @truncate(@as(u64, @bitCast(v)));
+    if (x & 3 == 0) return std.mem.writeInt(u32, b, y, .big);
+    const p: *volatile [4]u8 = b; // as rd32
+    p[0] = @truncate(y >> 24);
+    p[1] = @truncate(y >> 16);
+    p[2] = @truncate(y >> 8);
+    p[3] = @truncate(y);
 }
 
 /// Any other size (none in the transcriptions today): byte by byte, one bounds check.
