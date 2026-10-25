@@ -115,7 +115,7 @@ fn enter(fb: *zg.LogicalFB, p: seq.Phase) void {
             paint.barLines(fb, G.BAR_TOP);
         },
         .bar_bottom => paint.barLines(fb, G.BAR_BOTTOM),
-        .drop => raster.photon(fb, .{ 255, 255, 255 }),
+        .drop => raster.photon(fb, A.rgb3(255, 255, 255)),
         .fade => {},
         .main => dna_draw.reset(),
     }

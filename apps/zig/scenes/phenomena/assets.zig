@@ -64,27 +64,48 @@ pub const REDFADE = 188; // hsl(0 100% p%), p = 0..100
 pub const HUE = 289; // hsl(h 100% 50%), h = 0..359
 pub const PANEL_RGB = 649; // #000111
 
-pub const Rgb = [3]u8;
+/// A colour as 0x00BBGGRR (the palette word's channel order, alpha left out). A
+/// [3]u8 went through memory at odd addresses (an rgb() return, blend's result),
+/// which LLVM moved as u16 + u8: ~50 misaligned accesses a frame, each a trap on
+/// the board. A u32 stays in a register.
+pub const Rgb = u32;
+
+pub inline fn rgb3(r: u8, g: u8, b: u8) Rgb {
+    return (@as(u32, b) << 16) | (@as(u32, g) << 8) | r;
+}
+
+inline fn channel(c: Rgb, k: u5) u32 {
+    return (c >> (8 * k)) & 0xFF;
+}
+
+/// The triples of a .dat as Rgb words, built at compile time.
+fn words(comptime n: usize, comptime bytes: *const [n * 3]u8) [n]Rgb {
+    @setEvalBranchQuota(10 * n);
+    var out: [n]Rgb = undefined;
+    for (&out, 0..) |*w, i| w.* = rgb3(bytes[i * 3], bytes[i * 3 + 1], bytes[i * 3 + 2]);
+    return out;
+}
+const colour_words = words(650, colours);
+const logo_words = words(G.LOGO_N, logo_pal);
 
 pub inline fn rgb(table: usize, i: usize) Rgb {
-    const o = (table + i) * 3;
-    return .{ colours[o], colours[o + 1], colours[o + 2] };
+    return colour_words[table + i];
 }
 
 pub inline fn logoRgb(i: usize) Rgb {
-    return .{ logo_pal[i * 3], logo_pal[i * 3 + 1], logo_pal[i * 3 + 2] };
+    return logo_words[i];
 }
 
 /// A palette word (the machine's little-endian RGBA, opaque).
 pub inline fn word(c: Rgb) u32 {
-    return 0xFF00_0000 | (@as(u32, c[2]) << 16) | (@as(u32, c[1]) << 8) | c[0];
+    return 0xFF00_0000 | c;
 }
 
 /// Canvas globalAlpha drawing of `src` over `dst`: alpha a/100 is an 8-bit
 /// coverage in the canvas, and each channel rounds.
 pub fn blend(src: Rgb, dst: Rgb, a100: u32) Rgb {
     const a: u32 = (a100 * 255 + 50) / 100;
-    var o: Rgb = undefined;
-    for (0..3) |k| o[k] = @intCast((@as(u32, src[k]) * a + @as(u32, dst[k]) * (255 - a) + 127) / 255);
+    var o: Rgb = 0;
+    inline for (0..3) |k| o |= ((channel(src, k) * a + channel(dst, k) * (255 - a) + 127) / 255) << (8 * k);
     return o;
 }

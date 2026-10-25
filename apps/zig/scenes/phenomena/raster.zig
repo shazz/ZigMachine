@@ -20,8 +20,8 @@ const SLOT_BAR: zg.copper.Slot = 0;
 const SLOT_TEXT: zg.copper.Slot = 1;
 var tables: [2]zg.copper.Table = undefined; // module scope: the scene owns the tables
 
-const BLACK: A.Rgb = .{ 0, 0, 0 };
-const WHITE: A.Rgb = .{ 255, 255, 255 };
+const BLACK: A.Rgb = A.rgb3(0, 0, 0);
+const WHITE: A.Rgb = A.rgb3(255, 255, 255);
 
 inline fn set(fb: *zg.LogicalFB, i: usize, c: A.Rgb) void {
     const w = A.word(c);
@@ -89,7 +89,7 @@ pub fn textBar(fb: *zg.LogicalFB, rb2: i32) void {
             const src = @divFloor(2 * y - rb2, 2);
             if (src >= 0 and src < A.bar_intro.len) {
                 const v = A.bar_intro[@intCast(src)];
-                c = A.word(.{ v, v, v });
+                c = A.word(A.rgb3(v, v, v));
             }
         }
         if (t[phys] != c) t[phys] = c;
