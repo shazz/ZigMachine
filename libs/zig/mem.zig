@@ -38,7 +38,7 @@ pub fn Mem(comptime Ram: type) type {
                 return null;
             };
             if (bytes == 0) return &[_]T{};
-            const at = Ram.alloc(bytes, @alignOf(T));
+            const at = Ram.alloc(bytes, minAlign(@alignOf(T)));
             if (at == 0) return null;
             const p: [*]T = @ptrFromInt(at);
             return p[0..n];
@@ -66,6 +66,14 @@ pub fn Mem(comptime Ram: type) type {
             return Ram.free();
         }
 
+        /// Every block starts on a word, whatever T is: carts allocate u8 buffers
+        /// and read or write them as u16/u32 (LLVM also merges byte loops into
+        /// wide accesses), and on the board a misaligned one traps (~210 cycles).
+        fn minAlign(alignment: usize) usize {
+            return @max(alignment, WORD);
+        }
+        const WORD: usize = 4;
+
         const vtable: std.mem.Allocator.VTable = .{
             .alloc = vAlloc,
             .resize = vResize,
@@ -74,7 +82,7 @@ pub fn Mem(comptime Ram: type) type {
         };
 
         fn vAlloc(_: *anyopaque, len: usize, alignment: std.mem.Alignment, _: usize) ?[*]u8 {
-            const at = Ram.alloc(len, alignment.toByteUnits());
+            const at = Ram.alloc(len, minAlign(alignment.toByteUnits()));
             return if (at == 0) null else @ptrFromInt(at);
         }
 

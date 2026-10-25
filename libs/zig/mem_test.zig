@@ -64,6 +64,15 @@ test "alloc(T, n) is aligned for T and zeroed" {
     try expectEqual(@as(u32, 0), mem.failures());
 }
 
+test "every block starts on a word, u8 ones too (a misaligned word access traps on the board)" {
+    Fake.reset();
+    _ = mem.alloc(u8, 1).?;
+    const b = mem.alloc(u8, 3).?;
+    try expectEqual(@as(usize, 0), @intFromPtr(b.ptr) % 4);
+    const c = try mem.allocator.alloc(u8, 5);
+    try expectEqual(@as(usize, 0), @intFromPtr(c.ptr) % 4);
+}
+
 test "a full window returns null and the machine counts it" {
     Fake.reset();
     try expect(mem.alloc(u8, 5000) == null);
