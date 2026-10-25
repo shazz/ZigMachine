@@ -55,7 +55,11 @@ const TILE_W: u16 = 320;
 const TILE_H: u16 = 187;
 
 // 10x6 grid of 32x32 glyphs, first char 32 (myfont.initTile(64,64,32), halved).
-const font_b = @embedFile("../assets/screens/automation442/font.raw");
+// 4-aligned (a plain @embedFile is align 1): drawGlyph's rows then copy word to
+// word into the plane, not four byte loads a word (the board's memcpy, misaligned).
+const font_b: *align(4) const [@embedFile(font_path).len]u8 = &font_words;
+const font_words: [@embedFile(font_path).len]u8 align(4) = @embedFile(font_path).*;
+const font_path = "../assets/screens/automation442/font.raw";
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/automation442/font_pal.dat"));
 const FONT_SHEET_W: u16 = 320;
 const GLYPH_COLS: usize = 10;
