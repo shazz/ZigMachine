@@ -63,12 +63,12 @@ pub const Frame = struct {
         return (fx.area2(self.pv[f.a].s, self.pv[f.b].s, self.pv[f.c].s) > 0) != (f.inward != 0);
     }
 
-    /// recs[0..nvis] = the faces seen (all of them when !cull), far first,
+    /// recs[0..nvis] = the skin's faces seen (all of them when !cull), far first,
     /// with their flat shade when `shade`.
     pub fn cullSort(self: *Frame, m: *const fmesh.Mesh, cull: bool, shade: bool) void {
         var count = [_]u16{0} ** (BUCKETS + 1);
         var n: u16 = 0;
-        for (m.faces[0..m.nfaces], 0..) |f, i| {
+        for (m.faces[0..m.nskin], 0..) |f, i| {
             if (cull and !self.facing(m, i)) continue;
             const zsum = self.pv[f.a].z + self.pv[f.b].z + self.pv[f.c].z;
             // far (large z) first = a small bucket; |zsum| <= ~49200
@@ -86,8 +86,16 @@ pub const Frame = struct {
         }
     }
 
-    /// Marks vis[] without sorting (hidden-line needs only which faces are seen).
+    /// Marks vis[] without sorting (hidden-line needs only which faces are
+    /// seen); a face past the skin is never seen.
     pub fn cullOnly(self: *Frame, m: *const fmesh.Mesh) void {
-        for (0..m.nfaces) |i| self.vis[i] = self.facing(m, i);
+        for (0..m.nfaces) |i| self.vis[i] = i < m.nskin and self.facing(m, i);
     }
 };
+
+/// DOTS' ink: rotated z (Q14, -ONE nearest .. ONE farthest) on the FLAT ramp,
+/// 1 (teal, far) .. FLAT_LEVELS (white, near).
+pub fn dotInk(z: i32) u8 {
+    const l = ((fx.ONE - z) * (FLAT_LEVELS - 1)) >> (fx.Q + 1);
+    return @intCast(1 + @min(@max(l, 0), FLAT_LEVELS - 1));
+}

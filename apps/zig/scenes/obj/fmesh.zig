@@ -25,6 +25,9 @@ pub const Mesh = struct {
     nverts: u16 = 0,
     nfaces: u16 = 0,
     nedges: u16 = 0,
+    /// The faces the solid modes draw: faces[0..nskin] (all of them, but for
+    /// GLENZ NEST, whose inner shells only GLENZ and WIRE show).
+    nskin: u16 = 0,
     verts: [MAX_VERTS]V3 align(8) = undefined,
     vnorm: [MAX_VERTS]V3 align(8) = undefined,
     faces: [MAX_FACES]Face align(8) = undefined,
@@ -34,6 +37,7 @@ pub const Mesh = struct {
 
     /// Normals and edges, once the vertices and faces are in.
     pub fn finish(self: *Mesh) void {
+        self.nskin = self.nfaces;
         self.normals();
         self.buildEdges();
     }
