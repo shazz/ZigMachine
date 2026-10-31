@@ -125,19 +125,35 @@ up to 65,535 bytes, never backward: LBASE is the general form.
 
 ## ZigOS
 
-`libs/zig/effects/linelist.zig`: a per-line table `{base, hscroll, colour0}` (plus `.flicker` for
-open borders) built into the plane's list each frame, only changed words stored (as
-tcb_colorshock's `put`), no handler (FLICK replaces flickerBorder, so the plane groups on the board).
-Encoders for hand-built lists: `copper.lbase(v)`, `copper.reg(hscroll)`, `copper.head(y, n)`.
+`zg.linelist` (`libs/zig/effects/linelist.zig`): a table of `Line{ base, hscroll, colour }` (one per
+raster line from `first_row`) built into the plane's list each frame by `build(list, lines, opts)`,
+storing only words that changed (as tcb_colorshock's `put`). It writes an LBASE only where a line does
+not follow on from the one above (`base != prev + stride`), REG HSCROLL and PAL colour 0 only on a
+change (always on the first line: both persist across frames), and FLICK on every line with
+`.flicker` (open borders with no handler, so the plane groups on the board). `zg.linelist.install(fb,
+rows, flicker)` allocates and publishes the list (HBL position at the magic column for FLICK);
+`fb.lineAddr(x, y)` is the region offset of a plane pixel. A Mind Rewind line maps to
+`.{ .base = lineAddr(stripes_x + 8, row), .hscroll = h, .colour = c0 }`.
 
 ## Proofs (each mechanism with its break)
 
-- `machine/copper_test.zig`: valid LBASE, out of VRAM, `[27:21]` set, persistence over lines, frame
-  reset, last-wins; overscan HSCROLL tests in video tests.
-- A test cart (`linebase_test`: flip, sine wobble with LBASE + REG HSCROLL, a colour-0 raster, open
-  borders) with a scene_hash harness named in build.sh.
-- vsynth scenario (`vsynth_lbase.c`) in test_rtl_video.py, replayed on the RTL against the machine:
-  LBASE in every mode, an overscan plane with REG HSCROLL, an LBASE out of VRAM (stop). Mutants
-  (ZM_RTL_BREAK=1): LBASE ignored, applied a line late, not persisting, OVS HSCROLL ignored.
+- `machine/copper_lbase_test.zig`: valid LBASE (odd byte, VRAM's last byte), out of VRAM and bits
+  27..21 set stop the list with the record's earlier words standing, last wins, persistence.
+  `libs/zig/effects/linelist_test.zig`: the words built, only changes, the size check.
+- `apps/linebase_check.mjs` (machine only, build.sh): two planes against `apps/linebase_model.mjs`,
+  pixel for pixel: overscan with LBASE, run-on, HSCROLL per line past the row's end, colour 0, open
+  borders and the stop; normal with a flip and an ignored HSCROLL; frame 2 restarts from FB_BASE.
+  `--break` drops each rule from the model in turn and must be caught; it fails on the 1.9.0 machine.
+- Test cart `linebase_test` (cart 110, menu "LINE LIST TEST"): phase A overscan wobble / line zoom /
+  flipped bands / colour-0 raster through open borders, phase B a scroll plane whose list flips rows
+  the CPU draws in. `apps/linebase_test_headless.mjs` (gate, 420 frames) checks the picture against
+  the model of the list the cart built, with two `--break` mutants.
+- Planner: `test_vdirty.py` runs the cart's phase B (LBASE on a comparable plane) with no
+  mismatch, and `VD_BREAK_LBASE` (an LBASE list compared like a PAL one) must mismatch.
+- vsynth scenario `lbase` (`tools/video_dump/vsynth_lbase.c`) in test_rtl_video.py, replayed on the
+  RTL against the machine: LBASE in all of overscan / normal / fullscreen / medium, REG HSCROLL on
+  overscan past the row's end, an LBASE outside VRAM (stop), frame 2 rebuilt. Mutants
+  (ZM_RTL_BREAK=1, video_mutants.json): LBASE ignored, its row not kept, not persisting, its row
+  one off, VRAM unchecked, row not reset at LATCH, overscan HSCROLL ignored.
 - One hp_sim slot (<= 6 frames) on the test cart: the board firmware's picture equals the browser's.
 - Bitstream only after asking (Vivado lock, `--vivado-directives closure`).

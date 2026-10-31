@@ -6,7 +6,10 @@
  * planner cannot read whole, has every line it covers composited again.
  *
  * A PALREF names palette words elsewhere in VRAM, which may change with the list unchanged: a list
- * with one is always treated as changed (tcb_colorshock's raster changes every frame anyway). */
+ * with one is always treated as changed (tcb_colorshock's raster changes every frame anyway). An
+ * LBASE (HW 1.10.0, fpga/review/COPPER_LINEBASE.md) the same: its lines show rows elsewhere in VRAM,
+ * which vdrow.h's fetch() does not compare (it reads FB_BASE's), so such a list always counts as
+ * changed and, when its first record holds one, the plane is planned uncompared. */
 #ifndef ZM_VDLIST_H
 #define ZM_VDLIST_H
 
@@ -27,7 +30,7 @@ static uint32_t vdl_word(const vd_frame* fr, uint32_t off) {
 }
 
 /* Plane p's list length in words, up to and including its end HEAD; 0 if it cannot be compared
- * (too long, leaving VRAM, a PALREF, or a record that would stop it on the machine). */
+ * (too long, leaving VRAM, a PALREF or an LBASE, or a record that would stop it on the machine). */
 static uint32_t vdl_measure(const vd_frame* fr, uint32_t at) {
     const uint32_t end = ZM_OFF_VRAM + ZM_VRAM_BYTES;
     uint32_t words = 0;
@@ -40,7 +43,10 @@ static uint32_t vdl_measure(const vd_frame* fr, uint32_t at) {
         if (n > 253u || at + 4 + 4 * n > end || words + n > VDL_MAX) return 0;
         for (uint32_t i = 0; i < n; i++) {
             uint32_t op = vdl_word(fr, at + 4 + 4 * i) >> 28;
-            if (op == 4u || op > 4u) return 0; /* PALREF, reserved */
+#ifdef VD_BREAK_LBASE /* tests/test_vdirty.py's mutant: an LBASE list compared like a PAL one */
+            if (op == 5u) continue;
+#endif
+            if (op >= 4u) return 0; /* PALREF, LBASE, reserved */
         }
         words += n, at += 4 + 4 * n;
     }
@@ -71,8 +77,9 @@ static int vdl_moved(const vd_frame* fr, int p) {
     return moved;
 }
 
-/* Whether plane p's list opens with a PALREF record (its first line's body holds one): a list
- * whose lines name their palettes in VRAM, which vdl_moved always counts as changed. A cheap look
+/* Whether plane p's list opens with a PALREF or an LBASE record (its first line's body holds one):
+ * a list whose lines name their palettes or rows in VRAM, which vdl_moved always counts as changed.
+ * A cheap look
  * (the first record only): vd_plan then leaves the plane's rows uncompared (its covered lines are
  * new, as a handler plane's), so the plan costs nothing there and the borders still skip. A list
  * whose PALREFs come later has its rows compared, for nothing; never a wrong skip. */
@@ -89,6 +96,9 @@ static int vdl_palref_first(const vd_frame* fr, int p) {
     if (head >> 28 != 0xFu || ((head >> 19) & 0x1FFu) == 511u || n > 253u || at + 4 + 4 * n > end) return 0;
     for (uint32_t i = 0; i < n; i++)
         if (vdl_word(fr, at + 4 + 4 * i) >> 28 == 4u) return 1;
+#ifndef VD_BREAK_LBASE
+        else if (vdl_word(fr, at + 4 + 4 * i) >> 28 == 5u) return 1;
+#endif
     return 0;
 }
 

@@ -39,6 +39,16 @@ pub const linelist = struct {
     pub const Options = m.Options;
     pub const words = m.words;
     pub const build = m.LineList(hw.REG_HSCROLL).build;
+
+    /// The list buffer for `rows` lines on `fb`, published, with no HBL handler; with `flicker`
+    /// the plane's HBL position is the magic column, so the list's FLICK opens the borders.
+    /// Null when VRAM is full. Build into it every frame (build), after the scene's drawing.
+    pub fn install(fb: *LogicalFB, rows: usize, flicker: bool) ?[]u32 {
+        fb.clearFrameBufferHBLHandler();
+        const l = fb.copperList(words(rows)) orelse return null;
+        writeU16(hw.REG_FB_HBL_POS + @as(usize, fb.id) * 2, if (flicker) OVERSCAN_MAGIC_X else 0);
+        return l;
+    }
 };
 pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column-shifted strip blit
 pub const fixtrig = @import("effects/fixtrig.zig"); // integer sine table + u32 angles: trig with no float

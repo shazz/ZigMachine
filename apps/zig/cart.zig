@@ -120,6 +120,7 @@ const scene = switch (opts.index) {
     107 => @import("scenes/anima.zig"), // ANIMA: a new ZigMachine one-screen demo (2026-10-23): copper drum through every open border, breathing logo, glenz, sine scroller
     108 => @import("scenes/leonard_spirit.zig"), // LEONARD'S SPIRIT: the 312-sprite record redone Leonard's way, as many generated-code balls as one frame holds
     109 => @import("scenes/hippel_musicdisk.zig"), // JOCHEN HIPPEL MUSIC DEMO (Feinbein Software & Supplex, Amiga 1990): ten Hippel tunes on keys a..j, its copper list rebuilt and translated (ported from the original executable)
+    110 => @import("scenes/linebase_test.zig"), // LINE LIST TEST: the STE line list (HW 1.10.0 copper LBASE + overscan HSCROLL): wobble, line zoom, flipped bands, a colour-0 raster through open borders, no HBL handler
     else => @compileError("bad cart index"),
 };
 

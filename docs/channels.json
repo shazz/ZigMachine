@@ -160,6 +160,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "linebase_test",
+  "title": "LINE LIST TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "lockbuster3",
   "title": "LOCKBUSTER 3",
   "type": "atari st"
