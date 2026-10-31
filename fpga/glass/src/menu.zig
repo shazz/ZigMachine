@@ -1,11 +1,12 @@
-// The OSD menu: three pages (docs/FPGA_GLASS.md, "The menu"), each in its own
+// The OSD menu: five pages (docs/FPGA_GLASS.md, "The menu"), each in its own
 // file, and the Action a key leaves for app.zig to carry out. Pure state and
 // drawing: nothing here touches a register.
 //
 //   shelf    the carts, the selected one's details      (page_shelf.zig)
 //     > console   cold/warm reset, volume, mute, debug   (page_console.zig)
 //         > debug   versions, live stats, the board      (page_debug.zig)
-//             > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
+//             > help    every shortcut, from one table        (page_help.zig)
+//                 > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
 const std = @import("std");
 const map = @import("map.zig");
 const osd = @import("osd.zig");
@@ -15,16 +16,17 @@ const page_shelf = @import("page_shelf.zig");
 const page_console = @import("page_console.zig");
 const page_debug = @import("page_debug.zig");
 const page_budget = @import("page_budget.zig");
+const page_help = @import("page_help.zig");
 const strip = @import("strip.zig");
 
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
 /// `load`: Enter, insert + reset; `insert` / `eject`: drive A without a reset (app_drive.zig).
 pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, cold, warm, settings, save, source };
-pub const Page = enum { shelf, console, debug, budget };
+pub const Page = enum { shelf, console, debug, budget, help };
 
 pub const HINT = "ENTER boot  I/E disk  F floppy >";
-const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > budget       Esc back", "Shift+F11 close  < debug  Esc" };
+const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > help         Esc back", "Shift+F11 close  < help   Esc", "Up/Dn scroll  > budget  Esc" };
 
 pub const Menu = struct {
     disks: []const shelf.Disk,
@@ -32,6 +34,7 @@ pub const Menu = struct {
     list: page_shelf.State = .{},
     console: page_console.State = .{},
     settings: config.Settings = .{},
+    help_top: usize = 0, // the help page's first line shown
     loaded: ?usize = null, // the disk in the cart window, marked '*'
     drive: ?usize = null, // the disk in KOS's drive A, marked 'A' (app_drive.zig)
     floppy: bool = false, // the carts come from the floppy (app_source.zig): the title says so
@@ -48,6 +51,7 @@ pub const Menu = struct {
             .console => self.consoleKey(code),
             .debug => self.debugKey(code),
             .budget => self.budgetKey(code),
+            .help => self.helpKey(code),
         };
     }
 
@@ -82,6 +86,18 @@ pub const Menu = struct {
     fn debugKey(self: *Menu, code: u32) Action {
         switch (code) {
             map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.console),
+            map.KEY_ARROW_RIGHT => return self.go(.help),
+            else => return .none,
+        }
+    }
+
+    fn helpKey(self: *Menu, code: u32) Action {
+        if (page_help.scroll(self.help_top, code)) |top| {
+            self.help_top = top;
+            return .none;
+        }
+        switch (code) {
+            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.debug),
             map.KEY_ARROW_RIGHT => return self.go(.budget),
             else => return .none,
         }
@@ -89,7 +105,7 @@ pub const Menu = struct {
 
     fn budgetKey(self: *Menu, code: u32) Action {
         switch (code) {
-            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.debug),
+            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.help),
             else => return .none,
         }
     }
@@ -106,6 +122,7 @@ pub const Menu = struct {
             .console => "CONSOLE",
             .debug => "DEBUG",
             .budget => "BUDGET",
+            .help => "HELP",
         };
     }
 
@@ -123,6 +140,7 @@ pub const Menu = struct {
             .console => self.console.draw(o, self.settings),
             .debug => page_debug.draw(o, view),
             .budget => page_budget.draw(o, bview),
+            .help => page_help.draw(o, self.help_top),
         }
         strip.draw(o, self.section());
         o.line(osd.ROWS - 1, self.status orelse hints[@intFromEnum(self.page)], false);

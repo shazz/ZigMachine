@@ -377,7 +377,7 @@ below the cart window.
 
 ### The frame-budget page (Shift+F11, `page_budget.zig`)
 
-Shift+F11, or `>` from the debug page. Read-only, redrawn twice a second; numbers averaged
+Shift+F11, or `>` from the help page. Read-only, redrawn twice a second; numbers averaged
 over one second of 100 ms samples of the video probe, the peak over the last three:
 
 - row 1, a bar of the frame in cells of 1/15 of a 60 fps frame (111 Kc): `C` cart, `F`
@@ -425,7 +425,8 @@ picture. It is the same OSD, put in another mode rather than a second block:
   91 LUT and 154 FF (Yosys). Vivado out of context, placed and routed at the
   40 MHz pixel clock: 71 LUT, 159 FF, 1 BRAM tile, WNS +19.1 ns (the worst path
   is font ROM → pixel mux, 3 logic levels).
-- **The menu** has three pages (`menu.zig`, one file a page). Row 15 is always
+- **The menu** has five pages (`menu.zig`, one file a page): shelf > console > debug > help >
+  budget, `>`/Right going deeper and `<`/Esc back. Row 15 is always
   the status line: the page's hint, `loading…`, or the last error. A joypad
   works everywhere: the d-pad is the arrows and fire is Enter; Back is an item,
   as a pad has no Esc. `glass sim-menu DIR [shelf|console|debug]` prints any
@@ -436,6 +437,11 @@ picture. It is the same OSD, put in another mode rather than a second block:
   `FLOPPY`, `CONSOLE`, `DEBUG`, `BUDGET`); column 1 is a dark gap; the page's content takes
   columns 2..31 (`osd.BODY_COL`, 30 wide), the selected row's bar spanning them. Row 15, the
   status, is full width. The F11 overlay is unchanged (no strip).
+- **The help page** (`page_help.zig`, Matt 2026-10-31) lists every shortcut, grouped (global,
+  shelf, console, debug, help, budget), from ONE table; `page_help_test.zig` replays each
+  entry against the real handling (the page's `Menu.key`, `App.key` for the hotkeys, the pad,
+  `app_drive.flags` for Shift at a reset), so a listed key nothing takes fails the build. It is
+  longer than 14 rows: Up/Down and PgUp/PgDn scroll it, the title shows which lines.
 
 ### The floppy as the shelf (`app_source.zig`, Matt 2026-10-31)
 

@@ -210,7 +210,7 @@ pub const App = struct {
                 self.menu.list.phase +%= 1;
                 self.redraw();
             },
-            .console => {},
+            .console, .help => {},
         }
     }
 };
