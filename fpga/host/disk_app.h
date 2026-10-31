@@ -29,7 +29,14 @@ typedef struct {
     uint8_t name[ZMD_FIND_MAX];
     uint32_t name_len;      /* the cart's tag bytes (req 1 and 3), at most ZMD_FIND_MAX kept */
     const zmd_file_t* file; /* req 3: the program on the disk it names, else NULL */
+    uint32_t kind;          /* insertDisk's argument: 1 a .zmd (the listing is handed), 2 a FAT image */
 } disk_app_t;
+
+/* A raw FAT disk image (KOS, docs/KOS_FAT.md; docs/kos-boot.js ZMKos.fatImage): whole 512-byte
+ * sectors and a BPB saying 512. A data disk the desktop shell reads itself: insertDisk(2), no listing. */
+static inline int disk_app_fat_image(const uint8_t* b, uint32_t size) {
+    return size >= 4096 && size % 512 == 0 && (b[11] | b[12] << 8) == 512;
+}
 
 /* new Uint8Array(memory.buffer, ptr, n): its RangeError is a trap here. */
 static inline uint8_t* disk_app_mem(struct w2c_env* e, uint32_t ptr, uint64_t n) {
@@ -69,7 +76,7 @@ static inline void disk_app_listing(struct w2c_env* e, disk_app_t* s) {
 static inline uint32_t disk_app_frame(struct w2c_env* e, disk_app_t* s) {
     uint32_t req = 0;
     if (!s->requested && host_dapp.poll && (req = host_dapp.poll(HOST_CART(e))) != 0) disk_app_request(e, s, req);
-    if (host_dapp.insert_disk) host_dapp.insert_disk(HOST_CART(e), 1);
+    if (host_dapp.insert_disk) host_dapp.insert_disk(HOST_CART(e), s->kind ? s->kind : 1);
     disk_app_listing(e, s);
     return req;
 }

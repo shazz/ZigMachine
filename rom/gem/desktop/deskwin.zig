@@ -146,7 +146,7 @@ pub fn closeTopWindow(d: *Desktop) void {
 pub fn updateChrome(d: *Desktop, id: u8) void {
     const dir = d.win_dir[id];
     const n = d.dir.fileCount(dir) + d.dir.folderCount(dir);
-    const used: u32 = if (dir == dirmodel.ROOT) d.dir.usedBytes() else 0;
+    const used: u32 = d.dir.usedBytesIn(dir); // a FAT disk's folders hold files too (KOS)
     const w = &d.wm.wins[id];
     w.info = std.fmt.bufPrint(&d.win_info[id], "{d} bytes used in {d} items.", .{ used, n }) catch "";
     // The info line changes topBarsH, so measure the content AFTER setting it.

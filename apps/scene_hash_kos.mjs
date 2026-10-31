@@ -18,6 +18,19 @@
 import { readFile } from "node:fs/promises";
 import { parseDisk } from "../docs/zmdisk.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
+import "../docs/kos-boot.js"; // globalThis.ZMKos.fatImage
+
+// A .zmd parsed (docs/zmdisk.js), or a raw FAT image as the browser mounts it ({ buf, files, fat }).
+async function mountAny(path) {
+    const buf = new Uint8Array(await readFile(path));
+    try {
+        return parseDisk(buf, path);
+    } catch (e) {
+        const fat = globalThis.ZMKos.fatImage(buf);
+        if (!fat) throw e;
+        return fat;
+    }
+}
 
 const BOOT_COLD = 0, BOOT_WARM = 1, DEV_DESKTOP = 0, DEV_DRIVE_A = 1, CHAINLOAD = 2;
 
@@ -38,7 +51,8 @@ function sameBytes(a, b) {
 // What drive A holds: { disk, sector, chain (the cart after the sector, null = the desktop), bootable }.
 async function driveA(path) {
     if (path === "none") return { disk: null };
-    const d = parseDisk(new Uint8Array(await readFile(path)), path);
+    const d = await mountAny(path);
+    if (d.fat) return { disk: { mounted: d, bootable: false }, sector: false, chain: null, bootable: false };
     const sector = d.v2 && d.bootable;
     const chain = sector && d.mounted.chainCart.len ? d.mounted.chainCart : null;
     return { disk: d, sector, chain, bootable: d.bootable && (!sector || chain !== null) };

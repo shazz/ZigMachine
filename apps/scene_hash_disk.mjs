@@ -2,6 +2,7 @@
 // (--disk) and GEM over a data disk (--data-disk). The parser is the browser's, docs/zmdisk.js.
 import { readFile } from "node:fs/promises";
 import { parseDisk } from "../docs/zmdisk.js";
+import "../docs/kos-boot.js"; // globalThis.ZMKos.fatImage: a raw FAT image, as the browser mounts it
 
 // The drive over one mounted disk: the function body is docs/sealed-loader.js's
 // diskReadBlock VERBATIM (fpga/tests/test_board_disk.py checks the two texts are
@@ -48,11 +49,12 @@ export function makeDataDisk(memory, rom, mountedDisk, program = false) {
 
         // Tell GEM whether an app-disk is inserted (idempotent; takes effect once
         // the cart is booted) so its FLOPPY icon opens the app.
-        if (demo.insertDisk) demo.insertDisk(diskApp ? 1 : 0);
+        // 2: a FAT disk (KOS: the desktop shell reads it itself, docs/KOS_FAT.md).
+        if (demo.insertDisk) demo.insertDisk(diskApp ? (mountedDisk && mountedDisk.fat ? 2 : 1) : 0);
 
         // Hand GEM the mounted disk's FAT directory for its FLOPPY window (once
         // booted): per file a 16-byte name + 1 type byte (0=program, 1=data).
-        if (!diskDirSet && diskApp && mountedDisk && demo.diskDirPtr &&
+        if (!diskDirSet && diskApp && mountedDisk && !mountedDisk.fat && demo.diskDirPtr &&
             demo.isBooted && demo.isBooted()) {
             // The record layout and the cap come FROM THE ROM, not from literals
             // here. They used to be `25` and `12` mirrored by hand against
@@ -81,7 +83,15 @@ export function makeDataDisk(memory, rom, mountedDisk, program = false) {
 // --data-disk: the browser's mount (parseDisk), refused unless it is a data disk (the browser
 // boots a bootable disk's own cart, not GEM).
 export async function mountDataDisk(path) {
-    const d = parseDisk(new Uint8Array(await readFile(path)), path);
+    const buf = new Uint8Array(await readFile(path));
+    let d;
+    try {
+        d = parseDisk(buf, path);
+    } catch (e) {
+        const fat = globalThis.ZMKos.fatImage(buf); // a FAT image: the desktop reads it (docs/KOS_FAT.md)
+        if (fat) return fat;
+        throw e;
+    }
     if (d.bootable) throw new Error(`${path}: bootable, not a data disk`);
     return d.mounted;
 }

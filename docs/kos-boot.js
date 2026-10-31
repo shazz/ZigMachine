@@ -55,5 +55,12 @@ globalThis.ZMKos = (function () {
         return rom.kosPostFrames ? rom.kosPostFrames(asked) : asked;
     }
 
-    return { BOOT_DRIVE, bootsCart, postCart, power, postFrames };
+    // A raw FAT disk image (an .ST, a dumped floppy: docs/KOS_FAT.md): whole 512-byte sectors and a
+    // BPB saying 512 bytes a sector. The drive serves it as any disk; the desktop shell reads its FAT.
+    function fatImage(buf) {
+        if (buf.length < 4096 || buf.length % 512 !== 0 || (buf[11] | buf[12] << 8) !== 512) return null;
+        return { buf, files: {}, fat: true };
+    }
+
+    return { BOOT_DRIVE, bootsCart, fatImage, postCart, power, postFrames };
 })();

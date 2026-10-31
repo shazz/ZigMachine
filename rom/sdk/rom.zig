@@ -128,6 +128,8 @@ pub extern fn deskDirCap() u32;
 pub extern fn deskDirMaxFiles() u32;
 pub extern fn deskDirEntryBytes() u32;
 pub extern fn deskSetFileCount(n: u32) void;
+pub extern fn deskFatReset() void;
+pub extern fn deskFatFolder(parent: i32, name: u32, len: u32, cluster: u32) i32;
 pub extern fn deskLaunchName(out: u32, out_cap: u32) u32;
 
 /// The desktop, as a shell cart drives it.
@@ -167,6 +169,14 @@ pub const Desktop = struct {
     }
     pub fn setFileCount(n: u32) void {
         deskSetFileCount(n);
+    }
+    /// A FAT disk's listing (KOS): empty the model, then add its folders (index, or null when full).
+    pub fn fatReset() void {
+        deskFatReset();
+    }
+    pub fn fatFolder(parent: i32, name: []const u8, cluster: u32) ?u8 {
+        const i = deskFatFolder(parent, @intCast(@intFromPtr(name.ptr)), @intCast(name.len), cluster);
+        return if (i < 0) null else @intCast(i);
     }
     /// Fills `out` with the program a .launch refers to; empty if the disk has none.
     pub fn launchName(out: []u8) []const u8 {

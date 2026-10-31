@@ -10,6 +10,7 @@
 #include "disk.h"
 #include "host_io.h"
 #include "zmd_dir.h"
+#include "disk_app.h"
 
 typedef enum { PH_POST, PH_SECTOR, PH_CART } phase_t;
 typedef enum { GO_NONE, GO_DRIVE, GO_CHAIN } next_t;
@@ -25,6 +26,10 @@ static int classify(const char* path) {
     if (strcmp(path, "none") == 0) return 0;
     host_io_mount_disk(path);
     static zmd_dir_t dir; /* 15 KB */
+    if (zmd_dir_parse(host_disk.data, host_disk.size, &dir) && disk_app_fat_image(host_disk.data, host_disk.size)) {
+        g_data = 1; /* a FAT image (KOS): the desktop over it, which reads it itself */
+        return 0;
+    }
     if (zmd_dir_parse(host_disk.data, host_disk.size, &dir)) {
         fprintf(stderr, "host: %s: not a disk the browser mounts\n", path);
         return -1;

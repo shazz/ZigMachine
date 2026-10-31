@@ -63,11 +63,11 @@ pub fn fileRowRect(slot: usize, v: View) Rect {
 // What a window's directory shows under (x,y): a file, a folder, or nothing.
 pub fn dirHitAt(d: *const Desktop, dir: i16, v: View, x: i16, y: i16) Hit {
     const nf = d.dir.fileCount(dir);
-    if (dir == dirmodel.ROOT) {
-        const ord = d.dir.order(d.sort);
+    {
+        const o = d.dir.orderIn(dir, d.sort);
         var p: usize = 0;
-        while (p < d.dir.n_disk) : (p += 1) {
-            const a = ord[p];
+        while (p < o.n) : (p += 1) {
+            const a = o.ord[p];
             const hit = if (d.view == .icons) fileIconSlot(d, p, a, v).hitAt(x, y) else gui.inRect(fileRowRect(p, v), x, y);
             if (hit) return .{ .file = a };
         }
@@ -84,11 +84,11 @@ pub fn dirHitAt(d: *const Desktop, dir: i16, v: View, x: i16, y: i16) Hit {
 
 pub fn drawDir(d: *const Desktop, g: *gui.Gui, dir: i16, v: View) void {
     const nf = d.dir.fileCount(dir);
-    if (dir == dirmodel.ROOT) {
-        const ord = d.dir.order(d.sort);
+    {
+        const o = d.dir.orderIn(dir, d.sort);
         var p: usize = 0;
-        while (p < d.dir.n_disk) : (p += 1) {
-            const a = ord[p];
+        while (p < o.n) : (p += 1) {
+            const a = o.ord[p];
             if (d.view == .icons) {
                 var ic = fileIconSlot(d, p, a, v);
                 ic.draw(g, desksel.fileSelected(d, a));

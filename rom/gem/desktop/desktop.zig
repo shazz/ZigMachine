@@ -91,7 +91,7 @@ pub const Desktop = struct {
     // Window.info is a slice, and Desktop is static, so it may point in here.
     win_info: [gui.MAX_WIN][32]u8 = [_][32]u8{[_]u8{0} ** 32} ** gui.MAX_WIN,
     sel_folder: i16 = -1, // selected folder in the top window, -1 = none
-    sel_files: u16 = 0, // rubber-band multi-select: bit per file
+    sel_files: u32 = 0, // rubber-band multi-select: bit per file (MAX_FILES = 32)
     sel_folders: u16 = 0, // rubber-band multi-select: bit per folder
     band: bool = false, // rubber-band marquee in progress
     band_x: i16 = 0,

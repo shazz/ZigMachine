@@ -82,10 +82,10 @@ fn pressInWindow(d: *Desktop, x: i16, y: i16) void {
 // In text view there is no icon box to grab, so fall back to centring.
 fn armFileGrab(d: *Desktop, fidx: u8, v: View, x: i16, y: i16) void {
     if (d.view == .icons) {
-        const ord = d.dir.order(d.sort);
+        const o = d.dir.orderIn(d.dir.fileDir(fidx), d.sort);
         var p: usize = 0;
-        while (p < d.dir.n_disk) : (p += 1) {
-            if (ord[p] != fidx) continue;
+        while (p < o.n) : (p += 1) {
+            if (o.ord[p] != fidx) continue;
             const ic = dirview.fileIconSlot(d, p, fidx, v);
             d.file_gx = x - ic.x;
             d.file_gy = y - ic.y;
@@ -110,13 +110,13 @@ fn bandSelect(d: *Desktop) void {
     const br = bandRect(d);
     const w = deskwin.topFloppy(d) orelse return;
     const nf = d.dir.fileCount(w.dir);
-    if (w.dir == dirmodel.ROOT) {
-        const ord = d.dir.order(d.sort);
+    {
+        const o = d.dir.orderIn(w.dir, d.sort);
         var p: usize = 0;
-        while (p < d.dir.n_disk) : (p += 1) {
-            const a = ord[p];
+        while (p < o.n) : (p += 1) {
+            const a = o.ord[p];
             const ir = if (d.view == .icons) dirview.fileIconSlot(d, p, a, w.view).rect() else dirview.fileRowRect(p, w.view);
-            if (overlap(br, ir)) d.sel_files |= @as(u16, 1) << @intCast(a);
+            if (overlap(br, ir)) d.sel_files |= @as(u32, 1) << @intCast(a);
         }
     }
     const fc = d.dir.folderCount(w.dir);

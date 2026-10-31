@@ -31,9 +31,11 @@ pub const Demo = struct {
     // 16 bytes because that is a FAT entry's name field (docs/FLOPPY_DISK.md).
     run_name: [16]u8 = [_]u8{0} ** 16,
     run_len: u8 = 0,
+    fat_loaded: bool = false, // drive A's FAT disk is in the model (gem_fat.zig)
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         self.desk_medium = false;
+        self.fat_loaded = false;
         self.run_len = 0;
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
@@ -127,8 +129,11 @@ pub const Demo = struct {
     // The host reports whether an app-disk is inserted, and packs the mounted
     // disk's FAT into the ROM's buffer (per file: 16-byte name + 1 type + 4 size +
     // 4 date); GEM shows them as icons in the FLOPPY window.
+    /// present: 0 none, 1 a .zmd data disk (the host hands the listing), 2 a FAT disk (KOS: this
+    /// shell reads it, once per insertion, gem_fat.zig).
     pub fn insertDisk(self: *Demo, present: u32) void {
-        _ = self;
+        if (present == 2 and !self.fat_loaded) _ = @import("gem_fat.zig").load();
+        self.fat_loaded = present == 2;
         rom.Desktop.setDiskApp(present);
     }
     pub fn diskDirPtr(self: *Demo) [*]u8 {

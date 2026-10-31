@@ -9,14 +9,19 @@ const stamp = @import("stamp.zig");
 
 // The mounted disk's FAT, packed by the host into `disk_dir`. Shown as icons in
 // the FLOPPY window; double-clicking a program launches it.
-pub const MAX_FILES: usize = 12;
-// Host-packed directory entry: 16-byte name · 1 type (0 = program/cart, 1 =
-// data) · 4 size (u32 LE) · 4 date (u32 LE, YYYYMMDD). Must match the packer in
-// docs/sealed-loader.js.
-pub const FILE_ENT: usize = 25;
+// 32: a FAT floppy's folders hold more than a .zmd's flat FAT (24 at most); the selection masks
+// (Desktop.sel_files) are u32.
+pub const MAX_FILES: usize = 32;
+// Directory entry: 16-byte name · 1 type (0 = program/cart, 1 = data) · 4 size (u32 LE) ·
+// 4 date (u32 LE, YYYYMMDD) · 1 its folder + 1 (0: the root). The hosts pack the first 25 bytes
+// (docs/sealed-loader.js, host/zmd_dir.h) and ask deskDirEntryBytes for the stride: a .zmd is flat,
+// so the folder byte stays 0. A FAT disk (KOS, docs/KOS_FAT.md) is packed by the desktop's own
+// shell from rom/kos/fat.zig, folders included.
+pub const FILE_ENT: usize = 26;
+const ENT_DIR = 25;
 
-// Folders live only in RAM (the mounted disk is a flat read-only FAT).
-pub const MAX_FOLDERS: usize = 8;
+// Folders: in RAM over a flat .zmd, or a FAT disk's own (`cluster` != 0).
+pub const MAX_FOLDERS: usize = 16;
 pub const ROOT: i16 = -1; // a directory id: the root disk (A:\), else a folder index
 
 pub const SortKey = enum { name, date, size, type };
@@ -27,7 +32,11 @@ pub const Folder = struct {
     parent: i16 = ROOT,
     title: [40]u8 = [_]u8{0} ** 40, // "A:\FOO\BAR" for the window title
     tlen: u8 = 0,
+    cluster: u32 = 0, // a FAT disk's folder: its first cluster (0: a RAM folder)
 };
+
+/// A directory's files in display order: `ord[0..n]` are indices into disk_dir.
+pub const Ordered = struct { ord: [MAX_FILES]u8 = undefined, n: usize = 0 };
 
 pub const DirModel = struct {
     disk_dir: [MAX_FILES * FILE_ENT]u8 = [_]u8{0} ** (MAX_FILES * FILE_ENT), // host-filled FAT
@@ -50,6 +59,26 @@ pub const DirModel = struct {
     }
     pub fn date(self: *const DirModel, i: usize) u32 { // YYYYMMDD
         return std.mem.readInt(u32, self.disk_dir[i * FILE_ENT + 21 ..][0..4], .little);
+    }
+    /// The folder a file is in (ROOT, or a folder index).
+    pub fn fileDir(self: *const DirModel, i: usize) i16 {
+        return @as(i16, self.disk_dir[i * FILE_ENT + ENT_DIR]) - 1;
+    }
+    /// `dir`'s files, sorted.
+    pub fn orderIn(self: *const DirModel, dir: i16, sort: SortKey) Ordered {
+        const all = self.order(sort);
+        var o = Ordered{};
+        for (all[0..self.n_disk]) |a| if (self.fileDir(a) == dir) {
+            o.ord[o.n] = a;
+            o.n += 1;
+        };
+        return o;
+    }
+    /// The bytes of `dir`'s own files (a window's info line).
+    pub fn usedBytesIn(self: *const DirModel, dir: i16) u32 {
+        var used: u32 = 0;
+        for (0..self.n_disk) |i| used += if (self.fileDir(i) == dir) self.size(i) else 0;
+        return used;
     }
     pub fn usedBytes(self: *const DirModel) u32 {
         var used: u32 = 0;
@@ -76,7 +105,7 @@ pub const DirModel = struct {
         var ord: [MAX_FILES]u8 = undefined;
         var i: u8 = 0;
         while (i < self.n_disk) : (i += 1) ord[i] = i;
-        var a: usize = 1; // insertion sort (n_disk <= 12)
+        var a: usize = 1; // insertion sort (n_disk <= MAX_FILES)
         while (a < self.n_disk) : (a += 1) {
             const v = ord[a];
             var b: usize = a;
@@ -134,7 +163,9 @@ pub const DirModel = struct {
         return self.folders[f].name[0..self.folders[f].nlen];
     }
     pub fn fileCount(self: *const DirModel, dir: i16) usize {
-        return if (dir == ROOT) self.n_disk else 0; // disk files exist only at root
+        var n: usize = 0;
+        for (0..self.n_disk) |i| n += @intFromBool(self.fileDir(i) == dir);
+        return n;
     }
     pub fn folderCount(self: *const DirModel, dir: i16) usize {
         var n: usize = 0;

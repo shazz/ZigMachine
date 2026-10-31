@@ -535,6 +535,23 @@ export fn deskLaunchName(out: u32, out_cap: u32) u32 {
     @memcpy(dst[0..n], name[0..n]);
     return @intCast(n);
 }
+/// A FAT disk in drive A (KOS, docs/KOS_FAT.md): the shell (apps/zig/scenes/gem_fat.zig) reads it
+/// with rom/kos/fat.zig and fills the model itself: first the reset, then each folder (its index
+/// back, or -1 when full), then the files through deskDirPtr / deskSetFileCount.
+export fn deskFatReset() void {
+    if (!desk_ready) return;
+    desk.dir.n_disk = 0;
+    desk.dir.n_folders = 0;
+}
+export fn deskFatFolder(parent: i32, name: u32, len: u32, cluster: u32) i32 {
+    if (!desk_ready or name == 0 or parent < -1 or parent >= desk.dir.n_folders) return -1;
+    const n = desk.dir.n_folders;
+    const ptr: [*]const u8 = @ptrFromInt(name);
+    desk.dir.addFolder(@intCast(parent), ptr[0..@min(len, 12)]);
+    if (desk.dir.n_folders == n) return -1;
+    desk.dir.folders[n].cluster = cluster;
+    return n;
+}
 export fn deskSetFileCount(n: u32) void {
     // Clamp by the RECORD SIZE, not by 17. disk_dir is MAX_FILES * FILE_ENT bytes
     // (12 * 25 = 300); dividing by 17 admitted 17 records into a 12-record buffer,

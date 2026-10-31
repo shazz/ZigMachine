@@ -35,6 +35,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
 import { kosBoot } from "./scene_hash_kos.mjs";
+import { writePng } from "./scene_png.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 
@@ -133,6 +134,7 @@ async function fingerprint(argv) {
     const total = createHash("sha256");
     const samples = [];
     const comp = new Uint32Array(size >> 2);
+    const [shotAt, shotPath] = (process.env.SCENE_PNG ?? "0:").split(/:(.*)/).map((x, i) => (i ? x : Number(x)));
     for (let f = 1; f <= N; f++) {
         for (const [name, args] of calls.get(f) ?? []) {
             const cur = k ? k.current() : demo; // KOS: the cart running now
@@ -153,14 +155,16 @@ async function fingerprint(argv) {
         machine.hwClear();
         demo.frame(16.6);
         step?.(demo); // --data-disk: the browser's step after the frame
-        if (composite) comp.fill(0);
+        const png = shotAt === f; // SCENE_PNG=F:path: this frame's picture as a PNG (apps/scene_png.mjs)
+        if (composite || png) comp.fill(0);
         for (let p = 0; p < planes; p++) {
             if (!demo.isPlaneEnabled(p)) { if (!composite) h?.update(`off${p}`); continue; }
             machine.hwRenderPlane(p);
-            if (composite) stackOver(comp, new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size >> 2));
+            if (composite || png) stackOver(comp, new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size >> 2));
             else h?.update(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size));
         }
         if (composite) h?.update(new Uint8Array(comp.buffer));
+        if (png) writePng(shotPath, new Uint8Array(comp.buffer), machine.hwPhysWidth(), machine.hwPhysHeight());
         if (!sample) continue;
         const hash = h.digest("hex");
         total.update(hash);

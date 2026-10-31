@@ -78,7 +78,16 @@ async function mountDisk(url) {
 // (swapCart req 2) from the descriptor at $400. Returns { bootable, cart[, v2] }.
 function mountDiskBytes(buf, name) {
     if (!globalThis.ZMDisk) throw new Error(`zmdisk.js not loaded: cannot mount ${name}`);
-    const d = globalThis.ZMDisk.parseDisk(buf, name);
+    let d;
+    try {
+        d = globalThis.ZMDisk.parseDisk(buf, name);
+    } catch (e) { // not a .zmd: a raw FAT image (an .ST, a floppy) is a data disk the desktop reads
+        const fat = globalThis.ZMKos && ZMKos.fatImage(buf);
+        if (!fat) throw e;
+        mountedDisk = fat;
+        console.log(`Mounted "${name}" as a FAT disk image (${buf.length >> 10} KB): the desktop reads it`);
+        return { bootable: false, fat: true };
+    }
     mountedDisk = d.mounted;
     if (d.v2) {
         const kind = d.osAfterBoot ? "executable boot sector, then GEM (data disk)" : d.bootable ? "executable boot sector" : "data disk";
@@ -687,11 +696,12 @@ function start() {
 
         // Tell GEM whether an app-disk is inserted (idempotent; takes effect once
         // the cart is booted) so its FLOPPY icon opens the app.
-        if (demo.insertDisk) demo.insertDisk(diskApp ? 1 : 0);
+        // 2: a FAT disk (KOS: the desktop shell reads it itself, docs/KOS_FAT.md).
+        if (demo.insertDisk) demo.insertDisk(diskApp ? (mountedDisk && mountedDisk.fat ? 2 : 1) : 0);
 
         // Hand GEM the mounted disk's FAT directory for its FLOPPY window (once
         // booted): per file a 16-byte name + 1 type byte (0=program, 1=data).
-        if (!diskDirSet && diskApp && mountedDisk && demo.diskDirPtr &&
+        if (!diskDirSet && diskApp && mountedDisk && !mountedDisk.fat && demo.diskDirPtr &&
             demo.isBooted && demo.isBooted()) {
             // The record layout and the cap come FROM THE ROM, not from literals
             // here. They used to be `25` and `12` mirrored by hand against

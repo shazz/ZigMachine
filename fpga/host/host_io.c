@@ -68,6 +68,12 @@ static int g_data_disk, g_program;
 void host_io_data_disk(const char* path) {
     host_io_mount_disk(path);
     int rc = zmd_dir_parse(host_disk.data, host_disk.size, &g_dir);
+    if (rc && disk_app_fat_image(host_disk.data, host_disk.size)) { /* a FAT image: the desktop reads it */
+        g_dir.n = 0;
+        g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = 1, .kind = 2};
+        g_data_disk = 1;
+        return;
+    }
     if (rc || g_dir.bootable) {
         fprintf(stderr, "host: %s: %s\n", path, rc ? "not a disk the browser mounts" : "bootable, not a data disk");
         exit(2);
@@ -79,8 +85,9 @@ void host_io_data_disk(const char* path) {
 /* KOS booted the desktop over the disk in the drive (host/kos_host.c): GEM's step, as
  * --data-disk gives it, including a disk whose boot sector ran first (sysinfo's). */
 void host_io_kos_data_disk(void) {
-    if (zmd_dir_parse(host_disk.data, host_disk.size, &g_dir)) exit(2); /* kos_host.c parsed it already */
-    g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = 0};
+    int fat = zmd_dir_parse(host_disk.data, host_disk.size, &g_dir) != 0; /* kos_host.c: a .zmd, or a FAT image */
+    if (fat) g_dir.n = 0;
+    g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = fat, .kind = fat ? 2 : 1};
     g_data_disk = 1;
 }
 

@@ -1,6 +1,6 @@
 # KOS FAT: real floppies in drive A, the SD card as C:
 
-Status: **design, 31 Oct 2026** (Matt: "go for B", then FAT before the cartridge slot). KOS is the
+Status: **F1-F2 built, 31 Oct 2026** (the reader; the desktop over a FAT floppy in every host); F3-F5 to come. As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
 KESTREL Operating System (docs/ZIGTOS_BOOT.md). Nothing here is built yet.
 
 Today GEM's drive A only knows ZigMachine's own `.zmd` disks: the host parses the disk's flat
@@ -50,6 +50,18 @@ native host and the board run the same code (as the POST, `rom/kos/kos.zig`).
   longer than the disk's cluster count is corrupt). Fragmented files read right by construction.
 - **Limits**: a folder lists up to 64 entries in v1 (the desktop's window model holds 12 today:
   §3); a path up to 8 levels.
+
+**As built (F2).** The reader is `rom/kos/fat.zig`, but the code that walks drive A runs in the
+desktop's shell cart (`apps/zig/scenes/gem_fat.zig`), through the `diskReadBlock` every cart
+already imports, not in rom.wasm behind a new import: a ROM import would have to be served by
+every host and by the ~100 harnesses that instantiate rom.wasm with a fixed env, for no gain the
+shell does not give (it is the desktop on every host, wasm2c'd on the board). The shell fills the
+ROM's desktop model through two appended exports (`deskFatReset`, `deskFatFolder`, sys_abi 1.5)
+and the existing record buffer, which gained a folder byte (records of 26 bytes, the hosts ask
+`deskDirEntryBytes`). `insertDisk(2)` means a FAT disk; a host mounts a raw image that is no
+`.zmd` as one (`ZMKos.fatImage`, `disk_app_fat_image`). The model holds 32 files and 16 folders
+over the whole disk, read breadth first. When glass needs the reader (a floppy's `.WSM`, C:), it
+imports the same file.
 
 ## 3. The desktop
 

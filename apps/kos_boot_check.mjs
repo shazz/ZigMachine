@@ -14,15 +14,23 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import vm from "node:vm";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as ZMDisk from "../docs/zmdisk.js";
 import * as ZMRam from "../docs/wasm_hiwater.js";
 
 const BREAK = process.argv.includes("--break");
 const POST = 12; // ?post=: short, the POST's own frames are the same code at any length
+const FLOPPY = mkdtempSync(join(tmpdir(), "kos_fat_")) + "/kos.st";
+execFileSync("python3", ["tools/kos_fat_fixture.py", FLOPPY]);
 const CASES = [ // ?disk=, the cart scene_hash.mjs boots after drive A, frames
     ["none", "demo-gem.wasm", 40], ["demo-st_replay.zmd", "demo-gem.wasm", 40],
     ["demo-sysinfo.zmd", "demo-gem.wasm", 150], ["demo-replicants_emlyn.zmd", "demo-replicants_emlyn.wasm", 270],
     ["demo-tutorial.zmd", "demo-tutorial.wasm", 40],
+    // A real FAT floppy (docs/KOS_FAT.md, tools/kos_fat_fixture.py): drive A opened, then its GAMES folder.
+    [FLOPPY, "demo-gem.wasm", 45, [[17, 40, 30, 0], [22, 40, 30, 1], [23, 40, 30, 0], [32, 40, 30, 2], [33, 40, 30, 0],
+        [40, 505, 65, 0], [42, 505, 65, 2], [43, 505, 65, 0]]],
 ];
 
 function stub() { // a DOM that accepts anything the loader does to it
@@ -55,7 +63,7 @@ function page(search) {
         window: win, document: doc, WebAssembly: wasm, TextDecoder, TextEncoder, URLSearchParams,
         performance: { now: () => now }, setInterval() {}, clearInterval() {}, AudioWorkletNode: stub(), AudioContext: stub(),
         fetch: async (url) => {
-            const bytes = await readFile("docs/" + url.replace(/\?.*$/, ""));
+            const bytes = await readFile((url.startsWith("/") ? "" : "docs/") + url.replace(/\?.*$/, ""));
             return { arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) };
         },
         ZMDisk: { ...ZMDisk }, ZMRam: { ...ZMRam },
@@ -83,13 +91,15 @@ function frameHash(p, planes) {
     return h.digest("hex");
 }
 
-async function browser(disk, frames) {
+// calls: [frame, x, y, buttons] mouse events, before that frame (scene_hash's --call F:pointer:x,y,b).
+async function browser(disk, frames, calls = []) {
     const p = page(`?disk=${disk}&post=${POST}`);
     await p.run("boot()"); // frame 1 runs inside it (start() calls the loop once)
     const planes = p.run("machine.hwPlanesNumber()");
     await settle(p);
     const out = [frameHash(p, planes)];
     for (let f = 2; f <= frames; f++) {
+        for (const [at, x, y, b] of calls) if (at === f) p.run(`demo.pointer(${x}, ${y}, ${b})`);
         p.tick((f - 1) * (1000 / 60));
         await settle(p);
         out.push(frameHash(p, planes));
@@ -97,8 +107,10 @@ async function browser(disk, frames) {
     return { p, out };
 }
 
-function node(disk, cart, frames) {
-    const args = ["apps/scene_hash.mjs", `docs/${cart}`, String(frames), "1", "--kos", disk === "none" ? "none" : `docs/${disk}`, "--post-frames", String(POST)];
+function node(disk, cart, frames, calls = []) {
+    const drive = disk === "none" || disk.startsWith("/") ? disk : `docs/${disk}`;
+    const args = ["apps/scene_hash.mjs", `docs/${cart}`, String(frames), "1", "--kos", drive, "--post-frames", String(POST)];
+    for (const [at, x, y, b] of calls) args.push("--call", `${at}:pointer:${x},${y},${b}`);
     return JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((s) => s.hash);
 }
 
@@ -110,9 +122,9 @@ if (BREAK) {
 }
 
 let bad = 0;
-for (const [disk, cart, frames] of CASES) {
-    const { out } = await browser(disk, frames);
-    const ref = node(disk, cart, frames);
+for (const [disk, cart, frames, calls] of CASES) {
+    const { out } = await browser(disk, frames, calls);
+    const ref = node(disk, cart, frames, calls);
     const at = out.findIndex((h, i) => h !== ref[i]);
     if (at >= 0) { console.log(`FAIL  ${disk.padEnd(28)} frame ${at + 1} differs from scene_hash.mjs --kos`); bad++; }
     else console.log(`ok    ${disk.padEnd(28)} ${frames} frames = scene_hash.mjs --kos (${new Set(out).size} pictures)`);
