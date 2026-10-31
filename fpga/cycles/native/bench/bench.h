@@ -59,7 +59,7 @@ typedef struct bench_result {
 } bench_result;
 
 #define BENCH_REPEATS 7
-#define BENCH_MAX_RESULTS 128
+#define BENCH_MAX_RESULTS 160
 
 /* run.c: time `c` BENCH_REPEATS times, keep and log the result. */
 void bench_calibrate(void);

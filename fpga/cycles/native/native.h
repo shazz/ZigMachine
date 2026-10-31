@@ -24,6 +24,8 @@
 #define NATIVE_CSR_CYCLES 0xf0002000u
 #define NATIVE_CSR_ZMV_STATUS 0xf0001804u /* FRESCO's status: READY, PAINTED, DRAINED, PENDING... */
 #define NATIVE_CSR_ZMV_FRAME 0xf0001818u  /* VBLs since reset */
+#define NATIVE_CSR_ZMV_COMP_BUSY 0xf000181cu /* FRESCO: comp clocks (125 MHz) a pass ran, mod 2^32 */
+#define NATIVE_CSR_ZMV_DMA_BUSY 0xf0001820u  /* the video DMA: sys clocks a burst was active */
 #define NATIVE_ZMB_WINDOW 0x91000000u     /* CHISEL: word 0 = GO (a byte store) / STATUS (bit 31 BUSY) */
 /* The cart window as the ARM sees it (glass/src/map.zig): CPU address a is DDR a - CPU + DDR. */
 #define NATIVE_CART_CPU_BASE 0x40000000u

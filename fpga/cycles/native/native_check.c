@@ -34,5 +34,7 @@ _Static_assert(NATIVE_CART_CPU_BASE == CART_CPU_BASE && NATIVE_DDR_CART_BASE == 
 #ifdef CSR_ZM_CYCLES_CYCLES_ADDR /* the hp SoC's csr.json (cycles/board.mk), when it was built */
 _Static_assert(NATIVE_CSR_CYCLES == CSR_ZM_CYCLES_CYCLES_ADDR, "ZMCycles moved: the bench times nothing");
 _Static_assert(NATIVE_CSR_ZMV_STATUS == CSR_ZMV_STATUS_ADDR && NATIVE_CSR_ZMV_FRAME == CSR_ZMV_FRAME_ADDR, "zmv");
+_Static_assert(NATIVE_CSR_ZMV_COMP_BUSY == CSR_ZMV_COMP_BUSY_ADDR && NATIVE_CSR_ZMV_DMA_BUSY == CSR_ZMV_DMA_BUSY_ADDR,
+               "zmv busy counters");
 _Static_assert(NATIVE_ZMB_WINDOW == ZMB_WINDOW_ADDR, "CHISEL's window");
 #endif
