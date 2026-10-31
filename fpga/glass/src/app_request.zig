@@ -56,7 +56,7 @@ pub fn programPath(a: std.mem.Allocator, dir: []const u8, disk_file: []const u8,
 /// From the watchdog (app_cart.watch), while CART_STATE says CART_REQUEST.
 pub fn poll(app: *App, state: u32) void {
     if (app.req_done) return;
-    const i = app.current orelse return;
+    const i = app.current orelse if (app.floppy_a) 0 else return; // the real floppy: no shelf disk (KOS F3)
     var buf: [mc.CART_REQ_NAME_MAX]u8 = undefined;
     const r = readBlock(app.ddr, &buf) orelse {
         app.req_polls += 1;
@@ -66,8 +66,8 @@ pub fn poll(app: *App, state: u32) void {
     app.req_done = true;
     if (r.req != state >> map.CART_ARG_SHIFT) return failed(app, "request", error.BadRequestBlock);
     switch (r.req) {
-        mc.REQ_RUN_PROGRAM => runProgram(app, i, r.name) catch |err| failed(app, r.name, err),
-        mc.REQ_BACK_TO_OS => cart.backToOs(app, i),
+        mc.REQ_RUN_PROGRAM => (if (app.floppy_a) @import("app_floppy_prog.zig").run(app, r.name) else runProgram(app, i, r.name)) catch |err| failed(app, r.name, err),
+        mc.REQ_BACK_TO_OS => if (app.floppy_a) @import("app_drive.zig").boot(app, null, true) else cart.backToOs(app, i),
         mc.REQ_LOAD_CART => loadTag(app, i, r.name) catch |err| failed(app, r.name, err),
         mc.REQ_BACK => back(app),
         else => failed(app, "request", error.UnknownRequest),

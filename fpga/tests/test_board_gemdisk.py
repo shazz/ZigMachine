@@ -161,7 +161,7 @@ def test_native_host_opens_the_floppy_and_asks_for_boot_wsm_as_scene_hash_does(g
     assert nat.returncode == js.returncode == empty.returncode == 0, nat.stderr + js.stderr
     hashes = [[s["hash"] for s in json.loads(r.stdout)["samples"]] for r in (nat, js, empty)]
     assert hashes[0] == hashes[1]
-    assert hashes[0][:3] == hashes[2][:3] and hashes[0][4] != hashes[2][4]  # the listing, not "Drive A: is empty"
+    assert hashes[0][0] != hashes[2][0] and hashes[0][4] != hashes[2][4]  # drive A shown (KOS F4), then its listing
     assert 'cart request 3 "BOOT.WSM" (on the disk) at frame 32' in nat.stderr
     assert 'cart request 3 "BOOT.WSM" (on the disk)' in js.stderr
 

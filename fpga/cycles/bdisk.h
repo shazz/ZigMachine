@@ -12,6 +12,7 @@
  * it (DISK_MAGIC), or a program GEM launched off it (DISK_MAGIC_PROGRAM). */
 enum { BDISK_NONE = 0, BDISK_CART = 1, BDISK_PROGRAM = 2 };
 extern int bdisk_role; /* bdisk_boot's answer */
+extern int bdisk_floppy; /* the disk is the real floppy (DISK_MAGIC_FLOPPY, a BDISK_CART role) */
 
 /* A descriptor's words -> the disk's window offset and bytes, and its BDISK_* role; BDISK_NONE:
  * no magic, a bad check, a disk over the image (which ends at window offset image_end) or

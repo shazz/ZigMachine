@@ -501,7 +501,7 @@ export fn deskInput(dir: u32) void {
     if (desk_ready) desk.input(dir);
 }
 export fn deskSetDiskApp(present: u32) void {
-    if (desk_ready) desk.disk_app = present != 0;
+    if (desk_ready) gem.setDrive(&desk, present);
 }
 /// Where the HOST packs the mounted disk's FAT. It is the ROM's buffer now, so
 /// the address is in the ROM's window — the host writes there directly, which is

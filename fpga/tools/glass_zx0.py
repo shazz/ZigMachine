@@ -50,3 +50,21 @@ def program_cart(packed: bytes, work: Path) -> str | None:
         w for w in sorted((ROOT / "docs").glob("demo-*.wasm")) if w.stat().st_size == size and w.read_bytes() == raw
     ]
     return hits[0].name.removeprefix("demo-").removesuffix(".wasm") if hits else None
+
+
+def stage_by_hash(carts: list[str], image_path, problem, dest: Path) -> list[tuple[str, str]]:
+    """zigmachine/progs/by-hash/<sha256 of docs/demo-<cart>.wasm>.rv32: each cart's board image,
+    ZX0-packed, named by what its wasm IS, for a program GEM finds on a real floppy (KOS,
+    docs/KOS_FAT.md; glass/src/app_floppy_prog.zig hashes the program the same way)."""
+    import hashlib
+
+    rows = []
+    for cart in carts:
+        wasm = ROOT / "docs" / f"demo-{cart}.wasm"
+        if not wasm.exists() or problem(cart):
+            continue
+        name = hashlib.sha256(wasm.read_bytes()).hexdigest() + ".rv32"
+        (dest / "progs" / "by-hash").mkdir(parents=True, exist_ok=True)
+        subprocess.run([zx0pack(), image_path(cart), dest / "progs" / "by-hash" / name], check=True, capture_output=True)
+        rows.append((f"zigmachine/progs/by-hash/{name}", f"{cart} (a program on a real floppy)"))
+    return rows

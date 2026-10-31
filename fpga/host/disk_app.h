@@ -29,7 +29,7 @@ typedef struct {
     uint8_t name[ZMD_FIND_MAX];
     uint32_t name_len;      /* the cart's tag bytes (req 1 and 3), at most ZMD_FIND_MAX kept */
     const zmd_file_t* file; /* req 3: the program on the disk it names, else NULL */
-    uint32_t kind;          /* insertDisk's argument: 1 a .zmd (the listing is handed), 2 a FAT image */
+    uint32_t kind; /* insertDisk's argument: 1 a .zmd (the listing is handed), 2 a FAT image; bit 8 the real floppy */
 } disk_app_t;
 
 /* A raw FAT disk image (KOS, docs/KOS_FAT.md; docs/kos-boot.js ZMKos.fatImage): whole 512-byte
@@ -56,7 +56,7 @@ static inline void disk_app_request(struct w2c_env* e, disk_app_t* s, uint32_t r
     memcpy(s->name, tag, len < ZMD_FIND_MAX ? len : ZMD_FIND_MAX);
     const zmd_file_t* f = req == 3 ? zmd_dir_find(s->dir, tag, len) : 0;
     s->file = f && f->type == 0 ? f : 0;
-    s->requested = req != 3 || s->file;
+    s->requested = req != 3 || s->file || (s->kind & 0xFF) == 2; /* a FAT image's program: ZWINDOW reads it */
 }
 
 /* The listing, once the cart says it is booted (the browser's `diskDirSet` block). */

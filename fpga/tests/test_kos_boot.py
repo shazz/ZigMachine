@@ -59,7 +59,7 @@ def test_empty_drive_and_data_disk_boot_the_desktop_after_the_post() -> None:
     post = POST // every
     assert len(set(empty[: post - 1])) > 1  # the POST animates (its memory test counts)
     assert empty[:post] == data[:post]  # the same POST whatever the drive holds
-    assert empty[post] == data[post]  # the same desktop until the floppy opens
+    assert empty[post] != data[post]  # KOS F4: drive A's icon shows only with a disk in
     assert empty[-1] != data[-1]  # "Drive A: is empty" against ST Replay's listing
     assert f'cart request 3 "BOOT.WSM" (on the disk) at frame {POST + 32}' in nerr
     assert 'cart request 3 "BOOT.WSM" (on the disk)' in jerr
@@ -82,8 +82,9 @@ def test_a_warm_reset_has_no_post() -> None:
 
 def test_a_boot_sector_runs_after_the_post_then_the_desktop_or_its_cart() -> None:
     sysinfo, _, _ = both("gem", 150, 10, "--kos", str(DOCS / "demo-sysinfo.zmd"), "--post-frames", "4")
-    plain, _, _ = both("gem", 150, 10, "--kos", "none", "--post-frames", "4")
-    assert sysinfo[1] != plain[1] and sysinfo[-1] == plain[-1]  # "No virus", then the same desktop
+    plain, _, _ = both("gem", 150, 10, "--kos", str(DOCS / "demo-st_replay.zmd"), "--post-frames", "4")
+    # "No virus", then the desktop over a data disk (KOS F4: drive A shows, labelled SD IMAGE)
+    assert sysinfo[1] != plain[1] and sysinfo[-1] == plain[-1]
     emlyn, _, _ = both("replicants_emlyn", 300, 10, "--kos", str(DOCS / "demo-replicants_emlyn.zmd"), "--post-frames", "4")
     assert len(set(emlyn[:23])) == 1 and emlyn[-1] != emlyn[0]  # the crew note held, then the screen
 

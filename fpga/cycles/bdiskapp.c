@@ -23,6 +23,7 @@ _Static_assert(CART_REQ_NAME_MAX >= ZMD_DIR_KEY, "a FAT name must fit the block"
 static zmd_dir_t g_dir; /* 15 KB: the parsed FAT, in .bss */
 static disk_app_t g_dapp;
 static int g_on;
+#define DRIVE_FLOPPY 0x100u /* insertDisk's bit 8: drive A holds the real floppy (rom/gem desk_icons) */
 static int g_asked; /* a bootable cart's swap was signalled: no more polls (the browser's `swapping`) */
 int bdiskapp_bootable;
 static int g_desktop;    /* the cart was booted as KOS's desktop: no disk, or a data disk */
@@ -34,6 +35,13 @@ static void parse(void) {
     bdiskapp_bootable = 0;
     if (!host_disk.data) return; /* no disk: nothing to tell GEM, as the browser with none */
     int rc = zmd_dir_parse(host_disk.data, host_disk.size, &g_dir);
+    if (rc && disk_app_fat_image(host_disk.data, host_disk.size)) { /* a FAT image: the desktop reads it */
+        g_dir.n = 0;
+        g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = 1, .kind = 2 | (bdisk_floppy ? DRIVE_FLOPPY : 0)};
+        g_on = 1;
+        printf("ZM GEMDISK fat %lu\n", (unsigned long)host_disk.size);
+        return;
+    }
     bdiskapp_bootable = !rc && g_dir.bootable;
     if (rc || g_dir.bootable) { /* a bootable disk runs its own cart: the browser's diskApp = false */
         printf("ZM GEMDISK off %d\n", rc);
@@ -62,7 +70,8 @@ void bdiskapp_media(struct w2c_env* e, long f) {
     parse();
     uint32_t present = host_disk.data != 0;
     if (!g_desktop) g_on = 0; /* a cart booted for its own disk: the drive reads the new one, nothing more */
-    if (g_desktop && host_dapp.insert_disk) host_dapp.insert_disk(HOST_CART(e), g_on);
+    uint32_t kind = g_on ? (g_dapp.kind ? g_dapp.kind : 1) : 0; /* a FAT image is 2: the desktop reads it */
+    if (g_desktop && host_dapp.insert_disk) host_dapp.insert_disk(HOST_CART(e), kind);
     w2c_rom_kosMediaChange(&e->rom, present);
     printf("ZM KOS media %ld %lu\n", f, (unsigned long)present);
 }
@@ -107,6 +116,8 @@ void bdiskapp_frame(struct w2c_env* e, long f) {
            g_dapp.file != 0);
     if (g_dapp.req == REQ_RUN_PROGRAM && g_dapp.file)
         bdiskapp_signal(REQ_RUN_PROGRAM, g_dapp.file->key, g_dapp.file->key_len);
+    else if (g_dapp.req == REQ_RUN_PROGRAM && (g_dapp.kind & 0xFF) == 2) /* a FAT image: glass finds it by name */
+        bdiskapp_signal(REQ_RUN_PROGRAM, g_dapp.name, g_dapp.name_len < ZMD_FIND_MAX ? g_dapp.name_len : ZMD_FIND_MAX);
     else if (g_dapp.req == REQ_BACK_TO_OS)
         bdiskapp_signal(REQ_BACK_TO_OS, 0, 0);
 }

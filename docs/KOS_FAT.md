@@ -1,6 +1,6 @@
 # KOS FAT: real floppies in drive A, the SD card as C:
 
-Status: **F1-F2 built, 31 Oct 2026** (the reader; the desktop over a FAT floppy in every host); F3-F5 to come. As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
+Status: **F1-F4 built, 31 Oct 2026** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); F5 (C:) to come. As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
 KESTREL Operating System (docs/ZIGTOS_BOOT.md). Nothing here is built yet.
 
 Today GEM's drive A only knows ZigMachine's own `.zmd` disks: the host parses the disk's flat
@@ -81,6 +81,14 @@ imports the same file.
   The host passes the kind with the existing `insertDisk` call's argument: 0 none, 1 an SD image,
   2 the floppy (1 is what every host passes today). A PNG of both looks comes with phase F4,
   rendered from the real ROM through `scene_hash.mjs`.
+  **As built (F4):** `insertDisk`'s bits 7:0 stay the disk's kind (0 none, 1 a `.zmd`, 2 a FAT
+  image, F2) and **bit 8** says the real floppy (`desk_icons.setDrive`, `DRIVE_FLOPPY`). Only the
+  board has one: glass writes the floppy's descriptor with `DISK_MAGIC_FLOPPY` ("ZMDF", at boot and
+  at a media change), `cycles/bdisk.c` reads it as a disk booted for (`bdisk_floppy`) and
+  `bdiskapp.c` sets bit 8. The browser and the native host always pass an SD image. The source is
+  one line, `Source: FLOPPY` / `Source: SD IMAGE`, the last row of DISK INFORMATION (Show Info on
+  the drive; the box grew one row); a file name there is left for later. DESKTOP.INF saves the
+  drive's label as `FLOPPY DISK` whatever the source.
 - **C:** is always shown (a hard-disk icon, `C`, label `SD CARD`), under drive A, opening the SD
   card's folders.
 - **Pins that will move:** every GEM reference taken with an empty drive (the floppy icon goes):
@@ -96,8 +104,13 @@ imports the same file.
 **Drive A, the real floppy (board).** glass reads the whole floppy **raw** (`/dev/sdX`, 1,440 or
 2,880 sectors of 512 bytes, one sequential pass: a few seconds, instead of the ~9 KB/s that
 loading through the vfat mount gave, cluster by cluster) into the cart window where "The disk in
-DDR" puts a disk, with a new descriptor magic `DISK_MAGIC_RAW` ("ZMDR") so the firmware knows it is
-a sector image, not a `.zmd` (the drive ABI serves both the same way: 512-byte blocks). The
+DDR" puts a disk. **As built (F3)** there is no new descriptor magic: every host tells a FAT image
+from a `.zmd` by its content (no `.zmd` header, a size that is whole 512-byte sectors and at least
+4 KiB, a BPB saying 512 bytes a sector: `plan.fatImage` in glass, `disk_app_fat_image` in the native
+host, `ZMKos.fatImage` in the page, the same test in `cycles/bdiskapp.c`), so the firmware serves it
+as a data disk with no listing (`insertDisk(2)`) and the desktop walks it itself. On the OSD shelf
+`D` puts the floppy into drive A raw (`app_floppy_a.zig`, a media change if the desktop runs) and
+`R` then boots the desktop over it. The
 floppy source (`fpga/glass/src/app_source.zig`, feat/floppy-source) mounts vfat for `.zmd`
 carts today; that path stays for carts, and a disk with no `.zmd` on it (or `R` on its line) is
 taken raw for GEM. An Atari 720 KB (9 sectors, 80 tracks, 2 sides) disk reads the same way if the
@@ -135,7 +148,7 @@ ARM), plus a firmware-side unit test of the request block (as `test_board_cartre
 |---|---|---|
 | F1 | `rom/kos/fat.zig`: BPB, FAT12/16/32, dirs, names, file reads, over a read-sector callback | native Zig tests over images made by `mkfs.fat` + `mcopy`: FAT12 1.44 MB, Atari 720 KB (`mkfs.fat -S 512 -s 2 -f 2 -r 112 -h 0`, no `55 AA`), FAT16, FAT32, subfolders, a fragmented file, deleted and long-name entries, a corrupt BPB, a looping chain |
 | F2 | the ROM import `diskReadBlock`; the desktop lists a FAT disk in drive A, opens folders, INFO shows sizes; the browser takes a raw `.ST` | `scene_hash.mjs --kos X.st` = the native host, clicks scripted; kos_boot_check with `?disk=X.st` |
-| F3 | glass: the raw floppy read, `DISK_MAGIC_RAW`; firmware accepts it | glass zig tests (a fake block device); one ≤6-frame board-SoC sim of the desktop over a FAT12 image; then the board with a real floppy |
+| F3 | glass: the raw floppy read (`D`), FAT images found by content; firmware accepts them; programs by hash | glass zig tests (a fake block device); one ≤6-frame board-SoC sim of the desktop over a FAT12 image; then the board with a real floppy |
 | F4 | drive A's icon only with a disk in, the source label, ITEM INFO's source line; the moved pins | PNGs, the pins re-taken, browser = native |
 | F5 | C: `kosDriveRead`, the firmware's request block, glass's sector server thread, FAT32; C: in the browser and the native host from an image | ROM tests (FAT32); the request block's words natively; the board |
 
@@ -145,8 +158,8 @@ ARM), plus a firmware-side unit test of the request block (as `test_board_cartre
 2. **`.WSM` programs on a real floppy launch** from GEM, as a data disk's do. The board needs the
    program's native board image: glass reads the file's bytes from the floppy image it already
    holds (with this same reader, `rom/kos/fat.zig`: pure Zig, glass imports it), depacks them if
-   they are ZX0-packed, hashes the wasm (SHA-256), and loads `zigmachine/progs/by-hash/<hash>.zmd`
-   (`tools/glass_shelf.py` writes one per matrix cart, the board image of the cart whose
+   they are ZX0-packed, hashes the wasm (SHA-256), and loads `zigmachine/progs/by-hash/<hash>.rv32`
+   (`glass/src/app_floppy_prog.zig`; `tools/glass_shelf.py` writes one per cart it has a board image of, the board image of the cart whose
    `docs/demo-<cart>.wasm` has that hash, as it finds a data disk's program today). No image:
    `<NAME>: no board image for this program`, the desktop keeps running. The browser runs the
-   file's wasm directly (request 3, as for a `.zmd`).
+   file's wasm directly (request 3, as for a `.zmd`: `ZMKos.fatFile` reads it off the image).

@@ -22,7 +22,7 @@ const strip = @import("strip.zig");
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
 /// `load`: Enter, insert + reset; `insert` / `eject`: drive A without a reset (app_drive.zig).
-pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, cold, warm, settings, save, source };
+pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source };
 pub const Page = enum { shelf, console, debug, budget, help };
 
 pub const HINT = "ENTER boot  I/E disk  F floppy >";
@@ -68,6 +68,7 @@ pub const Menu = struct {
                 break :blk .none;
             },
             .eject => .eject,
+            .floppy_a => .floppy_a,
             .console => self.go(.console),
             .cold => .cold,
             .warm => .warm,

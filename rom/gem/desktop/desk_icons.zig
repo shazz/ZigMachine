@@ -33,6 +33,22 @@ pub fn placeDefaultIcons(d: *Desktop) void {
     d.items[IC_TRASH].place(0, rows - 1, d.g.screen_w, d.g.screen_h);
 }
 
+/// Drive A's disk (insertDisk): bits 7:0 its kind (0 none, 1 a .zmd, 2 a FAT image), bit 8 a
+/// real floppy (glass's D). KOS shows the drive only with a disk in, labelled by where it came
+/// from (docs/KOS_FAT.md F4); DESKTOP.INF keeps the drive's cell either way.
+pub const DRIVE_FLOPPY: u32 = 0x100;
+pub fn setDrive(d: *Desktop, present: u32) void {
+    d.disk_app = present & 0xFF != 0;
+    d.items[IC_FLOPPY].label = if (present & DRIVE_FLOPPY != 0) "FLOPPY" else "SD IMAGE";
+    if (!d.disk_app and d.sel_icon == IC_FLOPPY) d.sel_icon = -1;
+    if (!d.disk_app and d.drag == IC_FLOPPY) d.drag = null;
+}
+
+/// An icon on the desktop now: the drive only with a disk in.
+pub fn shown(d: *const Desktop, i: usize) bool {
+    return i != IC_FLOPPY or d.disk_app;
+}
+
 // Keep icons on-screen (called when the resolution/screen width changes).
 pub fn clampIcons(d: *Desktop) void {
     for (&d.items) |*it| it.clampInto(d.g.screen_w, d.g.screen_h);
@@ -72,7 +88,7 @@ pub fn ghostAt(d: *Desktop, g: *gui.Gui) struct { x: i16, y: i16 } {
 // desktop. (Opening is a separate native double-click — see requestOpenAt.)
 pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
     for (&d.items, 0..) |*it, i| {
-        if (!it.hit(g)) continue;
+        if (!shown(d, i) or !it.hit(g)) continue;
         desksel.clearSel(d); // GEM has ONE selection: taking a desktop icon drops the rest
         d.sel_icon = @intCast(i);
         d.drag = @intCast(i);
@@ -110,7 +126,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
         }
     }
     for (&d.items, 0..) |*it, i| {
-        if (!it.hitAt(x, y)) continue;
+        if (!shown(d, i) or !it.hitAt(x, y)) continue;
         desksel.clearSel(d);
         d.sel_icon = @intCast(i);
         // Route FLOPPY through render too, so openIcon can decide launch-vs-window

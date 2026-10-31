@@ -69,7 +69,7 @@ pub fn insertAndBoot(app: *App, i: usize) void {
 /// Load what drive A boots. `kos`: the reset's flags (null: no reset, a program quitting back to
 /// the desktop over the disk, whose boot sector then does not run again: `skip_sector`).
 pub fn boot(app: *App, kos: ?u32, skip_sector: bool) void {
-    const what = if (app.drive) |i| app.disks.titles[i] else "the desktop";
+    const what = if (app.floppy_a) "the floppy" else if (app.drive) |i| app.disks.titles[i] else "the desktop";
     app.menu.setStatus("loading {s}...", .{what});
     app.redraw();
     var opt = app.opt;
@@ -105,11 +105,17 @@ fn failed(app: *App, err: anyerror) void {
 
 fn bootDrive(app: *App, opt: loader.Options) !loader.Report {
     try loader.checkGlass(app.regs);
-    const disk = if (app.drive) |i| try readDisk(app, i) else null;
+    const disk = try driveBytes(app);
     defer if (disk) |d| app.gpa.free(d);
     var p = try planBoot(app, disk, opt);
     defer p.deinit(app.gpa);
     return loader.start(app.regs, app.ddr, &p, opt);
+}
+
+/// What drive A holds, as bytes: the real floppy read raw (app_floppy_a.zig), a shelf disk, or null.
+pub fn driveBytes(app: *App) !?[]u8 {
+    if (app.floppy_a) return try @import("app_floppy_a.zig").read(app);
+    return if (app.drive) |i| try readDisk(app, i) else null;
 }
 
 pub fn readDisk(app: *App, i: usize) ![]u8 {
@@ -119,7 +125,8 @@ pub fn readDisk(app: *App, i: usize) ![]u8 {
 
 /// What drive A boots (the top of this file); touches nothing.
 pub fn planBoot(app: *App, disk: ?[]const u8, opt: loader.Options) !plan.Plan {
-    if (disk) |d| {
+    if (disk) |d| fat: {
+        if (zmd.layout(d)) |_| {} else |_| if (@import("app_floppy_a.zig").isFat(d)) break :fat; // a FAT disk: the desktop
         const z = try zmd.parse(d);
         if (z.boardImage()) |_| return loader.planFor(app.gpa, d, app.ddr.bytes(), opt) else |err| if (err != error.NoBoardImage) return err;
         if (z.bootable()) return error.NoBoardImage; // a cart the board has no image of
@@ -129,15 +136,32 @@ pub fn planBoot(app: *App, disk: ?[]const u8, opt: loader.Options) !plan.Plan {
     const desk = std.Io.Dir.cwd().readFileAlloc(app.io, path, app.gpa, .limited(shelf.MAX_DISK)) catch |err|
         return if (err == error.FileNotFound) error.NoDesktop else err;
     defer app.gpa.free(desk);
-    return plan.planDesktop(app.gpa, desk, disk, app.ddr.bytes(), opt.system);
+    const magic: u32 = if (app.floppy_a) mc.DISK_MAGIC_FLOPPY else map.DISK_MAGIC; // drive A's label (KOS F4)
+    return plan.planOver(app.gpa, desk, disk, app.ddr.bytes(), magic, opt.system);
 }
 
 /// Drive A takes disk `i` (null: ejected); glass.cfg keeps it for the next power-on.
 fn setDrive(app: *App, i: ?usize) void {
     app.drive = i;
+    app.floppy_a = false;
     if (app.floppy) return; // a floppy's disk is not on the card: power-on keeps the card's
     app.menu.settings.drive_a = config.DiskName.of(if (i) |k| app.disks.disks[k].file else "") orelse .{};
     app.settings_dirty = true;
+}
+
+/// D on the shelf (app_floppy_a.zig): the real floppy into drive A, no reset.
+pub fn setFloppy(app: *App) void {
+    const was = app.drive;
+    const was_floppy = app.floppy_a;
+    app.drive = null;
+    app.floppy_a = true;
+    if (!app.running) return app.menu.setStatus("drive A: the floppy", .{});
+    @import("app_media.zig").change(app) catch |err| {
+        app.drive = was;
+        app.floppy_a = was_floppy;
+        return app.menu.setStatus("drive A: {t}", .{err});
+    };
+    app.menu.setStatus("drive A: the floppy (media change)", .{});
 }
 
 /// I on the shelf: disk `i` into drive A, no reset; a running cart sees the media change.
@@ -154,11 +178,13 @@ pub fn eject(app: *App) void {
 /// drive keeps its disk and the status says why).
 fn change(app: *App, to: ?usize) void {
     const was = app.drive;
+    const was_floppy = app.floppy_a;
     setDrive(app, to);
     const what = if (to) |i| app.disks.titles[i] else "empty";
     if (!app.running) return app.menu.setStatus("drive A: {s}", .{what});
     @import("app_media.zig").change(app) catch |err| {
         setDrive(app, was);
+        app.floppy_a = was_floppy;
         return app.menu.setStatus("drive A: {t}", .{err});
     };
     app.menu.setStatus("drive A: {s} (media change)", .{what});

@@ -50,7 +50,7 @@ pub const Desktop = struct {
         .{ .x = 0, .y = 0, .bmp = icons.FLOPPY, .label = "FLOPPY DISK", .is_app = false },
         .{ .x = 0, .y = 0, .bmp = icons.TRASH, .label = "TRASH", .is_app = false },
     },
-    disk_app: bool = false, // an app-disk is inserted (host sets this)
+    disk_app: bool = false, // a disk is in drive A (host sets it): its icon shows only then (KOS)
     dir: dirmodel.DirModel = .{}, // the mounted disk's FAT (host-filled) + in-RAM folders
     launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
     // WHICH program. -1 = "the disk's app" (the FLOPPY icon acting as a launcher,

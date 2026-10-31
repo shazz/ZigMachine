@@ -36,6 +36,7 @@ pub fn showInfo(d: *Desktop) void {
         const used = d.dir.usedBytes(); // DISK INFORMATION for drive A: (ref: real TOS)
         const cap: u32 = 726528; // a 3.5" DS floppy
         d.info.openDisk(@intCast(d.dir.folderCount(dirmodel.ROOT)), d.dir.n_disk, used, if (cap > used) cap - used else 0);
+        d.info.source = d.items[desk_icons.IC_FLOPPY].label; // KOS: FLOPPY or SD IMAGE
     } else if (d.sel_icon >= 0) {
         d.dlg.alert(d.items[@intCast(d.sel_icon)].label, "Kind: Desktop icon");
     }
@@ -86,7 +87,7 @@ pub fn saveDesktop(d: *Desktop) void {
     const text = deskinf.write(&d.inf_buf, .{
         .medium = d.g.screen_w == 640,
         .bg = .{ d.bg_r, d.bg_g, d.bg_b },
-        .drive = .{ .col = drive.cellCol(), .row = drive.cellRow(), .label = drive.label },
+        .drive = .{ .col = drive.cellCol(), .row = drive.cellRow(), .label = "FLOPPY DISK" }, // not the source
         .trash = .{ .col = trash.cellCol(), .row = trash.cellRow(), .label = trash.label },
         .wins = open_wins[0..n],
     });

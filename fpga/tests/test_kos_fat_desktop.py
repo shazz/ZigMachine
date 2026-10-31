@@ -49,7 +49,7 @@ def both(*args: str) -> list[str]:
 def test_the_desktop_opens_a_fat_floppy_and_its_folder_in_both_hosts(floppy: Path) -> None:
     fat = both("--kos", str(floppy), "--post-frames", "0", *CALLS)
     empty = both("--kos", "none", "--post-frames", "0", *CALLS)
-    assert fat[:2] == empty[:2]  # the same desktop until drive A's window opens
+    assert fat[0] != empty[0]  # KOS F4: drive A's icon shows only with a disk in
     assert fat[4] != empty[4] and fat[7] != fat[5]  # its listing, then GAMES'
 
 

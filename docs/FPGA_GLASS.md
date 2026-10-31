@@ -470,6 +470,11 @@ device of at most 5,760 sectors (2.88 MB), so a USB stick is never taken for one
   disks' `progs/` stay on the SD card. A floppy disk in drive A is not saved as `drive_a=`, so a
   power-on never looks for a floppy file on the card.
 - A rescan (F, Shift+F12) keeps drive A's disk by file name, or empties the drive.
+- **D: the floppy itself into drive A** (KOS, docs/KOS_FAT.md F3): glass reads the whole device
+  raw (`app_floppy_a.zig`) and, if it is a FAT disk, puts it in DDR as drive A: a media change
+  while the desktop runs, else **R** boots the desktop over it. GEM browses it with KOS's own
+  reader. A `.WSM` double-clicked there runs from `progs/by-hash/<sha256 of its wasm>.rv32`
+  (`app_floppy_prog.zig`; `tools/glass_shelf.py` stages one per cart); no image, the desktop says so.
 
 ### The shelf page (`page_shelf.zig`)
 

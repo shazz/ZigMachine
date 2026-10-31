@@ -164,7 +164,7 @@ class Gem {
     // Hand GEM a FAT so its FLOPPY window has contents (mirrors sealed-loader.js).
     mount(files) {
         this.diskCache = files;
-        const ENT = 25; // 16 name + 1 type + 4 size + 4 date — must match FILE_ENT
+        const ENT = 26; // 16 name + 1 type + 4 size + 4 date + 1 folder (0: the root) — must match FILE_ENT
         const enc = new TextEncoder();
         const dir = new Uint8Array(this.memory.buffer, this.demo.diskDirPtr(), files.length * ENT);
         dir.fill(0);

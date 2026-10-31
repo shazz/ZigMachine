@@ -99,7 +99,7 @@ async function browser(disk, frames, calls = []) {
     await settle(p);
     const out = [frameHash(p, planes)];
     for (let f = 2; f <= frames; f++) {
-        for (const [at, x, y, b] of calls) if (at === f) p.run(`demo.pointer(${x}, ${y}, ${b})`);
+        for (const [at, x, y, b] of calls) if (at === f) p.run(`demo.pointer && demo.pointer(${x}, ${y}, ${b})`); // as the page: a cart without it gets none
         p.tick((f - 1) * (1000 / 60));
         await settle(p);
         out.push(frameHash(p, planes));
@@ -144,6 +144,20 @@ for (const [disk, cart, frames, calls] of CASES) {
     const ref = JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((s) => s.hash);
     if (out[0] !== ref[0] || out[1] !== ref[1]) { console.log("FAIL  warm reset: the page does not go straight to the desktop"); bad++; }
     else console.log("ok    warm reset (?warm=1): no POST, the desktop = scene_hash.mjs --kos none --warm");
+}
+
+// A program on the FAT floppy (DEMO.WSM: the tutorial's wasm), double-clicked in drive A's window:
+// the page reads it off the floppy (ZMKos.fatFile) and runs it as GEM's program; from the swap on
+// its frames are scene_hash.mjs's run of that cart as a program launched off that disk.
+{
+    const opened = [[17, 40, 30, 0], [22, 40, 30, 1], [23, 40, 30, 0], [32, 40, 30, 2], [33, 40, 30, 0],
+        [40, 70, 65, 0], [42, 70, 65, 2], [43, 70, 65, 0]];
+    const { out } = await browser(FLOPPY, 70, opened);
+    const args = ["apps/scene_hash.mjs", "docs/demo-tutorial.wasm", "12", "1", "--data-disk", FLOPPY, "--program"];
+    const ref = JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((x) => x.hash);
+    const at = out.findIndex((h, i) => ref.every((r, k) => out[i + k] === r));
+    if (at < 0) { console.log("FAIL  DEMO.WSM off the FAT floppy: the program's frames never appear"); bad++; }
+    else console.log(`ok    DEMO.WSM off the FAT floppy runs from frame ${at + 1} = scene_hash.mjs --program (12 frames)`);
 }
 
 // A media change while the desktop runs: the ROM counts it, the drive reads the new disk.

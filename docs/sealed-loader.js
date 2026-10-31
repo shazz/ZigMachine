@@ -172,9 +172,11 @@ async function swapCart(req, channelTag) {
         if (req === 3) {
             const name = text_decoder.decode(
                 new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
-            const entry = mountedDisk && mountedDisk.files[name];
-            if (!entry) throw new Error(`no program "${name}" on the mounted disk`);
-            const bytes = mountedDisk.buf.buffer.slice(entry.start, entry.start + entry.len);
+            // A FAT disk's program (KOS, docs/KOS_FAT.md): found by its 8.3 name, read along its chain.
+            const fat = mountedDisk && mountedDisk.fat ? ZMKos.fatFile(mountedDisk.buf, name) : null;
+            const entry = mountedDisk && !mountedDisk.fat && mountedDisk.files[name];
+            if (!entry && !fat) throw new Error(`no program "${name}" on the mounted disk`);
+            const bytes = fat ? fat.slice().buffer : mountedDisk.buf.buffer.slice(entry.start, entry.start + entry.len);
             demo = (await instantiateCart(bytes, `${name} (from the disk)`)).instance.exports;
             machine.hwInit();
             demo.boot();

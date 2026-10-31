@@ -29,7 +29,7 @@ sys.path.insert(0, str(FPGA / "tools"))
 import shelf_category
 import shelf_meta  # after the path insert
 import split_image
-from glass_zx0 import program_cart, zx0pack, zx0unpack  # re-exported: the shelf's tests use them
+from glass_zx0 import program_cart, stage_by_hash, zx0pack, zx0unpack  # re-exported: the shelf's tests use them
 import zmd_fat
 
 # The board firmwares (cycles/board.mk `board-fw`): linked for the bitstream's CSR map. NOT
@@ -182,6 +182,7 @@ def build_shelf(
         raise SystemExit("glass_shelf: " + "; ".join(bad))
     rows += [stage_desktop(images, dest)]
     rows += [row for tag in every for row in _fat_disk(tag, images, csr_map, dest)]
+    rows += stage_by_hash(every + [OS_CART], images.path, images.problem, dest)  # KOS: a floppy's programs
     staged = {f"zigmachine/{shelf_category.disk_path(t)}": t for t in every}
     tags = [staged[r[0]] for r in rows if r[0] in staged and not r[1].startswith("MISSING")]
     if not tags:

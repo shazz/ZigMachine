@@ -129,11 +129,12 @@ pub const Demo = struct {
     // The host reports whether an app-disk is inserted, and packs the mounted
     // disk's FAT into the ROM's buffer (per file: 16-byte name + 1 type + 4 size +
     // 4 date); GEM shows them as icons in the FLOPPY window.
-    /// present: 0 none, 1 a .zmd data disk (the host hands the listing), 2 a FAT disk (KOS: this
-    /// shell reads it, once per insertion, gem_fat.zig).
+    /// present: bits 7:0 0 none, 1 a .zmd data disk (the host hands the listing), 2 a FAT disk (KOS:
+    /// this shell reads it, once per insertion, gem_fat.zig); bit 8 a real floppy (the icon's label).
     pub fn insertDisk(self: *Demo, present: u32) void {
-        if (present == 2 and !self.fat_loaded) _ = @import("gem_fat.zig").load();
-        self.fat_loaded = present == 2;
+        const kind = present & 0xFF;
+        if (kind == 2 and !self.fat_loaded) _ = @import("gem_fat.zig").load();
+        self.fat_loaded = kind == 2;
         rom.Desktop.setDiskApp(present);
     }
     pub fn diskDirPtr(self: *Demo) [*]u8 {

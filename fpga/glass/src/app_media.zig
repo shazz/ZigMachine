@@ -20,7 +20,7 @@ const App = @import("app.zig").App;
 const drive = @import("app_drive.zig");
 
 pub fn change(app: *App) !void {
-    const disk = if (app.drive) |i| try shelfDisk(app, i) else null;
+    const disk = if (app.floppy_a) try drive.driveBytes(app) else if (app.drive) |i| try shelfDisk(app, i) else null;
     defer if (disk) |d| app.gpa.free(d);
     const at = if (disk) |d| try plan.diskAt(app.disk_from, d.len, app.ddr.bytes()) else 0;
     const words = app.ddr.words;
@@ -48,6 +48,7 @@ fn place(app: *App, disk: []const u8, at: u32, desc: usize) void {
         app.ddr.words[at / 4 + k] = std.mem.readInt(u32, &w, .little);
     }
     const n: u32 = @intCast(disk.len);
-    const w = [map.DISK_DESC_WORDS]u32{ map.DISK_MAGIC, at, n, ~(map.DISK_MAGIC ^ at ^ n) };
+    const m: u32 = if (app.floppy_a) mc.DISK_MAGIC_FLOPPY else map.DISK_MAGIC; // the label (KOS F4)
+    const w = [map.DISK_DESC_WORDS]u32{ m, at, n, ~(m ^ at ^ n) };
     for (w, 0..) |x, k| app.ddr.words[desc + k] = x;
 }

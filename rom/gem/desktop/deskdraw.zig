@@ -17,6 +17,7 @@ const Rect = gui.Rect;
 pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
     g.rect(.{ .x = 0, .y = 0, .w = g.screen_w, .h = 200 }, gui.DESK); // green work area
     for (&d.items, 0..) |*it, i| {
+        if (!desk_icons.shown(d, i)) continue; // KOS: no disk, no drive icon
         // A dragged file over the TRASH highlights it as a valid drop target.
         const drop_hot = i == desk_icons.IC_TRASH and d.file_drag >= 0 and it.hitAt(@intCast(g.px), @intCast(g.py));
         it.draw(g, d.sel_icon == @as(i16, @intCast(i)) or drop_hot);

@@ -62,5 +62,45 @@ globalThis.ZMKos = (function () {
         return { buf, files: {}, fat: true };
     }
 
-    return { BOOT_DRIVE, bootsCart, fatImage, postCart, power, postFrames };
+    // A FAT12/16 floppy's file by its 8.3 name, the first found breadth first (the desktop's own
+    // listing order, apps/zig/scenes/gem_fat.zig); its bytes, or null. A program GEM launches
+    // off a real floppy (request 3): the browser reads it here, the board's glass with
+    // rom/kos/fat.zig. Floppies only (FAT32 is C:, not drive A).
+    function fatFile(b, name) {
+        const u16 = (o) => b[o] | b[o + 1] << 8, u32 = (o) => (u16(o) | u16(o + 2) << 16) >>> 0;
+        const spc = b[13], fat0 = u16(14), fats = b[16], rootN = u16(17), fatsz = u16(22);
+        const total = u16(19) || u32(32), root0 = fat0 + fats * fatsz, data0 = root0 + ((rootN * 32 + 511) >> 9);
+        const clusters = Math.floor((total - data0) / spc), fat12 = clusters < 4085;
+        const next = (c) => {
+            const o = fat0 * 512 + (fat12 ? c + (c >> 1) : c * 2), w = u16(o);
+            const n = fat12 ? (c & 1 ? w >> 4 : w & 0xfff) : w;
+            return n >= (fat12 ? 0xff8 : 0xfff8) || n < 2 || n > clusters + 1 ? 0 : n;
+        };
+        const chain = (c, limit) => { const out = []; while (c && out.length <= clusters && out.length < limit) { out.push(c); c = next(c); } return out; };
+        const secs = (c) => Array.from({ length: spc }, (_, k) => data0 + (c - 2) * spc + k);
+        const entries = (sectors) => sectors.flatMap((s) => Array.from({ length: 16 }, (_, k) => s * 512 + k * 32));
+        const text = (o, n) => String.fromCharCode(...b.subarray(o, o + n)).trimEnd();
+        let dirs = [Array.from({ length: (rootN * 32 + 511) >> 9 }, (_, k) => root0 + k)];
+        while (dirs.length) {
+            const subs = [];
+            for (const sectors of dirs) for (const e of entries(sectors)) {
+                if (b[e] === 0 || b[e] === 0xe5 || b[e] === 0x2e || b[e + 11] === 0x0f || b[e + 11] & 8) continue;
+                const nm = text(e, 8) + (text(e + 8, 3) ? "." + text(e + 8, 3) : ""), first = u16(e + 26);
+                if (b[e + 11] & 0x10) { subs.push(chain(first, 1e9).flatMap(secs)); continue; }
+                if (nm !== name) continue;
+                const size = u32(e + 28), out = new Uint8Array(size);
+                let at = 0;
+                for (const c of chain(first, Math.ceil(size / (spc * 512)))) for (const s of secs(c)) {
+                    const k = Math.min(512, size - at);
+                    if (k > 0) out.set(b.subarray(s * 512, s * 512 + k), at);
+                    at += k;
+                }
+                return at >= size ? out : null;
+            }
+            dirs = subs;
+        }
+        return null;
+    }
+
+    return { BOOT_DRIVE, bootsCart, fatFile, fatImage, postCart, power, postFrames };
 })();

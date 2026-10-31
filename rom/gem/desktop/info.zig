@@ -19,6 +19,7 @@ pub const Info = struct {
     name: NameField = .{}, // the editable 8.3 field (rename / new folder)
     folders: u16 = 0,
     items: u16 = 0,
+    source: []const u8 = "SD IMAGE", // drive A's disk, where it came from (KOS)
     used: u32 = 0,
     avail: u32 = 0,
     size: u32 = 0,
@@ -61,7 +62,7 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
     // The box is only as tall as the rows it actually shows.
     fn rows(self: *const Info) i16 {
         return switch (self.kind) {
-            .disk => 15, // six dense rows + the OK button
+            .disk => 16, // seven dense rows + the OK button
             .file => 17, // three dense rows + the two Attributes buttons
             .folder, .new_folder => 8, // heading + Name + buttons
         };
@@ -80,7 +81,7 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
     }
 
     pub fn openDisk(self: *Info, folders: u16, items: u16, used: u32, avail: u32) void {
-        self.* = .{ .active = true, .kind = .disk, .folders = folders, .items = items, .used = used, .avail = avail };
+        self.* = .{ .active = true, .kind = .disk, .folders = folders, .items = items, .used = used, .avail = avail, .source = self.source };
     }
     // File > New Folder: an empty editable 8.3 field; OK returns the typed name.
     pub fn openNewFolder(self: *Info) void {
@@ -133,6 +134,8 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
             self.masked(g, grid, std.fmt.bufPrint(&buf, "{d}", .{self.used}) catch "?", r + 4 * DENSE);
             self.labelAt(g, grid, "Bytes Available:", r + 5 * DENSE);
             self.masked(g, grid, std.fmt.bufPrint(&buf, "{d}", .{self.avail}) catch "?", r + 5 * DENSE);
+            self.labelAt(g, grid, "Source:", r + 6 * DENSE); // KOS: a real floppy or an SD image
+            self.valueAt(g, grid, self.source, r + 6 * DENSE);
         } else {
             const r0 = grid.y(4); // first dense row
             if (self.kind == .new_folder) {

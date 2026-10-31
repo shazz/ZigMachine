@@ -32,6 +32,7 @@ pub fn act(app: *App, action: menu.Action) void {
         },
         .insert => |i| drive.insert(app, i),
         .eject => drive.eject(app),
+        .floppy_a => @import("app_floppy_a.zig").insert(app),
         .cold => drive.reset(app, false),
         .warm => drive.reset(app, true),
         .settings => applySettings(app),

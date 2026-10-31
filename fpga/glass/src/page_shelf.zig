@@ -29,7 +29,7 @@ const NAME_W = osd.BODY_W - TITLE_COL;
 pub const View = sv.View;
 
 /// `open`: Enter on the cursor's row (a cart, a folder or ".."); `up`: back out of a folder.
-pub const Key = enum { none, close, open, insert, eject, console, cold, warm, source, up };
+pub const Key = enum { none, close, open, insert, eject, floppy_a, console, cold, warm, source, up };
 /// The marks in column 0: 'A' the disk in drive A, '*' the disk in the window (when not in A).
 pub const Marks = struct { loaded: ?usize = null, drive: ?usize = null, floppy: bool = false };
 
@@ -92,6 +92,7 @@ pub const State = struct {
             map.KEY_ENTER, ' ' => return if (n > 0) .open else .none,
             'i', 'I' => return if (n > 0) .insert else .none,
             'e', 'E' => return .eject,
+            'd', 'D' => return .floppy_a, // the real floppy itself in drive A (docs/KOS_FAT.md)
             'r', 'R' => return .cold,
             'w', 'W' => return .warm,
             'f', 'F' => return .source,

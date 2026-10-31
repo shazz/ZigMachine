@@ -66,6 +66,9 @@ pub const KOS_MEDIA_COUNT: u32 = 0x00FF_FFFF;
 // hands it the listing). DISK_MAGIC_PROGRAM: the cart is a program GEM launched off
 // it (the browser's diskDirSet is already true then: no listing).
 pub const DISK_MAGIC_PROGRAM: u32 = 0x5044_4D5A; // "ZMDP"
+// DISK_MAGIC_FLOPPY: as DISK_MAGIC, the disk being the real floppy (glass's D, KOS): the desktop
+// labels drive A FLOPPY, not SD IMAGE (docs/KOS_FAT.md F4; insertDisk's bit 8).
+pub const DISK_MAGIC_FLOPPY: u32 = 0x4644_4D5A; // "ZMDF"
 
 // --- the system image and lean carts (decisions.md 2026-10-15) ------------------
 // A lean cart image is linked at window offset CART_IMG_AT and starts with its header:

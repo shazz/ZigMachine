@@ -74,8 +74,13 @@ pub fn planAs(gpa: std.mem.Allocator, disk: []const u8, window: usize, magic: u3
 /// KOS's desktop (app_drive.zig): its board image `desktop` (kos/desktop.rv32), and the disk in
 /// drive A as it is (a data disk carries no board image), or none: then no descriptor either.
 pub fn planDesktop(gpa: std.mem.Allocator, desktop: []const u8, disk: ?[]const u8, window: usize, sys: ?system.System) Error!Plan {
-    if (disk) |b| _ = try zmd.parse(b);
-    return withImage(gpa, desktop, .{ .raw = disk orelse &.{} }, window, map.DISK_MAGIC, sys);
+    return planOver(gpa, desktop, disk, window, map.DISK_MAGIC, sys);
+}
+
+/// planDesktop with the descriptor saying `magic` (a program off a FAT floppy: DISK_MAGIC_PROGRAM).
+pub fn planOver(gpa: std.mem.Allocator, desktop: []const u8, disk: ?[]const u8, window: usize, magic: u32, sys: ?system.System) Error!Plan {
+    if (disk) |b| if (zmd.parse(b)) |_| {} else |err| if (!(err == error.NotADisk and fatImage(b))) return err; // KOS F3
+    return withImage(gpa, desktop, .{ .raw = disk orelse &.{} }, window, magic, sys);
 }
 
 /// Where the shelf disk comes from: a fat disk's (zmd_fat.py undone), or bytes as they are.
@@ -116,4 +121,9 @@ pub fn diskAt(image_end: usize, disk_len: usize, window: usize) Error!u32 {
     const end = @min(map.DISK_END, window - map.DISK_DESC_FROM_TOP);
     if (at + disk_len > end) return error.DiskTooBig;
     return @intCast(at);
+}
+
+/// A raw FAT disk image (KOS, docs/KOS_FAT.md): whole 512-byte sectors and a BPB saying 512.
+pub fn fatImage(b: []const u8) bool {
+    return b.len >= 4096 and b.len % 512 == 0 and std.mem.readInt(u16, b[11..13], .little) == 512;
 }

@@ -37,6 +37,8 @@ pub const App = struct {
     shelf_dir: []const u8,
     disk_dir: []const u8, // where the shelf's carts are read: shelf_dir, or the floppy (app_source.zig)
     floppy: bool = false,
+    floppy_a: bool = false, // KOS's drive A holds the real floppy, read raw (app_floppy_a.zig)
+    dev_dir: []const u8 = "/dev", // where the floppy's block device is (a test's directory)
     disks: shelf.Shelf,
     menu: menu.Menu,
     osd: osd.Osd = .{},

@@ -28,6 +28,8 @@ test {
     _ = @import("app_test.zig");
     _ = @import("app_request_test.zig");
     _ = @import("app_drive_test.zig");
+    _ = @import("app_floppy_a_test.zig");
+    _ = @import("app_floppy_prog_test.zig");
     _ = @import("app_drive_ui_test.zig");
     _ = @import("app_stats_test.zig");
     _ = @import("budget_test.zig");

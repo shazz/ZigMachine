@@ -20,10 +20,12 @@ _Static_assert(CART_CPU_BASE + DISK_END == ZM_FB0_ADDR, "the disk must end where
 _Static_assert(DISK_DESC_WORDS == 4, "bdisk_parse reads four words");
 
 int bdisk_role;
+int bdisk_floppy;
 uint32_t bdisk_image_end;
 
 int bdisk_parse(const uint32_t w[4], uint32_t image_end, uint32_t* at, uint32_t* size) {
-    if ((w[0] != DISK_MAGIC && w[0] != DISK_MAGIC_PROGRAM) || w[3] != ~(w[0] ^ w[1] ^ w[2])) return 0;
+    if (w[0] != DISK_MAGIC && w[0] != DISK_MAGIC_PROGRAM && w[0] != DISK_MAGIC_FLOPPY) return 0;
+    if (w[3] != ~(w[0] ^ w[1] ^ w[2])) return 0;
     if (w[1] < image_end || w[1] > DISK_END || w[2] > DISK_END - w[1]) return 0;
     *at = w[1];
     *size = w[2];
@@ -36,6 +38,7 @@ void bdisk_boot(void) {
     uint32_t at, size;
     uint32_t end = bdisk_image_end ? bdisk_image_end : (uint32_t)(uintptr_t)__data_source_end - CART_CPU_BASE;
     bdisk_role = bdisk_parse(w, end, &at, &size);
+    bdisk_floppy = bdisk_role && w[0] == DISK_MAGIC_FLOPPY;
     if (!bdisk_role) {
         printf("ZM DISK none\n");
         return;

@@ -21,6 +21,8 @@ pub fn build(b: *std.Build) void {
     // the board unpacks a cart exactly as rom.wasm's romDepack does.
     const zx0 = b.createModule(.{ .root_source_file = b.path("../../libs/zig/depackers/zx0.zig") });
     const zx0_pack = b.createModule(.{ .root_source_file = b.path("../../libs/zig/depackers/zx0_pack.zig") });
+    // KOS's FAT reader (rom/kos/fat.zig), the desktop's own: glass finds a real floppy's programs with it.
+    const kos_fat = b.createModule(.{ .root_source_file = b.path("../../rom/kos/fat.zig") });
 
     // The glass program's version and the commit it was built from, for the OSD's debug page.
     const info = b.addOptions();
@@ -34,7 +36,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info } },
+            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat } },
         }),
     });
     b.installArtifact(exe);
@@ -56,6 +58,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "zx0", .module = zx0_via_pack },
                 .{ .name = "memmap", .module = memmap },
                 .{ .name = "build_info", .module = build_info },
+                .{ .name = "kos_fat", .module = kos_fat },
             },
         }),
     });
