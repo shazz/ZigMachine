@@ -195,6 +195,11 @@
   "type": "amiga"
  },
  {
+  "tag": "mindwind",
+  "title": "MIND REWIND",
+  "type": "atari st"
+ },
+ {
   "tag": "mpp_truecolor",
   "title": "MPP TRUECOLOR",
   "type": "zigmachine"

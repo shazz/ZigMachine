@@ -36,8 +36,8 @@ fn offsetOf(p: [*]u8) u32 {
     return @intCast(@intFromPtr(p) - @intFromPtr(region));
 }
 
-fn take(bytes: usize) u32 {
-    const v = zg.vramWords((bytes + 3) / 4) orelse @panic("mindwind: VRAM pool full");
+fn take(n_bytes: usize) u32 {
+    const v = zg.vramWords((n_bytes + 3) / 4) orelse @panic("mindwind: VRAM pool full");
     region = @ptrFromInt(@intFromPtr(v.words.ptr) - v.off);
     return v.off;
 }

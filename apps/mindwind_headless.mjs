@@ -108,7 +108,7 @@ r = raster();
 await shot("d_bands", r);
 check(px(r, 0, 5) === "240,240,240" && lineColours(r, 30).size >= 3, "bands: the <<<< bands on white");
 
-run(9900 - frames); // part A reversed, VHS lines
+run(8400 - frames); // part A reversed (8259..8927), VHS lines
 let vhs = false;
 for (let i = 0; i < 40 && !vhs; i++) {
     r = raster();
@@ -118,7 +118,7 @@ for (let i = 0; i < 40 && !vhs; i++) {
 await shot("e_vhs", r);
 check(vhs, "vhs: a whole field line of $FFF in the rewound half");
 
-run(10600 - frames); // the end screen
+run(9100 - frames); // the end screen (from about 8963)
 r = raster();
 await shot("f_end", r);
 check(lineColours(r, 140).size > 4 && lineColours(r, 10).size === 1, "end: the logo, colour-0 borders");
