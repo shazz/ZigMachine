@@ -52,34 +52,124 @@ pub fn paletteWords(image: []const u8, planes: usize) ?usize {
     return (len - head) / 3;
 }
 
-/// Depack into `work` and decode the palette. Null when the image is unreadable or
-/// a map record points outside the palette (the HBL would copy out of bounds).
+/// Depack into `work` and decode the palette, all at once. Null when the image is unreadable
+/// or a map record points outside the palette (the HBL would copy out of bounds).
 pub fn load(image: []const u8, planes: usize, work: []align(4) u8) ?View {
-    const size = need(image, planes) orelse return null;
-    if (work.len < size) return null;
-    const len: usize = zx0.depack(image, work) orelse return null;
-    const head = MAP_LEN + idxLen(planes);
-    const colours = (len - head) / 3;
-    const pal = work[head..][0 .. colours * 4];
-    // Undo the delta over the RGB bytes, then widen back to front: entry j moves
-    // from 3j to 4j, so no entry is overwritten before it has been read.
-    for (3..colours * 3) |i| pal[i] +%= pal[i - 3];
-    var j = colours;
-    while (j > 0) {
-        j -= 1;
-        pal[4 * j + 3] = 255;
-        pal[4 * j + 2] = pal[3 * j + 2];
-        pal[4 * j + 1] = pal[3 * j + 1];
-        pal[4 * j] = pal[3 * j];
-    }
-    // head is a multiple of 4 (MAP_LEN and idxLen are), so both word views stay aligned.
-    const view = View{
-        .map = std.mem.bytesAsSlice(Rec, work[0..MAP_LEN]),
-        .idx = work[MAP_LEN..head],
-        .pal = std.mem.bytesAsSlice(u32, @as([]align(4) u8, @alignCast(pal))),
+    var d = Decoder.init(image, planes, work) orelse return null;
+    while (true) switch (d.step(std.math.maxInt(u32))) {
+        .more => {},
+        .done => return d.view,
+        .failed => return null,
     };
-    return if (mapFits(view) and (planes == 1 or planesFit(view.idx))) view else null;
 }
+
+pub const Progress = zx0.Progress;
+
+/// The same decode in slices (mpp_truecolor/stage.zig): one `step` does one slice of one
+/// pass, `units` times its base size, so a switch can be spread over frames.
+pub const Decoder = struct {
+    stream: zx0.Stream,
+    work: []align(4) u8,
+    planes: usize,
+    head: usize = 0,
+    colours: usize = 0,
+    pass: enum { depack, delta, widen, check, done, failed } = .depack,
+    i: usize = 0, // the pass's progress (delta: the next byte; widen: entries left; check: bytes done)
+    view: View = undefined,
+
+    // Base slice sizes, each ~0.1-0.2 Mc on the board (frame_cost).
+    const DEPACK_BYTES: u32 = 1536;
+    const DELTA_BYTES: usize = 16 * 1024;
+    const WIDEN_ENTRIES: usize = 4 * 1024;
+    const CHECK_BYTES: usize = 32 * 1024;
+
+    pub fn init(image: []const u8, planes: usize, work: []align(4) u8) ?Decoder {
+        const size = need(image, planes) orelse return null;
+        if (work.len < size) return null;
+        const stream = zx0.Stream.init(image, work) orelse return null;
+        return .{ .stream = stream, .work = work, .planes = planes };
+    }
+
+    pub fn step(self: *Decoder, units: u32) Progress {
+        const k: usize = units;
+        switch (self.pass) {
+            .depack => switch (self.stream.step(DEPACK_BYTES *| units)) {
+                .more => {},
+                .failed => self.pass = .failed,
+                .done => self.startDelta(),
+            },
+            .delta => {
+                const pal = self.work[self.head..][0 .. self.colours * 3];
+                const end = @max(self.i, @min(pal.len, self.i +| DELTA_BYTES *| k));
+                for (self.i..end) |i| pal[i] +%= pal[i - 3];
+                self.i = end;
+                if (end >= pal.len) self.startWiden();
+            },
+            .widen => self.widen(WIDEN_ENTRIES *| k),
+            .check => self.check(CHECK_BYTES *| k),
+            .done => return .done,
+            .failed => return .failed,
+        }
+        return switch (self.pass) {
+            .done => .done,
+            .failed => .failed,
+            else => .more,
+        };
+    }
+
+    fn startDelta(self: *Decoder) void {
+        const len: usize = self.stream.written();
+        self.head = MAP_LEN + idxLen(self.planes);
+        self.colours = (len - self.head) / 3;
+        self.pass = .delta;
+        self.i = 3;
+    }
+
+    fn startWiden(self: *Decoder) void {
+        self.pass = .widen;
+        self.i = self.colours;
+    }
+
+    // Widen back to front: entry j moves from 3j to 4j, so no entry is overwritten before
+    // it has been read, also across slices (each slice continues downward).
+    fn widen(self: *Decoder, n: usize) void {
+        const pal = self.work[self.head..][0 .. self.colours * 4];
+        const stop = self.i -| n;
+        var j = self.i;
+        while (j > stop) {
+            j -= 1;
+            pal[4 * j + 3] = 255;
+            pal[4 * j + 2] = pal[3 * j + 2];
+            pal[4 * j + 1] = pal[3 * j + 1];
+            pal[4 * j] = pal[3 * j];
+        }
+        self.i = stop;
+        if (stop > 0) return;
+        // head is a multiple of 4 (MAP_LEN and idxLen are), so both word views stay aligned.
+        self.view = .{
+            .map = std.mem.bytesAsSlice(Rec, self.work[0..MAP_LEN]),
+            .idx = self.work[MAP_LEN..self.head],
+            .pal = std.mem.bytesAsSlice(u32, @as([]align(4) u8, @alignCast(pal))),
+        };
+        self.pass = if (mapFits(self.view)) .check else .failed;
+    }
+
+    // Mode 3's plane bytes must all be < PLANES (the split indexes the planes with them).
+    fn check(self: *Decoder, n: usize) void {
+        if (self.planes == 1) {
+            self.pass = .done;
+            return;
+        }
+        const plane = self.view.idx[W * H ..][0 .. W * H];
+        const end = @min(plane.len, self.i +| n);
+        for (plane[self.i..end]) |p| if (p >= PLANES) {
+            self.pass = .failed;
+            return;
+        };
+        self.i = end;
+        if (end == plane.len) self.pass = .done;
+    }
+};
 
 fn mapFits(v: View) bool {
     for (v.map) |r| {
@@ -89,10 +179,5 @@ fn mapFits(v: View) bool {
         if (n == 0) continue;
         if (off % 4 != 0 or first + n > PAL_ENTRIES or off / 4 > v.pal.len or n > v.pal.len - off / 4) return false;
     }
-    return true;
-}
-
-fn planesFit(idx: []const u8) bool {
-    for (idx[W * H ..]) |p| if (p >= PLANES) return false;
     return true;
 }
