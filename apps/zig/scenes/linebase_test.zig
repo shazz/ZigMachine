@@ -2,7 +2,7 @@
 // LINE LIST TEST: the STE line list (HW 1.10.0, fpga/review/COPPER_LINEBASE.md): every line's source
 // address (copper LBASE, the STE video counter), its fine scroll (REG HSCROLL, now honoured on
 // overscan planes) and colour 0 come from a list zg.linelist rebuilds each frame; no HBL handler.
-// Two phases of PHASE frames each, the second first:
+// Two phases of PHASE frames each, A first (the board sims see it in their few frames):
 //
 //   A  plane 0 overscan, all four borders open (FLICK in the list), the CPU draws nothing:
 //        lines   0..99   a sine wobble: rows scroll down the image, HSCROLL bends each line
@@ -66,7 +66,7 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
-        const in_b = (self.fc / PHASE) % 2 == 0;
+        const in_b = (self.fc / PHASE) % 2 == 1;
         zigos.lfbs[0].is_enabled = !in_b;
         zigos.lfbs[1].is_enabled = in_b;
         self.fc +%= 1;

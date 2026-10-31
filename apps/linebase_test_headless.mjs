@@ -4,8 +4,8 @@
 // cart built for the plane it shows and checks:
 //   - the picture equals apps/linebase_model.mjs's rule applied to that list, pixel for pixel,
 //     borders included (LBASE, the counter running on, HSCROLL per line, colour 0 per line);
-//   - phase B (frames 1..150, plane 1, scroll): every visible line has an LBASE (a flip of rows the
-//     CPU draws into); phase A (frames 151..300, plane 0, overscan): one FLICK record a line (all
+//   - phase B (frames 151..300, plane 1, scroll): every visible line has an LBASE (a flip of rows the
+//     CPU draws into); phase A (frames 1..150, plane 0, overscan): one FLICK record a line (all
 //     borders open, no HBL handler), HSCROLL > 0 in the wobble, run-on lines (no LBASE) in the
 //     straight bands, an LBASE on every line of a flipped band, colour 0 changing down the frame.
 //
@@ -86,7 +86,7 @@ const seen = {};
 let err = null, f = 1;
 for (; f <= FRAMES && !err; f++) {
     demo.frame(16.6);
-    err = plane(Math.floor((f - 1) / PHASE) % 2 === 0 ? 1 : 0, f, seen);
+    err = plane(Math.floor((f - 1) / PHASE) % 2 === 0 ? 0 : 1, f, seen);
 }
 if (brk) {
     console.log(err ? `linebase_test --break ${brk}: caught (${err})` : `linebase_test --break ${brk}: NOT caught`);
