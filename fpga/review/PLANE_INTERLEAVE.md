@@ -1,6 +1,6 @@
 # Line-interleaved planes: would one fetch a line make FRESCO cheaper? (study, 2026-10-31)
 
-**Recommendation: don't.** Interleaving the planes in memory (plane 0 row y, plane 1 row y, ...) merges
+**Recommendation: don't** (whatever the board says about the latency: section 5 only picks between P, Q and neither). Interleaving the planes in memory (plane 0 row y, plane 1 row y, ...) merges
 nothing by itself, and the merge it would allow in RTL saves only the per-fetch latency of the
 held passes of a line-major group: **~0.01 Mc a frame for 2 planes, ~0.03 for 4** (normal planes,
 latency prior 60 comp clocks; overscan x1.4), against a cart ABI change (planes stop being contiguous),
@@ -134,6 +134,10 @@ Read it as (per added plane, i.e. fr.dirty.p(N+1) - fr.dirty.pN, divided by the 
 - `.dma` increment - 200 x 41 = 200 x the DDR part of L (grant to last beat); L minus it is CDC.
 - frame increment - 0.8 x `.comp` increment = **the sequencer's gap** (issue, waits, planner).
 - fr.ilv.pN vs fr.dirty.pN: the layout's own effect (DDR locality); expected within noise.
+- Read only increments, not one setting's absolute `.comp`: COMP_BUSY counts every clock the
+  compositor is not command-ready, including the idle span after PRESENT while the swap is pending
+  (`cmd_ready` needs `d_ok` with the last command's mix bit), so fr.*.p1.comp reads high by a
+  per-frame constant that cancels in p(N+1) - pN. `.dma` likewise carries the scanout's bursts.
 
 Decision rule: M is never the pick (P saves more with no ABI). Build **P** only if
 (N-1) x 200 x (L + 51) x 0.8 clears ~0.05 Mc on a cart that needs it (L >= ~100 comp at 3 normal
