@@ -22,6 +22,9 @@ pub const BAND_ROWS: usize = 42;
 pub const PIC_W: usize = 320;
 pub const PIC_PAD: usize = 1280; // the demo zeroes row 199 and what follows ($8ACC)
 pub const END_W: usize = zg.PHYSICAL_WIDTH;
+// A stripe line starts 16 + 8 px into its row and shows 400: the last bank row's line
+// (part A's blocks reach row 639) reads 8 px past the generated rows, into this tail.
+const STRIPES_TAIL: usize = 32;
 
 pub var region: [*]u8 = undefined; // byte 0 = region offset 0
 pub var blank: u32 = 0;
@@ -48,7 +51,7 @@ pub fn bytes(off: u32, n: usize) []u8 {
 
 /// Allocate and fill everything; `zigos.lfbs[0]` is already the overscan plane.
 pub fn init(zigos: *zg.ZigOS) void {
-    stripes = take(stripes_gen.ROWS * stripes_gen.ROW_PX + 32);
+    stripes = take(stripes_gen.ROWS * stripes_gen.ROW_PX + STRIPES_TAIL);
     for (&rainbow) |*r| r.* = take(rainbow_gen.IMAGE_BYTES);
     const p0 = offsetOf(zigos.lfbs[0].fb);
     blank = p0;
@@ -62,6 +65,7 @@ pub fn init(zigos: *zg.ZigOS) void {
     defer zg.mem.release(m);
     const w = zg.mem.mustAlloc(u16, stripes_gen.PLANAR_WORDS);
     stripes_gen.generate(w, data.stripe_patterns, bytes(stripes, stripes_gen.ROWS * stripes_gen.ROW_PX));
+    @memset(bytes(stripes + @as(u32, stripes_gen.ROWS * stripes_gen.ROW_PX), STRIPES_TAIL), 0); // the pool is not cleared
     for (rainbow, 0..) |r, k| rainbow_gen.generate(@enumFromInt(k), data.sin_271c8, bytes(r, rainbow_gen.IMAGE_BYTES));
 
     planarRows(data.girl, 160, 200, bytes(pic, PIC_W * 200), PIC_W, 0);

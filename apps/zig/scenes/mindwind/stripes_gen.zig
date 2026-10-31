@@ -12,7 +12,7 @@
 //
 // The 68000 code is transcribed on its planar words (u16, bit 15 = leftmost
 // pixel), including what it writes outside its own 16-px group, then turned
-// into chunky rows; stripes_test.zig checks the result against the RAM of the
+// into chunky rows; gen_test.zig checks the result against the RAM of the
 // running demo, byte for byte. Integer only, init-time.
 // --------------------------------------------------------------------------
 const std = @import("std");

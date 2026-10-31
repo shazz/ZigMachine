@@ -28,13 +28,16 @@ var fine: u16 = 0; // d2: hardware fine scroll
 var chr: u16 = 0; // d3: character x 4
 var backwards: bool = false; // $1A(a6)
 
+const FONT_COLS: usize = data.font.len / COL_BYTES;
+comptime {
+    if (data.font.len % COL_BYTES != 0) @compileError("mindwind: font.bin is not whole $180-byte columns");
+}
+
 pub fn init() void {
-    const cols = data.font.len / 8 / COL_ROWS * 16 * COL_ROWS;
-    font = zg.mem.mustAlloc(u8, cols);
-    var c: usize = 0;
-    while (c * 0x180 < data.font.len) : (c += 1) {
+    font = zg.mem.mustAlloc(u8, FONT_COLS * 16 * COL_ROWS);
+    for (0..FONT_COLS) |c| {
         const out = font[c * 16 * COL_ROWS ..][0 .. 16 * COL_ROWS];
-        vram.planarRows(data.font[c * 0x180 ..][0..0x180], 8, COL_ROWS, out, 16, 0);
+        vram.planarRows(data.font[c * COL_BYTES ..][0..COL_BYTES], 8, COL_ROWS, out, 16, 0);
         for (out) |*p| {
             if (p.* != 0) p.* += 16;
         }
@@ -103,7 +106,7 @@ pub fn step() void {
     if (!on) return;
     if (backwards) backwardStep() else forwardStep();
     const glyph: usize = data.le16(data.font_ptrs, chr / 4) + col;
-    const src = font[glyph / 0x180 * 16 * COL_ROWS ..][0 .. 16 * COL_ROWS];
+    const src = font[glyph / COL_BYTES * 16 * COL_ROWS ..][0 .. 16 * COL_ROWS];
     const x: u32 = @as(u32, ring_g) * 2; // planar bytes -> px
     for (0..COL_ROWS) |r| {
         const base = vram.ring + @as(u32, @intCast(r)) * vram.RING_W + x;

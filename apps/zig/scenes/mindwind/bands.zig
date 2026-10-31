@@ -11,20 +11,15 @@ const lines = @import("lines.zig");
 const vram = @import("vram.zig");
 
 const Band = struct { x: u16, line: u16, speed: u16 };
-const INIT = [4]Band{
+var band = [4]Band{
     .{ .x = 0, .line = 0x0a, .speed = 3 }, .{ .x = 0, .line = 0x46, .speed = 1 },
     .{ .x = 0, .line = 0x82, .speed = 4 }, .{ .x = 0, .line = 0xbe, .speed = 2 },
 };
-var band: [4]Band = INIT;
 const H: usize = 0x2a + 1;
 
 pub fn grey(level: u16) u16 {
     const n = (level >> 1) | (level & 1) << 3;
     return n << 8 | n << 4 | n;
-}
-
-pub fn reset() void {
-    band = INIT;
 }
 
 pub fn flat(colour: u16) void {

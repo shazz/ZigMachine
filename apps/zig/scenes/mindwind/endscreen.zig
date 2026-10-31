@@ -5,6 +5,7 @@
 // steps 0..16). On KESTREL the closed borders are blank lines and the logo's
 // own colour 0 left and right of it.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const data = @import("data.zig");
 const lines = @import("lines.zig");
 const vram = @import("vram.zig");
@@ -30,7 +31,6 @@ fn mix(a: u16, b: u16, s: i16) u16 {
     }
     return out;
 }
-const std = @import("std");
 
 pub fn tick() void {
     wait -= 1;
