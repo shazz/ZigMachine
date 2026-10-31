@@ -1,26 +1,19 @@
 // --------------------------------------------------------------------------
 // STNICCC's polygon spans, filled by the CPU with aligned word stores.
 //
-// Why not CHISEL (stniccc/gpu.zig) for every span: on the posted-store board a
-// CHISEL op pays ~830 cycles of start, spin and D$ invalidate before its first
-// pixel, then ~1-1.85 clocks a pixel (apps/perf/cost_model.mjs BLIT_CALL,
-// BLIT_UNIT; BLITTER_HW_SPEC 10.5), while a ZIGGY word store drains in ~2.26
-// cycles for FOUR pixels (cost_model STORE_DRAIN, bench ms.lib.64K). The flight
-// makes ~2,100 fills a frame, ~2,000 of them under 256 pixels: 1.6 Mc of start
-// costs alone (frame_cost, 2026-10-23). The CPU is ahead at every size, so
-// polyfill sends a fill to the blitter only from BLIT_MIN pixels up.
+// Why not CHISEL for any span: on the posted-store board a CHISEL op pays ~830
+// cycles of start, spin and D$ invalidate before its first pixel, then ~1-1.85
+// clocks a pixel (apps/perf/cost_model.mjs BLIT_CALL, BLIT_UNIT), while a ZIGGY
+// word store drains in ~2.26 cycles for FOUR pixels (cost_model STORE_DRAIN,
+// bench ms.lib.64K). The flight makes ~2,100 fills a frame, ~2,000 of them under
+// 256 pixels; even the 400x280 clear is ~63 K cycles of stores against ~116 K for
+// a FILL. So every fill is the CPU's, and with one writer there is no
+// CPU-then-blitter ordering for the board to get right.
 //
 // Stores are aligned by ADDRESS (head bytes up to a word boundary, words, tail
 // bytes): a misaligned sw traps on the board (~210 cycles).
 // --------------------------------------------------------------------------
 const std = @import("std");
-
-/// The area (pixels) from which a rectangle goes to CHISEL instead of the CPU.
-/// The model puts the CPU ahead even for the 400x280 clear (~63 K cycles of
-/// stores vs ~208 K for the FILL at 1.85 a pixel, ~116 K at the spec's 1.03),
-/// so nothing reaches CHISEL: maxInt. Keeping every pixel on one writer also
-/// leaves no CPU-then-blitter ordering for the board to get right.
-pub const BLIT_MIN: usize = std.math.maxInt(usize);
 
 /// Fill `w` x `h` pixels of colour `color` from `at`, rows `stride` apart.
 pub fn rect(px: []u8, at: usize, w: usize, h: usize, stride: usize, color: u8) void {
