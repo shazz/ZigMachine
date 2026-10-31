@@ -36,11 +36,12 @@ static int classify(const char* path) {
     return 0;
 }
 
-int host_kos_start(struct w2c_env* e, const char* drive, uint32_t post_frames) {
+int host_kos_start(struct w2c_env* e, const char* drive, uint32_t post_frames, int warm) {
     if (classify(drive)) return -1;
     uint32_t dev = g_bootable ? KOS_DEV_DRIVE_A : KOS_DEV_DESKTOP;
-    w2c_rom_kosSetBoot(&e->rom, KOS_BOOT_COLD, dev, host_disk.data != NULL, w2c_machine_hwRamFree(&e->machine));
+    w2c_rom_kosSetBoot(&e->rom, warm ? KOS_BOOT_WARM : KOS_BOOT_COLD, dev, host_disk.data != NULL, w2c_machine_hwRamFree(&e->machine));
     w2c_machine_hwInit(&e->machine);
+    post_frames = w2c_rom_kosPostFrames(&e->rom, post_frames); /* none after a warm reset */
     g_phase = PH_POST;
     g_next = post_frames ? GO_NONE : GO_DRIVE;
     if (post_frames) w2c_rom_kosPostStart(&e->rom, post_frames);

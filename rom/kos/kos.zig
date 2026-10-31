@@ -88,6 +88,13 @@ export fn kosTick() void {
     vars.frames +%= 1;
 }
 
+/// How many POST frames this reset shows, the host having `asked` for that many (0: none): none
+/// after a WARM reset (kosSetBoot), as TOS sizes and tests memory only when memvalid fails (Matt,
+/// 26 Oct): a warm reset goes straight to the boot stages. One rule for every host.
+export fn kosPostFrames(asked: u32) u32 {
+    return if (vars.boot_kind == BOOT_WARM) 0 else asked;
+}
+
 /// Stage 4: the POST screen on plane 0, for `frames` frames (0 = POST_FRAMES). The host
 /// shows plane 0 only, and stops early when a key is held or the POST is switched off.
 export fn kosPostStart(frames: u32) void {

@@ -187,9 +187,8 @@ static uint32_t boot(void) {
     bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
     bdiskapp_boot(); /* after bdisk_boot: the disk it found decides */
     int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
-    uint32_t post = bkos_post_frames(); /* KOS's POST before both (bkos.h) */
     host_boot_machine(&g_env);
-    bkos_boot(&g_env, bdiskapp_bootable); /* the system variables, hwInit */
+    uint32_t post = bkos_boot(&g_env, bdiskapp_bootable); /* the variables, hwInit; KOS's POST before both */
     if (!sector && !post) host_boot_cart(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
     for (uint32_t i = 0; i < PICTURE_BYTES / 4; i++) {

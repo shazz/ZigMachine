@@ -1022,7 +1022,11 @@ sector's (plane 0 composited whole, keys dropped, CART_STATE RUNNING first), the
 sector, then the cart. A load that is no reset (a program off the disk, back to the desktop,
 a door's cart, `glass ctl load`) writes no words: no POST, as the browser's swaps show none.
 The sim has no glass: `ZM_KOS_POST=n` stands in for the words.
-W writes the warm flag (sysvars `boot_kind` = warm) and leaves the window as it is, but the
+A warm reset shows **no POST** (Matt, 26 Oct: TOS tests memory only when memvalid fails): the
+ROM's `kosPostFrames` answers 0 once `kosSetBoot` said warm, in every host (`scene_hash.mjs
+--warm`, the native host's `--warm`, the page's `?warm=1`, the firmware), and the reset goes
+straight to drive A. The POST's frames and a boot sector's are CART_BEATs, so the glass's
+rate and watchdog see them. W writes the warm flag (sysvars `boot_kind` = warm) and leaves the window as it is, but the
 firmware still re-instantiates the machine: the ZMME arena-keeping warm boot ("Cold and warm
 reset", `glass_boot.c`) is linked into no firmware yet, so on the board a W does not keep the
 cart's memory (docs/ZIGTOS_BOOT.md §12).
@@ -1030,7 +1034,8 @@ cart's memory (docs/ZIGTOS_BOOT.md §12).
 **The keys on the shelf.** Enter: insert the disk under the cursor and reset (cold, with the
 POST). I / E: insert / eject with no reset. R / W: reset cold / warm over what drive A holds
 (R used to reload the cart in the window: after a door's cart, R now boots the drive's disk,
-the ST's answer). The drive's disk is marked `A` in the list, the one in the window `*`;
+the ST's answer). The drive's disk is marked `A` in the list, the one in the window `*`, in a
+column of their own with a gap, so titles start at the same column marked or not (`A REPS`);
 `drive_a=` is saved when the OSD closes.
 
 **A media change** (`glass/src/app_media.zig`, `cycles/bdiskapp.c bdiskapp_media`). I or E

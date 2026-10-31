@@ -547,8 +547,8 @@ let kosDesktop = false; // the running cart is KOS's desktop (demo-gem.wasm) ove
 async function kosPowerOn(url, params) {
     kosDrive = url ? { url, ...(await mountDisk(url)) } : null;
     if (!url) mountedDisk = null;
-    ZMKos.power(rom, machine, kosDrive, mountedDisk);
-    const frames = ZMKos.postFrames(params);
+    ZMKos.power(rom, machine, kosDrive, mountedDisk, params.get("warm") === "1"); // ?warm=1: the reset button
+    const frames = ZMKos.postFrames(params, rom);
     if (frames > 0) demo = ZMKos.postCart(rom, frames);
     else await kosBootDrive();
 }

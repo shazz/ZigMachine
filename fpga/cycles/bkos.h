@@ -6,7 +6,7 @@
  *   on plane 0, composited whole, until it says done. Keys typed meanwhile are dropped.
  *
  * bmain.c's boot(): after bdisk_boot (the drive) and bdiskapp_boot (is the disk bootable?),
- * bkos_post_frames() says how long; with a POST, host_boot_machine, the compositor brought up,
+ * bkos_boot says how long (the glass's frames, none after a warm reset); with a POST, host_boot_machine, the compositor brought up,
  * bkos_run, then the boot sector (bbootsec.h) and the cart as before. Without one (a load that is
  * no reset, a glass before KOS), only the system variables are set, and nothing else changes.
  *
@@ -20,8 +20,9 @@
 
 #include "host.h"
 
-uint32_t bkos_post_frames(void);                  /* after bdisk_boot(): 0 = no POST */
-void bkos_boot(struct w2c_env* e, int bootable);  /* after host_boot_machine(): the system variables, hwInit */
+/* After host_boot_machine(): the system variables, hwInit; the POST's frames (0: none, and none
+ * after a warm reset: the ROM's kosPostFrames). */
+uint32_t bkos_boot(struct w2c_env* e, int bootable);
 /* After vseq_init(): the POST's frames, each a CART_BEAT from `beat` on (the glass counts them: a POST
  * is no hang); returns the last beat. */
 uint32_t bkos_run(struct w2c_env* e, uint32_t post, uint32_t beat);

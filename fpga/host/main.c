@@ -50,6 +50,7 @@ static struct w2c_env g_env; /* static: 7 MiB of memory is heap, the instances a
 static const char* g_bootsec;  /* --bootsec: the disk whose boot sector runs instead of the cart */
 static const char* g_kos;      /* --kos: drive A at power-on ("none": empty) */
 static uint32_t g_post = 180;  /* --post-frames: the POST's length (0: none), rom/kos/kos.zig's default */
+static int g_warm;             /* --warm: a warm reset (no POST) */
 
 
 /* One frame of the host loop (docs/sealed-loader.js): clear, frame, then render
@@ -155,6 +156,7 @@ int main(int argc, char** argv) {
         else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (strcmp(argv[i], "--bootsec") == 0 && i + 1 < argc) g_bootsec = argv[++i];
         else if (strcmp(argv[i], "--kos") == 0 && i + 1 < argc) g_kos = argv[++i];
+        else if (strcmp(argv[i], "--warm") == 0) g_warm = 1;
         else if (strcmp(argv[i], "--post-frames") == 0 && i + 1 < argc) g_post = (uint32_t)strtoul(argv[++i], NULL, 10);
         else if (npos < 3) pos[npos++] = argv[i];
     }
@@ -166,7 +168,7 @@ int main(int argc, char** argv) {
     if (trap) { fprintf(stderr, "host: %s: trap: %s\n", pos[0], wasm_rt_strerror(trap)); return 1; }
     if (g_kos) {
         host_boot_machine(&g_env);
-        if (host_kos_start(&g_env, g_kos, g_post)) return 1;
+        if (host_kos_start(&g_env, g_kos, g_post, g_warm)) return 1;
     } else if (!g_bootsec) host_boot(&g_env);
     else if (host_boot_machine(&g_env), host_bootsec_start(&g_env, g_bootsec)) return 1;
     AUDIO(audio_soft_boot());

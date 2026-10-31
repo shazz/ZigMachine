@@ -2,9 +2,6 @@
 
 KOS = the KESTREL Operating System (Matt, 25 Oct): ZigGEM grown into a small OS in ROM. "ZigTOS" below is the same thing.
 
-**KOS** (Matt, 25 Oct): the OS is named KOS, the KESTREL Operating System; "ZigTOS" below means
-the same thing. Code, UART lines and the POST say KOS.
-
 Status: **v1 built, 25 Oct 2026** (branch `feat/zigtos-boot`; how it is built and proved:
 docs/FPGA_GLASS.md, "KOS: power-on and drive A"; what v1 does differently from this design: §12).
 v2 and v3 are designs. Decisions in §11. Matt's brief: at reset the boot program
@@ -250,7 +247,8 @@ desktop (≤ 6 frames after boot); then the board.
   module. All three are held equal frame for frame.
 - **Carts still link `machine/boot.zig`** (their own boot screen): every host now skips it after
   the ROM's POST. Dropping it changes every cart and repacks every disk: a later cleanup.
-- **Cold and warm.** `boot_kind` is the glass's (W writes the warm flag). The ZMME arena-keeping
+- **Cold and warm.** `boot_kind` is the glass's (W writes the warm flag); a warm reset shows no
+  POST (Matt, 26 Oct, as TOS sizes memory only when memvalid fails), the ROM's `kosPostFrames`. The ZMME arena-keeping
   warm boot (`glass/firmware/glass_boot.c`) is still a stub no firmware links: on the board a W
   restarts the cart over a re-instantiated machine, as before KOS.
 - **Desktop quit -> reset (stage 13).** TOS 1.00's desktop has no Quit and ours has none; adding

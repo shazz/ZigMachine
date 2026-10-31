@@ -38,15 +38,17 @@ static uint32_t kos_flags(void) {
     return (uint32_t)ZM_KOS_POST << KOS_POST_SHIFT;
 }
 
-uint32_t bkos_post_frames(void) { return kos_flags() >> KOS_POST_SHIFT & KOS_POST_MASK; }
+static uint32_t asked_frames(void) { return kos_flags() >> KOS_POST_SHIFT & KOS_POST_MASK; }
 
-void bkos_boot(struct w2c_env* e, int bootable) {
+uint32_t bkos_boot(struct w2c_env* e, int bootable) {
     uint32_t f = kos_flags(), present = host_disk.data != 0;
     uint32_t dev = present && bootable ? DEV_DRIVE_A : DEV_DESKTOP;
     w2c_rom_kosSetBoot(&e->rom, f & KOS_WARM, dev, present, w2c_machine_hwRamFree(&e->machine));
     w2c_machine_hwInit(&e->machine);
+    uint32_t post = w2c_rom_kosPostFrames(&e->rom, asked_frames());
     printf("ZM KOS boot %lu %lu %lu %lu\n", (unsigned long)(f & KOS_WARM), (unsigned long)dev, (unsigned long)present,
-           (unsigned long)bkos_post_frames());
+           (unsigned long)post);
+    return post;
 }
 
 /* Keys typed over the POST go nowhere: it has no key export (the glass skips it for a held key). */

@@ -2,7 +2,8 @@
 // docs/sealed-loader.js runs it and the native host's --kos (fpga/host/kos_host.c) and the
 // board firmware (fpga/cycles/bkos.c) reproduce it:
 //
-//   1. kosSetBoot(cold, what will boot, drive A full?, hwRamFree), hwInit, kosPostStart(n);
+//   1. kosSetBoot(cold, or warm: --warm, what will boot, drive A full?, hwRamFree), hwInit,
+//      kosPostStart(kosPostFrames(n)): no POST after a warm reset;
 //   2. the POST: each frame kosPostFrame(), plane 0 only, until it says done
 //      (--post-frames 0: no POST, `post=0` in glass.cfg);
 //   3. drive A: a v2 disk whose 1 KB boot sector sums to $1234 runs that sector first (its
@@ -18,7 +19,7 @@ import { readFile } from "node:fs/promises";
 import { parseDisk } from "../docs/zmdisk.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
 
-const BOOT_COLD = 0, DEV_DESKTOP = 0, DEV_DRIVE_A = 1, CHAINLOAD = 2;
+const BOOT_COLD = 0, BOOT_WARM = 1, DEV_DESKTOP = 0, DEV_DRIVE_A = 1, CHAINLOAD = 2;
 
 // unpackCart's depack (sealed-loader.js), so a packed disk cart compares with the given wasm.
 function unpack(memory, machine, rom, bytes) {
@@ -44,12 +45,13 @@ async function driveA(path) {
 }
 
 // The KOS driver. `instantiate(bytes)` is scene_hash.mjs's (its env, stubs, cart high).
-export async function kosBoot({ memory, machine, rom, env, cartBytes, instantiate, drivePath, postFrames }) {
+export async function kosBoot({ memory, machine, rom, env, cartBytes, instantiate, drivePath, postFrames, warm }) {
     const a = await driveA(drivePath);
     if (a.disk) env.diskReadBlock = makeDrive(memory, a.disk.mounted);
-    rom.kosSetBoot(BOOT_COLD, a.bootable ? DEV_DRIVE_A : DEV_DESKTOP, a.disk ? 1 : 0, machine.hwRamFree());
+    rom.kosSetBoot(warm ? BOOT_WARM : BOOT_COLD, a.bootable ? DEV_DRIVE_A : DEV_DESKTOP, a.disk ? 1 : 0, machine.hwRamFree());
     machine.hwInit();
     let phase = "post", cur = null, step = null, next = null;
+    postFrames = rom.kosPostFrames(postFrames);
     if (postFrames > 0) rom.kosPostStart(postFrames);
     else next = "drive";
 

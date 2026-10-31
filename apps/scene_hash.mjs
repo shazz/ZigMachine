@@ -5,7 +5,7 @@
 // a fingerprint before the change, rebuild, take one after, compare.
 //
 //   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd] [--composite] [--song-clock]
-//                            [--data-disk X.zmd [--program]] [--kos X.zmd|none [--post-frames N]]
+//                            [--data-disk X.zmd [--program]] [--kos X.zmd|none [--post-frames N] [--warm]]
 //   node apps/scene_hash.mjs --compare a.json b.json
 //
 // Writes JSON to stdout: { cart, frames, every, samples: [{frame, hash}], total }.
@@ -76,7 +76,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
         return demo;
     };
     if (kos) {
-        const k = await kosBoot({ memory, machine, rom, env, cartBytes, instantiate, drivePath: kos.drive, postFrames: kos.post });
+        const k = await kosBoot({ memory, machine, rom, env, cartBytes, instantiate, drivePath: kos.drive, postFrames: kos.post, warm: kos.warm });
         return { memory, machine, demo: k, kos: k };
     }
     if (diskPath) env.diskReadBlock = makeDrive(memory, { buf: new Uint8Array(await readFile(diskPath)) });
@@ -118,8 +118,9 @@ async function fingerprint(argv) {
         else if (argv[i] === "--disk") disk = argv[++i];
         else if (argv[i] === "--data-disk") dataDisk = argv[++i];
         else if (argv[i] === "--program") program = true;
-        else if (argv[i] === "--kos") kos = { drive: argv[++i], post: kos?.post ?? 180 };
-        else if (argv[i] === "--post-frames") kos = { drive: kos?.drive, post: Number(argv[++i]) };
+        else if (argv[i] === "--kos") kos = { post: 180, ...kos, drive: argv[++i] };
+        else if (argv[i] === "--post-frames") kos = { ...kos, post: Number(argv[++i]) };
+        else if (argv[i] === "--warm") kos = { post: 180, ...kos, warm: true };
         else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;

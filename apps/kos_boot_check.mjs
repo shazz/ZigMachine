@@ -118,6 +118,22 @@ for (const [disk, cart, frames] of CASES) {
     else console.log(`ok    ${disk.padEnd(28)} ${frames} frames = scene_hash.mjs --kos (${new Set(out).size} pictures)`);
 }
 
+// The reset button (?warm=1): no POST, straight to drive A, as scene_hash.mjs --warm.
+{
+    const p = page("?disk=none&warm=1");
+    await p.run("boot()");
+    await settle(p);
+    const planes = p.run("machine.hwPlanesNumber()");
+    const out = [frameHash(p, planes)];
+    p.tick(1000 / 60);
+    await settle(p);
+    out.push(frameHash(p, planes));
+    const args = ["apps/scene_hash.mjs", "docs/demo-gem.wasm", "3", "1", "--kos", "none", "--warm"];
+    const ref = JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((s) => s.hash);
+    if (out[0] !== ref[0] || out[1] !== ref[1]) { console.log("FAIL  warm reset: the page does not go straight to the desktop"); bad++; }
+    else console.log("ok    warm reset (?warm=1): no POST, the desktop = scene_hash.mjs --kos none --warm");
+}
+
 // A media change while the desktop runs: the ROM counts it, the drive reads the new disk.
 const { p } = await browser("none", POST + 2);
 await p.run('kosMedia("demo-st_replay.zmd")');

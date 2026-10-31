@@ -71,6 +71,15 @@ def test_post_frames_zero_boots_drive_a_at_once() -> None:
     assert none[:7] == post[3:]  # the desktop, three frames later
 
 
+def test_a_warm_reset_has_no_post() -> None:
+    """TOS tests memory only when memvalid fails: after a warm reset KOS goes straight to drive A
+    (rom/kos/kos.zig kosPostFrames), in both hosts; a cold one shows the POST."""
+    warm, _, _ = both("gem", 10, 1, "--kos", "none", "--warm")
+    none, _, _ = both("gem", 10, 1, "--kos", "none", "--post-frames", "0")
+    cold, _, _ = both("gem", 10, 1, "--kos", "none")
+    assert warm == none and cold[0] != warm[0]
+
+
 def test_a_boot_sector_runs_after_the_post_then_the_desktop_or_its_cart() -> None:
     sysinfo, _, _ = both("gem", 150, 10, "--kos", str(DOCS / "demo-sysinfo.zmd"), "--post-frames", "4")
     plain, _, _ = both("gem", 150, 10, "--kos", "none", "--post-frames", "4")
