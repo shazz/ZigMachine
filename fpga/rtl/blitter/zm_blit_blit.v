@@ -1,4 +1,4 @@
-// BLIT sequencer: the clipped W x H box, rows then columns, ascending or (CON.DESC)
+// The box walker of BLIT and FILL: the clipped W x H box, rows then columns, ascending or (CON.DESC)
 // descending, so an overlapping copy walks the way the Zig machine does. Pixel (i, j) of
 // the rectangle reads A/B at base + j*stride + i and writes the destination at the same
 // (x, y) = (x0 + i, y0 + j). The box (ex0..ey1) is the rectangle cut by the clip, so every

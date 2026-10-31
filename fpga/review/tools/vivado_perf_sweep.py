@@ -68,7 +68,6 @@ CANDIDATES: Dict[str, OOCCandidate] = {
             "rtl/blitter/zm_blit_chk.v",
             "rtl/blitter/zm_blit_htbit.v",
             "rtl/blitter/zm_blit_blit.v",
-            "rtl/blitter/zm_blit_fill.v",
             "rtl/blitter/zm_blit_line.v",
             "rtl/blitter/zm_blit_tri.v",
             "rtl/blitter/zm_blit_row.v",

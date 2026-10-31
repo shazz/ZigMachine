@@ -47,6 +47,7 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     input  wire [22:0]       px_dst,          // linear byte address of the destination pixel (= channel C)
     input  wire [22:0]       px_aaddr, px_baddr,
     input  wire [7:0]        px_bimm,         // B when channel B is not read (a constant colour, or 0)
+    input  wire              px_nop,          // the minterm cannot change this pixel (zm_blit_core)
     input  wire [7:0]        px_mt, px_key,   // per op: the same for every pixel of one op
     input  wire [3:0]        px_flags,        // {KEY_EN, USEC, USEB, USEA}, per op
     input  wire              ordered,         // per op: A/B reads wait for the earlier writes
@@ -73,10 +74,6 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
         end
     endfunction
 
-    // LF(0, b, c) == c for each bit b of `b`: m[{0,0,c}] == c where b has a 0, m[{0,1,c}] == c where a 1
-    function ident(input [7:0] m, input [7:0] b);
-        ident = (&b || (!m[0] && m[1])) && (~|b || (!m[2] && m[3]));
-    endfunction
 
     // per op
     reg [7:0] mt, key;
@@ -120,7 +117,6 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     assign px_ready = !pv || p_move;
     wire acc = px_valid && px_ready;
     wire [2:0] nd = need(px_mt, px_flags[0], px_flags[1], px_flags[2], px_flags[3]);
-    wire px_nop = px_flags == 4'b0100 && ident(px_mt, px_bimm);
 
     // the tags: {slot, channel} of every read in flight, in request order
     reg [LQ+1:0] tag [0:(1 << LT)-1];

@@ -1,21 +1,27 @@
-// The checks machine/blitter.zig makes before it draws, in five clocks after `go`:
-//   - the clipped box the op can reach (opBox) -> ex0..ey1, which the FILL and BLIT
-//     sequencers also loop over;
+// The checks machine/blitter.zig makes before it draws, as a short serial walk after `go`:
+//   - the clipped box the op can reach (opBox) -> ex0..ey1, which the BLIT/FILL sequencer also
+//     loops over: a rectangle, or a LINE's / TRIANGLE's vertices merged one per clock;
 //   - destInRegion: D never leaves the video region (an empty box writes nothing);
 //   - BLIT only: W,H non-zero, and each used source rectangle inside the region (relative)
 //     or inside ONE readable window (SRC_ABS).
-// `ok` low means "draw nothing, CYCLES = 0", which is what the Zig machine does for
-// every one of its early returns.
-// `overlap` (BLIT): a used source rectangle may share a byte with the destination box, so the
-// pixel unit must not read A or B ahead of an earlier pixel's write (zm_blit_px `ordered`).
-// The test is on spans, conservative: source [base, base + (h-1)*stride + w) against the
-// destination [dlin, dlin + (ey1-1)*ds + ex1), both linear and below 2^23 once the checks pass.
-// The products are registered a clock before the sums and compares that use them (one
-// clock held a 16x16 multiply, a 25-bit add and three window compares: -2.5 ns at 100 MHz
-// on the board, Vivado 2026-10-10).
-// The box is written at state 2, three clocks before the core's `go` reaches the sequencers:
-// zm_blit_row's setup pipeline (each channel's first row) takes exactly those three clocks,
-// so a box written later would need `go` later too.
+// `ok` low means "draw nothing, CYCLES = 0", which is what the Zig machine does for every one
+// of its early returns.
+// `overlap` (BLIT): a used source may be read after an earlier pixel of the op wrote it, so the
+// pixel unit must not read A or B ahead of the earlier writes (zm_blit_px `ordered`). It is
+// clear when either holds, per source:
+//   - apart: the source span [s_lo, s_lo + (h-1)*stride + w) and the destination box's span
+//     [first byte, last byte] share no byte (the box's, not the plane's: a strip copied to rows
+//     below or above it in the same plane runs unordered);
+//   - the walk never reads behind itself: with one row (h = 1) or the destination's stride,
+//     every source byte is its destination byte + delta, one constant; the destination
+//     addresses only grow (ascending) or only shrink (DESC), so delta >= 0 ascending (<= 0 DESC)
+//     never reads a byte an earlier pixel wrote (a scroll in the direction of the walk).
+// The sources go through ONE check unit, A then B (the same window compares, adds and apart
+// test twice), and the box through one min/max per axis: the fold of SOC_REVIEW F5.
+// Every product is registered a clock before the sums that use them (one clock held a
+// multiply, an add and three window compares: -2.5 ns at 100 MHz on the board, 2026-10-10).
+// The box is final at state 4, more than three clocks before the core's `go` reaches the
+// sequencers: zm_blit_row's setup pipeline (each channel's first row) needs those three.
 `default_nettype none
 `include "memmap.vh"
 
@@ -23,7 +29,7 @@ module zm_blit_chk (
     input  wire               clk,
     input  wire               go,
     input  wire [7:0]         cmd,
-    input  wire               use_a, use_b, abs_src,
+    input  wire               use_a, use_b, abs_src, desc,
     input  wire [31:0]        d_base, a_base, b_base,
     input  wire [15:0]        ds, a_stride, b_stride, w, h,
     input  wire signed [17:0] x0, y0, x1, y1, x2, y2,
@@ -33,86 +39,106 @@ module zm_blit_chk (
     output reg signed [17:0]  ex0, ey0, ex1, ey1,
     output reg                overlap
 );
-    reg [2:0] st;
+    localparam [24:0] VIDEO = ZM_HW_VIDEO_BASE, VTOP = ZM_HW_VIDEO_BASE + ZM_REGION_BYTES;
+    reg [3:0] st;
+    reg sel;                                    // the source being checked: 0 A, 1 B
     reg signed [17:0] bx0, by0, bx1, by1;
-    reg [31:0] prod_a, prod_b;
-    reg [25:0] dlast_q;
-    reg blit_ok_q;
-    reg [23:0] a_hi, b_hi;   // the sources' exclusive ends, linear
     wire is_rect = cmd == ZM_BLIT_CMD_FILL || cmd == ZM_BLIT_CMD_BLIT;
     wire is_poly = cmd == ZM_BLIT_CMD_LINE || cmd == ZM_BLIT_CMD_TRIANGLE;
-    wire signed [17:0] vx2 = cmd == ZM_BLIT_CMD_TRIANGLE ? x2 : x0;  // a LINE has two vertices
-    wire signed [17:0] vy2 = cmd == ZM_BLIT_CMD_TRIANGLE ? y2 : y0;
-    wire signed [17:0] minx = x0 < x1 ? (x0 < vx2 ? x0 : vx2) : (x1 < vx2 ? x1 : vx2);
-    wire signed [17:0] maxx = x0 > x1 ? (x0 > vx2 ? x0 : vx2) : (x1 > vx2 ? x1 : vx2);
-    wire signed [17:0] miny = y0 < y1 ? (y0 < vy2 ? y0 : vy2) : (y1 < vy2 ? y1 : vy2);
-    wire signed [17:0] maxy = y0 > y1 ? (y0 > vy2 ? y0 : vy2) : (y1 > vy2 ? y1 : vy2);
+    // the vertex merged at states 2 and 3: v1, then v2 (a LINE has two vertices: v0 again)
+    wire signed [17:0] vx = st == 4'd2 ? x1 : cmd == ZM_BLIT_CMD_TRIANGLE ? x2 : x0;
+    wire signed [17:0] vy = st == 4'd2 ? y1 : cmd == ZM_BLIT_CMD_TRIANGLE ? y2 : y0;
 
+    // the destination: products at state 5, spans at 6 (offsets from D_BASE, then linear)
+    reg [24:0] p_last, p_first;
+    reg signed [35:0] p_org;
+    reg [25:0] dlast_q;                         // (ey1-1)*ds + ex1: one past the box's last byte
+    reg [24:0] d_lo, d_hi;                      // the box's span, linear
+    reg signed [26:0] d_org;                    // the linear address of the rectangle's (x0, y0)
     wire empty = ex1 <= ex0 || ey1 <= ey0;
-    // The box is inside the buffer (at most 280 rows), so the last byte is below 2^26; a D_BASE
-    // above 2^22 is out of the region whatever the box.
-    wire [8:0]  ylast = ey1[8:0] - 9'd1;
-    wire [25:0] dlast = ylast * ds + ex1[16:0];
+    wire [8:0] ylast = ey1[8:0] - 9'd1;         // the box is inside a buffer of at most 280 rows
+    wire [24:0] d_lin = VIDEO + {3'd0, d_base[21:0]};
     wire dest_ok = empty || (d_base[31:22] == 10'd0 && {4'd0, d_base[21:0]} + dlast_q <= ZM_REGION_BYTES);
 
-    wire [15:0] hm1 = h - 16'd1;
-    // Everything a source may touch is below 2^23, so a base or a (h-1)*stride at or above it fails.
-    function src_ok(input [31:0] base, input [31:0] prod);   // prod = (h-1) * stride, registered
-        reg [24:0] hi;
-        begin
-            hi = {2'b00, base[22:0]} + {2'b00, prod[22:0]} + w;
-            src_ok = base[31:23] == 9'd0 && prod[31:23] == 9'd0 && (abs_src
-                ? ((base >= ZM_CART_RAM_BASE && hi <= ZM_CART_RAM_TOP)
-                   || (base >= ZM_HW_VIDEO_BASE && hi <= ZM_HW_VIDEO_BASE + ZM_REGION_BYTES)
-                   || (base >= ZM_ROM_RAM_BASE && hi <= ZM_ROM_RAM_TOP))
-                : hi <= ZM_REGION_BYTES);
-        end
-    endfunction
-    wire blit_ok = cmd != ZM_BLIT_CMD_BLIT
-        || (w != 16'd0 && h != 16'd0 && (!use_a || src_ok(a_base, prod_a)) && (!use_b || src_ok(b_base, prod_b)));
-
-    wire [22:0] a_lin = abs_src ? a_base[22:0] : ZM_HW_VIDEO_BASE + a_base[22:0];
-    wire [22:0] b_lin = abs_src ? b_base[22:0] : ZM_HW_VIDEO_BASE + b_base[22:0];
-    wire [22:0] d_lin = ZM_HW_VIDEO_BASE + d_base[22:0];
-    wire [23:0] d_hi = {1'b0, d_lin} + {1'b0, dlast_q[22:0]};
-    function apart(input [22:0] lo, input [23:0] hi);  // [lo, hi) and the destination share no byte
-        apart = hi <= {1'b0, d_lin} || d_hi <= {1'b0, lo};
-    endfunction
+    // the source under check
+    wire [31:0] s_base = sel ? b_base : a_base;
+    wire [15:0] s_str = sel ? b_stride : a_stride;
+    wire s_use = sel ? use_b : use_a;
+    reg [31:0] prod;                            // (h-1) * stride
+    reg [15:0] m_h, m_s;                        // its operands, registered a clock before
+    reg [24:0] s_lo, s_hi;                      // the source's span, linear
+    reg s_small, s_same;                        // base and product below 2^23; stride as D's or one row
+    wire in_video = s_lo >= VIDEO && s_hi <= VTOP;
+    wire in_cart = s_lo >= ZM_CART_RAM_BASE && s_hi <= ZM_CART_RAM_TOP;
+    wire in_rom = s_lo >= ZM_ROM_RAM_BASE && s_hi <= ZM_ROM_RAM_TOP;
+    wire src_ok = s_small && (in_video || (abs_src && (in_cart || in_rom)));
+    wire apart = s_hi <= d_lo || d_hi <= s_lo;
+    wire signed [26:0] delta = $signed({2'b00, s_lo}) - d_org;
+    wire behind_safe = s_same && (desc ? delta <= 27'sd0 : delta >= 27'sd0);
+    reg src_acc, ord_acc;
 
     always @(posedge clk) begin
         done <= 1'b0;
         case (st)
-            3'd0: if (go) st <= 3'd1;
-            3'd1: begin  // opBox, before the clip; the sources' extents
-                prod_a <= hm1 * a_stride;
-                prod_b <= hm1 * b_stride;
-                bx0 <= is_rect ? x0 : is_poly ? minx : cx0;
-                by0 <= is_rect ? y0 : is_poly ? miny : cy0;
-                bx1 <= is_rect ? x0 + $signed({2'd0, w}) : is_poly ? maxx + 18'sd1 : cx1;
-                by1 <= is_rect ? y0 + $signed({2'd0, h}) : is_poly ? maxy + 18'sd1 : cy1;
-                st <= 3'd2;
+            4'd0: if (go) begin st <= 4'd1; sel <= 1'b0; src_acc <= 1'b1; ord_acc <= 1'b0; end
+            4'd1: begin  // opBox: the rectangle, the first vertex, or (other ops) the clip
+                bx0 <= is_rect || is_poly ? x0 : cx0;
+                by0 <= is_rect || is_poly ? y0 : cy0;
+                bx1 <= is_rect ? x0 + $signed({2'd0, w}) : is_poly ? x0 + 18'sd1 : cx1;
+                by1 <= is_rect ? y0 + $signed({2'd0, h}) : is_poly ? y0 + 18'sd1 : cy1;
+                st <= 4'd2;
             end
-            3'd2: begin  // ... cut to the clip; the sources checked
+            4'd2, 4'd3: begin  // the other vertices, one a clock
+                if (is_poly) begin
+                    if (vx < bx0) bx0 <= vx;
+                    if (vy < by0) by0 <= vy;
+                    if (vx >= bx1) bx1 <= vx + 18'sd1;
+                    if (vy >= by1) by1 <= vy + 18'sd1;
+                end
+                st <= st + 4'd1;
+            end
+            4'd4: begin  // ... cut to the clip
                 ex0 <= bx0 > cx0 ? bx0 : cx0;
                 ey0 <= by0 > cy0 ? by0 : cy0;
                 ex1 <= bx1 < cx1 ? bx1 : cx1;
                 ey1 <= by1 < cy1 ? by1 : cy1;
-                blit_ok_q <= blit_ok;
-                st <= 3'd3;
+                m_h <= h - 16'd1; m_s <= a_stride;
+                st <= 4'd5;
             end
-            3'd3: begin  // the destination's last byte; the sources' ends
-                dlast_q <= dlast;
-                a_hi <= {1'b0, a_lin} + {1'b0, prod_a[22:0]} + {8'd0, w};
-                b_hi <= {1'b0, b_lin} + {1'b0, prod_b[22:0]} + {8'd0, w};
-                st <= 3'd4;
+            4'd5: begin  // products
+                p_last <= ylast * ds;
+                p_first <= ey0[8:0] * ds;
+                p_org <= y0 * $signed({2'b00, ds});
+                prod <= m_h * m_s;
+                st <= 4'd6;
+            end
+            4'd6: begin  // spans
+                dlast_q <= {1'b0, p_last} + {8'd0, ex1[16:0]};
+                d_lo <= d_lin + p_first + {8'd0, ex0[16:0]};
+                d_hi <= d_lin + p_last + {8'd0, ex1[16:0]};
+                d_org <= $signed({2'b00, d_lin}) + p_org[26:0] + {{9{x0[17]}}, x0};
+                s_lo <= (abs_src ? 25'd0 : VIDEO) + {2'b00, s_base[22:0]};
+                s_hi <= (abs_src ? 25'd0 : VIDEO) + {2'b00, s_base[22:0]} + {2'b00, prod[22:0]} + {9'd0, w};
+                s_small <= s_base[31:23] == 9'd0 && prod[31:23] == 9'd0;
+                s_same <= h == 16'd1 || s_str == ds;
+                st <= 4'd7;
+            end
+            4'd7: begin  // this source's verdict; then the next source, or the op's
+                if (s_use) begin
+                    src_acc <= src_acc && src_ok;
+                    ord_acc <= ord_acc || !(apart || behind_safe);
+                end
+                sel <= 1'b1;
+                m_s <= b_stride;
+                st <= sel ? 4'd8 : 4'd5;
             end
             default: begin
-                ok <= dest_ok && blit_ok_q;
-                overlap <= (use_a && !apart(a_lin, a_hi)) || (use_b && !apart(b_lin, b_hi));
+                ok <= dest_ok && (cmd != ZM_BLIT_CMD_BLIT || (w != 16'd0 && h != 16'd0 && src_acc));
+                overlap <= ord_acc;
                 done <= 1'b1;
-                st <= 3'd0;
+                st <= 4'd0;
             end
         endcase
     end
-    initial st = 3'd0;
+    initial st = 4'd0;
 endmodule

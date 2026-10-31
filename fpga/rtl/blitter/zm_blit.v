@@ -30,14 +30,17 @@ module zm_blit (
     output wire [3:0]   wr_req_strb,
     input  wire         wr_pending
 );
-    wire [767:0] rf;
+    wire [511:0] rf;
+    wire [3:0] ht_y;
+    wire [15:0] ht_row;
+    wire ht_nz;
     wire start, cyc_we, core_busy;
     wire [15:0] dbg;
     wire [31:0] cyc_val;
     zm_blit_regs regs (.clk(clk), .rst(rst), .cpu_we(cpu_we), .cpu_waddr(cpu_waddr), .cpu_be(cpu_be),
         .cpu_wdata(cpu_wdata), .cpu_raddr(cpu_raddr), .cpu_rdata(cpu_rdata), .busy(core_busy), .cyc_we(cyc_we),
-        .cyc_val(cyc_val), .start(start), .rf(rf), .dbg(dbg));
-    zm_blit_core core (.clk(clk), .rst(rst), .start(start), .rf(rf), .busy(core_busy), .cyc_we(cyc_we),
+        .cyc_val(cyc_val), .start(start), .rf(rf), .dbg(dbg), .ht_y(ht_y), .ht_row(ht_row), .ht_nz(ht_nz));
+    zm_blit_core core (.clk(clk), .rst(rst), .start(start), .rf(rf), .ht_y(ht_y), .ht_row(ht_row), .ht_nz(ht_nz), .busy(core_busy), .cyc_we(cyc_we),
         .cyc_val(cyc_val), .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready), .rd_req_addr(rd_req_addr),
         .rd_rsp_valid(rd_rsp_valid), .rd_rsp_data(rd_rsp_data), .wr_req_valid(wr_req_valid),
         .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr), .wr_req_data(wr_req_data),
