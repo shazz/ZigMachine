@@ -1,5 +1,51 @@
 # Line-interleaved planes: would one fetch a line make FRESCO cheaper? (study, 2026-10-31)
 
+## Why compositing is slow: the time goes to DDR copies
+
+Matt asked whether the way pixel data is organised (the ST interleaves its bitplanes) drives
+FRESCO's cost. It does only a little: the bottleneck is moving rows through DDR, not reading the
+planes' pixels.
+
+**How FRESCO composes.** Each plane is a chunky buffer in DDR, one byte a pixel (an index into the
+plane's 256-colour palette). FRESCO builds the frame line by line: for every line it loads that row
+of each plane, looks the colours up, mixes the planes (transparency), and writes a 32-bit RGBA row
+into the composed frame in DDR; scanout then reads that frame. A plane row is 320 bytes; a composed
+row is 1,280.
+
+**Where a line pass goes**, measured on the board (comp clocks, 125 MHz; the roadmap artifact's
+"Frame budget" tab):
+
+| step | comp clocks | what it is |
+|---|---|---|
+| row load | 528 | the composite row read back from DDR |
+| row store | 484 | the composite row written to DDR |
+| fill | 403 | |
+| mix | 406 | blending this plane over the row |
+| paint | 329 / 408 | |
+| fetch | ~170-180 | the plane's own 320 bytes from DDR |
+| fixed | ~171 a pass | sequencing |
+
+So **~60 % of a later layer's pass is the composite row going out to DDR and back**. Reading the
+plane's own pixels (fetch) is the small part.
+
+**What that means for the data layout:**
+
+- **ST-style interleaved bitplanes** (4 bits a pixel) would halve the fetch, 160 bytes instead of
+  320: ~80 clocks of ~2,000 a pass. The decode is cheap in an FPGA (the ST's shifter did it), but
+  it costs 256 colours a plane and the chunky CHISEL blits every cart uses. Small gain, big cost.
+- **Interleaving the planes line by line** (this study): see below. It saves at most the per-fetch
+  latency, ~0.01-0.04 Mc a frame.
+- **The composite row is the big lever.** A smaller row format (F3, RGB565) gains only ~0.03 Mc a
+  frame because the rows carry alpha. Not sending the composed row through DDR at all (composing at
+  scanout, in on-chip memory) is the only big win, and Fable advised against it: ~1,000+ LUT at
+  89 %, a late line shows garbage, and the browser-vs-board picture check is lost.
+
+**In short:** the cost is the composite frame's round trip through DDR, not how the pixels are
+packed. That is why fewer planes (fewer passes) is still the lever: one plane less saves
+0.19-0.59 Mc.
+
+## The study
+
 **Recommendation: don't** (whatever the board says about the latency: section 5 only picks between P, Q and neither). Interleaving the planes in memory (plane 0 row y, plane 1 row y, ...) merges
 nothing by itself, and the merge it would allow in RTL saves only the per-fetch latency of the
 held passes of a line-major group: **~0.01 Mc a frame for 2 planes, ~0.03 for 4** (normal planes,
