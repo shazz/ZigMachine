@@ -109,7 +109,7 @@ fn expectHotkey(r: *test_rig.Rig, a: *App, code: u16, shift: bool) !void {
 fn expectPad(a: *App, bit: u32) !void {
     if (!a.open) press(a, keymap.OSD_HOTKEY);
     a.menu.page = .console;
-    a.menu.console.cursor = 4; // Debug...: fire opens the debug page, Down moves to Back
+    a.menu.console.cursor = 4; // Debug...: fire opens the debug page, Down moves to Help...
     const ev: [2]u16 = switch (bit) {
         map.JOY_DOWN => .{ pad.EV_ABS, pad.ABS_HAT0Y },
         map.JOY_FIRE => .{ pad.EV_KEY, pad.BTN_SOUTH },
@@ -134,7 +134,11 @@ test "the help page fits the strip's layout and scrolls within its lines" {
     o.dump(&dump);
     try std.testing.expect(std.mem.indexOf(u8, &dump, "\n  GLOBAL ---") != null); // strip, gap, heading
     try std.testing.expect(std.mem.indexOf(u8, &dump, "\nH F12        open/close the OSD") != null);
-    try std.testing.expect(std.mem.indexOf(u8, &dump, " ZIGMACHINE  HELP   1-14/32  >") != null);
-    try std.testing.expectEqual(menu.Action.none, m.key(map.KEY_ARROW_RIGHT | map.KEY_DOWN));
-    try std.testing.expectEqual(menu.Page.budget, m.page);
+    try std.testing.expect(std.mem.indexOf(u8, &dump, " ZIGMACHINE  HELP   1-14/31  Esc") != null);
+    try std.testing.expectEqual(menu.Action.none, m.key(map.KEY_ESCAPE | map.KEY_DOWN));
+    try std.testing.expectEqual(menu.Page.console, m.page);
+    m.page = .console; // Help... is the console's item below Debug...
+    m.console.cursor = 5;
+    _ = m.key(map.KEY_ENTER | map.KEY_DOWN);
+    try std.testing.expectEqual(menu.Page.help, m.page);
 }

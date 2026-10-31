@@ -1,4 +1,4 @@
-// The help page (debug > help > budget): every shortcut, grouped by where it works, drawn
+// The help page (console > Help...): every shortcut, grouped by where it works, drawn
 // from ONE table that page_help_test.zig replays against the real key handling, so a key
 // the table names but no page takes (or a page renamed) fails the build, not the user.
 //
@@ -10,7 +10,7 @@ const map = @import("map.zig");
 const osd = @import("osd.zig");
 const keymap = @import("keymap.zig");
 
-pub const Group = enum { global, shelf, console, debug, help, budget };
+pub const Group = enum { global, shelf, console, debug, budget, help };
 
 /// How the test proves the key is handled where the table says.
 pub const Check = union(enum) {
@@ -40,20 +40,19 @@ pub const table = [_]Entry{
     .{ .group = .shelf, .keys = "Right", .what = "console page", .check = .{ .menu = &.{K.KEY_ARROW_RIGHT} } },
     .{ .group = .shelf, .keys = "Esc", .what = "close the OSD", .check = .{ .menu = &.{K.KEY_ESCAPE} } },
     .{ .group = .console, .keys = "Up/Down", .what = "select an item", .check = .{ .menu = &.{ K.KEY_ARROW_UP, K.KEY_ARROW_DOWN } } },
-    .{ .group = .console, .keys = "Enter", .what = "do it", .check = .{ .menu = &.{ K.KEY_ENTER, ' ' } } },
+    .{ .group = .console, .keys = "Enter", .what = "do the item", .check = .{ .menu = &.{ K.KEY_ENTER, ' ' } } },
     .{ .group = .console, .keys = "Left/Right", .what = "volume, mute", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ARROW_RIGHT } } },
     .{ .group = .console, .keys = "Esc/Bksp", .what = "back to the shelf", .check = .{ .menu = &.{ K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
-    .{ .group = .debug, .keys = "Right", .what = "help page", .check = .{ .menu = &.{K.KEY_ARROW_RIGHT} } },
+    .{ .group = .debug, .keys = "Right", .what = "frame budget page", .check = .{ .menu = &.{K.KEY_ARROW_RIGHT} } },
     .{ .group = .debug, .keys = "Left/Esc", .what = "back to console", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
+    .{ .group = .budget, .keys = "Left/Esc", .what = "back to debug", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
     .{ .group = .help, .keys = "Up/Down", .what = "scroll", .check = .{ .menu = &.{ K.KEY_ARROW_UP, K.KEY_ARROW_DOWN } } },
     .{ .group = .help, .keys = "PgUp/PgDn", .what = "scroll a screenful", .check = .{ .menu = &.{ K.KEY_PAGE_UP, K.KEY_PAGE_DOWN } } },
-    .{ .group = .help, .keys = "Right", .what = "frame budget page", .check = .{ .menu = &.{K.KEY_ARROW_RIGHT} } },
-    .{ .group = .help, .keys = "Left/Esc", .what = "back to debug", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
-    .{ .group = .budget, .keys = "Left/Esc", .what = "back to help", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
+    .{ .group = .help, .keys = "Left/Esc", .what = "back to console", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
 };
 
 const KEYS_W = 11;
-const headings = [_][]const u8{ "GLOBAL", "SHELF", "CONSOLE", "DEBUG", "HELP", "BUDGET" };
+const headings = [_][]const u8{ "GLOBAL", "SHELF", "CONSOLE", "DEBUG", "BUDGET", "HELP" };
 
 /// The page's lines: a ruled heading before each group, then "<keys><what>".
 pub const lines = build();
@@ -84,7 +83,7 @@ fn build() [table.len + headings.len][]const u8 {
 pub fn draw(o: *osd.Osd, top: usize) void {
     var bar: [osd.COLS]u8 = undefined;
     const end = @min(top + SHOWN, lines.len);
-    const title = std.fmt.bufPrint(&bar, " ZIGMACHINE  HELP  {d:>2}-{d:>2}/{d:<2}  >", .{ top + 1, end, lines.len });
+    const title = std.fmt.bufPrint(&bar, " ZIGMACHINE  HELP  {d:>2}-{d:>2}/{d:<2}  Esc", .{ top + 1, end, lines.len });
     o.line(0, title catch "", true);
     for (lines[top..end], 0..) |l, i| o.body(@intCast(1 + i), l, false);
 }

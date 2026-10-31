@@ -5,8 +5,8 @@
 //   shelf    the carts, the selected one's details      (page_shelf.zig)
 //     > console   cold/warm reset, volume, mute, debug   (page_console.zig)
 //         > debug   versions, live stats, the board      (page_debug.zig)
-//             > help    every shortcut, from one table        (page_help.zig)
-//                 > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
+//             > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
+//         > help    every shortcut, from one table       (page_help.zig)
 const std = @import("std");
 const map = @import("map.zig");
 const osd = @import("osd.zig");
@@ -26,7 +26,7 @@ pub const Action = union(enum) { none, close, load: usize, insert: usize, eject,
 pub const Page = enum { shelf, console, debug, budget, help };
 
 pub const HINT = "ENTER boot  I/E disk  F floppy >";
-const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > help         Esc back", "Shift+F11 close  < help   Esc", "Up/Dn scroll  > budget  Esc" };
+const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > budget       Esc back", "Shift+F11 close  < debug  Esc", "Up/Dn PgUp/PgDn scroll  Esc" };
 
 pub const Menu = struct {
     disks: []const shelf.Disk,
@@ -81,13 +81,14 @@ pub const Menu = struct {
             .warm => .warm,
             .settings => .settings,
             .debug => self.go(.debug),
+            .help => self.go(.help),
         };
     }
 
     fn debugKey(self: *Menu, code: u32) Action {
         switch (code) {
             map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.console),
-            map.KEY_ARROW_RIGHT => return self.go(.help),
+            map.KEY_ARROW_RIGHT => return self.go(.budget),
             else => return .none,
         }
     }
@@ -98,15 +99,14 @@ pub const Menu = struct {
             return .none;
         }
         switch (code) {
-            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.debug),
-            map.KEY_ARROW_RIGHT => return self.go(.budget),
+            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.console),
             else => return .none,
         }
     }
 
     fn budgetKey(self: *Menu, code: u32) Action {
         switch (code) {
-            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.help),
+            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.debug),
             else => return .none,
         }
     }

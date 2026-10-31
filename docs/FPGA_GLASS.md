@@ -377,7 +377,7 @@ below the cart window.
 
 ### The frame-budget page (Shift+F11, `page_budget.zig`)
 
-Shift+F11, or `>` from the help page. Read-only, redrawn twice a second; numbers averaged
+Shift+F11, or `>` from the debug page. Read-only, redrawn twice a second; numbers averaged
 over one second of 100 ms samples of the video probe, the peak over the last three:
 
 - row 1, a bar of the frame in cells of 1/15 of a 60 fps frame (111 Kc): `C` cart, `F`
@@ -425,8 +425,9 @@ picture. It is the same OSD, put in another mode rather than a second block:
   91 LUT and 154 FF (Yosys). Vivado out of context, placed and routed at the
   40 MHz pixel clock: 71 LUT, 159 FF, 1 BRAM tile, WNS +19.1 ns (the worst path
   is font ROM → pixel mux, 3 logic levels).
-- **The menu** has five pages (`menu.zig`, one file a page): shelf > console > debug > help >
-  budget, `>`/Right going deeper and `<`/Esc back. Row 15 is always
+- **The menu** has five pages (`menu.zig`, one file a page): shelf > console > debug > budget,
+  `>`/Right going deeper and `<`/Esc back, and the help page from the console's `Help...` item
+  (below `Debug...`; Esc/Left back to the console; Matt, 2026-10-31). Row 15 is always
   the status line: the page's hint, `loading…`, or the last error. A joypad
   works everywhere: the d-pad is the arrows and fire is Enter; Back is an item,
   as a pad has no Esc. `glass sim-menu DIR [shelf|console|debug]` prints any

@@ -139,6 +139,7 @@ test "the debug page opens from the console and any back key leaves it" {
     try std.testing.expectEqual(Action.none, m.key(down('x')));
     try std.testing.expectEqual(Action.none, m.key(down(map.KEY_ESCAPE)));
     try std.testing.expectEqual(menu.Page.console, m.page);
+    _ = m.key(down(map.KEY_ARROW_DOWN)); // Help...
     _ = m.key(down(map.KEY_ARROW_DOWN)); // Back: a pad has no Esc
     try std.testing.expectEqual(Action.save, m.key(down(map.KEY_ENTER)));
     try std.testing.expectEqual(menu.Page.shelf, m.page);
