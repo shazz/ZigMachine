@@ -10,9 +10,10 @@
 //        lines 180..279  16-line bands, alternately flipped (an LBASE a line) and straight (one
 //                        LBASE, the counter runs on by itself)
 //        colour 0        a moving ST-legal raster through every border
-//   B  plane 1, a 320x400 scroll plane whose window (FB_BASE) is static; its list flips rows
-//      200..399 into it, where the CPU moves a bar: what the board's dirty-line planner must
-//      redraw although the list and the window's rows never change (fpga/cycles/vdlist.h).
+//   B  plane 1, a 320x400 scroll plane whose window (FB_BASE) is static; its list shows rows
+//      200..399 in 8-line bands in reverse order (one LBASE a band, the 7 lines below run on with
+//      no record), where the CPU moves a bar: lines the board's dirty-line planner must redraw
+//      although the list and the window's rows never change (fpga/cycles/vdlist.h).
 //
 // The proof cart: apps/linebase_test_headless.mjs, fpga/tests/test_vdirty.py, the board sims.
 // Integer maths only (fixtrig tables).
@@ -88,7 +89,7 @@ pub const Demo = struct {
         fb.fillRect(0, 200 + @as(i32, self.bar_y), B_W, 8, 0); // last frame's bar, gone
         self.bar_y = @intCast((self.fc * 3) % (B_H - 200 - 8));
         fb.fillRect(0, 200 + @as(i32, self.bar_y), B_W, 8, BAR);
-        for (&lines_b, 0..) |*ln, ly| ln.* = .{ .base = fb.lineAddr(0, @intCast(B_H - 1 - ly)) };
+        for (&lines_b, 0..) |*ln, ly| ln.* = .{ .base = fb.lineAddr(0, @intCast(B_H - 8 - (ly & ~@as(usize, 7)) + (ly & 7))) };
         _ = zg.linelist.build(l, &lines_b, .{ .plane = fb.id, .stride = B_W, .first_row = zg.VERTICAL_BORDERS_HEIGHT, .hscroll = false, .colour_entry = null }) catch {};
     }
 };

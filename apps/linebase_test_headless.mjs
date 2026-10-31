@@ -4,8 +4,8 @@
 // cart built for the plane it shows and checks:
 //   - the picture equals apps/linebase_model.mjs's rule applied to that list, pixel for pixel,
 //     borders included (LBASE, the counter running on, HSCROLL per line, colour 0 per line);
-//   - phase B (frames 151..300, plane 1, scroll): every visible line has an LBASE (a flip of rows the
-//     CPU draws into); phase A (frames 1..150, plane 0, overscan): one FLICK record a line (all
+//   - phase B (frames 151..300, plane 1, scroll): an LBASE on every 8th visible line and no record
+//     between (bands of rows the CPU draws into, in reverse order, the lines between running on); phase A (frames 1..150, plane 0, overscan): one FLICK record a line (all
 //     borders open, no HBL handler), HSCROLL > 0 in the wobble, run-on lines (no LBASE) in the
 //     straight bands, an LBASE on every line of a flipped band, colour 0 changing down the frame.
 //
@@ -76,7 +76,7 @@ function plane(p, f, seen) {
         if (recs.length !== RH || recs.some(([y, ops], i) => y !== i || ops[0]?.[0] !== "flick"))
             return `frame ${f}: plane 0 has not one FLICK record a line (${recs.length} records)`;
         noteA(recs, seen);
-    } else if (recs.length === 200 && recs.every(([y, ops], i) => y === 40 + i && ops.some((o) => o[0] === "lbase"))) {
+    } else if (recs.length === 25 && recs.every(([y, ops], i) => y === 40 + 8 * i && ops.some((o) => o[0] === "lbase"))) {
         seen.flipB = true;
     }
     return firstMismatch(model(cfg, recs, brk), r8, (x, y) => dv().getUint32(pfb + (y * RW + 2 * x) * 4, true), bg);

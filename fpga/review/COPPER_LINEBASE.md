@@ -86,18 +86,17 @@ policy as a 1.9 cart on 1.8: hosts hand carts no hwVersion, a 1.10 cart needs a 
 ## Planner (fpga/cycles vdirty)
 
 A list with an LBASE names source rows elsewhere in VRAM that may change while the list does not, and
-`vdrow.h fetch()` would compare FB_BASE's rows, not the ones shown: such a plane is planned
-**uncompared**, every covered line new every frame (as a PALREF-first plane: `vdl_palref_first`
-becomes "uncompared first", plus `vdl_measure` names LBASE). Then no line of it is ever skipped, which
-also keeps the board's copper in step (below). Overscan planes are UNKNOWN to the planner anyway, so
-Mind Rewind is not planned at all. A `VD_BREAK_LBASE` mutant in test_vdirty.py.
+`vdrow.h fetch()` would compare FB_BASE's rows, not the ones shown: such a list always counts as
+changed (`vdl_measure` names LBASE), so every line its plane covers is new every frame, and a plane
+whose list opens with one is planned **uncompared** (as a PALREF-first plane). Overscan planes are
+UNKNOWN to the planner anyway, so Mind Rewind is not planned at all. A `VD_BREAK_LBASE` mutant in
+test_vdirty.py, caught on linebase_test's phase B, whose lines between two LBASEs carry no record.
 
-**Open question found on the way (1.9.0, not LBASE's):** a SKIPPED line issues no PLANE pass
-(`vseq.c layer()`, `vseq_group.c plane_line()`), so the copper does not apply that line's record;
-the next issued pass then sees a record for a line already passed (`c_hy < line`) and STOPS the
-list, where the browser applied every record. A plane with an unchanged list (no handler) can have
-lines skipped, so a later changed line would paint with the wrong palette. To be checked with a
-replay test before trusting the plan with lists; LBASE avoids it by being uncompared.
+The skipped-record issue found while designing this (a skipped line issues no PLANE pass, so the
+board's copper never applied its record and stopped the list at the next pass) is fixed on main by
+bb92bfc6: a line holding a copper record is never skipped (`vdl_records`, VD_BREAK=RECORDS). That
+alone would not cover LBASE: the lines BETWEEN two records read rows the LBASE moved, which is what
+the always-changed rule covers.
 
 ## Why not "REG writes FB_BASE (and BACKGROUND, PLANE_ENABLE)"
 
@@ -145,8 +144,9 @@ rows, flicker)` allocates and publishes the list (HBL position at the magic colu
   borders and the stop; normal with a flip and an ignored HSCROLL; frame 2 restarts from FB_BASE.
   `--break` drops each rule from the model in turn and must be caught; it fails on the 1.9.0 machine.
 - Test cart `linebase_test` (cart 110, menu "LINE LIST TEST"): phase A overscan wobble / line zoom /
-  flipped bands / colour-0 raster through open borders, phase B a scroll plane whose list flips rows
-  the CPU draws in. `apps/linebase_test_headless.mjs` (gate, 420 frames) checks the picture against
+  flipped bands / colour-0 raster through open borders, phase B a scroll plane whose list shows, in
+  8-line bands in reverse order, rows the CPU draws in (one LBASE a band, the lines between with no
+  record). `apps/linebase_test_headless.mjs` (gate, 420 frames) checks the picture against
   the model of the list the cart built, with two `--break` mutants.
 - Planner: `test_vdirty.py` runs the cart's phase B (LBASE on a comparable plane) with no
   mismatch, and `VD_BREAK_LBASE` (an LBASE list compared like a PAL one) must mismatch.
