@@ -63,11 +63,6 @@ inline fn fbBase(plane: usize) u32 {
 inline fn hscroll(plane: usize) u16 {
     return r16(memmap.REG_HSCROLL + plane * 2);
 }
-inline fn lfb(plane: usize) [*]u8 {
-    // Screen base is the FB_BASE register (ST(E) "screen base"): a byte offset
-    // into the region, so a plane's framebuffer can live anywhere in the VRAM pool.
-    return @ptrFromInt(memmap.HW_VIDEO_BASE + @as(usize, fbBase(plane)));
-}
 inline fn pfb() [*]u32 {
     return @ptrFromInt(memmap.HW_VIDEO_BASE + memmap.OFF_PFB);
 }
@@ -262,7 +257,7 @@ inline fn put2(out: [*]u32, py: usize, px: usize, c: u32) void {
 // PFB through the later (border-untouching) plane renders, so they reach the top
 // canvas. Transparent index (palette alpha 0) lets lower planes/background show.
 fn renderPlaneFullscreen(fb_id: usize) void {
-    const buf = lfb(fb_id); // 400x280 logical, stride 400
+    const buf = region(); // 400x280 logical, stride 400; each line from lb (LBASE)
     const stride: usize = fbStride(fb_id);
     const palette = pal(fb_id);
     const out = pfb();
@@ -272,7 +267,7 @@ fn renderPlaneFullscreen(fb_id: usize) void {
     var y: usize = 0;
     while (y < RH) : (y += 1) {
         _ = lineStart(fb_id, hid, y, hpos, y);
-        const srow = y * stride;
+        const srow = lb.at(y, stride);
         var lx: usize = 0;
         while (lx < memmap.PHYSICAL_WIDTH) : (lx += 1) // 400 logical -> 800 physical (doubled)
             put2(out, y, lx * 2, palette[buf[srow + (lx + hs) % stride]]);
@@ -325,7 +320,7 @@ fn visibleRow(out: [*]u32, buf: [*]u8, palette: [*]u32, y: usize, srow: usize, s
 // can flicker there; the machine observes the (untrappable) flicker via the
 // REG_RES_FLICKER latch bumped by the SDK. Opening is causal top-to-bottom.
 fn renderPlaneOverscan(fb_id: usize) void {
-    const buf = lfb(fb_id);
+    const buf = region();
     const stride: usize = fbStride(fb_id);
     const palette = pal(fb_id);
     const out = pfb();
@@ -340,7 +335,8 @@ fn renderPlaneOverscan(fb_id: usize) void {
         const cop_flick = lineStart(fb_id, hid, y, hpos, y);
         const flick = r16(memmap.REG_RES_FLICKER) != before or cop_flick;
         const hit = flick and overscanHit(hpos);
-        const srow = y * stride;
+        // HSCROLL as in SCROLL mode (1.10.0): read after the handler and the record, no wrap.
+        const srow = lb.at(y, stride) + @as(usize, hscroll(fb_id));
         if (y < BY) {
             if (hit) top_open = true;
             bandRow(out, buf, palette, y, srow, top_open, flick, seed);
@@ -356,7 +352,7 @@ fn renderPlaneOverscan(fb_id: usize) void {
 // Low-res NORMAL plane: 320x200 logical, composited pixel-doubled into the visible
 // 640x200 physical window. Borders are left to the background (clear).
 fn renderPlaneNormal(fb_id: usize) void {
-    const buf = lfb(fb_id);
+    const buf = region();
     const stride: usize = fbStride(fb_id);
     const palette = pal(fb_id);
     const out = pfb();
@@ -366,7 +362,7 @@ fn renderPlaneNormal(fb_id: usize) void {
     while (ly < memmap.HEIGHT) : (ly += 1) {
         const py = BY + ly;
         _ = lineStart(fb_id, hid, ly, hpos, py);
-        const srow = ly * stride;
+        const srow = lb.at(ly, stride);
         var lx: usize = 0;
         while (lx < memmap.WIDTH) : (lx += 1) put2(out, py, BX + lx * 2, palette[buf[srow + lx]]);
     }
@@ -380,7 +376,7 @@ fn renderPlaneNormal(fb_id: usize) void {
 // A MEDIUM plane whose stride is the full raster width (800) is an OVERSCAN plane:
 // it covers the whole frame including the borders (the medium twin of Option B).
 fn renderPlaneMedium(fb_id: usize) void {
-    const buf = lfb(fb_id);
+    const buf = region();
     const stride: usize = fbStride(fb_id);
     const palette = pal(fb_id);
     const out = pfb();
@@ -396,7 +392,7 @@ fn renderPlaneMedium(fb_id: usize) void {
     while (ly < rows) : (ly += 1) {
         const py = oy + ly;
         _ = lineStart(fb_id, hid, ly, hpos, py);
-        const srow = ly * stride;
+        const srow = lb.at(ly, stride);
         if (r8(memmap.REG_RESOLUTION) == memmap.RES_MEDIUM) {
             const orow = py * RW + ox;
             var lx: usize = 0;
@@ -414,7 +410,7 @@ fn renderPlaneMedium(fb_id: usize) void {
 // per-plane HBL handler can rewrite it each line for a sine/line-shear distort
 // (the ST/Amiga "screen-offset" wobble). Borders are left untouched.
 fn renderPlaneScroll(fb_id: usize) void {
-    const buf = lfb(fb_id);
+    const buf = region();
     const stride: usize = fbStride(fb_id);
     const palette = pal(fb_id);
     const out = pfb();
@@ -425,7 +421,7 @@ fn renderPlaneScroll(fb_id: usize) void {
         const py = BY + vy;
         _ = lineStart(fb_id, hid, vy, hpos, py);
         const hs: usize = @intCast(hscroll(fb_id)); // read AFTER the HBL so a per-line handler distorts
-        const srow = vy * stride + hs;
+        const srow = lb.at(vy, stride) + hs;
         var vx: usize = 0;
         while (vx < memmap.WIDTH) : (vx += 1) put2(out, py, BX + vx * 2, palette[buf[srow + vx]]);
     }
@@ -433,6 +429,10 @@ fn renderPlaneScroll(fb_id: usize) void {
 
 // The copper list of the plane being rendered (machine/copper.zig): its frame starts here.
 var cop: copper.Cursor = .{};
+// Where its lines read from: FB_BASE (the ST(E) screen base, a byte offset into the region, so a
+// plane's buffer can live anywhere in the VRAM pool) at the frame's start, then each LBASE (the
+// STE's video counter, HW 1.10.0). The renderers index their buffer from region().
+var lb: copper.LineBase = .{ .off = 0 };
 
 const PalWrites = struct {
     palette: [*]u32,
@@ -444,16 +444,19 @@ const PalWrites = struct {
 // A line plane fb_id covers (raster line py): its HBL handler (with its own line numbering), then
 // its copper record. True when the record FLICKs: an overscan line then flickers as if its handler
 // had bumped RES_FLICKER (the register itself is the handlers' alone, on both machines).
+// `hline` is also the plane's row, which an LBASE starts from.
 fn lineStart(fb_id: usize, hid: u16, hline: usize, hpos: u16, py: usize) bool {
     if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(hline), @intCast(hpos));
     if (!cop.live) return false;
     const fx = copper.line(region()[0..memmap.OFF_PFB], &cop, fb_id, @intCast(py), PalWrites{ .palette = pal(fb_id) });
     if (fx.hscroll) |h| w16(memmap.REG_HSCROLL + fb_id * 2, h);
+    if (fx.lbase) |v| lb = .{ .off = v, .row = hline };
     return fx.flick;
 }
 
 pub fn renderPlane(fb_id: usize) void {
     cop = copper.begin(region()[0..memmap.OFF_PFB], r16(memmap.REG_FB_COPPER + fb_id * 2));
+    lb = .{ .off = fbBase(fb_id) };
     switch (fbMode(fb_id)) {
         memmap.FB_MODE_SCROLL => return renderPlaneScroll(fb_id),
         memmap.FB_MODE_FULLSCREEN => return renderPlaneFullscreen(fb_id),

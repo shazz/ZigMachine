@@ -43,6 +43,18 @@ pub const Cursor = struct {
 pub const Effects = struct {
     flick: bool = false,
     hscroll: ?u16 = null,
+    lbase: ?u32 = null, // an LBASE: the line's source, a region offset in VRAM
+};
+
+/// Where a plane's lines read from during its frame (LBASE): FB_BASE until a record moves it.
+/// Row r reads off + (r - row) * stride; records come in increasing line order, so r >= row.
+pub const LineBase = struct {
+    off: usize,
+    row: usize = 0,
+
+    pub fn at(self: LineBase, r: usize, stride: usize) usize {
+        return self.off +% (r - self.row) *% stride;
+    }
 };
 
 const VRAM_END: usize = memmap.OFF_VRAM + memmap.VRAM_BYTES;
@@ -102,6 +114,11 @@ pub fn line(region: []const u8, cur: *Cursor, plane: usize, py: u16, t: anytype)
                 fx.hscroll = @truncate(w);
             },
             OP_FLICK => fx.flick = true,
+            OP_LBASE => {
+                const v: u32 = w & 0x0FFF_FFFF;
+                if (v < memmap.OFF_VRAM or v >= VRAM_END) return stop(cur, fx); // also bits 27..21
+                fx.lbase = v;
+            },
             OP_PALREF => {
                 const first: usize = (w >> 20) & 0xFF;
                 const k: usize = (w >> 12) & 0xFF;

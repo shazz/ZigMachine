@@ -115,6 +115,8 @@ python3 fpga/tools/sys_abi.py --break   # ...and a table changed without a versi
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
+node apps/linebase_check.mjs  # copper LBASE + overscan HSCROLL (1.10.0): line lists against a model, frame reset, the stop
+node apps/linebase_check.mjs --break   # ...and a model missing any one rule is caught
 
 # --- ZX0: pack every asset (stale only) and report the ratios per screen ------
 tools/pack_stats.sh
@@ -164,6 +166,7 @@ NATIVE_TESTS="
     libs/zig/effects/text_plot_test.zig
     libs/zig/effects/glyph_line_test.zig
     libs/zig/effects/copper_test.zig
+    libs/zig/effects/linelist_test.zig
     libs/zig/effects/palette_test.zig
     libs/zig/effects/scrollring_test.zig
     libs/zig/effects/pathchain_test.zig
@@ -187,6 +190,7 @@ NATIVE_TESTS="
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
     machine/copper_test.zig
+    machine/copper_lbase_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
