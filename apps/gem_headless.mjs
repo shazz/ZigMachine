@@ -257,6 +257,34 @@ const SCENARIOS = {
         for (let i = 0; i < 3; i++) gem.frame();
         await gem.shot(`${out}/disk-info.ppm`);
     },
+    // KOS F4: drive A shows only with a disk in, labelled by insertDisk's bit 8 (the real
+    // floppy, glass's D) FLOPPY, else SD IMAGE; DISK INFORMATION's Source: row says the same.
+    "drive-source": async (gem, out) => {
+        const settle = () => { for (let i = 0; i < 3; i++) gem.frame(); };
+        gem.demo.insertDisk(0x101);
+        settle();
+        const floppy = gem.hash();
+        await gem.shot(`${out}/drive-floppy.ppm`);
+        gem.click(...FLOPPY);
+        gem.click(145, 8); // File
+        gem.click(200, 23); // Show Info...
+        settle();
+        await gem.shot(`${out}/drive-floppy-info.ppm`);
+        gem.key(13);
+        gem.demo.insertDisk(1);
+        gem.click(400, 150); // deselect
+        settle();
+        if (gem.hash() === floppy) throw new Error("the FLOPPY and SD IMAGE labels draw the same");
+        gem.demo.insertDisk(0);
+        settle();
+        const empty = gem.hash();
+        await gem.shot(`${out}/drive-empty.ppm`);
+        if (empty === floppy) throw new Error("an empty drive still draws drive A");
+        gem.click(...FLOPPY);
+        settle();
+        if (gem.hash() !== empty) throw new Error("a click where the hidden drive sits selected it");
+        gem.demo.insertDisk(1);
+    },
     // A modal dialog owns the menu bar. The COPY box (a file dropped on a folder)
     // was missing from the menu bar's copy of the modal list, so hovering a menu
     // title dropped the menu down OVER the open dialog.
