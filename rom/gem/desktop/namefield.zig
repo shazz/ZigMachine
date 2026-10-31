@@ -86,6 +86,27 @@ pub const NameField = struct {
     }
 };
 
+// A name as the TOS ITEM SELECTOR LISTS it: NAME padded with SPACES to 8 cells,
+// '.', EXT padded with spaces to 3, so the dots line up down the list; an empty
+// slot is the bare template, `________.___`. Measured on TOS 1.02 (the FSEL rows'
+// template is "_ ________.___ "; prototypes/gem_filesel_re/tos102).
+pub fn listCells(name: []const u8, out: *[12]u8) []const u8 {
+    if (name.len == 0) {
+        @memcpy(out, "________.___");
+        return out;
+    }
+    var base = name;
+    var ext: []const u8 = "";
+    if (std.mem.lastIndexOfScalar(u8, name, '.')) |d| {
+        base = name[0..d];
+        ext = name[d + 1 ..];
+    }
+    for (0..8) |i| out[i] = if (i < base.len) base[i] else ' ';
+    out[8] = '.';
+    for (0..3) |i| out[9 + i] = if (i < ext.len) ext[i] else ' ';
+    return out;
+}
+
 // --- native geometry tests (run with `zig test`; gui is a wasm module, so these
 // exercise the pure text/caret logic only) ---
 test "the 8.3 cells pad with underscores" {
@@ -136,6 +157,14 @@ test "caret clamps at both ends" {
     f.moveCaret(-1);
     f.moveCaret(-1);
     try std.testing.expectEqual(@as(u8, 0), f.caret);
+}
+
+test "a listed name pads with spaces, an empty slot is the template" {
+    var out: [12]u8 = undefined;
+    try std.testing.expectEqualStrings("A       .RAW", listCells("A.RAW", &out));
+    try std.testing.expectEqualStrings("DRUMLOOP.RAW", listCells("DRUMLOOP.RAW", &out));
+    try std.testing.expectEqualStrings("README  .   ", listCells("README", &out));
+    try std.testing.expectEqualStrings("________.___", listCells("", &out));
 }
 
 test "rejects characters TOS would not accept" {
