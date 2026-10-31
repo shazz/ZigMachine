@@ -2,7 +2,7 @@
 // (App.tick). Every number comes from somewhere a bug report can name: the
 // glass's registers, the glass program's own counters, or Linux.
 //
-//   row 0   title bar
+//   row 0   title bar (rows 1..14 right of the section strip, 30 wide)
 //   row 1   glass  the ARM program's version and git hash (baked in at build)
 //   row 2   PL     the register block's ID and VERSION
 //   row 3   fw     the cart CPU firmware's version (CART_STATE 31:8 at boot)
@@ -71,12 +71,12 @@ pub fn draw(o: *osd.Osd, v: *const View) void {
         snd_info.musicLine(&b[12], &v.snd),
         snd_info.songLine(&b[13], &v.snd),
     };
-    for (lines, 0..) |l, i| o.line(@intCast(1 + i), l, false);
+    for (lines, 0..) |l, i| o.body(@intCast(1 + i), l, false);
 }
 
 fn p(buf: *[osd.COLS]u8, comptime fmt: []const u8, args: anytype) []const u8 {
     var w = std.Io.Writer.fixed(buf);
-    w.print(fmt, args) catch {}; // a long line is clipped at 32 columns
+    w.print(fmt, args) catch {}; // a long line is clipped (osd.body: 30 columns)
     return w.buffered();
 }
 

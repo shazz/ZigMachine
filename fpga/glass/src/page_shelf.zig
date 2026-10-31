@@ -3,6 +3,7 @@
 //
 //   row 0       title bar: page name, cursor/count, '>' to the console page
 //   rows 1..9   the carts by title, the cursor's row inverse; '*' = loaded
+//               (rows 1..14 sit right of the section strip: osd.BODY_COL, 30 wide)
 //   row 10      a rule
 //   row 11      group, year and machine of the selected cart
 //   rows 12..14 its one-line description, word-wrapped
@@ -18,10 +19,10 @@ pub const SHOWN = 9;
 pub const RULE = 10;
 pub const DETAIL = 11;
 const DESC_ROWS = 3;
-/// Column 0 is the mark ('A' the disk in drive A, '*' the disk in the window), column 1 a gap,
+/// Content column 0 is the mark ('A' the disk in drive A, '*' the disk in the window), 1 a gap,
 /// so every title starts at TITLE_COL whether its row is marked or not ("A REPS", not "AREPS").
 pub const TITLE_COL = 2;
-const NAME_W = osd.COLS - TITLE_COL;
+const NAME_W = osd.BODY_W - TITLE_COL;
 
 pub const Key = enum { none, close, load, insert, eject, console, cold, warm, source };
 /// The marks in column 0: 'A' the disk in drive A, '*' the disk in the window (when not in A).
@@ -69,25 +70,25 @@ pub const State = struct {
         else
             std.fmt.bufPrint(&bar, " ZIGMACHINE  {s}  {d:>3}/{d:<3} >", .{ if (marks.floppy) "FLOPPY" else "SHELF ", at, disks.len });
         o.line(0, title catch "", true);
-        if (disks.len == 0) o.put(1, FIRST, if (marks.floppy) "no .zmd disk on the floppy" else "no .zmd disk on the card", false);
+        if (disks.len == 0) o.bodyPut(0, FIRST, if (marks.floppy) "no .zmd disk on the floppy" else "no .zmd disk on the card", false);
         var row: u32 = FIRST;
         var i = self.top;
         while (i < disks.len and row < FIRST + SHOWN) : ({
             i += 1;
             row += 1;
         }) self.drawRow(o, row, disks[i].title, i, marks);
-        o.line(RULE, "-" ** osd.COLS, false);
+        o.body(RULE, "-" ** osd.BODY_W, false);
         if (disks.len > 0) details(o, disks[self.cursor]);
     }
 
     fn drawRow(self: *const State, o: *osd.Osd, row: u32, title: []const u8, i: usize, marks: Marks) void {
-        var cell = [_]u8{' '} ** osd.COLS;
+        var cell = [_]u8{' '} ** osd.BODY_W;
         var cut: [osd.COLS]u8 = undefined;
         if (marks.loaded == i) cell[0] = '*';
         if (marks.drive == i) cell[0] = 'A';
         const name = if (i == self.cursor) text.marquee(title, NAME_W, self.phase) else text.fit(&cut, title, NAME_W);
         @memcpy(cell[TITLE_COL..][0..name.len], name);
-        o.line(row, &cell, i == self.cursor);
+        o.body(row, &cell, i == self.cursor);
     }
 };
 
@@ -95,18 +96,18 @@ fn details(o: *osd.Osd, d: shelf.Disk) void {
     var line: [osd.COLS]u8 = undefined;
     var cut: [osd.COLS]u8 = undefined;
     const m = d.meta orelse {
-        o.line(DETAIL, "no shelf.txt entry", false);
-        o.line(DETAIL + 1, text.fit(&cut, d.file, osd.COLS), false);
+        o.body(DETAIL, "no shelf.txt entry", false);
+        o.body(DETAIL + 1, text.fit(&cut, d.file, osd.BODY_W), false);
         return;
     };
     const who = if (m.group.len > 0) m.group else "?";
-    const left = std.fmt.bufPrint(&line, "{s} {s}", .{ text.fit(&cut, who, 20), m.year }) catch "";
-    o.line(DETAIL, left, false);
-    const room = osd.COLS -| (left.len + 1);
+    const left = std.fmt.bufPrint(&line, "{s} {s}", .{ text.fit(&cut, who, 18), m.year }) catch "";
+    o.body(DETAIL, left, false);
+    const room = osd.BODY_W -| (left.len + 1);
     const kind = if (room >= 2) text.fit(cut[20..], m.kind, @min(room, 12)) else "";
-    if (kind.len > 0) o.put(@intCast(osd.COLS - kind.len), DETAIL, kind, false);
+    if (kind.len > 0) o.bodyPut(@intCast(osd.BODY_W - kind.len), DETAIL, kind, false);
     var rows: [DESC_ROWS][]const u8 = undefined;
     var last: [osd.COLS]u8 = undefined;
-    const n = text.wrap(m.desc, osd.COLS, &rows, &last);
-    for (rows[0..n], 0..) |r, k| o.line(DETAIL + 1 + @as(u32, @intCast(k)), r, false);
+    const n = text.wrap(m.desc, osd.BODY_W, &rows, &last);
+    for (rows[0..n], 0..) |r, k| o.body(DETAIL + 1 + @as(u32, @intCast(k)), r, false);
 }

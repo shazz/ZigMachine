@@ -32,6 +32,7 @@ test {
     _ = @import("app_source_test.zig");
     _ = @import("console_test.zig");
     _ = @import("text.zig");
+    _ = @import("strip.zig");
     _ = @import("page_debug.zig");
     _ = @import("snd_info_test.zig");
     _ = @import("beats.zig");

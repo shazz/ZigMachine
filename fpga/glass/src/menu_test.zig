@@ -22,6 +22,12 @@ fn row(o: *const osd.Osd, r: u32) []const u8 {
     return std.mem.trimEnd(u8, &S.buf, " ");
 }
 
+/// A content row (right of the section strip and its gap), trailing blanks dropped.
+fn body(o: *const osd.Osd, r: u32) []const u8 {
+    const full = row(o, r);
+    return full[@min(osd.BODY_COL, full.len)..];
+}
+
 fn disks(comptime titles: []const []const u8) [titles.len]shelf.Disk {
     var out: [titles.len]shelf.Disk = undefined;
     for (titles, &out) |t, *d| d.* = .{ .file = "x.zmd", .title = t };
@@ -75,26 +81,28 @@ test "the shelf shows titles, the loaded mark, and the selected cart's details" 
     try std.testing.expectEqualStrings(" ZIGMACHINE  38.2 FPS   2/3  >", row(&o, 0));
     m.fps_x10 = null;
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings("* UNION DEMO", row(&o, page_shelf.FIRST));
+    try std.testing.expectEqualStrings("* UNION DEMO", body(&o, page_shelf.FIRST));
     // The title starts at the same column marked or not (Matt: "AREPS" read as one word).
-    try std.testing.expectEqualStrings("UNION DEMO", row(&o, page_shelf.FIRST)[page_shelf.TITLE_COL..][0..10]);
-    try std.testing.expectEqualStrings("OXYGENE", row(&o, page_shelf.FIRST + 1)[page_shelf.TITLE_COL..][0..7]);
-    try std.testing.expectEqualStrings("  ", row(&o, page_shelf.FIRST + 1)[0..2]);
-    try std.testing.expect(o.text[(page_shelf.FIRST + 1) * osd.COLS] & map.OSD_INVERSE != 0);
-    try std.testing.expectEqualStrings("  A TITLE FAR TOO LONG FOR THE ~", row(&o, page_shelf.FIRST + 2));
-    try std.testing.expectEqualStrings("Oxygene 2000            atari st", row(&o, page_shelf.DETAIL));
-    try std.testing.expectEqualStrings("The flat-shaded polygon flight,", row(&o, page_shelf.DETAIL + 1));
-    try std.testing.expectEqualStrings("then again in fullscreen~", row(&o, page_shelf.DETAIL + 3)[0..25]);
+    try std.testing.expectEqualStrings("UNION DEMO", body(&o, page_shelf.FIRST)[page_shelf.TITLE_COL..][0..10]);
+    try std.testing.expectEqualStrings("OXYGENE", body(&o, page_shelf.FIRST + 1)[page_shelf.TITLE_COL..][0..7]);
+    try std.testing.expectEqualStrings("  ", body(&o, page_shelf.FIRST + 1)[0..2]);
+    // The selected row's bar spans the panel; the gap beside the strip stays dark.
+    try std.testing.expect(o.text[(page_shelf.FIRST + 1) * osd.COLS + osd.BODY_COL] & map.OSD_INVERSE != 0);
+    try std.testing.expect(o.text[(page_shelf.FIRST + 1) * osd.COLS + 1] & map.OSD_INVERSE == 0);
+    try std.testing.expectEqualStrings("  A TITLE FAR TOO LONG FOR TH~", body(&o, page_shelf.FIRST + 2));
+    try std.testing.expectEqualStrings("Oxygene 2000          atari st", body(&o, page_shelf.DETAIL));
+    try std.testing.expectEqualStrings("The flat-shaded polygon", body(&o, page_shelf.DETAIL + 1));
+    try std.testing.expectEqualStrings("floppy, then again in~", body(&o, page_shelf.DETAIL + 3));
     try std.testing.expectEqualStrings(menu.HINT, row(&o, osd.ROWS - 1));
     m.list.cursor = 2; // selected, the long title scrolls instead of being cut
     m.list.phase = 4;
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings("  TITLE FAR TOO LONG FOR THE OSD", row(&o, page_shelf.FIRST + 2));
+    try std.testing.expectEqualStrings("  TITLE FAR TOO LONG FOR THE O", body(&o, page_shelf.FIRST + 2));
     m.drive = 2; // drive A's mark takes the same column, the title where it was
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings("A TITLE FAR TOO LONG FOR THE OSD", row(&o, page_shelf.FIRST + 2));
-    try std.testing.expectEqualStrings("no shelf.txt entry", row(&o, page_shelf.DETAIL)); // an unknown cart
-    try std.testing.expectEqualStrings("x.zmd", row(&o, page_shelf.DETAIL + 1));
+    try std.testing.expectEqualStrings("A TITLE FAR TOO LONG FOR THE O", body(&o, page_shelf.FIRST + 2));
+    try std.testing.expectEqualStrings("no shelf.txt entry", body(&o, page_shelf.DETAIL)); // an unknown cart
+    try std.testing.expectEqualStrings("x.zmd", body(&o, page_shelf.DETAIL + 1));
 }
 
 test "the console page resets, changes the volume and mute, and goes back" {
@@ -116,8 +124,8 @@ test "the console page resets, changes the volume and mute, and goes back" {
     try std.testing.expect(m.settings.mute);
     var o = osd.Osd{};
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings(" Volume  ----------------   0%", row(&o, page_console.FIRST + 2));
-    try std.testing.expectEqualStrings(" Mute    on", row(&o, page_console.FIRST + 3));
+    try std.testing.expectEqualStrings(" Volume  ----------------   0%", body(&o, page_console.FIRST + 2));
+    try std.testing.expectEqualStrings(" Mute    on", body(&o, page_console.FIRST + 3));
     try std.testing.expectEqual(Action.save, m.key(down(map.KEY_ESCAPE)));
     try std.testing.expectEqual(menu.Page.shelf, m.page);
 }

@@ -1,6 +1,6 @@
 // The console page: the machine itself rather than a cart.
 //
-//   row 0       title bar
+//   row 0       title bar (rows 1..14 right of the section strip, 30 wide)
 //   rows 2..7   Cold reset, Warm reset, Volume, Mute, Debug, Back
 //   row 9       a rule
 //   rows 10..13 what the selected item does
@@ -70,13 +70,13 @@ pub const State = struct {
                 .debug => " Debug...",
                 .back => " Back",
             };
-            o.line(row, t, i == self.cursor);
+            o.body(row, t, i == self.cursor);
         }
-        o.line(RULE, "-" ** osd.COLS, false);
+        o.body(RULE, "-" ** osd.BODY_W, false);
         var rows: [4][]const u8 = undefined;
         var last: [osd.COLS]u8 = undefined;
-        const n = text.wrap(help[self.cursor], osd.COLS, &rows, &last);
-        for (rows[0..n], 0..) |r, k| o.line(HELP + @as(u32, @intCast(k)), r, false);
+        const n = text.wrap(help[self.cursor], osd.BODY_W, &rows, &last);
+        for (rows[0..n], 0..) |r, k| o.body(HELP + @as(u32, @intCast(k)), r, false);
     }
 };
 

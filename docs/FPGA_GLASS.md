@@ -380,9 +380,10 @@ below the cart window.
 Shift+F11, or `>` from the debug page. Read-only, redrawn twice a second; numbers averaged
 over one second of 100 ms samples of the video probe, the peak over the last three:
 
-- row 1, a bar of the frame in cells of 1/16 of a 60 fps frame (104 Kc): `C` cart, `F`
+- row 1, a bar of the frame in cells of 1/15 of a 60 fps frame (111 Kc): `C` cart, `F`
   FRESCO, `H` HBL handlers + the dirty-line planner, `o` other (the audio bridge, the
-  disk app), `.` the VBL wait. Row 2 marks where 60 fps (16 cells) and 30 fps (32) end.
+  disk app), `.` the VBL wait. Row 2 marks where 60 fps (15 cells) and 30 fps (30) end
+  (1/15 since the section strip left 30 columns: two frames still fit).
 - frame Mc and % of the 60 fps frame (peak), cart Mc (peak), FRESCO Mc and planes,
   handlers + planner Mc and passes, other and idle, fps and missed VBLs of the last second;
 - the headroom: `cart may spend ~X Mc at 60 fps with N planes` = 1.67 Mc - FRESCO -
@@ -430,6 +431,11 @@ picture. It is the same OSD, put in another mode rather than a second block:
   as a pad has no Esc. `glass sim-menu DIR [shelf|console|debug]` prints any
   page on a desktop (the drawings below are its output; `*` marks the cart in
   the window, and the cursor's row is inverse on the screen).
+- **The layout is MiSTer's** (Matt, 2026-10-31, `strip.zig`): row 0 is the light (inverse)
+  title bar; column 0 of rows 1..14 is a light strip carrying the section's name (`SHELF` or
+  `FLOPPY`, `CONSOLE`, `DEBUG`, `BUDGET`); column 1 is a dark gap; the page's content takes
+  columns 2..31 (`osd.BODY_COL`, 30 wide), the selected row's bar spanning them. Row 15, the
+  status, is full width. The F11 overlay is unchanged (no strip).
 
 ### The floppy as the shelf (`app_source.zig`, Matt 2026-10-31)
 

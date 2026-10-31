@@ -7,6 +7,11 @@ const bus = @import("bus.zig");
 
 pub const COLS = map.OSD_COLS;
 pub const ROWS = map.OSD_ROWS;
+/// The menu's MiSTer layout (strip.zig): column 0 the section strip, column 1 a gap,
+/// rows 1..ROWS-2 hold the page's content from column BODY_COL; row 0 is the title
+/// bar and the last row the status, both full width.
+pub const BODY_COL = 2;
+pub const BODY_W = COLS - BODY_COL;
 const NEVER: u16 = 0xFFFF; // not a character word: forces the first flush to write every cell
 
 pub const Osd = struct {
@@ -33,6 +38,20 @@ pub const Osd = struct {
         const n = @min(s.len, COLS);
         @memcpy(buf[0..n], s[0..n]);
         self.put(0, row, &buf, inverse);
+    }
+
+    /// A content row (BODY_COL to the right edge), padded, so a selected row's bar
+    /// spans the panel but not the strip or its gap.
+    pub fn body(self: *Osd, row: u32, s: []const u8, inverse: bool) void {
+        var buf = [_]u8{' '} ** BODY_W;
+        const n = @min(s.len, BODY_W);
+        @memcpy(buf[0..n], s[0..n]);
+        self.put(BODY_COL, row, &buf, inverse);
+    }
+
+    /// `s` at column `col` of the content area.
+    pub fn bodyPut(self: *Osd, col: u32, row: u32, s: []const u8, inverse: bool) void {
+        self.put(BODY_COL + col, row, s, inverse);
     }
 
     /// Send the changed cells; returns how many were written.

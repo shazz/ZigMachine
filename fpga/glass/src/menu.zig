@@ -15,6 +15,7 @@ const page_shelf = @import("page_shelf.zig");
 const page_console = @import("page_console.zig");
 const page_debug = @import("page_debug.zig");
 const page_budget = @import("page_budget.zig");
+const strip = @import("strip.zig");
 
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
@@ -98,6 +99,16 @@ pub const Menu = struct {
         return .none;
     }
 
+    /// The strip's name for the page: the shelf says where its carts come from.
+    pub fn section(self: *const Menu) []const u8 {
+        return switch (self.page) {
+            .shelf => if (self.floppy) "FLOPPY" else "SHELF",
+            .console => "CONSOLE",
+            .debug => "DEBUG",
+            .budget => "BUDGET",
+        };
+    }
+
     pub fn setStatus(self: *Menu, comptime fmt: []const u8, args: anytype) void {
         var w = std.Io.Writer.fixed(&self.status_buf);
         w.print(fmt, args) catch {}; // clipped to the row
@@ -113,6 +124,7 @@ pub const Menu = struct {
             .debug => page_debug.draw(o, view),
             .budget => page_budget.draw(o, bview),
         }
+        strip.draw(o, self.section());
         o.line(osd.ROWS - 1, self.status orelse hints[@intFromEnum(self.page)], false);
     }
 };

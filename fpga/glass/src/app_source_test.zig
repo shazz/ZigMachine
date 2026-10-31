@@ -45,6 +45,12 @@ fn row(o: *const osd.Osd, r: u32) []const u8 {
     return std.mem.trimEnd(u8, &S.buf, " ");
 }
 
+/// A content row (right of the section strip and its gap), trailing blanks dropped.
+fn body(o: *const osd.Osd, r: u32) []const u8 {
+    const full = row(o, r);
+    return full[@min(osd.BODY_COL, full.len)..];
+}
+
 test "F on the shelf asks for the source switch; the title and the empty shelf say FLOPPY" {
     var d = [_]shelf.Disk{.{ .file = "a.zmd", .title = "TUTORIAL" }};
     var m = menu.Menu{ .disks = &d };
@@ -58,6 +64,7 @@ test "F on the shelf asks for the source switch; the title and the empty shelf s
     try std.testing.expectEqualStrings(" ZIGMACHINE  FLOPPY    1/1   >", row(&o, 0));
     m.disks = &.{};
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings(" no .zmd disk on the floppy", row(&o, page_shelf.FIRST));
+    try std.testing.expectEqualStrings("no .zmd disk on the floppy", body(&o, page_shelf.FIRST));
+    try std.testing.expectEqualStrings("FLOPPY", &[_]u8{ row(&o, 2)[0], row(&o, 3)[0], row(&o, 4)[0], row(&o, 5)[0], row(&o, 6)[0], row(&o, 7)[0] }); // the strip
     try std.testing.expect(menu.HINT.len <= osd.COLS);
 }
