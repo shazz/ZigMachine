@@ -57,20 +57,8 @@ const BLACK: u8 = 0;
 const RASTER_INK: u8 = 1;
 const BG_ORANGE: u8 = 8;
 const BG_GREY: u8 = 9;
-const LOGO_FLASH_ENTRIES = [_]u8{ BG_ORANGE, BG_GREY };
 const GREY_BASE = fixed.GREY_BASE;
 const GREY_LEVELS = fixed.GREY_LEVELS;
-
-// logo flash
-const FLASH_WRAP: u32 = 300;
-const FLASH_AT: u32 = 280;
-const FADE_START: f64 = 20;
-const FADE_STEP: f64 = 0.5;
-const FADE_ALPHA: f64 = 0.05;
-const BG_X: usize = 30;
-const BG_Y: usize = 10;
-const BG_W: usize = 260;
-const BG_H: usize = 73;
 
 // starfield
 const STARS: usize = 400;
@@ -132,7 +120,6 @@ const ROTOR_ZERO = fixed.Rotor{ .c = 1 << 30, .s = 0 };
 // --------------------------------------------------------------------------
 const font_b = @embedFile("../assets/screens/cuddly_starwars/font.raw");
 const sprite_b = @embedFile("../assets/screens/cuddly_starwars/sprite.raw");
-const bg_b = @embedFile("../assets/screens/cuddly_starwars/bg.raw");
 // align(4): a Color is 4 bytes of align 1, read as one word; at an odd address that
 // load traps on the board (~210 cycles). Their place in the data segment is luck otherwise.
 const raster align(4) = convertU8ArraytoColors(@embedFile("../assets/screens/cuddly_starwars/raster.dat"));
@@ -142,7 +129,6 @@ comptime {
     @setEvalBranchQuota(100_000); // the 2899-character scrolltext is checked glyph by glyph
     assert(font_b.len == FONT_W * FONT_H);
     assert(sprite_b.len == SPRITE_STRIP_W * SPRITE_H);
-    assert(bg_b.len == BG_W * BG_H);
     assert(tables.sprite_x.len == tables.sprite_y.len);
     for (tables.scroll_text) |c| assert(c >= FIRST_CHAR and c - FIRST_CHAR < FONT_COLS * (FONT_H / GLYPH_H));
     // dcount + 19 never runs past the table
@@ -151,6 +137,7 @@ comptime {
     assert(RASTER_PERIOD * 4 >= H + 73);
 }
 
+const Flash = @import("cuddly_starwars/flash.zig").Flash(base_pal);
 const grey_lut = fixed.grey_lut;
 const greyIndex = fixed.greyIndex;
 
@@ -169,12 +156,17 @@ const palette: [256]Color = blk: {
 //
 // The large buffers come from the cart RAM arena (zg.mem) once, in init(): as
 // module-scope arrays they were ~222 KB of zeros in the data segment (the cart
-// imports its memory). raster_line stays static: the HBL reads it, and it is
-// only 800 B.
+// imports its memory). The raster's copper table stays static: the machine
+// reads it, and it is only 1,120 B.
 // --------------------------------------------------------------------------
 var star_x: *[STARS]i16 = undefined;
 var star_y: *[STARS]i16 = undefined;
-var raster_line: [H]Color = undefined;
+// The red ink's colour per line: a copper table (zg.copper), which HW 1.9.0
+// plays as a list the machine applies itself. It was an HBL handler setting
+// entry 1 on each of the 200 lines: the same register writes, but each one an
+// interrupt the CPU served between FRESCO's line passes.
+var raster_tbl: [1]zg.copper.Table = undefined;
+const RASTER_SLOT: zg.copper.Slot = 0;
 
 fn allocBuffers() void {
     star_x = zg.mem.mustAlloc(i16, STARS)[0..STARS];
@@ -182,19 +174,12 @@ fn allocBuffers() void {
     starwars.init();
 }
 
-// A normal plane's HBL gets LOGICAL lines 0..199.
-fn rasterHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
-    if (line >= H) return;
-    fb.setPaletteEntry(RASTER_INK, raster_line[line]);
-}
-
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
 pub const Demo = struct {
     blitter: zg.Blitter = .{},
-    flash_counter: u32,
-    fade: f64,
+    flash: Flash, // the logo flash (cuddly_starwars/flash.zig)
     star_rot: fixed.Rotor, // cos/sin of rotc
     star_base: i32, // staraddz in z units, mod STAR_Z_UNITS
     sw_offset: i32, // ssspeed: 0..-16
@@ -212,8 +197,7 @@ pub const Demo = struct {
         // A cart's Demo arrives zeroed (or holding the previous cart's bytes):
         // every field is set here, never by a declared default.
         self.blitter.init();
-        self.flash_counter = 0;
-        self.fade = 0;
+        self.flash = Flash.init;
         self.star_rot = fixed.Rotor.at(ROT_START); // init-time float
         self.star_base = 0;
         self.sw_offset = 0;
@@ -237,7 +221,6 @@ pub const Demo = struct {
             star_x[i] = @intCast((@as(u64, nextRandom(&seed)) * 320) >> 32);
             star_y[i] = @intCast((@as(u64, nextRandom(&seed)) * 200) >> 32);
         }
-        @memset(&raster_line, raster[0]);
 
         zg.requestSong(MUSIC);
 
@@ -245,7 +228,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(palette);
         @memset(fb.fb[0 .. W * H], BLACK);
-        fb.setFrameBufferHBLHandler(0, rasterHbl);
+        zg.copper.install(fb, &.{RASTER_INK}, &raster_tbl, .{});
     }
 
     /// Every step go() takes before it draws, in its order.
@@ -253,10 +236,7 @@ pub const Demo = struct {
         _ = zigos;
         _ = dt;
 
-        self.flash_counter += 1;
-        if (self.flash_counter > FLASH_WRAP) self.flash_counter = 0;
-        if (self.flash_counter == FLASH_AT) self.fade = FADE_START;
-        self.fade = if (self.fade > 0) self.fade - FADE_STEP else 0;
+        self.flash.step();
 
         self.star_base = @mod(self.star_base + STAR_Z_SPEED, STAR_Z_UNITS);
         self.star_rot.turn(ROT_STEP_C, ROT_STEP_S);
@@ -304,22 +284,15 @@ pub const Demo = struct {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
         const screen = fb.fb[0 .. W * H];
-        self.blitter.fill(fb, 0, 0, W, H, BLACK); // CHISEL: a CPU memset is ~60 cycles a word
-        self.drawLogoFlash(fb);
+        // A CPU memset: ~2.3 cycles a word since posted stores (0.04 Mc), where the
+        // CHISEL fill waited ~0.12 Mc for its 64,000 units.
+        @memset(screen, BLACK);
+        self.flash.draw(fb, &self.blitter);
         self.drawStars(screen);
         starwars.draw(screen, self.sw_line, self.sw_offset);
-        self.buildRasterLines();
+        self.buildRasterLines(zg.copper.visible(fb, RASTER_SLOT));
         self.drawScroller(fb);
         self.drawSprites(screen);
-    }
-
-    fn drawLogoFlash(self: *Demo, fb: *LogicalFB) void {
-        const alpha = self.fade * FADE_ALPHA;
-        if (alpha <= 0) return;
-        // CODEF fades by canvas alpha; over black that is the palette's RGB
-        // scaled from the base palette every frame, rounded (not truncated).
-        zg.palette.scaleEntries(fb, base_pal, &LOGO_FLASH_ENTRIES, alpha, .{ .rounding = .round, .alpha = .{ .set = 255 } });
-        self.blitter.blitImage(fb, @intCast(BG_X), @intCast(BG_Y), bg_b, @intCast(BG_W), 0, 0, @intCast(BG_W), @intCast(BG_H), 0);
     }
 
     fn drawStars(self: *Demo, screen: []u8) void {
@@ -347,22 +320,22 @@ pub const Demo = struct {
     /// The raster behind the red ink: 'source-in' of scrollraster.png stretched
     /// at y = rastc. At a half position the canvas's bilinear filter averages
     /// the two rows it falls between (measured in Chrome).
-    fn buildRasterLines(self: *Demo) void {
+    fn buildRasterLines(self: *Demo, rows: *[H]u32) void {
         for (0..H) |y| {
             const v2: usize = @intCast(@as(i32, @intCast(y)) * 2 - self.raster2);
             const row = v2 >> 1;
             const c0 = raster[row % RASTER_PERIOD];
             if (v2 & 1 == 0) {
-                raster_line[y] = c0;
+                rows[y] = c0.toRGBA();
                 continue;
             }
             const c1 = raster[(row + 1) % RASTER_PERIOD];
-            raster_line[y] = .{
+            rows[y] = Color.toRGBA(.{
                 .r = @intCast((@as(u16, c0.r) + c1.r) / 2),
                 .g = @intCast((@as(u16, c0.g) + c1.g) / 2),
                 .b = @intCast((@as(u16, c0.b) + c1.b) / 2),
                 .a = 255,
-            };
+            });
         }
     }
 
