@@ -6,9 +6,10 @@
 // the f32 FPU (ZM_FPU=1) the float side runs on it, elsewhere it is soft-float
 // and only slower. motion.zig holds what moves, one per number system, and
 // swap.zig carries the state across a press. Everything that is not
-// arithmetic — assets, the HBL and its table, the ramp, the draw order — is
-// shared, so both show the same screen. replicants_emlyn.zig starts on the
-// integers, replicants_emlyn_f32.zig on f32; its header describes the screen.
+// arithmetic — assets, the raster table and its copper list, the ramp, the
+// draw order — is shared, so both show the same screen. replicants_emlyn.zig
+// starts on the integers, replicants_emlyn_f32.zig on f32; its header
+// describes the screen.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -85,7 +86,8 @@ pub fn Demo(comptime start_fpu: bool) type {
             fb.setPalette(A.palette);
             fb.setPaletteEntry(A.TRANSPARENT, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
             fb.openBorders(.all); // a raster runs edge to edge, so every border opens
-            rasters.install(fb); // ... and takes over its HBL, flicker included
+            // ... and its copper list takes over the flicker handler's job, every line
+            if (!rasters.install(fb)) return fail("no VRAM for the raster table and its copper list");
             fb.clearFrameBuffer(A.BLACK); // until render() paints the ramp over it
             zg.requestSongTune(MUSIC, MUSIC_TUNE);
             self.ok = true;

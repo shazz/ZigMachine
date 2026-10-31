@@ -1,7 +1,7 @@
 // ZIG mode's own checks for apps/replicants_emlyn_headless.mjs: the bars in the
 // opened TOP and BOTTOM borders, and the 1 / 2 keys. The census it is handed is
 // the harness's (bucket colours per PHYSICAL line, read back through the
-// plane's HBL); BLACK_RGBA is a closed border's colour.
+// plane's copper list); BLACK_RGBA is a closed border's colour.
 //
 //   borders(c)   ZIG: the border lines carry raster colours, and crossing the
 //                window's top or bottom edge changes no more entries than any

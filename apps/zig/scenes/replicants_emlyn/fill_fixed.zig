@@ -71,41 +71,36 @@ pub fn build(parts: []const Part, theta: trig.Angle, rows: R.Rows) void {
     walk(u_origin - u_min, du, dy, rows); // u >= 0 on every line and bucket
 }
 
-/// The table from the strip: bucket i of content line y reads the strip at
-/// u + i*du + y*dy. Walked FOUR BUCKETS AT A TIME DOWN THE LINES, not along
-/// each line: a line's buckets lie du apart (~60 entries at 149 buckets), so a
-/// line touches up to 9 KB of strip and every read missed the 4 KB D-cache
-/// (~1.2 Mc a frame), while down a column the reads move by dy, at most 32
-/// entries, and share cache lines. Four buckets make ONE word store (the
-/// D-cache writes through: every store is a bus write); the last count % 4
-/// one at a time, never past `count`, whose u would leave the strip.
+/// The table from the strip: bucket i of line y reads it at u + i*du + y*dy,
+/// FOUR BUCKETS AT A TIME DOWN THE LINES: along a line the reads lie du apart
+/// (~60 entries) and every one missed the 4 KB D-cache (~1.2 Mc a frame), down
+/// a column they move by dy (<= 32 entries) and share lines; one bucket a pass
+/// missed on ~half its loads (measured). A bucket is the palette word the
+/// copper loads; never past `count`, whose u would leave the strip.
 fn walk(u_first: i32, du: i32, dy: i32, rows: R.Rows) void {
-    const t = R.table; // one load of the arena pointer, not one a row
     const groups = R.count / 4;
     for (0..groups) |g| {
-        // four scalars, not an array: kept in registers, not on the stack
         var u_a = u_first + @as(i32, @intCast(4 * g)) * du;
         var u_b = u_a + du;
         var u_c = u_b + du;
-        var u_d = u_c + du;
-        var word: [*]u32 = @as([*]u32, @ptrCast(@alignCast(&t[rows.first]))) + g; // rows are whole words
+        var u_d = u_c + du; // four scalars, not an array: kept in registers
+        var p: [*]u32 = R.table[rows.first][4 * g ..].ptr;
         for (0..rows.n) |_| {
-            // little-endian: bucket 4g is the low byte, as the HBL reads it
-            word[0] = @as(u32, strip[@intCast(u_a >> STEP)]) |
-                @as(u32, strip[@intCast(u_b >> STEP)]) << 8 |
-                @as(u32, strip[@intCast(u_c >> STEP)]) << 16 |
-                @as(u32, strip[@intCast(u_d >> STEP)]) << 24;
+            p[0] = R.ink[strip[@intCast(u_a >> STEP)]];
+            p[1] = R.ink[strip[@intCast(u_b >> STEP)]];
+            p[2] = R.ink[strip[@intCast(u_c >> STEP)]];
+            p[3] = R.ink[strip[@intCast(u_d >> STEP)]];
             u_a += dy;
             u_b += dy;
             u_c += dy;
             u_d += dy;
-            word += R.WORDS;
+            p += R.ROW;
         }
     }
     for (groups * 4..R.count) |i| {
         var u = u_first + @as(i32, @intCast(i)) * du;
-        for (t[rows.first..][0..rows.n]) |*line| {
-            line[i] = strip[@intCast(u >> STEP)];
+        for (R.table[rows.first..][0..rows.n]) |*line| {
+            line[i] = R.ink[strip[@intCast(u >> STEP)]];
             u += dy;
         }
     }
@@ -128,7 +123,7 @@ fn horizontal(parts: []const Part, u_origin: i32, dy: i32, rows: R.Rows) void {
             ink = @intCast(row >> 1); // nothing merges when nothing is tilted
             break;
         }
-        t[y][0] = ink;
+        t[y][0] = R.ink[ink];
         u += dy;
     }
 }
@@ -196,10 +191,9 @@ fn typicalBand(parts: []const Part) i32 {
     return @divFloor(sum, @as(i32, @intCast(parts.len)));
 }
 
-/// strip[0..n] (rounded up to a word) to BLACK, a u32 store a word. Not a
-/// @memset: that is a wasm memory.fill, which the board's libc runs at ~60
-/// cycles a word against ~27 for a plain store. Volatile, so LLVM cannot turn
-/// the loop back into the memset it replaces.
+/// strip[0..n] (rounded up to a word) to BLACK, a u32 store a word. Not a @memset
+/// (a wasm memory.fill: the board's libc ran it at ~60 cycles a word, ~27 a store);
+/// volatile, so LLVM cannot turn the loop back into the memset it replaces.
 fn blacken(n: usize) void {
     const words: [*]volatile u32 = @ptrCast(&strip);
     for (0..(n + 3) / 4) |w| words[w] = @as(u32, R.BLACK) * 0x0101_0101;

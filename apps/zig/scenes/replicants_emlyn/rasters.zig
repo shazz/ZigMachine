@@ -5,8 +5,8 @@
 // remake faking it — bar.png's 64 rows are each ONE solid colour (measured), so
 // what it is really carrying is a colour TABLE, and the real screen changed the
 // palette per scanline. Here the background is a ramp of palette INDICES across
-// the whole 400-column raster and this module's HBL writes their colours for
-// every line, so a bar IS a palette change on a scanline, as on hardware. The
+// the whole 400-column raster and their colours are rewritten for every
+// line (the copper list below), so a bar IS a palette change on a scanline, as on hardware. The
 // ramp spans the side borders too, because the ST's border is a colour register
 // like any other: a raster bar runs edge to edge (vex/intro.zig says the same).
 //
@@ -58,11 +58,24 @@
 // perpendicular to the axis the twelve balls are strung along, and widening the
 // ramp over the borders does not shift them.
 //
-// THIS FILE is what both carts share: the table, the HBL that replays it, and
-// the ramp. What FILLS the table each frame is the cart's number back-end:
-// fill_fixed.zig (the default cart: integers, one span per bar per line, the
-// way an ST coder would) or fill_f32.zig (replicants_emlyn_f32: the CODEF port's
-// per-bucket search, in f32, for the FPU test).
+// THE COPPER PLAYS IT (HW 1.9.0, machine/copper.zig, fpga/review/COPPER_LIST.md).
+// The table holds every physical line's bucket colours as the palette words
+// themselves, a row a line, in VRAM; the plane's copper list says on every
+// line FLICK (the border trick openBorders(.all)'s handler did) and PALREF
+// (that line's row into the buckets). The machine applies the record before
+// the line, where the HBL handler used to run, so the CPU runs no handler: no
+// 280 interrupts, no compare, no palette store. The registers hold the same
+// colours on every line as the handler left them (scene_hash --composite,
+// every mode). The list itself is static: only PALREF's count follows
+// setCount(). The compositor reloads an entry that did not change (a burst
+// read, not a CPU store, as mpp_truecolor and tcb_colorshock do); what the ST
+// could afford still sets the ramp, through bucketCount()'s change budget.
+//
+// THIS FILE is what both carts share: the table, its list, and the ramp. What
+// FILLS the table each frame is the cart's number back-end: fill_fixed.zig
+// (the default cart: integers, one span per bar per line, the way an ST coder
+// would) or fill_f32.zig (replicants_emlyn_f32: the CODEF port's per-bucket
+// search, in f32, for the FPU test).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const A = @import("assets.zig");
@@ -80,80 +93,56 @@ pub const LINE_CYCLES = 400; // an open line displays 400 pixels, one a cycle
 /// the fraction 9/2 so the fixed-point cart never needs a float for it.
 pub const CYCLES_PER_ENTRY_X2 = 9;
 
-/// A table row: MAX_BUCKETS inks padded to whole words, so the HBL compares
-/// a line with the one above four buckets at a time.
+/// A table row: MAX_BUCKETS palette words, padded to 16 bytes.
 pub const ROW = (MAX_BUCKETS + 3) / 4 * 4; // 152
-pub const WORDS = ROW / 4;
+const LINES = zg.PHYSICAL_HEIGHT;
 
-/// The ink of every bucket of every PHYSICAL row: a band 0..31, or BLACK.
-/// 42,560 B on zg.mem, taken by install() before the HBL that reads it goes in.
-pub var table: *align(4) [zg.PHYSICAL_HEIGHT][ROW]u8 = undefined;
-var ink: [BANDS + 1]u32 = undefined;
+/// The colour of every bucket of every PHYSICAL row, as the palette word the
+/// copper loads: 280 x 152 words = 170,240 B of VRAM, taken by install().
+pub var table: *[LINES][ROW]u32 = undefined;
+var table_off: u32 = 0; // its region offset, what a PALREF names
+var list: []u32 = &.{};
+
+/// A band 0..31 (or BLACK) as its palette word: what the fills store.
+pub const ink: [BANDS + 1]u32 = blk: {
+    var t: [BANDS + 1]u32 = undefined;
+    for (&t, 0..) |*c, i| c.* = if (i == BLACK) A.BLACK_RGBA else A.bar_rgba[i];
+    break :blk t;
+};
+
 /// The background pattern, painted under everything: plane column x shows
 /// bucket x * count / 400, and all the motion is in the palette.
 pub var row: [PLANE_W]u8 = undefined;
 pub var count: usize = 0;
 
-/// Replace openBorders()'s handler with one that ALSO opens the borders: the
-/// machine gives a plane one HBL, and this screen needs both. Runs once per
-/// cart load (Demo.init), so the table is allocated once.
-pub fn install(fb: *zg.LogicalFB) void {
-    table = @ptrCast(zg.mem.mustAlloc(u32, zg.PHYSICAL_HEIGHT * WORDS).ptr);
-    for (&ink, 0..) |*c, i| c.* = if (i == BLACK) A.BLACK_RGBA else A.bar_rgba[i];
-    for (table) |*r| @memset(r, BLACK);
+// A line's record: HEAD (3 body words), FLICK, PALREF(FIRST_BUCKET, count), the row.
+const REC = 4;
+const LIST_WORDS = LINES * REC + 1;
+const PALREF = 0x4000_0000 | @as(u32, A.FIRST_BUCKET) << 20;
+
+/// The table and the list, on the plane openBorders(.all) made overscan: the
+/// list replaces its flicker handler (FLICK, at the HBL position the handler
+/// was registered at, OVERSCAN_MAGIC_X, which clearing it keeps). Once per
+/// cart load (Demo.init). False when VRAM has no room for them.
+pub fn install(fb: *zg.LogicalFB) bool {
+    const t = zg.vramWords(LINES * ROW) orelse return false;
+    list = fb.copperList(LIST_WORDS) orelse return false;
+    table = @ptrCast(t.words.ptr);
+    table_off = t.off;
+    for (table) |*r| @memset(r, A.BLACK_RGBA);
     lit = false;
     for (0..MAX_BUCKETS) |b| fb.palette[A.FIRST_BUCKET + b] = A.BLACK_RGBA;
-    setCount(1);
-    fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hbl);
-}
-
-/// This plane is OVERSCAN, so `line` is PHYSICAL 0..279 (machine/video.zig's
-/// renderPlaneOverscan) — the table is indexed by it directly, the top and
-/// bottom border lines included: they are open, and ZIG mode fills them too.
-fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
-    // zigos's flickerAllHbl, which openBorders(.all) installed and this handler
-    // replaces: EVERY line, so every border opens and the rasters run edge to
-    // edge. That per-line cost is the trick's real price.
-    fb.flickerBorder();
-    if (line >= zg.PHYSICAL_HEIGHT) return;
-    if (line == 0) return loadFirstLine(fb); // render() did it: nothing left
-    // Only the entries whose colour CHANGED since the line above are written —
-    // the raster coder's rule, and the budget bucketCount() was sized on. The
-    // palette always holds the line above (line 0's: loadFirstLine).
-    const now: *const [ROW]u8 = &table[line];
-    const was: *const [ROW]u8 = &table[line - 1];
-    const now_w: *const [WORDS]u32 = @ptrCast(@alignCast(now)); // ROW is whole words
-    const was_w: *const [WORDS]u32 = @ptrCast(@alignCast(was));
-    const pal = fb.palette + A.FIRST_BUCKET;
-    const words = (count + 3) / 4;
-    // the last word's bytes past `count` may hold an older frame's buckets
-    const tail: u32 = if (count % 4 == 0) 0xFFFF_FFFF else (@as(u32, 1) << @intCast(8 * (count % 4))) - 1;
-    for (0..words) |w| {
-        const n = now_w[w];
-        // a nonzero byte is a bucket that changed: one compare a word, then
-        // only the changed bytes, taken from the word already loaded
-        var diff = (n ^ was_w[w]) & (if (w + 1 == words) tail else 0xFFFF_FFFF);
-        var i = w * 4;
-        while (diff != 0) : (i += 1) {
-            const sh: u5 = @intCast(8 * (i - w * 4));
-            if ((diff >> sh) & 0xFF != 0) {
-                pal[i] = ink[(n >> sh) & 0xFF];
-                diff &= ~(@as(u32, 0xFF) << sh);
-            }
-        }
+    for (0..LINES) |y| {
+        const at = y * REC;
+        list[at] = 0xF000_0000 | @as(u32, @intCast(y)) << 19 | (REC - 1);
+        list[at + 1] = 0x3000_0000; // FLICK
+        list[at + 3] = table_off + @as(u32, @intCast(y * ROW * 4));
     }
-}
-
-/// Line 0's colours, written only where the palette holds another: the VBL's
-/// palette load on an ST, before the beam starts. render() calls it once the
-/// table is built, so line 0's HBL (which calls it again, for a frame that is
-/// composited twice) finds nothing to write. With the top border closed, line
-/// 0 is BLACK, as line 279 left the palette, and nothing is written at all.
-pub fn loadFirstLine(fb: *zg.LogicalFB) void {
-    const pal = fb.palette + A.FIRST_BUCKET;
-    for (table[0][0..count], 0..) |b, i| {
-        if (pal[i] != ink[b]) pal[i] = ink[b];
-    }
+    list[LINES * REC] = 0xF000_0000 | 511 << 19;
+    count = 0;
+    setCount(1); // ... and PALREF's count
+    fb.clearFrameBufferHBLHandler();
+    return true;
 }
 
 /// The physical rows a frame fills: the content window's 240, or with the top
@@ -165,16 +154,20 @@ var lit = false; // the border rows hold rasters
 
 pub fn rows(open: bool) Rows {
     if (lit and !open) {
-        for (table[0..A.CONTENT_Y]) |*r| @memset(r, BLACK);
-        for (table[A.CONTENT_Y + A.CONTENT_H ..]) |*r| @memset(r, BLACK);
+        for (table[0..A.CONTENT_Y]) |*r| @memset(r, A.BLACK_RGBA);
+        for (table[A.CONTENT_Y + A.CONTENT_H ..]) |*r| @memset(r, A.BLACK_RGBA);
     }
     lit = open;
-    if (open) return .{ .first = 0, .n = zg.PHYSICAL_HEIGHT };
+    if (open) return .{ .first = 0, .n = LINES };
     return .{ .first = A.CONTENT_Y, .n = A.CONTENT_H };
 }
 
+/// The ramp's bucket count: the background pattern, and how many entries
+/// every line's PALREF loads (a word a line, only when the count changes).
 pub fn setCount(n: usize) void {
     if (n == count) return;
     count = n;
     for (&row, 0..) |*p, x| p.* = A.FIRST_BUCKET + @as(u8, @intCast(x * count / PLANE_W));
+    const op = PALREF | @as(u32, @intCast(count)) << 12;
+    for (0..LINES) |y| list[y * REC + 2] = op;
 }
