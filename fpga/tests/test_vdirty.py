@@ -30,6 +30,7 @@ FRAMES = "300"
 CARTS = ["scroll", "joust", "union_intro", "dhs_0pxl0reg", "ancool", "empire", "gem"]
 LINE = re.compile(
     r"VDIRTY \S+ frames \d+ lines (\d+) skipped (\d+) unknown \d+ moved (\d+) bypassed (\d+) mismatched (\d+) palref (\d+)"
+    r" recskip (\d+)"
 )
 
 
@@ -47,6 +48,7 @@ def proof_n(cart: str, frames: str, mutant: str = "", adapt: bool = False) -> tu
     out = subprocess.run([str(binary), cart, frames], env=env, capture_output=True, text=True, check=False)
     m = LINE.search(out.stdout)
     assert m, out.stdout + out.stderr
+    assert mutant or m[7] == "0", f"{cart}: a skipped line holds a copper record ({m[7]})"  # vdirty_copper.h
     return int(m[1]), int(m[2]), int(m[3]), int(m[5]), int(m[4]), int(m[6])
 
 
@@ -131,3 +133,29 @@ def test_a_forgotten_palref_rule_is_caught() -> None:
     lines, skipped, moved, bad, bypassed, palref = proof_n("mpp_truecolor", MPP_FRAMES, "PALREF", adapt=True)
     assert palref == 0 and bypassed > 0
     assert skipped < 80 * (int(MPP_FRAMES) - 10)  # test_palref_planes_skip_their_borders_uncompared fails on it
+
+
+def copper_case(mutant: str = "") -> tuple[int, int, int]:
+    """host/vdirty_copper_test.c: (exit code, skipped lines, skipped lines holding a record)."""
+    subprocess.run(["make", "-s", "host-vdcopper", f"VD_BREAK={mutant}"], cwd=FPGA, check=True, capture_output=True)
+    binary = FPGA / f"build/host/vdcopper/host_vdcopper{'_' + mutant if mutant else ''}"
+    out = subprocess.run([str(binary)], capture_output=True, text=True, check=False)
+    m = re.search(r"VDCOPPER skipped (\d+) recskip (\d+)", out.stdout)
+    assert m, out.stdout + out.stderr
+    return out.returncode, int(m[1]), int(m[2])
+
+
+def test_a_line_holding_a_copper_record_is_never_skipped() -> None:
+    """A static list (HSCROLL records on lines 100 and 150) over a static picture, a row below them
+    changing every frame: the static lines skip, the record lines never (the board's copper applies
+    a record only in its line's pass and stops the list at a record for a line already passed)."""
+    rc, skipped, recskip = copper_case()
+    assert rc == 0 and recskip == 0
+    assert skipped > 80 * 10  # the proof is not vacuous: covered lines skip too
+
+
+@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+def test_a_forgotten_record_rule_is_caught() -> None:
+    """VD_BREAK=RECORDS: the planner skips the record lines, and the case counts them."""
+    rc, _, recskip = copper_case("RECORDS")
+    assert rc == 1 and recskip > 0

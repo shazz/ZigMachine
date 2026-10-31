@@ -92,4 +92,25 @@ static int vdl_palref_first(const vd_frame* fr, int p) {
     return 0;
 }
 
+/* rec[line] = 1 for each record of plane p's list (its HEADs, followed by their body lengths: no
+ * op is read). On the board a line's record is applied only by a PLANE pass of that line, and a
+ * pass that meets a record for a line already passed stops the list (rtl/video/zm_video_copper.v),
+ * while the browser applies every record (machine/copper.zig): so such a line is never skipped,
+ * changed or not (vd_line). Marking a line the machine would not reach only costs its pass. */
+static void vdl_records(const vd_frame* fr, int p, uint8_t* rec) {
+#ifdef VD_BREAK_RECORDS /* tests/test_vdirty.py's mutant: the records ignored */
+    (void)fr, (void)p, (void)rec;
+    return;
+#endif
+    uint32_t v = (uint32_t)(fr->mem[ZM_HW_VIDEO_BASE + ZM_REG_FB_COPPER + 2u * (uint32_t)p] |
+                            fr->mem[ZM_HW_VIDEO_BASE + ZM_REG_FB_COPPER + 2u * (uint32_t)p + 1] << 8);
+    uint32_t at = ZM_OFF_VRAM + 16u * v, end = ZM_OFF_VRAM + ZM_VRAM_BYTES;
+    for (int i = 0; v && i < 512 && at + 4 <= end; i++) {
+        uint32_t head = vdl_word(fr, at), line = (head >> 19) & 0x1FFu, n = head & 0x3FFu;
+        if (head >> 28 != 0xFu || line == 511u || n > 253u) return;
+        if (line < VD_LINES) rec[line] = 1;
+        at += 4 + 4 * n;
+    }
+}
+
 #endif

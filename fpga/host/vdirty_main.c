@@ -17,7 +17,8 @@
  * cycles/bcursor.c does, and reports them (vd_overdrawn).
  *
  *   host_vdirty <cart> [frames=600] [--call F:export:args] [--disk X.zmd]
- * prints "VDIRTY <cart> frames F lines L skipped S unknown U moved V mismatched M", exit 1 if M. */
+ * prints "VDIRTY <cart> frames F lines L skipped S ... mismatched M palref P recskip R", exit 1 if M or R
+ * (R: skipped lines that hold a copper record, which the board's copper would never apply). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,7 @@
 #include "host_io.h"
 #include "vadapt.h"
 #include "vdirty.h"
+#include "vdirty_copper.h"
 #include "vdirty_spans.h"
 #include "wasm-rt-exceptions.h"
 #include "wasm-rt-impl.h"
@@ -36,7 +38,8 @@
 static struct w2c_env g_env;
 static uint32_t g_ref[VD_LINES][W], g_pic[2][VD_LINES][W];
 static uint32_t g_bg[VD_LINES];
-static uint8_t g_beam[VD_LINES], g_skip[VD_LINES];
+static uint8_t g_beam[VD_LINES], g_skip[VD_LINES], g_rec[VD_LINES];
+static uint32_t g_recskip; /* skipped lines holding a copper record (vdirty_copper.h) */
 static int g_clear_line = -1, g_span[64], g_depth;
 
 static uint8_t* region(void) { return g_env.memory.data + ZM_HW_VIDEO_BASE; }
@@ -117,6 +120,8 @@ static uint32_t frame(long f, u32 planes, uint32_t* composited) {
     }
     if (first) fold(1);
     uint32_t bad = 0;
+    vdc_records(region(), on, g_rec);
+    for (uint32_t y = 0; y < VD_LINES; y++) g_recskip += g_skip[y] && g_rec[y];
     for (uint32_t y = 0; y < VD_LINES; y++) {
         if (!g_skip[y]) memcpy(g_pic[pic][y], g_ref[y], RB);
         else if (memcmp(g_pic[pic][y], g_ref[y], RB) && bad++ < 4) fprintf(stderr, "vdirty: frame %ld row %u differs\n", f, (unsigned)y);
@@ -152,8 +157,8 @@ int main(int argc, char** argv) {
         bad += frame(f, planes, &c);
         lines += VD_LINES, comp += c;
     }
-    printf("VDIRTY %s frames %ld lines %llu skipped %llu unknown %u moved %u bypassed %u mismatched %llu palref %u\n", pos[0], n,
+    printf("VDIRTY %s frames %ld lines %llu skipped %llu unknown %u moved %u bypassed %u mismatched %llu palref %u recskip %u\n", pos[0], n,
            (unsigned long long)lines, (unsigned long long)(lines - comp), (unsigned)vd.unknown, (unsigned)vd.mask_moved,
-           (unsigned)va.off_frames, (unsigned long long)bad, (unsigned)vd.palref);
-    return bad != 0;
+           (unsigned)va.off_frames, (unsigned long long)bad, (unsigned)vd.palref, (unsigned)g_recskip);
+    return bad != 0 || g_recskip != 0;
 }

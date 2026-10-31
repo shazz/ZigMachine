@@ -25,6 +25,7 @@ typedef struct {
     uint32_t ver[H];      /* each line's input version */
     uint32_t built[2][H]; /* version + 1 each picture's row was built from, 0 = none */
     uint32_t bg[H];
+    uint8_t rec[H];       /* this frame: lines holding a copper record (vdl_records), never skipped */
     uint8_t beam[H];
     pcfg cfg[ZM_NB_PLANES];
     unsigned enabled;
@@ -148,8 +149,12 @@ int vd_plan(const vd_frame* fr) {
 #ifndef VD_BREAK_HANDLER
     if (h >= 0) bump(cur[h].oy, cur[h].rows);
 #endif
-    for (int p = 0; p < (int)ZM_NB_PLANES; p++) /* a copper list that changed (vdlist.h) */
-        if (((fr->enabled >> p) & 1) && vdl_moved(fr, p)) bump(cur[p].oy, cur[p].rows);
+    memset(s.rec, 0, sizeof s.rec);
+    for (int p = 0; p < (int)ZM_NB_PLANES; p++) { /* a copper list that changed, and its records (vdlist.h) */
+        if (!((fr->enabled >> p) & 1)) continue;
+        if (vdl_moved(fr, p)) bump(cur[p].oy, cur[p].rows);
+        vdl_records(fr, p, s.rec);
+    }
     memcpy(s.cfg, cur, sizeof cur);
     s.enabled = fr->enabled, s.fill = fr->fill, s.valid = 1;
     return h >= 0;
@@ -171,7 +176,7 @@ int vd_line(int pic, uint32_t y) {
         s.moved_rows[p] += (uint16_t)moved;
         if (moved || s.fresh[p]) bump(y, 1);
     }
-    int skip = s.built[pic][y] == s.ver[y] + 1;
+    int skip = s.built[pic][y] == s.ver[y] + 1 && !s.rec[y];
     s.built[pic][y] = s.ver[y] + 1;
 #ifdef VD_BREAK_PICTURE /* one picture, not two: a row is trusted one frame after it changed */
     s.built[!pic][y] = s.ver[y] + 1;
