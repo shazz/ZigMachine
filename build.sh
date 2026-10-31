@@ -220,6 +220,7 @@ NATIVE_TESTS="
     rom/gem/desktop/namefield.zig
     rom/gem/desktop/stamp.zig
     rom/gem/desktop/dirmodel_test.zig
+    rom/kos/fat_test.zig
     rom/gem/desktop/deskinf.zig
     rom/gem/gui/grid.zig
     apps/zig/scenes/stniccc/stream.zig

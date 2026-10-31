@@ -127,11 +127,14 @@ ARM), plus a firmware-side unit test of the request block (as `test_board_cartre
 | F4 | drive A's icon only with a disk in, the source label, ITEM INFO's source line; the moved pins | PNGs, the pins re-taken, browser = native |
 | F5 | C: `kosDriveRead`, the firmware's request block, glass's sector server thread, FAT32; C: in the browser and the native host from an image | ROM tests (FAT32); the request block's words natively; the board |
 
-## 6. Open questions
+## 6. Decided (Matt)
 
-1. C: shows the whole SD card, or only a folder of it (`zigmachine/c/`) so the system's own files
-   stay out of reach of a future write path? (Proposal: a folder, `zigmachine/c/`, served as a FAT
-   *view*; but a view needs glass to build FAT structures on the fly. The whole partition raw is
-   the simple, honest v1.)
-2. Programs on a FAT disk: should a `.WSM` file on a real floppy launch (the browser can; the
-   board needs its prebuilt image, as `progs/` today)?
+1. **C: is the whole SD partition**, read-only, raw (the simple v1).
+2. **`.WSM` programs on a real floppy launch** from GEM, as a data disk's do. The board needs the
+   program's native board image: glass reads the file's bytes from the floppy image it already
+   holds (with this same reader, `rom/kos/fat.zig`: pure Zig, glass imports it), depacks them if
+   they are ZX0-packed, hashes the wasm (SHA-256), and loads `zigmachine/progs/by-hash/<hash>.zmd`
+   (`tools/glass_shelf.py` writes one per matrix cart, the board image of the cart whose
+   `docs/demo-<cart>.wasm` has that hash, as it finds a data disk's program today). No image:
+   `<NAME>: no board image for this program`, the desktop keeps running. The browser runs the
+   file's wasm directly (request 3, as for a `.zmd`).
