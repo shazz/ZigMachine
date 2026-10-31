@@ -69,6 +69,8 @@ SYNTH = [
     ("worst", [1, 2], {"layered", "mode_medium_overscan", "beam", "alpha_partial"}),
     # copper lists (HW 1.9.0, tools/video_dump/vsynth_copper.c): every op and every stop
     ("copper", [1, 2], {"copper", "layered", "mode_overscan", "mode_normal", "mode_scroll", "flicker_hit"}),
+    # copper LBASE in every mode and HSCROLL on overscan (HW 1.10.0, tools/video_dump/vsynth_lbase.c)
+    ("lbase", [1, 2], {"copper", "layered", "mode_overscan", "mode_normal", "mode_fullscreen", "mode_medium"}),
 ]
 # Multi-plane frames replayed again against a memory with the HP port's first-beat
 # latency (CYCLES.md "Memory path": +24 clocks) and no stalls: the clock figures

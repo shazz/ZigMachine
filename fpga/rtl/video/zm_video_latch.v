@@ -17,9 +17,13 @@ module zm_video_latch (
     input  wire          upd,            // a plane pass ran: store its overscan state
     input  wire [15:0]   upd_seen,
     input  wire          upd_top, upd_bot,
+    input  wire          lb_we,          // a copper LBASE (HW 1.10.0): the plane's base from row lb_row
+    input  wire [20:0]   lb_val,
+    input  wire [8:0]    lb_row,
     output wire [7:0]    mode,
     output wire [31:0]   base,
     output wire [15:0]   stride, hpos, hs, seen,
+    output wire [8:0]    lrow,           // the row the base is at (0 from FB_BASE)
     output wire [7:0]    seed,
     output wire          top_open, bot_open
 );
@@ -30,11 +34,13 @@ module zm_video_latch (
     reg [15:0] r_stride [0:3], r_hpos [0:3], r_hs [0:3], r_seen [0:3];
     reg [7:0]  r_seed [0:3];
     reg [3:0]  r_top = 4'd0, r_bot = 4'd0;
+    reg [8:0]  r_lrow [0:3];
 
     always @(posedge clk) begin
         if (latch) begin
             r_mode[plane] <= regs[(ZM_REG_FB_MODE + plane) * 8 +: 8];
             r_base[plane] <= regs[(ZM_REG_FB_BASE + plane * 4) * 8 +: 32];
+            r_lrow[plane] <= 9'd0;
             r_stride[plane] <= regs[(ZM_REG_FB_STRIDE + plane * 2) * 8 +: 16];
             r_hpos[plane] <= regs[(ZM_REG_FB_HBL_POS + plane * 2) * 8 +: 16];
             r_hs[plane] <= regs[(ZM_REG_HSCROLL + plane * 2) * 8 +: 16];
@@ -46,12 +52,17 @@ module zm_video_latch (
             r_seen[plane] <= upd_seen;
             if (upd_top) r_top[plane] <= 1'b1;
             if (upd_bot) r_bot[plane] <= 1'b1;
+        end else if (lb_we) begin
+            // LBASE: row r now reads lb_val + (r - lb_row) * stride; the next LATCH restores FB_BASE.
+            r_base[plane] <= {11'd0, lb_val};
+            r_lrow[plane] <= lb_row;
         end
     end
 
     assign mode = r_mode[plane];
     assign base = r_base[plane];
     assign stride = r_stride[plane];
+    assign lrow = r_lrow[plane];
     assign hpos = r_hpos[plane];
     assign hs = r_hs[plane];
     assign seen = r_seen[plane];
