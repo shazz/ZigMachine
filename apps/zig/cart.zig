@@ -121,6 +121,7 @@ const scene = switch (opts.index) {
     108 => @import("scenes/leonard_spirit.zig"), // LEONARD'S SPIRIT: the 312-sprite record redone Leonard's way, as many generated-code balls as one frame holds
     109 => @import("scenes/hippel_musicdisk.zig"), // JOCHEN HIPPEL MUSIC DEMO (Feinbein Software & Supplex, Amiga 1990): ten Hippel tunes on keys a..j, its copper list rebuilt and translated (ported from the original executable)
     110 => @import("scenes/linebase_test.zig"), // LINE LIST TEST: the STE line list (HW 1.10.0 copper LBASE + overscan HSCROLL): wobble, line zoom, flipped bands, a colour-0 raster through open borders, no HBL handler
+    111 => @import("scenes/mindwind.zig"), // MIND REWIND (Reservoir Gods, STE 2003): a line list on the copper's LBASE, the parts played forwards then rewound
     else => @compileError("bad cart index"),
 };
 
