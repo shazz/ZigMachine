@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "zm_glass_osd.cc"
+#include "osd_font_rot.h"
 
 using Top = cxxrtl_design::p_zm__glass__osd;
 static int failures = 0;
@@ -116,6 +117,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::fclose(f);
+    CHECK(add_rotated_letters(font_raw), "the rotated letters' glyphs are not blank in the font");
     top.p_fg.set(FG);
     top.p_bg.set(BG);
     top.p_rst.set(true);

@@ -111,3 +111,37 @@ def test_a_broken_glass_rule_is_caught(name: str, top: str, file: str, old: str,
     (work / file).write_text(text.replace(old, new))
     result = _run(top, test_rtl._cxxrtl(top, sources, work, work), tb, args)
     assert result.returncode != 0, f"{name} went unnoticed:\n{result.stdout}"
+
+
+EXPORT = "tools/glass_export.zig"
+# The OSD font's rotated A-Z (the menu's section strip) is made by the exporter, not the RTL:
+# (id, text, broken text) in tools/glass_export.zig, each must make the OSD testbench fail.
+FONT_MUTANTS = [
+    ("font_rot_clockwise", "src[c * 8 + (7 - r)]", "src[(7 - c) * 8 + r]"),
+    ("font_rot_mirrored", "src[c * 8 + (7 - r)]", "src[c * 8 + r]"),
+    ("font_rot_base", "raw[(rot_base + k) * 64 ..]", "raw[(rot_base + k + 1) * 64 ..]"),
+    ("font_rot_missing", "try addRotated(&raw, rot_base);", "_ = rot_base;"),
+]
+
+
+@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+@pytest.mark.parametrize(("name", "old", "new"), FONT_MUTANTS, ids=[m[0] for m in FONT_MUTANTS])
+def test_a_broken_rotated_font_is_caught(name: str, old: str, new: str) -> None:
+    sources, tb, args = next((s, t, a) for t_, s, t, a in TESTS if t_ == "zm_glass_osd")
+    work = BUILD / "mutants" / name
+    shutil.rmtree(work, ignore_errors=True)
+    (work / "tools").mkdir(parents=True)
+    (work / "gen").mkdir()
+    text = (FPGA / EXPORT).read_text()
+    assert text.count(old) == 1, f"{name}: the text to break is not unique in {EXPORT}"
+    (work / EXPORT).write_text(text.replace(old, new))
+    zig = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
+    root, glass_map, vh = work / EXPORT, FPGA / "glass/src/map.zig", work / "gen/glass_font.vh"
+    cmd = [zig, "run", "--dep", "glass_map", f"-Mroot={root}", f"-Mglass_map={glass_map}", "--", "font", str(FONT), str(vh)]
+    subprocess.run(cmd, check=True, cwd=FPGA)
+    cc = work / "zm_glass_osd.cc"
+    reads = " ".join(str(FPGA / s) for s in sources)  # the mutant's gen/ first: its font ROM wins
+    script = f"read_verilog -I{work / 'gen'} -I{FPGA / 'gen'} {reads}; hierarchy -top zm_glass_osd; proc; write_cxxrtl {cc}"
+    assert test_rtl.yowasp_yosys.run_yosys(["-q", "-p", script]) == 0
+    result = _run("zm_glass_osd", cc, tb, args)
+    assert result.returncode != 0, f"{name} went unnoticed:\n{result.stdout}"

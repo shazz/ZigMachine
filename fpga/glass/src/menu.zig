@@ -38,6 +38,7 @@ pub const Menu = struct {
     loaded: ?usize = null, // the disk in the cart window, marked '*'
     drive: ?usize = null, // the disk in KOS's drive A, marked 'A' (app_drive.zig)
     floppy: bool = false, // the carts come from the floppy (app_source.zig): the title says so
+    rotated: bool = false, // the PL's font has the strip's rotated letters (strip.supported)
     fps_x10: ?u32 = null, // the running cart's frame rate: the shelf's title shows it
     status: ?[]const u8 = null, // null: the page's own hint
     status_buf: [osd.COLS]u8 = undefined,
@@ -142,7 +143,7 @@ pub const Menu = struct {
             .budget => page_budget.draw(o, bview),
             .help => page_help.draw(o, self.help_top),
         }
-        strip.draw(o, self.section());
+        strip.draw(o, self.section(), self.rotated);
         o.line(osd.ROWS - 1, self.status orelse hints[@intFromEnum(self.page)], false);
     }
 };

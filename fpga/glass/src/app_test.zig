@@ -98,3 +98,18 @@ test "the mouse reaches the cart only while the OSD is closed; a held button is 
     a.sync();
     try std.testing.expectEqual(seq, r.glass.ptr_seq); // nothing reached the cart
 }
+
+test "the strip's name is rotated on a 1.5.0 PL and stacked upright on an older one" {
+    const strip = @import("strip.zig");
+    for ([_]u32{ map.VERSION, map.VERSION_OSD_STATS }) |version| {
+        const r = try Rig.init();
+        defer r.deinit();
+        r.glass.version = version;
+        var a = try r.app();
+        defer a.deinit();
+        const rotated = version >= map.VERSION_OSD_ROTATED;
+        const row: u32 = if (rotated) strip.ROT_ROW else strip.STACK_ROW;
+        const want: u32 = if (rotated) strip.rotatedCode('S') else 'S'; // SHELF's first letter
+        try std.testing.expectEqual(map.OSD_INVERSE | want, r.glass.text[row * map.OSD_COLS]);
+    }
+}

@@ -28,8 +28,16 @@ pub const Osd = struct {
         const attr: u16 = if (inverse) map.OSD_INVERSE else 0;
         for (s, 0..) |c, i| {
             if (col + i >= COLS) break;
-            self.text[row * COLS + col + i] = attr | c;
+            // A control byte (a title's, a song name's) would show a rotated letter (map.OSD_ROT_BASE).
+            self.text[row * COLS + col + i] = attr | @as(u16, if (c < ' ') ' ' else c);
         }
+    }
+
+    /// One glyph by its code, control codes included: the strip's rotated letters (strip.zig).
+    pub fn glyph(self: *Osd, col: u32, row: u32, code: u8, inverse: bool) void {
+        if (row >= ROWS or col >= COLS) return;
+        const attr: u16 = if (inverse) map.OSD_INVERSE else 0;
+        self.text[row * COLS + col] = attr | code;
     }
 
     /// A whole row, padded with spaces, so an inverse bar spans the window.
@@ -87,4 +95,8 @@ test "only changed cells cross the bus" {
     try std.testing.expectEqual(@as(u32, 0), o.flush(g.regs()));
     o.put(0, ROWS, "off the grid", false);
     try std.testing.expectEqual(@as(u32, 0), o.flush(g.regs()));
+    o.put(0, 0, "a\x01b", false); // a control byte in text is a space, never a strip glyph
+    try std.testing.expectEqual(@as(u16, ' '), o.text[1]);
+    o.glyph(1, 0, map.OSD_ROT_BASE, true);
+    try std.testing.expectEqual(@as(u16, map.OSD_INVERSE | map.OSD_ROT_BASE), o.text[1]);
 }

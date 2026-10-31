@@ -106,7 +106,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | Offset | Register | | What it does |
 |---|---|---|---|
 | `0x00` | `ID` | ro | `0x5A4D474C` "ZMGL". The ARM drives nothing until it reads this. |
-| `0x04` | `VERSION` | ro | 1.4.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`; 1.3 `LOAD_BASE` moves the HP window; 1.4 `OSD_POS` and `CTRL.OSD_STATS`) |
+| `0x04` | `VERSION` | ro | 1.5.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`; 1.3 `LOAD_BASE` moves the HP window; 1.4 `OSD_POS` and `CTRL.OSD_STATS`; 1.5 the OSD font's rotated A-Z) |
 | `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. bit 3 `WARM`: the next boot keeps the cart's memory (below, "Cold and warm reset"); the firmware reads it at boot through the `glass_boot_warm` CSR. bit 4 `OSD_STATS` (1.4): a text cell holding a plain space (no inverse) is transparent, so only the text covers the picture (below, "The frame-rate overlay"). |
 | `0x0C` | `STATUS` | ro | bit 0 `RUNNING`, bit 1 `KEY_FULL`, bit 2 `KEY_OVERFLOW` (sticky) |
 | `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped. Bits 31:8: the trap code when trapped (`TRAP_WARM_LOST` = `0xFFFF01` for a warm boot with no memory to keep), the firmware's version (major.minor.patch, 8 bits each) when booting or running. Cleared while the CPU is held. |
@@ -437,6 +437,15 @@ picture. It is the same OSD, put in another mode rather than a second block:
   `FLOPPY`, `CONSOLE`, `DEBUG`, `BUDGET`); column 1 is a dark gap; the page's content takes
   columns 2..31 (`osd.BODY_COL`, 30 wide), the selected row's bar spanning them. Row 15, the
   status, is full width. The F11 overlay is unchanged (no strip).
+- **The strip's name is turned 90 degrees and reads bottom to top**, as MiSTer's, on a PL from
+  1.5.0 (`VERSION_OSD_ROTATED`): `tools/glass_export.zig` adds 'A'..'Z' rotated counter-clockwise
+  to the OSD font ROM at glyphs `OSD_ROT_BASE` + 0..25 (0x01..0x1A), which the machine's font
+  leaves blank (the exporter refuses a font where they are not). The glass never writes those
+  codes as text: `osd.put` turns any control byte (a title's, a song name's) into a space, and
+  only `osd.glyph` writes them. On an older PL they are blank, so the glass stacks the name
+  upright, one letter a row, instead. Only the ROM's contents change (no logic): the OSD
+  testbench models the rotation itself and checks every pixel, and four exporter mutants
+  (`test_a_broken_rotated_font_is_caught`) must fail it.
 - **The help page** (`page_help.zig`, Matt 2026-10-31) lists every shortcut, grouped (global,
   shelf, console, debug, help, budget), from ONE table; `page_help_test.zig` replays each
   entry against the real handling (the page's `Menu.key`, `App.key` for the hotkeys, the pad,

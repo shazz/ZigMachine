@@ -74,7 +74,7 @@ pub const App = struct {
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dir: []const u8) !App {
         try loader.checkGlass(regs);
         const disks = try shelf.scan(gpa, io, dir);
-        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disk_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks } };
+        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disk_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks, .rotated = @import("strip.zig").supported(regs.read(map.REG_VERSION)) } };
         app.pl_stats = overlay.supported(regs.read(map.REG_VERSION));
         app.opt.system = system.load(gpa, io, dir); // once: every lean cart runs on it
         regs.write(map.REG_OSD_FG, OSD_FG);
