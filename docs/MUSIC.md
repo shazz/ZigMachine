@@ -55,7 +55,7 @@ drive, as a GEM program reads its data files) plays from the cart's memory inste
 
 ```zig
 const n = zg.disk.read(entry, buf);                         // the file, a block at a time
-_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap; the host copies it this frame
+_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip; copied this frame
 zg.stopSong();                                              // stops it, as it stops a named one
 ```
 

@@ -92,21 +92,37 @@ static void load_sap(const char* name, int32_t len, uint32_t tune) {
                    (unsigned)(st >> 16 & 0xFF), (unsigned)w2c_audio_audioSapStopPc(p));
 }
 
-/* zg.requestSongBytes (FX_SONG): the cart's image staged as a fetched file is, then loaded as the
- * worklet's loadSndh / loadSap. No named image: zg.sndhCall cannot reach it (g_resident ""). */
-static void song_bytes(const audio_fx* fx) {
+/* worklet "loadXm" / "loadHip" on the `len` bytes staged: an XM's tune is its start BPM (0 = the
+ * song's own), a Hippel module's its song (its own 68000 replay on Paula; from 1). 0: refused. */
+static int load_paula(const char* name, uint32_t len, uint32_t tune) {
     w2c_audio* p = &g_aud.player;
-    if (fx->a != FX_SONG_SNDH && fx->a != FX_SONG_SAP) {
+    if (ends_with(name, ".xm") && w2c_audio_audioLoadXm(p, len)) w2c_audio_audioXmPlay(p, tune);
+    else if (ends_with(name, ".hip") && w2c_audio_audioLoadHip(p, len)) w2c_audio_audioHipPlay(p, tune);
+    else return 0;
+    return 1;
+}
+
+/* zg.requestSongBytes (FX_SONG): the cart's image staged as a fetched file is, then loaded as the
+ * worklet's message for its kind. No named image: zg.sndhCall cannot reach it (g_resident ""). */
+static void song_bytes(const audio_fx* fx) {
+    static const char* const NAMES[] = {0, "bytes.sndh", "bytes.sap", "bytes.xm", "bytes.hip"}; /* bsndinfo.h */
+    w2c_audio* p = &g_aud.player;
+    if (fx->a < FX_SONG_SNDH || fx->a > FX_SONG_HIP) {
         printf("ZM FX requestSongBytes: unknown kind %u\n", (unsigned)fx->a);
         return;
     }
-    const char* name = fx->a == FX_SONG_SNDH ? "bytes.sndh" : "bytes.sap"; /* the extension: bsndinfo.h */
+    const char* name = NAMES[fx->a];
     audio_backend_song(name, fx->b);
     audio_pcm_forget(); /* the song takes song RAM, the stream ring with it */
     uint32_t cap = w2c_audio_audioSongCapacity(p), n = fx->len < cap ? fx->len : cap;
     memcpy(g_aud.memory.data + w2c_audio_audioSongPtr(p), (const void*)fx->pcm, n);
     if (fx->a == FX_SONG_SNDH) load_sndh(name, (int32_t)n, fx->b, 0);
-    else load_sap(name, (int32_t)n, fx->b);
+    else if (fx->a == FX_SONG_SAP) load_sap(name, (int32_t)n, fx->b);
+    else {
+        audio_backend_native(0);
+        audio_song_loaded(name);
+        if (!load_paula(name, n, fx->b)) printf("ZM SONG bytes %s refused\n", name);
+    }
     g_resident[0] = 0;
     printf("ZM SONG bytes %s %lu mode %u\n", name, (unsigned long)n, (unsigned)w2c_audio_audioMode(p));
 }
@@ -134,12 +150,10 @@ void audio_play(const char* name, uint32_t tune) {
     if (ends_with(name, ".mod") && w2c_audio_audioLoadMod(p, (uint32_t)len)) {
         if (tune) w2c_audio_audioModPlayBpm(p, tune); /* a MOD's tune field is its start BPM */
         else w2c_audio_audioModPlay(p);
-    } else if (ends_with(name, ".xm") && w2c_audio_audioLoadXm(p, (uint32_t)len)) {
-        w2c_audio_audioXmPlay(p, tune); /* an XM's tune field is its start BPM too (0 = the song's own) */
+    } else if (load_paula(name, (uint32_t)len, tune)) {
+        /* an XM or a Hippel module, started */
     } else if (ends_with(name, ".ymraw") && w2c_audio_audioLoadYm(p, (uint32_t)len)) {
         w2c_audio_audioYmPlay(p);
-    } else if (ends_with(name, ".hip") && w2c_audio_audioLoadHip(p, (uint32_t)len)) {
-        w2c_audio_audioHipPlay(p, tune); /* a Hippel module's own 68000 replay on Paula; songs from 1 */
     } else if (ends_with(name, ".sap")) {
         load_sap(name, stage(name), tune); /* staged again, as it always was: the same writes and stamps */
     } else if (ends_with(name, ".raw")) {

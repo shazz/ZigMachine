@@ -256,7 +256,7 @@ silenced, the 68000 RAM cleared); for a game's sound effects `zg.sndhCall(name, 
 the playing SNDH's INIT again with `d0` instead, nothing reloaded, every call of a frame
 in order (`zm_sndh_call` / `sndh_call` in C / Rust). A song the cart holds in its OWN memory (a
 file it read off its disk through the drive, `zg.disk.read`) plays with
-`zg.requestSongBytes(bytes, .sndh | .sap, tune)`: the host copies the image when it drains the
+`zg.requestSongBytes(bytes, .sndh | .sap | .xm | .hip, tune)` (an XM's tune is its start BPM): the host copies the image when it drains the
 frame (sfx queue op 8) and loads it as it loads a named one; `zg.stopSong()` stops it (SysInfo's
 SOUND page, `apps/zig/scenes/sysinfo/sound_play.zig`). The full guide, with formats, rules and the
 headless checks, is `docs/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).

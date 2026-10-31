@@ -1325,6 +1325,7 @@ function sndhCallByName(name, d0) {
 let songPosted = Promise.resolve();
 let sfxChain = Promise.resolve();
 function postSfx(mem, at, n) {
+    const SONG_KINDS = [null, "loadSndh", "loadSap", "loadXm", "loadHip"]; // requestSongBytes' kind -> message
     const dv = new DataView(mem.buffer, at, n * 16);
     const msgs = [];
     for (let i = 0; i < n; i++) {
@@ -1346,11 +1347,12 @@ function postSfx(mem, at, n) {
         else if (op === 8) { // zg.requestSongBytes: a song image from the cart's own RAM (its disk)
             const ptr = dv.getUint32(o + 4, true), len = dv.getUint32(o + 8, true);
             const bytes = new Uint8Array(mem.buffer, ptr, len).slice().buffer;
-            const type = a === 1 ? "loadSndh" : a === 2 ? "loadSap" : null;
+            const type = SONG_KINDS[a];  // sfx_queue.zig SongKind
             if (!type) { console.warn(`requestSongBytes: unknown song kind ${a}, dropped`); continue; }
             ++songGen;           // a song still being fetched by name must not start over this one
             sndhResident = null; // not a named image: zg.sndhCall cannot reach it
-            msgs.push({ type, bytes, tune: dv.getUint8(o + 2) });
+            const tune = dv.getUint8(o + 2); // an XM's is its start BPM, as loadXm's bpm
+            msgs.push(type === "loadXm" ? { type, bytes, bpm: tune } : { type, bytes, tune });
         }
     }
     const after = songPosted;

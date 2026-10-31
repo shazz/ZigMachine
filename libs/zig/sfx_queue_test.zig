@@ -128,6 +128,17 @@ test "a song image goes on the wire with its kind in `a` and its subtune in `b`"
     try std.testing.expectEqual(@as(u32, @truncate(@intFromPtr(img.ptr))), e.ptr);
 }
 
+test "an XM and a Hippel module go out as kinds 3 and 4, an XM's start BPM in `b`" {
+    var s: q.Queue = .{};
+    try std.testing.expect(s.song("Extended Module: ", .xm, 125));
+    try std.testing.expect(s.song("\x60\x02\x60\x0eTFMX", .hip, 2));
+    try std.testing.expectEqual(@as(usize, 2), s.take());
+    try std.testing.expectEqual(@as(u8, 3), s.entries[0].a);
+    try std.testing.expectEqual(@as(u8, 125), s.entries[0].b);
+    try std.testing.expectEqual(@as(u8, 4), s.entries[1].a);
+    try std.testing.expectEqual(@as(u8, 2), s.entries[1].b);
+}
+
 test "an empty song image or one over SONG_MAX is refused and counted" {
     var s: q.Queue = .{};
     try std.testing.expect(!s.song(&.{}, .sndh, 0));
