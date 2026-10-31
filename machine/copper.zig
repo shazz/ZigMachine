@@ -14,8 +14,13 @@
 //                                         of k palette words for entries first..first+k-1 (a table
 //                                         the cart keeps in VRAM: a scrolling per-row palette costs
 //                                         one changed word a line, not k)
+//   LBASE 0x5 << 28 | v                  (1.10.0, fpga/review/COPPER_LINEBASE.md) bits 27..21 zero,
+//                                         v (21 bits) a region offset in VRAM, any byte: from this
+//                                         line on, row r reads v + (r - r0) * stride (+ HSCROLL), r0
+//                                         this line's row (the STE video counter); every frame starts
+//                                         from FB_BASE, which LBASE never writes
 //   NOP   0
-// Anything else, a PAL past entry 255 or past the record, a REG to another register, a record for
+// Anything else, an LBASE outside VRAM, a PAL past entry 255 or past the record, a REG to another register, a record for
 // a line already passed or one the plane does not cover, or a list leaving VRAM: the list stops.
 const memmap = @import("sdk/memmap.zig");
 
@@ -25,6 +30,7 @@ pub const OP_PAL: u4 = 1;
 pub const OP_REG: u4 = 2;
 pub const OP_FLICK: u4 = 3;
 pub const OP_PALREF: u4 = 4;
+pub const OP_LBASE: u4 = 5;
 
 /// Where a plane's list stands during its frame: the next record's HEAD and where it sits.
 pub const Cursor = struct {

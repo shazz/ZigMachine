@@ -83,7 +83,7 @@ pub const REG_FB_HBL_ID: usize = 0x20; // u16 x4 per-plane HBL handler id (0 = n
 pub const REG_FB_HBL_POS: usize = 0x28; // u16 x4 x position at which the per-plane HBL fires
 pub const REG_FRAME: usize = 0x30; // u32  (ro) frame counter
 pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (320 normal, 400 fullscreen, or any SCROLL buffer width)
-pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)
+pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL and, since 1.10.0, OVERSCAN mode → line distort)
 pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode
 pub const REG_FB_MODE: usize = 0x54; // u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan
 pub const REG_RES_FLICKER: usize = 0x58; // u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM->RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x5B free)
@@ -305,7 +305,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0900; // 1.9.0 — REG_FB_COPPER (1.8.0: REG_FB_HBL_PURE; 1.7.0: RAM arena)
+pub const ZM_HW_VERSION: u32 = 0x0001_0A00; // 1.10.0 — copper LBASE + HSCROLL on overscan planes (1.9.0: REG_FB_COPPER; 1.8.0: REG_FB_HBL_PURE)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.
