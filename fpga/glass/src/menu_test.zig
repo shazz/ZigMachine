@@ -75,9 +75,13 @@ test "the shelf shows titles, the loaded mark, and the selected cart's details" 
     try std.testing.expectEqualStrings(" ZIGMACHINE  38.2 FPS   2/3  >", row(&o, 0));
     m.fps_x10 = null;
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings("*UNION DEMO", row(&o, page_shelf.FIRST));
+    try std.testing.expectEqualStrings("* UNION DEMO", row(&o, page_shelf.FIRST));
+    // The title starts at the same column marked or not (Matt: "AREPS" read as one word).
+    try std.testing.expectEqualStrings("UNION DEMO", row(&o, page_shelf.FIRST)[page_shelf.TITLE_COL..][0..10]);
+    try std.testing.expectEqualStrings("OXYGENE", row(&o, page_shelf.FIRST + 1)[page_shelf.TITLE_COL..][0..7]);
+    try std.testing.expectEqualStrings("  ", row(&o, page_shelf.FIRST + 1)[0..2]);
     try std.testing.expect(o.text[(page_shelf.FIRST + 1) * osd.COLS] & map.OSD_INVERSE != 0);
-    try std.testing.expectEqualStrings(" A TITLE FAR TOO LONG FOR THE O~", row(&o, page_shelf.FIRST + 2));
+    try std.testing.expectEqualStrings("  A TITLE FAR TOO LONG FOR THE ~", row(&o, page_shelf.FIRST + 2));
     try std.testing.expectEqualStrings("Oxygene 2000            atari st", row(&o, page_shelf.DETAIL));
     try std.testing.expectEqualStrings("The flat-shaded polygon flight,", row(&o, page_shelf.DETAIL + 1));
     try std.testing.expectEqualStrings("then again in fullscreen~", row(&o, page_shelf.DETAIL + 3)[0..25]);
@@ -85,7 +89,10 @@ test "the shelf shows titles, the loaded mark, and the selected cart's details" 
     m.list.cursor = 2; // selected, the long title scrolls instead of being cut
     m.list.phase = 4;
     m.draw(&o, &View{}, &BView{});
-    try std.testing.expectEqualStrings(" TITLE FAR TOO LONG FOR THE OSD", row(&o, page_shelf.FIRST + 2));
+    try std.testing.expectEqualStrings("  TITLE FAR TOO LONG FOR THE OSD", row(&o, page_shelf.FIRST + 2));
+    m.drive = 2; // drive A's mark takes the same column, the title where it was
+    m.draw(&o, &View{}, &BView{});
+    try std.testing.expectEqualStrings("A TITLE FAR TOO LONG FOR THE OSD", row(&o, page_shelf.FIRST + 2));
     try std.testing.expectEqualStrings("no shelf.txt entry", row(&o, page_shelf.DETAIL)); // an unknown cart
     try std.testing.expectEqualStrings("x.zmd", row(&o, page_shelf.DETAIL + 1));
 }

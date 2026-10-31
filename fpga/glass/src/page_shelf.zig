@@ -18,7 +18,10 @@ pub const SHOWN = 9;
 pub const RULE = 10;
 pub const DETAIL = 11;
 const DESC_ROWS = 3;
-const NAME_W = osd.COLS - 1; // column 0 is the loaded mark
+/// Column 0 is the mark ('A' the disk in drive A, '*' the disk in the window), column 1 a gap,
+/// so every title starts at TITLE_COL whether its row is marked or not ("A REPS", not "AREPS").
+pub const TITLE_COL = 2;
+const NAME_W = osd.COLS - TITLE_COL;
 
 pub const Key = enum { none, close, load, insert, eject, console, cold, warm };
 /// The marks in column 0: 'A' the disk in drive A, '*' the disk in the window (when not in A).
@@ -82,7 +85,7 @@ pub const State = struct {
         if (marks.loaded == i) cell[0] = '*';
         if (marks.drive == i) cell[0] = 'A';
         const name = if (i == self.cursor) text.marquee(title, NAME_W, self.phase) else text.fit(&cut, title, NAME_W);
-        @memcpy(cell[1..][0..name.len], name);
+        @memcpy(cell[TITLE_COL..][0..name.len], name);
         o.line(row, &cell, i == self.cursor);
     }
 };
