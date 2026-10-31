@@ -86,7 +86,7 @@ real counts (union_l16's clz calls, bubblebobble's per-pixel 64-bit divide below
   upstream. C is `compressedGen = true` in IBusCachedPlugin: an RVC decoder and a realigning fetch, on
   the fetch->decode cone that TIMING_FABLE.md already calls critical.
 - **Toolchain**: GCC 13.2 accepts `rv32imf_zba_zbb_zbs` and emits sh2add/minu/zext.h/bseti from
-  wasm2c's C with no source change (lean carts link only libgcc, so no multilib issue). It accepts
+  wasm2c's C with no source change (`-print-multi-directory` picks the same rv32imf/ilp32f libgcc as today). It accepts
   `_zicond` but emits `beq/mv` for a select (GCC 14 is needed). No GCC 13 rv32 P support.
 - **C and the I$**: the bench's `ic.over.24K` (3.91 cycles an instruction vs 1.01) is a real cliff, but
   the largest working set is union_tnt3's 13 KB (+ firmware). C buys margin, not speed, today.

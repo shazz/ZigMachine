@@ -9,6 +9,8 @@
 //   node apps/perf/isa_census.mjs --all [--json]     (every docs/demo-*.wasm with a disk, serially)
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { measure } from "./measure.mjs";
 import { parseModule } from "./wasm_bin.mjs";
 import { decodeFunction } from "./wasm_body.mjs";
@@ -134,4 +136,6 @@ async function main() {
     }
 }
 
-main().catch((e) => { console.error(e.stack ?? e.message); process.exit(2); });
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+    main().catch((e) => { console.error(e.stack ?? e.message); process.exit(2); });
+}
