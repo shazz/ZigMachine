@@ -80,6 +80,7 @@ async function pins({ boot, press, fail, PINS_SPHERE, PINS_NEST, pinHash, K_ESC,
             if (OUT && split === 0) await S.shot(`${OUT}/obj_${object === "4" ? "nest" : "sphere"}_${name}.png`);
         }
     }
+    await nestPalette({ boot, press, fail });
     const S = await boot();
     S.frame();
     const hud = () => S.hash(0, OBJ_Y0);
@@ -94,6 +95,27 @@ async function pins({ boot, press, fail, PINS_SPHERE, PINS_NEST, pinHash, K_ESC,
     if (S.demo.pollCartRequest() !== 0) fail("a cart request before Escape");
     key(S, K_ESC);
     if (S.demo.pollCartRequest() !== -1) fail("Escape does not return to the menu");
+}
+
+// GLENZ NEST's own GLENZ palette (red and white, palette.zig NEST_GLENZ): only
+// while the nest is shown, never white past three layers, and the other
+// objects get their GLENZ palette back.
+async function nestPalette({ boot, press, fail }) {
+    const S = await boot();
+    press(S, "s");
+    S.frame();
+    const old = Array.from(S.pal().slice(1, 64));
+    press(S, "4");
+    S.frame();
+    const p = S.pal(), rgb = (v) => v & 0xffffff, WHITE = 0xf0f0f0; // entries are 0xAABBGGRR
+    if (rgb(p[1]) !== WHITE || rgb(p[2]) === WHITE) fail(`nest GLENZ: one layer is not white / red (${p[1].toString(16)}, ${p[2].toString(16)})`);
+    for (let i = 1; i < 64; i++) {
+        const layers = i.toString(2).split("1").length - 1;
+        if (layers >= 4 && ((p[i] >> 8) & 0xff) > 60) fail(`nest GLENZ: ${layers} layers (index ${i}) not a deep red: ${p[i].toString(16)}`);
+    }
+    press(S, "1");
+    S.frame();
+    if (Array.from(S.pal().slice(1, 64)).join() !== old.join()) fail("the icosahedron's GLENZ palette does not come back after the nest");
 }
 
 export async function checkModes(ctx) {

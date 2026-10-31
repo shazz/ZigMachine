@@ -3,7 +3,8 @@
 // frame). The float here runs once a key press: these are the old cart's own
 // formulas, kept so its colours stay the same.
 //   FLAT / SOFT / WIRE / HIDDEN: a 12-step teal->white ramp at 1..12
-//   GLENZ: the six face bits' colours summed, 1..63
+//   GLENZ: the six face bits' colours summed, 1..63; GLENZ NEST instead the
+//   Amiga red and white glenz (NEST_GLENZ, built at compile time)
 //   GOURAUD: the same ramp in 32 steps, 1..32
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -19,9 +20,9 @@ pub fn fixed(fb: *zg.LogicalFB) void {
     fb.setPaletteEntry(draw.WIRE_INK, .{ .r = 120, .g = 235, .b = 255, .a = 255 });
 }
 
-pub fn program(fb: *zg.LogicalFB, mode: draw.Mode) void {
+pub fn program(fb: *zg.LogicalFB, mode: draw.Mode, nest: bool) void {
     switch (mode) {
-        .glenz => glenz(fb),
+        .glenz => if (nest) nestGlenz(fb) else glenz(fb),
         .gouraud => ramp(fb, xform.GOURAUD_TOP + 1),
         else => ramp(fb, xform.FLAT_LEVELS),
     }
@@ -59,3 +60,35 @@ fn ramp(fb: *zg.LogicalFB, n: u8) void {
 fn chan(v: f32) u8 {
     return @intFromFloat(@max(@as(f32, 0), @min(v, 1.0)) * 255.0);
 }
+
+fn nestGlenz(fb: *zg.LogicalFB) void {
+    for (NEST_GLENZ[1..], 1..) |c, i| fb.setPaletteEntry(@intCast(i), .{ .r = c[0], .g = c[1], .b = c[2], .a = 255 });
+}
+
+/// GLENZ NEST's 63 OR combinations, the classic Amiga red and white glenz.
+/// A face ORs bit (index mod 6), so the bits set count the layers over a
+/// pixel (popcount) and the even bits are the "white" faces, the odd ones the
+/// "red": one layer is white or red, two or three are pinks to mid reds (the
+/// more white faces, the paler), four and more deepen the red and never reach
+/// white, so the inner shells still read in the middle of the nest.
+pub const NEST_GLENZ: [64][3]u8 = blk: {
+    var t: [64][3]u8 = undefined;
+    t[0] = .{ 0, 0, 0 };
+    for (1..64) |i| {
+        const layers = @popCount(@as(u6, @intCast(i)));
+        const white = @popCount(@as(u6, @intCast(i & 0b010101)));
+        t[i] = switch (layers) {
+            1 => if (white == 1) .{ 240, 240, 240 } else .{ 224, 32, 48 },
+            2 => switch (white) {
+                2 => .{ 248, 176, 192 },
+                1 => .{ 232, 112, 136 },
+                else => .{ 200, 40, 64 },
+            },
+            3 => if (white >= 2) .{ 216, 96, 120 } else .{ 176, 32, 56 },
+            4 => .{ 144, 24, 48 },
+            5 => .{ 120, 16, 40 },
+            else => .{ 96, 8, 32 },
+        };
+    }
+    break :blk t;
+};

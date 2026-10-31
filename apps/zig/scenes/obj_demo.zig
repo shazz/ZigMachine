@@ -76,7 +76,6 @@ pub const Demo = struct {
         pal.fixed(fb);
         zigos.setBackgroundColor(.{ .r = 6, .g = 8, .b = 18, .a = 255 });
         self.selectObject(0);
-        pal.program(fb, self.mode);
     }
 
     fn selectObject(self: *Demo, o: u8) void {
@@ -87,6 +86,12 @@ pub const Demo = struct {
             else => self.loadObj(MODELS[o]),
         }
         zg.Console.log("obj: object {} -> {} verts, {} faces", .{ o, self.mesh.nverts, self.mesh.nfaces });
+        self.palette();
+    }
+
+    /// The mode's palette; GLENZ NEST has its own GLENZ one (red and white).
+    fn palette(self: *Demo) void {
+        pal.program(&self.os.lfbs[0], self.mode, self.object == NEST);
     }
 
     /// The OBJ text through the loader (f32, once a model), into the Q14 mesh.
@@ -112,7 +117,7 @@ pub const Demo = struct {
             '1'...'4' => self.selectObject(@intCast(cp - '1')),
             's', 'S' => {
                 self.mode = @enumFromInt((@intFromEnum(self.mode) + 1) % draw.NAMES.len);
-                pal.program(&self.os.lfbs[0], self.mode);
+                self.palette();
             },
             'c', 'C' => self.split = (self.split + 1) % @as(u8, draw.SPLITS.len),
             '+', '=' => self.resolution(1),
