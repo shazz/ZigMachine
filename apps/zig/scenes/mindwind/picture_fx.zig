@@ -17,7 +17,9 @@ const lines = @import("lines.zig");
 const vram = @import("vram.zig");
 
 const RING: usize = 208; // $680 / 8
-var ring: [RING]u16 = [_]u16{0} ** RING; // x in px
+// x in px. The demo's ring is DATA, every entry $31806 / 0 (the picture + $90 bytes): x = 288,
+// the wave's centre, so the picture fades in still until the script's first amplitude.
+var ring: [RING]u16 = [_]u16{0x120} ** RING;
 var at: usize = 0; // $BA1A / 8: the entry the next one goes to (+1)
 var phase: u16 = 0; // $BA1C
 var speed: u16 = 2; // $BA1E

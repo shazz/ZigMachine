@@ -90,6 +90,17 @@ check(BAR.every((c, k) => lineColours(r, k).size === 1 && px(r, 0, k) === ste(c)
 check(lineColours(r, 60).size >= 3 && px(r, 0, 60) !== px(r, 400, 60), "stripes: the field shows stripes");
 check(Array.from({ length: W }, (_, x) => px(r, x, 30) === px(r, x, 180)).every(Boolean), "stripes: flat, every line the same row");
 
+// part B's fade-in (from about 3474): the picture stays put while its palette fades ($8D64's ring
+// starts at x = 288 everywhere and the script's first amplitude is 0). Which neighbours are equal
+// does not change with a fade, but does with any shift.
+const edges = (r) => Array.from({ length: 196 }, (_, y) => Array.from({ length: W - 1 }, (_, x) =>
+    px(r, x, y + 5) === px(r, x + 1, y + 5) ? 1 : 0).join("")).join("|");
+run(3505 - frames);
+const fadeA = edges(raster());
+run(3600 - frames);
+const fadeB = edges(raster());
+check(fadeA === fadeB, "picture: still while it fades in");
+
 run(3700 - frames); // part B, the wobble
 r = raster();
 await shot("b_picture", r);
