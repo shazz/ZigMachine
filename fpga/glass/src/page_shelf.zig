@@ -23,9 +23,9 @@ const DESC_ROWS = 3;
 pub const TITLE_COL = 2;
 const NAME_W = osd.COLS - TITLE_COL;
 
-pub const Key = enum { none, close, load, insert, eject, console, cold, warm };
+pub const Key = enum { none, close, load, insert, eject, console, cold, warm, source };
 /// The marks in column 0: 'A' the disk in drive A, '*' the disk in the window (when not in A).
-pub const Marks = struct { loaded: ?usize = null, drive: ?usize = null };
+pub const Marks = struct { loaded: ?usize = null, drive: ?usize = null, floppy: bool = false };
 
 pub const State = struct {
     cursor: usize = 0,
@@ -51,6 +51,7 @@ pub const State = struct {
             'e', 'E' => return .eject,
             'r', 'R' => return .cold,
             'w', 'W' => return .warm,
+            'f', 'F' => return .source,
             else => return .none,
         }
         self.phase = 0;
@@ -66,9 +67,9 @@ pub const State = struct {
         const title = if (fps_x10) |f|
             std.fmt.bufPrint(&bar, " ZIGMACHINE {d:>3}.{d} FPS {d:>3}/{d:<3}>", .{ f / 10, f % 10, at, disks.len })
         else
-            std.fmt.bufPrint(&bar, " ZIGMACHINE  SHELF   {d:>3}/{d:<3} >", .{ at, disks.len });
+            std.fmt.bufPrint(&bar, " ZIGMACHINE  {s}  {d:>3}/{d:<3} >", .{ if (marks.floppy) "FLOPPY" else "SHELF ", at, disks.len });
         o.line(0, title catch "", true);
-        if (disks.len == 0) o.put(1, FIRST, "no .zmd disk on the card", false);
+        if (disks.len == 0) o.put(1, FIRST, if (marks.floppy) "no .zmd disk on the floppy" else "no .zmd disk on the card", false);
         var row: u32 = FIRST;
         var i = self.top;
         while (i < disks.len and row < FIRST + SHOWN) : ({

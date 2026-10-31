@@ -431,6 +431,23 @@ picture. It is the same OSD, put in another mode rather than a second block:
   page on a desktop (the drawings below are its output; `*` marks the cart in
   the window, and the cursor's row is inverse on the screen).
 
+### The floppy as the shelf (`app_source.zig`, Matt 2026-10-31)
+
+KESTREL is a small Falcon, and a Falcon booted off a 1.44 MB disk. A USB floppy drive on the
+board's hub (usb-storage, `/dev/sdX`) can be the shelf: **F** on the shelf page mounts the
+floppy read-only at `/tmp/zm_floppy` and lists its `.zmd` files; the title bar says `FLOPPY`.
+**F** again unmounts it and goes back to the SD card, so the disk can be swapped; **Shift+F12**
+on the floppy mounts it afresh. The floppy is found by size: the first removable `sd*` block
+device of at most 5,760 sectors (2.88 MB), so a USB stick is never taken for one.
+
+- **The disk:** FAT12 (`mkfs.fat -F 12`), holding the board's **fat disks** (the `.zmd` files
+  staged for the card, which carry `CART.RV32`), not the browser's `docs/demo-*.zmd`. 111 of the
+  112 shelf disks fit on a 1.44 MB floppy (mpp_truecolor's 2.3 MB does not).
+- **Only the cart list moves:** `system.rv32`, `glass.cfg`, KOS's `kos/desktop.rv32` and data
+  disks' `progs/` stay on the SD card. A floppy disk in drive A is not saved as `drive_a=`, so a
+  power-on never looks for a floppy file on the card.
+- A rescan (F, Shift+F12) keeps drive A's disk by file name, or empties the drive.
+
 ### The shelf page (`page_shelf.zig`)
 
 ```
