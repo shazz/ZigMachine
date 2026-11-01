@@ -87,6 +87,13 @@ carts:
 vexgen-board:
 	vexgen/gen.sh I16w2D4Seal:16384:2:4096:1:seal I16w2D4SealNopred:16384:2:4096:1:seal,nopred
 
+# KESTREL_NEXT_ISA.md steps 1-2: the board's FPU core with the 16 KiB 2-way D$, without and with
+# ZM-X (vexgen `zmx`; `zmxearly` bypasses its result from EXECUTE). tests/test_zmx*.py run them.
+.PHONY: vexgen-zmx
+vexgen-zmx:
+	vexgen/gen.sh I16w2D16w2SealFpu:16384:2:16384:2:seal,fpu I16w2D16w2SealFpuZmx:16384:2:16384:2:seal,fpu,zmx \
+		I16w2D16w2SealFpuZmxE:16384:2:16384:2:seal,fpu,zmxearly
+
 # --- plan step 0b-i: the native host (host/README.md) ----------------------
 # Every module goes through wasm2c with its own -n name; the host links
 # machine + rom + one cart against one shared, bounds-checked memory.

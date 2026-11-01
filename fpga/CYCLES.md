@@ -666,3 +666,49 @@ latency, *Memory path*): emlyn ORIGINAL 0.23 Mc of a 1.67 Mc frame, 60 fps; ZIG
 1.8 Mc, about 55 fps at the widest ramp and 60 below it; polkadots 1.5 Mc,
 60 fps (it ran at 2 fps). Not counted: the blitter's own time for the logo and
 the ramp (RTL, 224,000 pixels a frame in the worst case).
+
+## D$ 16 KiB 2-way and ZM-X v1 (KESTREL_NEXT_ISA.md steps 1-2, 2026-11-01)
+
+*The note's caveats measured: the D$ path's fmax (an out-of-context place-and-route of the core)
+and the texture-class loops on each core. Re-run with `make vexgen-zmx`,
+`uv run pytest -s tests/test_zmx_bench.py`, and `PERIOD=10 IMPL=1 CLOCK=clk tools/vivado_ooc.sh
+VexRiscv build/ooc_vex_<core> "" build/vexgen/VexRiscv_<core>.v rtl/seal/zm_seal.v`.*
+
+**Cost** (Vivado 2026.1, out of context, placed and routed at 100 MHz, the core alone; the board's
+core is `I16w2D4SealFpu`):
+
+| core | LUT | FF | BRAM tiles | DSP | WNS @ 10 ns |
+|---|---|---|---|---|---|
+| I16w2D4SealFpu (board) | 3,848 | 3,226 | 10 | 6 | +0.512 |
+| I16w2D16w2SealFpu (step 1) | 3,909 (+61) | 3,233 (+7) | 12.5 (+2.5) | 6 | +0.258 |
+| I16w2D16w2SealFpuZmx (step 2, result from MEMORY) | 4,132 (+223 over step 1) | 3,270 (+37) | 12.5 | 6 (+0) | +0.599 |
+| I16w2D16w2SealFpuZmxE (result bypassed from EXECUTE) | 4,127 (+218) | 3,237 (+4) | 12.5 | 6 (+0) | +0.807 |
+
+All four close 100 MHz alone; the WNS spread (0.26-0.81 ns) is placement noise of the same order
+as the differences, so the SoC's own timing (the combined bitstream) is the real check. ZM-X is
++223 LUT against the note's ~400 estimate; `mulsh` adds no DSP (MulPlugin's own four partial
+products, `ZmMulPlugin`).
+
+**Cycles** (`tests/test_zmx_bench.py`: tests/zmx/bench.c on the core in Verilator, the dcache
+harness with a 32-cycle first-beat read wait = a ~48-cycle line miss; warm frame; every core and
+build draws the same frame):
+
+| kernel | D4 (board) | D16w2 | D16w2 + ZM-X | D16w2 + ZM-X early |
+|---|---|---|---|---|
+| roto64, 320x200, 4 KiB texture | 13.0 c/px, 0 refills | 13.0 | 10.0 | 9.0 |
+| roto128, 16 KiB texture | **24.5 c/px, 14,090 refills** | **13.0, 0** | 10.0, 0 | 9.0, 0 |
+| roto256, 64 KiB texture | 20.5 c/px, 6,740 | 16.2, 1,420 | 11.2, 1,410 | 10.2, 1,410 |
+| voxel128, 320 columns, 2 x 16 KiB maps | 0.31 Mc, 640 | 0.29 Mc, 320 | 0.27 Mc, 0 | 0.27 Mc, 0 |
+| voxel256, 2 x 64 KiB maps | **1.81 Mc, 18,760** | **0.92 Mc, 1,520** | 0.76 Mc, 1,570 | 0.74 Mc, 1,590 |
+
+The note's step-1 projection holds: a 16 KiB texture becomes resident (roto128 1.57 -> 0.83 Mc a
+frame) and the 64 KiB voxel maps stop thrashing (1.81 -> 0.92 Mc); ZM-X then takes roto to 10 c/px
+(9 with the early bypass), the note's "14 -> 9". These are the note's appendix loops at full
+frame, not carts: board fps comes with the showcase carts.
+
+**Correctness** (`tests/test_zmx.py`): every op over all pairs of 16 edge words and 2,048 random
+pairs, on both ZM-X cores, equals cycles/zmx_twin.h on the core and libs/zig/zmx.zig on the host
+(a hash per op); dependent ops back to back (the bypass) are right; seven neighbouring encodings
+trap. ZM_RTL_BREAK=1: a core without ZM-X, five broken C twins and two broken Zig specs are each
+caught. tests/test_blit_dcache.py with `ZM_DCACHE_CORE` passes on the 16 KiB 2-way core (the
+whole-cache sweep is 282 cycles there, ~130 on the 4 KiB one).
