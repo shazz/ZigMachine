@@ -24,10 +24,10 @@ class Bench(Module):
     """The CPU's D-bus -> IOFence -> a decoder: main RAM (the posted bridge on a DDR whose write
     channel takes a store one cycle in SLOW) and one IO slave that acks in a cycle."""
 
-    def __init__(self, break_: str = "") -> None:
+    def __init__(self, break_: str = "", read_bypass: bool = False) -> None:
         self.cpu, main, self.io = _wb(), _wb(), _wb()
         self.hp, ddr = hp_interface(), hp_interface()
-        self.submodules.bridge = WishboneHP(main, self.hp, 8)
+        self.submodules.bridge = WishboneHP(main, self.hp, 8, read_bypass)
         self.submodules.fence = IOFence(self.cpu, self.bridge.idle, break_)
         slaves = [(lambda a: a[29] == 0, main), (lambda a: a[29] == 1, self.io)]
         self.submodules.decoder = wishbone.Decoder(self.fence.bus, slaves)

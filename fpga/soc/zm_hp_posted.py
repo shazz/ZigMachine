@@ -11,7 +11,8 @@ write after another, several in flight (the HP port accepts 8 write commands).
 unanswered: every store the CPU has had acknowledged is then in DDR. Each consumer
 that used to rely on "an acknowledged store is in DDR" must also wait for it:
 - the bridge's own reads (a refill or a single read starts only while `idle`, so a
-  load sees the stores before it, and so does a refill of their line);
+  load sees the stores before it, and so does a refill of their line; with `read_bypass`
+  a refill waits only for stores to its own line: soc/zm_hp_bypass.py);
 - the video snoop's `drained` (soc/zigmachine_soc.py): the compositor must not read
   a line the CPU's stores have not reached;
 - the blitter's start (soc/zm_blit_soc.py): an op must not read pixels still in
@@ -43,7 +44,7 @@ class PostedStores(LiteXModule):
 
     def __init__(self, bus: Bus, hp: axi.AXIInterface, req: Signal, depth: int, **kw: Any) -> None:
         word_addr, size, cache = kw["word_addr"], kw["size"], kw["cache"]
-        self.idle, self.push = Signal(), Signal()
+        self.idle, self.push, self.issue = Signal(), Signal(), Signal()  # issue: the head left for AW/W
         # The buffer: a ring in LUTRAM (one write port, the head read combinationally). Not migen's
         # SyncFIFO, whose write-only port has no dat_r and fails migen's own simulator (litex_compat.py).
         width = len(bus.adr) + 32 + 4
@@ -55,7 +56,8 @@ class PostedStores(LiteXModule):
         inflight = Signal(max=INFLIGHT + 1)
         adr, dat, sel = head.dat_r[: len(bus.adr)], head.dat_r[len(bus.adr) : -4], head.dat_r[-4:]
         push = self.push
-        issue = readable & ~hp.aw.valid & ~hp.w.valid & (inflight < INFLIGHT)
+        issue = self.issue
+        self.comb += issue.eq(readable & ~hp.aw.valid & ~hp.w.valid & (inflight < INFLIGHT))
         answered = hp.b.valid & hp.b.ready
         self.comb += [
             readable.eq(level != 0), writable.eq(level != depth),

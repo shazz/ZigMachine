@@ -1017,7 +1017,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Fencing IO loads too: no consumer needs it, and every poll loop would pay for the drain.
 **Consequences:**
 - Same CSR map: the firmware and every cart image are unchanged.
-- ZIGGY's I- and D-bus share the one HP0 bridge, so every read (a D$ or I$ miss, an uncached load) still waits for the buffer to drain. Only store runs between misses go faster.
+- ZIGGY's I- and D-bus share the one HP0 bridge, so every read (a D$ or I$ miss, an uncached load) still waits for the buffer to drain. Only store runs between misses go faster. (Since 2026-10-19 a refill only waits for stores to its own line: the read-bypass ADR below.)
 - Vivado: 15,045 LUT (+157), sys WNS +0.011 ns at 100 MHz.
 - An IO store after a burst of DDR stores waits for them to drain: at most 8 writes, which overlap, so about one write response plus the issue slots (tens of cycles).
 - `ZMCycles.dbus_wait` now counts that wait.
@@ -1145,3 +1145,24 @@ dependent-read path); 1.10.0 (taken by LBASE).
 context; over the "LUT-neutral" wish, cuts ranked in docs/ROADMAP.md's CHISEL v2 row and BLITTER_HW_SPEC
 10.4. stniccc queues every fill (painter's order) against its CPU path: the board decides. 88 mutants,
 cart 112 and its harness prove the ops.
+## 2026-10-19 — ZIGGY's cache-line refills overtake posted stores to other lines
+
+**Status:** accepted (pending the board measurement)
+**Context:** With `posted=8` a store costs 2.25 cycles on the board, but every read still waited for `idle`: the buffer empty and every write answered. memcpy went only from 6.1 to 2.73 c/B: per 32-byte line ~48 cycles of refill, ~18 of stores, ~20 waiting for the previous line's stores (`fpga/BENCH_REPORTS.md`, 2026-10-18 late).
+**Decision:**
+- `WishboneHP(read_bypass=True)` (`fpga/soc/zm_hp_bypass.py`): a burst read (a D$ or I$ refill) is sent unless a store to the same 32-byte line is still unanswered; then it waits as before.
+- A store is in DDR only at its B response (AWCACHE 0000, one ID, in order). The ring forgets an address when it is issued, so the tags live from push to B: 16 slots (8 buffered, 8 in flight), each with a 20-bit line tag compared to the read's line.
+- A single (classic) read keeps the full drain. IO loads never reach this bridge, and the IO-store fence (`idle`) is unchanged.
+- The compare is registered, off the AR path: with stores pending a refill starts one cycle after its request. This relies on the master holding the request until its ack and pushing no store meanwhile.
+- On for the board and its sim (`zm_board_mem.READ_BYPASS`). `--no-read-bypass` on the z7 build and on hp_sim turns it off. BARD keeps the drain.
+- AXI ordering: AR and AW/W are separate channels with no order between them. HP0 has one read outstanding on ID 0 and writes in order on ID 0. Only a read and a write to different lines ever overlap, which AXI allows and no load can observe. `hp_slice` registers each channel on its own, so it cannot reorder within one. A refill of code the CPU has just stored (the loader, then `fence.i`) goes through the same compare, because the I-bus shares the bridge.
+**Alternatives considered:**
+- Comparing only the 8 buffered entries: wrong. An issued store is still not in DDR until its B (break test `retire_on_issue`).
+- Letting single reads bypass too: nothing gains (the D$ and I$ only refill main RAM), and an uncached poll would lose its order (break test `classic_too`).
+- Narrower or hashed tags (12 bits: about -110 LUT in yosys): a false match only drains, so it stays correct. Not done until the LUT budget needs it.
+- One tag per run of same-line stores, so memcpy's 8 stores use one slot: fewer comparators, but more logic and more mutants. Deferred.
+**Consequences:**
+- Yosys `synth_xilinx` on the bridge alone (`prototypes/read_bypass_re/lut_estimate.py`): +294 LUT and +346 FF at 20-bit tags. The board was at 15,045 LUT (85.5 %) with sys WNS +0.011 ns. Vivado's number comes from the lead's bitstream.
+- Model memcpy (`tests/test_hp_bypass_rate.py`, calibrated to the board's 2.73 c/B with the drain): 2.78 to 2.25 c/B.
+- A load can now reach DDR before an earlier store to another address. That breaks only a Dekker-style protocol (store A, load B, with another master doing the reverse) over DDR. A grep of `fpga/cycles` finds no poll loop on DDR: every poll is on an IO register. Every cross-master handoff uses an IO doorbell (fenced) or data-then-flag stores (store order is unchanged).
+

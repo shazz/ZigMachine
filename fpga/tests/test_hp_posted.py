@@ -29,10 +29,10 @@ class Bench(Module):
     """The bridge on a DDR model whose write channel takes a store only one cycle in `SLOW`, so
     a burst of stores backs up in the buffer, as it does behind a busy DDR."""
 
-    def __init__(self, posted: int = 8) -> None:
+    def __init__(self, posted: int = 8, read_bypass: bool = False, break_: str = "") -> None:
         self.cpu = wishbone.Interface(data_width=32, address_width=32, addressing="word")
         self.hp, ddr = hp_interface(), hp_interface()
-        self.submodules.bridge = WishboneHP(self.cpu, self.hp, posted)
+        self.submodules.bridge = WishboneHP(self.cpu, self.hp, posted, read_bypass, break_)
         self.submodules.ram = ZMSimAXIRAM(SIZE, [ddr], latency=LATENCY, wr32=True)
         tick, slot = Signal(max=SLOW), Signal()
         self.sync += tick.eq(Mux(tick == SLOW - 1, 0, tick + 1))

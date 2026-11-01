@@ -36,15 +36,21 @@ SoC = Any
 # ZIGGY's posted stores (2026-10-18): a store costs ~2 cycles instead of a ~27-cycle DDR round trip
 # while the buffer has room. 8 = what HP0 accepts in flight (zm_hp_posted.INFLIGHT); BARD's depth too.
 POSTED = 8
+# A refill skips the drain unless its line has a pending store (soc/zm_hp_bypass.py, 2026-10-19):
+# a memcpy line no longer waits for the last line's stores. Needs POSTED; off = every read drains.
+READ_BYPASS = True
 
 
-def add_cpu_memory(soc: SoC, hp0: axi.AXIInterface, posted: int = POSTED, break_: str = "") -> None:
+def add_cpu_memory(
+    soc: SoC, hp0: axi.AXIInterface, posted: int = POSTED, break_: str = "", read_bypass: bool = READ_BYPASS
+) -> None:
     """main_ram at CPU_BASE on HP0, and the firmware's cycle counter. `posted`: the bridge's
     store buffer (soc/zm_hp_posted.py), 0 = blocking stores; its `idle` drives the SoC's
     `stores_idle`, which the video's `drained` and the blitter's start wait for, and holds the
-    CPU's IO stores (soc/zm_io_fence.py; `break_` = "nofence" is that guard's break test)."""
+    CPU's IO stores (soc/zm_io_fence.py; `break_` = "nofence" is that guard's break test).
+    `read_bypass` (only with `posted`): refills overtake stores to other lines (soc/zm_hp_bypass.py)."""
     bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
-    soc.main_ram_hp = WishboneHP(bus, hp0, posted)
+    soc.main_ram_hp = WishboneHP(bus, hp0, posted, read_bypass and posted > 0)
     soc.comb += soc.stores_idle.eq(soc.main_ram_hp.idle)
     soc.bus.add_slave("main_ram", bus, SoCRegion(origin=CPU_BASE, size=WINDOW, mode="rwx"))
     if posted:

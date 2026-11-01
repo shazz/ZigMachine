@@ -199,6 +199,9 @@ def main() -> None:
     p.add_argument(
         "--posted", type=int, default=8, help="z7: ZIGGY's HP0 store buffer (soc/zm_hp_posted.py), 0 = blocking"
     )
+    p.add_argument(
+        "--no-read-bypass", action="store_true", help="z7: every ZIGGY read waits for the drain (soc/zm_hp_bypass.py)"
+    )
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
     p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")
     p.add_argument(
