@@ -5,12 +5,14 @@
 //   normal      40..239    py - 40             320       doubled from x 80
 //   scroll      40..239    py - 40, + HSCROLL  320       doubled from x 80
 //   fullscreen  0..279     py, (c + hs) % st   400       doubled from x 0
-//   overscan    0..279     py                  400       doubled, borders earned
+//   overscan    0..279     py, + HSCROLL       400       doubled, borders earned (HSCROLL: 1.10.0)
 //   medium      40..239    py - 40             640/320   1:1 or doubled from x 80
 //   medium ovs  0..279     py (stride >= 800)  800/400   1:1 or doubled from x 0
 // Any other mode is fullscreen when the stride is 400 and normal otherwise
 // (video.zig's back-compat rule). Medium re-reads RESOLUTION per line: a
 // RES_MEDIUM line is 1:1, anything else doubled.
+// A copper LBASE (HW 1.10.0) moves the latched base and the row it is at: the row's address is
+// base + (row - lrow) * stride, lrow 0 from FB_BASE (fpga/review/COPPER_LINEBASE.md).
 `default_nettype none
 
 module zm_video_plane (
@@ -20,6 +22,7 @@ module zm_video_plane (
     input  wire [8:0]  py,
     input  wire [7:0]  mode,           // latched (zm_video_latch)
     input  wire [31:0] base,
+    input  wire [8:0]  lrow,           // latched: the row `base` is at (an LBASE's; 0)
     input  wire [15:0] stride, hpos, hs, seen,
     input  wire [7:0]  seed,
     input  wire        top_open, bot_open,
@@ -49,7 +52,8 @@ module zm_video_plane (
     reg [15:0] stride_i, hpos_i, seen_i, hs_live_i, flicker_i;
     reg        cop_flick_i;
     always @(posedge clk) cop_flick_i <= cop_flick;
-    reg [8:0]  py_i;
+    reg [8:0]  py_i, lrow_i;
+    always @(posedge clk) lrow_i <= lrow;
     reg [7:0]  mode_i, seed_i, res_i;
     reg        top_open_i, bot_open_i;
     always @(posedge clk)
@@ -92,7 +96,7 @@ module zm_video_plane (
     reg [31:0] base_2, bs_3, addr_q;
     reg [24:0] prod_3;
     always @(posedge clk) begin
-        {row_2, stride_2, sc_2, base_2} <= {row, stride_i, m == SCROLL ? hs_live_i : 16'd0, base_i};
+        {row_2, stride_2, sc_2, base_2} <= {row - lrow_i, stride_i, m == SCROLL || m == OVS ? hs_live_i : 16'd0, base_i};
         prod_3 <= row_2 * stride_2;    // 25 bits wide here, not 16 as in a {}
         bs_3 <= base_2 + {16'd0, sc_2};
         addr_q <= bs_3 + {7'd0, prod_3};
@@ -122,8 +126,8 @@ module zm_video_plane (
     reg       pend = 1'b0;
     wire      go = (start || pend) && !moved && held == 2'd2;
     always @(posedge clk) begin
-        moved <= {base, stride, hpos, seen, hs_live, flicker, cop_flick, py, mode, seed, res, top_open, bot_open}
-            != {base_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, cop_flick_i, py_i, mode_i, seed_i, res_i,
+        moved <= {base, lrow, stride, hpos, seen, hs_live, flicker, cop_flick, py, mode, seed, res, top_open, bot_open}
+            != {base_i, lrow_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, cop_flick_i, py_i, mode_i, seed_i, res_i,
                 top_open_i, bot_open_i};
         held <= moved ? 2'd0 : held == 2'd2 ? held : held + 2'd1;
         pend <= !rst && st == IDLE && (start || pend) && !go;

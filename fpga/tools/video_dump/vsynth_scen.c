@@ -190,6 +190,10 @@ static void worst_hbl(uint32_t id, uint32_t plane, uint32_t line) {
 void vs_copper_setup(void);
 void vs_copper_frame(int f);
 void vs_copper_hbl(uint32_t id, uint32_t plane, uint32_t line);
+/* vsynth_lbase.c: copper LBASE in every mode, HSCROLL on overscan (HW 1.10.0) */
+void vs_lbase_setup(void);
+void vs_lbase_frame(int f);
+void vs_lbase_hbl(uint32_t id, uint32_t plane, uint32_t line);
 
 const vs_scenario vs_scenarios[] = {
     {"fullscreen", 2, 0x7, fs_setup, reset_bases, fs_hbl},
@@ -203,5 +207,6 @@ const vs_scenario vs_scenarios[] = {
     {"plain", 2, 0x0, plain_setup, reset_bases, alpha_hbl},
     {"worst", 2, 0xF, worst_setup, reset_bases, worst_hbl},
     {"copper", 2, 0x7, vs_copper_setup, vs_copper_frame, vs_copper_hbl},
+    {"lbase", 2, 0xF, vs_lbase_setup, vs_lbase_frame, vs_lbase_hbl},
     {0, 0, 0, 0, 0, 0},
 };

@@ -14,6 +14,9 @@ module zm_video_planepath (
     input  wire [8:0]    py,
     input  wire [1023:0] regs,
     input  wire          cop_flick,
+    input  wire          lb_we,            // the copper's LBASE (zm_video_copper.v -> zm_video_latch.v)
+    input  wire [20:0]   lb_val,
+    input  wire [8:0]    lb_row,
     output wire [7:0]    lmode,            // the plane's latched mode and stride (zm_video_copper.v)
     output wire [15:0]   lstride,
     output wire          done,
@@ -42,12 +45,13 @@ module zm_video_planepath (
     assign lstride = stride;
     wire [31:0] base;
     wire [15:0] stride, hpos, hs, seen, upd_seen;
+    wire [8:0] lrow;
     wire top_open, bot_open, upd, upd_top, upd_bot;
     assign upd_seen = regs[ZM_REG_RES_FLICKER * 8 +: 16];
     zm_video_latch u_latch (
         .clk(clk), .latch(latch), .plane(plane), .regs(regs), .upd(upd), .upd_seen(upd_seen),
-        .upd_top(upd_top), .upd_bot(upd_bot), .mode(mode), .base(base), .stride(stride), .hpos(hpos),
-        .hs(hs), .seen(seen), .seed(seed), .top_open(top_open), .bot_open(bot_open));
+        .upd_top(upd_top), .upd_bot(upd_bot), .lb_we(lb_we), .lb_val(lb_val), .lb_row(lb_row),
+        .mode(mode), .base(base), .stride(stride), .hpos(hpos), .hs(hs), .seen(seen), .lrow(lrow), .seed(seed), .top_open(top_open), .bot_open(bot_open));
 
     wire fetch_start, fetch_done, paint_start, paint_done;
     wire [31:0] fetch_addr;
@@ -57,7 +61,7 @@ module zm_video_planepath (
     wire [15:0] s0;
     wire [7:0] nbase;
     zm_video_plane u_plane (
-        .clk(clk), .rst(rst), .start(start), .py(py), .mode(mode), .base(base), .stride(stride),
+        .clk(clk), .rst(rst), .start(start), .py(py), .mode(mode), .base(base), .lrow(lrow), .stride(stride),
         .hpos(hpos), .hs(hs), .seen(seen), .seed(seed), .top_open(top_open), .bot_open(bot_open),
         .res(regs[ZM_REG_RESOLUTION * 8 +: 8]), .hs_live(regs[(ZM_REG_HSCROLL + plane * 2) * 8 +: 16]),
         .flicker(regs[ZM_REG_RES_FLICKER * 8 +: 16]), .cop_flick(cop_flick), .upd(upd), .upd_top(upd_top), .upd_bot(upd_bot),

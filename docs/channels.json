@@ -160,6 +160,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "linebase_test",
+  "title": "LINE LIST TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "lockbuster3",
   "title": "LOCKBUSTER 3",
   "type": "atari st"
@@ -188,6 +193,11 @@
   "tag": "mentalhangover",
   "title": "MENTAL HANGOVER",
   "type": "amiga"
+ },
+ {
+  "tag": "mindwind",
+  "title": "MIND REWIND",
+  "type": "atari st"
  },
  {
   "tag": "mpp_truecolor",

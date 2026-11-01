@@ -67,7 +67,7 @@ memory.
 | `0x28` | `FB_HBL_POS[4]` | u16×4 | x position at which the per-plane HBL fires |
 | `0x30` | `FRAME` | u32 (ro) | frame counter (incremented by `hwClear`) |
 | `0x34` | `FB_STRIDE[4]` | u16×4 | per-plane row stride in px (320 normal · 400 fullscreen · any SCROLL buffer width) |
-| `0x3C` | `HSCROLL[4]` | u16×4 | per-plane horizontal offset — **re-read per scanline in SCROLL mode** (line distort) |
+| `0x3C` | `HSCROLL[4]` | u16×4 | per-plane horizontal offset — **re-read per scanline in SCROLL and (1.10.0) OVERSCAN mode** (line distort): a byte (= pixel) offset added to the line's first byte, no wrap; FULLSCREEN latches it once a frame and wraps within the row |
 | `0x44` | `FB_BASE[4]` | u32×4 | per-plane framebuffer screen base (byte offset into the region; the pan point) |
 | `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (always-open overscan) · `2` scroll · `3` medium · `4` overscan (trick-gated) |
 | `0x58` | `RES_FLICKER` | u16 | overscan-trick latch: the SDK bumps it on a `RES_MEDIUM`→`RES_PLANES` flicker so the machine can observe the (untrappable) poke once per scanline |
@@ -78,7 +78,7 @@ memory.
 | `0x6C` | `RAM_ARENA_TOP` | u32 | **1.7.0** first byte above the cart's RAM arena; `0` = empty. Survives `hwInit`; `hwSetCartHigh` (a new cart) empties it. See §4c |
 | `0x70` | `RAM_ALLOC_FAILS` | u32 (ro) | **1.7.0** refused `hwRamAlloc`/`hwRamRelease` calls since this cart was declared |
 | `0x74` | `FB_HBL_PURE` | u8 ×4 | **1.8.0** 1 = plane p's HBL handler is pure: it writes only that plane's palette and/or calls `flickerBorder()`, reading tables, what `frame()` wrote and the line. The machine ignores it (its plane-major order is the reference); the board's compositor runs such handlers between other planes' passes of the line and moves each line once. ZigOS sets it in `openBorders`, `copper.install`, `linepal.install` and `setFrameBufferHBLHandlerPure`; `setFrameBufferHBLHandler` clears it (but for the library's flicker handlers). A wrong claim changes the board's picture, which the gate checks (`fpga/tools/video_order_pure.py`) |
-| `0x78` | `FB_COPPER` | u16 ×4 | **1.9.0** plane p's copper list at region offset `OFF_VRAM + 16 v` (`0` = none): per-line records the machine applies after the plane's HBL handler and before the line (PAL, PALREF from a VRAM table, REG HSCROLL, FLICK). Format and rules: `machine/copper.zig`, `fpga/review/COPPER_LIST.md`. ZigOS's `copper` builds it for you; `fb.copperList(words)` / `zg.vramWords(n)` for a hand-built list |
+| `0x78` | `FB_COPPER` | u16 ×4 | **1.9.0** plane p's copper list at region offset `OFF_VRAM + 16 v` (`0` = none): per-line records the machine applies after the plane's HBL handler and before the line (PAL, PALREF from a VRAM table, REG HSCROLL, FLICK; 1.10.0 LBASE: the line's source address, the STE video counter).  Format and rules: `machine/copper.zig`, `fpga/review/COPPER_LIST.md`. ZigOS's `copper` builds it for you; `fb.copperList(words)` / `zg.vramWords(n)` for a hand-built list |
 
 **BEAM — mid-line colour-0 writes (1.6.0).** For zero-bitplane screens, where the
 picture is colour 0 rewritten mid-line. From the **global** HBL for physical line
@@ -111,9 +111,16 @@ per-plane HBL handler can bend each line (`setScrollFine` → sine wobble / shea
 the row pitch, so backing an OVERSCAN plane with a bigger-than-window buffer makes the
 full 400×280 window pannable by `setScroll(x, y)` — hardware scroll *and* open borders,
 with no machine-side change. Keep the pan inside `0..w-400` / `0..h-280`. The borders
-are still earned (flicker below), and unlike `FB_MODE = 2` this path does **not**
-re-read `HSCROLL`, so there is no per-line fine scroll. Used by
+are still earned (flicker below). Since 1.10.0 this path re-reads `HSCROLL` every
+line as `FB_MODE = 2` does (a byte offset added to the line's first byte, no wrap), so a
+handler or the copper list's `REG HSCROLL` fine-scrolls each line. Used by
 `apps/zig/scenes/automation442.zig`.
+
+**Line lists** (1.10.0, copper `LBASE`, `fpga/review/COPPER_LINEBASE.md`): a copper record
+can set the plane's line source address: from that line on, line r reads
+`v + (r - r0) * stride` (+ `HSCROLL`), the STE's video counter `$FF8205/07/09`; every frame
+starts again from `FB_BASE`, which LBASE never writes. Any mode, byte-aligned, `v` in VRAM
+or the list stops. Distorters, wobbles, flips and line zooms become data.
 
 ### Opening the borders (overscan) — the ST timing trick
 

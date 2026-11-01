@@ -22,7 +22,7 @@ export function copperRecords(memory, vb, plane) {
             const w = word(at + 4 + 4 * i), op = w >>> 28, first = (w >>> 20) & 0xFF, k = (w >>> 12) & 0xFF;
             if (op === 0) continue;
             else if (op === 3) rec.flick = true;
-            else if (op === 2) continue; // HSCROLL: not a palette word
+            else if (op === 2 || op === 5) continue; // HSCROLL, LBASE (1.10.0): not palette words
             else if (op === 1) { for (let j = 0; j < k; j++) rec.pal.set(first + j, word(at + 8 + 4 * (i + j))); i += k; }
             else if (op === 4) { const src = word(at + 8 + 4 * i); for (let j = 0; j < k; j++) rec.pal.set(first + j, word(src + 4 * j)); i += 1; }
             else throw new Error(`copper list: op ${op} on line ${line} (the list stops)`);

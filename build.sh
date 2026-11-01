@@ -116,6 +116,8 @@ node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_AB
 node apps/blitter_queue_check.mjs   # QUEUE (1.8.0): a descriptor list draws what its ops draw one by one; the edges
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
+node apps/linebase_check.mjs  # copper LBASE + overscan HSCROLL (1.10.0): line lists against a model, frame reset, the stop
+node apps/linebase_check.mjs --break   # ...and a model missing any one rule is caught
 
 # --- ZX0: pack every asset (stale only) and report the ratios per screen ------
 tools/pack_stats.sh
@@ -167,6 +169,7 @@ NATIVE_TESTS="
     libs/zig/effects/text_plot_test.zig
     libs/zig/effects/glyph_line_test.zig
     libs/zig/effects/copper_test.zig
+    libs/zig/effects/linelist_test.zig
     libs/zig/effects/palette_test.zig
     libs/zig/effects/scrollring_test.zig
     libs/zig/effects/pathchain_test.zig
@@ -190,6 +193,7 @@ NATIVE_TESTS="
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
     machine/copper_test.zig
+    machine/copper_lbase_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
@@ -221,6 +225,7 @@ NATIVE_TESTS="
     apps/zig/scenes/blitter_demo/soft.zig
     apps/zig/scenes/leonard_spirit/ball_test.zig
     apps/zig/scenes/gen4_3615/fate_test.zig
+    apps/zig/scenes/mindwind/gen_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
@@ -478,6 +483,12 @@ gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break pixels   #
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break lead   # ...and copper columns without the 1-px lead are caught
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break music   # ...and a key asking for the wrong song is caught
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break pacing   # ...and a 60 Hz phase (not the original's 50) is caught
+gate linebase_test node apps/linebase_test_headless.mjs   # LINE LIST TEST (cart 110, HW 1.10.0 copper LBASE + overscan HSCROLL): 420 frames, the plane shown equals the line-list model of the list the cart built (apps/linebase_model.mjs), borders included; the wobble HSCROLL, run-on lines, flipped bands, colour-0 raster and phase B's flip all used
+gate linebase_test node apps/linebase_test_headless.mjs --break persist   # ...and a model whose lines do not run on from an LBASE is caught
+gate linebase_test node apps/linebase_test_headless.mjs --break hscroll   # ...and a model ignoring overscan HSCROLL is caught
+gate mindwind node apps/mindwind_headless.mjs "$SHOTS/mindwind"   # MIND REWIND (cart 111, Reservoir Gods STE 2003, from the depacked binary): one overscan plane on a 280-line list (LBASE), every part checked on the 800x280 raster: chrome bars = one colour 0 a line through both borders, part A's flat stripes, the wrapping picture, the cycling rainbow, the rewind's bands, the reversed half's VHS lines, the end logo
+gate mindwind node apps/mindwind_headless.mjs "$SHOTS/mindwind_break" --break copper   # ...and a plane without its list is caught
+gate mindwind node apps/mindwind_music_check.mjs   # ...its music (docs/music/mindwind.sndh: the demo's sequencer verbatim, a new mixer): a frame equals the original mixer's byte for byte, stereo, the song positions the parts wait on, the rewind one-shot and the reversed song
 gate joust node apps/joust_headless.mjs --break clock "$SHOTS/joust"   # ...and 4 extra CPU cycles once fail them
 gate rick_dangerous node apps/rick_dangerous_headless.mjs "$SHOTS/rick_dangerous"   # RICK DANGEROUS (the game): 18 recorded runs (10,890 frames: the level walks, deaths, GAME OVER, the name entries, the menus, the bots through all 4 levels) replayed in lockstep with the original's ACIA / Timer A bytes: every frame takes the original's VBLs and leaves its RAM + both screens + palette with the reference model's CRC, makes its play_sound requests (dropped or not) and the SNDH load / zg.sndhCall requests they imply, in order; live: title + tune, FIRE -> select -> intro -> level 1, the plane is the ST screen, 50 Hz time on a 60 Hz host, P, Escape; rick_dangerous.sndh's own driver RAM = the cart's for all 87 subtunes, and with later requests sndhCall-ed on the RUNNING driver (every id, the paired shot, dynamite x2)
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break joy "$SHOTS/rick_dangerous"   # ...and one wrong stick byte fails the state CRC
