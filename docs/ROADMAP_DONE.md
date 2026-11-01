@@ -1,8 +1,21 @@
 # KESTREL roadmap: done
 
-The finished items of the KESTREL roadmap, newest first. The open items live in the roadmap
-artifact's Roadmap tab (https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W). Moved here on
-25 Oct 2026.
+The finished items of the KESTREL roadmap, newest first. The open items live in [ROADMAP.md](ROADMAP.md) (Matt's
+view: the roadmap artifact, https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W).
+
+## Done 31 Oct
+
+| Prio | Item | Area | Notes | Who |
+|---|---|---|---|---|
+| P1 | KOS v1: KESTREL boots like an ST | ROM / firmware / ZWINDOW | 759a1a69: POST (cold boot only, skippable), drive A boot sector, the desktop when no disk, the OSD shelf as drive A, a system-variables block; same sequence in the browser | kestrel-engineer |
+| P1 | USB floppy as the carts' source (F on the shelf) | ZWINDOW | 5a9c8e14: a removable floppy-sized sd* device mounted read-only (FAT12); drive A follows a rescan by name. Validated by Matt on the board | lead |
+| P2 | Emlyn rasters onto the copper list | screens | 3264ed60: PALREF + FLICK copper ops, no HBL handler | zm-scene-optimizer |
+| P2 | OBJ demo: GLENZ NEST + DOTS + red/white glenz palette | screens | 56024103 (ac93e715): object 4 shows key C's CPU/CHISEL split; DOTS mode | zm-scene-optimizer |
+| P2 | mpp_truecolor: the picture switch spread over frames | screens | de1084d4: staged depack + double-buffered copper lists, worst frame 50.6 → 2.8 Mc (1,500 frames), average unchanged; browser-checked by Matt | lead |
+| P2 | ST Replay's ITEM SELECTOR as TOS 1.02 draws it | GEM | eda14d3c: 320-wide box, full 8.3 Selection, `________.___` empty rows, NAME    .EXT; apps/filesel_check.mjs gated | lead |
+| P2 | Fable: KESTREL_NEXT_ISA.md | ZIGGY / BARD | fd8461b8: what new ISA / custom instructions make possible (D$ 16 KB, ZM-X, CHISEL span AFFINE, BARD ops) | Fable |
+| P2 | Studies: plane interleave, ISA on the shelf, retro hardware survey | review | 279e4d44, 09fd7994, 3936586b | agents |
+| P3 | stniccc dead CHISEL fill path removed; cuddly_starwars split | screens | e487618a, 7d817ae6 | worker |
 
 ## Done 25 Oct
 
