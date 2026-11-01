@@ -172,11 +172,12 @@ def dest_bounds(s: Script) -> None:
 def collisions(s: Script) -> None:
     """COLL_EN: only a write over a non-zero byte sets BLIT_COLL; it stays set until cleared."""
     coll = mm.CON2_COLL_EN
+    halftone(s, [0] * 16)  # an earlier pattern would make the FILLs below dither, not clear
     do(s, FILL, **regs(mt=mm.MT_B, con=0, con2=0, color=0, d=PLANE, ds=320, w=40, h=10, x0=8, y0=40))
     s.w(8, mm.BLIT_COLL, 0)
     keyed = regs(con=mm.CON_USEB | mm.CON_KEY_EN, con2=mm.CON2_SRC_ABS | coll, key=0, b=mm.CART_RAM_BASE + 777, bs=40)
     do(s, BLIT, **keyed)  # onto zeros: no collision
-    do(s, FILL, con=0, con2=coll, color=5, w=40, h=10, x0=8, y0=60)  # zeros again (rows 60..69 cleared below first)
+    do(s, FILL, con=0, con2=coll, color=5, w=40, h=10, x0=8, y0=60)  # over the seeded plane: a hit
     do(s, BLIT, **keyed)  # onto its own pixels: a collision
     do(s, LINE, con=0, con2=coll, color=1, mt=mm.MT_B, x0=8, y0=80, x1=47, y1=80)  # stays set
     s.w(8, mm.BLIT_COLL, 0)
