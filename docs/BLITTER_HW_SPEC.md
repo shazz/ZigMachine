@@ -198,6 +198,44 @@ This machine exposes both:
 > owns the fill *rule* is the sealed-machine ethos: the hardware guarantees the
 > parity fill; the demo decides the mesh.
 
+### 4.5 `AFFINE` (6, HW 1.10.0) — textured spans: Mode 7, rotozoom, textured polygons
+The SNES's Mode 7 with its HDMA table, generalised the way Fable's ISA study asked
+(`fpga/review/KESTREL_NEXT_ISA.md` §2): CHISEL walks a **list of spans** it reads itself,
+`SPAN_COUNT` spans of 24 bytes at `SPAN_BASE` (absolute, 4-aligned, the whole list in cart
+RAM or the ROM window):
+
+| byte | field | |
+|---|---|---|
+| 0 | `x0` i16, `x1` i16 | pixels `[x0, x1)` of row `y` |
+| 4 | `y` i16, 0 u16 | |
+| 8 | `u0` u32, `v0` u32 | 16.16, two's complement |
+| 16 | `du` u32, `dv` u32 | per pixel |
+
+Pixel `x` of a span reads the **texture** texel `(u >> 16, v >> 16)` with
+`u = u0 + (x - x0)*du`, `v = v0 + (x - x0)*dv` (mod 2^32). The texture is channel A:
+texel `(U, V)` at `A_BASE + V*A_STRIDE + U` (relative, or absolute with `SRC_ABS`), `U` and
+`V` wrapped by `U_MASK`/`V_MASK` (power-of-two textures: a repeat) or, with
+`CON2.TEX_CLIP`, not drawn past them; the `(U_MASK+1) x (V_MASK+1)` texture must lie in one
+readable window. The texel is B of the minterm, `D = LF(0, texel, D)`; `KEY_EN` skips
+`texel == COLOR_KEY`; the clip and `D` as for every op; `CYCLES` = pixels written.
+A Mode 7 floor is a span a row (the per-row matrix of HDMA is the per-span `u0, v0, du,
+dv`); a rotozoom the same with rows stepped by the CPU; a textured polygon a span per row
+it covers, scan-converted by the CPU (`zg.fx3d`/`texspan`), so CHISEL owns the texel reads
+(the D$-miss-bound part of the loop on ZIGGY).
+
+### 4.6 `MAP` (7, HW 1.10.0) — a texel per pixel from a map: tunnels, lenses
+The `W x H` box at `X0, Y0` (clipped, ascending). Pixel `(i, j)` reads the u16 at
+`B_BASE + j*B_STRIDE + 2i` (absolute, even, in cart RAM or the ROM window): `u` its low
+byte, `v` its high byte; then `U = u + U_OFF`, `V = v + V_OFF` (mod 2^16, before the masks)
+and the texel as `AFFINE`'s. `U_OFF`/`V_OFF` are `X1`/`Y1`: a tunnel is a fixed map and an
+offset moved every frame.
+
+Registers (all in the block's words 0..23, so a QUEUE descriptor can set them): `U_MASK`
+`0x0E` and `V_MASK` `0x16` (the strides' high halves), `SPAN_BASE` `0x18` and `SPAN_COUNT`
+`0x1C` (`C_BASE`/`C_STRIDE`: channel C is always the destination), `U_OFF`/`V_OFF` = `X1`/`Y1`.
+Lists and maps must sit where CHISEL never writes (cart RAM, ROM window), so their reads
+never wait for the op's writes; a texture over the destination orders the op.
+
 ---
 
 ## 5. Minterms (`MINTERM` — the 256 logic functions)
