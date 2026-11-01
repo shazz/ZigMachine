@@ -6,6 +6,10 @@ migen's SyncFIFO now asks for a write-only memory port (`read_capable=False`, so
 (litex/gen/fhdl/memory.py) still assigns every port's `dat_r`, and fails on the
 None. The shim gives such a port a named, declared, unused read signal, which is
 exactly what migen emitted before the change. Nothing reads it.
+
+A Memory with a `ram_style` attribute (a plain Python attribute, e.g. "block") gets it
+as a Verilog attribute on its declaration: migen's Memory carries none, and Vivado puts
+a small memory (soc/zm_sound_regs.py's 32-word banks) in LUTRAM without it.
 """
 
 from __future__ import annotations
@@ -32,7 +36,14 @@ def _generate(name: str, memory: Untyped, namespace: Untyped, add_data_file: Unt
             unused = f"{namespace.get_name(memory)}_wonly{n}"
             port.dat_r = Signal(memory.width, name_override=unused)
             decls += f"wire [{memory.width - 1}:0] {unused}; // write-only port, see soc/litex_compat.py\n"
-    return decls + _original(name, memory, namespace, add_data_file)
+    verilog = _original(name, memory, namespace, add_data_file)
+    style = getattr(memory, "ram_style", None)
+    if style is not None:
+        decl = f"reg [{memory.width - 1}:0] {namespace.get_name(memory)}[0:{memory.depth - 1}];"
+        if decl not in verilog:
+            raise ValueError(f"litex_compat: no declaration of {namespace.get_name(memory)} to attribute")
+        verilog = verilog.replace(decl, f'(* ram_style = "{style}" *) {decl}', 1)
+    return decls + verilog
 
 
 def install() -> None:

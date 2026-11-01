@@ -14,7 +14,10 @@ console for the sim.
 | 69 | ID | R | R | 0x5A4D5343 'ZMSC' |
 
 Each bank has one writer, so a word never has two masters; a reader sees a word whole
-(32-bit stores). Bank words are LUTRAM (one write port, an async read port per side).
+(32-bit stores). Each bank is one block RAM (2026-11-01, the combined bitstream's fit: the
+two LUTRAM banks with their three read ports cost ~130 LUT, a RAMB18 each costs none): port
+A is its writer's side (write, and that side's read), port B the other side's read. A
+read is synchronous, answered on the ack clock as before; the registers keep a flop.
 """
 
 from __future__ import annotations
@@ -43,9 +46,10 @@ class SoundRegs(LiteXModule):
     def __init__(self, cart: Bus, snd: Bus, ibus: Bus, dbus: Bus) -> None:
         self.run = Signal()
         c2s, s2c = Memory(32, BANK, name="snd_c2s"), Memory(32, BANK, name="snd_s2c")
-        c2s_w, s2c_w = c2s.get_port(write_capable=True), s2c.get_port(write_capable=True)
-        ports = {(m, side): m.get_port(async_read=True) for m in (c2s, s2c) for side in ("cart", "snd")}
-        self.specials += c2s, s2c, c2s_w, s2c_w, *ports.values()
+        c2s.ram_style = s2c.ram_style = "block"  # soc/litex_compat.py writes the attribute
+        c2s_a, s2c_a = c2s.get_port(write_capable=True), s2c.get_port(write_capable=True)
+        c2s_b, s2c_b = c2s.get_port(), s2c.get_port()
+        self.specials += c2s, s2c, c2s_a, s2c_a, c2s_b, s2c_b
         cycles, iwait, dwait = Signal(32), Signal(32), Signal(32)
         self.sync += [
             cycles.eq(cycles + 1),
@@ -53,24 +57,28 @@ class SoundRegs(LiteXModule):
             If(dbus.cyc & dbus.stb & ~dbus.ack, dwait.eq(dwait + 1)),
         ]
         regs = {CYCLES: cycles, IBUS_WAIT: iwait, DBUS_WAIT: dwait, REG_ID: ID}
-        for side, bus, own_w in (("cart", cart, c2s_w), ("snd", snd, s2c_w)):
-            self._port(bus, own_w, ports[(c2s, side)], ports[(s2c, side)], regs, side == "cart")
+        self._port(cart, c2s_a, s2c_b, regs, cart=True)
+        self._port(snd, s2c_a, c2s_b, regs, cart=False)
         self._console(snd)
 
-    def _port(self, bus: Bus, own_w: Any, c2s_r: Any, s2c_r: Any, regs: dict[int, Any], cart: bool) -> None:
-        """One side: writes to its own bank (and CTRL, from the cart); reads of everything."""
+    def _port(self, bus: Bus, own: Any, other: Any, regs: dict[int, Any], cart: bool) -> None:
+        """One side: writes to its own bank (and CTRL, from the cart); reads of everything.
+        `own`: its bank's port A (write + read), `other`: the other bank's port B (read)."""
         w, stb = _word(bus), bus.cyc & bus.stb & ~bus.ack
-        bank_w = (w[5:] == (0 if cart else 1)) & ~w[6]
-        rd = Signal(32)
+        own_bank = w[5] == (0 if cart else 1)
+        rd, is_bank, is_own = Signal(32), Signal(), Signal()  # a read of a register; of a bank, which
         self.comb += [
-            own_w.adr.eq(w[:5]), own_w.dat_w.eq(bus.dat_w), own_w.we.eq(stb & bus.we & bank_w),
-            c2s_r.adr.eq(w[:5]), s2c_r.adr.eq(w[:5]),
+            own.adr.eq(w[:5]), own.dat_w.eq(bus.dat_w), own.we.eq(stb & bus.we & own_bank & ~w[6]),
+            other.adr.eq(w[:5]),
         ]  # fmt: skip
         cases = {reg: rd.eq(v) for reg, v in regs.items()}
         cases[CTRL] = rd.eq(self.run)
-        cases["default"] = rd.eq(Mux(w[5], s2c_r.dat_r, c2s_r.dat_r))
+        cases["default"] = rd.eq(0)
         self.comb += Case(w, cases)
-        self.sync += [bus.ack.eq(stb), bus.dat_r.eq(rd)]
+        reg_q = Signal(32)
+        self.sync += [bus.ack.eq(stb), reg_q.eq(rd), is_bank.eq(~w[6]), is_own.eq(own_bank)]
+        # The banks' synchronous reads land on the ack clock, as the registers' flop does.
+        self.comb += bus.dat_r.eq(Mux(is_bank, Mux(is_own, own.dat_r, other.dat_r), reg_q))
         if cart:
             self.sync += If(stb & bus.we & (w == CTRL), self.run.eq(bus.dat_w[0]))
 
