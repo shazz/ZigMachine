@@ -29,8 +29,9 @@ combined build closes. **The cleanest payer is inside FRESCO itself**: `zm_video
 the sequencer's read-back through a combinational 32:1 x 32-bit mux over 18 stored words, and the
 firmware reads exactly six words (BACKGROUND, BEAM_COUNT, BEAM_DROPPED, FRAME, HSCROLL x2:
 `vseq.c:101-105`, `vseq_group.c:63`); a 6-way read **measures -138 LUT** (OOC synth of `zm_video_regs`,
-481 -> 343, same flops, no behaviour change for the firmware). **Mode plus payer: net about -110 LUT**,
-so the mode pays for itself and leaves room for the combined build's closure. Behind it stand the
+481 -> 343, same flops, no behaviour change for the firmware). **Mode plus payer in one synth:
+`zm_video_comp` 2,500 -> 2,394 LUT, net -106, -23 FF**, so the mode pays for itself and leaves room for
+the combined build's closure. Behind it stand the
 roadmap's costed cuts (QUEUE ring read-through ~-150 + 1 RAMB18, TRIANGLE edge walk ~-100, pxq 16 slots
 ~-80-150, bus_timeout ~-30-50) and the read-bypass decision (+~120 if kept).
 
@@ -114,8 +115,12 @@ new command. `apps/frame_cost.mjs`: a 565 plane costs a normal/overscan pass.
 - **`FB_MODE` 5 `TRUECOLOR`** (320x200) and **6 `TRUECOLOR_FULL`** (400x280). A pixel is a
   little-endian `u16` `R5 G6 B5` = `(r << 11) | (g << 5) | b`; `FB_STRIDE` is in BYTES (640 / 800; the
   RTL's `row * stride` and video.zig's `lb.at` are bytes today, HW_API's "in px" is the 8-bit case);
-  `HSCROLL` and LBASE are byte offsets as in every mode: a cart keeps them even (an odd one shows a
-  byte-swapped line, as an odd video base would on an ST). Alpha is 255 everywhere the plane covers.
+  `HSCROLL` and LBASE are byte offsets as in every mode, and **bit 0 of a TC line's address is
+  ignored** in both machines (`& ~1` in `renderPlaneTruecolor`, one AND on `zm_video_plane`'s address
+  path), as the STE's `$FF820D` has no bit 0: an odd `FB_BASE`, `HSCROLL`, LBASE or stride lands on the
+  even pixel below. Without that rule the two machines would differ: the prototype painter takes the
+  aligned half-word that holds byte `bi`, while a byte-straddling read would show other pixels (the
+  iverilog check covered `align = 0` only). Alpha is 255 everywhere the plane covers.
 - **Expansion, one formula in both machines**: bit replication, `R8 = r << 3 | r >> 2`,
   `G8 = g << 2 | g >> 4`, `B8 = b << 3 | b >> 2`, so 0xFFFF is white and 0x0000 black. (Hatari's
   Videl conversion to check when the port's pictures are compared: open question 3.)
@@ -183,6 +188,7 @@ under a blur), 0.28 with A1; the blur itself is 1.5+ Mc at full resolution.
 | 565 plane fetch, 320x200 / 400x280 | 128 / 224 KB | 7.7 / 13.4 (8-bit: 3.8 / 6.7) |
 | 8888 plane fetch, 320x200 / 400x280 | 256 / 448 KB | 15.4 / 26.9 |
 | the cart's own writes of the plane (full repaint) | 128 / 224 KB | 7.7 / 13.4 (32,000-56,000 posted stores: 0.07-0.13 Mc of cart time) |
+| a 320x240 Falcon picture inside mode 6, repainted | 153.6 KB | 9.2 (38,400 stores: 0.09 Mc) |
 | composite row I/O, one plane layer (tutorial) | 2.8 MB | 168 |
 | scanout of the picture | 0.9 MB | 53.8 |
 | DDR3-1066 x16 peak | | 2,133 (tutorial total 231 = 10.8 %) |
@@ -222,8 +228,9 @@ It reverses FRESCO_OPTIONS "Decision 2026-10-24" (stay frame-serial, keep the or
 4. Inside FRESCO, smaller: u_bg 193 (the BEAM span painter) and u_cop 536 are the next candidates, but
    both are measured, exact and new; leave them.
 
-**Fit verdict**: A0 (+28 OOC) against cut 1 (-138 OOC) is a net **-110 LUT**, slice-light (muxes, 17
-flops, no carry chain) and timing-neutral at the OOC level; it still needs the combined build to close
+**Fit verdict**: A0 (+28 OOC) with cut 1 (-138 OOC) synthesised together is **2,394 LUT against
+2,500: net -106**, slice-light (muxes, no carry chain) and timing-neutral at the OOC level (WNS +0.166 at
+8 ns in all three runs); it still needs the combined build to close
 first (combo7 misses by 0.93 ns on comp and the slices are at 100 %), then the lead's bitstream with both
 changes, where the placed figures replace the OOC ones (the placed hierarchy runs ~10 % under OOC synth
 for FRESCO: u_comp 2,274 placed vs 2,500 OOC). If the combined build needs more room anyway, cuts 2-3 are
@@ -239,8 +246,10 @@ the pool; the mode itself is a twentieth of the copper's size.
    (`~/projects/hatari/src/screenConvert.c`, `ScreenConv_HiColorTo32bppNoZoom`: `r = ((w >> 8) & 0xf8)
    | (w >> 13)`, `g = ((w >> 3) & 0xfc) | ((w >> 9) & 3)`, `b = (w << 3) | ((w >> 2) & 7)`) is the same
    bit replication, so the port's reference captures and the machine agree bit for bit.
-4. **HSCROLL / LBASE in bytes**: odd values are allowed and ugly (ST-like) or refused and counted (a
-   compare, ~8 LUT): Matt's call; the doc assumes allowed.
+4. **Odd offsets**: the doc pins "bit 0 ignored" (free, exact on both machines, STE-like). The
+   alternative, a real byte-straddling pixel (a cross-half mux in the painter, ~16-24 LUT), is Matt's
+   call only if a distorter ever wants half-pixel 565 shifts; a refused-and-counted odd value (~8 LUT)
+   is the third option.
 5. **The colour key** (+6-10 LUT): without it a 565 picture cannot sit OVER an 8-bit plane with holes;
    with it one 565 value is lost. The Falcon parts put the 8-bit plane over the 565 one, so v1 can skip it.
 6. **The cart's arithmetic**: 21.7 cycles a pixel at 320x240x60 Hz is the port's real wall; the mode
@@ -263,11 +272,15 @@ read-back), not `fpga/rtl` edits. `tools/vivado_ooc.sh` under `build.lock`, one 
 | `zm_video_regs` 6-word read | **343 (-138)** | 343 / 0 | 608 | 0 | 0 | +3.976 |
 | `zm_video_comp` baseline (main 372d2f83) | 2,500 | 2,290 / 210 | 1,944 | 15 | 13 | +0.166 |
 | `zm_video_comp` with the 565 painter | **2,528 (+28)** | 2,318 / 210 | 1,961 | 15 | 13 | +0.166 |
+| `zm_video_comp` with both (painter + 6-word read) | **2,394 (-106)** | - | 1,921 | 15 | 13 | +0.166 |
 
 Where the +28 lands (hier.rpt): u_paint 62 -> 73 (+11, +16 FF for the half-word register),
 u_plane 248 -> 255 (+7), u_pp's wiring +0, the rest noise (u_regs +2, u_wb +8). The estimates above
 (80-120) counted each mux as its own LUT6; synthesis folds the 2:1 output mux into the line-buffer
-register's existing logic and the index mux into the adder's LUTs.
+register's existing logic and the index mux into the adder's LUTs. In the combined run u_regs is 519 ->
+383 LUT and 608 -> 568 FF: the 40 flops that went were the only-read-back halves of two words
+(RESOLUTION's upper 24 bits, BEAM_COUNT's upper 16, both free bytes the compositor never reads), so the
+cut removes nothing a reader uses (`build/ooc_tc_comp_both/`).
 
 Function check (iverilog, `tb_paint_tc.v` in the prototype directory): the 565 painter in TC mode over
 eight columns writes both halves of each doubled pair at `dst0/2 + c`, picks the right half-word of each
