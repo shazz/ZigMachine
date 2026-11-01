@@ -25,6 +25,11 @@ module zm_blit_pxq #(parameter LQ = 5) (
     input  wire [2:0]    p_reuse,         // channels whose byte is in the word last fetched for them
     input  wire [1:0]    p_alane, p_blane,
     input  wire          p_nop,
+    input  wire          p_row,           // the pixel starts a row of the walk
+    input  wire [1:0]    fill,            // per op: {EFE, IFE} (IFE wins), 0 = no area fill
+    input  wire [7:0]    carry0,          // per op: the carry each row starts with
+    input  wire          coll_en,         // per op
+    output wire          coll_hit,        // a pixel was written over a non-zero byte
     output wire [LQ-1:0] wslot,           // the slot the next push takes (zm_blit_px tags its reads with it)
     output wire          q_full,
     // an answer: the word of channel ch (0 A, 1 B, 2 C) of the pixel in `slot`
@@ -34,7 +39,7 @@ module zm_blit_pxq #(parameter LQ = 5) (
     input  wire [31:0]   rsp_word,
     // per op (constant while an op runs)
     input  wire [7:0]    mt, key,
-    input  wire          ben, keyen,
+    input  wire          ben, cen, keyen,  // cen: C is a minterm input (else 0, read for the collision only)
     output wire          drained,         // no pixel in the queue, in H or in the write buffer
     output wire          wrote,
     output wire          wr_req_valid,
@@ -56,11 +61,12 @@ module zm_blit_pxq #(parameter LQ = 5) (
     reg [2:0]  q_need [0:N-1], q_reuse [0:N-1];
     reg [3:0]  q_lanes [0:N-1];
     reg        q_nop [0:N-1];
+    reg        q_row [0:N-1];
     reg [N-1:0] got_a, got_b, got_c;     // answers in: set by tag, cleared as the slot leaves
 
     always @(posedge clk) begin
         if (push) begin
-            q_dst[wslot] <= p_dst; q_bimm[wslot] <= p_bimm; q_need[wslot] <= p_need; q_nop[wslot] <= p_nop;
+            q_dst[wslot] <= p_dst; q_bimm[wslot] <= p_bimm; q_need[wslot] <= p_need; q_nop[wslot] <= p_nop; q_row[wslot] <= p_row;
             q_reuse[wslot] <= p_reuse; q_lanes[wslot] <= {p_blane, p_alane};
         end
         if (rsp_we && rsp_ch == 2'd0) q_a[rsp_slot] <= rsp_word;
@@ -69,7 +75,7 @@ module zm_blit_pxq #(parameter LQ = 5) (
     end
 
     // H: the head pixel, all its bytes in
-    reg        hv, h_nop;
+    reg        hv, h_nop, h_row;
     reg [22:0] h_dst;
     reg [7:0]  h_a, h_b, h_c, h_bimm;
     wire [7:0] bval = ben ? h_b : h_bimm;
@@ -78,7 +84,7 @@ module zm_blit_pxq #(parameter LQ = 5) (
     genvar i;
     generate
         for (i = 0; i < 8; i = i + 1) begin : lf
-            assign res[i] = mt[{h_a[i], bval[i], h_c[i]}];
+            assign res[i] = mt[{h_a[i], bval[i], cen && h_c[i]}];
         end
     endgenerate
 
@@ -88,6 +94,12 @@ module zm_blit_pxq #(parameter LQ = 5) (
     reg [31:0] c_data;
     reg [3:0]  c_strb;
     wire h_wr = hv && !skip && !h_nop;
+    // Area fill (machine/blitter_px.zig): a carry per bit, reset at each row's first pixel, toggled
+    // by every value written; IFE writes carry | value, EFE the carry after the toggle. A keyed
+    // pixel neither writes nor toggles.
+    reg [7:0] carry;
+    wire [7:0] cin = h_row ? carry0 : carry;
+    wire [7:0] wv = fill[0] ? cin | res : fill[1] ? cin ^ res : res;
     wire same = cv && c_word == h_dst[22:2];
     // keep the buffer while the next byte may join it: H's, or the waiting head's
     wire keep = hv ? !(h_wr && !same) : !q_empty && q_dst[hs][22:2] == c_word;
@@ -98,6 +110,7 @@ module zm_blit_pxq #(parameter LQ = 5) (
     wire wtake = wr_req_valid && wr_req_ready;
     wire h_ret = hv && (skip || h_nop || !cv || same || wtake);
     assign wrote = h_ret && !skip;
+    assign coll_hit = coll_en && h_ret && h_wr && h_c != 8'd0;
 
     wire [2:0] h_got = {got_c[hs], got_b[hs], got_a[hs]};
     wire h_load = !q_empty && h_got == q_need[hs] && (!hv || h_ret);
@@ -125,7 +138,7 @@ module zm_blit_pxq #(parameter LQ = 5) (
             got_c <= (got_c | (rsp_we && rsp_ch == 2'd2 ? sbit : 0) | (push && p_reuse[2] ? wbit : 0)) & ~(h_load ? hbit : 0);
             if (h_load) begin
                 hp <= hp + 1'b1;
-                hv <= 1'b1; h_dst <= q_dst[hs]; h_bimm <= q_bimm[hs]; h_nop <= q_nop[hs];
+                hv <= 1'b1; h_dst <= q_dst[hs]; h_bimm <= q_bimm[hs]; h_nop <= q_nop[hs]; h_row <= q_row[hs];
                 // a channel not read is 0, as the machine has it (the slot keeps an older pixel's word)
                 h_a <= h_need[0] ? wa >> {h_lanes[1:0], 3'b000} : 8'd0;
                 h_b <= h_need[1] ? wb >> {h_lanes[3:2], 3'b000} : 8'd0;
@@ -134,14 +147,15 @@ module zm_blit_pxq #(parameter LQ = 5) (
                 if (h_need[1]) hw_b <= wb;
                 if (h_need[2]) hw_c <= wc;
             end else if (h_ret) hv <= 1'b0;
+            if (h_ret) carry <= cin ^ (h_wr ? res : 8'd0);
             if (h_ret && h_wr) begin
                 cv <= 1'b1;
                 c_word <= h_dst[22:2];
                 if (same) begin
-                    c_data[{h_dst[1:0], 3'b000} +: 8] <= res;
+                    c_data[{h_dst[1:0], 3'b000} +: 8] <= wv;
                     c_strb <= c_strb | (4'b0001 << h_dst[1:0]);
                 end else begin
-                    c_data <= {4{res}};
+                    c_data <= {4{wv}};
                     c_strb <= 4'b0001 << h_dst[1:0];
                 end
             end else if (wtake) cv <= 1'b0;

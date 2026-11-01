@@ -135,7 +135,7 @@ pub const REG_FB_COPPER: usize = 0x78; // u16 x4 (0x78..0x7F, the register block
 pub const OFF_BEAM_TABLE: usize = OFF_PFB + PFB_BYTES; // = REGION_BYTES
 pub const BEAM_MAX: usize = 64; // entries a line
 pub const BEAM_TABLE_BYTES: usize = BEAM_MAX * 4; // 256
-// The blitter's QUEUE ring (1.10.0, see BLIT_CMD_QUEUE): 512 u32 words above the BEAM
+// The blitter's QUEUE ring (1.11.0, see BLIT_CMD_QUEUE): 512 u32 words above the BEAM
 // table, 2 KiB-aligned (KESTREL's CHISEL keeps a copy of it, fed by the CPU's stores,
 // indexed by the offset's low bits). Outside REGION_BYTES: no blit can write it.
 pub const BLIT_QUEUE_WORDS: usize = 512;
@@ -216,7 +216,7 @@ pub const BLIT_CYCLES: usize = OFF_BLIT + 0x60; // u32 (ro) estimated cost of la
 // it never reads this byte: the browser's pixels cannot change. Outside the 24 words
 // CHISEL's tap copies (0x80..0xDF) and every video snoop window: plain memory.
 pub const BLIT_ASYNC: usize = OFF_BLIT + 0x64; // u8  (board) 1 = hwBlit may return before the op ends
-// QUEUE (1.10.0): COMMAND 5 runs a list of op descriptors that the program stored in
+// QUEUE (1.11.0): COMMAND 5 runs a list of op descriptors that the program stored in
 // the QUEUE ring (OFF_BLIT_QUEUE, u32 words), so many small ops cost one hwBlit().
 // A descriptor is a header word -- bits 0..23 a mask of the block's words 0..23
 // (offset / 4) it sets, bits 24..31 the op's COMMAND -- then the words of the
@@ -237,11 +237,11 @@ pub const BLIT_CMD_BLIT: u8 = 1;
 pub const BLIT_CMD_FILL: u8 = 2;
 pub const BLIT_CMD_LINE: u8 = 3;
 pub const BLIT_CMD_TRIANGLE: u8 = 4;
-pub const BLIT_CMD_QUEUE: u8 = 5; // 1.10.0: run the descriptors at BLIT_Q_START/COUNT (see above)
-pub const BLIT_CMD_AFFINE: u8 = 6; // 1.10.0: textured spans from a list (see BLIT_SPAN_*)
-pub const BLIT_CMD_MAP: u8 = 7; // 1.10.0: W x H box, each pixel's texel from a (u, v) map (see below)
+pub const BLIT_CMD_QUEUE: u8 = 5; // 1.11.0: run the descriptors at BLIT_Q_START/COUNT (see above)
+pub const BLIT_CMD_AFFINE: u8 = 6; // 1.11.0: textured spans from a list (see BLIT_SPAN_*)
+pub const BLIT_CMD_MAP: u8 = 7; // 1.11.0: W x H box, each pixel's texel from a (u, v) map (see below)
 
-// --- CHISEL v2 (1.10.0): AFFINE and MAP --------------------------------------------
+// --- CHISEL v2 (1.11.0): AFFINE and MAP --------------------------------------------
 // Both read a TEXTURE through channel A: texel (U, V) at A_BASE + V * A_STRIDE + U
 // (A_BASE relative or, with CON2.SRC_ABS, absolute, as a BLIT source), U and V cut by
 // U_MASK / V_MASK: wrapped (U & U_MASK), or with CON2.TEX_CLIP a texel past a mask is
@@ -269,7 +269,7 @@ pub const BLIT_SPAN_COUNT: usize = OFF_BLIT + 0x1C; // u16 AFFINE spans in the l
 pub const BLIT_U_OFF: usize = BLIT_X1; // u16 MAP: added to every map u
 pub const BLIT_V_OFF: usize = BLIT_Y1; // u16 MAP: added to every map v
 pub const BLIT_SPAN_BYTES: usize = 24;
-// COLL (1.10.0): bit 0 set by an op run with CON2.COLL_EN that wrote a pixel over a
+// COLL (1.11.0): bit 0 set by an op run with CON2.COLL_EN that wrote a pixel over a
 // non-zero destination byte; sticky until the program writes the byte (0) itself.
 pub const BLIT_COLL: usize = OFF_BLIT + 0x66; // u8 (outside the QUEUE's words: a status, not a parameter)
 
@@ -278,8 +278,8 @@ pub const CON_USEA: u8 = 1 << 0; // channel A enabled
 pub const CON_USEB: u8 = 1 << 1; // channel B enabled
 pub const CON_USEC: u8 = 1 << 2; // channel C enabled
 pub const CON_KEY_EN: u8 = 1 << 3; // colour-key cookie-cut (skip B == COLOR_KEY)
-pub const CON_IFE: u8 = 1 << 4; // inclusive area fill (reserved, v2)
-pub const CON_EFE: u8 = 1 << 5; // exclusive area fill (reserved, v2)
+pub const CON_IFE: u8 = 1 << 4; // inclusive area fill (1.11.0: BLIT, FILL; see CON2_FILL_CARRY)
+pub const CON_EFE: u8 = 1 << 5; // exclusive area fill (1.11.0: BLIT, FILL)
 pub const CON_DESC: u8 = 1 << 6; // descending copy (overlapping moves)
 pub const CON_CLIP_EN: u8 = 1 << 7; // clip to CLIP rect
 
@@ -303,7 +303,7 @@ pub const CON2_FILL_MT: u8 = 1 << 1;
 // then means "every pixel is BG_COLOR" (density 0) instead of "no halftone".
 // With the bit clear the machine sniffs the pattern, as it did before 1.5.0.
 pub const CON2_HALFTONE_EN: u8 = 1 << 2;
-// 1.10.0 (CHISEL v2):
+// 1.11.0 (CHISEL v2):
 // MIRROR_X / MIRROR_Y: a BLIT reads its sources flipped, column W-1-i / row H-1-j for
 // the destination's pixel (i, j) (sprite flips, kaleidoscopes).
 pub const CON2_MIRROR_X: u8 = 1 << 3;
@@ -379,7 +379,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0A00; // 1.10.0 — CHISEL v2: QUEUE (COMMAND 5), AFFINE, MAP (1.9.0: REG_FB_COPPER; 1.8.0: REG_FB_HBL_PURE)
+pub const ZM_HW_VERSION: u32 = 0x0001_0B00; // 1.11.0 — CHISEL v2: QUEUE (COMMAND 5), AFFINE, MAP (1.9.0: REG_FB_COPPER; 1.8.0: REG_FB_HBL_PURE)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.

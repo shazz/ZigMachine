@@ -28,6 +28,7 @@ module zm_blit_regs (
     input  wire [15:0]  dbg,             // STATUS[15:0], the engine's state (zm_blit_core dbg)
     input  wire         cyc_we,          // the engine's cost of an op
     input  wire [31:0]  cyc_val,
+    input  wire         coll_hit,        // CON2.COLL_EN: a pixel landed on a non-zero byte
     output reg          kick,            // one clock: COMMAND was written non-zero
     output reg  [31:0]  kick_data,       // that store's word: COMMAND in [7:0]
     input  wire [4:0]   t_raddr,         // the tap bank, read by the sequencer
@@ -42,6 +43,7 @@ module zm_blit_regs (
     output wire         ht_nz            // some halftone byte is not zero (the pre-1.5.0 sniff)
 );
     reg [31:0] cycles;
+    reg coll;                            // since the kick (the firmware ORs it into BLIT_COLL)
     wire go = cpu_we && cpu_waddr == 5'd0 && cpu_be[0] && cpu_wdata[7:0] != 8'd0;
 
     reg [7:0] tap0 [0:31];
@@ -104,11 +106,14 @@ module zm_blit_regs (
     always @(posedge clk) begin
         kick <= !rst && go && !busy && !kick;  // a kick while busy: the firmware never sends one
         if (go) kick_data <= cpu_wdata;
+        if (rst || kick) coll <= 1'b0;
+        else if (coll_hit) coll <= 1'b1;
         if (rst || kick) cycles <= 32'd0;
         else if (cyc_we) cycles <= cycles + cyc_val;
     end
 
     // Only STATUS and CYCLES are read. Everything else lives in the region memory the CPU's
     // writes were snooped from, as with the video registers.
-    assign cpu_rdata = cpu_raddr == 5'd24 ? cycles : cpu_raddr == 5'd0 ? {busy || kick, 15'd0, dbg} : 32'd0;
+    assign cpu_rdata = cpu_raddr == 5'd24 ? cycles : cpu_raddr == 5'd0 ? {busy || kick, 15'd0, dbg}
+        : cpu_raddr == 5'd25 ? {15'd0, coll, 16'd0} : 32'd0;   // word 25: BLIT_COLL's byte (0xE6)
 endmodule

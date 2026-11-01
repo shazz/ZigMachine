@@ -68,6 +68,7 @@ static uint32_t u16_at(uint32_t off) { return blk[off] | uint32_t(blk[off + 1]) 
 // it is memory, and the hash after this op would see it.
 static bool early_store() {
     if (pc >= ops.size() || ops[pc].op[0] != 'w' || ops[pc].a >= sizeof blk) return false;  // memory: hashed at the run
+    if (ops[pc].a == 0xE6) return false;  // BLIT_COLL: the firmware ORs this op's collision in first
     const Op &o = ops[pc++];
     store(uint32_t(o.a), unsigned(atoi(o.op.c_str() + 1) / 8), uint32_t(o.b));
     return true;
@@ -148,8 +149,10 @@ int main(int argc, char **argv) {
             bool refused;
             long clk = run(unsigned(o.a), randomize, err, refused);
             uint32_t cycles = refused ? 0 : cpu_read(24), status = cpu_read(0) >> 24;
+            // the firmware ORs the op's collision into BLIT_COLL (sticky until the program clears it)
+            if (!refused && (cpu_read(25) >> 16 & 1)) blk[0xE6] |= 1;
             char got[128];
-            snprintf(got, sizeof got, "R %u %u %u %016llx", n, cycles, status, (unsigned long long)hash());
+            snprintf(got, sizeof got, "R %u %u %u %016llx %u", n, cycles, status, (unsigned long long)hash(), blk[0xE6]);
             out << got << ' ' << clk << " cmd " << o.a << '\n';
             std::getline(expect, want);
             if (want != got || !err.empty() || bad) {

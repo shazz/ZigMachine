@@ -18,6 +18,7 @@ const memmap = @import("sdk/memmap.zig");
 const regs = @import("blitter_regs.zig");
 const check = @import("blitter_check.zig");
 const ops = @import("blitter_ops.zig");
+const blit = @import("blitter_blit.zig");
 const tex = @import("blitter_tex.zig");
 const queue = @import("blitter_queue.zig");
 
@@ -54,8 +55,8 @@ pub fn runOp(cmd: u8) void {
     const d: [*]u8 = @ptrFromInt(memmap.HW_VIDEO_BASE + d_base);
 
     switch (cmd) {
-        memmap.BLIT_CMD_FILL => ops.doFill(d, d_stride, clip, con2, &cost),
-        memmap.BLIT_CMD_BLIT => ops.doBlit(d, d_stride, clip, con, &cost),
+        memmap.BLIT_CMD_FILL => ops.doFill(d, d_stride, clip, con, con2, &cost),
+        memmap.BLIT_CMD_BLIT => blit.doBlit(d, d_stride, clip, con, &cost),
         memmap.BLIT_CMD_LINE => ops.doLine(d, d_stride, clip, &cost),
         memmap.BLIT_CMD_TRIANGLE => ops.doTriangle(d, d_stride, clip, con2, &cost),
         memmap.BLIT_CMD_AFFINE => tex.doAffine(d, d_stride, clip, con, con2, &cost),

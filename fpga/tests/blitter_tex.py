@@ -40,7 +40,7 @@ class TexScript(RandomScript):
         self.common(cmd, mt, con, 0)
         absolute = self.texture()
         con2 = (mm.CON2_SRC_ABS if absolute else 0) | r.choice([0, 0, mm.CON2_TEX_CLIP])
-        self.w(8, mm.BLIT_CON2, con2)
+        self.w(8, mm.BLIT_CON2, con2 | (self.v2_bits() & mm.CON2_COLL_EN))
 
     def span_value(self) -> tuple[int, int]:
         r = self.r

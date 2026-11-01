@@ -41,7 +41,7 @@ SCRIPTS = {
 }
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [
-    ("minterm_index_swapped", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], h_c[i]}]", "mt[{h_c[i], bval[i], h_a[i]}]"),
+    ("minterm_index_swapped", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], cen && h_c[i]}]", "mt[{cen && h_c[i], bval[i], h_a[i]}]"),
     ("clip_bottom_off_by_one", "zm_blit_clip.v", "ry < dh ? ry : dh", "ry < dh ? ry + 18'sd1 : dh"),
     ("bresenham_tie_break", "zm_blit_line.v", "mx = e2 >= dy", "mx = e2 > dy"),
     ("triangle_bottom_edge_closed", "zm_blit_tri.v", "y >= by;", "y > by;"),
@@ -51,7 +51,7 @@ MUTANTS = [
     ("key_compare_inverted", "zm_blit_pxq.v", "bval == key", "bval != key"),
     ("halftone_bit_order", "zm_blit_regs.v", "{nz[hi] ? lane[hi[1:0]] : 8'd0, nz[lo] ? lane[lo[1:0]] : 8'd0}",
      "{nz[lo] ? lane[lo[1:0]] : 8'd0, nz[hi] ? lane[hi[1:0]] : 8'd0}"),
-    ("halftone_sniff_counts_zero_bytes", "zm_blit_regs.v", "<= cpu_wdata[8*(b%4) +: 8] != 8'd0;", "<= 1'b1;"),
+    ("halftone_sniff_counts_zero_bytes", "zm_blit_regs.v", "<= ld_data[8*(b%4) +: 8] != 8'd0;", "<= 1'b1;"),
     ("halftone_sniff_dropped", "zm_blit_core.v", "f_con2[2] || ht_nz", "f_con2[2]"),
     ("fill_ignores_fill_mt", "zm_blit_core.v", "is_fill && !fill_mt ? 8'hCC : f_mt", "f_mt"),
     ("fill_cost_not_wh", "zm_blit_core.v", "cost <= fill_cost;", "cost <= fill_cost + 32'd1;"),
@@ -106,11 +106,40 @@ MUTANTS = [
     ("merged_byte_in_the_wrong_lane", "zm_blit_pxq.v", "c_data[{h_dst[1:0], 3'b000} +: 8]", "c_data[{~h_dst[1:0], 3'b000} +: 8]"),
     # the row walk (zm_blit_row): the first row from a settled box, the next one in the op's direction
     # (the check's box now settles 6 clocks before `go`, not 3: reading it a stage late is no longer a bug)
-    ("first_row_without_its_product", "zm_blit_row.v", "xorg} + s_prod[22:0];", "xorg};"),
-    ("row_walk_ignores_the_direction", "zm_blit_row.v", "s_str3 <= dn ? -str : str;", "s_str3 <= str;"),
+    ("first_row_without_its_product", "zm_blit_row.v", "(fx ? xo_fx : -xo) + s_prod[22:0];", "(fx ? xo_fx : -xo);"),
+    ("row_walk_ignores_the_direction", "zm_blit_row.v", "s_str3 <= dn ^ fy ? -str : str;", "s_str3 <= fy ? -str : str;"),
     ("row_walk_never_moves", "zm_blit_row.v", "wire moved = y == ry_nx;", "wire moved = 1'b0;"),
-    ("source_origin_x_ignored", "zm_blit_row.v", "base - {{5{xorg[17]}}, xorg}", "base"),
+    ("source_origin_x_ignored", "zm_blit_row.v", "(fx ? xo_fx : -xo)", "(fx ? xo_fx : 23'd0)"),
     ("upward_line_walks_down", "zm_blit_core.v", "is_line && !(sx(f_y0) < sx(f_y1))", "1'b0"),
+    # CHISEL v2: AFFINE / MAP (zm_blit_tex, _tfetch, _rdmux)
+    ("tex_clip_ignored", "zm_blit_tex.v", "t1v && !(tclip && (t1u > umask || t1t > vmask));", "t1v;"),
+    ("tex_v_mask_ignored", "zm_blit_tex.v", "t2v_ <= t1t & vmask;", "t2v_ <= t1t;"),
+    ("affine_u_never_steps", "zm_blit_tex.v", "u <= u + du;", "u <= u;"),
+    ("affine_left_of_the_clip_drawn", "zm_blit_tex.v", "wire vis = x >= cx0;", "wire vis = 1'b1;"),
+    ("affine_span_rows_unclipped_below", "zm_blit_tex.v", "(y < cy0 || y >= cy1)", "(y < cy0)"),
+    ("map_first_half_ignores_the_row", "zm_blit_tex.v", "list[1] ^ (yo[0] & ms[1]) ^ xo[0]", "list[1] ^ xo[0]"),
+    ("map_u_offset_ignored", "zm_blit_tex.v", "q_w[7:0]} + uoff;", "q_w[7:0]};"),
+    ("map_row_offset_mixes_signs", "zm_blit_tfetch.v", "p <= dy0 * ms;", "p <= (ey0 - y0) * ms;"),
+    ("fetch_overruns_its_fifo", "zm_blit_tfetch.v", "st == RUN && used < 6'd32", "st == RUN"),
+    ("aux_answer_routed_by_the_newest", "zm_blit_rdmux.v", "assign aux_rsp = rd_rsp_valid && who[rp];",
+     "assign aux_rsp = rd_rsp_valid && who[wp - 6'd1];"),
+    ("affine_c_reads_not_ordered", "zm_blit_core.v", "ord_c <= is_aff && c_dep;", "ord_c <= 1'b0;"),
+    ("tex_texture_extent_unchecked", "zm_blit_chk.v", "!sel ? {4'd0, {1'b0, umask} + 17'd1}", "!sel ? 21'd1"),
+    ("span_list_alignment_unchecked", "zm_blit_chk.v", "is_aff ? s_base[1:0] == 2'd0", "is_aff ? 1'b1"),
+    # CHISEL v2: mirror, area fill, collision
+    ("mirror_x_ignored", "zm_blit_row.v", "assign addr = back ? cur - xx : cur + xx;", "assign addr = cur + xx;"),
+    ("mirror_y_walks_the_rows_forward", "zm_blit_row.v", "s_str3 <= dn ^ fy ? -str : str;", "s_str3 <= dn ? -str : str;"),
+    ("mirror_y_starts_at_the_top", "zm_blit_row.v", "s_j <= fy ? yorg + $signed({2'b00, h}) - 18'sd1 - ys : ys - yorg;",
+     "s_j <= ys - yorg;"),
+    ("mirror_keeps_the_behind_rule", "zm_blit_chk.v", "!is_tex && !mirror &&", "!is_tex &&"),
+    ("fill_carry_not_reset_per_row", "zm_blit_pxq.v", "wire [7:0] cin = h_row ? carry0 : carry;", "wire [7:0] cin = carry;"),
+    ("fill_inclusive_is_exclusive", "zm_blit_pxq.v", "fill[0] ? cin | res", "fill[0] ? cin ^ res"),
+    ("fill_keyed_pixel_toggles", "zm_blit_pxq.v", "carry <= cin ^ (h_wr ? res : 8'd0);", "carry <= cin ^ res;"),
+    ("fill_keeps_the_nop_shortcut", "zm_blit_core.v", "is_tex || fill_on || coll_en ? 1'b0", "is_tex || coll_en ? 1'b0"),
+    ("collision_reads_no_c", "zm_blit_px.v", "need = {cen && !c_dc || force_c,", "need = {cen && !c_dc,"),
+    ("collision_on_any_write", "zm_blit_pxq.v", "h_wr && h_c != 8'd0;", "h_wr;"),
+    ("collision_c_feeds_the_minterm", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], cen && h_c[i]}]", "mt[{h_a[i], bval[i], h_c[i]}]"),
+    ("collision_kept_across_kicks", "zm_blit_regs.v", "if (rst || kick) coll <= 1'b0;", "if (rst) coll <= 1'b0;"),
     ("desc_blit_first_dest_row_is_the_top", "zm_blit_core.v", "is_blit && f_con[6] ? ey1 - 18'sd1 : ", ""),
 ]
 
@@ -204,7 +233,7 @@ def test_in_plane_copies_run_unordered_where_no_read_can_alias(oracle: dict[str,
     _, ops = speed_script()
     r = _run([str(tb), "speed.txt", str(oracle["speed"]), "fast", "11", "speed.out"])
     assert r.returncode == 0, r.stdout
-    clocks = [int(line.split()[5]) for line in (BUILD / "speed.out").read_text().splitlines()]
+    clocks = [int(line.split()[6]) for line in (BUILD / "speed.out").read_text().splitlines()]
     for (name, fast), clk in zip(ops, clocks, strict=True):
         per_px = (clk - OP_CLOCKS) / (W * (1 if "one row" in name else H))
         print(f"{name}: {per_px:.2f} clocks a pixel")

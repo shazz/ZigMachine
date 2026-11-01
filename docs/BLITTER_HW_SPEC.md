@@ -198,7 +198,7 @@ This machine exposes both:
 > owns the fill *rule* is the sealed-machine ethos: the hardware guarantees the
 > parity fill; the demo decides the mesh.
 
-### 4.5 `AFFINE` (6, HW 1.10.0) — textured spans: Mode 7, rotozoom, textured polygons
+### 4.5 `AFFINE` (6, HW 1.11.0) — textured spans: Mode 7, rotozoom, textured polygons
 The SNES's Mode 7 with its HDMA table, generalised the way Fable's ISA study asked
 (`fpga/review/KESTREL_NEXT_ISA.md` §2): CHISEL walks a **list of spans** it reads itself,
 `SPAN_COUNT` spans of 24 bytes at `SPAN_BASE` (absolute, 4-aligned, the whole list in cart
@@ -223,7 +223,7 @@ dv`); a rotozoom the same with rows stepped by the CPU; a textured polygon a spa
 it covers, scan-converted by the CPU (`zg.fx3d`/`texspan`), so CHISEL owns the texel reads
 (the D$-miss-bound part of the loop on ZIGGY).
 
-### 4.6 `MAP` (7, HW 1.10.0) — a texel per pixel from a map: tunnels, lenses
+### 4.6 `MAP` (7, HW 1.11.0) — a texel per pixel from a map: tunnels, lenses
 The `W x H` box at `X0, Y0` (clipped, ascending). Pixel `(i, j)` reads the u16 at
 `B_BASE + j*B_STRIDE + 2i` (absolute, even, in cart RAM or the ROM window): `u` its low
 byte, `v` its high byte; then `U = u + U_OFF`, `V = v + V_OFF` (mod 2^16, before the masks)
@@ -235,6 +235,26 @@ Registers (all in the block's words 0..23, so a QUEUE descriptor can set them): 
 `0x1C` (`C_BASE`/`C_STRIDE`: channel C is always the destination), `U_OFF`/`V_OFF` = `X1`/`Y1`.
 Lists and maps must sit where CHISEL never writes (cart RAM, ROM window), so their reads
 never wait for the op's writes; a texture over the destination orders the op.
+
+### 4.7 Mirror, collision, raw area fill (HW 1.11.0)
+- **`CON2.MIRROR_X` / `MIRROR_Y`** (bits 3, 4; `BLIT`): the sources are read flipped, column
+  `W-1-i` / row `H-1-j` for the destination's pixel `(i, j)`: sprite flips from one sheet,
+  kaleidoscopes. A mirrored source never takes the "walk never reads behind itself" shortcut
+  of §10.2 (its offset to the destination is not constant).
+- **`CON2.COLL_EN`** (bit 5, every op): writing a pixel over a non-zero destination byte sets
+  `BLIT_COLL` (`0xE6`) bit 0, which stays set until the program writes the byte (C64 / Amiga
+  `CLXDAT`, the Lynx's collision buffer). The machine sets it as it draws; CHISEL keeps a flag
+  for the kick and the firmware ORs it in (`cycles/bchisel.c finish`). It reads the destination
+  of every pixel, so the op runs at the speed of one that reads C.
+- **`CON.IFE` / `CON.EFE`** (bits 4, 5; `BLIT` and `FILL`): the Amiga's area fill, chunky. Each
+  row, in the walk's order (`DESC`: right to left), keeps a carry per bit of the index (the
+  eight bitplanes), starting at all ones with `CON2.FILL_CARRY` (bit 7, the Amiga's `FCI`), else
+  0, at the row's first visible pixel; every value written `r` toggles it. `IFE` writes
+  `carry | r` (edges included), `EFE` the carry after the toggle, `carry ^ r` (the trailing
+  edge left out); `IFE` wins when both are set. A keyed pixel neither writes nor toggles. The
+  fill runs over the clipped box: an edge outside the clip does not count. Filled vectors of
+  any outline: `LINE` the edges (`MT_XOR_BC`, one pixel a row) into a plane, then one `BLIT`
+  in place (`USEC`, `MT_C`) with `IFE`.
 
 ---
 

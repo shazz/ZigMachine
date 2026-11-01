@@ -1,4 +1,4 @@
-/* Test 9: CHISEL's QUEUE (HW 1.8.0: memmap BLIT_CMD_QUEUE, cycles/bchisel.c, rtl/blitter/zm_blit_q.v).
+/* Test 9: CHISEL's QUEUE (HW 1.11.0: memmap BLIT_CMD_QUEUE, cycles/bchisel.c, rtl/blitter/zm_blit_q.v).
  * The same small ops through one hwBlit each (sync: the call, the wrapper, CHISEL's start and
  * drain every op) and as descriptor lists (list: a header and the changed words into the ring,
  * one hwBlit per half-ring list, CHISEL running a list while the CPU builds the next, a NOP

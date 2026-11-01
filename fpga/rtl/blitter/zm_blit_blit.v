@@ -12,10 +12,13 @@ module zm_blit_blit (
     input  wire [22:0]        a_lin, b_lin,
     input  wire [15:0]        a_stride, b_stride,
     input  wire               desc,
+    input  wire               fx, fy,                // CON2.MIRROR_X / MIRROR_Y (BLIT)
+    input  wire [15:0]        w, h,
     input  wire signed [17:0] x0, y0, ex0, ey0, ex1, ey1,
     output wire               px_valid,
     output wire signed [17:0] px_x, px_y,
     output wire [22:0]        px_aaddr, px_baddr,
+    output wire               px_row,                // the row's first pixel in the walk (the area fill)
     input  wire               px_ready,
     output reg                done
 );
@@ -25,9 +28,10 @@ module zm_blit_blit (
     wire signed [17:0] ys = desc ? ey1 - 18'sd1 : ey0, ye = desc ? ey0 : ey1 - 18'sd1;
     // A and B at (x - x0, y - y0) of their rectangles, walked with y (zm_blit_row)
     zm_blit_row ra (.clk(clk), .base(a_lin), .stride(a_stride), .xorg(x0), .yorg(y0), .ys(ys), .dn(desc),
-        .ld(go), .y(y), .x(x), .addr(px_aaddr));
+        .fx(fx), .fy(fy), .w(w), .h(h), .ld(go), .y(y), .x(x), .addr(px_aaddr));
     zm_blit_row rb (.clk(clk), .base(b_lin), .stride(b_stride), .xorg(x0), .yorg(y0), .ys(ys), .dn(desc),
-        .ld(go), .y(y), .x(x), .addr(px_baddr));
+        .fx(fx), .fy(fy), .w(w), .h(h), .ld(go), .y(y), .x(x), .addr(px_baddr));
+    assign px_row = x == xs;
     assign px_valid = run;
     assign px_x = x;
     assign px_y = y;

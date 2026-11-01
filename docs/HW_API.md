@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0A00` = 1.10.0).
+> (`0x0001_0B00` = 1.11.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -160,7 +160,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0A00 (1.10.0)
+hwVersion() u32          // 0x0001_0B00 (1.11.0)
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):

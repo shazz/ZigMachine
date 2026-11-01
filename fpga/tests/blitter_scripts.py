@@ -59,7 +59,9 @@ class Script:
         base = PLANE + r.choice([0, 64000, 128000, 0x40000, r.randrange(0, 0x100000, 16)])
         self.w(8, mm.BLIT_MINTERM, mt, 0.9)
         self.w(8, mm.BLIT_CON, con | r.choice([0, 0, 0, mm.CON_IFE | mm.CON_EFE]), 0.95)
-        self.w(8, mm.BLIT_CON2, con2, 0.95)
+        self.w(8, mm.BLIT_CON2, con2 | self.v2_bits(), 0.95)
+        if r.random() < 0.08:  # the program clears the sticky collision bit
+            self.w(8, mm.BLIT_COLL, 0)
         self.w(8, mm.BLIT_COLOR, r.choice(COLORS + [r.randrange(256)]), 0.9)
         self.w(8, mm.BLIT_BG_COLOR, r.choice(COLORS + [r.randrange(256)]), 0.9)
         self.w(8, mm.BLIT_COLOR_KEY, r.choice(COLORS), 0.9)
@@ -68,6 +70,14 @@ class Script:
         self.clip()
         self.halftone()
         self.cmd = cmd
+
+    def v2_bits(self) -> int:
+        """CHISEL v2's CON2 bits, now and then: the mirrors (BLIT), the collision, the fill's carry-in."""
+        return self.r.choice(
+            [0] * 8
+            + [mm.CON2_MIRROR_X, mm.CON2_MIRROR_Y, mm.CON2_MIRROR_X | mm.CON2_MIRROR_Y, mm.CON2_COLL_EN]
+            + [mm.CON2_FILL_CARRY, mm.CON2_COLL_EN | mm.CON2_MIRROR_X, mm.CON2_FILL_CARRY | mm.CON2_MIRROR_Y]
+        )
 
     def clip(self) -> None:
         r = self.r

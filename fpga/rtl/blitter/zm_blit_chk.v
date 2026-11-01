@@ -34,7 +34,7 @@ module zm_blit_chk (
     input  wire               clk,
     input  wire               go,
     input  wire [7:0]         cmd,
-    input  wire               use_a, use_b, abs_src, desc,
+    input  wire               use_a, use_b, abs_src, desc, mirror,
     input  wire [31:0]        d_base, a_base, b_base,
     input  wire [15:0]        ds, a_stride, b_stride, w, h,
     input  wire [15:0]        umask, vmask, nspan,
@@ -138,7 +138,7 @@ module zm_blit_chk (
                 s_small <= s_base[31:23] == 9'd0 && prod[31:23] == 9'd0;
                 s_alok <= s_align;
                 // a texel's address is no constant offset from its pixel's: never "behind-safe"
-                s_same <= !is_tex && (h == 16'd1 || s_str == ds);
+                s_same <= !is_tex && !mirror && (h == 16'd1 || s_str == ds);
                 st <= 4'd7;
             end
             4'd7: begin  // this source's verdict; then the next source, or the op's

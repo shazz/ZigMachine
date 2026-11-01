@@ -30,6 +30,7 @@ module zm_blit_core (
     output wire [31:0]  wr_req_data,
     output wire [3:0]   wr_req_strb,
     input  wire         wr_pending,
+    output wire         coll_hit,        // a pixel written over a non-zero byte (CON2.COLL_EN)
     output wire [15:0]  dbg              // STATUS[15:0]: where an op is stuck (cycles/bblit.c's timeout trap)
 );
 `include "zm_blit_fields.vh"
@@ -70,6 +71,7 @@ module zm_blit_core (
     always @(posedge clk) {cx0, cy0, cx1, cy1} <= {ccx0, ccy0, ccx1, ccy1};
     wire chk_done, chk_ok, overlap;
     zm_blit_chk chk (.clk(clk), .go(start), .cmd(f_cmd), .use_a(f_con[0]), .use_b(f_con[1]), .abs_src(abs_src), .desc(f_con[6]),
+        .mirror(f_con2[3] || f_con2[4]),
         .d_base(f_d_base), .a_base(f_a_base), .b_base(f_b_base), .ds(f_d_stride), .a_stride(f_a_stride),
         .b_stride(f_b_stride), .w(f_w), .h(f_h), .umask(f_umask), .vmask(f_vmask), .nspan(f_span_count),
         .span_base(f_span_base), .x0(sx(f_x0)), .y0(sx(f_y0)), .x1(sx(f_x1)), .y1(sx(f_y1)),
@@ -83,9 +85,10 @@ module zm_blit_core (
     wire v_r, v_l, v_t, d_r, d_l, d_t;     // px_valid / done: the box walk (BLIT, FILL), LINE, TRIANGLE
     wire signed [17:0] x_r, y_r, x_l, y_l, x_t, y_t;
     wire [22:0] aaddr, baddr;
-    wire px_ready, line_step;
+    wire px_ready, line_step, row_r;
     zm_blit_blit sb (.clk(clk), .rst(rst), .go(go[0] | go[1]), .a_lin(a_lin), .b_lin(b_lin), .a_stride(f_a_stride),
-        .b_stride(f_b_stride), .desc(f_con[6] && is_blit), .x0(sx(f_x0)), .y0(sx(f_y0)), .ex0(ex0), .ey0(ey0),
+        .b_stride(f_b_stride), .desc(f_con[6] && is_blit), .fx(f_con2[3] && is_blit), .fy(f_con2[4] && is_blit),
+        .w(f_w), .h(f_h), .px_row(row_r), .x0(sx(f_x0)), .y0(sx(f_y0)), .ex0(ex0), .ey0(ey0),
         .ex1(ex1), .ey1(ey1), .px_valid(v_r), .px_x(x_r), .px_y(y_r), .px_aaddr(aaddr), .px_baddr(baddr),
         .px_ready(px_ready), .done(d_r));
     zm_blit_line sl (.clk(clk), .rst(rst), .go(go[2]), .x0(sx(f_x0)), .y0(sx(f_y0)),
@@ -121,7 +124,7 @@ module zm_blit_core (
     wire d_dn = is_blit ? f_con[6] : is_line && !(sx(f_y0) < sx(f_y1));
     wire [22:0] d_addr;
     zm_blit_row rd (.clk(clk), .base(dlin), .stride(f_d_stride), .xorg(18'sd0), .yorg(18'sd0), .ys(d_ys),
-        .dn(d_dn), .ld(|go), .y(px_y), .x(px_x), .addr(d_addr));
+        .dn(d_dn), .fx(1'b0), .fy(1'b0), .w(16'd0), .h(16'd0), .ld(|go), .y(px_y), .x(px_x), .addr(d_addr));
     // B as a constant: COLOR, or (FILL, TRIANGLE) the halftone's pick at the pixel; 0 for a BLIT
     wire ht_bit;
     assign ht_y = px_y[3:0];
@@ -145,7 +148,11 @@ module zm_blit_core (
         id_fg <= ident(px_mt, f_color); id_bg <= ident(px_mt, f_bg); id_0 <= ident(px_mt, 8'd0);
     end
     // a BLIT's B constant is 0, and it is C only when it reads nothing else and keys nothing
-    wire px_nop = is_tex ? 1'b0 : is_blit ? px_flags == 4'b0100 && id_0 : (pick_bg ? id_bg : id_fg);
+    // CHISEL v2: the area fill (CON.IFE/EFE, BLIT and FILL) and the collision (CON2.COLL_EN) change
+    // or watch every pixel written: no pixel may pass as a no-op, and the collision reads C
+    wire fill_on = (is_blit || is_fill) && (f_con[4] || f_con[5]), coll_en = f_con2[5];
+    wire [1:0] fill = fill_on ? {!f_con[4], f_con[4]} : 2'b00;
+    wire px_nop = is_tex || fill_on || coll_en ? 1'b0 : is_blit ? px_flags == 4'b0100 && id_0 : (pick_bg ? id_bg : id_fg);
     // AFFINE's spans may cover a pixel twice: when the minterm reads C, every read waits for the
     // writes before it and C words are not reused (a MAP box, like every other op, never does)
     wire c_dep = !(f_mt[0] == f_mt[1] && f_mt[2] == f_mt[3] && f_mt[4] == f_mt[5] && f_mt[6] == f_mt[7]);
@@ -154,6 +161,8 @@ module zm_blit_core (
     wire px_idle, wrote;
     zm_blit_px pxu (.clk(clk), .rst(rst), .px_valid(v_r | v_l | v_t | v_x), .px_ready(px_ready),
         .px_dst(is_tex ? t_dst : d_addr), .px_aaddr(aaddr), .px_baddr(is_tex ? t_baddr : baddr), .px_bimm(px_bimm), .px_nop(px_nop), .px_mt(px_mt), .px_key(f_key), .px_flags(px_flags),
+        .px_row(row_r && (is_blit || is_fill)), .force_c(coll_en), .fill(fill), .carry0({8{f_con2[7]}}),
+        .coll_en(coll_en), .coll_hit(coll_hit),
         .ordered((is_blit || is_tex) && overlap || ord_c), .ordered_c(ord_c), .px_idle(px_idle), .wrote(wrote),
         .rd_req_valid(px_rd_valid), .rd_req_ready(px_rd_ready), .rd_req_addr(px_rd_addr), .rd_rsp_valid(px_rsp),
         .rd_rsp_data(rd_rsp_data),

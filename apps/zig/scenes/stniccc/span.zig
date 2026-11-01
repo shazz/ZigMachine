@@ -17,10 +17,10 @@ const std = @import("std");
 
 /// The area (pixels) from which a rectangle goes to CHISEL instead of the CPU.
 /// A hwBlit each (the model above) put the CPU ahead at every size. Through the
-/// QUEUE (stniccc/gpu.zig, HW 1.10.0) a fill costs the CPU a few ring stores
+/// QUEUE (stniccc/gpu.zig, HW 1.11.0) a fill costs the CPU a few ring stores
 /// (~20 cycles) and CHISEL draws it while the edge walk goes on, so from ~256
-/// pixels (~150 cycles of CPU stores) it is queued. An estimate, not a board
-/// measurement: the board's OSD fps decides (QUEUE bench row ch.q.fill8.x64).
+/// pixels (~150 cycles of CPU stores) it is queued. AN ESTIMATE, SET ON THE BOARD: not a board
+/// measurement: the board's OSD fps decides (the QUEUE bench row qu.list.f8.x64: 64 queued 8x8 fills, one kick; Fable's ch.q.fill8.x64).
 /// The CPU's own reads and writes of the plane wait for the queue (Target.sync).
 pub const BLIT_MIN: usize = 256;
 

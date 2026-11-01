@@ -62,6 +62,9 @@ HOT void finish(volatile uint8_t* r, const bdi_plan* p) {
     uint32_t c = BCHISEL_RD(ZM_BLIT_CYCLES / 4 - ZM_OFF_BLIT / 4);
     if (*cyc != c) *cyc = c;
     if (r[ZM_BLIT_STATUS] != 0) r[ZM_BLIT_STATUS] = 0;
+    /* CON2.COLL_EN (HW 1.11.0): CHISEL's flag covers this kick only; BLIT_COLL is sticky until the
+     * cart clears it, so a hit is ORed in, never a miss stored over it. */
+    if (BCHISEL_RD(ZM_BLIT_COLL / 4 - ZM_OFF_BLIT / 4) >> 16 & 1) r[ZM_BLIT_COLL] |= 1;
 }
 
 void bchisel_sync(void) {

@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ZigMachine — SEALED blitter: the texture ops of CHISEL v2 (1.10.0).
+// ZigMachine — SEALED blitter: the texture ops of CHISEL v2 (1.11.0).
 //   AFFINE: textured spans from a list (Mode 7 floors, rotozooms, textured polygons)
 //   MAP:    a box whose every pixel takes its texel from a (u, v) map (tunnels)
 // Both read the texture through channel A and combine the texel as B with the
@@ -9,7 +9,7 @@
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");
 const regs = @import("blitter_regs.zig");
-const check = @import("blitter_check.zig");
+const px = @import("blitter_px.zig");
 const Clip = regs.Clip;
 
 // The texture and how a texel is drawn, decoded once an op. Null: refused.
@@ -44,11 +44,11 @@ const Tex = struct {
     }
 
     // Draw texel (u, v) at d[di]; true when a pixel was written (for CYCLES).
-    fn put(t: Tex, d: [*]u8, di: usize, u: u16, v: u16) bool {
+    fn put(t: Tex, out: *px.Writer, d: [*]u8, di: usize, u: u16, v: u16) bool {
         if (t.clip and (u > t.umask or v > t.vmask)) return false;
         const texel = t.base[@as(usize, v & t.vmask) * t.stride + (u & t.umask)];
         if (t.key_en and texel == t.key) return false;
-        d[di] = if (t.mt == memmap.MT_B) texel else regs.applyMinterm(0, texel, d[di], t.mt);
+        out.put(d, di, if (t.mt == memmap.MT_B) texel else regs.applyMinterm(0, texel, d[di], t.mt));
         return true;
     }
 };
@@ -85,6 +85,7 @@ pub fn doAffine(d: [*]u8, ds: u16, c: Clip, con: u8, con2: u8, cost: *u32) void 
     const lo: u64 = regs.r32(memmap.BLIT_SPAN_BASE);
     if (n == 0 or lo % 4 != 0 or !inAux(lo, lo + n * memmap.BLIT_SPAN_BYTES)) return;
     const list: [*]const u8 = @ptrFromInt(@as(usize, @intCast(lo)));
+    var out = px.Writer.other();
     for (0..@intCast(n)) |k| {
         const s = list + k * memmap.BLIT_SPAN_BYTES;
         const x0: i32 = @as(i16, @bitCast(rd16(s)));
@@ -99,7 +100,7 @@ pub fn doAffine(d: [*]u8, ds: u16, c: Clip, con: u8, con2: u8, cost: *u32) void 
         var x = x0;
         while (x < x1) : (x += 1) {
             if (x >= c.x0 and x < c.x1) {
-                if (t.put(d, drow + @as(usize, @intCast(x)), @truncate(u >> 16), @truncate(v >> 16))) cost.* += 1;
+                if (t.put(&out, d, drow + @as(usize, @intCast(x)), @truncate(u >> 16), @truncate(v >> 16))) cost.* += 1;
             }
             u +%= du;
             v +%= dv;
@@ -120,15 +121,16 @@ pub fn doMap(d: [*]u8, ds: u16, c: Clip, con: u8, con2: u8, cost: *u32) void {
     const y0: i32 = regs.ri16(memmap.BLIT_Y0);
     const uo = regs.r16(memmap.BLIT_U_OFF);
     const vo = regs.r16(memmap.BLIT_V_OFF);
+    var out = px.Writer.other();
     for (0..h) |j| {
         const py = y0 + @as(i32, @intCast(j));
         if (py < c.y0 or py >= c.y1) continue;
         const drow = @as(usize, @intCast(py)) * ds;
         for (0..w) |i| {
-            const px = x0 + @as(i32, @intCast(i));
-            if (px < c.x0 or px >= c.x1) continue;
+            const pxx = x0 + @as(i32, @intCast(i));
+            if (pxx < c.x0 or pxx >= c.x1) continue;
             const e = rd16(map + j * ms + 2 * i);
-            if (t.put(d, drow + @as(usize, @intCast(px)), (e & 0xFF) +% uo, (e >> 8) +% vo)) cost.* += 1;
+            if (t.put(&out, d, drow + @as(usize, @intCast(pxx)), (e & 0xFF) +% uo, (e >> 8) +% vo)) cost.* += 1;
         }
     }
 }
