@@ -8,6 +8,8 @@
 //                flicker on a visible line), then the BOTTOM, then the TOP
 //   OPEN_END ..  the hardware scroll starts slowly and eases in to cruise
 //   CRUISE ..    cruise for good: the picture loops every 360 frames
+// Until the scroll starts only Leonard's 312 balls fly (one snake); then
+// the other snakes fade in from black (fadeLevel), under the record's.
 //
 // A closed frame is a real closed border: the plane's HBL does not flicker
 // the resolution on that line (scene: borderHbl). The balls fly the whole
@@ -36,6 +38,17 @@ pub const OPEN_END = stageStart(.top) + SHAKE_LEN; // every border open from her
 pub const EASE_START = OPEN_END + GAP;
 pub const EASE_LEN = 240; // frames from still to cruise
 pub const CRUISE = EASE_START + EASE_LEN;
+/// The record's 312 balls alone until the scroll starts; then the other
+/// snakes fade in from black, FADE_LEVELS steps FADE_STEP frames apart.
+pub const FADE_START = EASE_START;
+pub const FADE_STEP = 4;
+pub const FADE_LEVELS = 16;
+
+/// The extra snakes' brightness on frame t, 0 (not drawn) .. FADE_LEVELS.
+pub fn fadeLevel(t: u32) u32 {
+    if (t < FADE_START) return 0;
+    return @min(FADE_LEVELS, (t - FADE_START) / FADE_STEP + 1);
+}
 
 /// Is side s open on frame t?
 pub fn isOpen(s: Side, t: u32) bool {

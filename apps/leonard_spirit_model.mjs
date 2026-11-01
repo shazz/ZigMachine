@@ -26,6 +26,27 @@ const SHAKE_LEN = SHAKE.reduce((a, b) => a + b), GAP = 30, STATIC_END = 180;
 export const stageStart = (s) => STATIC_END + s * (SHAKE_LEN + GAP); // 0 sides, 1 bottom, 2 top
 export const OPEN_END = stageStart(2) + SHAKE_LEN, EASE_START = OPEN_END + GAP, EASE_LEN = 240;
 export const CRUISE = EASE_START + EASE_LEN;
+// ---- only the record's snake until the scroll starts, then snakes 1..6 fade in from black, under it
+export const FADE_START = EASE_START;
+export const fadeLevel = (t) => (t < FADE_START ? 0 : Math.min(16, Math.floor((t - FADE_START) / 4) + 1));
+// ---- the scrolltext's fall (scene: leonard_spirit/fall.zig): once the bottom stays open it drops
+// from row 234 to 274 (the same 0-pixel gap to the open bottom) and bounces, Q8 integer steps
+export const FALL_START = stageStart(1) + SHAKE_LEN, FALL_LOW = WIN_H - 6 - 6; // the letters' 6 rows, then a 6-pixel margin (Matt, 2026-11-01)
+export function fallRows(bounce = true) {
+    const rows = [];
+    let y = SCROLL_Y << 8, v = 0;
+    for (;;) {
+        v += 48; y += v;
+        if (y >= FALL_LOW << 8) {
+            y = FALL_LOW << 8;
+            v = -((v * 128) >> 8);
+            if (!bounce || -v < 64) break;
+        }
+        rows.push(y >> 8);
+    }
+    return rows;
+}
+export const scrollRow = (t, rows) => (t < FALL_START ? SCROLL_Y : t - FALL_START < rows.length ? rows[t - FALL_START] : FALL_LOW);
 export function isOpen(s, t) {
     let at = stageStart(s), open = false;
     if (t < at) return false;
@@ -63,23 +84,25 @@ export function positions(f, extra = 0) {
 const ink = (c, sx, r) => font[(c.charCodeAt(0) - 32) * 36 + r * 6 + sx] !== 0;
 
 /** The window (400x280 indices) of ball frame f at pan (sx, sy), scroller tick t. */
-export function windowPixels(out, f, [sx, sy], t, text, extra = 0) {
+export function windowPixels(out, f, [sx, sy], t, text, extra = 0, row = SCROLL_Y, level = 16) {
     for (let y = 0; y < WIN_H; y++) {
         const ty = (sy + y + 600 - OY) % 200;
         for (let x = 0; x < WIN_W; x++) out[y * WIN_W + x] = back[ty * 320 + ((sx + x + 640 - OX) % 320)];
     }
-    const pos = positions(f, extra);
-    for (let i = 0; i < pos.length / 2; i++) {
+    const pos = positions(f, extra), n = pos.length / 2;
+    const draw = (i, ink) => {
         const x = pos[2 * i], y = pos[2 * i + 1];
         for (let r = 0; r < 16; r++) for (let c = 0; c < 16; c++) {
             const v = ball[r * 16 + c];
-            if (v) out[(y + r) * WIN_W + x + c] = v + 3;
+            if (v) out[(y + r) * WIN_W + x + c] = v + ink;
         }
-    }
+    };
+    if (level > 0) for (let i = SNAKE_LEN; i < n; i++) draw(i, 7); // the fading snakes, under
+    for (let i = 0; i < SNAKE_LEN; i++) draw(i, 3); // Leonard's 312 on top
     const s = t * 2, lap = text.length * 6;
     for (let x = 0; x < WIN_W; x++) {
         const p = (s + x) % lap, ch = text[Math.floor(p / 6)];
-        for (let r = 0; r < 6; r++) if (ink(ch, p % 6, r)) out[(SCROLL_Y + r) * WIN_W + x] = 7;
+        for (let r = 0; r < 6; r++) if (ink(ch, p % 6, r)) out[(row + r) * WIN_W + x] = 7;
     }
     return pos;
 }
@@ -89,6 +112,15 @@ export function mergedPalette() {
     const word = (f, i) => readFileSync(A + f).readUInt32LE(i * 4);
     return [0, 1, 2, 3].map((i) => word("back_pal.dat", i))
         .concat([1, 2, 3].map((i) => word("ball_pal.dat", i)), [word("font_pal.dat", 1)]);
+}
+/** The merged palette on a fade level: 8-10 the ball's shades times level/16 (alpha kept). */
+export function fadedPalette(base, level) {
+    const p = base.slice();
+    for (let i = 0; i < 3; i++) {
+        const c = base[4 + i], ch = (sh) => ((((c >>> sh) & 255) * level) >> 4) << sh;
+        p[8 + i] = ((c & 0xff000000) | ch(16) | ch(8) | ch(0)) >>> 0;
+    }
+    return p;
 }
 
 export const TEXT_2005 = "HI EVERYBODY ! ULTRA OPTIMISATION RULES, EVEN FOR STUPID RECORD ! I NEVER THOUGH I COULD DISPLAY 312 SPRITES ONE YEAR AGO !  I TOTALLY REWRITE MY PC DATABUILDER TO IMPLEMENT NEW STUFF. THEN, I CHANGE THE CLEARING DATA FORMAT TO GET SOME MEMORY LEFT AND THAT IS !THAT DISK SHOULD (I HOPE) RUN ON 520-STF,MEGASTE,TT,FALCON AND EVEN CT60. GREETINGS ARE SENT TO PHANTOM, GUNSTICK AND SOTE. YOU ALL ARE COOL OPTIMIZERS !  LEONARD/OXYGENE, 17.03.2005";
