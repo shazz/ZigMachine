@@ -689,6 +689,12 @@ as the differences, so the SoC's own timing (the combined bitstream) is the real
 +223 LUT against the note's ~400 estimate; `mulsh` adds no DSP (MulPlugin's own four partial
 products, `ZmMulPlugin`).
 
+**Which ZM-X netlist:** try `I16w2D16w2SealFpuZmxE` first in the SoC (1 c/px faster on every
+rotozoom, same LUT, no worse out of context); its ops' adders then sit in front of the execute
+result mux and its bypass, the core's critical cone in the routed SoC (*Branch prediction and the
+clock*), so if `sys` misses 100 MHz there, fall back to `I16w2D16w2SealFpuZmx` (result written
+from MEMORY: a dependent instruction right behind an op waits one cycle).
+
 **Cycles** (`tests/test_zmx_bench.py`: tests/zmx/bench.c on the core in Verilator, the dcache
 harness with a 32-cycle first-beat read wait = a ~48-cycle line miss; warm frame; every core and
 build draws the same frame):
