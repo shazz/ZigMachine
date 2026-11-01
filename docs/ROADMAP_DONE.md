@@ -15,6 +15,7 @@ view: the roadmap artifact, https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W).
 | P2 | ST Replay's ITEM SELECTOR as TOS 1.02 draws it | GEM | eda14d3c: 320-wide box, full 8.3 Selection, `________.___` empty rows, NAME    .EXT; apps/filesel_check.mjs gated | lead |
 | P2 | Fable: KESTREL_NEXT_ISA.md | ZIGGY / BARD | fd8461b8: what new ISA / custom instructions make possible (D$ 16 KB, ZM-X, CHISEL span AFFINE, BARD ops) | Fable |
 | P2 | Studies: plane interleave, ISA on the shelf, retro hardware survey | review | 279e4d44, 09fd7994, 3936586b | agents |
+| P3 | Forgotten branches: fpu-study, gate-and-rules | repo | fpu-study's conclusion merged into fpga/CYCLES.md (the lite FPU is not worth it; its code not kept). gate-and-rules already on main in better form (per-job GATE_JOB_TIMEOUT, CLAUDE.md now tracked) | lead |
 | P3 | stniccc dead CHISEL fill path removed; cuddly_starwars split | screens | e487618a, 7d817ae6 | worker |
 
 ## Done 25 Oct
