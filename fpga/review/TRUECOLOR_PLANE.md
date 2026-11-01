@@ -10,7 +10,8 @@ only: no RTL, machine or cart change on this branch. Cycles are sys (100 MHz) un
 ## The short answer
 
 **Build the 565 plane as a compositor citizen through the painter (option A0): a new per-plane
-`FB_MODE`, ~80-120 LUT, 0 BRAM, 0 DSP.** The painter reads a half-word instead of a byte and bypasses
+`FB_MODE`, measured +28 LUT (OOC synth of `zm_video_comp`, 2,500 -> 2,528; +17 FF, 0 BRAM, 0 DSP, WNS
+unchanged at 8 ns).** The painter reads a half-word instead of a byte and bypasses
 the palette RAM with a 565 -> 8888 expansion that is pure wiring; the fetch, the fetch buffer, the mixer,
 the row I/O, the dirty-line planner, the copper's HSCROLL/LBASE/FLICK and the browser's canvases are
 untouched, and the PFB stays the oracle (scene_hash hashes it, board pictures equal the browser's). It
@@ -27,9 +28,11 @@ already failing. So the mode goes in only against a cut of at least its own size
 combined build closes. **The cleanest payer is inside FRESCO itself**: `zm_video_regs` (474 LUT) answers
 the sequencer's read-back through a combinational 32:1 x 32-bit mux over 18 stored words, and the
 firmware reads exactly six words (BACKGROUND, BEAM_COUNT, BEAM_DROPPED, FRAME, HSCROLL x2:
-`vseq.c:101-105`, `vseq_group.c:63`); a 6-way read saves an estimated 60-120 LUT, net ~0 for the mode.
-Behind it stand the roadmap's costed cuts (QUEUE ring read-through ~-150 + 1 RAMB18, TRIANGLE edge walk
-~-100, pxq 16 slots ~-80-150, bus_timeout ~-30-50) and the read-bypass decision (+~120 if kept).
+`vseq.c:101-105`, `vseq_group.c:63`); a 6-way read **measures -138 LUT** (OOC synth of `zm_video_regs`,
+481 -> 343, same flops, no behaviour change for the firmware). **Mode plus payer: net about -110 LUT**,
+so the mode pays for itself and leaves room for the combined build's closure. Behind it stand the
+roadmap's costed cuts (QUEUE ring read-through ~-150 + 1 RAMB18, TRIANGLE edge walk ~-100, pxq 16 slots
+~-80-150, bus_timeout ~-30-50) and the read-bypass decision (+~120 if kept).
 
 Scanout straight from the cart's buffer (option B) is the per-plane form of FRESCO_OPTIONS idea 1, which
 the 2026-10-24 decision closed: ~150-300 LUT, it saves ~0.46 Mc only when the 565 plane is the whole
@@ -55,7 +58,7 @@ makes unlikely.
 
 | # | design | LUT (est.) | BRAM/DSP | FRESCO saved | exact vs browser | gives up |
 |---|---|---:|---|---|---|---|
-| A0 | **565 through the painter**, new FB_MODE, compositor citizen | **80-120** | 0 / 0 | 0 (+40-50 fetch beats a line) | yes, PFB identical | nothing: planes over/under it, HSCROLL, LBASE, dirty lines all work |
+| A0 | **565 through the painter**, new FB_MODE, compositor citizen | **+28 OOC** (est. was 80-120) | 0 / 0 | 0 (+40-50 fetch beats a line) | yes, PFB identical | nothing: planes over/under it, HSCROLL, LBASE, dirty lines all work |
 | A0+8 | + 8888 as a second mode | +30-50 | 0 / 0 | 0 | yes | 2x VRAM and bandwidth; needs the painter's 9-bit word index |
 | A0+K | + a 565 colour key (one value transparent) | +6-10 | 0 / 0 | 0 | yes | one 565 value |
 | A1 | A0 + first-layer shortcut: expanded row straight into the accumulator, no PAINT/MIX | +~100 | 0 / 0 | ~650 comp a line = 0.15-0.18 Mc on 280 lines | yes | nothing (only when `cmd_first`) |
@@ -209,8 +212,9 @@ It reverses FRESCO_OPTIONS "Decision 2026-10-24" (stay frame-serial, keep the or
 1. **`zm_video_regs` read-back, 6 words** (`cpu_rdata = regs[cpu_rword*32 +: 32]`, a 32:1 x 32 mux
    over the 18 implemented words): the sequencer reads BACKGROUND, BEAM_COUNT, BEAM_DROPPED, FRAME
    (`vseq.c` copy_back) and the two HSCROLL words (`vseq_group.c` vseq_copper_end); no other reader
-   (`cpu_rword` comes from `zm_video_cdc.py:152` only). A 6-case read answers 0 elsewhere. **Est. -60 to
-   -120 LUT**, no behaviour change for the firmware; a break test reads a 7th word in the board-SoC sim.
+   (`cpu_rword` comes from `zm_video_cdc.py:152` only). A 6-case read answers 0 elsewhere. **OOC:
+   481 -> 343 LUT, -138** (`prototypes/fresco_re/truecolor/regs6/zm_video_regs.v`), same 608 flops, WNS
+   unchanged; no behaviour change for the firmware; a break test reads a 7th word in the board-SoC sim.
 2. The roadmap's costed cuts, in its order: QUEUE ring read-through (~-150 + 1 RAMB18, a read latency
    a descriptor), TRIANGLE edge walk (~-100, faster too), pxq 16 slots (LQ 5 -> 4, est. -80 to -150 of
    q's 616), bus_timeout None (~-30 to -50), the halftone sniff (~-20, ABI).
@@ -218,11 +222,12 @@ It reverses FRESCO_OPTIONS "Decision 2026-10-24" (stay frame-serial, keep the or
 4. Inside FRESCO, smaller: u_bg 193 (the BEAM span painter) and u_cop 536 are the next candidates, but
    both are measured, exact and new; leave them.
 
-**Fit verdict**: A0 (~100) against cut 1 (~-90) is LUT-neutral and slice-light (muxes, 30 flops, no
-carry); it still needs the combined build to close first (combo7 misses by 0.93 ns on comp and the
-slices are at 100 %), then an OOC of `zm_video_comp` with the mode at 8 ns, then a bitstream the lead
-builds. If the combined build needs more room anyway, cuts 2-3 are the pool, and the mode is a sixth of
-the copper's size.
+**Fit verdict**: A0 (+28 OOC) against cut 1 (-138 OOC) is a net **-110 LUT**, slice-light (muxes, 17
+flops, no carry chain) and timing-neutral at the OOC level; it still needs the combined build to close
+first (combo7 misses by 0.93 ns on comp and the slices are at 100 %), then the lead's bitstream with both
+changes, where the placed figures replace the OOC ones (the placed hierarchy runs ~10 % under OOC synth
+for FRESCO: u_comp 2,274 placed vs 2,500 OOC). If the combined build needs more room anyway, cuts 2-3 are
+the pool; the mode itself is a twentieth of the copper's size.
 
 ## Risks and open questions
 
@@ -230,9 +235,10 @@ the copper's size.
    -0.468 placed). The mode adds no carry chain, but every comp flop is one more in a 100 %-slice design.
 2. **Slices at 100 %**: a LUT-neutral change can still fail to place if it adds control sets; keep the
    16 new flops on the painter's existing enable.
-3. **The expansion formula** must equal what the port's reference pictures expect: Hatari's Videl
-   565 -> 888 conversion to be read before the ABI is pinned (replication vs shift; a shift makes 0x1F
-   248, not 255).
+3. **The expansion formula**: settled. Hatari's Videl hi-colour path
+   (`~/projects/hatari/src/screenConvert.c`, `ScreenConv_HiColorTo32bppNoZoom`: `r = ((w >> 8) & 0xf8)
+   | (w >> 13)`, `g = ((w >> 3) & 0xfc) | ((w >> 9) & 3)`, `b = (w << 3) | ((w >> 2) & 7)`) is the same
+   bit replication, so the port's reference captures and the machine agree bit for bit.
 4. **HSCROLL / LBASE in bytes**: odd values are allowed and ugly (ST-like) or refused and counted (a
    compare, ~8 LUT): Matt's call; the doc assumes allowed.
 5. **The colour key** (+6-10 LUT): without it a 565 picture cannot sit OVER an 8-bit plane with holes;
@@ -244,10 +250,34 @@ the copper's size.
 8. **mpp_truecolor**: its 4-plane mode (1,020 colours a line through copper lists) is the mode's first
    shelf customer and A/B on the board: 4 planes -> 1 saves 0.6-1.8 Mc there.
 
-## Measurements
+## Measurements (Vivado 2026.1 OOC synth, xc7z010, `create_clock -period 8` on `clk`, 1 Nov 17:48-17:51)
 
-OOC runs planned (one Vivado at a time, under `prototypes/_gate_logs/build.lock`; the script takes
-`vivado.lock` itself): (a) `zm_video_regs` at 8 ns, baseline vs the 6-word read; (b) `zm_video_comp`
-at 8 ns with `HIER=1`, baseline vs a prototype painter/plane under `prototypes/fresco_re/truecolor/`
-(copies, not `fpga/rtl` edits). Results are appended here when they run; until then every figure above
-is **est.** from the RTL and the combo7 hierarchy.
+Prototype copies under `prototypes/fresco_re/truecolor/` (`zm_video_plane.v`, `zm_video_paint.v`,
+`zm_video_planepath.v` with modes 5/6 and the 565 painter; `regs6/zm_video_regs.v` with the 6-word
+read-back), not `fpga/rtl` edits. `tools/vivado_ooc.sh` under `build.lock`, one run at a time; outputs
+`fpga/build/ooc_tc_{regs_base,regs_6w,comp_base,comp_tc}/` (util.rpt, hier.rpt, timing.rpt).
+
+| run | LUT | logic / LUTRAM | FF | BRAM tiles | DSP | WNS at 8 ns |
+|---|---:|---:|---:|---:|---:|---:|
+| `zm_video_regs` baseline | 481 | 481 / 0 | 608 | 0 | 0 | +3.976 |
+| `zm_video_regs` 6-word read | **343 (-138)** | 343 / 0 | 608 | 0 | 0 | +3.976 |
+| `zm_video_comp` baseline (main 372d2f83) | 2,500 | 2,290 / 210 | 1,944 | 15 | 13 | +0.166 |
+| `zm_video_comp` with the 565 painter | **2,528 (+28)** | 2,318 / 210 | 1,961 | 15 | 13 | +0.166 |
+
+Where the +28 lands (hier.rpt): u_paint 62 -> 73 (+11, +16 FF for the half-word register),
+u_plane 248 -> 255 (+7), u_pp's wiring +0, the rest noise (u_regs +2, u_wb +8). The estimates above
+(80-120) counted each mux as its own LUT6; synthesis folds the 2:1 output mux into the line-buffer
+register's existing logic and the index mux into the adder's LUTs.
+
+Function check (iverilog, `tb_paint_tc.v` in the prototype directory): the 565 painter in TC mode over
+eight columns writes both halves of each doubled pair at `dst0/2 + c`, picks the right half-word of each
+little-endian pair, and expands 0xF800 / 0x07E0 / 0x001F / 0x8410 / 0xFFFF / 0x0000 / 0x1234 / 0xABCD
+to 0xFF0000FF / 0xFF00FF00 / 0xFFFF0000 / 0xFF848284 / 0xFFFFFFFF / 0xFF000000 / 0xFFA54510 /
+0xFF6B79AD: PASS. Not run: the RTL replay against recorded frames (video.zig has no mode 5/6 yet), the
+board (no bitstream: the lead builds), any sim (nothing to simulate without the firmware's dispatch).
+
+Reproduce: `cd fpga && flock prototypes/_gate_logs/build.lock env PERIOD=8 CLOCK=clk HIER=1
+tools/vivado_ooc.sh zm_video_comp build/ooc_tc_comp_tc "" rtl/video/zm_video_{comp,pass,rowio,bg,latch,
+fetch,sdpram,mix,copper,palwb,regs}.v ../prototypes/fresco_re/truecolor/zm_video_{plane,paint,planepath}.v`
+(the painter check: `iverilog -g2012 -I fpga/gen -o /tmp/x prototypes/fresco_re/truecolor/
+{tb_paint_tc,zm_video_paint}.v && vvp /tmp/x`).
