@@ -159,7 +159,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
             self.dma_ctl = ZMVideoAXI([self.sc, self.rd], self.wr, hp, self.hp_cfg.storage, hp_enable)
             if probe:
                 self.hp_probe = ZMHPProbe(self.rd, self.rd_c, cd_comp)  # board debug (soc/zm_hp_probe.py)
-        busy = Signal(32)
+        busy = Signal(32, attr={("use_dsp", "yes")})  # a DSP48 accumulator (soc/zm_cycles.py's note)
         self.sync += If(self.dma_ctl.active, busy.eq(busy + 1))
         self.comb += self.dma_busy.status.eq(busy)
 
@@ -168,7 +168,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         self.ev.vbl = EventSourcePulse(description="VBL: the raster is complete.")
         self.ev.pass_done = EventSourcePulse(description="A pass's rows are in memory.")
         self.ev.finalize()
-        frame = Signal(32)
+        frame = Signal(32, attr={("use_dsp", "yes")})  # a DSP48 accumulator (soc/zm_cycles.py's note)
         self.sync += If(x.vbl, frame.eq(frame + 1))
         self.comb += [
             self.frame.status.eq(frame),

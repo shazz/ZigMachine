@@ -32,10 +32,10 @@ module zm_audio_sched #(
     output wire        core_wr,
     output wire [9:0]  core_addr,
     output wire [31:0] core_wdata,
-    output reg  [31:0] now = 32'd0,
+    (* use_dsp = "yes" *) output reg [31:0] now = 32'd0,      // DSP48 accumulators, not CARRY4 chains
     output reg         late = 1'b0,
     output reg         overflow = 1'b0,
-    output reg  [31:0] applied = 32'd0,     // writes landed since reset
+    (* use_dsp = "yes" *) output reg [31:0] applied = 32'd0,  // writes landed since reset
     input  wire        clear               // clears late and overflow
 );
     reg  [AW-1:0] wptr = 0, rptr = 0;

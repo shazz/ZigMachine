@@ -38,7 +38,7 @@ module zm_blit_core (
     reg [2:0] st;
     reg [7:0] op;
     reg [5:0] go;           // {MAP, AFFINE, TRIANGLE, LINE, FILL, BLIT}: a one-clock start
-    reg [31:0] cost;
+    (* use_dsp = "yes" *) reg [31:0] cost;     // a DSP48 accumulator, not a CARRY4 chain (slices)
     assign busy = st != IDLE;
     assign cyc_we = st == FIN;
     assign cyc_val = cost;

@@ -42,7 +42,7 @@ module zm_blit_regs (
     output wire [15:0]  ht_row,
     output wire         ht_nz            // some halftone byte is not zero (the pre-1.5.0 sniff)
 );
-    reg [31:0] cycles;
+    (* use_dsp = "yes" *) reg [31:0] cycles;   // a DSP48 accumulator, not a CARRY4 chain (slices)
     reg coll;                            // since the kick (the firmware ORs it into BLIT_COLL)
     wire go = cpu_we && cpu_waddr == 5'd0 && cpu_be[0] && cpu_wdata[7:0] != 8'd0;
 
