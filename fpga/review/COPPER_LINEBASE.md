@@ -79,7 +79,11 @@ policy as a 1.9 cart on 1.8: hosts hand carts no hwVersion, a 1.10 cart needs a 
   the subtract in stage 1), and `sc_2 <= (m == SCROLL || m == OVS) ? hs_live_i : 0`. The `moved` /
   `held` rule already holds a pass until its inputs have settled four clocks; the copper phase ends
   before `pl_go`, so the latch write lands first.
-- Estimate: +40-80 LUT (a 21-bit and a 9-bit LUTRAM write port, one 9-bit subtract, one mux term),
+- Measured (Vivado OOC place+route of zm_video_comp at 8 ns, 125 MHz comp): origin/main 2,285 LUT /
+  1,919 FF / WNS +0.685 ns; this branch 2,333 LUT / 1,964 FF / WNS +0.532 ns (+48 LUT, +45 FF, 0
+  BRAM, 0 DSP). The worst path stays in the copper (`u_pass/busy` -> `u_cop/lb_row`); LBASE's value
+  and row load every clock so no clock enable hangs on the VRAM check (with one: +0.292 ns).
+- Estimate before: +40-80 LUT (a 21-bit and a 9-bit LUTRAM write port, one 9-bit subtract, one mux term),
   0 BRAM, 0 DSP if the pre-adder takes it. OOC synth of zm_video_comp before any bitstream; the
   board build is at 89.1 %.
 

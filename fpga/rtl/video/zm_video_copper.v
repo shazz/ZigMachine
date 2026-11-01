@@ -124,6 +124,10 @@ module zm_video_copper (
         pal_we <= 1'b0;
         hs_we <= 1'b0;
         lb_we <= 1'b0;
+        // LBASE's value and row every clock (read only on lb_we's pulse, which DEC sets on the same
+        // edge): no clock enable hangs on the VRAM check (it was the comp domain's next path).
+        lb_val <= wq[20:0];
+        lb_row <= phys ? line : line - ZM_RASTER_BORDER_Y[8:0];
         if (rd_req_valid && rd_req_ready) asked <= 1'b1;
         if (fb_we) fb_waddr <= fb_waddr + 8'd1;
         if (rd_rsp_valid && busy) left <= left - 8'd1;
@@ -196,11 +200,7 @@ module zm_video_copper (
                 if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && wq[27:20] == hs_off) || (op == 4'h5 && lb_ok)) begin
                     if (op == 4'h3) flick <= 1'b1;
                     if (op == 4'h2) hs_we <= 1'b1;
-                    if (op == 4'h5) begin
-                        lb_we <= 1'b1;
-                        lb_val <= wq[20:0];
-                        lb_row <= phys ? line : line - ZM_RASTER_BORDER_Y[8:0];
-                    end
+                    if (op == 4'h5) lb_we <= 1'b1;
                     i <= i + 8'd1;
                     room <= room - 8'd1;
                     rword <= rword + 10'd1;
