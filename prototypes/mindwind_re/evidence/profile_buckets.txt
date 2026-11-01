@@ -1,0 +1,24 @@
+evidence/profile_partB_picture_frame.txt: total 160260
+    12776   8.0%  main: wait-VBL spin ($4ea)
+      732   0.5%  VBL handler ($506)
+     1436   0.9%  Timer A: top border + sync ($5c8-$6e6)
+      672   0.4%  Timer A: after-kernel tail ($6e8-$768)
+    42344  26.4%  fullscreen kernels ($768-$2056)
+        0   0.0%  stripes in-line work ($39c0-$4200)
+    37204  23.2%  mixer in-line ($51f0-$75fa)
+     1804   1.1%  music sequencer ($75fe-$8acc)
+    56924  35.5%  picture wobble/table ($8cc2-$b618)
+     5420   3.4%  scroller ($bb5c-$c59a)
+      948   0.6%  other
+evidence/profile_partA_rewind_frame.txt: total 160260
+    17564  11.0%  main: wait-VBL spin ($4ea)
+      732   0.5%  VBL handler ($506)
+     1436   0.9%  Timer A: top border + sync ($5c8-$6e6)
+      672   0.4%  Timer A: after-kernel tail ($6e8-$768)
+    47464  29.6%  fullscreen kernels ($768-$2056)
+    46932  29.3%  stripes in-line work ($39c0-$4200)
+    37204  23.2%  mixer in-line ($51f0-$75fa)
+     1804   1.1%  music sequencer ($75fe-$8acc)
+        0   0.0%  picture wobble/table ($8cc2-$b618)
+     5464   3.4%  scroller ($bb5c-$c59a)
+      988   0.6%  other
