@@ -55,6 +55,16 @@ pub fn fill(t: Target, pts: []const Point, y_start: i32, y_end: i32, color: u8) 
     const top = topIfMonotone(pts) orelse return false;
     var a = Chain{ .pts = pts, .at = top, .dir = 1 };
     var b = Chain{ .pts = pts, .at = top, .dir = -1 };
+    if (t.rect != null and t.blit_min != std.math.maxInt(usize)) {
+        var run = polyfill.Run{}; // rows that repeat become one rect, for the blitter
+        var y = y_start;
+        while (y < y_end) : (y += 1) {
+            const sp = rowSpan(t, &a, &b, y);
+            if (sp.start < sp.end) run.add(t, sp, y, color);
+        }
+        run.flush(t, color);
+        return true;
+    }
     // CPU spans, a pair of edges at a time: rows until either edge ends.
     var line = @intFromPtr(t.px.ptr) + @as(usize, @intCast(y_start)) * t.stride + t.ox;
     var y = y_start;

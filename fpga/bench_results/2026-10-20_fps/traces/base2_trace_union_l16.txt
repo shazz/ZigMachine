@@ -1,0 +1,10 @@
+demo-union_l16.zmd 420 packed), up after 330 polls
+ok demo-union_l16.zmd running, loaded in 1878 ms
+t=  11.5 fps=45.7 frame_c=2650397 cart_c=1265378 state=running bard=0/4 song=union/level_16.sndh
+t=  21.0 fps=36.2 frame_c=2763898 cart_c=1330431 state=running bard=3/4 song=union/level_16.sndh
+t=  30.6 fps=36.1 frame_c=2747469 cart_c=1332915 state=running bard=0/4 song=union/level_16.sndh
+t=  40.1 fps=36.1 frame_c=2744923 cart_c=1306119 state=running bard=3/4 song=union/level_16.sndh
+t=  49.7 fps=36.1 frame_c=2749580 cart_c=1316759 state=running bard=3/4 song=union/level_16.sndh
+t=  59.2 fps=36.2 frame_c=2762142 cart_c=1345070 state=running bard=3/4 song=union/level_16.sndh
+t=  68.8 fps=36.1 frame_c=2760832 cart_c=1332587 state=running bard=3/4 song=union/level_16.sndh
+demo-union_l16.zmd: min 36.1 avg 37.5 max 45.7 over 7 windows

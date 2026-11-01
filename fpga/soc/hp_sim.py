@@ -109,7 +109,7 @@ def make_soc(
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", type=Path, default=OUT, help="build directory")
-    ap.add_argument("--blit-break", choices=["", "drop", "base"], default="", help="a blitter mutant (zm_blit_soc.py)")
+    ap.add_argument("--blit-break", choices=["", "drop", "base", "ring", "nohold"], default="", help="a blitter mutant (zm_blit_soc.py)")
     ap.add_argument("--audio-break", choices=["", "drop", "base"], default="", help="an audio mutant (zm_audio_soc.py)")
     ap.add_argument("--core", type=Path, default=BOARD_CORE, help="the CPU netlist (vexgen/gen.sh)")
     ap.add_argument(

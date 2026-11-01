@@ -83,13 +83,22 @@ pub const Demo = struct {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
         const f: i32 = @intCast(self.frames % (fx.STEPS * 64)); // keeps the angles small; both periods divide it
+        // KESTREL's lazy wait (zg.chisel_async): CHISEL clears the plane while the
+        // CPU turns and sorts the logo, which touches no pixel; then each triangle's
+        // setup overlaps the last one's fill. The CPU's own drawing (stars, title,
+        // scroller) waits for CHISEL first. Same ops in the same order: same picture.
+        self.blitter.setAsync(true);
         self.blitter.clear(fb, backdrop.BG);
-        self.stars.draw(fb);
-        backdrop.title(zigos, fb);
         const wobble = f * WOBBLE_STEP;
         const pitch = (TILT * fx.sin(wobble)) >> fx.Q;
         const bob = (BOB * fx.sin(2 * wobble)) >> fx.Q;
-        _ = logo.draw(fb, &self.blitter, f * YAW_STEP, pitch, CX, CY + bob);
+        const n = logo.prepare(f * YAW_STEP, pitch, CX, CY + bob);
+        self.blitter.setAsync(false);
+        self.stars.draw(fb);
+        backdrop.title(zigos, fb);
+        self.blitter.setAsync(true);
+        logo.fill(fb, &self.blitter, n);
+        self.blitter.setAsync(false);
         backdrop.scroller(zigos, fb, self.frames * SCROLL_SPEED);
     }
 };

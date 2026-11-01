@@ -7,7 +7,8 @@
 //
 // Synchronous: FILL, BLIT (3-source minterm / colour-key cookie-cut), LINE
 // (Bresenham), TRIANGLE (deterministic odd-even scanline fill), in
-// blitter_ops.zig. It writes the logical framebuffers as chunky 8bpp palette
+// blitter_ops.zig; AFFINE and MAP in blitter_tex.zig; QUEUE (a list of ops) in
+// blitter_queue.zig. It writes the logical framebuffers as chunky 8bpp palette
 // indices; the video machine composites them as usual.
 //
 // Coders never see this source. See docs/BLITTER_HW_SPEC.md for the model; the
@@ -18,12 +19,20 @@ const regs = @import("blitter_regs.zig");
 const check = @import("blitter_check.zig");
 const ops = @import("blitter_ops.zig");
 const tex = @import("blitter_tex.zig");
+const queue = @import("blitter_queue.zig");
 
 // --------------------------------------------------------------------------
 // Entry point (wrapped as hwBlit() in machine_video.zig)
 // --------------------------------------------------------------------------
 pub fn execute() void {
     const cmd = regs.r8(memmap.BLIT_COMMAND);
+    if (cmd == memmap.BLIT_CMD_QUEUE) return queue.run();
+    runOp(cmd);
+}
+
+// One op of COMMAND `cmd` on the block as it is (QUEUE runs each descriptor's op
+// here, so a QUEUE inside a list is an unknown command, not a recursion).
+pub fn runOp(cmd: u8) void {
     if (cmd == memmap.BLIT_CMD_NOP) return;
     regs.w8(memmap.BLIT_STATUS, memmap.BLIT_STATUS_BUSY);
 

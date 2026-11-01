@@ -241,6 +241,43 @@ estimate is fixed hardware, so budgets are portable.
 > against a per-frame cycle budget, exposing real "blitter didn't finish this
 > frame" behaviour and CPU/blitter overlap. Out of scope for v1.
 
+**KESTREL's lazy wait (2026-10-19, board only).** On the board `hwBlit()` spins until
+CHISEL is done: ~450 cycles of fixed latency even for an 8x8 op, plus ~1 cycle a byte.
+A cart may opt out of the spin with `BLIT_ASYNC` (region `0xE4`, u8; ZigOS
+`chisel_async.setAsync`, `Blitter.setAsync`, `ZigOS.blitAsync`): `hwBlit()` then returns
+as soon as CHISEL has started, and the wait moves to the next point that needs it: the
+next `hwBlit`, a sync (a NOP `hwBlit`: `chisel_async.sync`, `Blitter.sync`,
+`ZigOS.blitSync`), any ROM call, a disk read, the RAM arena's alloc/mark/release, the end
+of `frame()` and of each HBL handler (`fpga/cycles/bchisel.h`, `fpga/tools/host_gen.py`
+`GETTERS`). The getters do not wait: `hwVideoBase`, the `hwRam*`/`hwRomRam*` sizes,
+`romScratchLen/Ptr`, `deskDir*` touch no memory, and a check on every call cost a cart
+that calls them in its inner loops 10 % of its frame rate on the board. The cart promises not to read or write an op's destination
+(or overwrite its source) before that sync, ZigOS's own CHISEL clears and copies
+included. `CYCLES` of a lazy op lands at its sync. The machine never reads `BLIT_ASYNC`
+(its blitter is synchronous), so the browser's pixels cannot change; on the board the
+registers a cart stores while CHISEL runs wait in the tap bank (§10.1) and reach the
+next op, never the running one (`tests/test_chisel_async.py`).
+
+**QUEUE (HW 1.8.0): many small ops for one `hwBlit()`.** `COMMAND` 5 runs a list of op
+descriptors the program stored in the QUEUE ring (`OFF_BLIT_QUEUE`, 512 u32 words above
+the BEAM table, outside `REGION_BYTES` so no blit writes it), from word `Q_START` (u16,
+block `0xE8`) for `Q_COUNT` words (u16, `0xEA`). A descriptor is a header (bits 0..23: a
+mask of the block's words 0..23, i.e. offset / 4, that follow; bits 24..31: the op's
+`COMMAND`), then the words of the mask, lowest first. The ops run on a **working copy** of
+the block taken at the `hwBlit()`: each descriptor's words land in it (word 0: `MINTERM`
+and `CON` only; the strides: their low 16 bits) and stay for the descriptors after it;
+`COMMAND` 0 only sets words; `COMMAND` 5 inside a list is an unknown op. The block itself
+is left as it was, except `CYCLES` = the **sum** of the ops' costs. Refused (`CYCLES` 0,
+nothing drawn) unless `1 <= Q_COUNT` and `Q_START + Q_COUNT <= 512`; a descriptor cut
+short by `Q_COUNT` ends the list unrun. The machine runs the list at once
+(`machine/blitter_queue.zig`); on KESTREL CHISEL runs it from its own copy of the ring
+while the cart goes on, so a QUEUE is always lazy there, with the lazy wait's sync points.
+ZigOS: `zg.blit_queue.Queue` (`op`, `set`, `fill`, `kick`, `flush`) keeps the ring in
+two halves, stores a word only when the list does not hold it yet, and never writes the
+block; its contract is that a queued op's pixels are only drawn for sure after `flush()`.
+`apps/blitter_queue_check.mjs` holds the machine to "a list draws what its ops draw one
+by one".
+
 ---
 
 ## 7. ZigOS wrapper (the open side)
@@ -316,7 +353,8 @@ via `zm_blit_hp.py`, the start through an M-only window from the firmware's
 
 | File | What |
 |---|---|
-| `zm_blit_regs.v` | the register block of §3, written the way the CPU writes the region (word index, byte enables); `COMMAND` written non-zero starts the op; writes while `BUSY` are dropped; `STATUS` and `CYCLES` are the only reads. The `HALFTONE` pattern lives in LUTRAM (four 8-deep byte lanes) with a flag a byte ("last written non-zero"), which is both its reset and the pre-1.5.0 sniff |
+| `zm_blit_regs.v` | the register block of §3 in two banks: the **tap bank** (a LUT RAM) takes every store the way the CPU writes the region (word index, byte enables), also while `BUSY`, so it always equals memory's block; the **op bank** (flops) is what the engine reads, loaded only by `zm_blit_q`. `COMMAND` written non-zero is a kick (its upper bits carry a QUEUE's range); `CYCLES` restarts at each kick and adds every op's cost; `STATUS` and `CYCLES` are the only reads. The op bank's `HALFTONE` lives in LUTRAM (four 8-deep byte lanes) with a flag a byte ("last loaded non-zero"), which is both its reset and the pre-1.5.0 sniff |
+| `zm_blit_q.v` | the sequencer: at every kick the tap bank copied into the op bank (24 clocks; `BLIT_WINDOW` holds a read until it is over, the firmware's barrier after GO), then the op, or a QUEUE's descriptors one after the other from the ring (a 512-word block RAM fed by the CPU's stores to `OFF_BLIT_QUEUE`), each op run to its end before the next header |
 | `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0". A short serial walk: the box one vertex a clock, then ONE source check unit for A, then B (windows, span, the overlap test of §10.2) |
 | `zm_blit_blit.v`, `_line.v`, `_tri.v` | the sequencers: geometry in, pixels out (x, y); the core picks the B colour (COLOR, or the halftone's bit at the pixel), the minterm and the channel flags once for all. One box walker serves BLIT and FILL (FILL: no source, no `DESC`). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
 | `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted. Pipelined: its issue stage requests a pixel's reads and moves on, each read tagged (slot, channel, byte lane) |

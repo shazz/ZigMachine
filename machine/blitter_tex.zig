@@ -111,10 +111,10 @@ pub fn doMap(d: [*]u8, ds: u16, c: Clip, con: u8, con2: u8, cost: *u32) void {
     const t = Tex.load(con, con2) orelse return;
     const w = regs.r16(memmap.BLIT_W);
     const h = regs.r16(memmap.BLIT_H);
-    const ms: u64 = regs.r16(memmap.BLIT_B_STRIDE);
+    const ms: usize = regs.r16(memmap.BLIT_B_STRIDE);
     const lo: u64 = regs.r32(memmap.BLIT_B_BASE);
     if (w == 0 or h == 0 or lo % 2 != 0 or ms % 2 != 0) return;
-    if (!inAux(lo, lo + (h - 1) * ms + 2 * @as(u64, w))) return;
+    if (!inAux(lo, lo + @as(u64, h - 1) * ms + 2 * @as(u64, w))) return;
     const map: [*]const u8 = @ptrFromInt(@as(usize, @intCast(lo)));
     const x0: i32 = regs.ri16(memmap.BLIT_X0);
     const y0: i32 = regs.ri16(memmap.BLIT_Y0);

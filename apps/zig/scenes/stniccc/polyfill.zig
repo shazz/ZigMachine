@@ -15,12 +15,19 @@ pub const Point = struct { x: i32, y: i32 };
 
 // Where to draw: `w` x `h` pixels inside `px`, starting `ox` pixels into each
 // `stride`-wide row. Nothing outside that window is ever written.
+/// `rect`, when set, fills a rectangle (x counted from the row start, so `ox`
+/// is included) on the blitter, for fills of span.BLIT_MIN pixels and up.
 pub const Target = struct {
     px: []u8,
     stride: usize,
     w: usize,
     h: usize,
     ox: usize,
+    rect: ?*const fn (x: usize, y: usize, w: usize, h: usize, color: u8) void = null,
+    blit_min: usize = span.BLIT_MIN, // the area from which `rect` is used (tests lower it)
+    /// When set, called before the CPU itself reads or writes `px` (the player's
+    /// keyframes): `rect`'s fills may still be queued or drawing (gpu.zig, the QUEUE).
+    sync: ?*const fn () void = null,
 };
 
 /// The span [start, end) of a row's pixels whose centres fall in [x0, x1) (16.16).
@@ -129,8 +136,9 @@ fn emit(t: Target, sp: Span, y: i32, h: i32, color: u8) void {
     rect(t, start, @intCast(y), @as(usize, @intCast(sp.end)) - start, @intCast(h), color);
 }
 
-/// Fill a w x h rectangle of the window (x, y from its top-left corner) with CPU
-/// word stores (span.zig).
+/// Fill a w x h rectangle of the window (x, y from its top-left corner): on
+/// CHISEL when `t.rect` is set and it covers t.blit_min pixels, else on the CPU.
 pub fn rect(t: Target, x: usize, y: usize, w: usize, h: usize, color: u8) void {
+    if (t.rect) |blit| if (w * h >= t.blit_min) return blit(t.ox + x, y, w, h, color);
     span.rect(t.px, y * t.stride + t.ox + x, w, h, t.stride, color);
 }

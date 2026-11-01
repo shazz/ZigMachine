@@ -135,6 +135,12 @@ pub const REG_FB_COPPER: usize = 0x78; // u16 x4 (0x78..0x7F, the register block
 pub const OFF_BEAM_TABLE: usize = OFF_PFB + PFB_BYTES; // = REGION_BYTES
 pub const BEAM_MAX: usize = 64; // entries a line
 pub const BEAM_TABLE_BYTES: usize = BEAM_MAX * 4; // 256
+// The blitter's QUEUE ring (1.10.0, see BLIT_CMD_QUEUE): 512 u32 words above the BEAM
+// table, 2 KiB-aligned (KESTREL's CHISEL keeps a copy of it, fed by the CPU's stores,
+// indexed by the offset's low bits). Outside REGION_BYTES: no blit can write it.
+pub const BLIT_QUEUE_WORDS: usize = 512;
+pub const BLIT_QUEUE_BYTES: usize = BLIT_QUEUE_WORDS * 4;
+pub const OFF_BLIT_QUEUE: usize = (OFF_BEAM_TABLE + BEAM_TABLE_BYTES + BLIT_QUEUE_BYTES - 1) / BLIT_QUEUE_BYTES * BLIT_QUEUE_BYTES;
 pub const BEAM_GRID: u16 = 4; // x snaps DOWN to it: the 68000's 4-cycle bus slot (1 low-res px a cycle)
 pub const BEAM_MIN_GAP: u16 = 8; // px between accepted writes: move.w Dn,(An) = 8 cycles, the fastest write
 
@@ -202,6 +208,28 @@ pub const BLIT_CLIP_W: usize = OFF_BLIT + 0x3C; // u16 clip rect width
 pub const BLIT_CLIP_H: usize = OFF_BLIT + 0x3E; // u16 clip rect height
 pub const BLIT_HALFTONE: usize = OFF_BLIT + 0x40; // u16 x16 1-bit halftone pattern
 pub const BLIT_CYCLES: usize = OFF_BLIT + 0x60; // u32 (ro) estimated cost of last op
+// ASYNC (KESTREL only, no machine behaviour): non-zero lets the board's hwBlit() return
+// while CHISEL still runs. The cart promises not to touch an op's source or destination
+// pixels until it syncs (a NOP hwBlit); the next hwBlit, any ROM call, a disk read, the RAM
+// arena's alloc/mark/release and the frame's end wait too, the getters (hwVideoBase...) do
+// not (fpga/cycles/bchisel.h, fpga/tools/host_gen.py GETTERS). The machine's blitter is synchronous, so
+// it never reads this byte: the browser's pixels cannot change. Outside the 24 words
+// CHISEL's tap copies (0x80..0xDF) and every video snoop window: plain memory.
+pub const BLIT_ASYNC: usize = OFF_BLIT + 0x64; // u8  (board) 1 = hwBlit may return before the op ends
+// QUEUE (1.10.0): COMMAND 5 runs a list of op descriptors that the program stored in
+// the QUEUE ring (OFF_BLIT_QUEUE, u32 words), so many small ops cost one hwBlit().
+// A descriptor is a header word -- bits 0..23 a mask of the block's words 0..23
+// (offset / 4) it sets, bits 24..31 the op's COMMAND -- then the words of the
+// mask, lowest first. Each op runs on a WORKING COPY of the block taken at the
+// hwBlit(): a descriptor's words land in that copy (word 0: MINTERM and CON only,
+// COMMAND is the header's; strides: low 16 bits) and stay for the descriptors
+// after it. COMMAND 0 only sets words. The block itself is left as it was: CYCLES
+// becomes the SUM of the ops' costs. Refused (CYCLES 0, nothing drawn) unless
+// 1 <= Q_COUNT and Q_START + Q_COUNT <= BLIT_QUEUE_WORDS; a descriptor cut short by
+// Q_COUNT ends the list unrun. COMMAND 5 inside a descriptor is an unknown op, and
+// an op whose D_BASE is below OFF_VRAM is refused (cost 0): a list draws into planes.
+pub const BLIT_Q_START: usize = OFF_BLIT + 0x68; // u16 first ring word of the list
+pub const BLIT_Q_COUNT: usize = OFF_BLIT + 0x6A; // u16 words in the list
 
 // COMMAND values
 pub const BLIT_CMD_NOP: u8 = 0;
@@ -209,7 +237,7 @@ pub const BLIT_CMD_BLIT: u8 = 1;
 pub const BLIT_CMD_FILL: u8 = 2;
 pub const BLIT_CMD_LINE: u8 = 3;
 pub const BLIT_CMD_TRIANGLE: u8 = 4;
-// 5 is the QUEUE's (branch perf/chisel-queue-v2: COMMAND 5, BLIT_ASYNC 0x64, BLIT_Q_* 0x68).
+pub const BLIT_CMD_QUEUE: u8 = 5; // 1.10.0: run the descriptors at BLIT_Q_START/COUNT (see above)
 pub const BLIT_CMD_AFFINE: u8 = 6; // 1.10.0: textured spans from a list (see BLIT_SPAN_*)
 pub const BLIT_CMD_MAP: u8 = 7; // 1.10.0: W x H box, each pixel's texel from a (u, v) map (see below)
 
@@ -351,7 +379,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0900; // 1.9.0 — REG_FB_COPPER (1.8.0: REG_FB_HBL_PURE; 1.7.0: RAM arena)
+pub const ZM_HW_VERSION: u32 = 0x0001_0A00; // 1.10.0 — CHISEL v2: QUEUE (COMMAND 5), AFFINE, MAP (1.9.0: REG_FB_COPPER; 1.8.0: REG_FB_HBL_PURE)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.
@@ -367,4 +395,7 @@ comptime {
     if (OFF_BEAM_TABLE % 4 != 0) @compileError("memmap: BEAM table must be u32-aligned");
     if (OFF_BEAM_TABLE < REGION_BYTES) @compileError("memmap: BEAM table inside the blitter's window");
     if (HW_VIDEO_BASE + OFF_BEAM_TABLE + BEAM_TABLE_BYTES > ROM_RAM_BASE) @compileError("memmap: BEAM table runs into the ROM window");
+    if (BLIT_ASYNC + 1 > BLIT_Q_START or BLIT_Q_COUNT + 2 > OFF_PAL) @compileError("memmap: BLIT_Q_* overlap ASYNC or the palettes");
+    if (OFF_BLIT_QUEUE < OFF_BEAM_TABLE + BEAM_TABLE_BYTES) @compileError("memmap: QUEUE ring overlaps the BEAM table");
+    if (HW_VIDEO_BASE + OFF_BLIT_QUEUE + BLIT_QUEUE_BYTES > ROM_RAM_BASE) @compileError("memmap: QUEUE ring runs into the ROM window");
 }

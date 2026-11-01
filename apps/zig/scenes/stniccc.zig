@@ -20,6 +20,7 @@ const zg = @import("zigos");
 const st = @import("stniccc/stream.zig");
 const player_mod = @import("stniccc/player.zig");
 const snaps_mod = @import("stniccc/snaps.zig");
+const gpu = @import("stniccc/gpu.zig");
 const palette_mod = @import("stniccc/palette.zig");
 
 const ZigOS = zg.ZigOS;
@@ -65,11 +66,6 @@ fn lerp(from: u32, to: u16, k: f32) usize {
     return @intFromFloat(a + (b - a) * k);
 }
 
-/// The whole plane (stride x rows) to one colour: a @memset, the bytes the CHISEL fill wrote.
-fn clearPlane(fb: *LogicalFB, color: u8) void {
-    @memset(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], color);
-}
-
 const Act = enum { small, slowing, rewinding, message, zooming, fullscreen, failed };
 
 pub const Demo = struct {
@@ -105,7 +101,7 @@ pub const Demo = struct {
         for (0..256) |i| fb.setPaletteEntry(@intCast(i), Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         fb.setPaletteEntry(RED, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
         fb.setPaletteEntry(WHITE, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
-        clearPlane(fb, BLACK);
+        gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, BLACK);
         const lay = zg.disk.mount() orelse return self.fail(fb);
         self.file = zg.disk.find(lay, SCENE_FILE) orelse return self.fail(fb);
         self.player.init(.{ .ctx = self, .readFn = readDiskBlock }, self.block, self.index);
@@ -195,7 +191,7 @@ pub const Demo = struct {
 
     fn goFullscreen(self: *Demo, fb: *LogicalFB) void {
         fb.openBorders(.all); // a 400x280 overscan plane, every border open
-        clearPlane(fb, 0);
+        gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, 0);
         self.wide = true;
         self.player.shown = null;
     }
@@ -208,16 +204,17 @@ pub const Demo = struct {
         const n: u32 = @intFromFloat(self.pos);
         if (self.player.shown == n) return;
         try self.player.show(n, self.view(fb));
+        gpu.flush(); // the queued fills have drawn (the browser draws them at the kick, KESTREL by now)
         self.pal.apply(fb, self.player.palette(n));
     }
 
     fn view(self: *const Demo, fb: *LogicalFB) player_mod.View {
         const px = fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h];
         if (self.act == .zooming) return self.zoomView(fb);
-        // Fills are CPU word stores (stniccc/span.zig).
-        if (self.wide) return .{ .target = .{ .px = px, .stride = fb.stride, .w = fb.fb_w, .h = fb.fb_h, .ox = 0 }, .w = fb.fb_w, .h = fb.fb_h };
+        // Fills are CPU word stores (stniccc/span.zig); gpu.begin queues the big ones on CHISEL.
+        if (self.wide) return .{ .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = fb.fb_w, .h = fb.fb_h, .ox = 0 }), .w = fb.fb_w, .h = fb.fb_h };
         return .{
-            .target = .{ .px = px, .stride = fb.stride, .w = player_mod.SRC_W, .h = player_mod.SRC_H, .ox = SMALL_OX },
+            .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = player_mod.SRC_W, .h = player_mod.SRC_H, .ox = SMALL_OX }),
             .w = player_mod.SRC_W,
             .h = player_mod.SRC_H,
         };
@@ -236,7 +233,7 @@ pub const Demo = struct {
         // polyfill.Target has an ox but no oy: start the slice oy rows in instead.
         const px = fb.fb[oy * @as(usize, fb.stride) ..][0 .. @as(usize, fb.stride) * h];
         return .{
-            .target = .{ .px = px, .stride = fb.stride, .w = w, .h = h, .ox = (@as(usize, fb.fb_w) - w) / 2 },
+            .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = w, .h = h, .ox = (@as(usize, fb.fb_w) - w) / 2 }),
             .w = @intCast(w),
             .h = @intCast(h),
         };
@@ -245,6 +242,6 @@ pub const Demo = struct {
     // Fail loud: no disk, no SCENE1.BIN, or a corrupt stream stops the scene with a red screen.
     fn fail(self: *Demo, fb: *LogicalFB) void {
         self.act = .failed;
-        clearPlane(fb, RED);
+        gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, RED);
     }
 };

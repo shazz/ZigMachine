@@ -1,0 +1,34 @@
+perf/chisel-queue-v2: board stage for the COMBINED bitstream (2026-10-20). NOT measured on the board yet.
+
+What it is: origin/main a9a032eb (line-major compositing + W64 default) + perf/chisel-async (CHISEL
+command QUEUE, HW 1.8.0, with the "a QUEUE goes to CHISEL whatever the block's D_BASE" fix and the
+RTL refusal of a queued op below OFF_VRAM). Branch perf/chisel-queue-v2 at 880eaa43.
+
+Files (md5, MD5SUMS.txt):
+  b263271bd69b71e4aeb9997fc4031026  zigmachine.bit          fpga/build/board_combo/gateware/platform_z7.bit
+  d536048c081077001e365183953f269e  sd/system.rv32          make ZM_AUDIO=snd ZM_FPU=1 .../board_snd_fpu/sys.bin (table 1.2), ZX0-packed by glass_shelf
+  0d6e10020ee5ac3ac99191af84b61c9e  sd/demo-stniccc.zmd     docs/demo-stniccc.zmd + split-cart stniccc (queued spans)
+  34fa6c4b54843eff864bc0f336397673  sd/demo-bench.zmd       make ZM_FPU=1 native-cart NAME=bench, fattened (16,896 B: NOT the 2 KB browser stub)
+  (sd/shelf.txt lists only these two carts: do NOT copy it over the card's shelf.txt)
+
+Bitstream: the board recipe (--blit --sound-cpu --posted 8, VexRiscv_I16w2D4SealFpu f7caf972, Vivado 2026.1,
+maxThreads 2). 15,292 LUT (86.89 %), 15,465 FF, 42 BRAM tiles. All constraints met: sys (clkout0) WNS +0.041 ns,
+comp (clkout1) +0.358, clkout2 +1.178, clkout3 +0.786; worst inter-clock +1.033 (sys -> comp). csr.json is
+byte-identical to lm8's (prototypes/linemajor_re/stage/csr.json): every lean cart on the card stays valid.
+
+Install (SD FAT root):
+  zigmachine.bit     -> /mnt/sd/zigmachine.bit
+  sd/system.rv32     -> /mnt/sd/zigmachine/system.rv32
+  sd/demo-stniccc.zmd, sd/demo-bench.zmd -> /mnt/sd/zigmachine/
+  boot.scr unchanged (HP1 0xF00 = W64 from boot). glass unchanged.
+The new system.rv32 is only right on this bitstream (the firmware no longer replays CHISEL's registers;
+QUEUE = COMMAND 5). Rollback: the card's previous zigmachine.bit (6261127d), system.rv32 (3176d8a9),
+demo-stniccc.zmd (5ab7e13d), demo-bench.zmd (f2721903).
+
+No card write needed for a measurement: boot this bitstream from U-Boot (JTAG load_pl, AFI widths as boot.scr,
+then boot.scr's Linux lines), then bind-mount system.rv32/stniccc/bench from RAM over /tmp/zm
+(prototypes/chisel_queue_re/tools/boot_arm.py, arm_shelf.py). xmodem loadx of the 2 MB bit failed twice.
+
+What to measure: stniccc fps (baseline 45.1 on lm8 + main's system, today; predicted 55-60), bench rows
+qu.list.f8.x64 vs as.seq.f8.x64 (predicted ~10-15K vs ~56K), qu.kick.f8.x64 (~3-5K), cp.lib.8K vs cp.sw.8K,
+and the full shelf with board_fps.py (baseline: prototypes/chisel_queue_re/arms/base/fps_20261020-174918.*).
