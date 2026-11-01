@@ -99,7 +99,8 @@ def make_soc(
     platform.sources = [s for s in platform.sources if not s[0].endswith("zm_glass_osd.v")]
     soc.crg = _CRG({name: platform.request(f"{name}_clk") for name in ("sys", "comp", "pix")})
     add_blitter(soc, platform, hp2, blit_break)  # the board's `--blit`: zm_blit on HP2 (soc/zm_blit_soc.py)
-    ps = [zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate((hp0, hp1, hp2, hp3))]  # as the board
+    hps = (hp0, hp1, hp2, hp3)  # as the board: HP1's video DMA throttles RREADY, the others hold it
+    ps = [zm_board_mem.hp_slice(soc, f"hp{i}", hp, always_ready=i != 1) for i, hp in enumerate(hps)]
     soc.ddr = ZMSimAXIRAM(WINDOW, ps, latency=HP_LATENCY, wr32=True, reads=HP_READS)  # the board: WRCHAN 32-bit
     soc.uboot = _UBoot(soc.glass.axi, BOOT_DELAY)
     soc.csr.add("sim_finish", n=FINISH_LOC)

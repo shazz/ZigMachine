@@ -58,12 +58,18 @@ def add_cpu_memory(
     soc.zm_cycles = ZMCycles(soc.cpu.ibus, soc.cpu.dbus)
 
 
-def hp_slice(soc: SoC, name: str, master: axi.AXIInterface) -> axi.AXIInterface:
+def hp_slice(soc: SoC, name: str, master: axi.AXIInterface, always_ready: bool = False) -> axi.AXIInterface:
     """A full register slice between an HP master and the PS7, returned as the PS7's side:
     every PS7 pin of the port meets a flip-flop and nothing else. nextpnr-xilinx times no
     path into or out of the PS7 (its timing report has none), so logic on those pins is
     placement luck (2026-10-04: the cart CPU dead on some builds of one netlist); with the
     slice an untimed route is one wire into one flop. Costs a clock each way.
+
+    `always_ready`: the master holds RREADY and BREADY high (WishboneHP, BlitHP, AudioHP all
+    do; the video DMA does not: its RREADY is its queue's room). Its inbound slices then
+    keep only the valid half: the skid half's 2:1 mux on every R/B bit never selects (the
+    buffered beat is taken the clock it lands), and RREADY/BREADY to the PS7 become a
+    constant 1, no path at all. -~80 LUT, -~80 FF a port (the 2026-11-01 fit).
 
     The slice also places the cart window: every master addresses it at zm_hp.DDR_BASE, and the
     AW/AR address leaves with bits 31..25 replaced by the glass's LOAD_BASE (reset: the same
@@ -76,8 +82,9 @@ def hp_slice(soc: SoC, name: str, master: axi.AXIInterface) -> axi.AXIInterface:
         # Outbound (aw/w/ar) the payload and valid leave from flip-flops (pipe_valid) and READY
         # comes back combinationally: the skid half (pipe_ready) put a 2:1 mux on every PS7 pin
         # (~450 LUT, ~1,000 FF over four ports). Vivado times the PS7's pins, unlike nextpnr-xilinx.
-        # Inbound (b/r) keeps both halves, so RREADY/BREADY leave from a flop too.
-        buf = stream.Buffer(src.description, pipe_valid=True, pipe_ready=not out)
+        # Inbound (b/r) keeps both halves, so RREADY/BREADY leave from a flop too, unless the
+        # master is `always_ready` (then they are a constant).
+        buf = stream.Buffer(src.description, pipe_valid=True, pipe_ready=not out and not always_ready)
         setattr(soc, f"{name}_{ch}_slice", buf)
         if ch in ("aw", "ar") and glass is not None:
             soc.comb += [

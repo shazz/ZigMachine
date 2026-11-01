@@ -156,7 +156,11 @@ def _board_soc(
         add_blitter(soc, platform, hp2)
     # Every HP port through a register slice at the PS7 (zm_board_mem.hp_slice: its pins are untimed).
     hps = (hp0, hp1, hp2, hp3)
-    ps = [None if hp is None else zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate(hps)]
+    # HP1's master (the video DMA) throttles RREADY; the others hold it high (hp_slice always_ready).
+    ps = [
+        None if hp is None else zm_board_mem.hp_slice(soc, f"hp{i}", hp, always_ready=i != 1)
+        for i, hp in enumerate(hps)
+    ]
     soc.specials += zm_board_mem.ps7_instance(soc.glass.axi, *ps)
     return soc
 
