@@ -6,6 +6,7 @@
 const m = @import("ram.zig");
 const R = @import("rick_ram.zig");
 const snd = @import("sound.zig");
+const trainer = @import("trainer.zig");
 
 /// $3BD80.
 pub fn afterMove(d0: i64) void {
@@ -84,7 +85,7 @@ fn shoot() void {
         snd.play(9, 1);
         return;
     }
-    m.wb(R.BULLETS, m.rb(R.BULLETS) - 1);
+    if (!trainer.infinite_bullets) m.wb(R.BULLETS, m.rb(R.BULLETS) - 1);
     m.wb(R.DIRTY_BULLETS, 0xFF);
     m.ww(R.B_TYPE, 2);
     snd.play(8, 1);
@@ -117,7 +118,7 @@ fn launch() void {
 /// $3C07E.
 fn dynamite() void {
     if (m.rw(R.D_TYPE) != 0 or m.rb(R.DYNAMITE) == 0) return;
-    m.wb(R.DYNAMITE, m.rb(R.DYNAMITE) - 1);
+    if (!trainer.infinite_dynamite) m.wb(R.DYNAMITE, m.rb(R.DYNAMITE) - 1);
     m.wb(R.DIRTY_DYNAMITE, 0xFF);
     m.ww(R.D_TYPE, 3);
     m.wb(R.D_DIRTY0, m.rb(R.D_DIRTY0) & 0xFE);

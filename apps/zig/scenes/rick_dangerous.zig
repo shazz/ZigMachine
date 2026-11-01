@@ -3,6 +3,11 @@
 // game, playable: the four levels (South America, Egypt, Schwarzendumpf
 // Castle, the Missile Base), the title, the hall of fame and its name entry.
 //
+// IN FRONT: The Empire's CABAL cracktro (EMP_CABL.PRG), patched for Rick as
+// its trainer menu (front.zig, cracktro.zig): Space, then infinite lives /
+// bullets / dynamite y/n, then the game, with the flags (trainer.zig) gating
+// the three decrements. All off, the game is the original's byte for byte.
+//
 // A PORT OF THE PROGRAM, NOT A REMAKE. The machine state is the game's own
 // memory -- the ST's first 512 KB, the tables, sprites and maps cut from the
 // decrypted RICKST.PRG's entry image (tools/rick_dangerous/extract_assets.py)
@@ -51,6 +56,9 @@ const machine = @import("rick_dangerous/machine.zig");
 const present = @import("rick_dangerous/present.zig");
 const keys = @import("rick_dangerous/keys.zig");
 const testapi = @import("rick_dangerous/testapi.zig");
+const Front = @import("rick_dangerous/front.zig").Front;
+const crack_text = @import("rick_dangerous/cracktro_text.zig");
+const crack_test = @import("rick_dangerous/cracktro_test.zig");
 
 const PLANE = 0;
 const CPU_HZ: u64 = 8021247;
@@ -77,6 +85,9 @@ comptime {
         @export(&testapi.memPtr, .{ .name = "rickTestMemPtr" });
         @export(&testapi.palPtr, .{ .name = "rickTestPalPtr" });
         @export(&testapi.vbase, .{ .name = "rickTestVbase" });
+        @export(&crack_test.trainer, .{ .name = "rickTestTrainer" });
+        @export(&crack_test.restart, .{ .name = "rickCrackRestart" });
+        @export(&crack_test.val, .{ .name = "rickCrackVal" });
     }
 }
 
@@ -91,6 +102,7 @@ pub const Demo = struct {
     skipped: u64,
     pad: keys.Pad,
     wants_quit: bool,
+    front: Front,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.clock_us = 0;
@@ -100,20 +112,30 @@ pub const Demo = struct {
         ram.alloc(); // once per cart load
         machine.reset();
         g_demo = self;
-        zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
         fb.clearFrameBuffer(0);
+        zigos.setBackgroundColor(Color{ .r = 255, .g = 255, .b = 255, .a = 255 }); // the ST's colour 0
+        self.front = .{ .crack = undefined };
+        self.front.start(fb, zigos.system_font, crack_text.RICK);
+        crack_test.front = &self.front;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
         if (io.lockstep or self.wants_quit) return;
         if (std.math.isFinite(dt) and dt > 0) {
             const us: u64 = @intFromFloat(@min(@as(f64, dt) * 1000.0, @as(f64, MAX_FRAME_US)));
             self.clock_us += us;
         }
-        var limit: u64 = @intCast(@as(u128, self.clock_us) * CPU_HZ / (VBL_CYC * 1_000_000));
+        if (!self.front.handed) { // (the last answer may come from key(), between two updates)
+            self.front.run(self.hostVbls());
+            if (self.front.active()) return;
+            self.front.handed = true;
+            self.clock_us = 0; // the game's power-on: colour 0 black ($11E), its own clock
+            zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
+            return;
+        }
+        var limit = self.hostVbls();
         limit -|= self.skipped;
         if (limit > game.vbls + MAX_BEHIND) {
             self.skipped += limit - (game.vbls + MAX_BEHIND);
@@ -123,9 +145,14 @@ pub const Demo = struct {
         snd.log_n = 0;
     }
 
+    /// The host's time in the ST's 50 Hz VBLs.
+    fn hostVbls(self: *const Demo) u64 {
+        return @intCast(@as(u128, self.clock_us) * CPU_HZ / (VBL_CYC * 1_000_000));
+    }
+
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = self;
         _ = dt;
+        if (self.front.active()) return; // the cracktro draws as it types
         present.present(&zigos.lfbs[PLANE]);
     }
 
@@ -136,6 +163,7 @@ pub const Demo = struct {
 
     /// The arrows arrive as directions, even for a cart that owns the keyboard.
     pub fn input(self: *Demo, dir: u8) void {
+        if (self.front.active()) return;
         self.pad.arrow(dir, true);
     }
     pub fn inputRelease(self: *Demo, dir: u8) void {
@@ -143,15 +171,23 @@ pub const Demo = struct {
     }
 
     pub fn key(self: *Demo, cp: u32) void {
+        if (self.front.active()) {
+            if (cp == keys.K_ESC) self.leave() else self.front.key(cp);
+            return;
+        }
+        if (self.front.holds(cp)) return; // a cracktro key's auto-repeat: its release is swallowed too
         const on_title = machine.onTitle();
         const fresh = self.pad.key(cp, true);
-        if (cp == keys.K_ESC and fresh and on_title) {
-            self.wants_quit = true;
-            zg.stopSong();
-        }
+        if (cp == keys.K_ESC and fresh and on_title) self.leave();
+    }
+
+    fn leave(self: *Demo) void {
+        self.wants_quit = true;
+        zg.stopSong();
     }
 
     pub fn keyUp(self: *Demo, cp: u32) void {
+        if (self.front.keyUp(cp)) return;
         _ = self.pad.key(cp, false);
     }
 };

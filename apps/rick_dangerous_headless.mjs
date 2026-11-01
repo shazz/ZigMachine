@@ -12,7 +12,8 @@
 //            the video base + the colour registers with the harness's CRC, make
 //            the harness's play_sound requests (id, flag, dropped or not), and
 //            ask the host for the SNDH subtune (or the silence) they imply.
-//   live     the cart as a player runs it: the title up with its tune, FIRE
+//   live     the cart as a player runs it: past the Empire cracktro in front
+//            (Space, no trainer), the title up with its tune, FIRE
 //            through the level select and the intro into level 1, the plane is
 //            the ST screen through the colour registers, 50 Hz time on a 60 Hz
 //            host, P pauses, Escape restarts to the title, Escape there leaves.
@@ -69,6 +70,7 @@ async function boot() {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
+    demo.pollSongRequest(); // the cracktro's tune (leavin_teramis.sndh #10), asked at init: not the game's
     return { memory, machine, demo };
 }
 
@@ -234,6 +236,16 @@ async function live() {
     };
     const errors = [];
     const fire = (ms) => { demo.key(13); step(Math.round(ms / 20), 20); demo.keyUp(13); step(10, 20); };
+    // the Empire cracktro in front (apps/rick_cracktro_headless.mjs checks it): Space, then no
+    // trainer at all (n, n, n), and the game is the original's
+    // (Space held: the original reads it only between its typing steps, and a run of cursor
+    // moves is one step of up to 72 VBLs)
+    step(100, 20);
+    demo.key(32);
+    for (let i = 0; i < 200 && demo.rickCrackVal(0) === 0; i++) step(1, 20);
+    demo.keyUp(32);
+    for (const cp of [0x6e, 0x6e, 0x6e]) { demo.key(cp); step(3, 20); demo.keyUp(cp); step(3, 20); }
+    if (demo.rickCrackVal(0) !== 2 || demo.rickCrackVal(4) !== 0) errors.push(`the cracktro: phase ${demo.rickCrackVal(0)}, trainer ${demo.rickCrackVal(4)} after Space n n n`);
     step(250, 20); // 5 s: the start-up, the title picture
     const title = visible(memory, machine);
     await shot(title, `${outdir}/title.ppm`);
