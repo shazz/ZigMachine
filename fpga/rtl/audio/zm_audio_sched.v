@@ -46,26 +46,36 @@ module zm_audio_sched #(
     zm_video_sdpram #(.AW(AW), .DW(64)) u_q (
         .clk(clk), .we({8{take}}), .waddr(wptr), .wdata({push_a, push_d}), .raddr(rptr), .rdata(head));
 
-    // `head` is mem[rptr] one clock after rptr (and the entry) settled.
-    reg         loaded = 1'b0;
-    wire [21:0] stamp = head[63:42];
+    // `head` is mem[rptr] one clock after rptr (and the entry) settled; `head_q` a clock later
+    // (the block RAM's output register, 2026-11-01: unregistered, the RAM's 64 bits ran straight
+    // into the core's 10-bit address decode and every chip register's enable, the sys domain's
+    // worst path in the 89 %-full bitstream, -0.318 ns). `loaded` follows by the same clock
+    // (two stages), so a pop still reads an entry that is in head_q: after a pop at edge t,
+    // rptr moves at t, the RAM reads it at t+1, head_q holds it from t+2, loaded rises at t+2.
+    // A write now leaves every three clocks instead of two; a sample period is thousands, and
+    // a write still lands only between two mixes, so no sample changes.
+    reg         loaded = 1'b0, l1 = 1'b0;
+    reg  [63:0] head_q = 64'd0;
+    wire [21:0] stamp = head_q[63:42];
     wire [21:0] ahead = stamp - now[21:0];   // > 0: due later (mod 2^22, 95 s)
     wire        due = ahead == 22'd0 || ahead[21];
     wire        pop = loaded && due && !mixing && core_ready;
     assign core_wr = pop;
-    assign core_addr = head[41:32];
-    assign core_wdata = head[31:0];
+    assign core_addr = head_q[41:32];
+    assign core_wdata = head_q[31:0];
     assign level = count;
 
+    always @(posedge clk) head_q <= head;
     always @(posedge clk) begin
         if (rst) begin
-            {wptr, rptr, count, loaded, late, overflow} <= 0;
+            {wptr, rptr, count, loaded, l1, late, overflow} <= 0;
             {now, applied} <= 0;
         end else begin
             if (take) wptr <= wptr + 1'b1;
             if (pop) rptr <= rptr + 1'b1;
             count <= count + take - pop;
-            loaded <= !pop && count != 0;
+            l1 <= !pop && count != 0;
+            loaded <= !pop && l1;
             if (tick) now <= now + 32'd1;
             if (pop) applied <= applied + 32'd1;
             late <= clear ? 1'b0 : late | (pop && ahead != 22'd0);

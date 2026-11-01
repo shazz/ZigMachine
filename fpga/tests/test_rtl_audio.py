@@ -165,6 +165,8 @@ MUTANTS = [
     ("sched_early", "soc", "rtl/audio/zm_audio_sched.v", "ahead == 22'd0 || ahead[21]", "ahead <= 22'd1 || ahead[21]"),
     ("sched_in_mix", "soc", "rtl/audio/zm_audio_sched.v", "due && !mixing && core_ready", "due && core_ready"),
     ("sched_drop", "soc", "rtl/audio/zm_audio_sched.v", "take = push && !full;", "take = push && !full && push_d != 200;"),
+    # the head's output register: a pop a clock early reads the entry before the one rptr names
+    ("sched_pops_a_stale_head", "soc", "rtl/audio/zm_audio_sched.v", "loaded <= !pop && l1;", "loaded <= !pop && count != 0;"),
     # The POKEY in the core (zm_audio_pokey): the machine's cycles a sample, in step, then the mix.
     ("pk_cycles", "core100", "rtl/audio/zm_audio_pokey.v", "left <= more ? 6'd41 : 6'd40;", "left <= 6'd40;"),
     ("pk_clock_restart", "core100", "rtl/audio/zm_audio_pokey.v", "frac <= 28'd0;", "frac <= frac;"),
