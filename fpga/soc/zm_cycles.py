@@ -31,7 +31,9 @@ class ZMCycles(LiteXModule):
         regs = {name: CSRStatus(32, name=name, description=f"{name}, mod 2**32") for name in COUNTERS}
         for name, reg in regs.items():
             setattr(self, name, reg)
-        counts = {name: Signal(32) for name in COUNTERS}
+        # Each counter is one DSP48's accumulator (use_dsp): a 32-bit incrementer in LUTs is ~32 LUT
+        # and a CARRY4 chain, and the 7010 has DSPs to spare where it has no LUTs (2026-11-01).
+        counts = {name: Signal(32, attr={("use_dsp", "yes")}) for name in COUNTERS}
         ib_req = ibus.cyc & ibus.stb
         db_req = dbus.cyc & dbus.stb
         events = {

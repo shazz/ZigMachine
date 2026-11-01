@@ -50,7 +50,8 @@ class SoundRegs(LiteXModule):
         c2s_a, s2c_a = c2s.get_port(write_capable=True), s2c.get_port(write_capable=True)
         c2s_b, s2c_b = c2s.get_port(), s2c.get_port()
         self.specials += c2s, s2c, c2s_a, s2c_a, c2s_b, s2c_b
-        cycles, iwait, dwait = Signal(32), Signal(32), Signal(32)
+        dsp = {("use_dsp", "yes")}  # a DSP48's accumulator each, as soc/zm_cycles.py's counters
+        cycles, iwait, dwait = Signal(32, attr=dsp), Signal(32, attr=dsp), Signal(32, attr=dsp)
         self.sync += [
             cycles.eq(cycles + 1),
             If(ibus.cyc & ibus.stb & ~ibus.ack, iwait.eq(iwait + 1)),
