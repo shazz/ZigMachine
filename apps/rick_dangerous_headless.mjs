@@ -70,7 +70,7 @@ async function boot() {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    demo.pollSongRequest(); // the cracktro's tune (leavin_teramis.sndh #10), asked at init: not the game's
+    demo.pollSongRequest(); // the cracktro's tune (leavin_teramis.sndh #11), asked at init: not the game's
     return { memory, machine, demo };
 }
 

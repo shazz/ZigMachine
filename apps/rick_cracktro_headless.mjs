@@ -7,7 +7,7 @@
 //             original's screen pixel for pixel, reached in the original's VBLs
 //   rick      the patched text: page 1 is the original's but for its line 1
 //             (RICK DANGEROUS for CABAL); the tune is Leavin Teramis subtune
-//             10 (the original's COSO song 2, its YM registers matched); Space
+//             11 (matched against the original running in Hatari); Space
 //             stops it and asks the three questions; the cursor blinks every
 //             30 VBLs while it waits; y / n / Y set the flags, others nothing;
 //             the third answer starts the game (its title tune); a key held
@@ -28,7 +28,7 @@ const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (broke && !(broke in BREAKS)) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/rick_cracktro";
 const refs = JSON.parse(gunzipSync(await readFile("apps/rick_cracktro_fixture.json.gz"))).refs;
-const MUSIC = "leavin_teramis.sndh#10";
+const MUSIC = "leavin_teramis.sndh#11";
 const TITLE_TUNE = "rick_dangerous.sndh#64"; // the title, id 5 (rick_dangerous_headless.mjs)
 const KEY = 0x38cae; // the game's ACIA key byte (keys.zig)
 const RICK_SHIFT = "RICK DANGEROUS".length - "CABAL".length;

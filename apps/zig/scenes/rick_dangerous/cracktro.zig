@@ -27,7 +27,9 @@ const trainer = @import("trainer.zig");
 const stColor = @import("present.zig").stColor;
 
 pub const MUSIC = "leavin_teramis.sndh";
-pub const MUSIC_TUNE: u8 = 10;
+// Subtune 11: the original running in Hatari (STE, TOS 1.62) matches it register for register at two
+// samples 37 frames apart, frames 1071/1108 of the dump; the ripped-player rebuild had matched 10.
+pub const MUSIC_TUNE: u8 = 11;
 /// ESC E ESC e, $2FCA.
 const START = "\x1bE\x1be";
 const PROMPTS = [_][]const u8{
