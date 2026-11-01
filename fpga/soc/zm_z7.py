@@ -119,7 +119,7 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     netlist = core_netlist(getattr(args, "cpu_netlist", None))
     if netlist is not None:
         zm_timing.use_core(soc, platform, netlist)
-    fit = getattr(args, "vivado_directives", "default") == "fit"
+    fit = getattr(args, "vivado_directives", "default") in ("fit", "fit_timing")
     if fit and hasattr(platform.toolchain, "pre_placement_commands"):
         # A second opt pass before placement: the placer fits one control set a slice, and merging
         # equivalent CE/reset nets frees slices (the 2026-11-01 build was 19 slices short).
@@ -187,6 +187,16 @@ DIRECTIVES = {
         "vivado_place_directive": "AltSpreadLogic_high",
         "vivado_post_place_phys_opt_directive": "AggressiveExplore",
         "vivado_route_directive": "Explore",
+        "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+    },
+    # fit_timing: the fit synthesis with the explore placer (board_combo5 placed at 89 % with the
+    # spreading placer and missed comp by -0.47 ns on route-dominated copper paths).
+    "fit_timing": {
+        "vivado_synth_directive": "AreaOptimized_high",
+        "vivado_opt_directive": "ExploreArea",
+        "vivado_place_directive": "ExtraTimingOpt",
+        "vivado_post_place_phys_opt_directive": "AggressiveExplore",
+        "vivado_route_directive": "AggressiveExplore",
         "vivado_post_route_phys_opt_directive": "AggressiveExplore",
     },
     "explore": {
