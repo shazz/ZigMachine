@@ -3,6 +3,8 @@
 # no bitstream), the figure the SoC budget is kept in (docs/FPGA_SOUND_CPU.md). Paths may be relative.
 # PERIOD=<ns> (env) constrains the clock port CLOCK (env, default sys_clk) and reports WNS: a synthesis
 # estimate with no routing delay, unless IMPL=1, which also places and routes.
+# FLATTEN=none keeps every module's logic in it (an honest per-module bill, a little larger in total).
+# HIER=1 also writes OUTDIR/hier.rpt, the utilisation by submodule (where the LUTs go).
 # Prints "TOP LUT FF BRAM-tiles DSP" (a tile = one RAMB36 or two RAMB18); the full report is OUTDIR/util.rpt. DEFINES like "FOO=1" (no -D).
 # e.g. PERIOD=10 IMPL=1 CLOCK=clk tools/vivado_ooc.sh zm_pokey build/ooc_pokey "" rtl/audio/zm_audio_frac.v rtl/audio/zm_pokey*.v
 # Takes the lock itself: never wrap it in another flock on the same file (that deadlocks).
@@ -20,12 +22,13 @@ files=(); for f in "$@"; do files+=("$(realpath "$f")"); done; set -- "${files[@
 {
     for f in "$@"; do echo "read_verilog {$f}"; done
     vdefs=""; for d in $defs; do vdefs="$vdefs -verilog_define $d"; done
-    echo "synth_design -top $top -part xc7z010clg400-1 -mode out_of_context -include_dirs {$fpga/gen} $vdefs"
+    echo "synth_design -top $top -part xc7z010clg400-1 -mode out_of_context -include_dirs {$fpga/gen} $vdefs${FLATTEN:+ -flatten_hierarchy $FLATTEN}"
     if [ -n "${PERIOD:-}" ]; then
         echo "create_clock -period $PERIOD -name ${CLOCK:-sys_clk} [get_ports ${CLOCK:-sys_clk}]"
         if [ -n "${IMPL:-}" ]; then echo "opt_design"; echo "place_design"; echo "route_design"; fi
     fi
     echo "report_utilization -file {$out/util.rpt}" # after routing with IMPL=1: what the block really takes
+    if [ -n "${HIER:-}" ]; then echo "report_utilization -hierarchical -hierarchical_depth 4 -file {$out/hier.rpt}"; fi
     if [ -n "${PERIOD:-}" ]; then
         echo "report_timing_summary -file {$out/timing.rpt}"
         echo "report_timing -max_paths 5 -file {$out/paths.rpt}"

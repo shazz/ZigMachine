@@ -1,0 +1,5 @@
+cart,fps,frame_ms,frames,missed,bard,player,state,err,song,vs_n,frame_c,cart_c,seq_c,wait_ready,drain,painted,hbl,plan,passes,comp_busy,dma_busy,swap,underrun,overflow,probe_c,cal_mix1,cal_mix2,cal_fill1,cal_fill2
+demo-stniccc.zmd,34.6,28.9,170,125,10/19,BARD:SNDH_68k,running,-,stniccc_2000.sndh,16,2993121,2389306,590264,148915,0,25105,0,359556,178,604961,522474,135,boot,0,11,1712/2097,2216/2733,2495/3086,2822/3491
+demo-fuji_hobbytronic.zmd,60.2,16.5,296,0,21/39,BARD:SAP_6502,running,-,Hobbytronic_92_1.sap,16,1648264,685933,949880,298341,0,84693,71191,76724,200,674082,461520,352658,boot,0,11,1666/2040,2143/2643,2462/3045,2836/3510
+demo-tsl_hybridglenz.zmd,60.2,16.5,296,0,0/1,BARD:MOD,running,-,hybridglenz.mod,16,1649002,182026,1455311,456867,0,201158,63104,0,280,976924,600784,641108,boot,0,11,1651/2021,2182/2692,2340/2893,2886/3571
+demo-union_tnt1.zmd,60.2,16.5,296,0,32/42,BARD:SNDH_68k,running,-,union/pandora.sndh,16,1649505,927043,710086,109340,0,23656,0,380244,162,547812,397732,143662,boot,0,11,1668/2041,2072/2554,2330/2882,2760/3416

@@ -2,8 +2,8 @@
 // machine/blitter.zig doTriangle/crossSpan. For each scanline y (clipped) and each of the
 // three edges (low end first, half-open [ay, by)), x = ax + floor((bx-ax) * (y-ay) / (by-ay))
 // with the floor division done by a shared sequential divider; xl/xr are the min/max, and
-// the span, cut to the clip, is issued as pixels (COLOR or the halftone pick, combined
-// with the destination through MINTERM).
+// the span, cut to the clip, is issued as pixels (the core picks COLOR or the halftone bit
+// and combines it with the destination through MINTERM).
 // v1 divides per scanline per edge (~35 clocks each); an incremental edge walk (one divide
 // per edge per triangle) would make a small triangle several times faster.
 // The edge setup is pipelined over four clocks (PICK: pick + order the vertices; EDGE:
@@ -19,13 +19,9 @@ module zm_blit_tri (
     input  wire               clk,
     input  wire               rst,
     input  wire               go,
-    input  wire [7:0]         color, bg, mt,
-    input  wire               ht_on, ht_bit,
     input  wire signed [17:0] x0, y0, x1, y1, x2, y2, cx0, cx1, ey0, ey1,
-    output wire [3:0]         hx, hy,
     output wire               px_valid,
     output wire signed [17:0] px_x, px_y,
-    output wire [7:0]         px_bimm, px_mt,
     input  wire               px_ready,
     output reg                done
 );
@@ -64,13 +60,9 @@ module zm_blit_tri (
     // the scanlines: the vertices' y range cut to the clip, which is the check's box (ey0, ey1)
     wire signed [17:0] lo = ey0, hi = ey1 - 18'sd1;
 
-    assign hx = x[3:0];
-    assign hy = y[3:0];
     assign px_valid = st == PIX && x <= xend;
     assign px_x = x;
     assign px_y = y;
-    assign px_bimm = ht_on ? (ht_bit ? color : bg) : color;
-    assign px_mt = mt;
 
     always @(posedge clk) begin
         done <= 1'b0;

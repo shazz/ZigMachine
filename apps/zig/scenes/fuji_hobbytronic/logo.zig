@@ -32,9 +32,10 @@ pub fn sidePalette(fb: *zg.LogicalFB) void {
     }
 }
 
-/// Draw the Fuji turned by `yaw` then `pitch` (angle units), centred at (cx, cy).
-/// Returns the number of triangles drawn.
-pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, yaw: i32, pitch: i32, cx: i32, cy: i32) usize {
+/// The Fuji turned by `yaw` then `pitch` (angle units), centred at (cx, cy):
+/// turned, projected, culled and sorted, with no pixel touched (so it can run
+/// while CHISEL is still clearing the plane). Returns the faces fill() draws.
+pub fn prepare(yaw: i32, pitch: i32, cx: i32, cy: i32) usize {
     const r = fx.Rot.init(yaw, pitch);
     for (mesh.MODEL.verts, 0..) |v, i| {
         rotated[i] = r.apply(.{ v[0], v[1], v[2] });
@@ -42,11 +43,15 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, yaw: i32, pitch: i32, cx: i32, c
     }
     const n = collect(r);
     sortFarToNear(visible[0..n]);
+    return n;
+}
+
+/// The `n` faces prepare() kept, far to near, each a CHISEL triangle.
+pub fn fill(fb: *zg.LogicalFB, bl: *zg.Blitter, n: usize) void {
     for (visible[0..n]) |vf| {
         const t = mesh.MODEL.faces[vf.face].v;
         bl.triangle(fb, at(t[0]), at(t[1]), at(t[2]), vf.ink);
     }
-    return n;
 }
 
 fn at(i: u8) zg.BlitVec2 {

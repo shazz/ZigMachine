@@ -1,19 +1,32 @@
 // --------------------------------------------------------------------------
 // STNICCC's polygon spans, filled by the CPU with aligned word stores.
 //
-// Why not CHISEL for any span: on the posted-store board a CHISEL op pays ~830
-// cycles of start, spin and D$ invalidate before its first pixel, then ~1-1.85
-// clocks a pixel (apps/perf/cost_model.mjs BLIT_CALL, BLIT_UNIT), while a ZIGGY
-// word store drains in ~2.26 cycles for FOUR pixels (cost_model STORE_DRAIN,
-// bench ms.lib.64K). The flight makes ~2,100 fills a frame, ~2,000 of them under
-// 256 pixels; even the 400x280 clear is ~63 K cycles of stores against ~116 K for
-// a FILL. So every fill is the CPU's, and with one writer there is no
-// CPU-then-blitter ordering for the board to get right.
+// Why not CHISEL (stniccc/gpu.zig) for every span: on the posted-store board a
+// CHISEL op pays ~830 cycles of start, spin and D$ invalidate before its first
+// pixel, then ~1-1.85 clocks a pixel (apps/perf/cost_model.mjs BLIT_CALL,
+// BLIT_UNIT; BLITTER_HW_SPEC 10.5), while a ZIGGY word store drains in ~2.26
+// cycles for FOUR pixels (cost_model STORE_DRAIN, bench ms.lib.64K). The flight
+// makes ~2,100 fills a frame, ~2,000 of them under 256 pixels: 1.6 Mc of start
+// costs alone (frame_cost, 2026-10-23). The CPU is ahead at every size, so
+// polyfill sends a fill to the blitter (queued) only from BLIT_MIN pixels up.
 //
 // Stores are aligned by ADDRESS (head bytes up to a word boundary, words, tail
 // bytes): a misaligned sw traps on the board (~210 cycles).
 // --------------------------------------------------------------------------
 const std = @import("std");
+
+/// The area (pixels) from which a rectangle goes to CHISEL instead of the CPU.
+/// A hwBlit each (the model above) put the CPU ahead at every size. Through the
+/// QUEUE (stniccc/gpu.zig, HW 1.11.0) a fill costs the CPU a few ring stores
+/// (~20 cycles) and CHISEL draws it while the edge walk goes on: EVERY fill is
+/// queued, because a polygon the CPU drew would be painted over by an earlier,
+/// bigger one still in the queue (painter's order: a 256-pixel threshold broke
+/// apps/stniccc_pins.mjs at frame 1). This is the queue branch's configuration,
+/// board-measured x1.23 on 2026-10-20 before the posted stores; AN ESTIMATE, SET
+/// ON THE BOARD against maxInt (the CPU path): the board's OSD fps decides
+/// (bench row qu.list.f8.x64, Fable's ch.q.fill8.x64).
+/// The CPU's own reads and writes of the plane wait for the queue (Target.sync).
+pub const BLIT_MIN: usize = 1;
 
 /// Fill `w` x `h` pixels of colour `color` from `at`, rows `stride` apart.
 pub fn rect(px: []u8, at: usize, w: usize, h: usize, stride: usize, color: u8) void {

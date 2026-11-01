@@ -1,0 +1,10 @@
+demo-larcociel5.zmd 09 packed), up after 343 polls
+ok demo-larcociel5.zmd running, loaded in 1887 ms
+t=  11.5 fps=28.5 frame_c=3437493 cart_c=2978163 state=running bard=31/51 song=cybernoid2.sndh
+t=  21.0 fps=28.7 frame_c=3460318 cart_c=3001695 state=running bard=0/51 song=cybernoid2.sndh
+t=  30.6 fps=28.4 frame_c=3502688 cart_c=3043317 state=running bard=23/51 song=cybernoid2.sndh
+t=  40.1 fps=28.2 frame_c=3544683 cart_c=3085467 state=running bard=0/59 song=cybernoid2.sndh
+t=  49.7 fps=28.5 frame_c=3465638 cart_c=3006463 state=running bard=26/59 song=cybernoid2.sndh
+t=  59.2 fps=28.4 frame_c=3504104 cart_c=3044793 state=running bard=0/59 song=cybernoid2.sndh
+t=  68.8 fps=28.1 frame_c=3619790 cart_c=3160202 state=running bard=24/59 song=cybernoid2.sndh
+demo-larcociel5.zmd: min 28.1 avg 28.4 max 28.7 over 7 windows

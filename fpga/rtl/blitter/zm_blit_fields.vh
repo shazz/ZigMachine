@@ -7,5 +7,7 @@ wire [15:0]  f_a_stride = rf[111:96], f_b_stride = rf[175:160], f_d_stride = rf[
 wire [15:0]  f_w = rf[335:320],  f_h = rf[351:336];
 wire [15:0]  f_x0 = rf[367:352], f_y0 = rf[383:368], f_x1 = rf[399:384];
 wire [15:0]  f_y1 = rf[415:400], f_x2 = rf[431:416], f_y2 = rf[447:432];
+// CHISEL v2 (memmap BLIT_U_MASK...): words or halves no v1 op reads
+wire [15:0]  f_umask = rf[127:112], f_vmask = rf[191:176], f_span_count = rf[239:224];
+wire [31:0]  f_span_base = rf[223:192];
 wire [15:0]  f_clip_x = rf[463:448], f_clip_y = rf[479:464], f_clip_w = rf[495:480], f_clip_h = rf[511:496];
-wire [255:0] f_ht = rf[767:512];  // 16 rows of 16 bits: bit [y*16 + x]

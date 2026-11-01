@@ -4,7 +4,8 @@
 // A thin, typed front-end over the sealed blitter register block (hardware.zig
 // BLIT_*) + the hwBlit() export. Effects and scenes drive the 2D coprocessor
 // through these methods and never touch raw registers. Each call sets the
-// register block for one primitive, then fires hwBlit() (synchronous in v1).
+// register block for one primitive, then fires hwBlit() (synchronous, unless the cart opted into
+// KESTREL's lazy wait: setAsync/sync, chisel_async.zig).
 //
 // Destinations are LogicalFB planes; a plane's pixel view is a byte offset into
 // the shared video region, which is exactly what the blitter's BASE registers
@@ -13,6 +14,7 @@
 const std = @import("std");
 const hw = @import("hardware");
 const LogicalFB = @import("zigos.zig").LogicalFB;
+const chisel_async = @import("chisel_async.zig");
 
 pub const Vec2 = struct { x: i16, y: i16 };
 
@@ -30,6 +32,15 @@ pub const Blitter = struct {
 
     pub fn init(self: *Blitter) void {
         self.base = @intCast(hw.hwVideoBase());
+    }
+
+    // KESTREL's lazy wait (chisel_async.zig): with async on, every op returns
+    // while CHISEL still draws, and the cart keeps off its pixels until sync().
+    pub fn setAsync(self: *Blitter, on: bool) void {
+        chisel_async.setAsync(self.base, on);
+    }
+    pub fn sync(self: *Blitter) void {
+        chisel_async.sync(self.base);
     }
 
     // --- register writers (region-relative offsets) ---
@@ -239,7 +250,9 @@ pub const Blitter = struct {
     }
 
     // Estimated cost of the last op (pixels touched + setup), for VBL budgeting.
+    // On the board a lazy op's CYCLES lands at its sync: wait for it first.
     pub fn cycles(self: *Blitter) u32 {
+        chisel_async.sync(self.base);
         return std.mem.readInt(u32, @as(*[4]u8, @ptrFromInt(self.base + hw.BLIT_CYCLES)), .little);
     }
 };

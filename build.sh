@@ -113,6 +113,7 @@ early rom_abi node apps/rom_abi_check.mjs   # the ROM survives hostile arguments
 python3 fpga/tools/sys_abi.py --check   # the board's system table (fpga/cycles/sys_abi.txt) is today's ROM/machine exports, under the version that says so
 python3 fpga/tools/sys_abi.py --break   # ...and a table changed without a version bump is caught (lean carts would bind to the wrong entries)
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
+node apps/blitter_queue_check.mjs   # QUEUE (1.8.0): a descriptor list draws what its ops draw one by one; the edges
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
 node apps/linebase_check.mjs  # copper LBASE + overscan HSCROLL (1.10.0): line lists against a model, frame reset, the stop
@@ -159,6 +160,8 @@ NATIVE_TESTS="
     libs/zig/effects/blit_test.zig
     libs/zig/effects/blit_rows_test.zig
     libs/zig/effects/chisel_clear_test.zig
+    libs/zig/effects/chisel_copy_test.zig
+    libs/zig/effects/blit_list_test.zig
     libs/zig/effects/sprite_draw_test.zig
     libs/zig/effects/scrolltext2_test.zig
     libs/zig/effects/parallax_test.zig
@@ -379,6 +382,9 @@ gate bladerunners node apps/bladerunners_headless.mjs --break shift   # ...and a
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter"   # BLITTER DEMO: key B draws all seven effects on the CPU with the blitter's exact pixels and palette, not one hwBlit() issued; the corner says BLITTER/CPU; B again returns, Escape asks for the menu
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break pixel   # ...and a CPU frame one pixel off is caught
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break nokey   # ...and a B that never arrived is caught
+gate chisel_v2 node apps/chisel_v2_headless.mjs   # CHISEL V2 (cart 112, HW 1.11.0): every AFFINE (rotozoom, Mode 7) and MAP (tunnel) pixel equals a model written from the spec, four mirrored bobs a frame with the collision bit set and clear over a cycle, the IFE fill equal to a per-bit carry model, the pentagram's centre hollow
+gate chisel_v2 node apps/chisel_v2_headless.mjs --break pixel   # ...and a rotozoom pixel changed is caught
+gate chisel_v2 node apps/chisel_v2_headless.mjs --break fill   # ...and a model filling exclusive is caught
 gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1-4 pick the object (4: GLENZ NEST, 60/104), + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the other objects), S cycles seven distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels, DOTS one pixel a vertex), only last frame's box erased (no stale pixel in any mode, nest included), five sphere and three nest pins under every split, the HUD follows, Escape leaves
 gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never arrive are caught
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught

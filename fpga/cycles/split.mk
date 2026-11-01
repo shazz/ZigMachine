@@ -66,7 +66,7 @@ $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf: $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HC
 	rm -f $$(@D)/o/*.o
 	for s in $(AUD_CART_SRC_$(ZM_AUDIO)) $(HIN_SRC); do \
 		$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/o/s_$$$$(basename $$$$s .c).o || exit 1; done
-	$(RV_CC) $(SPL_CFLAGS) $(MICROS_$(1)) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/common/sys_env.c -o $$(@D)/o/sys_env.o
+	$(RV_CC) $(SPL_CFLAGS) $(MICROS_$(1)) $(CHISEL_SYNC) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/common/sys_env.c -o $$(@D)/o/sys_env.o
 	$(RV_CC) $(SPL_CFLAGS) -c cycles/vseq.c -o $$(@D)/o/vseq.o
 	for s in $(VPLAN_SRC); do $(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/o/$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c cycles/bsys.c -o $$(@D)/o/bsys.o

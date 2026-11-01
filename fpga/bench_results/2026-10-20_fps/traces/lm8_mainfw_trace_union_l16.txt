@@ -1,0 +1,6 @@
+demo-union_l16.zmd ok demo-union_l16.zmd running, loaded in 1871 ms
+t=  11.5 fps=45.7 frame_c=2650180 cart_c=1265379 state=running bard=3/4 song=union/level_16.sndh
+t=  21.0 fps=36.2 frame_c=2763710 cart_c=1330500 state=running bard=3/4 song=union/level_16.sndh
+t=  30.6 fps=36.2 frame_c=2747558 cart_c=1332946 state=running bard=3/4 song=union/level_16.sndh
+t=  40.1 fps=36.1 frame_c=2744697 cart_c=1306006 state=running bard=3/4 song=union/level_16.sndh
+demo-union_l16.zmd: min 36.1 avg 38.6 max 45.7 over 4 windows

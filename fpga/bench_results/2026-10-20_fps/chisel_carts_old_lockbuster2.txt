@@ -1,0 +1,27 @@
+demo-lockbuster2.zmd ok demo-lockbuster2.zmd running, loaded in 1875 ms
+t=  11.5 fps=33.8 frame_c=2921094 cart_c=2191741 state=running bard=31/45 song=lockbuster2_rollout.sndh
+t=  21.0 fps=33.9 frame_c=2950756 cart_c=2221499 state=running bard=0/45 song=lockbuster2_rollout.sndh
+t=  30.6 fps=34.2 frame_c=2897821 cart_c=2167969 state=running bard=20/45 song=lockbuster2_rollout.sndh
+t=  40.1 fps=34.3 frame_c=2898192 cart_c=2167839 state=running bard=0/45 song=lockbuster2_rollout.sndh
+t=  49.7 fps=34.1 frame_c=3029619 cart_c=2298634 state=running bard=20/46 song=lockbuster2_rollout.sndh
+t=  59.2 fps=32.8 frame_c=3030502 cart_c=2299343 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t=  68.8 fps=32.8 frame_c=3049254 cart_c=2318007 state=running bard=23/46 song=lockbuster2_rollout.sndh
+t=  78.3 fps=33.1 frame_c=2935360 cart_c=2205351 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t=  87.9 fps=33.8 frame_c=2935029 cart_c=2204695 state=running bard=20/46 song=lockbuster2_rollout.sndh
+t=  97.4 fps=33.9 frame_c=2934116 cart_c=2203849 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t= 107.0 fps=33.9 frame_c=2913668 cart_c=2182935 state=running bard=20/46 song=lockbuster2_rollout.sndh
+t= 116.5 fps=34.0 frame_c=2915281 cart_c=2184731 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t= 126.1 fps=34.0 frame_c=2913749 cart_c=2183264 state=running bard=29/46 song=lockbuster2_rollout.sndh
+t= 135.6 fps=33.9 frame_c=2927641 cart_c=2197509 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t= 145.2 fps=33.9 frame_c=2929429 cart_c=2198913 state=running bard=20/46 song=lockbuster2_rollout.sndh
+t= 154.7 fps=33.9 frame_c=2928413 cart_c=2197847 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t= 164.3 fps=33.9 frame_c=2945270 cart_c=2214553 state=running bard=20/46 song=lockbuster2_rollout.sndh
+t= 173.8 fps=33.9 frame_c=2927953 cart_c=2198165 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t= 183.4 fps=33.4 frame_c=3005905 cart_c=2275844 state=running bard=21/46 song=lockbuster2_rollout.sndh
+t= 192.9 fps=33.3 frame_c=2988476 cart_c=2258889 state=running bard=0/46 song=lockbuster2_rollout.sndh
+t= 202.5 fps=33.2 frame_c=2990976 cart_c=2260130 state=running bard=18/46 song=lockbuster2_rollout.sndh
+t= 212.0 fps=33.2 frame_c=3005167 cart_c=2274818 state=running bard=19/46 song=lockbuster2_rollout.sndh
+t= 221.6 fps=33.2 frame_c=2990322 cart_c=2260442 state=running bard=19/46 song=lockbuster2_rollout.sndh
+t= 231.1 fps=33.2 frame_c=2990340 cart_c=2259468 state=running bard=22/46 song=lockbuster2_rollout.sndh
+t= 240.7 fps=33.2 frame_c=2989029 cart_c=2259146 state=running bard=20/46 song=lockbuster2_rollout.sndh
+demo-lockbuster2.zmd: min 32.8 avg 33.6 max 34.3 over 25 windows

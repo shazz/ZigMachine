@@ -198,6 +198,64 @@ This machine exposes both:
 > owns the fill *rule* is the sealed-machine ethos: the hardware guarantees the
 > parity fill; the demo decides the mesh.
 
+### 4.5 `AFFINE` (6, HW 1.11.0) — textured spans: Mode 7, rotozoom, textured polygons
+The SNES's Mode 7 with its HDMA table, generalised the way Fable's ISA study asked
+(`fpga/review/KESTREL_NEXT_ISA.md` §2): CHISEL walks a **list of spans** it reads itself,
+`SPAN_COUNT` spans of 24 bytes at `SPAN_BASE` (absolute, 4-aligned, the whole list in cart
+RAM or the ROM window):
+
+| byte | field | |
+|---|---|---|
+| 0 | `x0` i16, `x1` i16 | pixels `[x0, x1)` of row `y` |
+| 4 | `y` i16, 0 u16 | |
+| 8 | `u0` u32, `v0` u32 | 16.16, two's complement |
+| 16 | `du` u32, `dv` u32 | per pixel |
+
+Pixel `x` of a span reads the **texture** texel `(u >> 16, v >> 16)` with
+`u = u0 + (x - x0)*du`, `v = v0 + (x - x0)*dv` (mod 2^32). The texture is channel A:
+texel `(U, V)` at `A_BASE + V*A_STRIDE + U` (relative, or absolute with `SRC_ABS`), `U` and
+`V` wrapped by `U_MASK`/`V_MASK` (power-of-two textures: a repeat) or, with
+`CON2.TEX_CLIP`, not drawn past them; the `(U_MASK+1) x (V_MASK+1)` texture must lie in one
+readable window. The texel is B of the minterm, `D = LF(0, texel, D)`; `KEY_EN` skips
+`texel == COLOR_KEY`; the clip and `D` as for every op; `CYCLES` = pixels written.
+A Mode 7 floor is a span a row (the per-row matrix of HDMA is the per-span `u0, v0, du,
+dv`); a rotozoom the same with rows stepped by the CPU; a textured polygon a span per row
+it covers, scan-converted by the CPU (`zg.fx3d`/`texspan`), so CHISEL owns the texel reads
+(the D$-miss-bound part of the loop on ZIGGY).
+
+### 4.6 `MAP` (7, HW 1.11.0) — a texel per pixel from a map: tunnels, lenses
+The `W x H` box at `X0, Y0` (clipped, ascending). Pixel `(i, j)` reads the u16 at
+`B_BASE + j*B_STRIDE + 2i` (absolute, even, in cart RAM or the ROM window): `u` its low
+byte, `v` its high byte; then `U = u + U_OFF`, `V = v + V_OFF` (mod 2^16, before the masks)
+and the texel as `AFFINE`'s. `U_OFF`/`V_OFF` are `X1`/`Y1`: a tunnel is a fixed map and an
+offset moved every frame.
+
+Registers (all in the block's words 0..23, so a QUEUE descriptor can set them): `U_MASK`
+`0x0E` and `V_MASK` `0x16` (the strides' high halves), `SPAN_BASE` `0x18` and `SPAN_COUNT`
+`0x1C` (`C_BASE`/`C_STRIDE`: channel C is always the destination), `U_OFF`/`V_OFF` = `X1`/`Y1`.
+Lists and maps must sit where CHISEL never writes (cart RAM, ROM window), so their reads
+never wait for the op's writes; a texture over the destination orders the op.
+
+### 4.7 Mirror, collision, raw area fill (HW 1.11.0)
+- **`CON2.MIRROR_X` / `MIRROR_Y`** (bits 3, 4; `BLIT`): the sources are read flipped, column
+  `W-1-i` / row `H-1-j` for the destination's pixel `(i, j)`: sprite flips from one sheet,
+  kaleidoscopes. A mirrored source never takes the "walk never reads behind itself" shortcut
+  of §10.2 (its offset to the destination is not constant).
+- **`CON2.COLL_EN`** (bit 5, every op): writing a pixel over a non-zero destination byte sets
+  `BLIT_COLL` (`0xE6`) bit 0, which stays set until the program writes the byte (C64 / Amiga
+  `CLXDAT`, the Lynx's collision buffer). The machine sets it as it draws; CHISEL keeps a flag
+  for the kick and the firmware ORs it in (`cycles/bchisel.c finish`). It reads the destination
+  of every pixel, so the op runs at the speed of one that reads C.
+- **`CON.IFE` / `CON.EFE`** (bits 4, 5; `BLIT` and `FILL`): the Amiga's area fill, chunky. Each
+  row, in the walk's order (`DESC`: right to left), keeps a carry per bit of the index (the
+  eight bitplanes), starting at all ones with `CON2.FILL_CARRY` (bit 7, the Amiga's `FCI`), else
+  0, at the row's first visible pixel; every value written `r` toggles it. `IFE` writes
+  `carry | r` (edges included), `EFE` the carry after the toggle, `carry ^ r` (the trailing
+  edge left out); `IFE` wins when both are set. A keyed pixel neither writes nor toggles. The
+  fill runs over the clipped box: an edge outside the clip does not count. Filled vectors of
+  any outline: `LINE` the edges (`MT_XOR_BC`, one pixel a row) into a plane, then one `BLIT`
+  in place (`USEC`, `MT_C`) with `IFE`.
+
 ---
 
 ## 5. Minterms (`MINTERM` — the 256 logic functions)
@@ -240,6 +298,43 @@ estimate is fixed hardware, so budgets are portable.
 > v2: an **async / DMA** mode where `hwBlit()` queues and the machine drains
 > against a per-frame cycle budget, exposing real "blitter didn't finish this
 > frame" behaviour and CPU/blitter overlap. Out of scope for v1.
+
+**KESTREL's lazy wait (2026-10-19, board only).** On the board `hwBlit()` spins until
+CHISEL is done: ~450 cycles of fixed latency even for an 8x8 op, plus ~1 cycle a byte.
+A cart may opt out of the spin with `BLIT_ASYNC` (region `0xE4`, u8; ZigOS
+`chisel_async.setAsync`, `Blitter.setAsync`, `ZigOS.blitAsync`): `hwBlit()` then returns
+as soon as CHISEL has started, and the wait moves to the next point that needs it: the
+next `hwBlit`, a sync (a NOP `hwBlit`: `chisel_async.sync`, `Blitter.sync`,
+`ZigOS.blitSync`), any ROM call, a disk read, the RAM arena's alloc/mark/release, the end
+of `frame()` and of each HBL handler (`fpga/cycles/bchisel.h`, `fpga/tools/host_gen.py`
+`GETTERS`). The getters do not wait: `hwVideoBase`, the `hwRam*`/`hwRomRam*` sizes,
+`romScratchLen/Ptr`, `deskDir*` touch no memory, and a check on every call cost a cart
+that calls them in its inner loops 10 % of its frame rate on the board. The cart promises not to read or write an op's destination
+(or overwrite its source) before that sync, ZigOS's own CHISEL clears and copies
+included. `CYCLES` of a lazy op lands at its sync. The machine never reads `BLIT_ASYNC`
+(its blitter is synchronous), so the browser's pixels cannot change; on the board the
+registers a cart stores while CHISEL runs wait in the tap bank (§10.1) and reach the
+next op, never the running one (`tests/test_chisel_async.py`).
+
+**QUEUE (HW 1.8.0): many small ops for one `hwBlit()`.** `COMMAND` 5 runs a list of op
+descriptors the program stored in the QUEUE ring (`OFF_BLIT_QUEUE`, 512 u32 words above
+the BEAM table, outside `REGION_BYTES` so no blit writes it), from word `Q_START` (u16,
+block `0xE8`) for `Q_COUNT` words (u16, `0xEA`). A descriptor is a header (bits 0..23: a
+mask of the block's words 0..23, i.e. offset / 4, that follow; bits 24..31: the op's
+`COMMAND`), then the words of the mask, lowest first. The ops run on a **working copy** of
+the block taken at the `hwBlit()`: each descriptor's words land in it (word 0: `MINTERM`
+and `CON` only; the strides: their low 16 bits) and stay for the descriptors after it;
+`COMMAND` 0 only sets words; `COMMAND` 5 inside a list is an unknown op. The block itself
+is left as it was, except `CYCLES` = the **sum** of the ops' costs. Refused (`CYCLES` 0,
+nothing drawn) unless `1 <= Q_COUNT` and `Q_START + Q_COUNT <= 512`; a descriptor cut
+short by `Q_COUNT` ends the list unrun. The machine runs the list at once
+(`machine/blitter_queue.zig`); on KESTREL CHISEL runs it from its own copy of the ring
+while the cart goes on, so a QUEUE is always lazy there, with the lazy wait's sync points.
+ZigOS: `zg.blit_queue.Queue` (`op`, `set`, `fill`, `kick`, `flush`) keeps the ring in
+two halves, stores a word only when the list does not hold it yet, and never writes the
+block; its contract is that a queued op's pixels are only drawn for sure after `flush()`.
+`apps/blitter_queue_check.mjs` holds the machine to "a list draws what its ops draw one
+by one".
 
 ---
 
@@ -316,9 +411,10 @@ via `zm_blit_hp.py`, the start through an M-only window from the firmware's
 
 | File | What |
 |---|---|
-| `zm_blit_regs.v` | the register block of §3, written the way the CPU writes the region (word index, byte enables); `COMMAND` written non-zero starts the op; writes while `BUSY` are dropped; `STATUS` and `CYCLES` are the only reads |
-| `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0" |
-| `zm_blit_fill.v`, `_blit.v`, `_line.v`, `_tri.v` | one sequencer per op: geometry in, pixels out (x, y, B colour, minterm, channel flags). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
+| `zm_blit_regs.v` | the register block of §3 in two banks: the **tap bank** (a LUT RAM) takes every store the way the CPU writes the region (word index, byte enables), also while `BUSY`, so it always equals memory's block; the **op bank** (flops) is what the engine reads, loaded only by `zm_blit_q`. `COMMAND` written non-zero is a kick (its upper bits carry a QUEUE's range); `CYCLES` restarts at each kick and adds every op's cost; `STATUS` and `CYCLES` are the only reads. The op bank's `HALFTONE` lives in LUTRAM (four 8-deep byte lanes) with a flag a byte ("last loaded non-zero"), which is both its reset and the pre-1.5.0 sniff |
+| `zm_blit_q.v` | the sequencer: at every kick the tap bank copied into the op bank (24 clocks; `BLIT_WINDOW` holds a read until it is over, the firmware's barrier after GO), then the op, or a QUEUE's descriptors one after the other from the ring (a 512-word block RAM fed by the CPU's stores to `OFF_BLIT_QUEUE`), each op run to its end before the next header |
+| `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0". A short serial walk: the box one vertex a clock, then ONE source check unit for A, then B (windows, span, the overlap test of §10.2) |
+| `zm_blit_blit.v`, `_line.v`, `_tri.v` | the sequencers: geometry in, pixels out (x, y); the core picks the B colour (COLOR, or the halftone's bit at the pixel), the minterm and the channel flags once for all. One box walker serves BLIT and FILL (FILL: no source, no `DESC`). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
 | `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted. Pipelined: its issue stage requests a pixel's reads and moves on, each read tagged (slot, channel, byte lane) |
 | `zm_blit_pxq.v` | the back of the pixel unit: up to 32 pixels whose reads are in flight (LUTRAM slots, answers land by tag), the head combined and written **in order**, through a one-word write buffer that sends consecutive bytes of a word as one strobed write |
 | `zm_blit_core.v` | decode, the op FSM (`IDLE, CHK, RUN, DRAIN, FIN`), the one destination address generator `dlin + y*stride + x`, the `CYCLES` model |
@@ -359,13 +455,23 @@ keeps the v1 order. The rule, per channel:
   Bresenham always steps) and the clip keeps `0 <= x < D_STRIDE`, so every pixel of an
   op writes its own byte. C reads always run ahead.
 - **A and B** (BLIT sources) may alias: a BLIT over its own destination (a scroll, a
-  smear). `zm_blit_chk` compares spans from the registers: each used source
-  `[base, base + (H-1)*stride + W)` against the destination `[dlin, dlin + (ey1-1)*D_STRIDE + ex1)`,
-  all linear and below 2^23 once the checks pass. Disjoint: A/B reads run ahead.
-  Not provably disjoint (`ordered`): an A/B read waits until every earlier pixel's
-  write has been **taken by the port** (nothing in the queue, the head or the write
-  buffer), which is v1's order. The test is conservative (whole spans, not boxes):
-  a false "may overlap" only costs speed.
+  smear). `zm_blit_chk` clears `ordered` for a used source when either holds:
+  - *apart*: the source span `[base, base + (H-1)*stride + W)` and the destination
+    **box's** span `[dlin + ey0*D_STRIDE + ex0, dlin + (ey1-1)*D_STRIDE + ex1)` share no
+    byte (all linear, below 2^23 once the checks pass). Until 2026-10-31 the destination
+    span started at the plane's base, so any source above the box in the same plane ran
+    ordered (deltaforce, dbug paid ~28 clocks a pixel for it);
+  - *never behind the walk*: with one row (H = 1) or the destination's stride, every
+    source byte is its destination byte + `delta`, one constant (`delta` = source base −
+    the address of the rectangle's (X0, Y0)), and the destination addresses only grow
+    (ascending) or only shrink (`DESC`), since the clip keeps `x < D_STRIDE`. So
+    `delta >= 0` ascending, or `delta <= 0` with `DESC`, never reads a byte an earlier
+    pixel wrote, nor one a later pixel writes before the read: a scroll in the walk's
+    direction runs at full speed even though it overlaps.
+  Otherwise (`ordered`) an A/B read waits until every earlier pixel's write has been
+  **taken by the port** (nothing in the queue, the head or the write buffer), which is
+  v1's order. A false "may overlap" only costs speed; `blitter_tb`'s speed script bounds
+  the clocks of each case (the oracle cannot see the order).
 - **Writes never wait for reads** at the port: a pixel is written after its own reads
   and every earlier pixel's have come back (answers are in order), so no unanswered
   earlier read can cover its bytes. `blitter_tb` checks exactly that on every write.
@@ -434,6 +540,37 @@ computed in a free-running 3-clock setup pipeline from the check's box, which is
 three clocks before `go` reaches the sequencers: no clock is added to any op. Out of
 context, placed and routed: 3,324 LUT / 2,466 FF / 8 DSP, WNS +0.19 ns (+0.11 before), the
 worst paths now the check's box (`bx1`), not the addresses.
+
+**The fold (2026-10-31, SOC_REVIEW F5).** Out of context, placed and routed, the same flow:
+
+| | LUT | FF | DSP | WNS 100 MHz | WNS 125 MHz |
+|---|---:|---:|---:|---:|---:|
+| before (main b4d4f3b2) | 3,324 | 2,466 | 8 | +0.19 | -1.13 (LINE's `err` from the registers) |
+| after | 2,996 | 2,254 | 13 | +0.19 | +0.21 |
+
+Where it came from (synthesis with `FLATTEN=none`, an honest bill a module: 3,505 -> 3,156):
+the check serialised (one source unit for A then B, the box one vertex a clock) 716 -> 597;
+FILL folded into the BLIT box walker (-116 for the sequencer, fewer muxes in the core); the
+halftone in LUTRAM -71 LUT and -224 FF. The check now spends DSPs where it spent LUTs (Vivado
+absorbs its span adds into the products' post-adders): 13 DSP in all, 80 on the 7010. For
+125 MHz, LINE's `dx`/`dy`/steps and the check's product operands are registered a clock
+early (they are functions of registers that hold still while `BUSY`), and the pixel unit's
+"no-op pixel" test is decided from registered answers for COLOR, BG_COLOR and 0, so the
+halftone's LUTRAM read is no longer on the path into `zm_blit_px`.
+
+**CHISEL v2 (HW 1.11.0, 2026-10-31).** Same flow, the whole block with every v2 op:
+**4,276 LUT / 2,896 FF / 1 RAMB18 / 23 DSP, WNS +0.82 ns at 100 MHz, +0.29 ns at 125 MHz**
+(main before the fold: 3,324 LUT, so +952 net; the fold paid for 329 of the 1,281 added).
+Where the added LUTs went (the placed hierarchy, approximate where logic merged):
+
+| op | blocks | LUT |
+|---|---|---:|
+| AFFINE + MAP | `zm_blit_tex` (walker, 3-stage texel pipe) 348, `zm_blit_tfetch` (list/map FIFO, credits) 293, `zm_blit_rdmux` | ~650 |
+| QUEUE | `zm_blit_q` 193 + the tap bank in `zm_blit_regs` (~185), the 512-word ring (1 RAMB18) | ~380 |
+| mirror, collision, area fill | the row walks' flips, the head's carry and collision test, C forced | ~100 |
+
+Cuts not taken yet: the list/map FIFO at 16 words, the texel pipe's DSP for a power-of-two
+stride shift, TRIANGLE's per-scanline divide (an incremental edge walk is faster too).
 
 ### 10.5 Throughput
 

@@ -3,6 +3,7 @@ answers `devmem` from a dict of DDR words, as busybox would."""
 
 from __future__ import annotations
 
+import re
 import struct
 import sys
 from pathlib import Path
@@ -39,7 +40,11 @@ class FakeShell:
         self.cmds.append(cmd)
         if cmd.startswith("glass ctl"):
             return 0, ""
-        addrs = [int(t.rstrip(";"), 16) for t in cmd.split() if t.startswith("0x")]
+        loop = re.search(r"-lt (\d+) \]; do devmem \$\(\(0x([0-9a-f]+)\+4\*i\)\)", cmd)
+        if loop:  # bench_collect's form for a run of consecutive words
+            addrs = [int(loop.group(2), 16) + 4 * i for i in range(int(loop.group(1)))]
+        else:
+            addrs = [int(t.rstrip(";"), 16) for t in cmd.split() if t.startswith("0x")]
         if addrs[:1] == [self.log] and len(addrs) == bc.LOG_HDR_WORDS:  # a poll of the log header
             done = self.states[min(self.polls, len(self.states) - 1)]
             self.polls += 1

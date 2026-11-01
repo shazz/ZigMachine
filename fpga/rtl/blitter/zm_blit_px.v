@@ -47,9 +47,17 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     input  wire [22:0]       px_dst,          // linear byte address of the destination pixel (= channel C)
     input  wire [22:0]       px_aaddr, px_baddr,
     input  wire [7:0]        px_bimm,         // B when channel B is not read (a constant colour, or 0)
+    input  wire              px_nop,          // the minterm cannot change this pixel (zm_blit_core)
     input  wire [7:0]        px_mt, px_key,   // per op: the same for every pixel of one op
     input  wire [3:0]        px_flags,        // {KEY_EN, USEC, USEB, USEA}, per op
-    input  wire              ordered,         // per op: A/B reads wait for the earlier writes
+    input  wire              px_row,          // the pixel starts a row of the walk (the area fill)
+    input  wire              force_c,         // per op: read C whatever the minterm (the collision)
+    input  wire [1:0]        fill,            // per op: {EFE, IFE}, IFE winning
+    input  wire [7:0]        carry0,          // per op: each row's carry-in
+    input  wire              coll_en,         // per op: report a write over a non-zero byte
+    output wire              coll_hit,
+    input  wire              ordered,         // per op: reads wait for the earlier writes
+    input  wire              ordered_c,       // per op: C words are not reused (a pixel may come twice)
     output wire              px_idle,
     output wire              wrote,           // a pixel was written (or passed as a no-op) this clock
     output wire              rd_req_valid,
@@ -69,34 +77,30 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
             a_dc = m[3:0] == m[7:4];
             b_dc = m[1:0] == m[3:2] && m[5:4] == m[7:6];
             c_dc = m[0] == m[1] && m[2] == m[3] && m[4] == m[5] && m[6] == m[7];
-            need = {cen && !c_dc, ben && (ken || !b_dc), aen && !a_dc};
+            need = {cen && !c_dc || force_c, ben && (ken || !b_dc), aen && !a_dc};
         end
     endfunction
 
-    // LF(0, b, c) == c for each bit b of `b`: m[{0,0,c}] == c where b has a 0, m[{0,1,c}] == c where a 1
-    function ident(input [7:0] m, input [7:0] b);
-        ident = (&b || (!m[0] && m[1])) && (~|b || (!m[2] && m[3]));
-    endfunction
 
     // per op
     reg [7:0] mt, key;
-    reg ben, keyen;
+    reg ben, cen, keyen;
 
     // P: the pixel just taken from the sequencer, its reuse decided against the words already asked for
-    reg        pv, p_nop;
+    reg        pv, p_nop, p_row;
     reg [22:0] p_dst, p_a, p_b;
     reg [7:0]  p_bimm;
     reg [2:0]  p_need;
     // the word each channel last asked for (addr[22:2]), valid until the unit next idles
     reg [20:0] lw_a, lw_b, lw_c;
     reg [2:0]  lw_v;
-    wire [2:0] may_reuse = {1'b1, !ordered, !ordered};   // C always; A/B unless sources may be written
+    wire [2:0] may_reuse = {!ordered_c, !ordered, !ordered};   // C unless a pixel may come twice; A/B unless written
     wire [2:0] hit = p_need & may_reuse & lw_v
         & {lw_c == p_dst[22:2], lw_b == p_b[22:2], lw_a == p_a[22:2]};
     wire [2:0] fetch = p_need & ~hit;
 
     // I: the pixel whose reads are being requested
-    reg        iv, i_nop;
+    reg        iv, i_nop, i_row;
     reg [22:0] i_dst, i_a, i_b;
     reg [7:0]  i_bimm;
     reg [2:0]  i_need, i_pend, i_reuse;   // channels used / still to request / taken from the last word: {C,B,A}
@@ -120,7 +124,6 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     assign px_ready = !pv || p_move;
     wire acc = px_valid && px_ready;
     wire [2:0] nd = need(px_mt, px_flags[0], px_flags[1], px_flags[2], px_flags[3]);
-    wire px_nop = px_flags == 4'b0100 && ident(px_mt, px_bimm);
 
     // the tags: {slot, channel} of every read in flight, in request order
     reg [LQ+1:0] tag [0:(1 << LT)-1];
@@ -128,9 +131,10 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     always @(posedge clk) if (rtake) tag[tw[LT-1:0]] <= {wslot, ch};
 
     zm_blit_pxq #(.LQ(LQ)) q (.clk(clk), .rst(rst), .push(push), .p_dst(i_dst), .p_bimm(i_bimm),
-        .p_need(i_need), .p_reuse(i_reuse), .p_alane(i_a[1:0]), .p_blane(i_b[1:0]), .p_nop(i_nop),
+        .p_need(i_need), .p_reuse(i_reuse), .p_alane(i_a[1:0]), .p_blane(i_b[1:0]), .p_nop(i_nop), .p_row(i_row),
+        .fill(fill), .carry0(carry0), .coll_en(coll_en), .coll_hit(coll_hit),
         .wslot(wslot), .q_full(q_full), .rsp_we(rd_rsp_valid), .rsp_slot(t_head[LQ+1:2]), .rsp_ch(t_head[1:0]),
-        .rsp_word(rd_rsp_data), .mt(mt), .key(key), .ben(ben), .keyen(keyen),
+        .rsp_word(rd_rsp_data), .mt(mt), .key(key), .ben(ben), .cen(cen), .keyen(keyen),
         .drained(drained), .wrote(wrote), .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready),
         .wr_req_addr(wr_req_addr), .wr_req_data(wr_req_data), .wr_req_strb(wr_req_strb));
 
@@ -145,12 +149,12 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
             if (acc) begin
                 pv <= 1'b1;
                 p_dst <= px_dst; p_a <= px_aaddr; p_b <= px_baddr; p_bimm <= px_bimm;
-                p_nop <= px_nop; p_need <= px_nop ? 3'd0 : nd;
-                mt <= px_mt; key <= px_key; ben <= px_flags[1]; keyen <= px_flags[3];
+                p_nop <= px_nop; p_need <= px_nop ? 3'd0 : nd; p_row <= px_row;
+                mt <= px_mt; key <= px_key; ben <= px_flags[1]; cen <= px_flags[2]; keyen <= px_flags[3];
             end else if (p_move) pv <= 1'b0;
             if (p_move) begin
                 iv <= 1'b1;
-                i_dst <= p_dst; i_a <= p_a; i_b <= p_b; i_bimm <= p_bimm; i_nop <= p_nop;
+                i_dst <= p_dst; i_a <= p_a; i_b <= p_b; i_bimm <= p_bimm; i_nop <= p_nop; i_row <= p_row;
                 i_need <= p_need; i_pend <= fetch; i_reuse <= hit;
                 if (fetch[0]) lw_a <= p_a[22:2];
                 if (fetch[1]) lw_b <= p_b[22:2];

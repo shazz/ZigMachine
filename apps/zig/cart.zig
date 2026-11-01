@@ -122,6 +122,7 @@ const scene = switch (opts.index) {
     109 => @import("scenes/hippel_musicdisk.zig"), // JOCHEN HIPPEL MUSIC DEMO (Feinbein Software & Supplex, Amiga 1990): ten Hippel tunes on keys a..j, its copper list rebuilt and translated (ported from the original executable)
     110 => @import("scenes/linebase_test.zig"), // LINE LIST TEST: the STE line list (HW 1.10.0 copper LBASE + overscan HSCROLL): wobble, line zoom, flipped bands, a colour-0 raster through open borders, no HBL handler
     111 => @import("scenes/mindwind.zig"), // MIND REWIND (Reservoir Gods, STE 2003): a line list on the copper's LBASE, the parts played forwards then rewound
+    112 => @import("scenes/chisel_v2.zig"), // CHISEL V2: the blitter's HW 1.11.0 ops, a mode each: AFFINE rotozoom and Mode 7 (span lists), MAP tunnel, mirrored bobs with the collision bit, the Amiga area fill
     else => @compileError("bad cart index"),
 };
 

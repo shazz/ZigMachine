@@ -37,7 +37,8 @@ def _elf(src: Path, out: Path, defs: tuple[str, ...] = ("-DZM_BOARD",)) -> Path:
     cmd += ["-nostdlib", "-nostartfiles", "-ffunction-sections", "-Wl,--gc-sections", *defs, "-DZM_BLIT_HW"]
     cmd += [f"-I{here}", f"-I{FPGA / 'cycles'}"]
     cmd += [f"-I{video_dump.memmap_header().parent}", "-T", str(FPGA / "tests/dcache/link.ld")]
-    cmd += [str(FPGA / "tests/dcache/start.S"), str(here / "blitpath.c"), str(src), "-lgcc", "-o", str(out)]
+    chisel = FPGA / "cycles/bchisel.c"  # GO, the wait and the lazy wait (bblit.c calls it)
+    cmd += [str(FPGA / "tests/dcache/start.S"), str(here / "blitpath.c"), str(src), str(chisel), "-lgcc", "-o", str(out)]
     out.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(cmd, check=True, capture_output=True)
     return out
@@ -75,3 +76,18 @@ def test_statistics_left_in_the_board_image_are_caught(core_tb: Path) -> None:  
     shutil.copy(FPGA / "cycles/bblit.h", work / "bblit.h")
     code, rep, out = _run(core_tb, _elf(work / "bblit.c", work / "board.elf"))
     assert code != 0 or rep[2] > GO_POLL_WRITES + 2, f"the statistics went unnoticed\n{out}"
+
+
+@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+def test_a_queue_routed_by_the_blocks_d_base_is_caught(core_tb: Path) -> None:  # noqa: F811
+    """The board ran stniccc's lists on the CPU (21 fps): the block's D_BASE, which a queue never
+    sets, sent them to the machine's software blitter. A QUEUE is CHISEL's whatever the block holds."""
+    work = BUILD / "mutants" / "queue_by_d_base"
+    work.mkdir(parents=True, exist_ok=True)
+    text = (FPGA / "cycles/bblit.c").read_text()
+    old = " || r[ZM_BLIT_COMMAND] == ZM_BLIT_CMD_QUEUE"
+    assert text.count(old) == 1
+    (work / "bblit.c").write_text(text.replace(old, ""))
+    shutil.copy(FPGA / "cycles/bblit.h", work / "bblit.h")
+    code, _, out = _run(core_tb, _elf(work / "bblit.c", work / "board.elf"))
+    assert code == 6, f"the routing went unnoticed (exit {code})\n{out}"

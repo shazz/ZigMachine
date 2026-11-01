@@ -15,6 +15,9 @@
 // then `go`), so the pipeline is full by then: zero clocks added per op. A path of
 // register -> subtract -> DSP -> two adds missed 100 MHz by 0.45 ns in the full SoC with
 // the FPU (Vivado, 2026-10-11).
+// MIRROR (CHISEL v2, a source channel only): `fx` reads the row backwards, pixel (x - xorg)
+// at base + (w - 1) - (x - xorg); `fy` reads the rows backwards, row (y - yorg) at
+// base + (h - 1 - (y - yorg)) * stride, so its row step is the opposite of the walk's.
 `default_nettype none
 
 module zm_blit_row (
@@ -24,6 +27,8 @@ module zm_blit_row (
     input  wire signed [17:0] xorg, yorg,   // the pixel whose address is `base`
     input  wire signed [17:0] ys,           // the op's first row: settled 3 clocks before `ld`
     input  wire               dn,           // the op walks its rows towards smaller y
+    input  wire               fx, fy,       // mirrored columns / rows (a BLIT source's CON2.MIRROR_X/Y)
+    input  wire [15:0]        w, h,         // the rectangle (for the mirrors)
     input  wire               ld,           // the op starts: the sequencer's y is `ys` next clock
     input  wire signed [17:0] y, x,         // the sequencer's pixel
     output wire [22:0]        addr
@@ -32,27 +37,30 @@ module zm_blit_row (
     // needs the three clocks; the rest is sampled at the last one (all of it settled by then).
     reg signed [17:0] s_j, s_y3;
     reg [22:0] s_row, s_str3;
-    reg s_dn3;
+    reg s_dn3, s_fx3;
     reg signed [35:0] s_prod;
     wire [22:0] str = {7'd0, stride};
+    wire [22:0] xo = {{5{xorg[17]}}, xorg}, xo_fx = xo + {7'd0, w} - 23'd1;   // fx: the row's last pixel is x = xorg
     always @(posedge clk) begin
-        s_j <= ys - yorg;
+        s_j <= fy ? yorg + $signed({2'b00, h}) - 18'sd1 - ys : ys - yorg;
         s_prod <= s_j * $signed({2'b00, stride});
-        s_row <= base - {{5{xorg[17]}}, xorg} + s_prod[22:0]; s_y3 <= ys; s_dn3 <= dn; s_str3 <= dn ? -str : str;
+        s_row <= base + (fx ? xo_fx : -xo) + s_prod[22:0]; s_y3 <= ys; s_dn3 <= dn; s_str3 <= dn ^ fy ? -str : str;
+        s_fx3 <= fx;
     end
 
     // the walk: the row the sequencer is on, or the next one
     reg signed [17:0] ry, ry_nx;
     reg [22:0] row, nxt, step;
-    reg down;
+    reg down, back;
     wire moved = y == ry_nx;
     wire [22:0] cur = moved ? nxt : row;
-    assign addr = cur + {{5{x[17]}}, x};
+    wire [22:0] xx = {{5{x[17]}}, x};
+    assign addr = back ? cur - xx : cur + xx;
     wire signed [17:0] ry_n = ld ? s_y3 : moved ? ry_nx : ry;
     wire [22:0] row_n = ld ? s_row : cur, step_n = ld ? s_str3 : step;
     wire down_n = ld ? s_dn3 : down;
     always @(posedge clk) begin
-        ry <= ry_n; row <= row_n; step <= step_n; down <= down_n;
+        ry <= ry_n; row <= row_n; step <= step_n; down <= down_n; if (ld) back <= s_fx3;
         ry_nx <= down_n ? ry_n - 18'sd1 : ry_n + 18'sd1;
         nxt <= row_n + step_n;
     end
