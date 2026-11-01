@@ -1,8 +1,11 @@
 // Verilator harness for tests/dcache/ (tests/test_blit_dcache.py): the board's cart core
 // (VexRiscv_I16w2D4SealFpu) on a memory model, plus a stand-in for CHISEL that writes a rect of
-// RAM behind the core's D-cache, as zm_blit writes DDR over HP2. Usage: dcache_tb <elf> [store wait].
-// The store wait (default 0) holds every data-bus write that many extra cycles, as a blocking DDR
-// write on the board (~18 cycles a store, the ZIGGY bench): tests/blitpath/ times hwBlit with it.
+// RAM behind the core's D-cache, as zm_blit writes DDR over HP2. Usage: dcache_tb <elf> [store wait
+// [read wait]]. The store wait (default 0) holds every data-bus write that many extra cycles, as a
+// blocking DDR write on the board (~18 cycles a store, the ZIGGY bench): tests/blitpath/ times
+// hwBlit with it. The read wait (default 0) holds the first beat of every read access (a line
+// refill's first word, on either bus) that many extra cycles: the DDR latency of a D$ miss
+// (tests/zmx/bench.c: 32 makes a line miss ~48 cycles, the board's figure, BENCH_REPORTS.md).
 // Device at 0xf0000000 (uncached: the core's IO range is address bit 31):
 //   +0  w  exit code (ends the run)          +4  r  cycle counter
 //   +8  w  REPORT line                       +12 w  "blit": the descriptor at this address,
@@ -10,7 +13,8 @@
 //   +20 r  reads of the watched line since the watch was set
 //   +24 rw a word for the program (tests/blitpath/: the video CSR VBASE)
 //   +28 rw what CHISEL's window answers at its CYCLES word (0x91000060); the window reads 0 else
-//   +32 r  data-bus writes so far
+//   +32 r  data-bus writes so far             +36 r  data-bus read accesses (line refills) so far
+//   +40 r  data-bus read beats so far
 // Prints REPORT lines, then "EXIT <code> CYCLES <n>"; exits with the program's code (2 on a timeout).
 #include <cstdint>
 #include <cstdio>
@@ -26,12 +30,12 @@
 namespace {
 
 constexpr uint32_t kRam = 0x40000000, kRamSize = 4u << 20, kDev = 0xf0000000;
-constexpr uint64_t kTimeout = 4000000;
+const uint64_t kTimeout = std::getenv("ZM_TB_CYCLES") ? std::strtoull(std::getenv("ZM_TB_CYCLES"), nullptr, 0) : 4000000;
 
 std::vector<uint8_t> ram(kRamSize);
-uint64_t cycle = 0, watched = 0, writes = 0;
+uint64_t cycle = 0, watched = 0, writes = 0, reads = 0, beats = 0;
 uint32_t watch = 1;  // no line: lines are 32-byte aligned
-uint32_t dev_word = 0, win_cycles = 0, store_wait = 0;
+uint32_t dev_word = 0, win_cycles = 0, store_wait = 0, read_wait = 0;
 int exit_code = -1;
 
 uint8_t* at(uint32_t a) { return a - kRam < kRamSize ? &ram[a - kRam] : nullptr; }
@@ -75,6 +79,8 @@ uint32_t read(uint32_t a) {
     if (a == kDev + 24) return dev_word;
     if (a == kDev + 28 || a == 0x91000060u) return win_cycles;
     if (a == kDev + 32) return (uint32_t)writes;
+    if (a == kDev + 36) return (uint32_t)reads;
+    if (a == kDev + 40) return (uint32_t)beats;
     if ((a & ~31u) == watch) watched++;
     return word(a);
 }
@@ -91,21 +97,32 @@ void write(uint32_t a, uint32_t v, unsigned sel) {
         if (sel >> b & 1) p[b] = (uint8_t)(v >> (8 * b));
 }
 
-// One Wishbone port: an access is acked the cycle after it shows up (a write `wait` cycles later).
+// One Wishbone bus's state: the ack, the read data, the cycles an access was held, and whether
+// the bus is inside an access already (a burst's later beats pay no read wait).
+struct Bus {
+    bool ack = false, busy = false;
+    uint32_t miso = 0, held = 0;
+};
+
+// One Wishbone port: an access is acked the cycle after it shows up (a write `wait` cycles later,
+// a read's first beat `read_wait` cycles later). `data` counts the data bus's reads.
 template <typename Cyc, typename Stb, typename We, typename Adr, typename Sel, typename Mosi>
-void port(bool& ack, uint32_t& miso, uint32_t& held, uint32_t wait, Cyc cyc, Stb stb, We we, Adr adr, Sel sel,
-          Mosi mosi) {
-    if (ack) {
-        ack = false;
+void port(Bus& p, uint32_t wait, bool data, Cyc cyc, Stb stb, We we, Adr adr, Sel sel, Mosi mosi) {
+    if (p.ack) {
+        p.ack = false;
         return;
     }
+    if (!cyc) p.busy = false;
     if (!(cyc && stb)) return;
-    if (we && held++ < wait) return;
-    held = 0;
+    if (we && p.held++ < wait) return;
+    if (!we && !p.busy && p.held++ < read_wait) return;
+    p.held = 0;
     uint32_t a = (uint32_t)adr << 2;
+    if (data && !we) reads += !p.busy, beats++;
+    p.busy = true;
     if (we) write(a, mosi, sel), writes++;
-    else miso = read(a);
-    ack = true;
+    else p.miso = read(a);
+    p.ack = true;
 }
 
 }  // namespace
@@ -114,20 +131,20 @@ int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     if (argc < 2 || !load_elf(argv[1])) return std::printf("usage: dcache_tb <elf> [store wait]\n"), 3;
     store_wait = argc > 2 ? (uint32_t)std::strtoul(argv[2], nullptr, 0) : 0;
+    read_wait = argc > 3 ? (uint32_t)std::strtoul(argv[3], nullptr, 0) : 0;
     VVexRiscv cpu;
     cpu.externalResetVector = kRam;
     cpu.timerInterrupt = cpu.softwareInterrupt = cpu.externalInterruptArray = 0;
-    bool iack = false, dack = false;
-    uint32_t idat = 0, ddat = 0, iheld = 0, dheld = 0;
+    Bus ib, db;
     for (; cycle < kTimeout && exit_code < 0; cycle++) {
         cpu.reset = cycle < 16;
-        cpu.iBusWishbone_ACK = iack, cpu.iBusWishbone_DAT_MISO = idat, cpu.iBusWishbone_ERR = 0;
-        cpu.dBusWishbone_ACK = dack, cpu.dBusWishbone_DAT_MISO = ddat, cpu.dBusWishbone_ERR = 0;
+        cpu.iBusWishbone_ACK = ib.ack, cpu.iBusWishbone_DAT_MISO = ib.miso, cpu.iBusWishbone_ERR = 0;
+        cpu.dBusWishbone_ACK = db.ack, cpu.dBusWishbone_DAT_MISO = db.miso, cpu.dBusWishbone_ERR = 0;
         cpu.clk = 0;
         cpu.eval();
-        port(iack, idat, iheld, 0, cpu.iBusWishbone_CYC, cpu.iBusWishbone_STB, cpu.iBusWishbone_WE, cpu.iBusWishbone_ADR,
+        port(ib, 0, false, cpu.iBusWishbone_CYC, cpu.iBusWishbone_STB, cpu.iBusWishbone_WE, cpu.iBusWishbone_ADR,
              cpu.iBusWishbone_SEL, cpu.iBusWishbone_DAT_MOSI);
-        port(dack, ddat, dheld, store_wait, cpu.dBusWishbone_CYC, cpu.dBusWishbone_STB, cpu.dBusWishbone_WE, cpu.dBusWishbone_ADR,
+        port(db, store_wait, true, cpu.dBusWishbone_CYC, cpu.dBusWishbone_STB, cpu.dBusWishbone_WE, cpu.dBusWishbone_ADR,
              cpu.dBusWishbone_SEL, cpu.dBusWishbone_DAT_MOSI);
         cpu.clk = 1;
         cpu.eval();

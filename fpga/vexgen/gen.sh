@@ -13,7 +13,9 @@
 # the dynamic predictor's BTB to 256 entries (TIMING_FABLE.md pass 3); `fpu` adds RV32F;
 # `snd` prefixes every module ZmSnd_ (the sound CPU next to the cart CPU in one SoC:
 # docs/FPGA_SOUND_CPU.md), so the two netlists' VexRiscv/DataCache/InstructionCache never clash;
-# `nodiv` drops the divider (Zmmul: DIV/REM trap, so the firmware is built -march=rv32i_zmmul).
+# `nodiv` drops the divider (Zmmul: DIV/REM trap, so the firmware is built -march=rv32i_zmmul);
+# `zmx` adds the ZM-X v1 custom ops (review/KESTREL_NEXT_ISA.md, ZmXPlugin + ZmMulPlugin's mulsh),
+# `zmxearly` the same with ZmXPlugin's result bypassed from EXECUTE (the timing comparison).
 # Writes build/vexgen/VexRiscv_<name>.v for each spec; one sbt session for all.
 set -euo pipefail
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,6 +39,8 @@ for spec in "$@"; do
             fpu) opts+=" --fpu" ;;
             snd) opts+=" --prefix ZmSnd_" ;;
             nodiv) opts+=" --noDiv" ;;
+            zmx) opts+=" --zmx" ;;
+            zmxearly) opts+=" --zmxEarly" ;;
             *) echo "vexgen: unknown flag $f in $spec" >&2; exit 2 ;;
         esac
     done
