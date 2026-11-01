@@ -50,7 +50,8 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     input  wire              px_nop,          // the minterm cannot change this pixel (zm_blit_core)
     input  wire [7:0]        px_mt, px_key,   // per op: the same for every pixel of one op
     input  wire [3:0]        px_flags,        // {KEY_EN, USEC, USEB, USEA}, per op
-    input  wire              ordered,         // per op: A/B reads wait for the earlier writes
+    input  wire              ordered,         // per op: reads wait for the earlier writes
+    input  wire              ordered_c,       // per op: C words are not reused (a pixel may come twice)
     output wire              px_idle,
     output wire              wrote,           // a pixel was written (or passed as a no-op) this clock
     output wire              rd_req_valid,
@@ -87,7 +88,7 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     // the word each channel last asked for (addr[22:2]), valid until the unit next idles
     reg [20:0] lw_a, lw_b, lw_c;
     reg [2:0]  lw_v;
-    wire [2:0] may_reuse = {1'b1, !ordered, !ordered};   // C always; A/B unless sources may be written
+    wire [2:0] may_reuse = {!ordered_c, !ordered, !ordered};   // C unless a pixel may come twice; A/B unless written
     wire [2:0] hit = p_need & may_reuse & lw_v
         & {lw_c == p_dst[22:2], lw_b == p_b[22:2], lw_a == p_a[22:2]};
     wire [2:0] fetch = p_need & ~hit;

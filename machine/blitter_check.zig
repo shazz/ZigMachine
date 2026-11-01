@@ -55,7 +55,7 @@ pub fn destInRegion(d_base: u32, stride: u16, x0: i32, y0: i32, x1: i32, y1: i32
 pub fn opBox(cmd: u8, c: Clip) Clip {
     var b = c;
     switch (cmd) {
-        memmap.BLIT_CMD_FILL, memmap.BLIT_CMD_BLIT => {
+        memmap.BLIT_CMD_FILL, memmap.BLIT_CMD_BLIT, memmap.BLIT_CMD_MAP => {
             const x0: i32 = regs.ri16(memmap.BLIT_X0);
             const y0: i32 = regs.ri16(memmap.BLIT_Y0);
             b = .{ .x0 = x0, .y0 = y0, .x1 = x0 + regs.r16(memmap.BLIT_W), .y1 = y0 + regs.r16(memmap.BLIT_H) };

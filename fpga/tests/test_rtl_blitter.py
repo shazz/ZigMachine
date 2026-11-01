@@ -24,6 +24,7 @@ import test_rtl  # after the path insert: reuses its CXXRTL include path
 from blitter_edges import edge_script
 from blitter_random import make_script
 from blitter_speed import H, W, speed_script
+from blitter_tex import make_tex_script
 
 BUILD = FPGA / "build" / "tests" / "blitter"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
@@ -34,6 +35,7 @@ SCRIPTS = {
     "random1": lambda: make_script(1, 400),
     "random2": lambda: make_script(2, 400),
     "speed": lambda: speed_script()[0],
+    "tex1": lambda: make_tex_script(3, 320),
 }
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [
@@ -148,14 +150,14 @@ def _trace(path: Path) -> list[list[str]]:
 
 def test_the_scripts_exercise_every_op(oracle: dict[str, Path]) -> None:
     """A script that stops drawing proves nothing: each op must draw, in each script's trace."""
-    ran = {"edges": 80, "random1": 380, "random2": 380}
+    ran = {"edges": 80, "random1": 380, "random2": 380, "tex1": 300}
     for name, trace in oracle.items():
         if name == "speed":
             continue
         script = [line.split() for line in (BUILD / f"{name}.txt").read_text().splitlines() if line.startswith("run")]
         rows = _trace(trace)
         assert len(rows) >= ran[name]
-        for cmd in ("1", "2", "3", "4"):
+        for cmd in ("1", "2", "3", "4") + (("6", "7") if name.startswith("tex") else ()):
             drew = sum(1 for (_, c), r in zip(script, rows, strict=True) if c == cmd and int(r[2]) > 0)
             assert drew >= 10, f"{name}: only {drew} ops of command {cmd} drew anything"
         assert any(r[2] == "0" for r in rows), f"{name}: no op was refused"

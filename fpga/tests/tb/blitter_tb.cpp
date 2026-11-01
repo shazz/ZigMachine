@@ -159,6 +159,8 @@ int main(int argc, char **argv) {
         if (op == "seed") seed(a);
         else if (op == "dump") std::ofstream(ta, std::ios::binary).write((const char *)&mem[LO], HI - LO);
         else if (op[0] == 'w') cpu_write(uint32_t(a), unsigned(atoi(op.c_str() + 1) / 8), uint32_t(b));
+        else if (op[0] == 'm')  // memory at a linear address, as the CPU's stores leave it before the op
+            for (unsigned k = 0; k < unsigned(atoi(op.c_str() + 1) / 8); k++) mem[uint32_t(a) + k] = uint8_t(b >> (8 * k));
         else if (op == "run") {
             std::string err;
             long clk = run(unsigned(a), randomize, err);

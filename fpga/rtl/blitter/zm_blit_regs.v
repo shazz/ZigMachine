@@ -35,7 +35,7 @@ module zm_blit_regs (
         for (i = 0; i < 16; i = i + 1) begin : g
             reg [31:0] r;
             wire hit = wr_ok && cpu_waddr == i;
-            wire narrow = (i == 3) || (i == 5) || (i == 7) || (i == 9);
+            wire narrow = (i == 7) || (i == 9);   // words 3 and 5 hold U_MASK / V_MASK above the strides
             always @(posedge clk) begin
                 if (rst) r <= 32'd0;
                 else if (hit) begin

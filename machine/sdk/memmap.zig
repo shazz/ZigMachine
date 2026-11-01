@@ -209,6 +209,41 @@ pub const BLIT_CMD_BLIT: u8 = 1;
 pub const BLIT_CMD_FILL: u8 = 2;
 pub const BLIT_CMD_LINE: u8 = 3;
 pub const BLIT_CMD_TRIANGLE: u8 = 4;
+// 5 is the QUEUE's (branch perf/chisel-queue-v2: COMMAND 5, BLIT_ASYNC 0x64, BLIT_Q_* 0x68).
+pub const BLIT_CMD_AFFINE: u8 = 6; // 1.10.0: textured spans from a list (see BLIT_SPAN_*)
+pub const BLIT_CMD_MAP: u8 = 7; // 1.10.0: W x H box, each pixel's texel from a (u, v) map (see below)
+
+// --- CHISEL v2 (1.10.0): AFFINE and MAP --------------------------------------------
+// Both read a TEXTURE through channel A: texel (U, V) at A_BASE + V * A_STRIDE + U
+// (A_BASE relative or, with CON2.SRC_ABS, absolute, as a BLIT source), U and V cut by
+// U_MASK / V_MASK: wrapped (U & U_MASK), or with CON2.TEX_CLIP a texel past a mask is
+// not drawn. The texel is B of the minterm: D = LF(0, texel, D) (MT_B: a plain write),
+// KEY_EN skips texel == COLOR_KEY, the clip and D are as for any op, CYCLES counts the
+// pixels written. The texture rectangle (U_MASK+1) x (V_MASK+1) must lie in ONE readable
+// window, or the op draws nothing.
+// AFFINE: SPAN_COUNT spans of BLIT_SPAN_BYTES at SPAN_BASE, an ABSOLUTE 4-aligned address
+// whose whole list lies in cart RAM or the ROM window (never video memory: CHISEL never
+// writes what it is walking). A span is x0:i16, x1:i16 (exclusive), y:i16, 0:u16, then
+// u0, v0, du, dv: u32 (16.16, two's complement). Pixel x of the span reads texel
+// (u >> 16, v >> 16) with u = u0 + (x - x0) * du, v = v0 + (x - x0) * dv (mod 2^32).
+// A Mode 7 floor is a span a row; a textured polygon a span per row it covers.
+// MAP: the BLIT box (W x H at X0, Y0, clipped, ascending); pixel (i, j) reads the u16 at
+// B_BASE + j * B_STRIDE + 2 * i, an ABSOLUTE address in cart RAM or the ROM window (as
+// SPAN_BASE; B_BASE and B_STRIDE even): u = its low byte, v = its high byte, then U = (u + U_OFF) mod 2^16,
+// V = (v + V_OFF) mod 2^16 before the masks. A tunnel is a map plus a moving offset.
+// The registers reuse words no other op reads (C_BASE/C_STRIDE: channel C is always the
+// destination; the strides' high halves; X1/Y1 for MAP), so the QUEUE's 24-word
+// descriptors can set them.
+pub const BLIT_U_MASK: usize = OFF_BLIT + 0x0E; // u16 texture U mask (A_STRIDE's high half)
+pub const BLIT_V_MASK: usize = OFF_BLIT + 0x16; // u16 texture V mask (B_STRIDE's high half)
+pub const BLIT_SPAN_BASE: usize = OFF_BLIT + 0x18; // u32 AFFINE span list, absolute (was C_BASE)
+pub const BLIT_SPAN_COUNT: usize = OFF_BLIT + 0x1C; // u16 AFFINE spans in the list (was C_STRIDE)
+pub const BLIT_U_OFF: usize = BLIT_X1; // u16 MAP: added to every map u
+pub const BLIT_V_OFF: usize = BLIT_Y1; // u16 MAP: added to every map v
+pub const BLIT_SPAN_BYTES: usize = 24;
+// COLL (1.10.0): bit 0 set by an op run with CON2.COLL_EN that wrote a pixel over a
+// non-zero destination byte; sticky until the program writes the byte (0) itself.
+pub const BLIT_COLL: usize = OFF_BLIT + 0x66; // u8 (outside the QUEUE's words: a status, not a parameter)
 
 // CON control bits
 pub const CON_USEA: u8 = 1 << 0; // channel A enabled
@@ -240,6 +275,17 @@ pub const CON2_FILL_MT: u8 = 1 << 1;
 // then means "every pixel is BG_COLOR" (density 0) instead of "no halftone".
 // With the bit clear the machine sniffs the pattern, as it did before 1.5.0.
 pub const CON2_HALFTONE_EN: u8 = 1 << 2;
+// 1.10.0 (CHISEL v2):
+// MIRROR_X / MIRROR_Y: a BLIT reads its sources flipped, column W-1-i / row H-1-j for
+// the destination's pixel (i, j) (sprite flips, kaleidoscopes).
+pub const CON2_MIRROR_X: u8 = 1 << 3;
+pub const CON2_MIRROR_Y: u8 = 1 << 4;
+// COLL_EN: the op sets BLIT_COLL bit 0 when it writes a pixel over a non-zero byte.
+pub const CON2_COLL_EN: u8 = 1 << 5;
+// TEX_CLIP: AFFINE/MAP draw nothing for a texel past U_MASK / V_MASK (else they wrap).
+pub const CON2_TEX_CLIP: u8 = 1 << 6;
+// FILL_CARRY: area fill (CON.IFE/EFE) starts each row inside (the Amiga's FCI).
+pub const CON2_FILL_CARRY: u8 = 1 << 7;
 
 pub const BLIT_STATUS_BUSY: u8 = 1 << 7;
 

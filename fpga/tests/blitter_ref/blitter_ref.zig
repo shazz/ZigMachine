@@ -8,6 +8,7 @@
 //!   seed <n>             fill 0x100000..0x700000 from a PRNG (few distinct bytes, so keys hit);
 //!                        the register block (offsets 0..0xFF) is kept
 //!   w8|w16|w32 <off> <v> write the register at video-region offset <off> (little-endian)
+//!   m8|m16|m32 <adr> <v> write memory at linear address <adr> (span lists, maps, textures)
 //!   run <cmd>            write COMMAND = cmd, then hwBlit(); emits a trace line
 //!   dump <file>          write the 6 MiB window raw
 //! A trace line is `R <n> <cycles> <status> <hash>`: the hash covers the window except the
@@ -91,6 +92,11 @@ fn command(io: std.Io, raw: []const u8) !void {
         try run(@intCast(try num(&it)));
     } else if (std.mem.eql(u8, op, "dump")) {
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = it.next() orelse return error.Syntax, .data = win });
+    } else if (op[0] == 'm') {
+        const size: usize = (try std.fmt.parseInt(usize, op[1..], 10)) / 8;
+        const adr: usize = @intCast(try num(&it));
+        const v: u32 = @intCast(try num(&it));
+        for (0..size) |k| win[adr - LO + k] = @truncate(v >> @intCast(8 * k));
     } else if (op[0] == 'w') {
         const size: usize = (try std.fmt.parseInt(usize, op[1..], 10)) / 8;
         const off: usize = @intCast(try num(&it));
