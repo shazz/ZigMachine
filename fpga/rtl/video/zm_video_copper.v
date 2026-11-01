@@ -91,14 +91,33 @@ module zm_video_copper (
     assign rd_req_len = {2'b00, q_span[8:1]};
     assign fb_we = rd_rsp_valid && busy && st != HEAD;
     assign fb_raddr = rword[8:1];
+    // DEC's and PAL's checks of wq are computed on the word a clock before it is wq (the buffer's
+    // read through the half mux) and registered with it. Each is a function of (word, room, k):
+    // wq is loaded every clock, room and k change only on a HEAD, DEC or PAL edge, and DEC and PAL
+    // are entered from RD2 alone, so a flag read in DEC or PAL equals its check on wq there. Before
+    // this the 9-bit add and the 21-bit compares sat between wq and the state machine: the comp
+    // domain's worst path in the 97 %-full bitstream (-0.385 ns at 125 MHz, 2026-11-01).
+    wire [31:0] w_pre = rhalf ? fb_rdata[63:32] : fb_rdata[31:0];
+    wire [8:0] wk_pre = {1'b0, w_pre[19:12]};
+    wire bad_blk_pre = wk_pre == 9'd0 || {1'b0, w_pre[27:20]} + wk_pre > 9'd256;
+    wire [18:0] t_word_pre = w_pre[20:2] - VW[18:0];
+    reg blk_ok_r, ref_blk_ok_r, lb_ok_r, ref_ok_pre;   // a PALETTE block fits; a PALREF's; LBASE in VRAM; a table
+    reg [18:0] t_word_q;
+    reg phys_r;                                        // phys a clock late: mode and stride hold while busy
     always @(posedge clk) begin
         rhalf <= rword[0];
-        wq <= rhalf ? fb_rdata[63:32] : fb_rdata[31:0];
+        wq <= w_pre;
+        blk_ok_r <= !bad_blk_pre && wk_pre < {1'b0, room};
+        ref_blk_ok_r <= !bad_blk_pre && room > 8'd1;
+        lb_ok_r <= w_pre[27:21] == 7'd0 && w_pre[20:0] >= ZM_OFF_VRAM && w_pre[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;
+        // PALREF's table: a word-aligned region offset whose k words lie in VRAM.
+        ref_ok_pre <= w_pre[1:0] == 2'd0 && w_pre[31:21] == 11'd0 && w_pre[20:2] >= VW[18:0]
+                      && t_word_pre + {11'd0, k} <= VWORDS;
+        t_word_q <= t_word_pre;
+        phys_r <= phys;
     end
 
     wire [3:0] op = wq[31:28];
-    wire [8:0] wk = {1'b0, wq[19:12]};
-    wire bad_blk = wk == 9'd0 || {1'b0, wq[27:20]} + wk > 9'd256;
     wire [7:0] hs_off = ZM_REG_HSCROLL + {5'd0, p, 1'b0};
     assign hs_word = hs_off[6:2];
     assign hs_be = hs_off[1] ? 4'b1100 : 4'b0011;
@@ -107,12 +126,7 @@ module zm_video_copper (
     wire fs = mode == 8'd1 || ((mode == 8'd0 || mode > 8'd4) && stride == ZM_STRIDE_FULLSCREEN);
     wire phys = fs || mode == 8'd4 || (mode == 8'd3 && stride >= ZM_RASTER_WIDTH);
     wire covers = phys || (line >= ZM_RASTER_BORDER_Y && line < ZM_RASTER_BORDER_Y + ZM_HEIGHT);
-    // LBASE: bits 27..21 zero and the offset in VRAM; its row is the plane's (zm_video_plane.v).
-    wire lb_ok = wq[27:21] == 7'd0 && wq[20:0] >= ZM_OFF_VRAM && wq[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;
-    // PALREF's table: a word-aligned region offset whose k words lie in VRAM.
-    wire [18:0] t_word = wq[20:2] - VW[18:0];
-    wire ref_ok = wq[1:0] == 2'd0 && wq[31:21] == 11'd0 && wq[20:2] >= VW[18:0]
-                  && t_word + {11'd0, k} <= VWORDS;
+    // LBASE (lb_ok_r): bits 27..21 zero and the offset in VRAM; its row is the plane's (zm_video_plane.v).
     // At a LATCH: the plane's list.
     wire [15:0] l_v = regs[(ZM_REG_FB_COPPER + plane * 2) * 8 +: 16];
     wire [7:0] step = pref ? 8'd2 : k + 8'd1;                       // a block's words
@@ -127,7 +141,7 @@ module zm_video_copper (
         // LBASE's value and row every clock (read only on lb_we's pulse, which DEC sets on the same
         // edge): no clock enable hangs on the VRAM check (it was the comp domain's next path).
         lb_val <= wq[20:0];
-        lb_row <= phys ? line : line - ZM_RASTER_BORDER_Y[8:0];
+        lb_row <= phys_r ? line : line - ZM_RASTER_BORDER_Y[8:0];
         if (rd_req_valid && rd_req_ready) asked <= 1'b1;
         if (fb_we) fb_waddr <= fb_waddr + 8'd1;
         if (rd_rsp_valid && busy) left <= left - 8'd1;
@@ -197,7 +211,7 @@ module zm_video_copper (
             RD2: st <= after || k != 8'd0 ? PAL : DEC;   // then wq holds the word
             DEC: begin                     // wq is body word i
                 j <= 8'd0;
-                if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && wq[27:20] == hs_off) || (op == 4'h5 && lb_ok)) begin
+                if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && wq[27:20] == hs_off) || (op == 4'h5 && lb_ok_r)) begin
                     if (op == 4'h3) flick <= 1'b1;
                     if (op == 4'h2) hs_we <= 1'b1;
                     if (op == 4'h5) lb_we <= 1'b1;
@@ -206,8 +220,7 @@ module zm_video_copper (
                     rword <= rword + 10'd1;
                     after <= room == 8'd1;
                     st <= RD1;
-                end else if ((op == 4'h1 && !bad_blk && wk < {1'b0, room})
-                             || (op == 4'h4 && !bad_blk && room > 8'd1)) begin
+                end else if ((op == 4'h1 && blk_ok_r) || (op == 4'h4 && ref_blk_ok_r)) begin
                     first <= wq[27:20];
                     k <= wq[19:12];
                     pref <= op == 4'h4;     // a PALREF's next word is its table's offset
@@ -226,8 +239,8 @@ module zm_video_copper (
                 live[p] <= wq[31:28] == 4'hF;
                 st <= IDLE;
             end else if (pref && rword < 10'd256) begin  // wq: the PALREF table's offset
-                ref_ok_r <= ref_ok;
-                t_word_r <= t_word;
+                ref_ok_r <= ref_ok_pre;
+                t_word_r <= t_word_q;
                 st <= REFD;
             end else begin                 // wq: palette word j of the block
                 pal_we <= 1'b1;

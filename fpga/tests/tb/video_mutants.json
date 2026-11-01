@@ -439,6 +439,13 @@
     "catch": "s:lbase"
   },
   {
+    "id": "copper_check_a_word_late",
+    "file": "zm_video_copper.v",
+    "old": "blk_ok_r <= !bad_blk_pre && wk_pre < {1'b0, room};",
+    "new": "blk_ok_r <= wq[19:12] != 8'd0 && {1'b0, wq[27:20]} + {1'b0, wq[19:12]} <= 9'd256 && {1'b0, wq[19:12]} < {1'b0, room};",
+    "catch": "s:copper"
+  },
+  {
     "id": "lbase_not_persisting",
     "file": "zm_video_plane.v",
     "old": "{row_2, stride_2, sc_2, base_2} <= {row - lrow_i,",
@@ -448,14 +455,14 @@
   {
     "id": "lbase_row_off_by_one",
     "file": "zm_video_copper.v",
-    "old": "lb_row <= phys ? line : line - ZM_RASTER_BORDER_Y[8:0];",
-    "new": "lb_row <= phys ? line + 9'd1 : line - ZM_RASTER_BORDER_Y[8:0];",
+    "old": "lb_row <= phys_r ? line : line - ZM_RASTER_BORDER_Y[8:0];",
+    "new": "lb_row <= phys_r ? line + 9'd1 : line - ZM_RASTER_BORDER_Y[8:0];",
     "catch": "s:lbase"
   },
   {
     "id": "lbase_vram_unchecked",
     "file": "zm_video_copper.v",
-    "old": "&& wq[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;",
+    "old": "&& w_pre[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;",
     "new": ";",
     "catch": "s:lbase"
   },
