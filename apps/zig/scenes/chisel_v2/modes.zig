@@ -47,9 +47,9 @@ pub const Modes = struct {
         const dv: i64 = @divTrunc(@as(i64, trig.sin(ang)) * zoom, trig.ONE);
         for (m.spans, 0..) |*s, y| {
             const yy: i64 = @as(i64, @intCast(y)) - 100;
-            const u0 = (64 << 16) - 160 * du - yy * dv;
-            const v0 = (64 << 16) - 160 * dv + yy * du;
-            s.* = .{ .x0 = 0, .x1 = W, .y = @intCast(y), .u0 = wrap(u0), .v0 = wrap(v0), .du = wrap(du), .dv = wrap(dv) };
+            const su = (64 << 16) - 160 * du - yy * dv;
+            const sv = (64 << 16) - 160 * dv + yy * du;
+            s.* = .{ .x0 = 0, .x1 = W, .y = @intCast(y), .u0 = wrap(su), .v0 = wrap(sv), .du = wrap(du), .dv = wrap(dv) };
         }
         v2.affine(fb, tex(a), m.spans, .{});
     }
@@ -83,7 +83,7 @@ pub const Modes = struct {
     pub fn sprites(m: *Modes, fb: *LogicalFB, a: *const assets.Assets) bool {
         fb.fillRect(0, 0, @intCast(W), @intCast(H), 0);
         v2.clearCollision();
-        const r: i32 = 20 + @divTrunc(trig.sin(m.t *% (1 << 24)) * 30, trig.ONE); // radius, 0 .. 50: they meet
+        const r: i32 = 20 + @divTrunc(trig.sin(m.t *% (1 << 26)) * 30, trig.ONE); // -10 .. 50 a 64-frame cycle: they meet
         const xs = [4]i32{ 160 - r - 16, 160 + r, 160 - r - 16, 160 + r };
         const ys = [4]i32{ 100 - r - 16, 100 - r - 16, 100 + r, 100 + r };
         for (0..4) |k| {

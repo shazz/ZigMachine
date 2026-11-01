@@ -30,6 +30,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "chisel_v2",
+  "title": "CHISEL V2",
+  "type": "zigmachine"
+ },
+ {
   "tag": "chonchon2",
   "title": "CHONCHON 2",
   "type": "atari st"

@@ -558,6 +558,20 @@ early (they are functions of registers that hold still while `BUSY`), and the pi
 "no-op pixel" test is decided from registered answers for COLOR, BG_COLOR and 0, so the
 halftone's LUTRAM read is no longer on the path into `zm_blit_px`.
 
+**CHISEL v2 (HW 1.11.0, 2026-10-31).** Same flow, the whole block with every v2 op:
+**4,276 LUT / 2,896 FF / 1 RAMB18 / 23 DSP, WNS +0.82 ns at 100 MHz, +0.29 ns at 125 MHz**
+(main before the fold: 3,324 LUT, so +952 net; the fold paid for 329 of the 1,281 added).
+Where the added LUTs went (the placed hierarchy, approximate where logic merged):
+
+| op | blocks | LUT |
+|---|---|---:|
+| AFFINE + MAP | `zm_blit_tex` (walker, 3-stage texel pipe) 348, `zm_blit_tfetch` (list/map FIFO, credits) 293, `zm_blit_rdmux` | ~650 |
+| QUEUE | `zm_blit_q` 193 + the tap bank in `zm_blit_regs` (~185), the 512-word ring (1 RAMB18) | ~380 |
+| mirror, collision, area fill | the row walks' flips, the head's carry and collision test, C forced | ~100 |
+
+Cuts not taken yet: the list/map FIFO at 16 words, the texel pipe's DSP for a power-of-two
+stride shift, TRIANGLE's per-scanline divide (an incremental edge walk is faster too).
+
 ### 10.5 Throughput
 
 **Behind HP2 in the board sim** (`soc/hp_sim.py`: 20-clock first beat, 8 reads in flight per

@@ -85,13 +85,13 @@ MUTANTS = [
     ("line_clipped_pixels_uncounted", "zm_blit_core.v", "line_step && is_line", "line_step && is_line && |v"),
     # the pipeline (zm_blit_px/_pxq): reads ahead of writes only where they cannot alias, answers
     # paired with the request that asked, merged bytes in their own word and lane
-    ("read_passes_an_aliasing_write", "zm_blit_core.v", ".ordered(is_blit && overlap)", ".ordered(1'b0)"),
+    ("read_passes_an_aliasing_write", "zm_blit_core.v", ".ordered((is_blit || is_tex) && overlap || ord_c)", ".ordered(ord_c)"),
     ("overlap_ignores_channel_a", "zm_blit_chk.v", "ord_acc || !(apart", "ord_acc || sel && !(apart"),
-    ("overlap_source_is_one_row", "zm_blit_chk.v", "+ {2'b00, prod[22:0]} + {9'd0, w}", "+ {9'd0, w}"),
+    ("overlap_source_is_one_row", "zm_blit_chk.v", "+ {2'b00, prod[22:0]} + {4'd0, s_w}", "+ {4'd0, s_w}"),
     # the in-plane overlap (SOC_REVIEW F5): the box's own span, and a walk that never reads behind itself
     ("dest_span_starts_at_the_last_row", "zm_blit_chk.v", "d_lin + p_first +", "d_lin + p_last +"),
     ("behind_test_ignores_the_direction", "zm_blit_chk.v", "(desc ? delta <= 27'sd0 : delta >= 27'sd0)", "1'b1"),
-    ("behind_test_ignores_the_stride", "zm_blit_chk.v", "s_same <= h == 16'd1 || s_str == ds;", "s_same <= 1'b1;"),
+    ("behind_test_ignores_the_stride", "zm_blit_chk.v", "(h == 16'd1 || s_str == ds)", "1'b1"),
     ("poly_box_skips_the_third_vertex", "zm_blit_chk.v", "TRIANGLE ? y2 : y0;", "TRIANGLE ? y0 : y0;"),
     ("answer_paired_with_the_newest_read", "zm_blit_px.v", "tag[tr[LT-1:0]]", "tag[tw[LT-1:0] - 1'b1]"),
     ("answer_byte_from_the_wrong_lane", "zm_blit_pxq.v", "wa >> {h_lanes[1:0], 3'b000}", "wa >> {h_lanes[3:2], 3'b000}"),
@@ -100,7 +100,8 @@ MUTANTS = [
     ("unread_channel_keeps_a_stale_byte", "zm_blit_pxq.v", "h_need[2] ? wc >> {hd[1:0], 3'b000} : 8'd0", "wc >> {hd[1:0], 3'b000}"),
     # word reuse: never across ops, never a source an ordered op may write, always the last word fetched
     ("reuse_survives_between_ops", "zm_blit_px.v", "if (px_idle) lw_v <= 3'd0;", ""),
-    ("reuse_of_sources_while_ordered", "zm_blit_px.v", "{1'b1, !ordered, !ordered}", "3'b111"),
+    ("reuse_of_sources_while_ordered", "zm_blit_px.v", "{!ordered_c, !ordered, !ordered}", "{!ordered_c, 2'b11}"),
+    ("reuse_of_c_when_a_pixel_may_come_twice", "zm_blit_px.v", "{!ordered_c, !ordered, !ordered}", "{1'b1, !ordered, !ordered}"),
     ("reuse_takes_an_older_word", "zm_blit_pxq.v", "if (h_need[2]) hw_c <= wc;", "if (h_need[2] && hw_c == 0) hw_c <= wc;"),
     ("reuse_ignores_the_word_address", "zm_blit_px.v", "lw_c == p_dst[22:2]", "lw_c[20:4] == p_dst[22:6]"),
     ("merged_byte_in_the_wrong_lane", "zm_blit_pxq.v", "c_data[{h_dst[1:0], 3'b000} +: 8]", "c_data[{~h_dst[1:0], 3'b000} +: 8]"),

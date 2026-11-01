@@ -124,6 +124,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "J. HIPPEL MUSIC DEMO", .tag = "hippel_musicdisk" }, // amiga — Feinbein Software & Supplex musicdisk, 1990 (demozoo 135994)
     .{ .name = "LINE LIST TEST", .tag = "linebase_test" }, // zigmachine — HW 1.10.0 copper LBASE: the STE video-counter line list
     .{ .name = "MIND REWIND", .tag = "mindwind" }, // atari st — STE only: Reservoir Gods' EIL 2003 intro, ported from the depacked binary
+    .{ .name = "CHISEL V2", .tag = "chisel_v2" }, // zigmachine — the blitter's HW 1.11.0 ops: AFFINE, MAP, mirror, collision, area fill
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.
