@@ -89,8 +89,12 @@ class ZigMachineSoC(SoCCore):
     ) -> None:
         if glass:  # the board's SoC and soc/hp_sim.py: the firmware times itself with ZMCycles and
             # never reads timer0 or the identifier string, so neither is built (LUTs). Nor is the 8 KiB
-            # SRAM at 0x1000_0000: everything links in DDR, and with no ROM LiteX builds no BIOS to need it
+            # SRAM at 0x1000_0000: everything links in DDR, and with no ROM LiteX builds no BIOS to need it.
+            # Nor LiteX's `ctrl` block (soft reset, scratch, the bus-error counter): nothing in
+            # fpga/cycles or the glass reads it (2026-11-01; the firmware's csr_addr.h comes from the
+            # sim's csr.json, so both maps move together, tools/cycles_csr.py --hp-check).
             kwargs.setdefault("with_timer", False)
+            kwargs.setdefault("with_ctrl", False)
             kwargs.setdefault("integrated_sram_size", 0)
         SoCCore.__init__(
             self,
