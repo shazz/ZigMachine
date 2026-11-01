@@ -119,6 +119,11 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     netlist = core_netlist(getattr(args, "cpu_netlist", None))
     if netlist is not None:
         zm_timing.use_core(soc, platform, netlist)
+    fit = getattr(args, "vivado_directives", "default") == "fit"
+    if fit and hasattr(platform.toolchain, "pre_placement_commands"):
+        # A second opt pass before placement: the placer fits one control set a slice, and merging
+        # equivalent CE/reset nets frees slices (the 2026-11-01 build was 19 slices short).
+        platform.toolchain.pre_placement_commands.append("opt_design -control_set_merge -merge_equivalent_drivers")
     return soc, platform
 
 

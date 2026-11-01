@@ -95,6 +95,9 @@ class ZigMachineSoC(SoCCore):
             # sim's csr.json, so both maps move together, tools/cycles_csr.py --hp-check).
             kwargs.setdefault("with_timer", False)
             kwargs.setdefault("with_ctrl", False)
+            # The UART's FIFOs: the board's is a stub nothing drains (LUTRAM and pointers for nothing),
+            # the sim's console drains a byte a clock; 2 deep keeps the CSRs and the behaviour.
+            kwargs.setdefault("uart_fifo_depth", 2)
             kwargs.setdefault("integrated_sram_size", 0)
         SoCCore.__init__(
             self,
@@ -216,7 +219,7 @@ def main() -> None:
     p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: --vivado-directives explore")
     p.add_argument(
         "--vivado-directives", choices=("default", "explore", "closure", "fit"), default="default",
-        help="z7, vivado: directive set (soc/zm_z7.py DIRECTIVES; closure = bitstream c72c58ca's, fit = area synthesis)",
+        help="z7, vivado: directive set (soc/zm_z7.py DIRECTIVES; closure = c72c58ca's, fit = area synthesis)",
     )  # fmt: skip
     p.add_argument("--vivado-threads", type=int, default=2, help="z7, vivado: general.maxThreads (memory)")
     args = p.parse_args()
