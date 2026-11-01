@@ -21,7 +21,7 @@ def speed_script() -> tuple[Script, list[tuple[str, bool]]]:
     ops: list[tuple[str, bool]] = []
 
     def copy(name: str, fast: bool, src: int, x0: int, y0: int, con: int = COPY, bs: int = 320, h: int = H) -> None:
-        do(s, BLIT, b=src, bs=bs, x0=x0, y0=y0, con=con, h=h)
+        do(s, BLIT, b=src, bs=bs, x0=x0, y0=y0, con=con, h=h, con2=mm.CON2_MIRROR_X if "mirror" in name else 0)
         ops.append((name, fast))
 
     do(s, BLIT, **regs(mt=mm.MT_B, con=COPY, con2=0, key=0, d=PLANE, ds=320, w=W, h=H, x0=0, y0=0, b=PLANE + 100 * 320, bs=320))
@@ -42,4 +42,6 @@ def speed_script() -> tuple[Script, list[tuple[str, bool]]]:
     copy("scroll down ascending (delta -stride)", False, PLANE + 119 * 320, 0, 120)
     # another stride: its delta shrinks a row at a time, so it reads behind the walk
     copy("overlap, other stride", False, PLANE + 160 * 320 + 2, 0, 160, bs=310)
+    # mirrored over itself one byte ahead: no constant offset, so the walk does read behind itself
+    copy("mirror X over itself (ordered)", False, PLANE + 168 * 320 + 1, 0, 168)
     return s, ops

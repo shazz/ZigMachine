@@ -97,7 +97,6 @@ MUTANTS = [
     ("answer_byte_from_the_wrong_lane", "zm_blit_pxq.v", "wa >> {h_lanes[1:0], 3'b000}", "wa >> {h_lanes[3:2], 3'b000}"),
     ("pixel_leaves_before_its_answers", "zm_blit_pxq.v", "h_got == q_need[hs]", "h_got[0] == q_need[hs][0]"),
     ("bytes_merged_across_words", "zm_blit_pxq.v", "wire same = cv && c_word == h_dst[22:2];", "wire same = cv;"),
-    ("unread_channel_keeps_a_stale_byte", "zm_blit_pxq.v", "h_need[2] ? wc >> {hd[1:0], 3'b000} : 8'd0", "wc >> {hd[1:0], 3'b000}"),
     # word reuse: never across ops, never a source an ordered op may write, always the last word fetched
     ("reuse_survives_between_ops", "zm_blit_px.v", "if (px_idle) lw_v <= 3'd0;", ""),
     ("reuse_of_sources_while_ordered", "zm_blit_px.v", "{!ordered_c, !ordered, !ordered}", "{!ordered_c, 2'b11}"),
@@ -124,7 +123,8 @@ MUTANTS = [
     ("fetch_overruns_its_fifo", "zm_blit_tfetch.v", "st == RUN && used < 6'd32", "st == RUN"),
     ("aux_answer_routed_by_the_newest", "zm_blit_rdmux.v", "assign aux_rsp = rd_rsp_valid && who[rp];",
      "assign aux_rsp = rd_rsp_valid && who[wp - 6'd1];"),
-    ("affine_c_reads_not_ordered", "zm_blit_core.v", "ord_c <= is_aff && c_dep;", "ord_c <= 1'b0;"),
+    ("affine_c_reads_not_ordered", "zm_blit_core.v", "ord_c <= is_aff && (c_dep || coll_en);", "ord_c <= 1'b0;"),
+    ("affine_collision_reads_not_ordered", "zm_blit_core.v", "(c_dep || coll_en)", "(c_dep)"),
     ("tex_texture_extent_unchecked", "zm_blit_chk.v", "!sel ? {4'd0, {1'b0, umask} + 17'd1}", "!sel ? 21'd1"),
     ("span_list_alignment_unchecked", "zm_blit_chk.v", "is_aff ? s_base[1:0] == 2'd0", "is_aff ? 1'b1"),
     # CHISEL v2: mirror, area fill, collision
@@ -139,6 +139,8 @@ MUTANTS = [
     ("fill_keeps_the_nop_shortcut", "zm_blit_core.v", "is_tex || fill_on || coll_en ? 1'b0", "is_tex || coll_en ? 1'b0"),
     ("collision_reads_no_c", "zm_blit_px.v", "need = {cen && !c_dc || force_c,", "need = {cen && !c_dc,"),
     ("collision_on_any_write", "zm_blit_pxq.v", "h_wr && h_c != 8'd0;", "h_wr;"),
+    # (the minterm sees C through cen: an unread C's stale byte can no longer show, so the old
+    # unread_channel_keeps_a_stale_byte mutant is equivalent now; this one breaks the mask itself)
     ("collision_c_feeds_the_minterm", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], cen && h_c[i]}]", "mt[{h_a[i], bval[i], h_c[i]}]"),
     ("collision_kept_across_kicks", "zm_blit_regs.v", "if (rst || kick) coll <= 1'b0;", "if (rst) coll <= 1'b0;"),
     ("desc_blit_first_dest_row_is_the_top", "zm_blit_core.v", "is_blit && f_con[6] ? ey1 - 18'sd1 : ", ""),

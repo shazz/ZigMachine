@@ -157,7 +157,7 @@ module zm_blit_core (
     // writes before it and C words are not reused (a MAP box, like every other op, never does)
     wire c_dep = !(f_mt[0] == f_mt[1] && f_mt[2] == f_mt[3] && f_mt[4] == f_mt[5] && f_mt[6] == f_mt[7]);
     reg ord_c;
-    always @(posedge clk) ord_c <= is_aff && c_dep;
+    always @(posedge clk) ord_c <= is_aff && (c_dep || coll_en);   // the collision reads C too
     wire px_idle, wrote;
     zm_blit_px pxu (.clk(clk), .rst(rst), .px_valid(v_r | v_l | v_t | v_x), .px_ready(px_ready),
         .px_dst(is_tex ? t_dst : d_addr), .px_aaddr(aaddr), .px_baddr(is_tex ? t_baddr : baddr), .px_bimm(px_bimm), .px_nop(px_nop), .px_mt(px_mt), .px_key(f_key), .px_flags(px_flags),

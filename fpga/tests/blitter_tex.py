@@ -57,12 +57,15 @@ class TexScript(RandomScript):
             at = mm.CART_RAM_TOP - SPAN * max(n, 1) + 4
         ds = self.get(mm.BLIT_D_STRIDE) or 320
         y = r.randint(-5, 210)
+        x0 = x1 = 0
         for k in range(min(n, 64)):  # the rest of a long list is whatever memory holds
-            x0 = self.coord(-80, ds)
-            x1 = x0 + r.choice([r.randint(0, 40), r.randint(-3, 0), r.randint(0, ds + 60)])
-            if r.random() < 0.3:  # overlapping spans on one row: a pixel written twice
-                y = y
+            dup = k > 0 and r.random() < 0.2  # the span again, at once: its pixels read while still being written
+            if dup:
+                x0, x1 = x0 + r.randint(-4, 4), x1 + r.randint(-4, 4)
             else:
+                x0 = self.coord(-80, ds)
+                x1 = x0 + r.choice([r.randint(0, 40), r.randint(-3, 0), r.randint(0, ds + 60)])
+            if not dup and r.random() >= 0.3:  # else the same row: overlapping spans, a pixel written twice
                 y = r.choice([y + 1, self.coord(-10, 280 if ds == 400 else 200)])
             (u0, du), (v0, dv) = self.span_value(), self.span_value()
             span = at + SPAN * k
