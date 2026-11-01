@@ -93,12 +93,17 @@ module zm_video_comp #(
     // --- command taking: a pass that folds into the picture waits for `d_ok` ---
     wire busy, cop_busy, wb_busy;
     reg [1:0] plane;
-    assign cmd_ready = !busy && !cop_busy && !wb_busy && (!cmd_mix || d_ok);
+    // The copper decodes a LATCH one clock after its take, from flops (cop_latch, `plane`): the
+    // decode from the sys-side command through the FB_COPPER select was comp's worst path. The
+    // clock between holds the next command back, so a PLANE can't meet the copper still IDLE.
+    reg cop_latch = 1'b0;
+    assign cmd_ready = !busy && !cop_busy && !cop_latch && !wb_busy && (!cmd_mix || d_ok);
     wire take = cmd_valid && cmd_ready;
     wire latch = take && cmd_op == 3'd2;
     assign present = take && cmd_op == 3'd4;
     wire clear = take && cmd_op == 3'd5;
     always @(posedge clk) if (take) plane <= cmd_plane;
+    always @(posedge clk) cop_latch <= !rst && latch;
     reg [31:0] fill_bg;
     reg fill;
     always @(posedge clk) if (take) fill <= cmd_fill && (cmd_op == 3'd1 || cmd_op == 3'd3);
@@ -187,7 +192,8 @@ module zm_video_comp #(
     wire [20:0] cop_rd_off;
     wire [9:0] cop_rd_len;
     zm_video_copper u_cop (
-        .clk(clk), .rst(rst), .latch(latch), .start(take && cmd_op == 3'd1), .plane(take ? cmd_plane : plane),
+        .clk(clk), .rst(rst), .latch(cop_latch), .lplane(plane), .start(take && cmd_op == 3'd1),
+        .plane(take ? cmd_plane : plane),
         .line(line), .regs(regs), .mode(pl_mode), .stride(pl_stride), .busy(cop_busy), .flick(cop_flick),
         .rd_req_valid(cop_rd_valid), .rd_req_ready(cop_busy && rd_req_ready), .rd_req_off(cop_rd_off),
         .rd_req_len(cop_rd_len), .rd_rsp_valid(cop_busy && rd_rsp_valid), .rd_rsp_data(rd_rsp_data),

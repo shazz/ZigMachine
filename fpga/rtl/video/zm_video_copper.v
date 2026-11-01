@@ -17,7 +17,8 @@
 module zm_video_copper (
     input  wire          clk,
     input  wire          rst,
-    input  wire          latch,          // a LATCH of `plane`
+    input  wire          latch,          // a LATCH of `lplane`, one clock after its take (zm_video_comp.v)
+    input  wire [1:0]    lplane,         // registered: the LATCH's decode starts at a flop, not at cmd
     input  wire          start,          // a PLANE pass of `plane` over `line` is taken
     input  wire [1:0]    plane,
     input  wire [8:0]    line,
@@ -128,7 +129,7 @@ module zm_video_copper (
     wire covers = phys || (line >= ZM_RASTER_BORDER_Y && line < ZM_RASTER_BORDER_Y + ZM_HEIGHT);
     // LBASE (lb_ok_r): bits 27..21 zero and the offset in VRAM; its row is the plane's (zm_video_plane.v).
     // At a LATCH: the plane's list.
-    wire [15:0] l_v = regs[(ZM_REG_FB_COPPER + plane * 2) * 8 +: 16];
+    wire [15:0] l_v = regs[(ZM_REG_FB_COPPER + lplane * 2) * 8 +: 16];
     wire [7:0] step = pref ? 8'd2 : k + 8'd1;                       // a block's words
     wire [7:0] i_next = i + step;                                    // after a block
     wire [8:0] rec_beats = ({1'b0, c_hn} + 9'd2 + {8'd0, h_at[0]}) >> 1;
@@ -150,9 +151,9 @@ module zm_video_copper (
             live <= 4'd0;
         end else case (st)
             IDLE: if (latch) begin
-                p <= plane;
-                live[plane] <= 1'b0;
-                at[plane] <= {l_v, 2'b00};
+                p <= lplane;
+                live[lplane] <= 1'b0;
+                at[lplane] <= {l_v, 2'b00};
                 if (l_v != 16'd0) begin
                     q_at <= {l_v, 2'b00};
                     q_words <= 9'd1;
