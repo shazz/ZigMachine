@@ -64,4 +64,11 @@ static inline void* zm_memcpy(void* d, const void* s, size_t n) {
 #define MEM_ADDR_MEMOP(mem, addr, n) (&wasm_rt_local_memory_base[(addr)])
 #endif
 
+/* ZM_ZMX: the cart's env.zm* imports as ZM-X instructions (zmx_hw.h), not calls into the
+ * ROM's twins. Only for a cart image (split.mk ZM_ZMX=1): an older bitstream still runs it,
+ * through trap.c's fallback. */
+#ifdef ZM_ZMX
+#include "zmx_hw.h"
+#endif
+
 #endif

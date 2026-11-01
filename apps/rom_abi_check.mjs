@@ -131,6 +131,30 @@ for (const [name, fn] of hostile) {
     }
 }
 
+// ZM-X v1's twins (rom/zmx_exports.zig): every one is exported (a cart importing a missing one
+// would get the host's no-op and compute 0), takes any i32 without trapping, and gives the pinned
+// integers of libs/zig/zmx.zig (the RTL is checked against the same spec: fpga/tests/test_zmx.py).
+{
+    const zmxCases = [
+        ["zmMulsh16 INT_MAX^2", () => rom.zmMulsh16(0x7fffffff, 0x7fffffff), -65536],
+        ["zmMulsh16 floors", () => rom.zmMulsh16(-1, 1), -1],
+        ["zmMulsh15", () => rom.zmMulsh15(0x4000, 0x4000), 0x2000],
+        ["zmTex2d 64x128", () => rom.zmTex2d(0x00450000, 0x01230000, 3 | (4 << 3)) >>> 0, (0x23 << 6) | 5],
+        ["zmTex2d dims mod 64", () => rom.zmTex2d(0x00450000, 0x01230000, 0xffffffe3) >>> 0, (0x23 << 6) | 5],
+        ["zmFunnel1", () => rom.zmFunnel1(0x44332211, 0x88776655) >>> 0, 0x55443322],
+        ["zmFunnel3", () => rom.zmFunnel3(0x44332211, 0x88776655) >>> 0, 0x77665544],
+        ["zmAdd8s", () => rom.zmAdd8s(0xff80017f, 0x01800101) >>> 0, 0xffff0280],
+        ["zmSub8s", () => rom.zmSub8s(0x00800110, 0x01700220) >>> 0, 0x00100000],
+        ["zmAvg8 floor", () => rom.zmAvg8(0xff010003, 0x01000001) >>> 0, 0x80000002],
+        ["zmAdd8 wraps", () => rom.zmAdd8(0xff80017f, 0x01800101) >>> 0, 0x00000280],
+    ];
+    for (const [name, fn, want] of zmxCases) {
+        let note = "ok  ";
+        try { if (fn() !== want) { note = "WRONG"; failures++; } } catch (e) { note = "TRAP"; failures++; }
+        console.log(`  ${note.padEnd(7)} ${name}`);
+    }
+}
+
 console.log(failures === 0
     ? "\nROM boundary: hostile arguments stay inside the caller's plane ✅"
     : `\nROM boundary: ${failures} FAILURE(S) ❌`);

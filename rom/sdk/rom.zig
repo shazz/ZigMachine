@@ -21,6 +21,8 @@
 const zg = @import("zigos");
 /// KOS's system variables (rom/sdk/kos.zig): what booted, the drive, the frame counter.
 pub const kos = @import("kos.zig");
+/// ZM-X v1 (rom/sdk/zmx.zig): the custom-0 integer ops, as imports with a twin behind each.
+pub const zmx = @import("zmx.zig");
 
 // --- values, not calls ---
 // Defined HERE, not re-exported from the ROM: a header that imported rom/gem

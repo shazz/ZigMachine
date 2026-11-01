@@ -214,6 +214,7 @@ static uint32_t boot(void) {
 int main(void) {
     trap_install(); /* first: it sets mstatus.FS, and on an FPU core (ZM_FPU=1) any F instruction before traps */
     diag_maybe(); /* the write-path diagnostic, when the ARM asked for one (bdiag.h) */
+    printf("ZM ZMX %d\n", zm_zmx_probe()); /* 0: an older bitstream, ZM-X ops run as trap.c's twin */
     board_state(ZM_CART_BOOTING);
     wasm_rt_init();
     wasm_rt_trap_t trap = wasm_rt_impl_try();
@@ -229,6 +230,7 @@ int main(void) {
            (unsigned long)((st & ZMV_BIT(OVERFLOW)) != 0), (unsigned long)ZMV_REG(SWAPS),
            (unsigned long)ZMV_REG(FRAME), (unsigned long)vseq.undrained);
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
+    printf("ZM ZMXEMU %lu\n", (unsigned long)zm_zmx_emulated);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
     vplan_report();
     bplanes_report();

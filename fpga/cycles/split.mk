@@ -8,6 +8,9 @@
 #   make split-cart CART=tutorial       one lean cart image
 #   make split-sys-sim ZM_AUDIO=snd     the sim's system image (hashing, ZM_FRAMES/ZM_EVERY), for
 #                                       tools/hp_sim_run.py --split
+#   ZM_ZMX=1                            (split-cart) the cart's env.zm* imports as ZM-X instructions
+#                                       (zm_variant.h, zmx_hw.h): for a bitstream with ZM-X; an older one
+#                                       still runs the image, through trap.c's twin
 #   ZM_CART_VERSION=0x20000u            (split-cart) a cart claiming another table version: the
 #                                       refusal test (tests/test_cart_split.py, hp_sim_run.py --abi-skew)
 #
@@ -19,7 +22,8 @@ SPL_CFLAGS   = $(HRV_CFLAGS) -DZM_SPLIT_SYS
 # ZM_LOCAL_BASE (cycles/zm_variant.h): a lean cart addresses its memory from the base taken at function
 # entry, not by reloading instance->memory->data after every store; ZM_CART_LOCAL_BASE=0 builds without.
 CART_CFLAGS  = $(RV_CFLAGS) $(V_$(HV)) -DZM_SPLIT_CART -D_Thread_local= -Igen \
-	$(if $(filter 0,$(ZM_CART_LOCAL_BASE)),,-DZM_LOCAL_BASE) $(if $(ZM_CART_VERSION),-DZM_CART_VERSION=$(ZM_CART_VERSION))
+	$(if $(filter 0,$(ZM_CART_LOCAL_BASE)),,-DZM_LOCAL_BASE) $(if $(ZM_CART_VERSION),-DZM_CART_VERSION=$(ZM_CART_VERSION)) \
+	$(if $(filter 1,$(ZM_ZMX)),-DZM_ZMX)
 CART_BASE    = 0x$(shell printf '%08x' $$(( $(shell awk '/define CART_CPU_BASE/{print $$3}' gen/glass_map.h | tr -d u) \
 	+ $(shell awk '/define CART_IMG_AT/{print $$3}' gen/glass_cart.h | tr -d u) )))
 CART_LDFLAGS = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -nostdlib -nostartfiles -Wl,--no-warn-rwx-segments \

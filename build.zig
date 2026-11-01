@@ -383,6 +383,12 @@ pub fn build(b: *std.Build) void {
                 // romDepack: a disk's cart is stored ZX0-packed and the ROM unpacks it.
                 .{ .name = "depackers", .module = depackers_mod },
                 .{ .name = "boot_rom", .module = boot_rom_mod }, // KOS's POST (rom/kos/kos.zig)
+                // ZM-X v1's twins exported for every host (rom/zmx_exports.zig): the spec itself.
+                .{ .name = "zmx", .module = b.createModule(.{
+                    .root_source_file = b.path("libs/zig/zmx.zig"),
+                    .target = wasm_target,
+                    .optimize = optimize,
+                }) },
             },
         }),
     });

@@ -26,6 +26,7 @@ const Rect = gui.Rect;
 // KOS: the POST screen and the system variables (rom/kos/kos.zig), exported from here.
 comptime {
     _ = @import("kos/kos.zig");
+    _ = @import("zmx_exports.zig"); // ZM-X v1's twins (rom/sdk/zmx.zig)
 }
 
 pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
