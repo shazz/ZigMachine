@@ -41,6 +41,15 @@ picture, the board's picture stops equalling the PFB, and the cart must double-b
 Not now; costed below in case the Falcon port measures FRESCO-bound, which a CPU blur over 76,800 pixels
 makes unlikely.
 
+## Decisions (Matt, 1 Nov 2026)
+
+- **Build A0** (RGB565 as FB_MODE 5 / 6 through the painter, HW 1.12.0) with **payer 1** (the
+  read-back mux cut to the 6 words the firmware reads), **after the combined bitstream closes timing**.
+- **Colour key: not in v1** (the Falcon parts put the 8-bit plane over the 565 one).
+- **Odd offsets: bit 0 of a true-colour line address is ignored** on both machines (STE-like, free).
+- **8888: later.** Option B (scanout from the cart's buffer) and CHISEL 16-bit lanes: declined.
+- **First customer: mpp_truecolor** (its 4-plane mode becomes one 565 plane).
+
 ## Where the numbers come from
 
 - **The chip**: `ZigMachine-combo/fpga/build/board_combo7/gateware/platform_z7_{utilization_place,
