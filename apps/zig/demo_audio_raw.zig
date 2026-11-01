@@ -9,12 +9,7 @@ const m = @import("root");
 
 // --- a whole sample, looped ---
 export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
-    m.mod.stop();
-    m.xm.stop();
-    m.ym.stop();
-    m.sap_exports.sap.stop();
-    m.hip_exports.hip.abandon();
-    audio.machinePaulaClearScopes();
+    stopPlayers();
 
     const n: usize = @intCast(len);
     if (is_unsigned) {
@@ -47,12 +42,7 @@ export fn audioStreamStop() void {
 const STREAM_RING = m.STREAM_RING; // at SONG_BASE
 
 export fn audioStreamStart(rate: f32) void {
-    m.mod.stop();
-    m.xm.stop();
-    m.ym.stop();
-    m.sap_exports.sap.stop();
-    m.hip_exports.hip.abandon();
-    audio.machinePaulaClearScopes();
+    stopPlayers();
     // Zero the ring so an under-fed start is silence, not garbage.
     @memset(ring(), 0);
     silenceAllBut0();
@@ -65,6 +55,21 @@ export fn audioStreamStart(rate: f32) void {
 fn ring() []u8 {
     const p: [*]u8 = @ptrFromInt(audio.SONG_BASE);
     return p[0..STREAM_RING];
+}
+
+// Every sequencing player off before channel 0 takes over. The SNDH too: the sample was just
+// staged over its 68000 image (song RAM), and left active it comes first in audioRender, so the
+// sample never sounded while PLAY ran over the sample's bytes until RUNAWAY_CYCLES gave up (the
+// Dyno scroller's 4 s whine, then silence, 2026-11-01). Abandoned, not stopped: EXIT would run
+// over those bytes too. As the YM, MOD, XM, SAP and HIP loads do.
+fn stopPlayers() void {
+    if (m.sndh.active) m.sndh.abandon();
+    m.mod.stop();
+    m.xm.stop();
+    m.ym.stop();
+    m.sap_exports.sap.stop();
+    m.hip_exports.hip.abandon();
+    audio.machinePaulaClearScopes();
 }
 
 fn silenceAllBut0() void {
