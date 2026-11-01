@@ -202,7 +202,7 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
 (`Blitter.fill/clear/line/triangle/triangleEx/bob/blitCopy/blitImage/setHalftone`).
 
 - **Register block** at region offset `OFF_BLIT` (`0x80`, below the palettes).
-  `COMMAND` (`0` NOP `1` BLIT `2` FILL `3` LINE `4` TRIANGLE), `MINTERM` (256-way
+  `COMMAND` (`0` NOP `1` BLIT `2` FILL `3` LINE `4` TRIANGLE `5` QUEUE `6` AFFINE `7` MAP), `MINTERM` (256-way
   A/B/C truth table), `CON` (channel enables · `KEY_EN` cookie-cut · `DESC` ·
   `CLIP_EN`), `COLOR`/`BG_COLOR`/`COLOR_KEY`, four `BASE`+`STRIDE` channels
   (A,B,C sources, D dest), `W`/`H`, `X0..Y2`, `CLIP_*`, a 16×16 `HALFTONE`
@@ -237,8 +237,21 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
   Refused (`CYCLES` 0) for an empty list or one past the ring's end. On KESTREL the list
   runs while the cart goes on: a queued op's pixels are only drawn for sure after a
   sync. ZigOS: `zg.blit_queue.Queue` (`fill`, `op`, `set`, `kick`, `flush`). Full rules
-  in `docs/BLITTER_HW_SPEC.md` §6.
-- **Deferred (v2):** raw area fill (`CON.IFE`/`EFE`) and a cycle-budgeted mode.
+  in `docs/BLITTER_HW_SPEC.md` §6. (Built as 1.8.0 on a branch; it reached main with
+  CHISEL v2 as 1.11.0.)
+- **CHISEL v2 — since 1.11.0** (`docs/BLITTER_HW_SPEC.md` §4.5-4.7, ZigOS
+  `zg.chisel_v2`): `COMMAND` 6 **AFFINE** walks `SPAN_COUNT` (`+0x1C`) 24-byte spans
+  `(x0, x1, y, 0, u0, v0, du, dv)` at `SPAN_BASE` (`+0x18`, absolute, 4-aligned, in cart
+  RAM or the ROM window), each pixel the texel `(u>>16, v>>16)` of the texture at
+  `A_BASE`/`A_STRIDE` cut by `U_MASK` (`+0x0E`) / `V_MASK` (`+0x16`) (wrapped, or not
+  drawn with `CON2.TEX_CLIP`, bit 6); `COMMAND` 7 **MAP** fills the `W x H` box from a
+  u16 `(v<<8|u)` map at `B_BASE`/`B_STRIDE` (absolute, even) plus `U_OFF`/`V_OFF`
+  (= `X1`/`Y1`). The texel is B of the minterm, `KEY_EN` skips the key. `CON2` bits 3/4
+  `MIRROR_X`/`MIRROR_Y` read a BLIT's sources flipped; bit 5 `COLL_EN` sets `BLIT_COLL`
+  (`OFF_BLIT + 0x66`, u8, bit 0, sticky until the program clears it) on any write over a
+  non-zero byte; `CON.IFE`/`EFE` (bits 4/5) are the Amiga's area fill on BLIT and FILL,
+  per bit, each row's carry from `CON2.FILL_CARRY` (bit 7).
+- **Not built:** a cycle-budgeted mode.
 
 ```
 demo.frame(dt): set blitter regs → hwBlit() (per primitive) → hwRenderPlane(i)

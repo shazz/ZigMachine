@@ -1119,3 +1119,29 @@ So a channel that has carried 32-bit writes and is then set 64-bit keeps a 32-bi
 - The shared memory sits at a measured offset in a 4 KiB page (`host/mem_place.h`, fix/bard-local-base), so the next static added to the firmware does not move it.
 **Alternatives considered:** keep the wait everywhere and only make it frameless (union_l16 came back, rno_natrium did not); drop the per-entry wait altogether (a ROM call over a lazy op's pixels would read stale ones).
 **Consequences:** board (card bitstream, firmware only): rno_natrium 60.2, union_l16 38.5, polkadots 54.9 (main 60.3 / 38.5 / 52.5); gen4_3615, fuji_hobbytronic, tsl_hybridglenz, union_tnt1 unchanged at 60. A new machine or ROM entry waits unless it is added to `GETTERS`, which the tests hold to value-returning entries. stniccc's queue was not re-measured with this firmware (its bitstream must be JTAG-loaded).
+
+## 2026-11-01 — CHISEL v2: span-list AFFINE, a 2-D MAP, the small-ops bundle, the QUEUE landed (HW 1.11.0)
+
+**Status:** accepted (Matt approved CHISEL v2; bitstream and board A/B pending, the lead's)
+**Context:** The blitter was ~20 % of the die and the brief asked for a LUT cut before new ops. Fable's ISA
+study (fpga/review/KESTREL_NEXT_ISA.md §2) showed texture classes are D$-miss bound on ZIGGY, so CHISEL
+should own the texel reads; the retro survey asked for mirror, collision and the Amiga area fill; the
+QUEUE (board-measured, never merged) had to land first.
+**Decision:**
+- The fold first (checks serialised, FILL on the BLIT walker, halftone in LUTRAM: -329 LUT) with the
+  in-plane overlap fix (the box's own span; a walk that never reads behind itself runs unordered).
+- AFFINE takes a **span list** (x0, x1, y, u0, v0, du, dv), not a fixed-width row table: Mode 7 rows are
+  full-width spans and the same op rasterises textured polygons the CPU scan-converts. MAP is 2-D
+  ((u8, v8) + U_OFF/V_OFF) rather than 1-D offsets: a tunnel is one map and a moving offset.
+- Lists and maps must sit in cart RAM / the ROM window (never written by CHISEL), so their reads,
+  streamed through an aux side of the read port (zm_blit_rdmux, zm_blit_tfetch), never order.
+- Every new register lives in the block's words 0..23 (C_BASE/C_STRIDE, the strides' high halves,
+  X1/Y1), so a QUEUE descriptor reaches it; BLIT_COLL (a status) sits at 0xE6.
+- COLL is per kick in CHISEL and ORed into memory by the firmware: a stored flag could not stay sticky.
+**Alternatives considered:** a per-row parameter table (only floors); a textured TRIANGLE in RTL (more
+LUTs; the CPU does per-row setup cheaply); dependent map reads through the pixel unit (it has no
+dependent-read path); 1.10.0 (taken by LBASE).
+**Consequences:** +952 LUT net over main (4,276 in all, 23 DSP, 1 RAMB18), both clocks close out of
+context; over the "LUT-neutral" wish, cuts ranked in docs/ROADMAP.md's CHISEL v2 row and BLITTER_HW_SPEC
+10.4. stniccc queues every fill (painter's order) against its CPU path: the board decides. 88 mutants,
+cart 112 and its harness prove the ops.
