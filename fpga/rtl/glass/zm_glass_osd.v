@@ -8,8 +8,10 @@
 // top-left at (x0, y0) on the 800x600 output (REG_OSD_POS; the reset value
 // centres it, gen/glass_map.vh: OSD_*). A character word is {inverse, glyph};
 // ink is FG, paper is BG, swapped when inverse. Under `stats` (CTRL_OSD_STATS,
-// the F11 frame-rate overlay) a cell holding a plain space is transparent: the
-// picture shows through everywhere but the text.
+// the F11 frame-rate overlay) there is no paper (Matt, 2026-10-31): a pixel is
+// the ink or the picture, and a pixel just right of ink (SHADOW_BELOW: or just
+// below it) is BG, a drop shadow that keeps the text legible on a bright picture.
+// The shadow below needs the line above's ink: a 512 x 1 line buffer.
 //
 // The text RAM is written in the register block's clock (`wclk`) and read in
 // the pixel clock: a two-clock RAM, as the display buffers cross. `en`,
@@ -22,7 +24,9 @@
 // clocks behind its input (text RAM, font ROM, pixel), RGB and syncs alike.
 `default_nettype none
 
-module zm_glass_osd (
+module zm_glass_osd #(
+    parameter SHADOW_BELOW = 1             // 0: the shadow is to the right only
+) (
     input  wire        clk,                // pixel clock
     input  wire        rst,
     input  wire        en,                 // async: synchronised here
@@ -72,11 +76,13 @@ module zm_glass_osd (
     zm_video_dcram #(.AW(9), .DW(9)) u_text (.wclk(wclk), .we(we), .waddr(waddr), .wdata(wdata),
         .rclk(clk), .raddr({oy[7:4], ox[8:4]}), .rdata(text_q));
     reg [2:0] row1, col1;
-    reg in1;
+    reg in1, top1;
+    reg [8:0] ox1;
     reg [23:0] px1;
     reg [2:0] sync1;
     always @(posedge clk) begin
         {row1, col1, in1} <= {oy[3:1], ox[3:1], inside};
+        {ox1, top1} <= {ox[8:0], oy[9:0] == 10'd0};
         {px1, sync1} <= {r, g, b, de, hsync, vsync};
     end
 
@@ -85,20 +91,33 @@ module zm_glass_osd (
 `include "glass_font.vh"
     reg [7:0] glyph_row;
     reg [2:0] col2;
-    reg in2, inv2, clear2;
+    reg in2, inv2, top2;
+    reg [8:0] ox2;
     reg [23:0] px2;
     reg [2:0] sync2;
     always @(posedge clk) begin
         glyph_row <= font[{text_q[7:0], row1}];
-        {col2, in2, inv2} <= {col1, in1, text_q[8]};
-        clear2 <= st_s[1] && text_q == 9'h020;   // a plain space; an inverse one stays a block
+        {col2, in2, inv2, ox2, top2} <= {col1, in1, text_q[8], ox1, top1};
         {px2, sync2} <= {px1, sync1};
     end
 
-    // --- stage 3: the pixel
+    // --- stage 3: the pixel. `lit`: ink inside the window; lit_q the pixel to the left's
+    // (blanking before a line, so never the line above's); above[] the line above's, by
+    // column, read before this pixel overwrites it (none for the window's top line).
     wire ink = glyph_row[3'd7 - col2] ^ inv2;
+    wire lit = in2 && ink;
+    reg lit_q = 1'b0;
+    reg above [0:511];
+    wire up = SHADOW_BELOW != 0 && !top2 && above[ox2];
+    wire shade = lit_q || up;
     always @(posedge clk) begin
-        {r_o, g_o, b_o} <= (in2 && en_s[1] && !clear2) ? (ink ? fg : bg) : px2;
+        lit_q <= lit;
+        if (SHADOW_BELOW != 0 && in2) above[ox2] <= lit;
+        if (!(in2 && en_s[1]))  {r_o, g_o, b_o} <= px2;
+        else if (ink)           {r_o, g_o, b_o} <= fg;
+        else if (!st_s[1])      {r_o, g_o, b_o} <= bg;    // the menu: opaque paper
+        else if (shade)         {r_o, g_o, b_o} <= bg;    // the overlay: a drop shadow
+        else                    {r_o, g_o, b_o} <= px2;   // the overlay: the picture
         {de_o, hs_o, vs_o} <= sync2;
     end
 endmodule
