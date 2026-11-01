@@ -159,5 +159,6 @@ rows, flicker)` allocates and publishes the list (HBL position at the magic colu
   overscan past the row's end, an LBASE outside VRAM (stop), frame 2 rebuilt. Mutants
   (ZM_RTL_BREAK=1, video_mutants.json): LBASE ignored, its row not kept, not persisting, its row
   one off, VRAM unchecked, row not reset at LATCH, overscan HSCROLL ignored.
-- One hp_sim slot (<= 6 frames) on the test cart: the board firmware's picture equals the browser's.
+- hp_sim (board SoC, Verilator, sim-b, 6 frames every 1, phase A: overscan LBASE + HSCROLL + FLICK):
+  verdict ok, ran to the end, no underrun, every PFB hash equal to scene_hash and the native host.
 - Bitstream only after asking (Vivado lock, `--vivado-directives closure`).
