@@ -171,8 +171,19 @@ def _board_soc(
 # closure: what closed the 89 % LUT board build with the copper engine (bitstream c72c58ca,
 # 2026-10-24): the default directives missed sys by -0.258 ns (a blitter path) or comp by -0.24 ns,
 # ExtraTimingOpt failed to place; spreading the logic met every clock (sys +0.068, comp +0.353).
+# fit: the combined bitstream (CHISEL v2 + D$ 16 KB + ZM-X, 2026-11-01) at 18,102 LUT after a default
+# synthesis did not place (17,600 on the 7010); AreaOptimized_high + ExploreArea took the same netlist
+# to 16,980 after opt (-1,100, nothing changed in function), with the closure set's spreading placer.
 DIRECTIVES = {
     "default": {},
+    "fit": {
+        "vivado_synth_directive": "AreaOptimized_high",
+        "vivado_opt_directive": "ExploreArea",
+        "vivado_place_directive": "AltSpreadLogic_high",
+        "vivado_post_place_phys_opt_directive": "AggressiveExplore",
+        "vivado_route_directive": "Explore",
+        "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+    },
     "explore": {
         "vivado_place_directive": "ExtraTimingOpt",
         "vivado_post_place_phys_opt_directive": "AggressiveExplore",

@@ -215,8 +215,8 @@ def main() -> None:
     p.add_argument("--hp-probe", action="store_true", help="z7: the read path's debug probe (cycles/bdiag.c mode 4)")
     p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: --vivado-directives explore")
     p.add_argument(
-        "--vivado-directives", choices=("default", "explore", "closure"), default="default",
-        help="z7, vivado: place/route directive set (soc/zm_z7.py DIRECTIVES; closure = bitstream c72c58ca's)",
+        "--vivado-directives", choices=("default", "explore", "closure", "fit"), default="default",
+        help="z7, vivado: directive set (soc/zm_z7.py DIRECTIVES; closure = bitstream c72c58ca's, fit = area synthesis)",
     )  # fmt: skip
     p.add_argument("--vivado-threads", type=int, default=2, help="z7, vivado: general.maxThreads (memory)")
     args = p.parse_args()
