@@ -1,12 +1,15 @@
-// The words zm_blit_tex walks, streamed through the core's aux read port into a 32-word FIFO
+// The words zm_blit_tex walks, streamed through the core's aux read port into a 16-word FIFO
 // (LUTRAM), in the order the walker pops them:
 //   AFFINE: the span list, 6 words a span, from `list` (4-aligned: the check refuses others);
 //   MAP:    per row of the clipped box, the words holding its entries, from the row's first
 //           entry (list + (y - Y0) * ms + 2 * (ex0 - X0)) to its last.
 // A read is asked only while its answer has a free FIFO slot (the FIFO's words + the reads in
-// flight < 32): the port's answers come back in order and cannot be refused. Both the list and
+// flight < 16): the port's answers come back in order and cannot be refused. Both the list and
 // the map live in cart RAM or the ROM window, which CHISEL never writes, so these reads may run
-// ahead of every write of the op.
+// ahead of every write of the op. 16 words (32 until the 2026-11-01 fit, -~60 LUT): with the
+// port's ~60-clock latency, 16 in flight still feed a word every ~4 clocks, MAP's two pixels or
+// a sixth of a span, while the pixel unit takes one pixel per ~4 clocks: the walker never
+// waits on the FIFO's depth, only on the latency the first word of an op pays either way.
 `default_nettype none
 
 module zm_blit_tfetch (
@@ -35,22 +38,22 @@ module zm_blit_tfetch (
     wire [17:0] dy0 = ey0 - y0;                  // >= 0 (the box starts at or below Y0); 18 bits, so no sign mixes in
 
     // the FIFO and its credit
-    reg [31:0] mem [0:31];
-    reg [5:0] wp, rp, inflight;
-    wire [5:0] used = (wp - rp) + inflight;
+    reg [31:0] mem [0:15];
+    reg [4:0] wp, rp, inflight;
+    wire [4:0] used = (wp - rp) + inflight;
     assign q_valid = wp != rp;
-    assign q_word = mem[rp[4:0]];
-    assign aux_valid = st == RUN && used < 6'd32;
+    assign q_word = mem[rp[3:0]];
+    assign aux_valid = st == RUN && used < 5'd16;
     assign aux_addr = {wa, 2'b00};
     wire take = aux_valid && aux_ready;
-    always @(posedge clk) if (rsp_valid) mem[wp[4:0]] <= rsp_data;
+    always @(posedge clk) if (rsp_valid) mem[wp[3:0]] <= rsp_data;
 
     always @(posedge clk) begin
-        if (rst) begin st <= IDLE; wp <= 6'd0; rp <= 6'd0; inflight <= 6'd0; end
+        if (rst) begin st <= IDLE; wp <= 5'd0; rp <= 5'd0; inflight <= 5'd0; end
         else begin
-            if (rsp_valid) wp <= wp + 6'd1;
-            if (q_pop) rp <= rp + 6'd1;
-            inflight <= inflight + (take ? 6'd1 : 6'd0) - (rsp_valid ? 6'd1 : 6'd0);
+            if (rsp_valid) wp <= wp + 5'd1;
+            if (q_pop) rp <= rp + 5'd1;
+            inflight <= inflight + (take ? 5'd1 : 5'd0) - (rsp_valid ? 5'd1 : 5'd0);
             case (st)
                 IDLE: if (go_aff && nspan != 16'd0) begin
                     wa <= list[22:2]; wlast <= list[22:2] + {3'd0, nspan, 2'b00} + {4'd0, nspan, 1'b0} - 21'd1;

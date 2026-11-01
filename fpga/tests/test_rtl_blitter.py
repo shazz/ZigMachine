@@ -120,7 +120,7 @@ MUTANTS = [
     ("map_first_half_ignores_the_row", "zm_blit_tex.v", "list[1] ^ (yo[0] & ms[1]) ^ xo[0]", "list[1] ^ xo[0]"),
     ("map_u_offset_ignored", "zm_blit_tex.v", "q_w[7:0]} + uoff;", "q_w[7:0]};"),
     ("map_row_offset_mixes_signs", "zm_blit_tfetch.v", "p <= dy0 * ms;", "p <= (ey0 - y0) * ms;"),
-    ("fetch_overruns_its_fifo", "zm_blit_tfetch.v", "st == RUN && used < 6'd32", "st == RUN"),
+    ("fetch_overruns_its_fifo", "zm_blit_tfetch.v", "st == RUN && used < 5'd16", "st == RUN"),
     ("aux_answer_routed_by_the_newest", "zm_blit_rdmux.v", "assign aux_rsp = rd_rsp_valid && who[rp];",
      "assign aux_rsp = rd_rsp_valid && who[wp - 6'd1];"),
     ("affine_c_reads_not_ordered", "zm_blit_core.v", "ord_c <= is_aff && (c_dep || coll_en);", "ord_c <= 1'b0;"),
