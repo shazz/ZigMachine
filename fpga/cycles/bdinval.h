@@ -27,7 +27,9 @@
 #include "zm_memmap.h"
 
 #define BDI_LINE 32u
-#define BDI_LINES 128u /* the D$'s line count: past it, the whole-cache sweep is cheaper */
+#define BDI_LINES 128u /* the D$'s line count: past it, the whole-cache sweep is cheaper. The 16 KiB
+                          * 2-way D$ (KESTREL_NEXT_ISA.md step 1) sweeps 256 sets: still right, the
+                          * fallback just comes a little early there (a heuristic, not a bound). */
 
 #ifndef BDI_INVAL_LINE /* the host test (tests/blitter_ref/dinval_host.c) records instead */
 static inline void bdi_inval_line(uintptr_t a) {

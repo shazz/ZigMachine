@@ -38,7 +38,8 @@ from blitter_random import make_script
 
 BUILD = FPGA / "build" / "tests" / "dcache"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
-CORE = FPGA / "build/vexgen/VexRiscv_I16w2D4SealFpu.v"
+# ZM_DCACHE_CORE: another geometry (the 16 KiB 2-way D$: VexRiscv_I16w2D16w2SealFpu.v), same checks
+CORE = Path(os.environ.get("ZM_DCACHE_CORE", FPGA / "build/vexgen/VexRiscv_I16w2D4SealFpu.v"))
 SCRIPTS = {
     "dinval": dinval_script,
     "edges": edge_script,
@@ -111,7 +112,7 @@ def _elf(mode: int, inc: Path = FPGA / "cycles") -> Path:
 def core_tb() -> Path:
     if CORE_TOOLS or not CORE.exists():
         pytest.skip(f"needs {', '.join(CORE_TOOLS) or CORE}")
-    obj = BUILD / "obj"
+    obj = BUILD / f"obj_{CORE.stem}"
     obj.mkdir(parents=True, exist_ok=True)
     cmd = ["verilator", "--cc", "--exe", "--build", "-j", "4", "-O2", "-Wno-fatal", "-Wno-lint", "-Wno-style"]
     cmd += ["--top-module", "VexRiscv", f"-I{FPGA / 'rtl/seal'}", "--Mdir", str(obj), "-o", "dcache_tb"]

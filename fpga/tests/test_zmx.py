@@ -71,7 +71,8 @@ def _elf(inc: Path, tag: str) -> Path:
 
 
 def _run(tb: Path, elf: Path) -> tuple[int, list[int], str]:
-    r = subprocess.run([str(tb), str(elf)], capture_output=True, text=True, timeout=600, check=False)
+    env = {**os.environ, "ZM_TB_CYCLES": "50000000"}  # a core without ZM-X traps every op: slow
+    r = subprocess.run([str(tb), str(elf)], capture_output=True, text=True, timeout=600, check=False, env=env)
     return r.returncode, [int(v) for v in re.findall(r"^REPORT (\d+)$", r.stdout, re.MULTILINE)], r.stdout
 
 
@@ -132,3 +133,32 @@ def test_a_broken_zig_spec_is_caught(mut: str, old: str, new: str) -> None:
     (work / "zmx.zig").write_text(text.replace(old, new))
     _, rep, _ = _run(_tb("I16w2D16w2SealFpuZmx", CORES["I16w2D16w2SealFpuZmx"]), _elf(FPGA / "cycles", "real"))
     assert rep[:N_OPS] != _spec_hashes(work / "zmx.zig", f"zig_{mut}"), f"{mut} went unnoticed"
+
+
+# zmx_hw.h's import macros, each with the funct3/funct7 the core decodes (zmx.c's table).
+CART_CALLS = {
+    "w2c_env_zmMulsh16(e, a, b)": (0, 1), "w2c_env_zmMulsh15(e, a, b)": (1, 1),
+    "w2c_env_zmFunnel1(e, a, b)": (1, 2), "w2c_env_zmFunnel2(e, a, b)": (2, 2), "w2c_env_zmFunnel3(e, a, b)": (3, 2),
+    "w2c_env_zmAdd8s(e, a, b)": (0, 3), "w2c_env_zmSub8s(e, a, b)": (0, 4), "w2c_env_zmAvg8(e, a, b)": (0, 5),
+    "w2c_env_zmAdd8(e, a, b)": (0, 6), "w2c_env_zmTex2d(e, a, b, 9u)": (7, 9),
+}
+
+
+def test_a_zmx_cart_build_turns_each_import_into_one_op() -> None:
+    """zm_variant.h with ZM_ZMX: a wasm2c call is the op itself, tex2d's constant dims folded."""
+    if TOOLS:
+        pytest.skip(f"needs {', '.join(TOOLS)}")
+    BUILD.mkdir(parents=True, exist_ok=True)
+    src = '#include <stdint.h>\n#include "zm_variant.h"\nstruct w2c_env;\n'
+    for i, call in enumerate(CART_CALLS):
+        src += f"uint32_t f{i}(struct w2c_env* e, uint32_t a, uint32_t b) {{ (void)e; return {call}; }}\n"
+    (BUILD / "calls.c").write_text(src)
+    cmd = ["riscv64-unknown-elf-gcc", "-march=rv32im", "-mabi=ilp32", "-O2", "-DZM_ZMX", f"-I{FPGA / 'cycles'}", "-c"]
+    subprocess.run([*cmd, str(BUILD / "calls.c"), "-o", str(BUILD / "calls.o")], check=True, capture_output=True)
+    dis = subprocess.run(["riscv64-unknown-elf-objdump", "-d", str(BUILD / "calls.o")], capture_output=True, text=True)
+    for i, (f3, f7) in enumerate(CART_CALLS.values()):
+        body = dis.stdout.split(f"<f{i}>:")[1].split("\n\n")[0]
+        words = [int(w, 16) for w in re.findall(r"^\s*[0-9a-f]+:\s+([0-9a-f]{8})\s", body, re.MULTILINE)]
+        ops = [w for w in words if w & 0x7F == 0x0B]
+        assert len(ops) == 1 and (ops[0] >> 12) & 7 == f3 and ops[0] >> 25 == f7, f"f{i}:\n{body}"
+        assert len(words) == 2, f"f{i}: more than the op and ret\n{body}"

@@ -8,7 +8,8 @@
  *                                and colour maps of 2 x 16 / 2 x 64 KiB, spans drawn to the frame
  * Built twice: plain rv32im (what GCC makes of the C), and -DZMX (tex2d for the texel index,
  * mulsh for the Q16 scaling: the ZM-X core only). REPORT, per kernel: id * 1000000 + kcycles
- * of one frame (warm: the second of two), then id * 1000000 + D$ refills of it (in 10s). */
+ * of one frame (warm: the second of two), then id * 1000000 + D$ refills of it (in 10s), then
+ * an FNV-1a hash of the frame (every core and build must draw the same pixels). */
 #include <stdint.h>
 
 #include "zmx_twin.h"
@@ -43,6 +44,7 @@ ROTO(6)
 ROTO(7)
 ROTO(8)
 
+volatile uint32_t zmx_traps; /* start.S counts traps here (none expected) */
 static int32_t invz[96]; /* Q16 1/z for the 96 steps: the table every voxel engine keeps */
 
 #define VOXEL(lw)                                                                          \
@@ -58,7 +60,9 @@ static int32_t invz[96]; /* Q16 1/z for the 96 steps: the table every voxel engi
                 if (y < 0) y = 0;                                                          \
                 if (y >= ybot) continue;                                                   \
                 uint8_t c = CMAP[t];                                                       \
-                for (uint8_t* p = FB + y * W + x; y < ybot; ybot--, p += W) *p = c;        \
+                uint8_t *p = FB + y * W + x, *e = FB + ybot * W + x; /* the span, top down */ \
+                for (; p != e; p += W) *p = c;                                             \
+                ybot = y;                                                                  \
             }                                                                              \
         }                                                                                  \
     }
@@ -82,6 +86,9 @@ static void measure(uint32_t id, void (*k)(void)) {
     uint32_t c1 = DEV[1], r1 = DEV[9];
     DEV[2] = id * 1000000u + (c1 - c0) / 1000u;
     DEV[2] = id * 1000000u + (r1 - r0) / 10u;
+    uint32_t h = 2166136261u;
+    for (uint32_t i = 0; i < W * H; i++) h = (h ^ FB[i]) * 16777619u;
+    DEV[2] = h;
 }
 
 int main(void) {
