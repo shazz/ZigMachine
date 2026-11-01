@@ -115,7 +115,7 @@ pub fn okLoad(w: *std.Io.Writer, i: *const Info, peak: bool) void {
     }
     if (i.player == mc.PLAYER_NONE) return w.writeAll("idle") catch {};
     player(w, i);
-    if (!i.started) return w.writeAll(" not started") catch {};
+    if (!i.started) return w.writeAll(" waiting") catch {}; // not started: short enough for 30 columns
     const cur = loadPct(i.cycles, i.samples) orelse return;
     w.print(" {d}%", .{cur}) catch {};
     if (!peak) return;

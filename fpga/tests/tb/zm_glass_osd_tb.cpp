@@ -5,7 +5,8 @@
 //
 // Frame 0: OSD off, the stream must pass through untouched (3 clocks late).
 // Frame 1+: OSD on, text with inverse cells; every pixel must be the model's.
-// Then the F11 overlay: STATS (plain spaces transparent, inverse ones not) and
+// Then the F11 overlay: STATS (no paper: the ink, a BG drop shadow right of and
+// below it, else the picture; an inverse cell's ink is its whole paper) and
 // the window moved by x0/y0: to the corner, half off the edge, and far enough
 // right or down that a beam left of or above it must not wrap into it.
 #include <cstdio>
@@ -14,6 +15,7 @@
 #include <vector>
 
 #include "zm_glass_osd.cc"
+#include "osd_font_rot.h"
 
 using Top = cxxrtl_design::p_zm__glass__osd;
 static int failures = 0;
@@ -29,6 +31,7 @@ static int failures = 0;
 
 static const int H_TOTAL = 1056, V_TOTAL = 628, H_SYNC0 = 840, H_SYNC1 = 968, V_SYNC0 = 601, V_SYNC1 = 605;
 static const unsigned FG = 0xE0C020, BG = 0x102040;
+static const bool SHADOW_BELOW = true;  // the module's default
 static Top top;
 static unsigned char font_raw[256 * 64];
 static unsigned text[OSD_CHARS];
@@ -61,6 +64,9 @@ static void write_text() {
         unsigned c = (i * 7 + 33) & 0xFF;
         if (i / OSD_COLS == 3) c |= OSD_INVERSE;   // a whole inverse row: the menu's cursor
         if (i % 5 == 0) c = (i / OSD_COLS == 3) ? (' ' | OSD_INVERSE) : ' ';  // the cursor bar stays solid
+        // Row 1's last cell solid (row 0's column 0 is an inverse cell, ink that would hide a shadow): one pixel LEFT of the window the column counter wraps to that
+        // cell's last pixel, so its ink must not shadow column 0 (the shadow is the window's only).
+        if (i == 2 * OSD_COLS - 1) c = ' ' | OSD_INVERSE;
         text[i] = c;
         top.p_we.set(true);
         top.p_waddr.set(i);
@@ -70,14 +76,23 @@ static void write_text() {
     top.p_we.set(false);
 }
 
+// Ink at output pixel (x, y): on screen, inside the window, and the glyph's (inverse flips it).
+static bool lit(int x, int y, const Cfg& k) {
+    int ox = x - k.x0, oy = y - k.y0;
+    if (x < 0 || y < 0 || x >= 800 || y >= 600) return false;
+    if (ox < 0 || oy < 0 || ox >= int(OSD_WIDTH) || oy >= int(OSD_HEIGHT)) return false;
+    unsigned c = text[(oy / 16) * OSD_COLS + ox / 16];
+    bool ink = font_raw[(c & 0xFF) * 64 + ((oy / 2) % 8) * 8 + (ox / 2) % 8] == 1;
+    return ink != bool(c & OSD_INVERSE);
+}
+
 static unsigned model(const In& in, const Cfg& k) {
     int ox = in.x - k.x0, oy = in.y - k.y0;
     if (!k.en || !in.de || ox < 0 || oy < 0 || ox >= int(OSD_WIDTH) || oy >= int(OSD_HEIGHT)) return in.rgb;
-    unsigned c = text[(oy / 16) * OSD_COLS + ox / 16];
-    if (k.stats && c == ' ') return in.rgb;
-    bool ink = font_raw[(c & 0xFF) * 64 + ((oy / 2) % 8) * 8 + (ox / 2) % 8] == 1;
-    if (c & OSD_INVERSE) ink = !ink;
-    return ink ? FG : BG;
+    if (lit(in.x, in.y, k)) return FG;
+    if (!k.stats) return BG;
+    bool shade = lit(in.x - 1, in.y, k) || (SHADOW_BELOW && oy > 0 && lit(in.x, in.y - 1, k));
+    return shade ? BG : in.rgb;
 }
 
 // One frame under `live`, which becomes `next` at VSYNC; outputs are compared
@@ -116,6 +131,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::fclose(f);
+    CHECK(add_rotated_letters(font_raw), "the rotated letters' glyphs are not blank in the font");
     top.p_fg.set(FG);
     top.p_bg.set(BG);
     top.p_rst.set(true);

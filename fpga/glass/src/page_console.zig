@@ -1,7 +1,7 @@
 // The console page: the machine itself rather than a cart.
 //
-//   row 0       title bar
-//   rows 2..7   Cold reset, Warm reset, Volume, Mute, Debug, Back
+//   row 0       title bar (rows 1..14 right of the section strip, 30 wide)
+//   rows 2..8   Cold reset, Warm reset, Volume, Mute, Debug, Help, Back
 //   row 9       a rule
 //   rows 10..13 what the selected item does
 //   row 15      status
@@ -15,14 +15,14 @@ const osd = @import("osd.zig");
 const text = @import("text.zig");
 const config = @import("config.zig");
 
-pub const Item = enum { cold, warm, volume, mute, debug, back };
+pub const Item = enum { cold, warm, volume, mute, debug, help, back };
 const ITEMS = std.enums.values(Item);
 pub const FIRST = 2;
 const RULE = 9;
 const HELP = 10;
 pub const VOL_STEP = 16;
 
-pub const Key = enum { none, back, cold, warm, settings, debug };
+pub const Key = enum { none, back, cold, warm, settings, debug, help };
 
 const help = [_][]const u8{
     "Reload the cart from the SD card, clear all its memory and boot it: a power cycle. (R on the shelf)",
@@ -30,6 +30,7 @@ const help = [_][]const u8{
     "Master volume. Left/Right change it; saved to glass.cfg when you leave this page.",
     "Silence the console. Enter or Left/Right toggle it; saved with the volume.",
     "Versions, live stats of the running cart, and the board.",
+    "Every shortcut: the keys of each page, the hotkeys, the pad.",
     "Back to the shelf.",
 };
 
@@ -49,6 +50,7 @@ pub const State = struct {
                 .volume => .none,
                 .mute => adjust(.mute, true, s),
                 .debug => .debug,
+                .help => .help,
                 .back => .back,
             },
             else => {},
@@ -68,15 +70,16 @@ pub const State = struct {
                 .volume => std.fmt.bufPrint(&buf, " Volume  {s} {d:>3}%", .{ text.bar(&cells, s.volume, 255, 16), percent(s.volume) }) catch "",
                 .mute => if (s.mute) " Mute    on" else " Mute    off",
                 .debug => " Debug...",
+                .help => " Help...",
                 .back => " Back",
             };
-            o.line(row, t, i == self.cursor);
+            o.body(row, t, i == self.cursor);
         }
-        o.line(RULE, "-" ** osd.COLS, false);
+        o.body(RULE, "-" ** osd.BODY_W, false);
         var rows: [4][]const u8 = undefined;
         var last: [osd.COLS]u8 = undefined;
-        const n = text.wrap(help[self.cursor], osd.COLS, &rows, &last);
-        for (rows[0..n], 0..) |r, k| o.line(HELP + @as(u32, @intCast(k)), r, false);
+        const n = text.wrap(help[self.cursor], osd.BODY_W, &rows, &last);
+        for (rows[0..n], 0..) |r, k| o.body(HELP + @as(u32, @intCast(k)), r, false);
     }
 };
 

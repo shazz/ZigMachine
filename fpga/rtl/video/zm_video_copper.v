@@ -1,5 +1,6 @@
 // The copper list engine (HW 1.9.0, fpga/review/COPPER_LIST.md): applies a plane's line record to
-// its palette (and HSCROLL, and the line's FLICK) before that plane's pass paints the line, exactly
+// its palette (and HSCROLL, the line's FLICK, and from 1.10.0 the line's source, LBASE:
+// fpga/review/COPPER_LINEBASE.md) before that plane's pass paints the line, exactly
 // as machine/copper.zig does in the browser, every rule that stops a list included.
 //
 //   LATCH plane p    REG_FB_COPPER[p] = v: the list's first HEAD at region OFF_VRAM + 16 v (one beat)
@@ -41,7 +42,10 @@ module zm_video_copper (
     output reg           hs_we = 1'b0,   // HSCROLL of `plane`: register word, enables, data
     output wire [4:0]    hs_word,
     output wire [3:0]    hs_be,
-    output wire [31:0]   hs_wdata
+    output wire [31:0]   hs_wdata,
+    output reg           lb_we = 1'b0,   // LBASE: the plane's line source from this row (zm_video_latch.v)
+    output reg  [20:0]   lb_val,
+    output reg  [8:0]    lb_row
 );
 `include "zm_video_memmap.vh"
 
@@ -103,6 +107,8 @@ module zm_video_copper (
     wire fs = mode == 8'd1 || ((mode == 8'd0 || mode > 8'd4) && stride == ZM_STRIDE_FULLSCREEN);
     wire phys = fs || mode == 8'd4 || (mode == 8'd3 && stride >= ZM_RASTER_WIDTH);
     wire covers = phys || (line >= ZM_RASTER_BORDER_Y && line < ZM_RASTER_BORDER_Y + ZM_HEIGHT);
+    // LBASE: bits 27..21 zero and the offset in VRAM; its row is the plane's (zm_video_plane.v).
+    wire lb_ok = wq[27:21] == 7'd0 && wq[20:0] >= ZM_OFF_VRAM && wq[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;
     // PALREF's table: a word-aligned region offset whose k words lie in VRAM.
     wire [18:0] t_word = wq[20:2] - VW[18:0];
     wire ref_ok = wq[1:0] == 2'd0 && wq[31:21] == 11'd0 && wq[20:2] >= VW[18:0]
@@ -117,6 +123,11 @@ module zm_video_copper (
     always @(posedge clk) begin
         pal_we <= 1'b0;
         hs_we <= 1'b0;
+        lb_we <= 1'b0;
+        // LBASE's value and row every clock (read only on lb_we's pulse, which DEC sets on the same
+        // edge): no clock enable hangs on the VRAM check (it was the comp domain's next path).
+        lb_val <= wq[20:0];
+        lb_row <= phys ? line : line - ZM_RASTER_BORDER_Y[8:0];
         if (rd_req_valid && rd_req_ready) asked <= 1'b1;
         if (fb_we) fb_waddr <= fb_waddr + 8'd1;
         if (rd_rsp_valid && busy) left <= left - 8'd1;
@@ -186,9 +197,10 @@ module zm_video_copper (
             RD2: st <= after || k != 8'd0 ? PAL : DEC;   // then wq holds the word
             DEC: begin                     // wq is body word i
                 j <= 8'd0;
-                if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && wq[27:20] == hs_off)) begin
+                if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && wq[27:20] == hs_off) || (op == 4'h5 && lb_ok)) begin
                     if (op == 4'h3) flick <= 1'b1;
                     if (op == 4'h2) hs_we <= 1'b1;
+                    if (op == 4'h5) lb_we <= 1'b1;
                     i <= i + 8'd1;
                     room <= room - 8'd1;
                     rword <= rword + 10'd1;

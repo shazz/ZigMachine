@@ -1,9 +1,10 @@
 // The budget page (Shift+F11, or > from the debug page): where the cart's frame goes, from the
 // video probe (budget.zig), smoothed over a second, with the peak of the last three.
 //
-//   row 0   title bar
-//   row 1   the frame as a bar, one cell = 1/16 of a 60 fps frame (104 Kc): C cart, F FRESCO,
-//           H handlers + planner, o other, . the VBL wait; past the 16th cell the frame is late
+//   row 0   title bar (rows 1..14 right of the section strip, 30 wide)
+//   row 1   the frame as a bar, one cell = 1/15 of a 60 fps frame (111 Kc): C cart, F FRESCO,
+//           H handlers + planner, o other, . the VBL wait; past the 15th cell the frame is late
+//           (1/15, not 1/16: the strip leaves 30 cells, and two frames keep the 30 fps mark)
 //   row 2   the 60 fps and 30 fps marks under it
 //   rows 3+ the numbers, then what the cart may still spend at 60 fps
 const std = @import("std");
@@ -18,27 +19,28 @@ pub const View = struct {
     missed: ?u32 = null,
 };
 
-pub const CELL: u32 = budget.FRAME_60 / 16;
+pub const CELL: u32 = budget.FRAME_60 / 15;
 
 pub fn draw(o: *osd.Osd, v: *const View) void {
     o.line(0, " FRAME BUDGET   live  Esc", true);
     const s = v.avg orelse {
-        o.line(2, "no video probe: no cart running,", false);
-        o.line(3, "or a firmware without ZM_VSTAT", false);
+        o.body(2, "no video probe: no cart", false);
+        o.body(3, "running, or a firmware", false);
+        o.body(4, "without ZM_VSTAT", false);
         return;
     };
-    var bar: [osd.COLS]u8 = undefined;
+    var bar: [osd.BODY_W]u8 = undefined;
     barText(&bar, s);
-    o.put(0, 1, &bar, false);
-    var marks = [_]u8{' '} ** osd.COLS;
-    @memcpy(marks[10..16], "60fps^");
-    @memcpy(marks[26..32], "30fps^");
-    o.put(0, 2, &marks, false);
+    o.body(1, &bar, false);
+    var marks = [_]u8{' '} ** osd.BODY_W;
+    @memcpy(marks[9..15], "60fps^");
+    @memcpy(marks[24..30], "30fps^");
+    o.body(2, &marks, false);
     var b: [12][osd.COLS]u8 = undefined;
     var t: [8][8]u8 = undefined;
     const lines = [_][]const u8{
-        p(&b[0], "frame  {s} Mc {d:>3}%  peak {s}", .{ mcs(&t[0], s.busy()), budget.percent(s), mcs(&t[1], v.peak.busy()) }),
-        p(&b[1], "cart   {s} Mc       peak {s}", .{ mcs(&t[2], s.cart), mcs(&t[3], v.peak.cart) }),
+        p(&b[0], "frame  {s} Mc {d:>3}% peak {s}", .{ mcs(&t[0], s.busy()), budget.percent(s), mcs(&t[1], v.peak.busy()) }),
+        p(&b[1], "cart   {s} Mc      peak {s}", .{ mcs(&t[2], s.cart), mcs(&t[3], v.peak.cart) }),
         p(&b[2], "FRESCO {s} Mc  {s} planes", .{ mcs(&t[4], s.fresco), budget.planesText(&t[5], s.passes) }),
         p(&b[3], "hbl+pl {s} Mc  passes {d}", .{ mcs(&t[6], s.hbl), s.passes }),
         p(&b[4], "other  {s} Mc  idle {s}", .{ mcs(&t[7], s.other), mcs(&t[0], s.idle) }),
@@ -48,20 +50,20 @@ pub fn draw(o: *osd.Osd, v: *const View) void {
         p(&b[7], "  at 60 fps with {s} planes", .{budget.planesText(&t[4], s.passes)}),
         "",
         "C cart F FRESCO H hbl o other",
-        ". VBL wait   1 cell = 104 Kc",
+        ". VBL wait   1 cell = 111 Kc",
     };
-    for (lines, 0..) |l, i| o.line(@intCast(3 + i), l, false);
+    for (lines, 0..) |l, i| o.body(@intCast(3 + i), l, false);
 }
 
-/// The frame as 32 cells of 1/16 frame each: cart, FRESCO, handlers, other, then the VBL wait.
-pub fn barText(buf: *[osd.COLS]u8, s: budget.Sample) void {
+/// The frame as 30 cells of 1/15 frame each: cart, FRESCO, handlers, other, then the VBL wait.
+pub fn barText(buf: *[osd.BODY_W]u8, s: budget.Sample) void {
     @memset(buf, ' ');
     var at: usize = 0;
     const parts = [_]struct { u8, u32 }{ .{ 'C', s.cart }, .{ 'F', s.fresco }, .{ 'H', s.hbl }, .{ 'o', s.other }, .{ '.', s.idle } };
     var used: u64 = 0;
     for (parts) |part| {
         used += part[1];
-        const end: usize = @intCast(@min(osd.COLS, (used + CELL / 2) / CELL));
+        const end: usize = @intCast(@min(osd.BODY_W, (used + CELL / 2) / CELL));
         while (at < end) : (at += 1) buf[at] = part[0];
     }
 }
@@ -75,7 +77,7 @@ fn headroomLine(buf: *[osd.COLS]u8, s: budget.Sample) []const u8 {
 
 fn p(buf: *[osd.COLS]u8, comptime fmt: []const u8, args: anytype) []const u8 {
     var w = std.Io.Writer.fixed(buf);
-    w.print(fmt, args) catch {}; // a long line is clipped at 32 columns
+    w.print(fmt, args) catch {}; // a long line is clipped (osd.body: 30 columns)
     return w.buffered();
 }
 

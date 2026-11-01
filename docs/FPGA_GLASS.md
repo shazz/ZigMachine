@@ -106,7 +106,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | Offset | Register | | What it does |
 |---|---|---|---|
 | `0x00` | `ID` | ro | `0x5A4D474C` "ZMGL". The ARM drives nothing until it reads this. |
-| `0x04` | `VERSION` | ro | 1.4.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`; 1.3 `LOAD_BASE` moves the HP window; 1.4 `OSD_POS` and `CTRL.OSD_STATS`) |
+| `0x04` | `VERSION` | ro | 1.5.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`; 1.3 `LOAD_BASE` moves the HP window; 1.4 `OSD_POS` and `CTRL.OSD_STATS`; 1.5 the OSD font's rotated A-Z) |
 | `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. bit 3 `WARM`: the next boot keeps the cart's memory (below, "Cold and warm reset"); the firmware reads it at boot through the `glass_boot_warm` CSR. bit 4 `OSD_STATS` (1.4): a text cell holding a plain space (no inverse) is transparent, so only the text covers the picture (below, "The frame-rate overlay"). |
 | `0x0C` | `STATUS` | ro | bit 0 `RUNNING`, bit 1 `KEY_FULL`, bit 2 `KEY_OVERFLOW` (sticky) |
 | `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped. Bits 31:8: the trap code when trapped (`TRAP_WARM_LOST` = `0xFFFF01` for a warm boot with no memory to keep), the firmware's version (major.minor.patch, 8 bits each) when booting or running. Cleared while the CPU is held. |
@@ -380,9 +380,10 @@ below the cart window.
 Shift+F11, or `>` from the debug page. Read-only, redrawn twice a second; numbers averaged
 over one second of 100 ms samples of the video probe, the peak over the last three:
 
-- row 1, a bar of the frame in cells of 1/16 of a 60 fps frame (104 Kc): `C` cart, `F`
+- row 1, a bar of the frame in cells of 1/15 of a 60 fps frame (111 Kc): `C` cart, `F`
   FRESCO, `H` HBL handlers + the dirty-line planner, `o` other (the audio bridge, the
-  disk app), `.` the VBL wait. Row 2 marks where 60 fps (16 cells) and 30 fps (32) end.
+  disk app), `.` the VBL wait. Row 2 marks where 60 fps (15 cells) and 30 fps (30) end
+  (1/15 since the section strip left 30 columns: two frames still fit).
 - frame Mc and % of the 60 fps frame (peak), cart Mc (peak), FRESCO Mc and planes,
   handlers + planner Mc and passes, other and idle, fps and missed VBLs of the last second;
 - the headroom: `cart may spend ~X Mc at 60 fps with N planes` = 1.67 Mc - FRESCO -
@@ -424,12 +425,50 @@ picture. It is the same OSD, put in another mode rather than a second block:
   91 LUT and 154 FF (Yosys). Vivado out of context, placed and routed at the
   40 MHz pixel clock: 71 LUT, 159 FF, 1 BRAM tile, WNS +19.1 ns (the worst path
   is font ROM → pixel mux, 3 logic levels).
-- **The menu** has three pages (`menu.zig`, one file a page). Row 15 is always
+- **The menu** has five pages (`menu.zig`, one file a page): shelf > console > debug > budget,
+  `>`/Right going deeper and `<`/Esc back, and the help page from the console's `Help...` item
+  (below `Debug...`; Esc/Left back to the console; Matt, 2026-10-31). Row 15 is always
   the status line: the page's hint, `loading…`, or the last error. A joypad
   works everywhere: the d-pad is the arrows and fire is Enter; Back is an item,
   as a pad has no Esc. `glass sim-menu DIR [shelf|console|debug]` prints any
   page on a desktop (the drawings below are its output; `*` marks the cart in
   the window, and the cursor's row is inverse on the screen).
+- **The layout is MiSTer's** (Matt, 2026-10-31, `strip.zig`): row 0 is the light (inverse)
+  title bar; column 0 of rows 1..14 is a light strip carrying the section's name (`SHELF` or
+  `FLOPPY`, `CONSOLE`, `DEBUG`, `BUDGET`); column 1 is a dark gap; the page's content takes
+  columns 2..31 (`osd.BODY_COL`, 30 wide), the selected row's bar spanning them. Row 15, the
+  status, is full width. The F11 overlay is unchanged (no strip).
+- **The strip's name is turned 90 degrees and reads bottom to top**, as MiSTer's, on a PL from
+  1.5.0 (`VERSION_OSD_ROTATED`): `tools/glass_export.zig` adds 'A'..'Z' rotated counter-clockwise
+  to the OSD font ROM at glyphs `OSD_ROT_BASE` + 0..25 (0x01..0x1A), which the machine's font
+  leaves blank (the exporter refuses a font where they are not). The glass never writes those
+  codes as text: `osd.put` turns any control byte (a title's, a song name's) into a space, and
+  only `osd.glyph` writes them. On an older PL they are blank, so the glass stacks the name
+  upright, one letter a row, instead. Only the ROM's contents change (no logic): the OSD
+  testbench models the rotation itself and checks every pixel, and four exporter mutants
+  (`test_a_broken_rotated_font_is_caught`) must fail it.
+- **The help page** (`page_help.zig`, Matt 2026-10-31) lists every shortcut, grouped (global,
+  shelf, console, debug, help, budget), from ONE table; `page_help_test.zig` replays each
+  entry against the real handling (the page's `Menu.key`, `App.key` for the hotkeys, the pad,
+  `app_drive.flags` for Shift at a reset), so a listed key nothing takes fails the build. It is
+  longer than 14 rows: Up/Down and PgUp/PgDn scroll it, the title shows which lines.
+
+### The floppy as the shelf (`app_source.zig`, Matt 2026-10-31)
+
+KESTREL is a small Falcon, and a Falcon booted off a 1.44 MB disk. A USB floppy drive on the
+board's hub (usb-storage, `/dev/sdX`) can be the shelf: **F** on the shelf page mounts the
+floppy read-only at `/tmp/zm_floppy` and lists its `.zmd` files; the title bar says `FLOPPY`.
+**F** again unmounts it and goes back to the SD card, so the disk can be swapped; **Shift+F12**
+on the floppy mounts it afresh. The floppy is found by size: the first removable `sd*` block
+device of at most 5,760 sectors (2.88 MB), so a USB stick is never taken for one.
+
+- **The disk:** FAT12 (`mkfs.fat -F 12`), holding the board's **fat disks** (the `.zmd` files
+  staged for the card, which carry `CART.RV32`), not the browser's `docs/demo-*.zmd`. 111 of the
+  112 shelf disks fit on a 1.44 MB floppy (mpp_truecolor's 2.3 MB does not).
+- **Only the cart list moves:** `system.rv32`, `glass.cfg`, KOS's `kos/desktop.rv32` and data
+  disks' `progs/` stay on the SD card. A floppy disk in drive A is not saved as `drive_a=`, so a
+  power-on never looks for a floppy file on the card.
+- A rescan (F, Shift+F12) keeps drive A's disk by file name, or empties the drive.
 
 ### The shelf page (`page_shelf.zig`)
 

@@ -1726,11 +1726,14 @@ calls and the same mesh is a wireframe; swap it for <code>b.triangleEx(...,
 that only the arrays you name reach the cart:</p>
 <figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> logo = obj.<span class="tok-fn">parseWire</span>(@<span class="tok-fn">embedFile</span>(<span class="tok-str">&quot;../assets/obj/empire_logo.obj&quot;</span>));
 <span class="tok-kw">var</span> verts = zg.wireframe.<span class="tok-fn">vec4s</span>(logo.verts.len, logo.verts);</code></pre></figure>
-<p><code>apps/zig/scenes/obj_demo.zig</code> is this step finished, in fixed point, with six
-renderers on key S (hardware flat, glenz, hardware wireframe, a CPU scanline
-fill of the same mesh, CPU Gouraud and hidden-line) so you can watch the same
-geometry go through hardware and software side by side. Keys 1-3 pick the
-object (icosahedron, gem, a procedural sphere whose resolution + and - change).</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A solid icosahedron turning on two axes, its faces
+<p><code>apps/zig/scenes/obj_demo.zig</code> is this step finished, in fixed point, with
+seven renderers on key S (hardware flat, glenz, hardware wireframe, a CPU
+scanline fill of the same mesh, CPU Gouraud, hidden-line, and DOTS: one pixel
+a vertex, shaded by depth, the vector-dot benchmark of the era) so you can
+watch the same geometry go through hardware and software side by side. Keys
+1-4 pick the object (icosahedron, gem, a procedural sphere whose resolution +
+and - change, and GLENZ NEST: four shells one inside the other, whose big
+see-through faces make key C's CPU/CHISEL split show in the frame rate).</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A solid icosahedron turning on two axes, its faces
 shading from teal to white as they face the light, with no seams or popping
 where faces meet. Swap in <code>gem.obj</code> and nothing about the code changes — the
 loader normalises it to the same size.</p>

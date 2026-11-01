@@ -400,7 +400,7 @@
     "id": "copper_reserved_op_skipped",
     "file": "zm_video_copper.v",
     "old": "if (op == 4'h0 || op == 4'h3 ||",
-    "new": "if (op == 4'h0 || op == 4'h3 || op == 4'h5 ||",
+    "new": "if (op == 4'h0 || op == 4'h3 || op == 4'hE ||",
     "catch": "s:copper"
   },
   {
@@ -423,5 +423,54 @@
     "old": "assign wr_dat = {hi, lo};",
     "new": "assign wr_dat = {lo, hi};",
     "catch": "s:copper"
+  },
+  {
+    "id": "lbase_ignored",
+    "file": "zm_video_copper.v",
+    "old": "lb_we <= 1'b1;",
+    "new": "lb_we <= 1'b0;",
+    "catch": "s:lbase"
+  },
+  {
+    "id": "lbase_row_not_kept",
+    "file": "zm_video_latch.v",
+    "old": "r_lrow[plane] <= lb_row;",
+    "new": "r_lrow[plane] <= 9'd0;",
+    "catch": "s:lbase"
+  },
+  {
+    "id": "lbase_not_persisting",
+    "file": "zm_video_plane.v",
+    "old": "{row_2, stride_2, sc_2, base_2} <= {row - lrow_i,",
+    "new": "{row_2, stride_2, sc_2, base_2} <= {row - row,",
+    "catch": "s:lbase"
+  },
+  {
+    "id": "lbase_row_off_by_one",
+    "file": "zm_video_copper.v",
+    "old": "lb_row <= phys ? line : line - ZM_RASTER_BORDER_Y[8:0];",
+    "new": "lb_row <= phys ? line + 9'd1 : line - ZM_RASTER_BORDER_Y[8:0];",
+    "catch": "s:lbase"
+  },
+  {
+    "id": "lbase_vram_unchecked",
+    "file": "zm_video_copper.v",
+    "old": "&& wq[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;",
+    "new": ";",
+    "catch": "s:lbase"
+  },
+  {
+    "id": "lbase_not_reset_at_latch",
+    "file": "zm_video_latch.v",
+    "old": "r_lrow[plane] <= 9'd0;",
+    "new": "",
+    "catch": "s:lbase"
+  },
+  {
+    "id": "overscan_hscroll_ignored",
+    "file": "zm_video_plane.v",
+    "old": "m == SCROLL || m == OVS ? hs_live_i : 16'd0",
+    "new": "m == SCROLL ? hs_live_i : 16'd0",
+    "catch": "s:lbase"
   }
 ]

@@ -99,7 +99,7 @@ test "PALREF copies k words from a VRAM table; one outside VRAM stops the list" 
 }
 
 test "a reserved op stops the list" {
-    put(&.{ head(3, 1), 0x5000_0000, head(4, 0), END });
+    put(&.{ head(3, 1), 0xE000_0000, head(4, 0), END });
     var cur = copper.begin(&region, V);
     _ = run(0, &.{3}, &cur);
     try expectEqual(false, cur.live);

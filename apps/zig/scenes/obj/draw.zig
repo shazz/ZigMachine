@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// OBJ demo: the six shading modes, one plane, painter's order.
+// OBJ demo: the six shading modes and DOTS, one plane, painter's order.
 //
 // Each face or edge goes to CHISEL or to the CPU (raster.zig), whichever is
 // cheaper on the board: a CHISEL op costs ~800 cycles before its first pixel,
@@ -12,8 +12,8 @@ const raster = @import("raster.zig");
 const fmesh = @import("fmesh.zig");
 const xform = @import("xform.zig");
 
-pub const Mode = enum(u8) { flat, glenz, wire, soft, gouraud, hidden };
-pub const NAMES = [_][]const u8{ "FLAT", "GLENZ", "WIRE", "SOFT", "GOURAUD", "HIDDEN" };
+pub const Mode = enum(u8) { flat, glenz, wire, soft, gouraud, hidden, dots };
+pub const NAMES = [_][]const u8{ "FLAT", "GLENZ", "WIRE", "SOFT", "GOURAUD", "HIDDEN", "DOTS" };
 pub const WIRE_INK: u8 = 201;
 
 /// Where the work splits: a face `rows` high or less is filled by the CPU, an
@@ -75,6 +75,7 @@ pub fn draw(c: Ctx, mode: Mode) void {
         .wire => wireAll(c),
         .gouraud => gouraudLit(c),
         .hidden => hiddenLine(c),
+        .dots => dotsAll(c),
     }
 }
 
@@ -143,3 +144,19 @@ fn hiddenLine(c: Ctx) void {
         if (seen) edge(c, c.fr.pv[e.a].s, c.fr.pv[e.b].s);
     }
 }
+
+/// DOTS: one CPU byte store a vertex (each once, however many faces share it),
+/// no faces, no edges, no CHISEL call: the vertex-dot benchmark of the era,
+/// so + / - on the sphere ask how many vertices fit in a frame. Ink by depth
+/// on the FLAT ramp (palette 1..12): the near side white, the far side teal.
+/// project() clamps the depth, so no vertex lands behind the eye.
+fn dotsAll(c: Ctx) void {
+    const t = c.target();
+    for (c.fr.pv[0..c.m.nverts]) |p| {
+        const x = p.s[0];
+        const y = p.s[1];
+        if (x < 0 or y < 0 or x >= t.w or y >= t.h) continue;
+        t.px[@as(usize, @intCast(y)) * t.stride + @as(usize, @intCast(x))] = xform.dotInk(p.z);
+    }
+}
+

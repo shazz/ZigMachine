@@ -14,8 +14,13 @@
 //                                         of k palette words for entries first..first+k-1 (a table
 //                                         the cart keeps in VRAM: a scrolling per-row palette costs
 //                                         one changed word a line, not k)
+//   LBASE 0x5 << 28 | v                  (1.10.0, fpga/review/COPPER_LINEBASE.md) bits 27..21 zero,
+//                                         v (21 bits) a region offset in VRAM, any byte: from this
+//                                         line on, row r reads v + (r - r0) * stride (+ HSCROLL), r0
+//                                         this line's row (the STE video counter); every frame starts
+//                                         from FB_BASE, which LBASE never writes
 //   NOP   0
-// Anything else, a PAL past entry 255 or past the record, a REG to another register, a record for
+// Anything else, an LBASE outside VRAM, a PAL past entry 255 or past the record, a REG to another register, a record for
 // a line already passed or one the plane does not cover, or a list leaving VRAM: the list stops.
 const memmap = @import("sdk/memmap.zig");
 
@@ -25,6 +30,7 @@ pub const OP_PAL: u4 = 1;
 pub const OP_REG: u4 = 2;
 pub const OP_FLICK: u4 = 3;
 pub const OP_PALREF: u4 = 4;
+pub const OP_LBASE: u4 = 5;
 
 /// Where a plane's list stands during its frame: the next record's HEAD and where it sits.
 pub const Cursor = struct {
@@ -37,6 +43,18 @@ pub const Cursor = struct {
 pub const Effects = struct {
     flick: bool = false,
     hscroll: ?u16 = null,
+    lbase: ?u32 = null, // an LBASE: the line's source, a region offset in VRAM
+};
+
+/// Where a plane's lines read from during its frame (LBASE): FB_BASE until a record moves it.
+/// Row r reads off + (r - row) * stride; records come in increasing line order, so r >= row.
+pub const LineBase = struct {
+    off: usize,
+    row: usize = 0,
+
+    pub fn at(self: LineBase, r: usize, stride: usize) usize {
+        return self.off +% (r - self.row) *% stride;
+    }
 };
 
 const VRAM_END: usize = memmap.OFF_VRAM + memmap.VRAM_BYTES;
@@ -96,6 +114,11 @@ pub fn line(region: []const u8, cur: *Cursor, plane: usize, py: u16, t: anytype)
                 fx.hscroll = @truncate(w);
             },
             OP_FLICK => fx.flick = true,
+            OP_LBASE => {
+                const v: u32 = w & 0x0FFF_FFFF;
+                if (v < memmap.OFF_VRAM or v >= VRAM_END) return stop(cur, fx); // also bits 27..21
+                fx.lbase = v;
+            },
             OP_PALREF => {
                 const first: usize = (w >> 20) & 0xFF;
                 const k: usize = (w >> 12) & 0xFF;

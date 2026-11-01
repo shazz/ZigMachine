@@ -179,7 +179,9 @@ module zm_video_comp #(
         .beam_drops(beam_drops), .frame_inc(bg_frame_inc));
 
     // --- the copper list: before a PLANE pass paints, it owns the read port (zm_video_copper.v) ---
-    wire cop_rd_valid, cop_flick;
+    wire cop_rd_valid, cop_flick, cop_lb_we;
+    wire [20:0] cop_lb_val;
+    wire [8:0] cop_lb_row;
     wire [7:0] pl_mode;
     wire [15:0] pl_stride;
     wire [20:0] cop_rd_off;
@@ -191,7 +193,8 @@ module zm_video_comp #(
         .rd_req_len(cop_rd_len), .rd_rsp_valid(cop_busy && rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
         .fb_we(cop_fb_we), .fb_waddr(cop_fb_waddr), .fb_raddr(cop_fb_raddr),
         .fb_rdata(fb_rdata), .pal_we(cop_pal_we), .pal_waddr(cop_pal_waddr), .pal_wdata(cop_pal_wdata),
-        .hs_we(cop_hs_we), .hs_word(cop_hs_word), .hs_be(cop_hs_be), .hs_wdata(cop_hs_wdata));
+        .hs_we(cop_hs_we), .hs_word(cop_hs_word), .hs_be(cop_hs_be), .hs_wdata(cop_hs_wdata),
+        .lb_we(cop_lb_we), .lb_val(cop_lb_val), .lb_row(cop_lb_row));
     // The plane's paint waits for the copper: a start held while it runs.
     reg pl_pend = 1'b0;
     wire pl_go = (start_pl || pl_pend) && !cop_busy;
@@ -208,7 +211,8 @@ module zm_video_comp #(
     assign rd_req_len = cop_busy ? cop_rd_len : fetching ? pl_rd_len : rw_rd_len;
     zm_video_planepath u_pp (
         .clk(clk), .rst(rst), .latch(latch), .start(pl_go), .plane(take ? cmd_plane : plane),
-        .py(line), .regs(regs), .cop_flick(cop_flick), .lmode(pl_mode), .lstride(pl_stride), .done(pl_done),
+        .py(line), .regs(regs), .cop_flick(cop_flick), .lb_we(cop_lb_we), .lb_val(cop_lb_val),
+        .lb_row(cop_lb_row), .lmode(pl_mode), .lstride(pl_stride), .done(pl_done),
         .rd_req_valid(pl_rd_valid), .rd_req_ready(!cop_busy && fetching && rd_req_ready), .rd_req_addr(pl_rd_addr),
         .rd_req_len(pl_rd_len), .rd_rsp_valid(!cop_busy && fetching && rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
         .fb_we(fb_we), .fb_waddr(fb_waddr), .fb_wdata(fb_wdata), .fb_raddr(fb_raddr), .fb_rdata(fb_rdata),

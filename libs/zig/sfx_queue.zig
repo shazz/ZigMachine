@@ -21,8 +21,8 @@
 //   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode, 6 sample, 7 sample stop, 8 song
 //   1 a     play, sample: 1 = looped; stop: 1 = only a looped effect; ym: register;
 //           sndh mode: 1 the 68000 on Musashi, 2 native, 3 native with PCM samples;
-//           song: the image's kind (SongKind: 1 SNDH, 2 SAP)
-//   2 b     ym: the value; song: the subtune (from 1; 0 = the image's default)
+//           song: the image's kind (SongKind: 1 SNDH, 2 SAP, 3 XM, 4 HIP)
+//   2 b     ym: the value; song: the subtune (from 1; 0 = the image's default), an XM's start BPM
 //   3 -     0
 //   4 ptr   play, sample: the PCM (signed 8-bit); song: the image; a cart address
 //   8 len   play, sample, song: its length in bytes; gain: the MOD's gain x 65536 (0..65536)
@@ -54,7 +54,7 @@ pub const SAMPLE_MAX: usize = 2 * 1024 * 1024;
 
 pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5, sample = 6, sample_stop = 7, song = 8 };
 /// What a song image is (entry.a of a song): the player the host loads it into.
-pub const SongKind = enum(u8) { sndh = 1, sap = 2 };
+pub const SongKind = enum(u8) { sndh = 1, sap = 2, xm = 3, hip = 4 };
 /// The largest song image the queue takes (a big SNDH is ~100 KB).
 pub const SONG_MAX: usize = 256 * 1024;
 pub const SNDH_MODES: u8 = 3; // sndh_native.zig Mode: 1..3

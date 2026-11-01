@@ -36,6 +36,7 @@ pub fn act(app: *App, action: menu.Action) void {
         .warm => drive.reset(app, true),
         .settings => applySettings(app),
         .save => saveSettings(app),
+        .source => @import("app_source.zig").toggle(app),
     }
     app.redraw();
 }
@@ -93,7 +94,7 @@ pub fn failed(app: *App, i: usize, err: anyerror) void {
 }
 
 fn loadDisk(app: *App, i: usize) !loader.Report {
-    const path = try app.disks.path(app.shelf_dir, i);
+    const path = try app.disks.path(app.disk_dir, i);
     const disk = try std.Io.Dir.cwd().readFileAlloc(app.io, path, app.gpa, .limited(shelf.MAX_DISK));
     defer app.gpa.free(disk);
     const rep = try loader.load(app.gpa, app.regs, app.ddr, disk, app.opt);

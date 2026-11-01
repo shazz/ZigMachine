@@ -113,7 +113,7 @@ fn bootDrive(app: *App, opt: loader.Options) !loader.Report {
 }
 
 pub fn readDisk(app: *App, i: usize) ![]u8 {
-    const path = try app.disks.path(app.shelf_dir, i);
+    const path = try app.disks.path(app.disk_dir, i);
     return std.Io.Dir.cwd().readFileAlloc(app.io, path, app.gpa, .limited(shelf.MAX_DISK));
 }
 
@@ -135,6 +135,7 @@ pub fn planBoot(app: *App, disk: ?[]const u8, opt: loader.Options) !plan.Plan {
 /// Drive A takes disk `i` (null: ejected); glass.cfg keeps it for the next power-on.
 fn setDrive(app: *App, i: ?usize) void {
     app.drive = i;
+    if (app.floppy) return; // a floppy's disk is not on the card: power-on keeps the card's
     app.menu.settings.drive_a = config.DiskName.of(if (i) |k| app.disks.disks[k].file else "") orelse .{};
     app.settings_dirty = true;
 }

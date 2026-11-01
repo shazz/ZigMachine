@@ -26,4 +26,15 @@ export const PINS_SPHERE = {
     flat_level13: { level: 12, mode: 0, frames: 30, hash: "31df108a704edccc" },
     hidden_level7: { level: 6, mode: 5, frames: 45, hash: "25a9d40184c7ad63" },
     glenz_level4: { level: 3, mode: 1, frames: 40, hash: "9ba3c94efaae661f" },
+    // DOTS (2026-10-31): one pixel a vertex, 1986 of them, depth-inked
+    dots_level13: { level: 12, mode: 6, frames: 30, hash: "00448348c7b271be" },
+};
+
+// PINS_NEST: GLENZ NEST (key 4) after `mode` S presses, at frame `frames`.
+// Taken from this cart (2026-10-31), stills checked by eye: four see-through
+// shells (GLENZ), the skin alone, lit flat (FLAT), its 60 corners (DOTS).
+export const PINS_NEST = {
+    nest_glenz: { object: "4", mode: 1, frames: 50, hash: "3e24f4a5d8b83871" },
+    nest_flat: { object: "4", mode: 0, frames: 35, hash: "fa3238d6ab93165a" },
+    nest_dots: { object: "4", mode: 6, frames: 25, hash: "8dbd0d45237571d0" },
 };

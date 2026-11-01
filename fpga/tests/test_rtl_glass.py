@@ -64,10 +64,16 @@ MUTANTS = [
     ("osd_inverse", "zm_glass_osd", O, "^ inv2;", ";"),
     ("osd_window", "zm_glass_osd", O, "ox[10:0] < ZG_OSD_WIDTH[10:0]", "ox[10:0] <= ZG_OSD_WIDTH[10:0]"),
     ("osd_sync_late", "zm_glass_osd", O, "{de_o, hs_o, vs_o} <= sync2;", "{de_o, hs_o, vs_o} <= sync1;"),
-    ("osd_enable", "zm_glass_osd", O, "(in2 && en_s[1] && !clear2)", "(in2 && !clear2)"),
-    ("osd_transparent", "zm_glass_osd", O, "(in2 && en_s[1] && !clear2)", "(in2 && en_s[1])"),
-    ("osd_clear_plain_only", "zm_glass_osd", O, "text_q == 9'h020", "text_q[7:0] == 8'h20"),
-    ("osd_clear_needs_stats", "zm_glass_osd", O, "clear2 <= st_s[1] && text_q", "clear2 <= text_q"),
+    ("osd_enable", "zm_glass_osd", O, "if (!(in2 && en_s[1]))", "if (!in2)"),
+    ("osd_overlay_no_paper", "zm_glass_osd", O, "else if (!st_s[1])", "else if (1'b1)"),
+    ("osd_menu_paper", "zm_glass_osd", O, "else if (!st_s[1])", "else if (1'b0)"),
+    ("osd_ink_first", "zm_glass_osd", O, "else if (ink)  ", "else if (lit_q)"),
+    ("osd_shadow_right", "zm_glass_osd", O, "wire shade = lit_q || up;", "wire shade = up;"),
+    ("osd_shadow_below", "zm_glass_osd", O, "wire shade = lit_q || up;", "wire shade = lit_q;"),
+    ("osd_shadow_colour", "zm_glass_osd", O, "else if (shade)         {r_o, g_o, b_o} <= bg;", "else if (shade)         {r_o, g_o, b_o} <= fg;"),
+    ("osd_shadow_top_line", "zm_glass_osd", O, "!top2 && above", "above"),
+    ("osd_shadow_column", "zm_glass_osd", O, "above[ox2] <= lit", "above[ox2 + 9'd1] <= lit"),
+    ("osd_shadow_window_only", "zm_glass_osd", O, "wire lit = in2 && ink;", "wire lit = ink;"),
     ("osd_pos_x", "zm_glass_osd", O, "{1'b0, x} - {1'b0, x0_s}", "{1'b0, x} - ZG_OSD_X0[11:0]"),
     ("osd_pos_y", "zm_glass_osd", O, "{1'b0, y} - {1'b0, y0_s}", "{1'b0, y} - ZG_OSD_Y0[10:0]"),
     ("osd_left_borrow", "zm_glass_osd", O, "de && !ox[11] && ", "de && "),
@@ -110,4 +116,38 @@ def test_a_broken_glass_rule_is_caught(name: str, top: str, file: str, old: str,
     assert text.count(old) == 1, f"{name}: the text to break is not unique in {file}"
     (work / file).write_text(text.replace(old, new))
     result = _run(top, test_rtl._cxxrtl(top, sources, work, work), tb, args)
+    assert result.returncode != 0, f"{name} went unnoticed:\n{result.stdout}"
+
+
+EXPORT = "tools/glass_export.zig"
+# The OSD font's rotated A-Z (the menu's section strip) is made by the exporter, not the RTL:
+# (id, text, broken text) in tools/glass_export.zig, each must make the OSD testbench fail.
+FONT_MUTANTS = [
+    ("font_rot_clockwise", "src[c * 8 + (7 - r)]", "src[(7 - c) * 8 + r]"),
+    ("font_rot_mirrored", "src[c * 8 + (7 - r)]", "src[c * 8 + r]"),
+    ("font_rot_base", "raw[(rot_base + k) * 64 ..]", "raw[(rot_base + k + 1) * 64 ..]"),
+    ("font_rot_missing", "try addRotated(&raw, rot_base);", "_ = rot_base;"),
+]
+
+
+@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+@pytest.mark.parametrize(("name", "old", "new"), FONT_MUTANTS, ids=[m[0] for m in FONT_MUTANTS])
+def test_a_broken_rotated_font_is_caught(name: str, old: str, new: str) -> None:
+    sources, tb, args = next((s, t, a) for t_, s, t, a in TESTS if t_ == "zm_glass_osd")
+    work = BUILD / "mutants" / name
+    shutil.rmtree(work, ignore_errors=True)
+    (work / "tools").mkdir(parents=True)
+    (work / "gen").mkdir()
+    text = (FPGA / EXPORT).read_text()
+    assert text.count(old) == 1, f"{name}: the text to break is not unique in {EXPORT}"
+    (work / EXPORT).write_text(text.replace(old, new))
+    zig = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
+    root, glass_map, vh = work / EXPORT, FPGA / "glass/src/map.zig", work / "gen/glass_font.vh"
+    cmd = [zig, "run", "--dep", "glass_map", f"-Mroot={root}", f"-Mglass_map={glass_map}", "--", "font", str(FONT), str(vh)]
+    subprocess.run(cmd, check=True, cwd=FPGA)
+    cc = work / "zm_glass_osd.cc"
+    reads = " ".join(str(FPGA / s) for s in sources)  # the mutant's gen/ first: its font ROM wins
+    script = f"read_verilog -I{work / 'gen'} -I{FPGA / 'gen'} {reads}; hierarchy -top zm_glass_osd; proc; write_cxxrtl {cc}"
+    assert test_rtl.yowasp_yosys.run_yosys(["-q", "-p", script]) == 0
+    result = _run("zm_glass_osd", cc, tb, args)
     assert result.returncode != 0, f"{name} went unnoticed:\n{result.stdout}"

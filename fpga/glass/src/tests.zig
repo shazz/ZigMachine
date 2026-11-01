@@ -28,9 +28,12 @@ test {
     _ = @import("app_drive_ui_test.zig");
     _ = @import("app_stats_test.zig");
     _ = @import("budget_test.zig");
+    _ = @import("page_help_test.zig");
     _ = @import("app_shelf_test.zig");
+    _ = @import("app_source_test.zig");
     _ = @import("console_test.zig");
     _ = @import("text.zig");
+    _ = @import("strip.zig");
     _ = @import("page_debug.zig");
     _ = @import("snd_info_test.zig");
     _ = @import("beats.zig");

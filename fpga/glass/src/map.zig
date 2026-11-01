@@ -16,7 +16,7 @@ pub const GP0_BASE: u32 = 0x43C0_0000;
 pub const WINDOW_BYTES: u32 = 0x1_0000;
 
 pub const ID_VALUE: u32 = 0x5A4D_474C; // "ZMGL": the ARM refuses to drive anything else
-pub const VERSION: u32 = 0x0001_0400; // 1.4.0: REG_OSD_POS, CTRL_OSD_STATS (1.3.0: REG_LOAD_BASE moves the HP window; 1.2.0: REG_AUDIO_VOL, CTRL_WARM; 1.1.0: REG_POINTER)
+pub const VERSION: u32 = 0x0001_0500; // 1.5.0: the OSD font's rotated A-Z (1.4.0: REG_OSD_POS, CTRL_OSD_STATS; 1.3.0: REG_LOAD_BASE moves the HP window; 1.2.0: REG_AUDIO_VOL, CTRL_WARM; 1.1.0: REG_POINTER)
 
 // --- registers (byte offsets, 32-bit, word access only) ----------------------
 pub const REG_ID: u32 = 0x00; // ro
@@ -63,6 +63,12 @@ pub const OSD_POS_RESET: u32 = OSD_X0 << OSD_POS_X_SHIFT | OSD_Y0 << OSD_POS_Y_S
 // The PL that has REG_OSD_POS and CTRL_OSD_STATS; an older one simply has no
 // frame-rate overlay (glass checks, never refuses).
 pub const VERSION_OSD_STATS: u32 = 0x0001_0400;
+// The PL whose OSD font has A-Z rotated 90 degrees counter-clockwise (reading bottom to top,
+// MiSTer's section strip) at glyphs OSD_ROT_BASE + 0..25: codes the machine's font leaves
+// blank and the glass never writes as text (osd.put maps control bytes to a space). An older
+// PL shows those codes blank, so the glass stacks the strip's name upright there instead.
+pub const VERSION_OSD_ROTATED: u32 = 0x0001_0500;
+pub const OSD_ROT_BASE: u32 = 0x01;
 
 // --- CTRL / STATUS bits ------------------------------------------------------
 pub const CTRL_RUN: u32 = 1 << 0; // 0 holds the cart CPU in reset (the reset value)

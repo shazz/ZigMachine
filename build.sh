@@ -115,6 +115,8 @@ python3 fpga/tools/sys_abi.py --break   # ...and a table changed without a versi
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
+node apps/linebase_check.mjs  # copper LBASE + overscan HSCROLL (1.10.0): line lists against a model, frame reset, the stop
+node apps/linebase_check.mjs --break   # ...and a model missing any one rule is caught
 
 # --- ZX0: pack every asset (stale only) and report the ratios per screen ------
 tools/pack_stats.sh
@@ -164,6 +166,7 @@ NATIVE_TESTS="
     libs/zig/effects/text_plot_test.zig
     libs/zig/effects/glyph_line_test.zig
     libs/zig/effects/copper_test.zig
+    libs/zig/effects/linelist_test.zig
     libs/zig/effects/palette_test.zig
     libs/zig/effects/scrollring_test.zig
     libs/zig/effects/pathchain_test.zig
@@ -187,6 +190,7 @@ NATIVE_TESTS="
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
     machine/copper_test.zig
+    machine/copper_lbase_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
@@ -218,6 +222,7 @@ NATIVE_TESTS="
     apps/zig/scenes/blitter_demo/soft.zig
     apps/zig/scenes/leonard_spirit/ball_test.zig
     apps/zig/scenes/gen4_3615/fate_test.zig
+    apps/zig/scenes/mindwind/gen_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
@@ -324,7 +329,7 @@ gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expecte
 gate music node apps/music_debug_pin.mjs   # ...and its composited picture (borders, rasters, HBL), every 60 frames to 1200, silent and with a YM tune's registers mirrored in (scope on), equals the pin apps/music_debug_pin.json (re-blessed 2026-10-24 when the screen went fixed point); the picture moves and the scope changes it
 gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for keygen_9000.xm / poppy_flower_girls.xm / local.xm / "none" by name; the bundled XMs are The Mod Archive's Public Domain files byte for byte (md5), 8 and 12 channels, and play (mode 1, not silent); local.xm never committed
 gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
-gate sysinfo node apps/sysinfo_check.mjs "$SHOTS/sysinfo"   # SYSINFO: every page's text is on the glass glyph for glyph; page 1's memory lines are hwRamFree/Base/Top/Size, the ROM window and hwVideoBase as the machine answers; plane 0's base is its register's; the disk lines are the .zmd descriptor's; player + YM lines follow the host live; idle frames draw nothing, a refresh only the changed span; no host clock = every speed test once, n/a; a clock = a time each, 6 ratios to the ST, f32 to the integer mul-add; Space opens the menu, a click on F4 shows the disk page whole; Q = request 4; page 3 lists the disk's JINKS.SND / GAUNTLET.SAP / SAMPLE.RAW, P reads each through the drive (the bytes handed over = the FAT file's), an SNDH / SAP goes out as requestSongBytes and the loader's postSfx + the audio module play it in mode 4 / 5, the PCM is samplePlay at 12500 Hz; S stops each
+gate sysinfo node apps/sysinfo_check.mjs "$SHOTS/sysinfo"   # SYSINFO: every page's text is on the glass glyph for glyph; page 1's memory lines are hwRamFree/Base/Top/Size, the ROM window and hwVideoBase as the machine answers; plane 0's base is its register's; the disk lines are the .zmd descriptor's; player + YM lines follow the host live; idle frames draw nothing, a refresh only the changed span; no host clock = every speed test once, n/a; a clock = a time each, 6 ratios to the ST, f32 to the integer mul-add; Space opens the menu, a click on F4 shows the disk page whole; Q = request 4; page 3 lists the disk's JINKS.SND / GAUNTLET.SAP / SAMPLE.RAW / KEYGEN.XM / THALION.HIP, P reads each through the drive (the bytes handed over = the FAT file's; the ZX0-packed SNDH / XM / HIP's = the repo's file, depacked by the cart), an SNDH / SAP / XM / HIP goes out as requestSongBytes and the loader's postSfx + the audio module play it in mode 4 / 5 / 1 / 1, heard, the PCM is samplePlay at 12500 Hz; S stops each
 gate sysinfo node apps/sysinfo_check.mjs --break free   # ...and FREE expected 4 KB off hwRamFree() fails
 gate sysinfo node apps/sysinfo_check.mjs --break sound   # ...and a drive serving JINKS.SND with one byte changed fails the bytes check
 gate sysinfo_gem node apps/sysinfo_gem_check.mjs   # SYSINFO as a GEM program: its disk is a DATA disk (with the No virus $1234 boot sector, which asks for request 2 and names no cart, so GEM follows) whose one program BOOT.WSM depacks to demo-sysinfo.wasm; GEM's floppy window runs it on a double-click (request 3), Q brings GEM back (request 4), 3 round trips (> MAX_GUI) and the menu still opens; page 4 reads DATA DISK + BOOT.WSM; the last Q leaves the desktop as it was
@@ -351,6 +356,7 @@ gate vex node apps/vex_headless.mjs "$SHOTS/vex"   # VEX 2025: logo, panel + its
 gate tcb_colorshock node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs "$SHOTS/replicants_emlyn"   # EMLYN HUGHES: the bars are REAL rasters edge to edge (no pixel ever carries a bar colour; theta 0 is ONE colour register a line), Space switches ORIGINAL<->ZIG (bars turn, scrolltext bends on CODEF 484's curve, and the bars run on through the opened TOP and BOTTOM borders with no seam at the window edge), ORIGINAL is pinned by hash to the screen before that and its border lines stay black, 1/2 toggle ZIG's scroller/raster styles and back (and change not one pixel in ORIGINAL), the sweeping logo, the flat scroller in the opened bottom border and out through the LEFT border pixel for pixel (both modes), Escape leaves, the tune plays with no unanswered hardware write, and this fixed-point cart draws the f32 cart's screen (under 1% of pixels apart on every frame, through ZIG and back); F switches the maths live: pressed before frame 1 the cart IS the f32 cart pixel for pixel, twice it is itself again, mid-sweep it carries the screen across
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break rasters "$SHOTS/replicants_emlyn"   # ...and one static palette instead of a per-scanline one is caught
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break flick "$SHOTS/replicants_emlyn"   # ...and a line whose copper record does not FLICK (its borders close: the list must keep every border open, as the handler's flickerBorder() did) is caught
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break borders "$SHOTS/replicants_emlyn"   # ...and rasters, logo OR scrolltext stopping at the content edge (the .top_bottom + window-clipped behaviour) is caught
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break spin "$SHOTS/replicants_emlyn"   # ...and bars that never tilt without Space is caught
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break topbottom "$SHOTS/replicants_emlyn"   # ...and ZIG's top and bottom border lines left black (the window-only raster table) is caught
@@ -373,7 +379,7 @@ gate bladerunners node apps/bladerunners_headless.mjs --break shift   # ...and a
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter"   # BLITTER DEMO: key B draws all seven effects on the CPU with the blitter's exact pixels and palette, not one hwBlit() issued; the corner says BLITTER/CPU; B again returns, Escape asks for the menu
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break pixel   # ...and a CPU frame one pixel off is caught
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break nokey   # ...and a B that never arrived is caught
-gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1/2/3 pick the object, + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the OBJ models), S cycles six distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels), only last frame's box erased (no stale pixel in any mode), four sphere pins, the HUD follows, Escape leaves
+gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1-4 pick the object (4: GLENZ NEST, 60/104), + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the other objects), S cycles seven distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels, DOTS one pixel a vertex), only last frame's box erased (no stale pixel in any mode, nest included), five sphere and three nest pins under every split, the HUD follows, Escape leaves
 gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never arrive are caught
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught
 gate obj node apps/obj_headless.mjs --break erase   # ...and a stale pixel left in the object rows is caught
@@ -474,6 +480,12 @@ gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break pixels   #
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break lead   # ...and copper columns without the 1-px lead are caught
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break music   # ...and a key asking for the wrong song is caught
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break pacing   # ...and a 60 Hz phase (not the original's 50) is caught
+gate linebase_test node apps/linebase_test_headless.mjs   # LINE LIST TEST (cart 110, HW 1.10.0 copper LBASE + overscan HSCROLL): 420 frames, the plane shown equals the line-list model of the list the cart built (apps/linebase_model.mjs), borders included; the wobble HSCROLL, run-on lines, flipped bands, colour-0 raster and phase B's flip all used
+gate linebase_test node apps/linebase_test_headless.mjs --break persist   # ...and a model whose lines do not run on from an LBASE is caught
+gate linebase_test node apps/linebase_test_headless.mjs --break hscroll   # ...and a model ignoring overscan HSCROLL is caught
+gate mindwind node apps/mindwind_headless.mjs "$SHOTS/mindwind"   # MIND REWIND (cart 111, Reservoir Gods STE 2003, from the depacked binary): one overscan plane on a 280-line list (LBASE), every part checked on the 800x280 raster: chrome bars = one colour 0 a line through both borders, part A's flat stripes, the wrapping picture, the cycling rainbow, the rewind's bands, the reversed half's VHS lines, the end logo
+gate mindwind node apps/mindwind_headless.mjs "$SHOTS/mindwind_break" --break copper   # ...and a plane without its list is caught
+gate mindwind node apps/mindwind_music_check.mjs   # ...its music (docs/music/mindwind.sndh: the demo's sequencer verbatim, a new mixer): a frame equals the original mixer's byte for byte, stereo, the song positions the parts wait on, the rewind one-shot and the reversed song
 gate joust node apps/joust_headless.mjs --break clock "$SHOTS/joust"   # ...and 4 extra CPU cycles once fail them
 gate rick_dangerous node apps/rick_dangerous_headless.mjs "$SHOTS/rick_dangerous"   # RICK DANGEROUS (the game): 18 recorded runs (10,890 frames: the level walks, deaths, GAME OVER, the name entries, the menus, the bots through all 4 levels) replayed in lockstep with the original's ACIA / Timer A bytes: every frame takes the original's VBLs and leaves its RAM + both screens + palette with the reference model's CRC, makes its play_sound requests (dropped or not) and the SNDH load / zg.sndhCall requests they imply, in order; live: title + tune, FIRE -> select -> intro -> level 1, the plane is the ST screen, 50 Hz time on a 60 Hz host, P, Escape; rick_dangerous.sndh's own driver RAM = the cart's for all 87 subtunes, and with later requests sndhCall-ed on the RUNNING driver (every id, the paired shot, dynamite x2)
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break joy "$SHOTS/rick_dangerous"   # ...and one wrong stick byte fails the state CRC
@@ -586,6 +598,7 @@ gate_timed union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   #
 gate_timed stream_pacing node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps, 144 Hz and across a 3 s stall
 gate st_replay_outputs node apps/st_replay_outputs_check.mjs   # ST Replay's Alt: INTERNAL feeds the stream ring every frame, EXTERNAL hands the whole sample over once (zg.samplePlay) and the worklet plays it as the fed bytes would sound
 gate st_replay_outputs node apps/st_replay_outputs_check.mjs --break refill   # ...and a worklet that never refills the ring is caught
+gate st_replay_filesel node apps/filesel_check.mjs   # GEM's ITEM SELECTOR as ST Replay opens it is TOS 1.02's: the 320-wide box keeps a full 8.3 Selection (DRUMLOOP.RAW) inside its frame, empty list rows show ________.___, files list as NAME    .EXT; three pinned pictures
 gate_timed union_deltaforce node apps/union_deltaforce_headless.mjs "$SHOTS"   # DELTA FORCE: TEX loader depack, screen.js replayed pixel for pixel, the SNDH plays
 gate_timed union_texcopier node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, screen.js replay incl. Chrome's blends, Scoop plays
 gate union_texcopier node apps/depack_align_check.mjs   # the depack loaders (TEX, Union: texcopier, tnt2, multifake, deltaforce) make no misaligned wide access while they load: each traps on the board (~210 cycles); the TEX loader's glyph copy made ~440 a frame until 2026-10-24

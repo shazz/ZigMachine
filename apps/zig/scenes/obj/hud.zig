@@ -20,7 +20,7 @@ pub const INK: u8 = 200;
 const COLS = 38;
 const Line = [COLS]u8;
 const ROWS = [3]i16{ 8, 16, 184 };
-pub const HELP = "1-3 OBJECT  S SHADE  +/- RES  C SPLIT";
+pub const HELP = "1-4 OBJECT  S SHADE  +/- RES  C SPLIT";
 
 pub const Hud = struct {
     shown: [3]Line = .{ [_]u8{0} ** COLS, [_]u8{0} ** COLS, [_]u8{0} ** COLS },

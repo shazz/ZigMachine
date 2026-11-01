@@ -5,7 +5,8 @@
 // It reads the plane's INDEX framebuffer, not just the composited pixels, so
 // the claims are direct: no pixel anywhere carries one of bar.png's 16 colours
 // (entries 2..17 are dead), the background is nothing but bucket indices, and
-// the colours come from the per-scanline palette the plane's HBL installs.
+// the colours come from the per-scanline palette the plane's copper list
+// loads (HW 1.9.0: a PALREF a line, and a FLICK that keeps every border open).
 //
 // Geometry: an overscan plane, 400x280, content window at (40,20). The physical
 // framebuffer is 800x280 with x DOUBLED, so plane pixel (X, Y) is at (2X, Y).
@@ -20,14 +21,16 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeZigChecks } from "./replicants_emlyn_zig.mjs";
+import { copperRecords } from "./copper_lines.mjs";
 
 const PAGES = 112, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
+const REG_FB_HBL_ID = 0x20, REG_FB_HBL_POS = 0x28;
 const FIRST_BUCKET = 107, MAX_BUCKETS = 149; // emlyn/assets.zig, emlyn/rasters.zig
 const FIRST_BAR = 2, FIRST_FONT = 18, FIRST_LOGO = 48; // the asset script's palette
 const CONTENT_X = 40, CONTENT_Y = 20, CONTENT_W = 320, CONTENT_H = 240;
 const SCROLL_TOP = 195, SCROLL_BOTTOM = 226; // drawTile(390) halved, 32 rows tall
-const MAGIC_X = 40, HBL_PLANE_ID = 0; // OVERSCAN_MAGIC_X; id 5 would be the global HBL
+const MAGIC_X = 40; // OVERSCAN_MAGIC_X: the HBL position the border trick needs
 const K_ESC = 0xe012, DIR_FIRE = 5;
 const WANT_MUSIC = "seven_gates_of_jambala.sndh", WANT_TUNE = 9;
 const SPIN_FRAMES = 40; // theta = 0.02 * 40 = 0.80 rad; the bend is full by 20
@@ -110,11 +113,24 @@ const indices = () => new Uint8Array(memory.buffer, VB + regs.getUint32(REG_FB_B
 const BLACK_RGBA = 0xff000000;
 let frames = 0;
 
-/// The bucket colours the plane's HBL installs for PHYSICAL line `line` — the
-/// raster table itself, read the way the machine reads it.
-function bucketsAt(line) {
-    demo.hblDispatch(HBL_PLANE_ID, 0, line, MAGIC_X);
-    return Array.from(palette().subarray(FIRST_BUCKET, FIRST_BUCKET + MAX_BUCKETS));
+/// Every PHYSICAL line's bucket colours, replayed from the plane's copper
+/// list (apps/copper_lines.mjs): the raster table itself, read the way the
+/// machine reads it. `flicks` counts the lines whose record FLICKs.
+function bucketLines() {
+    const recs = copperRecords(memory, VB, 0) ?? [];
+    const cur = Array.from(palette().subarray(FIRST_BUCKET, FIRST_BUCKET + MAX_BUCKETS));
+    const lines = [];
+    let r = 0, flicks = 0;
+    for (let y = 0; y < H; y++) {
+        for (; r < recs.length && recs[r].line <= y; r++) {
+            const rec = recs[r];
+            // sabotage: one line's record without its FLICK (that line's borders close)
+            if (rec.line === y && rec.flick && !(broke === "flick" && y === 100)) flicks++;
+            for (const [e, c] of rec.pal) if (e >= FIRST_BUCKET) cur[e - FIRST_BUCKET] = c;
+        }
+        lines.push(cur.slice());
+    }
+    return { lines, flicks, records: recs.length };
 }
 
 /// What the whole 400x280 plane is made of this frame.
@@ -133,9 +149,9 @@ function census() {
     const n = { bucket: 0, bar: 0, art: 0, other: 0 };
     let count = 1, tilted = 0, changes = 0, prev = "", side = 0, logoSide = 0, fontSide = 0;
     let fontTop = 1e9, fontBottom = -1, lowest = -1, tbLit = 0;
-    const all = [];
+    const all = [], played = bucketLines();
     for (let y = 0; y < H; y++) {
-        let b = bucketsAt(broke === "rasters" ? CONTENT_Y : y); // sabotage: one static palette
+        let b = played.lines[broke === "rasters" ? CONTENT_Y : y].slice(); // sabotage: one static palette
         const tb = y < CONTENT_Y || y >= CONTENT_Y + CONTENT_H;
         if (tb && broke === "topbottom") b = b.map(() => BLACK_RGBA); // sabotage: borders closed
         all.push(b);
@@ -171,7 +187,7 @@ function census() {
         if (used.some((c) => c !== used[0])) tilted++;
         if ((y < CONTENT_Y || y >= CONTENT_Y + CONTENT_H) && used.some((c) => c !== BLACK_RGBA)) tbLit++;
     }
-    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest, tbLit, lines };
+    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest, tbLit, lines, flicks: played.flicks };
 }
 
 /// SHA-256 prefixes of the shot, whole (`all`) and of the content window's
@@ -224,6 +240,12 @@ check("the rasters run into the LEFT and RIGHT borders", c.side > 0, true);
 check("... and so does the logo, which is drawn to the whole raster", c.logoSide > 0, true);
 check("content reaches the opened bottom border", c.lowest >= 240, true);
 check("the logo depacked and draws over the rasters", c.art > 0, true);
+// The rasters and the border trick are the plane's copper list, which the
+// machine plays itself: no HBL handler is left on the plane, its HBL position
+// stays the magic column the flicker must land on, and every line FLICKs.
+check("the plane runs no HBL handler (its copper list plays the rasters)", regs.getUint16(REG_FB_HBL_ID, true), 0);
+check("... and keeps the overscan HBL position", regs.getUint16(REG_FB_HBL_POS, true), MAGIC_X);
+check("every line's record FLICKs: every border stays open", c.flicks, H);
 
 // 16 frames at 4 canvas pixels bring letter 0's left edge to canvas 640; by 120
 // the 32-tall tiles are well inside their band. drawTile's y is the TOP.

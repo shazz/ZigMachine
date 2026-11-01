@@ -2061,11 +2061,14 @@ const logo = obj.parseWire(@embedFile("../assets/obj/empire_logo.obj"));
 var verts = zg.wireframe.vec4s(logo.verts.len, logo.verts);
 ```
 
-`apps/zig/scenes/obj_demo.zig` is this step finished, in fixed point, with six
-renderers on key S (hardware flat, glenz, hardware wireframe, a CPU scanline
-fill of the same mesh, CPU Gouraud and hidden-line) so you can watch the same
-geometry go through hardware and software side by side. Keys 1-3 pick the
-object (icosahedron, gem, a procedural sphere whose resolution + and - change).
+`apps/zig/scenes/obj_demo.zig` is this step finished, in fixed point, with
+seven renderers on key S (hardware flat, glenz, hardware wireframe, a CPU
+scanline fill of the same mesh, CPU Gouraud, hidden-line, and DOTS: one pixel
+a vertex, shaded by depth, the vector-dot benchmark of the era) so you can
+watch the same geometry go through hardware and software side by side. Keys
+1-4 pick the object (icosahedron, gem, a procedural sphere whose resolution +
+and - change, and GLENZ NEST: four shells one inside the other, whose big
+see-through faces make key C's CPU/CHISEL split show in the frame rate).
 
 **What you should see.** A solid icosahedron turning on two axes, its faces
 shading from teal to white as they face the light, with no seams or popping

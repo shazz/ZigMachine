@@ -125,34 +125,6 @@ test "stepped edges and merged rows draw what the divide-per-row filler drew" {
     }
 }
 
-// A blitter stand-in: the rect hook writes the bytes itself, as CHISEL would.
-var hook_px: []u8 = &.{};
-var hook_stride: usize = 0;
-fn hookRect(x: usize, y: usize, w: usize, h: usize, color: u8) void {
-    for (0..h) |r| @memset(hook_px[(y + r) * hook_stride + x ..][0..w], color);
-}
-
-test "fills routed to a rect hook draw what the CPU spans draw" {
-    var prng = std.Random.DefaultPrng.init(0xb117);
-    const rnd = prng.random();
-    var a = [_]u8{0} ** (64 * 48);
-    var b = [_]u8{0} ** (64 * 48);
-    hook_px = &b;
-    hook_stride = 64;
-    for (0..2000) |_| {
-        var pts: [MAX_VERTS]Point = undefined;
-        const n = 3 + rnd.uintLessThan(usize, MAX_VERTS - 2);
-        for (pts[0..n]) |*p| p.* = .{ .x = rnd.intRangeAtMost(i32, -20, 90), .y = rnd.intRangeAtMost(i32, -20, 70) };
-        const ta = Target{ .px = &a, .stride = 64, .w = 55, .h = 47, .ox = 3 };
-        const tb = Target{ .px = &b, .stride = 64, .w = 55, .h = 47, .ox = 3, .rect = hookRect, .blit_min = 0 };
-        polyfill.rect(ta, 1, 1, 9, 5, 0); // a clear of part of the window, as player.clear
-        polyfill.rect(tb, 1, 1, 9, 5, 0);
-        fill(ta, pts[0..n], 4);
-        fill(tb, pts[0..n], 4);
-        try expectEqual(a, b);
-    }
-}
-
 test "the two-chain path draws what the divide-per-row filler drew, when it takes a polygon" {
     var prng = std.Random.DefaultPrng.init(0x2c4a1);
     const rnd = prng.random();

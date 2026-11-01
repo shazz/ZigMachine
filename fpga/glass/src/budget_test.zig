@@ -53,12 +53,13 @@ test "a second of samples is averaged and the peak is the busiest of the last th
     try std.testing.expectEqual(@as(?budget.Sample, null), sm.avg());
 }
 
-test "the bar is the frame in 1/16 cells: cart, FRESCO, other, then the VBL wait" {
-    var bar: [osd.COLS]u8 = undefined;
+test "the bar is the frame in 1/15 cells: cart, FRESCO, other, then the VBL wait" {
+    var bar: [osd.BODY_W]u8 = undefined;
     page.barText(&bar, budget.sample(&RNO).?);
-    // 0.69 / 0.41 / 0.01 / 0.55 Mc, each boundary rounded to the nearest of 104 Kc: a whole 60 fps frame
-    try std.testing.expectEqualStrings("CCCCCCCFFFo.....", bar[0..16]);
-    try std.testing.expectEqual(@as(u8, ' '), bar[16]);
+    // 0.69 / 0.41 / 0.01 / 0.55 Mc, each boundary rounded to the nearest of 111 Kc: a whole 60 fps
+    // frame. The 0.01 Mc of "other" rounds away at this cell size.
+    try std.testing.expectEqualStrings("CCCCCCFFFF.....", bar[0..15]);
+    try std.testing.expectEqual(@as(u8, ' '), bar[15]);
 }
 
 test "the page: numbers, planes, headroom at 60 fps, and an over-budget frame says by how much" {

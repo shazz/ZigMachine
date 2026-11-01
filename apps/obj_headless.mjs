@@ -10,21 +10,23 @@
 //      (PINS_OLD: see its note on where they come from);
 //   2. the KEYS: 3 picks the sphere at 20 verts / 36 faces, + walks every level
 //      up to 1986 / 3968 and stops there, - walks back and stops at the first;
-//      + / - do nothing on the icosahedron; 1 and 2 pick the models back;
-//   3. S cycles six distinct shading modes and the seventh press is the first
-//      again; their inks: GLENZ ORs bits past the 12-step ramp, GOURAUD uses
-//      more than 12 levels, WIRE and HIDDEN only the wire ink, HIDDEN fewer
-//      pixels than WIRE;
+//      + / - do nothing on the icosahedron or GLENZ NEST; 4 picks the nest at
+//      60 / 104; 1 and 2 pick the models back;
+//   3. S cycles seven distinct modes and the eighth press is the first again;
+//      their inks: GLENZ ORs bits past the 12-step ramp, GOURAUD uses more
+//      than 12 levels, WIRE and HIDDEN only the wire ink, HIDDEN fewer pixels
+//      than WIRE, DOTS one pixel a vertex at most, in several depth inks;
 //   4. the ERASE: only last frame's box is cleared, and every frame is the
-//      same as one drawn on cleared rows (no stale pixel left), in every mode;
-//   5. pins of four sphere states (PINS_SPHERE), the same under each of the six
-//      CPU/CHISEL splits (key C), the HUD lines change with the resolution,
-//      and Escape leaves.
+//      same as one drawn on cleared rows (no stale pixel left), in every mode
+//      on the sphere, and on GLENZ NEST in GLENZ, FLAT and DOTS;
+//   5. pins of five sphere states (PINS_SPHERE) and three GLENZ NEST ones
+//      (PINS_NEST), each the same under all six CPU/CHISEL splits (key C),
+//      the HUD lines change with the resolution, and Escape leaves.
 // --break res: + and - are not sent. --break shade: S is not sent. --break
 // erase: a stray pixel is left in the object rows. --break pin: one pixel of
 // the pinned rows flips. Each must be caught (then the run PASSes, exit 0).
 import { bootObj, key, OBJ_Y0, OBJ_Y1, W } from "./obj_machine.mjs";
-import { PINS_OLD, PINS_SPHERE } from "./obj_pins.mjs";
+import { PINS_OLD, PINS_SPHERE, PINS_NEST } from "./obj_pins.mjs";
 import { mkdir } from "node:fs/promises";
 
 const argv = process.argv.slice(2);
@@ -87,13 +89,19 @@ for (const [name, pins] of Object.entries(PINS_OLD)) {
     for (let i = 0; i < LEVELS.length; i++) { press(S, "-"); down.push(lastVF()); }
     const wantDown = [...LEVELS.slice(0, -1).reverse(), LEVELS[0]];
     if (JSON.stringify(down) !== JSON.stringify(wantDown)) fail(`- back down: V/F ${JSON.stringify(down)}, want ${JSON.stringify(wantDown)}`);
+    press(S, "4");
+    if (JSON.stringify(lastVF()) !== "[60,104]") fail(`4 does not pick GLENZ NEST: V/F ${lastVF()}`);
+    log = [];
+    press(S, "+");
+    press(S, "-");
+    if (lastVF() !== null) fail(`+ / - on GLENZ NEST rebuilt a model: V/F ${lastVF()}`);
     press(S, "2");
     if (JSON.stringify(lastVF()) !== "[8,12]") fail(`2 does not pick the gem: ${lastVF()}`);
     press(S, "1");
     if (JSON.stringify(lastVF()) !== "[12,20]") fail(`1 does not pick the icosahedron: ${lastVF()}`);
 }
 
-await import("./obj_modes.mjs").then((m) => m.checkModes({ boot, press, fail, BREAK, LEVELS, PINS_SPHERE, pinHash, K_ESC, OUT }));
+await import("./obj_modes.mjs").then((m) => m.checkModes({ boot, press, fail, BREAK, LEVELS, PINS_SPHERE, PINS_NEST, pinHash, K_ESC, OUT }));
 
 if (BREAK) { // a break must be caught, and by the check it aims at
     const WANT = { res: "V/F", shade: "m0s1", erase: "stale", pin: "pinned" }[BREAK];
@@ -106,4 +114,4 @@ if (errors.length) {
     for (const e of errors) console.log(`  - ${e}`);
     process.exit(1);
 }
-console.log("obj: OK - the old pictures pinned, 1/2/3 pick the object, +/- walk the sphere's 13 levels (V/F from 20/36 to 1986/3968), S cycles 6 modes, only last frame's box erased, sphere pins, HUD, Escape");
+console.log("obj: OK - the old pictures pinned, 1-4 pick the object (4: GLENZ NEST 60/104), +/- walk the sphere's 13 levels (V/F from 20/36 to 1986/3968), S cycles 7 modes (DOTS last), only last frame's box erased, sphere + nest pins under every split, HUD, Escape");

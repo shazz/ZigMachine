@@ -78,7 +78,15 @@ def test_a_redrawn_plane_skips_its_borders_uncompared() -> None:
 
 BREAKS = [("ROWS", "scroll"), ("PAL", "joust"), ("BG", "union_intro"), ("BG", "dhs_0pxl0reg"),
           ("HANDLER", "ancool"), ("PICTURE", "scroll"), ("OVERDRAWN", "gem"),
-          ("COPPER", "tutorial"), ("HOT", "scroll")]  # fmt: skip
+          ("COPPER", "tutorial"), ("HOT", "scroll"), ("LBASE", "linebase_test")]  # fmt: skip
+
+
+def test_lbase_lists_are_redrawn_every_frame() -> None:
+    """linebase_test (HW 1.10.0): its phase B plane's list LBASEs every line onto rows the CPU draws
+    in, outside the rows FB_BASE names; the list never changes, so only the LBASE rule (vdlist.h:
+    uncompared, always changed) keeps those lines from being skipped. Phase A is overscan (UNKNOWN)."""
+    lines, skipped, moved, bad, *_ = proof("linebase_test")
+    assert bad == 0 and moved == 0 and lines > 0
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

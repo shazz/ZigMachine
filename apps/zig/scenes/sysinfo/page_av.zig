@@ -105,6 +105,8 @@ fn kindName(k: sound_list.Kind) []const u8 {
         .sndh => "SNDH (68000 + YM)",
         .sap => "SAP (6502 + POKEY)",
         .pcm => std.fmt.comptimePrint("PCM {d} HZ", .{sound_play.PCM_HZ}),
+        .xm => "XM (TRACKER + PAULA)",
+        .hip => "HIP (68000 + PAULA)",
     };
 }
 
@@ -123,7 +125,7 @@ fn statusName(s: sound_list.Status) []const u8 {
 fn playerName(mode: u8) []const u8 {
     return switch (mode) {
         0 => "NONE",
-        1 => "PAULA (MOD/XM)",
+        1 => "PAULA (MOD/XM/HIP)",
         2 => "YM DUMP",
         3 => "SAMPLE",
         4 => "SNDH (68000)",

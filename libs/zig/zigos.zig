@@ -32,6 +32,24 @@ pub const blit = @import("effects/blit.zig"); // clipped signed blits: Dst/Image
 pub const palette = @import("effects/palette.zig"); // scale colours from a base palette (fades)
 pub const scrollring = @import("effects/scrollring.zig"); // CODEF letter-ring scroller state
 pub const pathchain = @import("effects/pathchain.zig"); // sprites trailing each other along one ripped path
+/// STE line lists as a copper list (HW 1.10.0): per line a source address, HSCROLL and colour 0.
+pub const linelist = struct {
+    const m = @import("effects/linelist.zig");
+    pub const Line = m.Line;
+    pub const Options = m.Options;
+    pub const words = m.words;
+    pub const build = m.LineList(hw.REG_HSCROLL).build;
+
+    /// The list buffer for `rows` lines on `fb`, published, with no HBL handler; with `flicker`
+    /// the plane's HBL position is the magic column, so the list's FLICK opens the borders.
+    /// Null when VRAM is full. Build into it every frame (build), after the scene's drawing.
+    pub fn install(fb: *LogicalFB, rows: usize, flicker: bool) ?[]u32 {
+        fb.clearFrameBufferHBLHandler();
+        const l = fb.copperList(words(rows)) orelse return null;
+        writeU16(hw.REG_FB_HBL_POS + @as(usize, fb.id) * 2, if (flicker) OVERSCAN_MAGIC_X else 0);
+        return l;
+    }
+};
 pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column-shifted strip blit
 pub const fixtrig = @import("effects/fixtrig.zig"); // integer sine table + u32 angles: trig with no float
 pub const spans = @import("effects/spans.zig"); // comptime ink runs of a sparse overlay
@@ -311,9 +329,10 @@ pub fn samplePlay(pcm: []const u8, rate: u32, loop: bool) bool {
 pub const SongKind = sfx_queue.SongKind;
 /// Play a song image the cart holds in its OWN memory, e.g. one it read off its
 /// disk through the drive (zg.disk.read), where requestSong can only name a file
-/// the host fetches. `tune` counts from 1, 0 = the image's default. The host
-/// copies the bytes when it drains the frame, then loads them exactly as a
-/// fetched .sndh / .sap: it replaces whatever plays, and stopSong() stops it. A
+/// the host fetches. `tune` counts from 1, 0 = the image's default (an XM's is
+/// its start BPM, 0 = its own tempo). The host copies the bytes when it drains
+/// the frame, then loads them exactly as a fetched .sndh / .sap / .xm / .hip: it
+/// replaces whatever plays, and stopSong() stops it. A
 /// requestSong made in the same frame is applied BEFORE it. False when refused
 /// (empty, over SONG_MAX, the queue full): counted in sfxDropped().
 pub fn requestSongBytes(bytes: []const u8, kind: SongKind, tune: u8) bool {
@@ -524,6 +543,12 @@ pub const LogicalFB = struct {
         return self.copper_words;
     }
 
+    /// The region offset of this plane's pixel (x, y): what a copper LBASE names (zg.linelist).
+    pub fn lineAddr(self: *const LogicalFB, x: u32, y: u32) u32 {
+        const origin: u32 = @intCast(@intFromPtr(self.fb) - g_base);
+        return origin + y * self.stride + x;
+    }
+
     pub fn clearCopperList(self: *LogicalFB) void {
         writeU16(hw.REG_FB_COPPER + @as(usize, self.id) * 2, 0);
     }
@@ -557,8 +582,8 @@ pub const LogicalFB = struct {
     // flickerBorder() from this plane's HBL at OVERSCAN_MAGIC_X, exactly as for
     // setOverscanBuffer(). Draw in buffer coords (0..buf_w, 0..buf_h), and keep
     // the pan inside 0..buf_w-PHYSICAL_WIDTH / 0..buf_h-PHYSICAL_HEIGHT.
-    // NB: renderPlaneOverscan does NOT re-read HSCROLL, so there is no per-line
-    // fine scroll in this mode (unlike FB_MODE_SCROLL).
+    // Since HW 1.10.0 HSCROLL is re-read every line here too (setScrollFine from a
+    // handler, or the copper list's REG HSCROLL): a per-line fine scroll, no wrap.
     // A buffer SMALLER than the overscan window would make the machine read past
     // the allocation on every frame — a silent VRAM corruption, not a trap, since
     // nothing bounds-checks the composite. So the size is clamped up to the window

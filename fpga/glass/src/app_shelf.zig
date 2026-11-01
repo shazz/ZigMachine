@@ -13,7 +13,7 @@ const SHOWN = @import("page_shelf.zig").SHOWN;
 const App = @import("app.zig").App;
 
 pub fn rescan(app: *App) void {
-    var next = shelf.scan(app.gpa, app.io, app.shelf_dir) catch |err| {
+    var next = shelf.scan(app.gpa, app.io, app.disk_dir) catch |err| {
         std.log.warn("shelf rescan: {t}", .{err});
         return app.menu.setStatus("shelf: {t}", .{err});
     };
@@ -25,13 +25,14 @@ pub fn rescan(app: *App) void {
     };
     app.current = remap(old, next.disks, app.current);
     app.menu.loaded = remap(old, next.disks, app.menu.loaded);
+    app.drive = remap(old, next.disks, app.drive); // drive A keeps its disk by name, or empties
     const cursor = if (old.len > 0) find(next.disks, old[app.menu.list.cursor].file) else null;
     app.menu.list.cursor = cursor orelse @min(app.menu.list.cursor, next.disks.len -| 1);
     app.menu.list.top = (app.menu.list.cursor + 1) -| SHOWN; // the cursor's row on screen
     app.disks.deinit();
     app.disks = next;
     app.menu.disks = next.disks;
-    app.menu.setStatus("shelf: {d} carts", .{next.disks.len});
+    app.menu.setStatus("{s}: {d} carts", .{ if (app.floppy) "floppy" else "shelf", next.disks.len });
     std.log.info("shelf rescan: {d} carts", .{next.disks.len});
 }
 

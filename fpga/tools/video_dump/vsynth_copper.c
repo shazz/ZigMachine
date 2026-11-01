@@ -66,7 +66,7 @@ static void list2(void) {
     for (uint32_t y = ZM_RASTER_BORDER_Y; y < ZM_RASTER_BORDER_Y + ZM_HEIGHT; y++) {
         if (y == 200) {
             put(head(y, 1));
-            put(0x50000000u); /* reserved: the list stops */
+            put(0xE0000000u); /* reserved: the list stops */
             continue;
         }
         put(head(y, 3));

@@ -1,22 +1,27 @@
 // SYSINFO's SOUND page, for apps/sysinfo_check.mjs: the sound files on its disk, selected and
 // played off the disk. Run over a booted SysInfo (apps/sysinfo_machine.mjs):
-//   list     page 3 lists the disk's three sound files (JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW) with
-//            their FAT sizes and kinds; the selected one is in inverse, Down moves it
+//   list     page 3 lists the disk's five sound files (JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW,
+//            KEYGEN.XM, THALION.HIP) with their FAT sizes and kinds; the selected one is in
+//            inverse, Down moves it
 //   drive    P reads the selection through the drive into the cart's RAM: the bytes the host is
-//            handed (the sfx queue's pointer) are the FAT file's, byte for byte
-//   bridge   an SNDH / SAP is zg.requestSongBytes (sfx op 8, kind 1 / 2); docs/sealed-loader.js's
-//            own postSfx turns it into loadSndh / loadSap, and the audio module those messages
-//            reach plays it in mode 4 (SNDH on the 68000) / 5 (SAP on the POKEY), with a sound;
-//            the PCM is zg.samplePlay (op 6) at 12500 Hz
+//            handed (the sfx queue's pointer) are the FAT file's, byte for byte; the SNDH, the
+//            XM and the HIP are stored ZX0-packed, and theirs are the repo's file depacked
+//   bridge   an SNDH / SAP / XM / HIP is zg.requestSongBytes (sfx op 8, kind 1..4);
+//            docs/sealed-loader.js's own postSfx turns it into loadSndh / loadSap / loadXm /
+//            loadHip, and the audio module those messages reach plays it in mode 4 (SNDH on the
+//            68000) / 5 (SAP on the POKEY) / 1 (XM, HIP on Paula), with a sound; the PCM is
+//            zg.samplePlay (op 6) at 12500 Hz
 //   stop     S stops: a song with the song bridge's "none", the PCM with sampleStop (op 7)
 import { readFile } from "node:fs/promises";
 import { parseDisk } from "../docs/zmdisk.js";
 import { frames, page, field, glass, K } from "./sysinfo_machine.mjs";
 
 const FILES = [
-    { name: "JINKS.SND", kind: "SNDH (68000 + YM)", op: 8, a: 1, mode: 4 },
-    { name: "GAUNTLET.SAP", kind: "SAP (6502 + POKEY)", op: 8, a: 2, mode: 5 },
+    { name: "JINKS.SND", kind: "SNDH (68000 + YM)", op: 8, a: 1, msg: "loadSndh", mode: 4, src: "docs/music/Jinks.sndh" },
+    { name: "GAUNTLET.SAP", kind: "SAP (6502 + POKEY)", op: 8, a: 2, msg: "loadSap", mode: 5 },
     { name: "SAMPLE.RAW", kind: "PCM 12500 HZ", op: 6, rate: 12500 },
+    { name: "KEYGEN.XM", kind: "XM (TRACKER + PAULA)", op: 8, a: 3, msg: "loadXm", mode: 1, src: "docs/music/keygen_9000.xm" },
+    { name: "THALION.HIP", kind: "HIP (68000 + PAULA)", op: 8, a: 4, msg: "loadHip", mode: 1, src: "docs/music/hippel/thalion_intro.hip" },
 ];
 const FILES_ROW = 15; // page_av.zig FILES_ROW + 1
 
@@ -58,10 +63,12 @@ async function audioModule() {
     const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), 1024);
     return {
         d,
-        load(msg) { // the worklet's loadSndh / loadSap: writeSong, load, play the tune
+        load(msg) { // the worklet's loadSndh / loadSap / loadXm / loadHip: writeSong, load, play the tune
             const cap = d.audioSongCapacity(), src = new Uint8Array(msg.bytes), len = Math.min(src.length, cap);
             new Uint8Array(memory.buffer, d.audioSongPtr(), cap).set(src.subarray(0, len));
             if (msg.type === "loadSndh") return d.audioLoadSndh(len) && (d.audioSndhPlay(msg.tune || 0), true);
+            if (msg.type === "loadXm") return d.audioLoadXm(len) && (d.audioXmPlay(msg.bpm || 0), true);
+            if (msg.type === "loadHip") return d.audioLoadHip(len) && (d.audioHipPlay(msg.tune || 0), true);
             return d.audioLoadSap(len) && (d.audioSapPlay(msg.tune || 0), true);
         },
         peak() { let p = 0; for (let b = 0; b < 43; b++) { d.audioRender(1024); for (const v of left) p = Math.max(p, Math.abs(v)); } return p; },
@@ -94,11 +101,13 @@ export async function soundPage(s, expect) {
         const stop = songRequest(s), q = drain(s), e = q.find((x) => x.op === f.op);
         expect(!!e && (f.op !== 8 || e.a === f.a) && (!f.rate || e.rate === f.rate),
             `P on ${f.name}: sfx op ${f.op}${f.a ? ` kind ${f.a}` : ""}${f.rate ? ` at ${f.rate} Hz` : ""} (${q.map((x) => x.op).join(",")})`);
-        const want = disk(f.name);
-        expect(!!e && e.len === want.length && e.bytes.every((b, j) => b === want[j]), `${f.name}: the bytes handed over are the FAT file's, read through the drive`);
+        const want = f.src ? new Uint8Array(await readFile(f.src)) : disk(f.name);
+        if (f.src) expect(String.fromCharCode(...disk(f.name).subarray(0, 4)) === "ZX0!", `${f.name} is stored ZX0-packed on the disk`);
+        expect(!!e && e.len === want.length && e.bytes.every((b, j) => b === want[j]),
+            `${f.name}: the bytes handed over are ${f.src ? `${f.src} (depacked by the cart)` : "the FAT file's"}, read through the drive`);
         if (f.op === 8 && e) {
             const msgs = await hostMessages(s, q.length, s.demo.sfxEntriesPtr());
-            const m = msgs.find((x) => x.type === (f.a === 1 ? "loadSndh" : "loadSap"));
+            const m = msgs.find((x) => x.type === f.msg);
             const ok = !!m && audio.load(m), peak = ok ? audio.peak() : 0;
             expect(ok && audio.d.audioMode() === f.mode && peak > 0.01,
                 `the host posts ${m?.type}, the audio module plays it in mode ${audio.d.audioMode()} (want ${f.mode}), peak ${peak.toFixed(3)}`);

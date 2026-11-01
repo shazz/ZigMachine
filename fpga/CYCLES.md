@@ -506,7 +506,111 @@ FPU's rounding, NaN and subnormal handling change no result in these 8 carts.
   but no cart of the shelf runs faster for it and it costs 13 % of the chip and
   fmax margin. Keep it as an opt-in core (`vexgen ... fpu`), not the board core, until a
   cart is written in f32. If it is wanted, `-mno-fdiv` plus `withDiv/withSqrt = false`
-  would trim it further (not measured).
+  would trim it further (measured below, with raytrace_f32: it trims 325 LUT and
+  throws away most of the gain).
+
+### The smallest useful FPU (raytrace_f32, 2026-10-10)
+
+*Why: raytrace_f32 is the first cart written in f32 (on the board, soft-float, it
+traces 580 px/s against 2,992 for its Q16.16 twin `raytrace`), so the call above is
+open again, with the SoC at ~11 K LUT and the sound CPU (+2.35 K) and POKEY (+0.2 K)
+still to come: about 4 K LUT left on the 7010, and 100 MHz already tight. Re-run:
+`vexgen/gen.sh` with the specs below, `tools/vivado_ooc.sh` per core under
+`flock build/vivado.lock`, then `uv run python tools/mempath_run.py fpulite`.*
+
+**The knobs that exist** (`FpuParameter`, third_party/VexRiscv `ip/fpu/Interface.scala`):
+`withDouble`, `asyncRegFile`, `mulWidthA`/`mulWidthB` (the mantissa product is cut in
+pieces of that size, ALL multiplied in parallel: there is no iterative multiplier),
+`schedulerM2sPipe` (one more register in the scheduler: FF, not LUT), `withAdd`,
+`withMul`, `withDiv`, `withSqrt`, `withDivSqrt`, `withShortPipMisc`, `sim`. Of these
+only `withDiv`/`withSqrt` remove something an f32 cart can live without: `withAdd`/
+`withMul` are fadd/fmul, `withShortPipMisc` carries fsw, compares, min/max, sign
+injection, fmv, fclass and float<->int; `withDivSqrt` (a Newton-Raphson on the shared
+multiplier) is unfinished upstream (`assert(false, "Need to implement commit
+tracking")`); `mulWidthB = 24` (one 24x24 piece) breaks the two-level sum
+(`splits.size / 2 = 0`); `asyncRegFile` trades the register file's BRAM for LUTRAM.
+
+**Trap: no divider does not mean "fdiv traps".** FpuPlugin decodes fdiv.s/fsqrt.s
+whatever `withDiv`/`withSqrt` say; with no unit to take them the FPU never accepts the
+command and the core **hangs**. So `fpulite` firmware is built `-mno-fdiv` (gcc then
+calls libgcc's `__divsf3` and `sqrtf()`), and since picolibc's rv32imf `sqrtf` is
+itself one fsqrt.s, `cycles/softsqrtf.c` replaces it (correctly rounded: equal to IEEE
+over all 2^31 positive floats, run once; `tests/test_softsqrtf.py` samples it).
+cycles.mk variant `alignedl` refuses an ELF that still holds an fdiv.s/fsqrt.s.
+
+**Variants**, all on the board core (`I16w2D4Seal`, static prediction, 16 KiB 2-way I$,
+4 KiB D$; `vexgen` flags after `:16384:2:4096:1:seal`):
+
+- `I16w2D4Seal` - no FPU, soft-float (the baseline, `make vexgen-board`'s core)
+- `I16w2D4SealFpu` (`fpu`) - the full f32 FPU of the section above (24x17 pieces, div, sqrt)
+- `I16w2D4SealFpuL` (`fpulite`) - no divider, no square root
+- `I16w2D4SealFpuLM18` (`fpulite,m18`) - lite, product in 18x18 pieces (FpuParameter's
+  default); size only: its pipeline, so its cycles, are the lite core's
+
+**Size and timing**: Vivado 2026.1 out of context, synth + place + route of the core
+alone at 100 MHz, xc7z010clg400-1 (`tools/vivado_ooc.sh VexRiscv build/ooc/<core> 100
+build/vexgen/VexRiscv_<core>.v rtl/seal/zm_seal.v`). Vivado packs tighter than the
+Yosys counts above (the full FPU is +1,983 LUT here, +2,348 there).
+
+| core | LUT | FF | BRAM tiles | DSP | LUT over no FPU | routed WNS @ 100 MHz |
+|---|---|---|---|---|---|---|
+| no FPU | 1,865 | 1,371 | 8.5 | 4 | - | +1.295 ns |
+| full FPU | 3,848 | 3,226 | 10 | 6 | **+1,983** | +0.512 ns |
+| lite (no div/sqrt) | 3,523 | 2,901 | 10 | 6 | +1,658 | +0.665 ns |
+| lite, 18x18 | 3,565 | 2,976 | 10 | 7 | +1,700 | +0.829 ns |
+
+All four close 100 MHz on their own. The full FPU's worst path is
+`writeBack_FpuPlugin_commit_rValidN` -> the pipeline stall -> the I$ bank RAM address
+(the no-FPU core's: writeBack valid -> the same RAM): the FPU joins the fetch-stall
+cone, which in the whole SoC is where 100 MHz is won or lost, so expect it to cost
+more there than these 0.8 ns. 18x18 pieces cost one more DSP and 42 more LUT: 24x17
+stays.
+
+**Cycles** (cycles sim, `hp_wc` memory path, the unsealed twins `I16w2D4` / `Fpu` /
+`FpuL`, the seal costs no cycle; firmware `aligned` / `alignedf` / `alignedl`). Without
+hostMicros a raytrace frame traces a fixed 512 pixels (apps/zig/scenes/raytrace/bench.zig
+`FIXED_PIXELS`), so px/s = 512 x 100 MHz / the cart's mean Mcycles a frame (frames
+6-12; blitter and tsl_hybridglenz 6-30). Every run's hashes equal scene_hash.mjs's and
+the native host's (12/12 `ok`): the FPU and the soft div/sqrt are pixel-exact.
+
+<!-- mempath-fpulite:begin -->
+| cart | I16w2D4 Mc | I16w2D4Fpu Mc | I16w2D4FpuL Mc | px/s @100 MHz | vs no FPU |
+|---|---|---|---|---|---|
+| raytrace_f32 | 42.48 | 4.47 | 25.02 | 1,205 / 11,466 / 2,046 | -89 % / -41 % |
+| raytrace | 9.51 | 9.51 | 9.51 | 5,383 / 5,383 / 5,383 | +0 % / +0 % |
+| blitter | 0.10 | 0.06 | 0.07 |  | -41 % / -35 % |
+| tsl_hybridglenz | 0.09 | 0.08 | 0.08 |  | -18 % / -15 % |
+<!-- mempath-fpulite:end -->
+
+(The sim's px/s are about twice the board's - soft f32 1,205 against 580, Q16.16 5,383
+against 2,992: the board also pays the real DDR, the compositor's traffic and its clock
+reads - but the ratio between cores is what this measures.)
+
+**Verdict.**
+
+- **The full FPU makes f32 the fastest number type on the machine**: raytrace_f32
+  9.5x faster than soft-float (1,205 -> 11,466 px/s) and 2.1x faster than the Q16.16
+  twin (5,383, which no FPU changes). That is +10,261 px/s for +1,983 LUT,
+  **5.2 px/s a LUT**.
+- **The lite FPU is a false economy**: dropping div and sqrt saves only 325 LUT (16 %
+  of the FPU) and leaves raytrace_f32 at 2,046 px/s, slower than Q16.16: the tracer's
+  per-step length (sqrt) and divides, in software, eat 92 % of the hard FPU's gain
+  (20.6 of the lite core's 25.0 Mc a frame).
+  +841 px/s for +1,658 LUT, 0.5 px/s a LUT, ten times worse. The adder, multiplier,
+  normaliser/rounder, float<->int and the register file are the FPU's bulk, and none
+  of them can go. The 18x18 split is bigger, not smaller.
+- **Recommendation: if an FPU goes on the board, it is the full one (`fpu`, 24x17,
+  div + sqrt)**, the best px/s per LUT that closes 100 MHz out of context (+0.512 ns).
+  It does not fit the budget comfortably: ~11 K + 2.35 K (sound CPU) + 0.2 K (POKEY)
+  + 2.0 K (FPU) = ~15.6 K of 17.6 K LUT (89 %), with the FPU on the fetch-stall path.
+  So it is a trade against the other blocks, not a free add: worth it only if f32
+  carts are wanted on the board; a smaller FPU is not an option worth taking.
+  The board core stays `I16w2D4Seal` (no FPU) until that call is made, and the whole-SoC
+  Vivado route at 100 MHz with the FPU is the next measurement if it is.
+
+*Merged 2026-10-31 as this note only: the variant code it used (vexgen `fpulite`/`m18`, cycles.mk
+`alignedl`, `cycles/softsqrtf.c`) stayed on the study branch (b258f7d2) and was not kept, since the
+conclusion is not to build the lite core. The re-run recipe above needs that commit.*
 
 ## The two float carts, rewritten (2026-10-10)
 

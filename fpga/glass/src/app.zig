@@ -35,6 +35,8 @@ pub const App = struct {
     regs: bus.Regs,
     ddr: bus.Ddr,
     shelf_dir: []const u8,
+    disk_dir: []const u8, // where the shelf's carts are read: shelf_dir, or the floppy (app_source.zig)
+    floppy: bool = false,
     disks: shelf.Shelf,
     menu: menu.Menu,
     osd: osd.Osd = .{},
@@ -72,7 +74,7 @@ pub const App = struct {
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dir: []const u8) !App {
         try loader.checkGlass(regs);
         const disks = try shelf.scan(gpa, io, dir);
-        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks } };
+        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disk_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks, .rotated = @import("strip.zig").supported(regs.read(map.REG_VERSION)) } };
         app.pl_stats = overlay.supported(regs.read(map.REG_VERSION));
         app.opt.system = system.load(gpa, io, dir); // once: every lean cart runs on it
         regs.write(map.REG_OSD_FG, OSD_FG);
@@ -132,6 +134,7 @@ pub const App = struct {
 
     /// Shift+F12: the shelf read again (app_shelf.zig), shown in the menu.
     fn rescan(self: *App) void {
+        if (self.floppy) @import("app_source.zig").remount(self) catch |err| self.menu.setStatus("floppy: {t}", .{err});
         @import("app_shelf.zig").rescan(self);
         if (self.open) self.redraw() else self.setOpen(true);
     }
@@ -207,7 +210,7 @@ pub const App = struct {
                 self.menu.list.phase +%= 1;
                 self.redraw();
             },
-            .console => {},
+            .console, .help => {},
         }
     }
 };

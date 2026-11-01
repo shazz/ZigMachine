@@ -37,7 +37,7 @@ pub fn build(particles: []const Particle, theta: f32, rows: R.Rows) void {
         // plane column 0 is CONTENT_X to the left of canvas 0
         var u = (-2.0 * @as(f32, A.CONTENT_X) + 0.5 - CX) * sin + (yc - CY) * cos + CY;
         for (t[line][0..R.count]) |*b| {
-            b.* = inkAt(particles, u);
+            b.* = R.ink[inkAt(particles, u)];
             u += du;
         }
     }

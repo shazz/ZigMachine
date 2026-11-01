@@ -77,7 +77,7 @@ test "no music: a firmware without audio, BARD that never answered, nothing aske
     try expectPage(page(&w, null), &.{ "music none: no audio in fw", "song  -" });
     try expectPage(page(&w, .{ .route = mc.ROUTE_BARD_DOWN, .player = mc.PLAYER_NONE }), &.{ "music none: BARD down", "song  -" });
     try expectPage(page(&w, .{ .player = mc.PLAYER_NONE }), &.{"music BARD idle"});
-    try expectPage(page(&w, .{ .started = false, .name = "gone.sndh" }), &.{ "music BARD SNDH 68k not started", "song  gone.sndh" });
+    try expectPage(page(&w, .{ .started = false, .name = "gone.sndh" }), &.{ "music BARD SNDH 68k waiting", "song  gone.sndh" });
     var o = osd.Osd{};
     page_debug.draw(&o, &page_debug.View{}); // no cart running: the glass does not read the page
     var dump: [osd.ROWS * (osd.COLS + 1)]u8 = undefined;

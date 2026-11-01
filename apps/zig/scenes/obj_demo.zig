@@ -1,14 +1,17 @@
 // --------------------------------------------------------------------------
 // OBJ 3D demo: a Wavefront OBJ (zigos/utils/obj_loader.zig) or a procedural
-// sphere, spun and drawn in six shading modes, in fixed point on one plane.
+// sphere or the GLENZ NEST, spun and drawn in six shading modes or as dots,
+// in fixed point on one plane.
 // It is also the board's polygon benchmark: the sphere's resolution goes up
 // and down, and the top lines show V/F and, where the host has a clock, the
 // fps and the cart's own time a frame.
 //
-//   keys 1 2 3  the OBJECT: icosahedron, gem, sphere
+//   keys 1-4    the OBJECT: icosahedron, gem, sphere, GLENZ NEST (three
+//               nested shells, big faces: GLENZ there shows key C's split)
 //   S           the SHADING: FLAT (CHISEL triangles, flat-lit), GLENZ (OR
 //               see-through), WIRE (every edge), SOFT (CPU scanline fill),
-//               GOURAUD (CPU, per-vertex light), HIDDEN (hidden-line wire)
+//               GOURAUD (CPU, per-vertex light), HIDDEN (hidden-line wire),
+//               DOTS (one CPU byte a vertex, ink by depth)
 //   + / -       the sphere's resolution (13 levels, 36 to 3968 faces)
 //   C           where faces/edges go: CHISEL, the CPU below 8/16/24/48 rows, or the CPU
 //   Esc         back to the menu
@@ -25,6 +28,7 @@ const zg = @import("zigos");
 const fx = @import("obj/fixed3d.zig");
 const fmesh = @import("obj/fmesh.zig");
 const sphere = @import("obj/sphere.zig");
+const nest = @import("obj/nest.zig");
 const xform = @import("obj/xform.zig");
 const draw = @import("obj/draw.zig");
 const pal = @import("obj/palette.zig");
@@ -34,8 +38,9 @@ const MODELS = [_][]const u8{
     @embedFile("../assets/obj/icosahedron.obj"),
     @embedFile("../assets/obj/gem.obj"),
 };
-const OBJECTS = [_][]const u8{ "ICOSAHEDRON", "GEM", "SPHERE" };
+const OBJECTS = [_][]const u8{ "ICOSAHEDRON", "GEM", "SPHERE", "GLENZ NEST" };
 const SPHERE: u8 = 2;
+const NEST: u8 = 3;
 const K_ESC: u32 = 0xE012;
 // The old f32 steps a frame (0.019, 0.027, 0.011 rad) as Angles.
 const STEP = [3]fx.Angle{ fx.angle(0.019), fx.angle(0.027), fx.angle(0.011) };
@@ -71,13 +76,22 @@ pub const Demo = struct {
         pal.fixed(fb);
         zigos.setBackgroundColor(.{ .r = 6, .g = 8, .b = 18, .a = 255 });
         self.selectObject(0);
-        pal.program(fb, self.mode);
     }
 
     fn selectObject(self: *Demo, o: u8) void {
         self.object = o;
-        if (o == SPHERE) sphere.build(self.mesh, sphere.LEVELS[self.level]) else self.loadObj(MODELS[o]);
+        switch (o) {
+            SPHERE => sphere.build(self.mesh, sphere.LEVELS[self.level]),
+            NEST => nest.build(self.mesh),
+            else => self.loadObj(MODELS[o]),
+        }
         zg.Console.log("obj: object {} -> {} verts, {} faces", .{ o, self.mesh.nverts, self.mesh.nfaces });
+        self.palette();
+    }
+
+    /// The mode's palette; GLENZ NEST has its own GLENZ one (red and white).
+    fn palette(self: *Demo) void {
+        pal.program(&self.os.lfbs[0], self.mode, self.object == NEST);
     }
 
     /// The OBJ text through the loader (f32, once a model), into the Q14 mesh.
@@ -100,10 +114,10 @@ pub const Demo = struct {
     pub fn key(self: *Demo, cp: u32) void {
         switch (cp) {
             K_ESC => self.wants_quit = true,
-            '1'...'3' => self.selectObject(@intCast(cp - '1')),
+            '1'...'4' => self.selectObject(@intCast(cp - '1')),
             's', 'S' => {
                 self.mode = @enumFromInt((@intFromEnum(self.mode) + 1) % draw.NAMES.len);
-                pal.program(&self.os.lfbs[0], self.mode);
+                self.palette();
             },
             'c', 'C' => self.split = (self.split + 1) % @as(u8, draw.SPLITS.len),
             '+', '=' => self.resolution(1),
@@ -112,7 +126,7 @@ pub const Demo = struct {
         }
     }
 
-    /// The host's 1-7 switch, for a host that still sends it: 1-3 pick the object.
+    /// The host's 1-7 switch, for a host that still sends it: 1-4 pick the object.
     pub fn setShadeMode(self: *Demo, m: u32) void {
         if (m < OBJECTS.len) self.selectObject(@intCast(m));
     }

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "osd_test_core.cc"
+#include "osd_font_rot.h"
 
 static int failures = 0;
 #define CHECK(cond, ...)                                     \
@@ -153,6 +154,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::fclose(f);
+    CHECK(add_rotated_letters(font_raw), "the rotated letters' glyphs are not blank in the font");
     std::string dir = argc > 2 ? std::string(argv[2]) + "/osd_" : "";
     auto shot_path = [&](const char* step) { return dir.empty() ? dir : dir + step + ".ppm"; };
     top.p_rst.set(true);

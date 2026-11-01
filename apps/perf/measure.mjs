@@ -75,6 +75,7 @@ function summarize(cartPath, opts, run, profiles, w) {
     return {
         cart: cartPath, frames: F, warmup: opts.warmup, calls: opts.callSpecs ?? [],
         mc: { avg: Mc(avg), p95: Mc(pct(w.series, 0.95)), max: Mc(Math.max(...w.series)) },
+        series: w.series.map(Mc), // per measured frame: where a one-frame spike sits
         fps: Math.min(60, Math.round((10 * MHZ * 1e6) / Math.max(1, avg)) / 10),
         budget: Math.round((100 * avg) / (FRAME_MC * 1e6)),
         split: Object.fromEntries(Object.entries(w.split).map(([k, v]) => [k, Mc(v / F)])),
