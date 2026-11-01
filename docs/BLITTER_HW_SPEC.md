@@ -316,9 +316,9 @@ via `zm_blit_hp.py`, the start through an M-only window from the firmware's
 
 | File | What |
 |---|---|
-| `zm_blit_regs.v` | the register block of §3, written the way the CPU writes the region (word index, byte enables); `COMMAND` written non-zero starts the op; writes while `BUSY` are dropped; `STATUS` and `CYCLES` are the only reads |
-| `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0" |
-| `zm_blit_fill.v`, `_blit.v`, `_line.v`, `_tri.v` | one sequencer per op: geometry in, pixels out (x, y, B colour, minterm, channel flags). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
+| `zm_blit_regs.v` | the register block of §3, written the way the CPU writes the region (word index, byte enables); `COMMAND` written non-zero starts the op; writes while `BUSY` are dropped; `STATUS` and `CYCLES` are the only reads. The `HALFTONE` pattern lives in LUTRAM (four 8-deep byte lanes) with a flag a byte ("last written non-zero"), which is both its reset and the pre-1.5.0 sniff |
+| `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0". A short serial walk: the box one vertex a clock, then ONE source check unit for A, then B (windows, span, the overlap test of §10.2) |
+| `zm_blit_blit.v`, `_line.v`, `_tri.v` | the sequencers: geometry in, pixels out (x, y); the core picks the B colour (COLOR, or the halftone's bit at the pixel), the minterm and the channel flags once for all. One box walker serves BLIT and FILL (FILL: no source, no `DESC`). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
 | `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted. Pipelined: its issue stage requests a pixel's reads and moves on, each read tagged (slot, channel, byte lane) |
 | `zm_blit_pxq.v` | the back of the pixel unit: up to 32 pixels whose reads are in flight (LUTRAM slots, answers land by tag), the head combined and written **in order**, through a one-word write buffer that sends consecutive bytes of a word as one strobed write |
 | `zm_blit_core.v` | decode, the op FSM (`IDLE, CHK, RUN, DRAIN, FIN`), the one destination address generator `dlin + y*stride + x`, the `CYCLES` model |
@@ -359,13 +359,23 @@ keeps the v1 order. The rule, per channel:
   Bresenham always steps) and the clip keeps `0 <= x < D_STRIDE`, so every pixel of an
   op writes its own byte. C reads always run ahead.
 - **A and B** (BLIT sources) may alias: a BLIT over its own destination (a scroll, a
-  smear). `zm_blit_chk` compares spans from the registers: each used source
-  `[base, base + (H-1)*stride + W)` against the destination `[dlin, dlin + (ey1-1)*D_STRIDE + ex1)`,
-  all linear and below 2^23 once the checks pass. Disjoint: A/B reads run ahead.
-  Not provably disjoint (`ordered`): an A/B read waits until every earlier pixel's
-  write has been **taken by the port** (nothing in the queue, the head or the write
-  buffer), which is v1's order. The test is conservative (whole spans, not boxes):
-  a false "may overlap" only costs speed.
+  smear). `zm_blit_chk` clears `ordered` for a used source when either holds:
+  - *apart*: the source span `[base, base + (H-1)*stride + W)` and the destination
+    **box's** span `[dlin + ey0*D_STRIDE + ex0, dlin + (ey1-1)*D_STRIDE + ex1)` share no
+    byte (all linear, below 2^23 once the checks pass). Until 2026-10-31 the destination
+    span started at the plane's base, so any source above the box in the same plane ran
+    ordered (deltaforce, dbug paid ~28 clocks a pixel for it);
+  - *never behind the walk*: with one row (H = 1) or the destination's stride, every
+    source byte is its destination byte + `delta`, one constant (`delta` = source base −
+    the address of the rectangle's (X0, Y0)), and the destination addresses only grow
+    (ascending) or only shrink (`DESC`), since the clip keeps `x < D_STRIDE`. So
+    `delta >= 0` ascending, or `delta <= 0` with `DESC`, never reads a byte an earlier
+    pixel wrote, nor one a later pixel writes before the read: a scroll in the walk's
+    direction runs at full speed even though it overlaps.
+  Otherwise (`ordered`) an A/B read waits until every earlier pixel's write has been
+  **taken by the port** (nothing in the queue, the head or the write buffer), which is
+  v1's order. A false "may overlap" only costs speed; `blitter_tb`'s speed script bounds
+  the clocks of each case (the oracle cannot see the order).
 - **Writes never wait for reads** at the port: a pixel is written after its own reads
   and every earlier pixel's have come back (answers are in order), so no unanswered
   earlier read can cover its bytes. `blitter_tb` checks exactly that on every write.
@@ -434,6 +444,23 @@ computed in a free-running 3-clock setup pipeline from the check's box, which is
 three clocks before `go` reaches the sequencers: no clock is added to any op. Out of
 context, placed and routed: 3,324 LUT / 2,466 FF / 8 DSP, WNS +0.19 ns (+0.11 before), the
 worst paths now the check's box (`bx1`), not the addresses.
+
+**The fold (2026-10-31, SOC_REVIEW F5).** Out of context, placed and routed, the same flow:
+
+| | LUT | FF | DSP | WNS 100 MHz | WNS 125 MHz |
+|---|---:|---:|---:|---:|---:|
+| before (main b4d4f3b2) | 3,324 | 2,466 | 8 | +0.19 | -1.13 (LINE's `err` from the registers) |
+| after | 2,996 | 2,254 | 13 | +0.19 | +0.21 |
+
+Where it came from (synthesis with `FLATTEN=none`, an honest bill a module: 3,505 -> 3,156):
+the check serialised (one source unit for A then B, the box one vertex a clock) 716 -> 597;
+FILL folded into the BLIT box walker (-116 for the sequencer, fewer muxes in the core); the
+halftone in LUTRAM -71 LUT and -224 FF. The check now spends DSPs where it spent LUTs (Vivado
+absorbs its span adds into the products' post-adders): 13 DSP in all, 80 on the 7010. For
+125 MHz, LINE's `dx`/`dy`/steps and the check's product operands are registered a clock
+early (they are functions of registers that hold still while `BUSY`), and the pixel unit's
+"no-op pixel" test is decided from registered answers for COLOR, BG_COLOR and 0, so the
+halftone's LUTRAM read is no longer on the path into `zm_blit_px`.
 
 ### 10.5 Throughput
 
