@@ -35,6 +35,11 @@ typedef void (*kestrel_mix_fn)(void *ctx, int16_t *stereo, int frames);
  * the speaker catches the feed up. */
 void kestrel_audio_pump(uint32_t us, uint32_t rate, uint32_t lead_ms, kestrel_mix_fn mix, void *ctx);
 
+/* Quiet (on = 1): the pump keeps running `mix` (a replayer's clock) but feeds nothing, and a stream
+ * already started is stopped; a port whose sound plays elsewhere (pt2 on the hardware Paula channels,
+ * HW 1.14.0) says so. Off again: the next pump restarts the stream with its lead. */
+void kestrel_audio_quiet(int on);
+
 #ifdef __cplusplus
 }
 #endif

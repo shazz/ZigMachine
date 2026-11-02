@@ -5,6 +5,7 @@
 __attribute__((import_module("env"), import_name("hostMicros"))) extern uint32_t hostMicros(void);
 __attribute__((import_module("env"), import_name("hostAudioStreamStart"))) extern void hostAudioStreamStart(float rate);
 __attribute__((import_module("env"), import_name("hostAudioFeed"))) extern void hostAudioFeed(const void *p, int len);
+__attribute__((import_module("env"), import_name("hostAudioStreamStop"))) extern void hostAudioStreamStop(void);
 
 #define US 1000000u
 /* A block a feed: the browser keeps the last 32 feeds to pre-fill the ring once sound is on
@@ -14,6 +15,7 @@ __attribute__((import_module("env"), import_name("hostAudioFeed"))) extern void 
 static uint32_t last_us;   /* hostMicros() at the last frame, 0 = no clock yet */
 static uint64_t owed;      /* rate x microseconds not yet a whole sample */
 static int started;
+static int quiet; /* kestrel_audio_quiet: the mix runs (the replayer's clock), nothing is fed */
 static int16_t mixbuf[BLOCK * 2];
 static int8_t outbuf[BLOCK];
 
@@ -32,10 +34,17 @@ static void feed_silence(uint32_t n)
     for (; n > 0; n -= n < BLOCK ? n : BLOCK) hostAudioFeed(outbuf, (int)(n < BLOCK ? n : BLOCK));
 }
 
+void kestrel_audio_quiet(int on)
+{
+    if (on && started) hostAudioStreamStop();
+    if (on) started = 0; /* unquiet again: the next pump starts the stream with its lead */
+    quiet = on;
+}
+
 void kestrel_audio_pump(uint32_t us, uint32_t rate, uint32_t lead_ms, kestrel_mix_fn mix, void *ctx)
 {
     if (rate == 0) return;
-    if (!started) {
+    if (!started && !quiet) {
         hostAudioStreamStart((float)rate);
         feed_silence(rate * lead_ms / 1000u);
         started = 1;
@@ -46,6 +55,7 @@ void kestrel_audio_pump(uint32_t us, uint32_t rate, uint32_t lead_ms, kestrel_mi
     while (n > 0) {
         int k = (int)(n < BLOCK ? n : BLOCK);
         mix(ctx, mixbuf, k);
+        if (quiet) { n -= (uint32_t)k; continue; } /* the mix may have gone quiet inside: checked after it */
         for (int i = 0; i < k; i++) {
             int m = ((int)mixbuf[2 * i] + (int)mixbuf[2 * i + 1]) >> 9; /* (L+R)/2, 16 -> 8 bits */
             outbuf[i] = (int8_t)(m > 127 ? 127 : m < -128 ? -128 : m);

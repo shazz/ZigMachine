@@ -42,9 +42,10 @@ $(GEN)/%: $(PT2)/% $(wildcard patches/*.sed)
 $(OUT)/kestrel_%.o: kestrel_%.c kestrel_port.h $(wildcard ../kestrel_sdl2/include/*.h ../kestrel_sdl2/include/SDL2/*)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
-# kestrel_paula.c implements pt2_paula.h: it reads upstream's (mirrored) headers.
-$(OUT)/kestrel_paula.o: CFLAGS += -I$(GEN)
-$(OUT)/kestrel_paula.o: $(GENALL)
+# kestrel_paula.c implements pt2_paula.h, kestrel_paula_hw.c drives the hardware channels (HW 1.14.0):
+# they read upstream's (mirrored) headers.
+$(OUT)/kestrel_paula.o $(OUT)/kestrel_paula_hw.o: CFLAGS += -I$(GEN)
+$(OUT)/kestrel_paula.o $(OUT)/kestrel_paula_hw.o: $(GENALL)
 $(OUT)/ksdl/%.o: $(KSDL)/%.c $(wildcard ../kestrel_sdl2/include/*.h ../kestrel_sdl2/include/SDL2/*)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@

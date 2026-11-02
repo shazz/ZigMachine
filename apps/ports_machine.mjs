@@ -11,11 +11,12 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig (the 3 MiB cart window)
 export const DT = 1000 / 60;
 
-// boot(cart, disk, usPerFrame): disk = the .zmd bytes in drive A, or null for an empty drive.
+// boot(cart, disk, usPerFrame, extraEnv): disk = the .zmd bytes in drive A, or null for an empty drive.
 // usPerFrame: 0 = no host clock (hostMicros answers 0, as every harness: the ports pace their audio by
 // dt); else hostMicros advances that much a frame while dt stays 16.6 ms, as on the board, where the
-// frame takes longer than its dt (kestrel_audio.h).
-export async function boot(cart, disk, usPerFrame = 0) {
+// frame takes longer than its dt (kestrel_audio.h). extraEnv: imports over the defaults (the Paula
+// channels lent to the cart, apps/pt2_paula_headless.mjs).
+export async function boot(cart, disk, usPerFrame = 0, extraEnv = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo = null;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -27,7 +28,7 @@ export async function boot(cart, disk, usPerFrame = 0) {
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const bytes = await readFile(cart);
-    const log = [], audio = { rate: 0, n: 0, peak: 0 }, clock = { us: 0, perFrame: usPerFrame };
+    const log = [], audio = { rate: 0, n: 0, peak: 0, keep: extraEnv.keepAudio ? [] : null }, clock = { us: 0, perFrame: usPerFrame };
     const text = (p, n) => new TextDecoder().decode(new Uint8Array(memory.buffer, p, n));
     const env = {
         memory, ...rom,
@@ -43,7 +44,12 @@ export async function boot(cart, disk, usPerFrame = 0) {
         hostAudioFeed: (p, n) => {
             audio.n += n;
             for (const v of new Int8Array(memory.buffer, p, n)) audio.peak = Math.max(audio.peak, Math.abs(v));
+            if (audio.keep) audio.keep.push(new Int8Array(memory.buffer, p, n).slice());
         },
+        hostAudioStreamStop: () => { audio.stops = (audio.stops || 0) + 1; },
+        // The Paula channels (HW 1.14.0): none here unless extraEnv lends them (claim 0: software mix).
+        hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
+        ...extraEnv,
     };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     const unknown = WebAssembly.Module.imports(new WebAssembly.Module(bytes))

@@ -145,6 +145,7 @@ NATIVE_TESTS="
     libs/zig/players/sap_test.zig
     libs/zig/players/hip_format_test.zig
     libs/zig/players/amiga_beam_test.zig
+    libs/zig/players/cart_paula_queue_test.zig
     libs/zig/players/mod_format_test.zig
     libs/zig/players/xm_format_test.zig
     libs/zig/players/xm_instr_test.zig
@@ -598,6 +599,11 @@ gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujib
 gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): the committed cart boots off its committed disk with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard
 gate ports_pt2 node apps/ports_headless.mjs pt2 --break load   # ...and the file never clicked (nothing loaded, nothing heard) is caught
 gate ports_pt2 node apps/ports_headless.mjs pt2 --clock 33333   # ...and with the board's clock (hostMicros 33 ms a frame, dt 16.6): the audio fed follows the clock, not dt (kestrel_audio.h)
+gate ports_pt2 node apps/pt2_paula_headless.mjs   # ...and on the machine's hardware Paula channels (HW 1.14.0, env.hostPaula*, the real worklet): pt2 claims them and stops its stream, RONKEN.MOD plays with every write landed at its sample, its loudness and semitone spectrum follow the software mixer's, a song request while it holds them is refused
+gate ports_pt2 node apps/pt2_paula_headless.mjs --break pitch   # ...and every period doubled on the way (an octave down) is caught
+gate ports_pt2 node apps/pt2_paula_headless.mjs --break latch   # ...and LC/LEN taken at once, not at the wrap (paula.zig mutant 2), is caught
+gate ports_pt2 node apps/pt2_paula_headless.mjs --break upload   # ...and no sample uploaded to chip RAM is caught
+gate ports_pt2 node apps/pt2_paula_headless.mjs --break owner   # ...and the worklet's refusal bypassed (a song let in over chip RAM) is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
 gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPORT2.KT opened off the floppy, UI pinned; F5 plays it: the stream is not silent and the screen follows play

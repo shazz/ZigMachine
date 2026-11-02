@@ -13,7 +13,11 @@
  * filter (E0x), both in fixed point. What is dropped: BLEP (output is point-sampled: several Paula
  * samples a mix sample are stepped over, so pitch stays right at any output rate) and the ~5 Hz
  * high-pass (DC removal, inaudible). Output is MONO, written to both channels of the S16 stream:
- * KESTREL's stream is mono, so panning would be summed away anyway. */
+ * KESTREL's stream is mono, so panning would be summed away anyway.
+ *
+ * HW 1.14.0: when the machine lends the cart its four hardware Paula channels, every write is also
+ * forwarded there (kestrel_paula_hw.c) and this mixer is skipped: the channels play at 44.1 kHz,
+ * 16-bit, in stereo. This mixer stays for PAT2SMP / MOD2WAV and for a host with no channels. */
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -21,6 +25,11 @@
 #include "pt2_header.h"
 #include "pt2_audio.h"
 #include "pt2_paula.h"
+
+void kpaula_hw_rate(double hz);
+void kpaula_hw_word(uint32_t address, uint16_t data16);
+void kpaula_hw_ptr(uint32_t address, const int8_t *ptr);
+bool kpaula_hw_block(int32_t numSamples);
 
 #define PHASE_BITS 24 /* phase and delta: Q8.24 Paula samples per mix sample */
 #define PHASE_ONE (1u << PHASE_BITS)
@@ -54,6 +63,7 @@ static int32_t ledIn1, ledIn2, ledOut1, ledOut2;
 void paulaSetup(double dOutputFreq, uint32_t amigaModel)
 {
     ASSERT(dOutputFreq != 0.0);
+    kpaula_hw_rate(dOutputFreq);
     deltaDiv = (uint64_t)(PAULA_PAL_CLK / dOutputFreq * (double)PHASE_ONE);
 
     /* A500 rev 6A: R=360 ohm, C=0.1 uF -> ~4421 Hz (upstream's paulaSetup). The A1200's is ~34 kHz. */
@@ -136,6 +146,7 @@ void paulaWriteByte(uint32_t address, uint8_t data8)
 
 void paulaWriteWord(uint32_t address, uint16_t data16)
 {
+    kpaula_hw_word(address, data16);
     if (address == 0xDFF096) { /* DMACON */
         for (int32_t ch = 0; ch < PAULA_VOICES; ch++) {
             if (!(data16 & (1u << ch))) continue;
@@ -155,6 +166,7 @@ void paulaWriteWord(uint32_t address, uint16_t data16)
 
 void paulaWritePtr(uint32_t address, const int8_t *ptr)
 {
+    kpaula_hw_ptr(address, ptr);
     if (address < 0xDFF0A0 || address > 0xDFF0DF || (address & 15) != 0) return;
     paula[(address - 0xDFF0A0) >> 4].storedLocation = ptr ? ptr : nullSample;
 }
@@ -211,6 +223,10 @@ static void mixBlock(int32_t *mix, int32_t n)
 /* pt2_audio.c's outputAudio (pt2_audio.c.sed): n S16 stereo frames, the mono mix on both sides. */
 void kestrel_paulaOutput(int16_t *target, int32_t numSamples)
 {
+    if (kpaula_hw_block(numSamples)) { /* the hardware channels play it: kestrel_paula_hw.c */
+        memset(target, 0, (size_t)numSamples * 4);
+        return;
+    }
     int32_t mix[CHUNK];
     while (numSamples > 0) {
         int32_t n = numSamples < CHUNK ? numSamples : CHUNK;
