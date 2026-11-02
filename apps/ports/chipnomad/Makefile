@@ -20,7 +20,8 @@ DIRS   := tracker/src chipnomad_lib chipnomad_lib/chips chipnomad_lib/external/a
           tracker/src/corelib tracker/src/import tracker/src/screens
 UP_ALL := $(foreach d,$(DIRS),$(patsubst $(UP)/%,%,$(wildcard $(UP)/$(d)/*.c $(UP)/$(d)/*.cpp $(UP)/$(d)/*.h))) \
           tracker/platforms/sdl2/corelib_input.cpp tracker/platforms/shared/corelib_keymap.h
-UP_SRC := $(filter %.c %.cpp,$(UP_ALL))
+# ayumi.cpp is replaced by kestrel_ayumi.cpp (the same chip in integers, a box filter for the resampling)
+UP_SRC := $(filter-out chipnomad_lib/external/ayumi/ayumi.cpp,$(filter %.c %.cpp,$(UP_ALL)))
 INCS   := $(addprefix -I$(GEN)/,$(DIRS) tracker/platforms/shared tracker/platforms/sdl2) -I$(KINC) -I$(KINC)/SDL2
 FLAGS  := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory $(INCS) -include kestrel_port.h -D__KESTREL__ -Wno-unused-parameter -Wno-date-time \
           -Wno-builtin-macro-redefined '-D__DATE__="$(BUILD_DATE)"'
