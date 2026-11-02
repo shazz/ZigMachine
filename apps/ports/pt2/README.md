@@ -32,16 +32,16 @@ cart that opens a module at boot; the shipped cart is built without it.
 | `kestrel_sdl.c` | the SDL2 calls pt2 makes that the shared layer does not: the 320x255 ARGB frame buffer onto an 8-bit plane, the audio callback fed to the machine's stream, threads run inline, window/renderer no-ops |
 | `kestrel_bmp.c` | the 12 big screen bitmaps decoded on demand into one slot (pt2 decodes all of them at boot: ~1.2 MB) |
 | `kestrel_port.h` | force-included: the on-demand bitmap hook |
-| `patches/*.sed` | each says why in its header: lazy bitmaps, no scope thread (ticked from `frame()`), a smaller visual sync ring, samples capped at 32 KB with a null buffer to match, pt2 draws its own pointer |
+| `patches/*.sed` | each says why in its header: lazy bitmaps, no scope thread (ticked from `frame()`), a smaller visual sync ring, samples capped at 13 KB with a null buffer to match, pt2 draws its own pointer |
 | `run.mjs` | headless runner for experiments: PNGs of the frame, `CLICKS="frame,x,y;..."` in pt2 coordinates |
 
 The shared layer `../kestrel_sdl2` gives the heap, WASI over the floppy (read-only) and the input queue.
 
 ## Status (2 Nov 2026)
 
-- Loads modules off the floppy since the 4 MiB cart window. pt2 keeps one fixed pool of 33 sample slots
-  and holds two while a module loads (the old song and the new), so samples are capped at 32 KB
-  (`patches/pt2_config.c.sed`); a longer sample is cut at load.
+- Loads modules off the floppy since the bigger cart window (4 MiB at HW 1.12.0, 3 MiB since 1.13.0). pt2
+  keeps one fixed pool of 33 sample slots and holds two while a module loads (the old song and the new),
+  so samples are capped at 13 KB (13312 bytes, `patches/pt2_config.c.sed`); a longer sample is cut at load.
 - ProTracker blocks the mouse for a second after boot (its error pointer from startup): a click in that
   second is ignored.
 - Read-only floppy: saving a module or sample fails with pt2's own error.

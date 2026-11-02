@@ -35,7 +35,7 @@ The specs will keep evolving, but they try to match what I would have loved to g
 
 #### Memory / CPU
 
-- 9 MB of shared linear memory (144 pages of 64 KB), of which a cart gets a **4 MB window** for its code, data and stack — and the build fails if it overruns.
+- 8 MB of shared linear memory (128 pages of 64 KB), of which a cart gets a **3 MB window** for its code, data and stack — and the build fails if it overruns.
 - CPU frequency is whatever your browser's WebAssembly can do. So, pretty (too...) fast.
 - Assets can be **ZX0-packed** and depacked into free cart RAM at run time (~38% of raw across the whole shelf).
 

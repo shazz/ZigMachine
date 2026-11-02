@@ -1,6 +1,6 @@
 # Memory management
 
-A cart gets **4 MiB of RAM** (2 MiB before HW 1.12.0), the window `[0x100000, 0x500000)`, and nothing
+A cart gets **3 MiB of RAM** (4 MiB in HW 1.12.0, 2 MiB before), the window `[0x100000, 0x400000)`, and nothing
 traps when it runs out: one byte past the top is the video region, so an
 overrun corrupts VRAM and the machine dies later, somewhere else. This chapter
 is how to spend that window: what is already in it, what a big buffer really
@@ -17,11 +17,11 @@ Bottom to top, as the linker lays out a cart (`--global-base=0x100000`):
   are linked `--no-stack-first` for the same layout (`apps/rust/build.sh`). Stack
   first, rustc's default, grew the stack down from `0x100000` into the machine's
   RAM and left the cart's zeroed statics out of the measured high-water.
-- **free RAM**, up to the video region at `0x500000`.
+- **free RAM**, up to the video region at `0x400000`.
 
 The code is not in the window: wasm keeps functions outside linear memory. GEM
 is not in it either: since Phase 2 the ROM chip has its own 2 MiB window above
-the video region, `[0x700000, 0x900000)`.
+the video region, `[0x600000, 0x800000)`.
 
 The host measures where the data and stack end (the **high-water**) when it
 loads the cart (`docs/wasm_hiwater.js`) and declares it to the machine
@@ -29,7 +29,7 @@ loads the cart (`docs/wasm_hiwater.js`) and declares it to the machine
 
 ```zig
 hwRamBase()  // 0x100000
-hwRamTop()   // 0x500000, the video region
+hwRamTop()   // 0x400000, the video region
 hwRamUsed()  // statics + stack + the RAM arena
 hwRamFree()  // hwRamTop() - max(high-water, arena top); 0 = full OR undeclared
 ```

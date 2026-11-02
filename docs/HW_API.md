@@ -215,8 +215,8 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
   `SRC_ABS` makes `A_BASE`/`B_BASE` absolute linear addresses, so a BLIT can read
   a cart's own `@embedFile` assets and scratch buffers (or the ROM window) with no
   copy into VRAM. The whole `W×H` source rectangle must lie inside ONE readable
-  window: cart RAM `[0x100000, 0x500000)`, the video region, or ROM RAM
-  `[0x700000, 0x900000)` (the addresses since 1.12.0); otherwise the BLIT draws nothing and `CYCLES` reads 0.
+  window: cart RAM `[0x100000, 0x400000)`, the video region, or ROM RAM
+  `[0x600000, 0x800000)` (the addresses since 1.13.0); otherwise the BLIT draws nothing and `CYCLES` reads 0.
   `D_BASE` stays a video-region offset (the blitter writes only video memory).
   `hwInit()` clears `CON2`, so carts built before 1.4.0 behave exactly as before.
   ZigOS: `Blitter.blitImage(dst, dx, dy, pixels, src_w, sx, sy, w, h, key)`.
@@ -261,15 +261,15 @@ demo.frame(dt): set blitter regs → hwBlit() (per primitive) → hwRenderPlane(
 
 ## 4c. RAM instructions (exports of `machine-video.wasm`) — since 1.2.0
 
-A cart's window is `[0x100000, 0x500000)` — **4 MiB shared** (2 MiB, `[0x100000, 0x300000)`, before 1.12.0) between its own
+A cart's window is `[0x100000, 0x400000)` — **3 MiB shared** (4 MiB in 1.12.0, 2 MiB `[0x100000, 0x300000)` before) between its own
 statics, its stack, and every ROM/library it links (GEM alone takes ~1 MiB). Run
 past the top and there is **no trap**: you are writing into the video region, and
 the machine dies later, somewhere else. So ask, do not guess:
 
 ```zig
 hwRamBase() u32          // 0x100000 — first byte of the cart's window
-hwRamTop()  u32          // 0x500000 — first byte ABOVE it (= the video region)
-hwRamSize() u32          // 0x400000 — the whole window
+hwRamTop()  u32          // 0x400000 — first byte ABOVE it (= the video region)
+hwRamSize() u32          // 0x300000 — the whole window
 hwRamUsed() u32          // this cart's static data + stack (+ its RAM arena, 1.7.0)
 hwRamFree() u32          // what is left below the video region (above the arena)
 ```
@@ -326,8 +326,8 @@ The ROM chip gets a **second, separate 2 MiB window ABOVE the video region**, so
 ROM never spends the app's RAM (Phase 2 — `docs/PHASE2_ROM_CHIP.md`):
 
 ```zig
-hwRomRamBase() u32       // 0x700000 (0x500000 before 1.12.0)
-hwRomRamTop()  u32       // 0x900000 (0x700000 before 1.12.0)
+hwRomRamBase() u32       // 0x600000 (0x700000 in 1.12.0, 0x500000 before)
+hwRomRamTop()  u32       // 0x800000 (0x900000 in 1.12.0, 0x700000 before)
 hwRomRamSize() u32       // 0x200000
 hwRomRamUsed() u32       // the ROM module's static data + stack
 hwRomRamFree() u32       // what is left in ITS window
@@ -346,6 +346,11 @@ as a full window, and for the same reason: *take nothing*.
 > **1.12.0 raised it again, 112 → 144 (9 MiB)**: the cart window grew to 4 MiB
 > `[0x100000, 0x500000)` (the C port of pt2-clone could not load a module in 2 MiB),
 > the video region moved to `0x500000` and the ROM window to `[0x700000, 0x900000)`.
+>
+> **1.13.0 settled on 144 → 128 (8 MiB)**: the cart window is 3 MiB `[0x100000, 0x400000)`,
+> the video region is at `0x400000` and the ROM window `[0x600000, 0x800000)`. 8 MiB is all
+> the board's CHISEL (23-bit linear addresses) and the seal's linear window reach; 1.12.0's
+> 9 MiB never ran on the board.
 > Same breaking change, same cure: rebuild every cart (Zig, `apps/c/build.sh`,
 > `apps/rust/build.sh`) and repack. Always ask `hwVideoBase()` / `hwRamTop()` /
 > `hwRomRamBase()` rather than hard-coding them.

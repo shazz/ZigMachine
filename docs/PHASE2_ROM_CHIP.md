@@ -69,7 +69,8 @@ de-risking step**: change the call *shape* first, the module boundary second.
   already measures any module).
 - ABI change → **clean-rebuild both wasm modules** (`.zig-cache` too).
 - *Done:* `ROM_RAM_BASE/TOP` = `[0x500000, 0x700000)`, `SHARED_PAGES` 79 → 112 (HW 1.12.0 later moved
-  it to `[0x700000, 0x900000)`, 144 pages, when the cart window grew to 4 MiB),
+  it to `[0x700000, 0x900000)`, 144 pages, when the cart window grew to 4 MiB; HW 1.13.0 to
+  `[0x600000, 0x800000)`, 128 pages, with a 3 MiB cart window),
   `REG_ROM_HIGH` at 0x60, and `hwRomRam{Base,Top,Size,Used,Free}` +
   `hwSetRomHigh`. `ram_check` covers both windows, including that they do not
   alias and both survive `hwInit`.

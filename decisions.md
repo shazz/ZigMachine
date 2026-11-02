@@ -1169,7 +1169,7 @@ cart 112 and its harness prove the ops.
 
 ## 2026-11-01 — The cart RAM window grows to 4 MiB; video and the ROM window move up 2 MiB (HW 1.12.0)
 
-**Status:** accepted (Matt, 1 Nov 2026); branch `feat/cart-window-4mb`. The board's CHISEL RTL needs a follow-up (below).
+**Status:** superseded by "2026-11-02 — Cart window 3 MiB, HW 1.13.0" (accepted by Matt, 1 Nov 2026; branch `feat/cart-window-4mb`; never ran on the board).
 
 **Context:** the C port of pt2-clone (a ProTracker clone) cannot load a module in the 2 MiB cart window
 `[0x100000, 0x300000)`: code statics, the tracker's buffers and a 1-2 MB module do not fit. The window
@@ -1202,6 +1202,34 @@ The board firmware still links (`make board-fw CART=tutorial`, both `ZM_AUDIO=1`
 the memories are calloc'd from is 14.0 MiB (needs 9 + 3 MiB for the players' memory) and 10.05 MiB
 with `snd` (needs 9 MiB): about 1 MiB to spare in the sound-CPU layout, so the next growth needs that
 link (board.mk `HRV_LDFLAGS_snd`, 12 MiB) widened first.
+
+## 2026-11-02 — Cart window 3 MiB, HW 1.13.0
+
+**Status:** accepted (Matt, 2 Nov 2026); branch `feat/cart-window-3mb`. Supersedes the 2026-11-01 4 MiB ADR.
+
+**Context:** HW 1.12.0's 4 MiB cart window made the shared memory 9 MiB and put the ROM window at
+`[0x700000, 0x900000)`. The board cannot reach the top of it: CHISEL carries 23-bit linear addresses
+(`zm_blit_core/px/pxq/row.v`, `zm_blit_chk.v`'s `s_small`), and the seal's `linear` window
+(`rtl/seal/zm_seal_map.vh`) is 8 MiB. 1.12.0 never ran on a board.
+
+**Decision:** cart `[0x100000, 0x400000)` (3 MiB), video region at `HW_VIDEO_BASE = 0x400000` (ends
+0x5DBFE0), ROM RAM `[0x600000, 0x800000)`, `SHARED_PAGES` 144 → 128: the memory ends at exactly
+8 MiB = 2^23, so every address an op may touch fits CHISEL's 23 bits and the seal's window again. The
+board needs a re-synthesis for the new video base (memmap.vh), no RTL change. `ZM_HW_VERSION` 1.13.0.
+pt2-clone, the reason for 1.12.0, still loads modules: its sample slots are capped at 13312 bytes
+(two 33-slot pools live during a load, `apps/ports/pt2/patches/pt2_config.c.sed`).
+
+**Alternatives considered:** keep 4 MiB and widen CHISEL to 24 bits (every address path in
+zm_blit_core/px/pxq/row/tfetch and the chk's `s_small`, plus the seal window to 16 MiB): rejected as
+RTL and timing risk on a design at 89 % LUT with sys at +0.049 ns; accept that a blit sourcing ROM RAM
+above 8 MiB is refused on the board (browser and board would differ silently); shrink the ROM window
+instead (it is GEM's 2 MiB).
+
+**Consequences:** another breaking ABI change: every wasm cart, the C and Rust carts, the four C-port
+carts and the disks are rebuilt; a 1.13 `system.rv32` refuses 112- and 144-page board images
+(TRAP_CART_ABI) until `make board-shelf` and `progs/<disk>/*.zmd` are redone. The board firmware's heap
+margin grows by 1 MiB against the 1.12.0 figures. A cart has 1 MiB less than at 1.12.0 (still 1 MiB
+more than before it). The next HW minor is 1.14.
 
 ## 2026-11-02 — C program ports live in apps/ports; upstream fetched at pinned SHAs; carts committed prebuilt
 
