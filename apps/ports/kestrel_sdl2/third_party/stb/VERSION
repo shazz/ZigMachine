@@ -1,0 +1,4 @@
+stb_image.h v2.30 (Sean Barrett, public domain / MIT, dual licence in the file's footer)
+from https://github.com/nothings/stb at commit 013ac3beddff3dbffafd5177e7972067cd2b5083
+(2024-05-31, "stb_image: fix gcc bounds-check warning", the last commit touching stb_image.h as of 2026-11-01).
+Unmodified. Used by kestrel_sdl2/src/opt/kestrel_image.c (IMG_Load / IMG_Load_RW, PNG only).

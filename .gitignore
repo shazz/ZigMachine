@@ -31,3 +31,7 @@ HANDOFF.md
 # A song the owner keeps on their own machine only (music_debug key 6, fpga/tools/song_pack.py
 # LOCAL_SONGS): for a tune whose licence does not allow bundling it. Never commit one.
 docs/music/local.xm
+
+# The C program ports (apps/ports): upstream sources fetched at their pins by apps/ports/fetch.sh, and build output.
+apps/ports/upstream/
+apps/ports/*/build/

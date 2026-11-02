@@ -1,0 +1,224 @@
+/* The SDL2 subset pt2-clone uses, on the ZigMachine.
+ *
+ * Step 1 (this file today): every call links and returns something sane, so the cart boots.
+ * The five real backends still to write (README.md "Plan"):
+ *   video  SDL_UpdateTexture/RenderPresent -> the 320x255 ARGB frameBuffer, indexed onto an 8-bit plane
+ *   input  SDL_PollEvent / GetMouseState / GetModState  <- the cart input ABI (keyboard + mouse)
+ *   audio  SDL_OpenAudioDevice: keep the callback; frame() calls it for one VBL of samples -> PCM stream
+ *   time   SDL_GetPerformanceCounter: the frame counter (60 Hz) or hostMicros
+ *   threads SDL_CreateThread: run the job inline (mod2wav / pat2smp) or refuse it
+ * Everything window-, renderer-, cursor- and hint-shaped stays a no-op. */
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_syswm.h>
+
+/* Distinct non-NULL handles: pt2 only checks them against NULL. */
+static char window_handle, renderer_handle, texture_handle, cursor_handle;
+static SDL_PixelFormat argb = { SDL_PIXELFORMAT_ARGB8888 };
+
+/* --- core --- */
+int SDL_Init(Uint32 flags) { (void)flags; return 0; }
+void SDL_Quit(void) {}
+const char *SDL_GetError(void) { return "KESTREL: not supported"; }
+void SDL_GetVersion(SDL_version *v) { SDL_VERSION(v); }
+SDL_bool SDL_SetHint(const char *n, const char *v) { (void)n; (void)v; return SDL_TRUE; }
+void SDL_Delay(Uint32 ms) { (void)ms; } /* the cart never blocks: frame() returns instead */
+__attribute__((import_module("env"), import_name("consoleLogJS"))) extern void consoleLogJS(const char *p, int len);
+__attribute__((import_module("env"), import_name("hwVideoBase"))) extern int hwVideoBase(void);
+void kestrel_log(const char *m) { consoleLogJS(m, (int)strlen(m)); }
+int SDL_ShowSimpleMessageBox(Uint32 f, const char *t, const char *m, SDL_Window *w) { (void)f; (void)w; kestrel_log(t); kestrel_log(m); return 0; }
+
+/* --- time --- */
+static Uint64 ticks; /* advanced by kestrel_sdl_vbl() */
+void kestrel_sdl_vbl(void) { ticks += 1000000 / 60; }
+Uint64 SDL_GetPerformanceCounter(void) { return ticks; }
+Uint64 SDL_GetPerformanceFrequency(void) { return 1000000; }
+
+/* --- threads --- */
+/* No threads on the cart. pt2's threads are finite jobs (the disk op file lister, mod2wav) except the
+ * scope loop, which pt2_scopes.c.sed turns into a per-frame tick; so a "thread" runs to completion here. */
+static char thread_handle;
+SDL_Thread *SDL_CreateThread(SDL_ThreadFunction fn, const char *name, void *data) { (void)name; fn(data); return (SDL_Thread *)&thread_handle; }
+void SDL_DetachThread(SDL_Thread *t) { (void)t; }
+int SDL_SetThreadPriority(SDL_ThreadPriority p) { (void)p; return 0; }
+
+/* --- window --- */
+SDL_Window *SDL_CreateWindow(const char *t, int x, int y, int w, int h, Uint32 f) { (void)t; (void)x; (void)y; (void)w; (void)h; (void)f; return (SDL_Window *)&window_handle; }
+void SDL_DestroyWindow(SDL_Window *w) { (void)w; }
+Uint32 SDL_GetWindowFlags(SDL_Window *w) { (void)w; return SDL_WINDOW_INPUT_FOCUS; }
+void SDL_GetWindowSize(SDL_Window *w, int *ww, int *hh) { (void)w; if (ww) *ww = 320; if (hh) *hh = 255; }
+void SDL_GL_GetDrawableSize(SDL_Window *w, int *ww, int *hh) { SDL_GetWindowSize(w, ww, hh); }
+void SDL_GetWindowPosition(SDL_Window *w, int *x, int *y) { (void)w; if (x) *x = 0; if (y) *y = 0; }
+int SDL_GetWindowDisplayIndex(SDL_Window *w) { (void)w; return 0; }
+int SDL_GetDesktopDisplayMode(int i, SDL_DisplayMode *dm) { (void)i; dm->format = SDL_PIXELFORMAT_ARGB8888; dm->w = 320; dm->h = 255; dm->refresh_rate = 60; dm->driverdata = NULL; return 0; }
+void SDL_SetWindowTitle(SDL_Window *w, const char *t) { (void)w; (void)t; }
+int SDL_SetWindowFullscreen(SDL_Window *w, Uint32 f) { (void)w; (void)f; return 0; }
+void SDL_ShowWindow(SDL_Window *w) { (void)w; }
+void SDL_RaiseWindow(SDL_Window *w) { (void)w; }
+void SDL_RestoreWindow(SDL_Window *w) { (void)w; }
+void SDL_EnableScreenSaver(void) {}
+SDL_bool SDL_GetWindowWMInfo(SDL_Window *w, SDL_SysWMinfo *i) { (void)w; (void)i; return SDL_FALSE; }
+
+/* --- video: pt2's 320x255 ARGB frameBuffer -> plane 0, FB_MODE_FULLSCREEN (400x280), centred ---
+ * Colours are indexed on first sight (pt2 uses a few dozen): a 512-slot open hash ARGB -> index,
+ * each new colour written once into palette 0. */
+#define REG_BACKGROUND 0x04
+#define REG_FB_STRIDE 0x34
+#define REG_FB_BASE 0x44
+#define REG_FB_MODE 0x54
+#define OFF_PAL 0x0100
+#define OFF_VRAM 0x1100
+#define FB_MODE_FULLSCREEN 1
+#define PW 400
+#define PH 280
+#define SW 320
+#define SH 255
+#define OX ((PW - SW) / 2)
+#define OY ((PH - SH) / 2)
+static const void *present_src;
+static Uint8 *vbase;
+static Uint32 hkey[512];
+static Uint8 hval[512], hused[512];
+static unsigned ncolours;
+static Uint32 pal_rgb[256]; /* index -> ARGB, rewritten into palette 0 every present (the host may reset it) */
+static int overflow_logged;
+
+static Uint8 colour_index(Uint32 c);
+
+void kestrel_video_init(void)
+{
+    vbase = (Uint8 *)(uintptr_t)hwVideoBase();
+    *(Uint32 *)(vbase + REG_BACKGROUND) = 0xFF000000u;
+    *(Uint16 *)(vbase + REG_FB_STRIDE) = PW;
+    *(Uint32 *)(vbase + REG_FB_BASE) = OFF_VRAM;
+    vbase[REG_FB_MODE] = FB_MODE_FULLSCREEN;
+    memset(vbase + OFF_VRAM, 0, PW * PH);
+    (void)colour_index(0xFF000000u); /* index 0 = black: the plane's margins around pt2's 320x255 */
+}
+
+static Uint8 colour_index(Uint32 c)
+{
+    c |= 0xFF000000u;
+    unsigned h = (c * 2654435761u) >> 23;
+    while (hused[h]) { if (hkey[h] == c) return hval[h]; h = (h + 1) & 511; }
+    if (ncolours >= 256) {
+        if (!overflow_logged) { kestrel_log("pt2: more than 256 colours, extras drawn as index 0"); overflow_logged = 1; }
+        return 0;
+    }
+    Uint8 i = (Uint8)ncolours++;
+    hused[h] = 1; hkey[h] = c; hval[h] = i;
+    pal_rgb[i] = c;
+    return i;
+}
+
+static void present(void)
+{
+    if (!present_src || !vbase) return;
+    const Uint32 *src = present_src;
+    Uint32 last = ~0u; Uint8 li = 0;
+    for (int y = 0; y < SH; y++) {
+        Uint8 *dst = vbase + OFF_VRAM + (OY + y) * PW + OX;
+        for (int x = 0; x < SW; x++) {
+            Uint32 c = *src++;
+            if (c != last) { last = c; li = colour_index(c); }
+            dst[x] = li;
+        }
+    }
+    for (unsigned i = 0; i < ncolours; i++) {
+        Uint8 *p = vbase + OFF_PAL + i * 4;
+        Uint32 c = pal_rgb[i];
+        p[0] = (Uint8)(c >> 16); p[1] = (Uint8)(c >> 8); p[2] = (Uint8)c; p[3] = 255;
+    }
+    vbase[REG_FB_MODE] = FB_MODE_FULLSCREEN; /* re-assert the plane setup too */
+    *(Uint16 *)(vbase + REG_FB_STRIDE) = PW;
+    *(Uint32 *)(vbase + REG_FB_BASE) = OFF_VRAM;
+}
+
+/* --- renderer / texture --- */
+SDL_Renderer *SDL_CreateRenderer(SDL_Window *w, int i, Uint32 f) { (void)w; (void)i; (void)f; return (SDL_Renderer *)&renderer_handle; }
+void SDL_DestroyRenderer(SDL_Renderer *r) { (void)r; }
+int SDL_SetRenderDrawColor(SDL_Renderer *r, Uint8 a, Uint8 b, Uint8 c, Uint8 d) { (void)r; (void)a; (void)b; (void)c; (void)d; return 0; }
+int SDL_SetRenderDrawBlendMode(SDL_Renderer *r, SDL_BlendMode m) { (void)r; (void)m; return 0; }
+int SDL_RenderClear(SDL_Renderer *r) { (void)r; return 0; }
+int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *t, const SDL_Rect *s, const SDL_Rect *d) { (void)r; (void)t; (void)s; (void)d; return 0; }
+void SDL_RenderPresent(SDL_Renderer *r) { (void)r; present(); }
+SDL_Texture *SDL_CreateTexture(SDL_Renderer *r, Uint32 f, int a, int w, int h) { (void)r; (void)f; (void)a; (void)w; (void)h; return (SDL_Texture *)&texture_handle; }
+void SDL_DestroyTexture(SDL_Texture *t) { (void)t; }
+int SDL_SetTextureBlendMode(SDL_Texture *t, SDL_BlendMode m) { (void)t; (void)m; return 0; }
+int SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *r, const void *px, int pitch) { (void)t; (void)r; (void)pitch; present_src = px; return 0; }
+
+/* --- surfaces: only the mouse pointer sprite uses them --- */
+SDL_Surface *SDL_CreateRGBSurface(Uint32 f, int w, int h, int d, Uint32 rm, Uint32 gm, Uint32 bm, Uint32 am)
+{
+    (void)f; (void)d; (void)rm; (void)gm; (void)bm; (void)am;
+    SDL_Surface *s = calloc(1, sizeof *s);
+    if (s == NULL) return NULL;
+    s->pixels = calloc((size_t)w * (size_t)h, 4);
+    if (s->pixels == NULL) { free(s); return NULL; }
+    s->format = &argb; s->w = w; s->h = h; s->pitch = w * 4;
+    return s;
+}
+void SDL_FreeSurface(SDL_Surface *s) { if (s) { free(s->pixels); free(s); } }
+int SDL_LockSurface(SDL_Surface *s) { (void)s; return 0; }
+void SDL_UnlockSurface(SDL_Surface *s) { (void)s; }
+int SDL_SetColorKey(SDL_Surface *s, int f, Uint32 k) { (void)s; (void)f; (void)k; return 0; }
+int SDL_SetSurfaceRLE(SDL_Surface *s, int f) { (void)s; (void)f; return 0; }
+int SDL_SetSurfaceBlendMode(SDL_Surface *s, SDL_BlendMode m) { (void)s; (void)m; return 0; }
+Uint32 SDL_MapRGB(const SDL_PixelFormat *f, Uint8 r, Uint8 g, Uint8 b) { (void)f; return 0xFF000000u | (Uint32)r << 16 | (Uint32)g << 8 | b; }
+
+/* --- mouse: state and events are in kestrel_input.c --- */
+void SDL_WarpMouseInWindow(SDL_Window *w, int x, int y) { (void)w; (void)x; (void)y; }
+int SDL_ShowCursor(int t) { (void)t; return 0; }
+SDL_Cursor *SDL_CreateColorCursor(SDL_Surface *s, int x, int y) { (void)s; (void)x; (void)y; return (SDL_Cursor *)&cursor_handle; }
+SDL_Cursor *SDL_GetDefaultCursor(void) { return (SDL_Cursor *)&cursor_handle; }
+void SDL_SetCursor(SDL_Cursor *c) { (void)c; }
+void SDL_FreeCursor(SDL_Cursor *c) { (void)c; }
+
+/* --- keyboard / events: kestrel_input.c --- */
+Uint8 SDL_EventState(Uint32 t, int s) { (void)t; (void)s; return SDL_ENABLE; }
+
+/* --- audio (audio backend goes here) --- */
+#define AUDIO_RATE 48000
+#define AUDIO_PER_FRAME (AUDIO_RATE / 60)
+static SDL_AudioSpec spec;
+SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int cap, const SDL_AudioSpec *want, SDL_AudioSpec *have, int allowed)
+{
+    (void)d; (void)cap; (void)allowed;
+    spec = *want;
+    spec.freq = AUDIO_RATE; spec.format = AUDIO_S16; spec.channels = 2; spec.samples = AUDIO_PER_FRAME;
+    if (have) *have = spec;
+    return 1;
+}
+void SDL_CloseAudioDevice(SDL_AudioDeviceID d) { (void)d; spec.callback = NULL; }
+static int audio_paused = 1;
+void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { (void)d; audio_paused = p; }
+
+/* Once a VBL: run pt2's callback for one frame of S16 stereo and feed it to the machine's stream ring
+ * (signed 8-bit mono, docs/sealed-loader.js hostAudioFeed). The ring is 32 KiB and loops, so the feed
+ * must keep pace: exactly freq/60 samples a frame. */
+__attribute__((import_module("env"), import_name("hostAudioStreamStart"))) extern void hostAudioStreamStart(float rate);
+__attribute__((import_module("env"), import_name("hostAudioFeed"))) extern void hostAudioFeed(const void *p, int len);
+static Sint16 mixbuf[AUDIO_PER_FRAME * 2];
+static Sint8 outbuf[AUDIO_PER_FRAME];
+static int stream_started;
+
+void kestrel_audio_frame(void)
+{
+    if (!spec.callback) return;
+    if (!stream_started) { hostAudioStreamStart((float)AUDIO_RATE); stream_started = 1; }
+    if (audio_paused) memset(mixbuf, 0, sizeof mixbuf);
+    else spec.callback(spec.userdata, (Uint8 *)mixbuf, (int)sizeof mixbuf);
+    for (int i = 0; i < AUDIO_PER_FRAME; i++) {
+        int m = ((int)mixbuf[2 * i] + (int)mixbuf[2 * i + 1]) >> 9;   /* (L+R)/2, 16 -> 8 bits */
+        outbuf[i] = (Sint8)(m > 127 ? 127 : m < -128 ? -128 : m);
+    }
+    hostAudioFeed(outbuf, AUDIO_PER_FRAME);
+}
+void SDL_LockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
+void SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
+int SDL_GetNumAudioDevices(int c) { (void)c; return 1; }
+const char *SDL_GetAudioDeviceName(int i, int c) { (void)i; (void)c; return "KESTREL"; }
+int SDL_GetNumAudioDrivers(void) { return 1; }
+const char *SDL_GetAudioDriver(int i) { (void)i; return "kestrel"; }
+SDL_bool SDL_HasSSE(void) { return SDL_FALSE; }
+SDL_bool SDL_HasSSE2(void) { return SDL_FALSE; }
+int SDL_setenv(const char *n, const char *v, int o) { (void)n; (void)v; (void)o; return 0; }
