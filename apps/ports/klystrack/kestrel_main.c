@@ -5,7 +5,7 @@
  * to the machine; the next frame() rewinds it and klystrack carries on, none the wiser. The unwind API is
  * imported from "asyncify", which binaryen implements inside the module: the host sees an ordinary cart.
  *
- * Each frame(): the 1/60 s clock, SDL timers (key repeat, info line), one VBL of audio (cyd's callback), then
+ * Each frame(): the clock (the frame's real time, kestrel_audio.h), SDL timers (key repeat, info line), one VBL of audio (cyd's callback), then
  * klystrack runs until its next yield (one main-loop pass: draw + present, or a 4 ms idle sleep). */
 #include <stdint.h>
 
@@ -15,8 +15,9 @@ __attribute__((import_module("asyncify"), import_name("start_rewind"))) extern v
 __attribute__((import_module("asyncify"), import_name("stop_rewind"))) extern void asyncify_stop_rewind(void);
 
 int klystrack_main(int argc, char *argv[]);
-void kestrel_sdl_vbl(void);
-void kestrel_audio_frame(void);
+#include "kestrel_audio.h"
+void kestrel_sdl_vbl(uint32_t us);
+void kestrel_audio_frame(uint32_t us);
 void kestrel_plane_init(void);
 void kestrel_log(const char *m);
 void kestrel_heap_report(void);
@@ -61,8 +62,12 @@ __attribute__((export_name("boot"))) void boot(void)
 
 __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
-    kestrel_sdl_vbl();
-    kestrel_audio_frame();
+    /* Real time (kestrel_audio.h), but at most 2 frames: cyd costs ~13,000 cycles a sample at 22.05 kHz on the
+     * board (apps/frame_cost.mjs), more than the CPU has for real time, so a longer frame would only feed the
+     * mixer more and slow the UI to ~1 fps. Until cyd fits the budget the song plays slow on the board. */
+    uint32_t us = kestrel_frame_us(elapsed_ms, 33);
+    kestrel_sdl_vbl(us);
+    kestrel_audio_frame(us);
     if (finished || !suspended) return;
     suspended = 0;
     rewinding = 1;

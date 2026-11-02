@@ -12,18 +12,23 @@
 //     grafx2     OK closes the read-only-device warning (Asyncify'd modal loop), then a freehand
 //                stroke paints pixels in the picture
 //     klystrack  F5 plays STARPORT2.KT (opened off the floppy at boot): the stream is not silent
-//     chipnomad  X (the A button) on the song screen's first cell puts chain 00 there
+//     chipnomad  X (the A button) on the song screen's first cell puts chain 00 there; then chain 00 gets
+//                phrase 00, the phrase a C-4, instrument 00 becomes AY Classic (a fresh project's
+//                instruments are type None: silent), and START (Space) plays it: the stream is not silent
 //
 //   node apps/ports_headless.mjs <pt2|grafx2|klystrack|chipnomad> [--break <x>] [--png <dir>]
+//   node apps/ports_headless.mjs pt2 --clock <us>   the board's case: hostMicros advances <us> a frame while
+//             dt stays 16.6 ms (a slow frame); the audio feed must follow the clock, not dt (kestrel_audio.h)
 // --break SABOTAGES the interaction and passes only if a check notices:
 //   pt2 load (the file is never clicked), grafx2 stroke (the stroke is never drawn) or disk (an
 //   empty drive: no skin, no font, and GrafX2 stops in boot),
-//   klystrack silent (F5 is never pressed), chipnomad key (X is never pressed).
+//   klystrack silent (F5 is never pressed), chipnomad key (X is never pressed) or silent (START is never
+//   pressed).
 // Pins: re-bless only for a deliberate change to a cart (print them with PINS=1).
 import { readFile, mkdir } from "node:fs/promises";
-import { boot, step, picture, colours, sha, rows, png } from "./ports_machine.mjs";
+import { boot, step, picture, colours, sha, rows, png, DT } from "./ports_machine.mjs";
 
-const F_KEY5 = 0xe005, KEY_X = 0x78;
+const F_KEY5 = 0xe005, KEY_X = 0x78, KEY_SPACE = 0x20, SHIFT_LEFT = 0xe015, RIGHT = 3;
 // Coordinates are each program's own; pointer() takes the visible window's (x doubled), and the
 // port's kestrel_input_origin maps them back (pt2: its 320x255 screen starts 28 rows above the window).
 const click = (x, y, b, dy = 0) => (d) => d.pointer(x * 2, y + dy, b);
@@ -54,12 +59,25 @@ const SPECS = {
         use: useKlystrack,
     },
     chipnomad: {
-        cart: "docs/demo-chipnomad.wasm", disk: "docs/demo-chipnomad.zmd", frames: 90, minColours: 5, breaks: ["key"],
+        cart: "docs/demo-chipnomad.wasm", disk: "docs/demo-chipnomad.zmd", frames: 180, minColours: 5, breaks: ["key", "silent"],
         pinAt: 20, pin: "a56c75e3bd11582f4b55e0d0e5098a883bc6bdc8bfd5caa1d3b4df0a227f052c",
-        events: (brk) => (brk === "key" ? [] : [[30, (d) => d.key(KEY_X)], [33, (d) => d.keyUp(KEY_X)]]),
+        // LSDJ keys (README): X = A edits, SELECT (Left Shift) + Right goes song -> chain -> phrase ->
+        // instrument, A held + Right steps a value. Each X below puts the next thing in its first cell.
+        events: (brk) => [
+            ...(brk === "key" ? [] : tap(30, (d) => d.key(KEY_X), (d) => d.keyUp(KEY_X))),
+            ...nextScreen(40), ...tap(55, (d) => d.key(KEY_X), (d) => d.keyUp(KEY_X)), // chain: phrase 00
+            ...nextScreen(65), ...tap(80, (d) => d.key(KEY_X), (d) => d.keyUp(KEY_X)), // phrase: C-4, instr 00
+            ...nextScreen(90), // instrument 00: type None -> AY Classic (A held, Right)
+            [105, (d) => d.key(KEY_X)], ...tap(108, (d) => d.input(RIGHT), (d) => d.inputRelease(RIGHT)), [113, (d) => d.keyUp(KEY_X)],
+            ...(brk === "silent" ? [] : tap(130, (d) => d.key(KEY_SPACE), (d) => d.keyUp(KEY_SPACE))),
+        ],
         use: useChipnomad,
     },
 };
+
+// A key or button at frame f, released 2 frames later; SELECT + Right (the next screen) at frame f.
+const tap = (f, down, up) => [[f, down], [f + 2, up]];
+const nextScreen = (f) => [[f, (d) => d.key(SHIFT_LEFT)], ...tap(f + 2, (d) => d.input(RIGHT), (d) => d.inputRelease(RIGHT)), [f + 6, (d) => d.keyUp(SHIFT_LEFT)]];
 
 // A left click at frame f: move there the frame before, press, release 6 frames later.
 function press(f, x, y, dy = 0) {
@@ -79,7 +97,7 @@ const tag = args[0];
 const spec = SPECS[tag];
 if (!spec) throw new Error(`usage: node apps/ports_headless.mjs <${Object.keys(SPECS).join("|")}> [--break <x>] [--png <dir>]`);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : ""; };
-const broke = opt("--break"), pngDir = opt("--png");
+const broke = opt("--break"), pngDir = opt("--png"), clockUs = Number(opt("--clock") || 0);
 if (broke && !spec.breaks.includes(broke)) throw new Error(`--break ${broke}: ${tag} has ${spec.breaks.join(", ")}`);
 
 let failures = 0;
@@ -95,7 +113,7 @@ async function run() {
     const events = spec.events(broke), shots = new Map(), audio = { peak: 0, n: 0, rate: 0 };
     let trap = "", m = { demo: { isPlaneEnabled: () => 0 }, audio };
     try {
-        m = await boot(spec.cart, disk);
+        m = await boot(spec.cart, disk, clockUs);
         for (let f = 1; f <= spec.frames; f++) {
             for (const [ef, fn] of events) if (ef === f) fn(m.demo);
             step(m);
@@ -147,15 +165,29 @@ function useKlystrack(r) {
 SPECS.klystrack.keep = (f) => [20, 120].includes(f);
 
 function useChipnomad(r) {
-    const a = r.shots.get(20), b = r.shots.get(60);
+    const a = r.shots.get(20), b = r.shots.get(38);
     check("chipnomad X puts a chain in the song", a && b && sha(rows(a, 70, 79)) !== sha(rows(b, 70, 79)), "row 00 of the song changed");
+    check("chipnomad plays the note", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak}, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
 }
-SPECS.chipnomad.keep = (f) => [20, 60].includes(f);
+SPECS.chipnomad.keep = (f) => [20, 38].includes(f);
+
+// The feed follows the host clock: every frame but the first (no clock yet: its dt) owes clockUs of
+// audio, on top of the lead the stream starts with (pt2: 125 ms). Fixed rate/60 a frame fails this.
+function useClock(r) {
+    check("boot and frames", !r.trap, r.trap || `${spec.frames} frames, no trap`);
+    const a = r.m.audio, lead = Math.floor(a.rate * spec.leadMs / 1000);
+    const want = Math.floor(a.rate * (DT / 1000 + (spec.frames - 1) * clockUs / 1e6)) + lead;
+    check("audio follows the host clock", Math.abs(a.n - want) <= 2, `${a.n} samples fed at ${a.rate} Hz for ${spec.frames} frames of ${clockUs} us (want ${want})`);
+}
+SPECS.pt2.leadMs = 125; // kestrel_sdl.c AUDIO_LEAD_MS
 
 console.log(`${tag}: ${spec.cart} + ${broke === "disk" ? "an EMPTY drive" : spec.disk}${broke ? ` (--break ${broke})` : ""}`);
 const r = await run();
-useCommon(r);
-spec.use(r);
+if (clockUs) useClock(r);
+else {
+    useCommon(r);
+    spec.use(r);
+}
 if (pngDir) {
     await mkdir(pngDir, { recursive: true });
     for (const [f, p] of r.shots) await png(p, `${pngDir}/${tag}_${f}.png`);

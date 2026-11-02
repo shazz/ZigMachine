@@ -2,9 +2,10 @@
  * pt2_main.c by split_main.py); frame() runs one pass of upstream's main loop per VBL. */
 int pt2_boot(int argc, char *argv[]);
 void pt2_frame(void);
-void kestrel_sdl_vbl(void);
+#include "kestrel_audio.h"
+void kestrel_sdl_vbl(uint32_t us);
 void kestrel_scopes_tick(void);
-void kestrel_audio_frame(void);
+void kestrel_audio_frame(uint32_t us);
 void kestrel_video_init(void);
 void kestrel_log(const char *m);
 void kestrel_input_origin(int dx, int dy);
@@ -30,7 +31,16 @@ __attribute__((export_name("boot"))) void boot(void)
     else kestrel_log("pt2: booted");
     kestrel_heap_report();
 }
-__attribute__((export_name("frame"))) void frame(float elapsed_ms) { kestrel_sdl_vbl(); kestrel_scopes_tick(); pt2_frame(); kestrel_audio_frame(); }
+__attribute__((export_name("frame"))) void frame(float elapsed_ms)
+{
+    /* Real time (kestrel_audio.h), up to 4 frames: pt2 mixes ~150 cycles a sample (kestrel_paula.c), so only a
+     * load or a stall is ever that long. */
+    uint32_t us = kestrel_frame_us(elapsed_ms, 67);
+    kestrel_sdl_vbl(us);
+    kestrel_scopes_tick();
+    pt2_frame();
+    kestrel_audio_frame(us);
+}
 __attribute__((export_name("isPlaneEnabled"))) int isPlaneEnabled(int p) { return p == 0; }
 __attribute__((export_name("hblDispatch"))) void hblDispatch(unsigned id, unsigned plane, unsigned line, unsigned x) { (void)id; (void)plane; (void)line; (void)x; }
 __attribute__((export_name("skipBoot"))) int skipBoot(void) { return 1; }

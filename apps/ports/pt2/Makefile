@@ -21,7 +21,8 @@ LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--
 
 UP_ALL := $(patsubst $(PT2)/%,%,$(wildcard $(PT2)/*.[ch] $(PT2)/modloaders/*.[ch] $(PT2)/smploaders/*.[ch] $(PT2)/gfx/*.[ch]))
 # pt2_main.c (SDL main loop, signals, argv) is split by split_main.py into pt2_boot()/pt2_frame().
-UP_C   := $(filter %.c,$(UP_ALL))
+# pt2_paula.c (double-precision BLEP mixer) is replaced by kestrel_paula.c (integer, same API).
+UP_C   := $(filter-out pt2_paula.c,$(filter %.c,$(UP_ALL)))
 # The shared KESTREL SDL2 layer (apps/ports/kestrel_sdl2/src: heap, WASI-on-floppy, input) + this port's kestrel_*.c.
 KSDL   := ../kestrel_sdl2/src
 OBJS   := $(addprefix $(OUT)/,$(UP_C:.c=.o)) $(patsubst %.c,$(OUT)/%.o,$(wildcard kestrel_*.c)) $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c))
@@ -41,6 +42,9 @@ $(GEN)/%: $(PT2)/% $(wildcard patches/*.sed)
 $(OUT)/kestrel_%.o: kestrel_%.c kestrel_port.h $(wildcard ../kestrel_sdl2/include/*.h ../kestrel_sdl2/include/SDL2/*)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
+# kestrel_paula.c implements pt2_paula.h: it reads upstream's (mirrored) headers.
+$(OUT)/kestrel_paula.o: CFLAGS += -I$(GEN)
+$(OUT)/kestrel_paula.o: $(GENALL)
 $(OUT)/ksdl/%.o: $(KSDL)/%.c $(wildcard ../kestrel_sdl2/include/*.h ../kestrel_sdl2/include/SDL2/*)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@

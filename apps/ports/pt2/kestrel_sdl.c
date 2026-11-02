@@ -4,12 +4,13 @@
  * The five real backends still to write (README.md "Plan"):
  *   video  SDL_UpdateTexture/RenderPresent -> the 320x255 ARGB frameBuffer, indexed onto an 8-bit plane
  *   input  SDL_PollEvent / GetMouseState / GetModState  <- the cart input ABI (keyboard + mouse)
- *   audio  SDL_OpenAudioDevice: keep the callback; frame() calls it for one VBL of samples -> PCM stream
- *   time   SDL_GetPerformanceCounter: the frame counter (60 Hz) or hostMicros
+ *   audio  SDL_OpenAudioDevice: keep the callback; frame() calls it for the frame's real time -> PCM stream
+ *   time   SDL_GetPerformanceCounter: the same real time (kestrel_audio.h: hostMicros, else dt)
  *   threads SDL_CreateThread: run the job inline (mod2wav / pat2smp) or refuse it
  * Everything window-, renderer-, cursor- and hint-shaped stays a no-op. */
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
+#include "kestrel_audio.h"
 
 /* Distinct non-NULL handles: pt2 only checks them against NULL. */
 static char window_handle, renderer_handle, texture_handle, cursor_handle;
@@ -28,8 +29,8 @@ void kestrel_log(const char *m) { consoleLogJS(m, (int)strlen(m)); }
 int SDL_ShowSimpleMessageBox(Uint32 f, const char *t, const char *m, SDL_Window *w) { (void)f; (void)w; kestrel_log(t); kestrel_log(m); return 0; }
 
 /* --- time --- */
-static Uint64 ticks; /* advanced by kestrel_sdl_vbl() */
-void kestrel_sdl_vbl(void) { ticks += 1000000 / 60; }
+static Uint64 ticks; /* advanced by kestrel_sdl_vbl(): the frame's real time, as the audio (kestrel_audio.h) */
+void kestrel_sdl_vbl(Uint32 us) { ticks += us; }
 Uint64 SDL_GetPerformanceCounter(void) { return ticks; }
 Uint64 SDL_GetPerformanceFrequency(void) { return 1000000; }
 
@@ -115,12 +116,26 @@ static void present(void)
     if (!present_src || !vbase) return;
     const Uint32 *src = present_src;
     Uint32 last = ~0u; Uint8 li = 0;
+    /* Four pixels a word, and only the words that changed: the board pays ~2.3 cycles a store and pt2
+     * changes a few hundred bytes a frame, so a byte a pixel was ~1.6 Mc a frame of stores (frame_cost).
+     * The row starts are word-aligned (OFF_VRAM, OX and PW are multiples of 4). */
     for (int y = 0; y < SH; y++) {
-        Uint8 *dst = vbase + OFF_VRAM + (OY + y) * PW + OX;
-        for (int x = 0; x < SW; x++) {
-            Uint32 c = *src++;
-            if (c != last) { last = c; li = colour_index(c); }
-            dst[x] = li;
+        Uint32 *dst = (Uint32 *)(void *)(vbase + OFF_VRAM + (OY + y) * PW + OX);
+        for (int x = 0; x < SW / 4; x++, src += 4) {
+            Uint32 c0 = src[0], c3 = src[3];
+            Uint32 w;
+            if (c0 == last && c3 == last && src[1] == last && src[2] == last) { /* a run: most of the screen */
+                w = li * 0x01010101u;
+            } else {
+                w = 0;
+                for (int k = 0; k < 4; k++) {
+                    Uint32 c = src[k];
+                    if (c != last) { last = c; li = colour_index(c); }
+                    w |= (Uint32)li << (8 * k); /* little-endian: pixel x + k at byte k */
+                }
+            }
+            (void)c0; (void)c3;
+            dst[x] = w;
         }
     }
     for (unsigned i = 0; i < ncolours; i++) {
@@ -176,15 +191,19 @@ void SDL_FreeCursor(SDL_Cursor *c) { (void)c; }
 /* --- keyboard / events: kestrel_input.c --- */
 Uint8 SDL_EventState(Uint32 t, int s) { (void)t; (void)s; return SDL_ENABLE; }
 
-/* --- audio (audio backend goes here) --- */
-#define AUDIO_RATE 48000
-#define AUDIO_PER_FRAME (AUDIO_RATE / 60)
+/* --- audio --- */
+/* 24 kHz: the mixer (kestrel_paula.c) point-samples Paula, so any rate keeps the pitch; the stream is
+ * 8-bit mono, and 24 kHz keeps everything up to 12 kHz (pt2's A500 filter is at 4.4 kHz, its LED at
+ * 3.1 kHz) for half of 48 kHz's mixing. 400 samples a 60 Hz frame. */
+#define AUDIO_RATE 24000
+#define AUDIO_LEAD_MS 125 /* the ring's head start: pt2 runs ~25 fps on the board while a module plays */
 static SDL_AudioSpec spec;
 SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int cap, const SDL_AudioSpec *want, SDL_AudioSpec *have, int allowed)
 {
     (void)d; (void)cap; (void)allowed;
     spec = *want;
-    spec.freq = AUDIO_RATE; spec.format = AUDIO_S16; spec.channels = 2; spec.samples = AUDIO_PER_FRAME;
+    /* samples: the latency pt2 delays its pattern cursor and scopes by (calcAudioLatencyVars), the ring lead */
+    spec.freq = AUDIO_RATE; spec.format = AUDIO_S16; spec.channels = 2; spec.samples = AUDIO_RATE * AUDIO_LEAD_MS / 1000;
     if (have) *have = spec;
     return 1;
 }
@@ -192,26 +211,17 @@ void SDL_CloseAudioDevice(SDL_AudioDeviceID d) { (void)d; spec.callback = NULL; 
 static int audio_paused = 1;
 void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { (void)d; audio_paused = p; }
 
-/* Once a VBL: run pt2's callback for one frame of S16 stereo and feed it to the machine's stream ring
- * (signed 8-bit mono, docs/sealed-loader.js hostAudioFeed). The ring is 32 KiB and loops, so the feed
- * must keep pace: exactly freq/60 samples a frame. */
-__attribute__((import_module("env"), import_name("hostAudioStreamStart"))) extern void hostAudioStreamStart(float rate);
-__attribute__((import_module("env"), import_name("hostAudioFeed"))) extern void hostAudioFeed(const void *p, int len);
-static Sint16 mixbuf[AUDIO_PER_FRAME * 2];
-static Sint8 outbuf[AUDIO_PER_FRAME];
-static int stream_started;
-
-void kestrel_audio_frame(void)
+static void mix(void *ctx, int16_t *stereo, int frames)
 {
-    if (!spec.callback) return;
-    if (!stream_started) { hostAudioStreamStart((float)AUDIO_RATE); stream_started = 1; }
-    if (audio_paused) memset(mixbuf, 0, sizeof mixbuf);
-    else spec.callback(spec.userdata, (Uint8 *)mixbuf, (int)sizeof mixbuf);
-    for (int i = 0; i < AUDIO_PER_FRAME; i++) {
-        int m = ((int)mixbuf[2 * i] + (int)mixbuf[2 * i + 1]) >> 9;   /* (L+R)/2, 16 -> 8 bits */
-        outbuf[i] = (Sint8)(m > 127 ? 127 : m < -128 ? -128 : m);
-    }
-    hostAudioFeed(outbuf, AUDIO_PER_FRAME);
+    (void)ctx;
+    if (audio_paused || !spec.callback) memset(stereo, 0, (size_t)frames * 4);
+    else spec.callback(spec.userdata, (Uint8 *)stereo, frames * 4);
+}
+
+/* Once a frame: pt2's callback (its replayer's clock too) for the real time the frame took. */
+void kestrel_audio_frame(Uint32 us)
+{
+    if (spec.callback) kestrel_audio_pump(us, AUDIO_RATE, AUDIO_LEAD_MS, mix, NULL);
 }
 void SDL_LockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
 void SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; }

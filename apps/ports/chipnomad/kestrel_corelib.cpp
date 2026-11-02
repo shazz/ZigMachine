@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <SDL2/SDL.h>
+#include "kestrel_audio.h"
 #include "corelib_gfx.h"
 #include "corelib_audio.h"
 #include "corelib_mainloop.h"
@@ -21,8 +22,6 @@
 extern "C" {
 __attribute__((import_module("env"), import_name("consoleLogJS"))) void consoleLogJS(const char *p, int len);
 __attribute__((import_module("env"), import_name("hwVideoBase"))) int hwVideoBase(void);
-__attribute__((import_module("env"), import_name("hostAudioStreamStart"))) void hostAudioStreamStart(float rate);
-__attribute__((import_module("env"), import_name("hostAudioFeed"))) void hostAudioFeed(const void *p, int len);
 extern const uint8_t kestrel_font8x10[95 * 10];
 void kestrel_log(const char *m) { consoleLogJS(m, (int)strlen(m)); }
 void kestrel_throw(const char *m) { kestrel_log("chipnomad: fatal:"); kestrel_log(m); __builtin_trap(); }
@@ -187,30 +186,27 @@ int assetsInit(void) { return 0; }
 
 // --- audio ---
 static AudioCallback *audio_cb;
-static int audio_rate = 48000, audio_paused = 1, stream_on;
-static int16_t mixbuf[2 * 1024];
-static int8_t outbuf[1024];
+static int audio_rate = 48000, audio_paused = 1;
+// The ring's head start: ChipNomad runs ~11 fps on the board (90 ms a frame).
+#define AUDIO_LEAD_MS 200
 int audioSetup(AudioCallback *cb, int rate, int bufsize) { (void)bufsize; audio_cb = cb; audio_rate = rate; return 1; }
 void audioPause(int p) { audio_paused = p; }
 void audioCleanup(void) { audio_cb = NULL; }
-void kestrel_audio_frame(void)
+static void mix(void *ctx, int16_t *stereo, int frames)
 {
-    if (!audio_cb) return;
-    int n = audio_rate / 60;
-    if (n > 1024) n = 1024;
-    if (!stream_on) { hostAudioStreamStart((float)audio_rate); stream_on = 1; }
-    if (audio_paused) memset(mixbuf, 0, sizeof mixbuf);
-    else audio_cb(mixbuf, n);
-    for (int i = 0; i < n; i++) {
-        int m = ((int)mixbuf[2 * i] + (int)mixbuf[2 * i + 1]) >> 9;
-        outbuf[i] = (int8_t)(m > 127 ? 127 : m < -128 ? -128 : m);
-    }
-    hostAudioFeed(outbuf, n);
+    (void)ctx;
+    if (audio_paused) memset(stereo, 0, (size_t)frames * 4);
+    else audio_cb(stereo, frames);
+}
+// Once a frame: the player's callback (its clock too) for the real time the frame took.
+void kestrel_audio_frame(uint32_t us)
+{
+    if (audio_cb) kestrel_audio_pump(us, (uint32_t)audio_rate, AUDIO_LEAD_MS, mix, NULL);
 }
 
 // --- what the shared SDL layer needs from a port ---
 static uint64_t micros;
-void kestrel_sdl_vbl(void) { micros += 1000000 / 60; }
+void kestrel_sdl_vbl(uint32_t us) { micros += us; } // the frame's real time (kestrel_audio.h)
 Uint64 SDL_GetPerformanceCounter(void) { return micros; }
 Uint32 SDL_GetTicks(void) { return (Uint32)(micros / 1000); }
 const char *SDL_GetKeyName(SDL_Keycode k)

@@ -6,12 +6,13 @@
 #include "corelib_mainloop.h"
 #include "app.h"
 #include "common.h"
+#include "kestrel_audio.h"
 
 extern "C" {
 void kestrel_log(const char *m);
 void kestrel_gfx_frame(void);
-void kestrel_audio_frame(void);
-void kestrel_sdl_vbl(void);
+void kestrel_audio_frame(uint32_t us);
+void kestrel_sdl_vbl(uint32_t us);
 void kestrel_heap_report(void);
 int kestrel_quit_requested(void);
 void kestrel_input_origin(int dx, int dy);
@@ -35,7 +36,12 @@ extern "C" __attribute__((export_name("boot"))) void boot(void)
 
 extern "C" __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
-    kestrel_sdl_vbl();
+    // Real time (kestrel_audio.h), but at most 2 frames: ayumi costs ~4,600 cycles a sample at 44.1 kHz on the
+    // board (apps/frame_cost.mjs), more than the CPU has for real time, so a longer frame would only feed the
+    // mixer more and slow the UI. Until ayumi fits the budget the song plays slow on the board. (Its rate
+    // cannot simply drop: ayumi steps the chip at most once a substep, so it needs rate >= clock / 64.)
+    uint32_t us = kestrel_frame_us(elapsed_ms, 33);
+    kestrel_sdl_vbl(us);
     kestrel_gfx_frame();
     if (!running) return;
     SDL_Event e;
@@ -50,7 +56,7 @@ extern "C" __attribute__((export_name("frame"))) void frame(float elapsed_ms)
     d.data.value = 0;
     appOnEvent(d);
     appDraw();
-    kestrel_audio_frame();
+    kestrel_audio_frame(us);
     if (kestrel_quit_requested()) { running = 0; kestrel_log("chipnomad: quit"); }
 }
 

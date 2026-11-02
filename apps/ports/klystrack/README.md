@@ -30,8 +30,8 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | file | what |
 |---|---|
 | `Makefile` | mirrors klystron (`gfx gui snd util`, not `lib/`) and klystrack (`src`, `src/import`, `src/view`, minus `midi.c`) into `build/gen/` (CRLF dropped, `patches/<file>.sed` applied: a patch must change its file), compiles with `zig cc -target wasm32-wasi`, links, runs binaryen 132's Asyncify (`../upstream/binaryen`, fetched by `../fetch.sh`); `make data` regenerates `data/` |
-| `kestrel_main.c` | the cart's exports. klystrack's `main()` (renamed `klystrack_main` by `patches/main.c.sed`) runs as an Asyncify coroutine, as GrafX2: it yields in `SDL_Delay` and after every `SDL_RenderPresent`. `frame()` = clock + SDL timers, one VBL of audio, then resume. `argv[1]` = `STARPORT2.KT`, opened at boot |
-| `kestrel_sdl.c` | what is klystrack-shaped: clock (1/60 s a VBL), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream |
+| `kestrel_main.c` | the cart's exports. klystrack's `main()` (renamed `klystrack_main` by `patches/main.c.sed`) runs as an Asyncify coroutine, as GrafX2: it yields in `SDL_Delay` and after every `SDL_RenderPresent`. `frame()` = clock + SDL timers, the frame's real time of audio (`kestrel_audio.h`: hostMicros, else dt; at most 2 frames' worth), then resume. `argv[1]` = `STARPORT2.KT`, opened at boot |
+| `kestrel_sdl.c` | what is klystrack-shaped: clock (the frame's real time), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream |
 | `kestrel_stubs.c` | `getpwuid` (no password database) |
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
@@ -104,6 +104,8 @@ adds 690 KB (chorus 707 KB) at 44.1 kHz, half that at 22.05 kHz. Then raise `mus
 - 22.05 kHz mixing and one reverb at most (memory, above). No MIDI.
 - Songs with more than 256 patterns or sequence entries are refused (examples that save all 4096 patterns:
   AmsterdamBoppe, StarChips, dr.happy, smp_dingleberries_fix). Lazily allocated pattern steps would lift the cap.
-- KESTREL board: not tried. cyd mixes in integers per sample, but panning/FX setup use float/double (soft-float on
-  ZIGGY); the per-frame cost on the board is unmeasured.
+- KESTREL board (2 Nov): 7.3 fps. cyd mixes at 22.05 kHz without oversampling now (`patches/cyd.c.sed`,
+  `mused.c.sed`: upstream's 4x, which `cyd_init` set after the config was applied), ~13,000 cycles a sample
+  (`apps/frame_cost.mjs`; ~16,000 at 4x): more than real time leaves. The feed is capped at 2 frames of audio
+  a frame so the UI keeps its rate; the song plays slow on the board until cyd fits the budget.
 - Registered (catalog, disk, `apps/ports_headless.mjs` in build.sh) on 2 Nov 2026.

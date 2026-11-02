@@ -26,15 +26,21 @@ is reproducible.
 | file | what |
 |---|---|
 | `kestrel_main.cpp` | the cart's exports: upstream's `main()` up to its main loop runs in `boot()` (after the C++ static constructors, `__wasm_call_ctors`: a cart has no `_start`), one pass of the loop per `frame(dt)` |
-| `kestrel_corelib.cpp` | ChipNomad's platform layer (corelib) for the machine: colours get palette indices on first use and are drawn straight into VRAM, one VBL of audio a frame to the machine's stream, files over the floppy |
+| `kestrel_corelib.cpp` | ChipNomad's platform layer (corelib) for the machine: colours get palette indices on first use and are drawn straight into VRAM, the frame's real time of audio to the machine's stream (`kestrel_audio.h`), files over the floppy |
 | `kestrel_font8x10.cpp` | the ST 8x8 font in 8x10 cells |
 | `patches/corelib_font.cpp.sed` | that font as the only resolution |
 | `patches/project_io.cpp.sed` | no C++ exceptions on the cart: a throw logs its message and stops the cart |
+| `patches/ayumi*.cpp.sed` | ayumi's double constants made float: its expressions ran in soft-float f64 on the board (~20,000 -> ~4,600 cycles a sample) |
 | `run.mjs` | headless runner for experiments |
 
 Keys are ChipNomad's desktop mapping (A = X, B = Z, START = Space, SELECT = Left Shift, arrows).
 
 ## Status (2 Nov 2026)
 
+- A fresh project's instruments are type None (silent): a note plays once its instrument has a type (on the
+  instrument screen, A held + Right: AY Classic). The gate does exactly that (`ports_headless.mjs chipnomad`).
+- KESTREL board: ayumi still costs ~4,600 cycles a 44.1 kHz sample (it steps the chip 8 times a sample and
+  needs a rate >= clock / 64, so the rate cannot simply drop), more than real time leaves; the feed is capped
+  at 2 frames of audio a frame so the UI keeps its rate, and the song plays slow on the board.
 - Runs; read-only floppy (projects cannot be saved). A malformed project file stops the cart instead of
   showing an error (no exceptions).

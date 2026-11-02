@@ -11,8 +11,11 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig (the 3 MiB cart window)
 export const DT = 1000 / 60;
 
-// boot(cart, disk): disk = the .zmd bytes in drive A, or null for an empty drive.
-export async function boot(cart, disk) {
+// boot(cart, disk, usPerFrame): disk = the .zmd bytes in drive A, or null for an empty drive.
+// usPerFrame: 0 = no host clock (hostMicros answers 0, as every harness: the ports pace their audio by
+// dt); else hostMicros advances that much a frame while dt stays 16.6 ms, as on the board, where the
+// frame takes longer than its dt (kestrel_audio.h).
+export async function boot(cart, disk, usPerFrame = 0) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo = null;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -24,7 +27,7 @@ export async function boot(cart, disk) {
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const bytes = await readFile(cart);
-    const log = [], audio = { rate: 0, n: 0, peak: 0 };
+    const log = [], audio = { rate: 0, n: 0, peak: 0 }, clock = { us: 0, perFrame: usPerFrame };
     const text = (p, n) => new TextDecoder().decode(new Uint8Array(memory.buffer, p, n));
     const env = {
         memory, ...rom,
@@ -35,6 +38,7 @@ export async function boot(cart, disk) {
             new Uint8Array(memory.buffer, dst, s.length).set(s);
             return s.length;
         },
+        hostMicros: () => clock.us, // 0 unless usPerFrame: then the board's clock (step() advances it)
         hostAudioStreamStart: (rate) => { audio.rate = rate; },
         hostAudioFeed: (p, n) => {
             audio.n += n;
@@ -50,11 +54,12 @@ export async function boot(cart, disk) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    return { memory, machine, demo, log, audio };
+    return { memory, machine, demo, log, audio, clock };
 }
 
 // One VBL as the host runs it: clear, frame(dt), composite every enabled plane.
 export function step(m) {
+    if (m.clock.perFrame) m.clock.us = (m.clock.us + m.clock.perFrame) >>> 0;
     m.machine.hwClear();
     m.demo.frame(DT);
     for (let p = 0; p < 4; p++) if (m.demo.isPlaneEnabled(p)) m.machine.hwRenderPlane(p);

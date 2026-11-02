@@ -1261,3 +1261,33 @@ the build stops). GrafX2's cart is GPLv2 (`apps/ports/grafx2/README.md` names it
 the rest of the repo keeps its licence. Ripped test pictures (`prototypes/grafx2/port/testpics*`) stay
 local. `docs/demo-<tag>.wasm` changes to `docs/` for these tags are "shared or unknown" to
 `tools/gate_scope.py`, so they take the full gate, as the C carts do.
+
+## 2026-11-02 — The C ports pace their audio by `hostMicros`; pt2's Paula in integers; the board pointer over the borders
+
+**Status:** accepted (fix/pt2-board; extends 2026-10-17 "`hostMicros` may pace a cart's audio feed")
+**Context:** On the board pt2-clone ran 28 fps idle and 10-13 playing, its song at half tempo and its ring
+replaying stale bytes: each frame fed rate/60 samples, and the board passes dt = 16.6 ms whatever the frame
+took. Its Paula mixed in double with BLEP, RC filters, 2x oversampling and dither: ~5,500 cycles a 48 kHz
+sample on ZIGGY (no f64). The mouse stopped at the visible window (glass clamped to 640x200) while pt2's screen
+and the browser's pointer reach the borders. Right Alt (pt2: play song) shared Alt's code.
+**Decision:**
+- `apps/ports/kestrel_sdl2/include/kestrel_audio.h`: each frame a port takes `kestrel_frame_us()` (hostMicros
+  when the host has a clock, else dt; harnesses answer 0) and runs its SDL audio callback for that time
+  (`kestrel_audio_pump`, a fractional sample carried, a silent lead fed first). The port's SDL clock advances by
+  the same time, so pt2's pattern cursor and scopes stay with the sound. Each port caps a frame's time:
+  pt2 67 ms (a stall), klystrack and ChipNomad 33 ms, because their synths cost more than real time on the
+  board (cyd ~13,000, ayumi ~4,600 cycles a sample): uncapped they would slow the UI to 1-3 fps.
+- pt2: `kestrel_paula.c` replaces `pt2_paula.c` (same API): integer, point-sampled, mono, 24 kHz, the A500
+  low-pass and LED filter in fixed point, no BLEP or high-pass (~150 cycles a sample).
+- REG_POINTER carries the whole raster (800x280, borders included); the cart CPU's firmware subtracts
+  PTR_BORDER_X/Y, so `pointer()` gets the browser's coordinates (negative over the border). Glass 0.4.0 and
+  the system image must land on the card together.
+- Right Alt is 0xE018 (sealed-loader.js MOD_CODES.AltRight by evt.code, glass KEY_RIGHTALT); ST Replay takes it
+  as Alt.
+**Alternatives considered:** pass the board's real frame time as dt (every animating cart changes speed on the
+board, hp_sim stops matching scene_hash: the reason of 2026-10-17); keep pt2's mixer and lower the rate (still
+soft-float per voice per sample: ~25 % of the CPU at 32 kHz plus the I$ misses of its code); f32 BLEP (an FPU
+op is ~10 cycles, the BLEP's 16-tap convolution per edge would still cost more than the whole integer mix).
+**Consequences:** pt2's sound loses BLEP's alias suppression and the 5 Hz DC filter (inaudible through the 8-bit
+mono stream). klystrack and ChipNomad keep their UI rate on the board but play slow until their synths fit
+(ROADMAP). A glass without the system image (or the reverse) is off by 80/40 pixels.
