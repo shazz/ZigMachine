@@ -129,9 +129,26 @@ void kestrel_plane_present(const Uint32 *src, int w, int h)
     kestrel_plane_origin(w, h, &ox, &oy);
     palette_reset();
     Uint32 last = ~0u; Uint8 li = 0;
+    int words = ((ox | w) & 3) == 0;                /* rows start word-aligned: four pixels a store */
     for (int y = 0; y < h; y++) {
         Uint8 *dst = vbase + OFF_VRAM + (oy + y) * pw + ox;
         const Uint32 *s = src + y * w;
+        if (words) {
+            Uint32 *dw = (Uint32 *)(void *)dst;
+            for (int x = 0; x < w; x += 4, s += 4) {
+                Uint32 v;
+                if (s[0] == last && s[1] == last && s[2] == last && s[3] == last) v = li * 0x01010101u;   /* a run */
+                else {
+                    v = 0;
+                    for (int k = 0; k < 4; k++) {
+                        if (s[k] != last) { last = s[k]; li = colour_index(last); }
+                        v |= (Uint32)li << (8 * k);    /* little-endian: pixel x + k at byte k */
+                    }
+                }
+                dw[x >> 2] = v;
+            }
+            continue;
+        }
         for (int x = 0; x < w; x++) {
             Uint32 c = s[x];
             if (c != last) { last = c; li = colour_index(c); }
