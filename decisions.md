@@ -1202,3 +1202,34 @@ The board firmware still links (`make board-fw CART=tutorial`, both `ZM_AUDIO=1`
 the memories are calloc'd from is 14.0 MiB (needs 9 + 3 MiB for the players' memory) and 10.05 MiB
 with `snd` (needs 9 MiB): about 1 MiB to spare in the sound-CPU layout, so the next growth needs that
 link (board.mk `HRV_LDFLAGS_snd`, 12 MiB) widened first.
+
+## 2026-11-02 — C program ports live in apps/ports; upstream fetched at pinned SHAs; carts committed prebuilt
+
+**Status:** accepted
+**Context:** pt2-clone, GrafX2, klystrack and ChipNomad were ported as carts in the gitignored
+`prototypes/` (each upstream cloned beside its port, the shared SDL2 layer in `prototypes/kestrel_sdl2`).
+Shipping them on GitHub Pages needs their source in the repo, and GrafX2 is GPLv2: its cart must come
+with its corresponding source. Vendoring the four upstreams would add tens of thousands of files of
+other people's code, under three licences, to a repo that changes them never (every change is a
+`patches/*.sed` applied to a mirror at build time).
+**Decision:** `apps/ports/<port>/` holds only what is ours: the `kestrel_*` glue, the patches, the
+Makefile, the run rig, each port's disk data, and the upstream licence text; `apps/ports/kestrel_sdl2`
+is the shared layer. `apps/ports/fetch.sh` clones each upstream at its pinned SHA (klystrack and its
+klystron submodule as a pair) and binaryen 132 (npm, sha256-checked) into `apps/ports/upstream/`
+(gitignored), and refuses a checkout at another commit. The carts `docs/demo-<tag>.wasm` are committed
+prebuilt, like the `c-*`/`rust-*` carts; `./build.sh` never needs the upstreams. A rebuild at the pins is
+byte-identical (`__DATE__` in ChipNomad is pinned to its upstream commit's date for that).
+`tools/mkdisks.sh` stays the one recipe for their disks (the ports' Makefiles lost their `disk`
+targets), with every file named in order, as a glob's order follows the locale.
+`apps/ports_headless.mjs` gates each cart (boot, a UI pin, one real interaction, a `--break`).
+**Alternatives considered:** vendor the upstreams (or git submodules: the repo has none outside
+`fpga/third_party`, and a submodule still needs a fetch); rebuild the carts in `./build.sh` (the gate
+would need four upstream checkouts, binaryen and minutes of C++ on every run, for carts that change
+only when someone works on a port).
+**Consequences:** the pre-push "docs/ matches source" check cannot see a stale port cart (it cannot for
+C/Rust carts either): change a port, run `make -C apps/ports/<port> install` and commit the cart. A new
+upstream version is a new pin in `fetch.sh` plus patches that still apply (each must change its file or
+the build stops). GrafX2's cart is GPLv2 (`apps/ports/grafx2/README.md` names its corresponding source);
+the rest of the repo keeps its licence. Ripped test pictures (`prototypes/grafx2/port/testpics*`) stay
+local. `docs/demo-<tag>.wasm` changes to `docs/` for these tags are "shared or unknown" to
+`tools/gate_scope.py`, so they take the full gate, as the C carts do.

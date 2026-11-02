@@ -3,6 +3,15 @@
 The finished items of the KESTREL roadmap, newest first. The open items live in [ROADMAP.md](ROADMAP.md) (Matt's
 view: the roadmap artifact, https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W).
 
+## Done 2 Nov
+
+| Prio | Item | Area | Notes | Who |
+|---|---|---|---|---|
+| P2 | pt2-clone (ProTracker 2.3D clone) as a C cart | apps/ports | 7e2f9e4b + 74e927f3 + 59bb18b8 (`integrate/cart-window-4mb`): `apps/ports/pt2`, upstream d42d5f1 fetched by `apps/ports/fetch.sh`, cart `docs/demo-pt2.wasm` on a disk with RONKEN.MOD + HYBRID.MOD; loads modules (4 MiB window, samples capped at 32 KB); gate `ports_pt2` (DISK OP loads HYBRID.MOD, PLAY heard) | lead + agent |
+| P2 | GrafX2 (paint program) as a C cart | apps/ports | same commits: `apps/ports/grafx2` (GPLv2: COPYING + the corresponding source in its README), upstream 678a0f5, Asyncify; disk = its skin/font/ini + our own pictures (the rips stay local); gate `ports_grafx2` (OK closes the modal warning, a stroke paints) | lead + agent |
+| P2 | klystrack (chiptune tracker) as a C cart | apps/ports | same commits: `apps/ports/klystrack`, upstream fe6e746 + klystron 1074324, Asyncify; disk = Default theme bundle + 4 example songs; gate `ports_klystrack` (F5 plays STARPORT2.KT) | agent |
+| P2 | ChipNomad (AY tracker) as a C++ cart | apps/ports | same commits: `apps/ports/chipnomad`, upstream e4b10d5, ST font in 8x10 cells (320x200); gate `ports_chipnomad` (X puts a chain in the song) | agent |
+
 ## Done 1 Nov
 
 | Prio | Item | Area | Notes | Who |

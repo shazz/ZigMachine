@@ -50,6 +50,12 @@ OVERRIDES = {
     "gem": ("GEM DESKTOP", "Digital Research", "1985"),  # TOS 1.00's desktop (rom/gem/desktop/about.zig)
     "st_replay": ("", "Microdeal", ""),  # its description: "a homage to Microdeal's 8-bit sampler"
     "union_textracker": ("TEX SAMPLE-MON ST", "The Union Demo", ""),  # "The Union Demo hidden screen, TEX's ..."
+    # The C program ports (apps/ports): no scene header or matrix comment to read; group and year from
+    # each upstream's own licence / README (first release or first copyright year).
+    "pt2": ("", "8bitbubsy", "2010"),  # pt2-clone, LICENSE: "Copyright (c) 2010-2026, Olav Sorensen"
+    "grafx2": ("", "GrafX2 team", "1996"),  # README: "First public release, at the Wired'96" (Sunset Design)
+    "klystrack": ("", "kometbomb", "2009"),  # LICENSE: "Copyright (c) 2009-2018 Tero Lindeman (kometbomb)"
+    "chipnomad": ("", "Megus", "2025"),  # LICENSE: "Copyright (c) 2025 ChipNomad"
 }
 # Hub-only carts (catalog.zig's note: reached only through a hub's doors): tag prefix -> the hub's tag.
 HUBS = {"union_": "union_demo"}

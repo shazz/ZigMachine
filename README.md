@@ -68,9 +68,12 @@ Reusable oldskool effects: scrolltexts (with X/Y offset tables), 2D/3D starfield
 
 The seal is a **wasm ABI, not a Zig API**, so a cart can be written in anything that compiles to wasm. `apps/c/` and `apps/rust/` hold working carts — including a full cracktro port in C that opens the borders with the same resolution-flicker trick, driven entirely by register pokes and an exported HBL callback from C.
 
+Whole desktop programs port too: `apps/ports/` rebuilds four SDL2 programs in C and C++ as carts over a small SDL2-shaped layer (heap, files on the floppy, input), with their own sources fetched at pinned commits.
+
 ```
 apps/zig/scenes/    the Zig scenes (one cart each)
 apps/c/scenes/      C carts        apps/rust/   Rust carts
+apps/ports/         C program ports (pt2-clone, GrafX2, klystrack, ChipNomad)
 machine/            the sealed hardware + its SDK headers
 rom/                system software (GEM)
 libs/{zig,c,rust}/  reusable libraries (ZigOS lives in libs/zig)
@@ -81,7 +84,16 @@ docs/               the web root, the built wasm, and the API docs
 
 34 screens ship as cartridges, most of them ports of Atari ST cracktros and demo screens from [WAB](https://wab.com)'s CODEF remakes. The `+` / `−` buttons on the monitor step through them like TV channels, with an analogue-noise transition; the boot menu lists them all.
 
-**Credit belongs to the originals.** Each scene's source header names the demo, its coders, graphicians and musicians, and the author of the CODEF remake it was read from. CODEF itself is MIT-licensed. The music is from the [SNDH archive](https://sndh.atari.org); the SAP TEST screen's Atari 8-bit tunes are from [ASMA](https://asma.atari.org/), the Atari SAP Music Archive: Warhawk (Rob Hubbard), Gauntlet (Ben Daglish), Barbarian (Jakub Husak), Ninja (Steve Coleman, ASMA's attribution is uncertain) and BMX Simulator (David Whittaker), and FUJI HOBBYTRONIC's Hobbytronic '92 - 1 (Stephan Duesterhoeft, Benjy, 1992) comes from there too. If you are one of the original authors and would rather your work were not here, please open an issue.
+**Credit belongs to the originals.** Each scene's source header names the demo, its coders, graphicians and musicians, and the author of the CODEF remake it was read from. CODEF itself is MIT-licensed. The music is from the [SNDH archive](https://sndh.atari.org); the SAP TEST screen's Atari 8-bit tunes are from [ASMA](https://asma.atari.org/), the Atari SAP Music Archive: Warhawk (Rob Hubbard), Gauntlet (Ben Daglish), Barbarian (Jakub Husak), Ninja (Steve Coleman, ASMA's attribution is uncertain) and BMX Simulator (David Whittaker), and FUJI HOBBYTRONIC's Hobbytronic '92 - 1 (Stephan Duesterhoeft, Benjy, 1992) comes from there too. The C program ports are their authors' work, each under its own licence (the text is in its `apps/ports/<port>/` directory, with what is ours):
+
+| cart | program | author | licence |
+|---|---|---|---|
+| PT2-CLONE (C) | [pt2-clone](https://github.com/8bitbubsy/pt2-clone), a ProTracker 2.3D clone | Olav "8bitbubsy" Sørensen | BSD-3-Clause |
+| GRAFX2 (C) | [GrafX2](https://gitlab.com/GrafX2/grafX2), a bitmap paint program | Sunset Design and the GrafX2 team | GPL-2.0 (the cart too; its corresponding source: `apps/ports/grafx2/README.md`) |
+| KLYSTRACK (C) | [klystrack](https://github.com/kometbomb/klystrack) + klystron, a chiptune tracker | Tero "kometbomb" Lindeman | MIT |
+| CHIPNOMAD (C++) | [ChipNomad](https://github.com/Megus/chipnomad-tracker), an AY tracker | Megus | MIT |
+
+`apps/ports/kestrel_sdl2` uses [stb_image](https://github.com/nothings/stb) (Sean Barrett, public domain / MIT), and GrafX2 and klystrack are post-processed with [binaryen](https://github.com/WebAssembly/binaryen) (Apache-2.0). If you are one of the original authors and would rather your work were not here, please open an issue.
 
 ## Docs
 
