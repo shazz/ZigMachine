@@ -173,6 +173,8 @@ of latency (`tests/tb/video_mem.h`); `--timing` gives it a fixed latency instead
 | `zm_video_rowio.v` | Row I/O: PFB and picture rows in from memory, out through a skid buffer. |
 | `zm_video_regs.v` | Register block (the words the compositor reads), the CPU read-back, and the write-backs. |
 | `zm_video_bg.v` | Background pass: `BACKGROUND` fill, or BEAM spans. |
+| `zm_video_copper.v` | The copper list engine: a plane's line record applied before its pass paints (HW 1.9.0, 1.10.0 LBASE). |
+| `zm_video_copchk.v` | The copper's checks of the word it reads next, made on both halves of the fetch buffer's beat and registered with it. |
 | `zm_video_planepath.v` | Wiring: latch → geometry → fetch → painter. |
 | `zm_video_latch.v` | Per-plane frame latches and the overscan state. |
 | `zm_video_plane.v` | One plane pass: per-mode geometry, overscan decisions, `hs % stride`. |
