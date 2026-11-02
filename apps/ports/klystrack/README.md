@@ -46,6 +46,8 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `mused.h.sed` | `NUM_PATTERNS` 4096 -> 256, `NUM_SEQUENCES` 2048 -> 256 (upstream preallocates 2 MiB of pattern steps) |
 | `music.c.sed` | refuse a song over those caps at load (upstream would write past the tables); `mus_set_fx` frees the reverb / chorus buffers of the buses a new song leaves off before applying it |
 | `mused.c.sed` | default window 320x240, no "nostalgy" fake-decrunch intro, mix rate 22050 Hz |
+| `cyd.c.sed` | no oversampling (upstream's 4x won over the config); channels nobody hears (gate off, no ring-mod listener) skip their oscillator and wavetable reads but still advance; an FX bus with no effect is passed through without `cydfx_output` |
+| `cydrvb.c.sed` (also) | a tap keeps its delay in samples and reads at write position minus delay: the same sample without 16 tap increments a sample |
 | `cydrvb.c.sed`, `cydchr.c.sed`, `cydfx.c.sed` | the reverb delay line and chorus buffers of the 8 FX buses are allocated when a song first enables them, not at init (8 x 1.4 MB at 44.1 kHz); if the heap is short the effect stays off on that bus and the console says so |
 | `menu.h.sed` | `struct menu_t {...} menu_t;` defined a variable in every file (needs `-fcommon`, which wasm clang crashes on) |
 | `action.c.sed` | `current_pattern(NULL)` -> `current_pattern()`: wasm-ld turns an arity mismatch into a trap |
@@ -61,9 +63,11 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 - `src/opt/` (opt-in: a port's Makefile lists them; pt2 and GrafX2 do not, they define their own renderer stubs):
   - `kestrel_render.c`: software renderer. Surfaces are ARGB8888 or INDEX8; textures are 8-bit + palette when they
     have <= 256 colours (all theme art), else ARGB. Colour mod, NONE/BLEND/ADD/MOD, nearest scaling, clip, viewport.
+    An indexed texture blits through one palette read a pixel (scaled or not), its colour mod applied once to the
+    palette (cached until the mod changes) rather than three divides a pixel.
     Cursors (`SDL_CreateColorCursor`) kept as ARGB for the presenter.
-  - `kestrel_plane.c`: ARGB picture -> 8-bit plane (normal 320x200 or fullscreen 400x280, centred), palette rebuilt
-    every present (more than 255 colours: extras take the nearest), the SDL cursor drawn at the mouse.
+  - `kestrel_plane.c`: ARGB picture -> 8-bit plane (normal 320x200 or fullscreen 400x280, centred), four pixels
+    a store with run detection when the rows are word-aligned, palette rebuilt every present (more than 255 colours: extras take the nearest), the SDL cursor drawn at the mouse.
   - `kestrel_rwops.c` (stdio over the floppy, memory), `kestrel_timer.c` (timers fired from `frame()`, no-op mutexes),
     `kestrel_image.c` (`IMG_Load_RW` through stb_image; <= 256 colours -> INDEX8 surface), `kestrel_keyname.c`.
 - `third_party/stb/stb_image.h`: v2.30, nothing/stb commit 013ac3b (2024-05-31), unmodified; see `VERSION` there.
@@ -108,4 +112,12 @@ adds 690 KB (chorus 707 KB) at 44.1 kHz, half that at 22.05 kHz. Then raise `mus
   `mused.c.sed`: upstream's 4x, which `cyd_init` set after the config was applied), ~13,000 cycles a sample
   (`apps/frame_cost.mjs`; ~16,000 at 4x): more than real time leaves. The feed is capped at 2 frames of audio
   a frame so the UI keeps its rate; the song plays slow on the board until cyd fits the budget.
+- perf/ports-synth (frame_cost, STARPORT2 playing): est 47.5 -> 34.8 Mc a frame (cart 13.96 -> 9.81), idle
+  33.6 -> 24.9 (cart 8.87 -> 6.68). UI: the renderer's indexed fast path and word presents (RenderCopy ~6.3 ->
+  ~2.4 Mc, present 1.27 -> 1.0); the same pixels (the gate's UI pin did not move). Synth: `-DLOWRESWAVETABLE`
+  (klystron's own option: 32-bit wavetable accumulators instead of u64 with i64 divides), the reverb taps and
+  the skipped buses/channels above: ~15,400 -> ~12,500 cycles a sample, the stream bytes unchanged. Still ~2.7x
+  real time at 22.05 kHz: per sample, 8 channels of cyd (oscillators, wavetable, FM, ADSR, filter, stepping: ~9,900),
+  2 reverb buses of 16 taps reading 345 KiB delay lines (~2,200, D$ misses) and the chorus (~300). What would fit: fewer
+  channels or FX taps a song, cyd at a lower rate, or cyd on BARD. The 33 ms cap stays.
 - Registered (catalog, disk, `apps/ports_headless.mjs` in build.sh) on 2 Nov 2026.

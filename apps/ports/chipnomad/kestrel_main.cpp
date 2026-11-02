@@ -27,6 +27,9 @@ extern "C" __attribute__((export_name("boot"))) void boot(void)
     __wasm_call_ctors();
     kestrel_input_origin(0, 0);
     settingsLoad();
+    // 22.05 kHz: kestrel_ayumi.cpp works at any rate (upstream's ayumi needed >= clock / 64), and the stream
+    // ends as 8-bit mono anyway; half of 44.1 kHz halves the synth's cost a second.
+    appSettings.audioSampleRate = 22050;
     if (!gfxSetup(&appSettings.screenWidth, &appSettings.screenHeight)) { kestrel_log("chipnomad: gfxSetup failed"); return; }
     appSetup();
     running = 1;
@@ -36,11 +39,9 @@ extern "C" __attribute__((export_name("boot"))) void boot(void)
 
 extern "C" __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
-    // Real time (kestrel_audio.h), but at most 2 frames: ayumi costs ~4,600 cycles a sample at 44.1 kHz on the
-    // board (apps/frame_cost.mjs), more than the CPU has for real time, so a longer frame would only feed the
-    // mixer more and slow the UI. Until ayumi fits the budget the song plays slow on the board. (Its rate
-    // cannot simply drop: ayumi steps the chip at most once a substep, so it needs rate >= clock / 64.)
-    uint32_t us = kestrel_frame_us(elapsed_ms, 33);
+    // Real time (kestrel_audio.h), at most 4 frames (a stall, as pt2): the integer ayumi (kestrel_ayumi.cpp)
+    // costs a few hundred cycles a 22.05 kHz sample, well inside real time on the board.
+    uint32_t us = kestrel_frame_us(elapsed_ms, 67);
     kestrel_sdl_vbl(us);
     kestrel_gfx_frame();
     if (!running) return;

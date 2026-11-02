@@ -111,33 +111,84 @@ static Uint8 colour_index(Uint32 c)
     return i;
 }
 
+/* The rectangles pt2 drew since the last present, as a column range per row (x1 exclusive; empty: x1 <= x0).
+ * Every frameBuffer write site marks its rectangle (kestrel_port.h, patches/*.sed), so a present converts only
+ * those: idle, pt2 redraws the scopes, the VU meters and the pointer sprite (~1/5 of the screen), and reading
+ * the whole 326 KB ARGB picture cost ~1.7 Mc a frame on the board (frame_cost: a D$ miss every 8 pixels). */
+static Uint16 dirty_x0[SH], dirty_x1[SH];
+static int all_dirty = 1; /* the first present converts everything */
+
+void kestrel_fb_dirty(int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    int32_t x1 = x + w, y1 = y + h;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x1 > SW) x1 = SW;
+    if (y1 > SH) y1 = SH;
+    if (x >= x1) return;
+    for (; y < y1; y++) {
+        if (dirty_x1[y] <= dirty_x0[y]) { dirty_x0[y] = (Uint16)x; dirty_x1[y] = (Uint16)x1; continue; }
+        if (x < dirty_x0[y]) dirty_x0[y] = (Uint16)x;
+        if (x1 > dirty_x1[y]) dirty_x1[y] = (Uint16)x1;
+    }
+}
+
+/* Words w0 .. w1-1 of row y: four pixels a word (little-endian, pixel x + k at byte k), a run in one compare. */
+static void convert_row(const Uint32 *src, int y, int w0, int w1)
+{
+    static Uint32 last = ~0u;
+    static Uint8 li;
+    Uint32 *dst = (Uint32 *)(void *)(vbase + OFF_VRAM + (OY + y) * PW + OX);
+    src += y * SW + w0 * 4;
+    for (int x = w0; x < w1; x++, src += 4) {
+        Uint32 w;
+        if (src[0] == last && src[1] == last && src[2] == last && src[3] == last) { /* a run: most of the screen */
+            w = li * 0x01010101u;
+        } else {
+            w = 0;
+            for (int k = 0; k < 4; k++) {
+                Uint32 c = src[k];
+                if (c != last) { last = c; li = colour_index(c); }
+                w |= (Uint32)li << (8 * k);
+            }
+        }
+        dst[x] = w;
+    }
+}
+
+#ifdef KESTREL_PRESENT_CHECK
+/* Test builds (make EXTRA=-DKESTREL_PRESENT_CHECK): a write site that marks nothing shows up as a row the
+ * dirty present left different from a full one. */
+static void check_present(const Uint32 *src)
+{
+    static int reported;
+    for (int y = 0; y < SH && reported < 20; y++) {
+        const Uint8 *d = vbase + OFF_VRAM + (OY + y) * PW + OX;
+        for (int x = 0; x < SW; x++) {
+            if (pal_rgb[d[x]] == (src[y * SW + x] | 0xFF000000u)) continue;
+            char m[96];
+            snprintf(m, sizeof m, "pt2 present check: row %d x %d stale (a write site marked nothing)", y, x);
+            kestrel_log(m);
+            reported++;
+            break;
+        }
+    }
+}
+#endif
+
 static void present(void)
 {
     if (!present_src || !vbase) return;
     const Uint32 *src = present_src;
-    Uint32 last = ~0u; Uint8 li = 0;
-    /* Four pixels a word, and only the words that changed: the board pays ~2.3 cycles a store and pt2
-     * changes a few hundred bytes a frame, so a byte a pixel was ~1.6 Mc a frame of stores (frame_cost).
-     * The row starts are word-aligned (OFF_VRAM, OX and PW are multiples of 4). */
     for (int y = 0; y < SH; y++) {
-        Uint32 *dst = (Uint32 *)(void *)(vbase + OFF_VRAM + (OY + y) * PW + OX);
-        for (int x = 0; x < SW / 4; x++, src += 4) {
-            Uint32 c0 = src[0], c3 = src[3];
-            Uint32 w;
-            if (c0 == last && c3 == last && src[1] == last && src[2] == last) { /* a run: most of the screen */
-                w = li * 0x01010101u;
-            } else {
-                w = 0;
-                for (int k = 0; k < 4; k++) {
-                    Uint32 c = src[k];
-                    if (c != last) { last = c; li = colour_index(c); }
-                    w |= (Uint32)li << (8 * k); /* little-endian: pixel x + k at byte k */
-                }
-            }
-            (void)c0; (void)c3;
-            dst[x] = w;
-        }
+        if (all_dirty) convert_row(src, y, 0, SW / 4);
+        else if (dirty_x1[y] > dirty_x0[y]) convert_row(src, y, dirty_x0[y] >> 2, (dirty_x1[y] + 3) >> 2);
+        dirty_x0[y] = dirty_x1[y] = 0;
     }
+    all_dirty = 0;
+#ifdef KESTREL_PRESENT_CHECK
+    check_present(src);
+#endif
     for (unsigned i = 0; i < ncolours; i++) {
         Uint8 *p = vbase + OFF_PAL + i * 4;
         Uint32 c = pal_rgb[i];

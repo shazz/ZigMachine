@@ -202,7 +202,10 @@ int SDL_BlitScaled(SDL_Surface *src, const SDL_Rect *sr, SDL_Surface *dst, SDL_R
  * A texture made from a surface with at most 256 distinct ARGB values (after the key is made transparent) is
  * kept as 8-bit indices + a 256-entry palette: a quarter of the memory, and theme art (fonts, bevels) always
  * qualifies. Other textures, and render targets, are ARGB. */
-struct SDL_Texture { int w, h, access; Uint32 *px; Uint8 *idx; Uint32 *pal; Uint8 mr, mg, mb; SDL_BlendMode blend; };
+struct SDL_Texture {
+    int w, h, access; Uint32 *px; Uint8 *idx; Uint32 *pal; Uint8 mr, mg, mb; SDL_BlendMode blend;
+    int npal; Uint32 *mpal; Uint8 pmr, pmg, pmb;   /* indexed: colours in pal; pal with the colour mod applied (cache) */
+};
 
 SDL_Texture *SDL_CreateTexture(SDL_Renderer *r, Uint32 format, int access, int w, int h)
 {
@@ -236,7 +239,7 @@ static int make_indexed(SDL_Texture *t, SDL_Surface *s)
             idx[y * s->w + x] = (Uint8)hv[h];
         }
     }
-    t->idx = idx; t->pal = pal;
+    t->idx = idx; t->pal = pal; t->npal = (int)n;
     return 1;
 }
 
@@ -254,7 +257,7 @@ SDL_Texture *SDL_CreateTextureFromSurface(SDL_Renderer *r, SDL_Surface *s)
     for (int y = 0; y < s->h; y++) for (int x = 0; x < s->w; x++) t->px[y * t->w + x] = surf_value(s, x, y);
     return t;
 }
-void SDL_DestroyTexture(SDL_Texture *t) { if (t) { free(t->px); free(t->idx); free(t->pal); free(t); } }
+void SDL_DestroyTexture(SDL_Texture *t) { if (t) { free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t); } }
 int SDL_SetTextureBlendMode(SDL_Texture *t, SDL_BlendMode m) { if (!t) return -1; t->blend = m; return 0; }
 int SDL_SetTextureColorMod(SDL_Texture *t, Uint8 r, Uint8 g, Uint8 b) { if (!t) return -1; t->mr = r; t->mg = g; t->mb = b; return 0; }
 int SDL_SetTextureScaleMode(SDL_Texture *t, SDL_ScaleMode m) { (void)t; (void)m; return 0; }
@@ -264,7 +267,7 @@ int SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *rect, const void *px, int 
         Uint32 *argb = malloc((size_t)t->w * (size_t)t->h * 4);
         if (!argb) return -1;
         for (int i = 0; i < t->w * t->h; i++) argb[i] = t->pal[t->idx[i]];
-        free(t->idx); free(t->pal); t->idx = NULL; t->pal = NULL; t->px = argb;
+        free(t->idx); free(t->pal); free(t->mpal); t->idx = NULL; t->pal = NULL; t->mpal = NULL; t->px = argb;
     }
     SDL_Rect d = rect ? *rect : (SDL_Rect){ 0, 0, t->w, t->h };
     int sx = 0, sy = 0;
@@ -401,6 +404,48 @@ int SDL_RenderDrawLine(SDL_Renderer *r, int x1, int y1, int x2, int y2)
     return 0;
 }
 
+/* An indexed texture's palette with its colour mod applied, kept until the mod changes (a font drawn in one colour
+ * after another recomputes its few entries, not a divide a pixel). NULL: out of memory, take the general path. */
+static const Uint32 *mod_palette(SDL_Texture *t)
+{
+    if (t->mr == 255 && t->mg == 255 && t->mb == 255) return t->pal;
+    if (!t->mpal) { t->mpal = malloc(256 * 4); if (!t->mpal) return NULL; t->pmr = ~t->mr; }
+    if (t->pmr != t->mr || t->pmg != t->mg || t->pmb != t->mb) {
+        for (int i = 0; i < t->npal; i++) {
+            Uint32 p = t->pal[i];
+            t->mpal[i] = (p & 0xFF000000u) | ((p >> 16 & 255) * t->mr / 255) << 16 | ((p >> 8 & 255) * t->mg / 255) << 8 | (p & 255) * t->mb / 255;
+        }
+        t->pmr = t->mr; t->pmg = t->mg; t->pmb = t->mb;
+    }
+    return t->mpal;
+}
+
+/* The common case, an indexed texture (all theme art) with the source inside it, scaled or not (klystron's bevels
+ * stretch small tiles): per pixel one palette read and, unless the colour is fully opaque or transparent, the
+ * blend. The same pixels as the general path below, without its per-pixel bounds tests and colour-mod divides. */
+static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)
+{
+    int tx0 = (int)(((Uint32)ox * stepx) >> 16) + s->x, tx1 = (int)(((Uint32)(ox + c->w - 1) * stepx) >> 16) + s->x;
+    int ty0 = (int)(((Uint32)oy * stepy) >> 16) + s->y, ty1 = (int)(((Uint32)(oy + c->h - 1) * stepy) >> 16) + s->y;
+    if (tx0 < 0 || ty0 < 0 || tx1 >= tex->w || ty1 >= tex->h) return 0;
+    const Uint32 *pal = mod_palette(tex);
+    if (!pal) return 0;
+    SDL_BlendMode m = tex->blend;
+    for (int y = 0; y < c->h; y++) {
+        int ty = (int)(((Uint32)(oy + y) * stepy) >> 16) + s->y;
+        const Uint8 *ip = tex->idx + ty * tex->w + s->x;
+        Uint32 *dp = t.px + (c->y + y) * t.pitch + c->x;
+        Uint32 fx = (Uint32)ox * stepx;
+        for (int x = 0; x < c->w; x++, fx += stepx) {
+            Uint32 p = pal[ip[fx >> 16]];
+            unsigned a = p >> 24;
+            if (m == SDL_BLENDMODE_NONE || (a == 255 && m == SDL_BLENDMODE_BLEND)) dp[x] = p | 0xFF000000u;
+            else if (a) dp[x] = blend_px(dp[x], p, a, m);
+        }
+    }
+    return 1;
+}
+
 int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const SDL_Rect *dr)
 {
     if (!tex) return -1;
@@ -413,6 +458,7 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
     SDL_Rect c = d;
     int ox = 0, oy = 0;
     if (!clip_rect(&c, &ox, &oy, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
+    if (tex->idx && copy_indexed(tex, t, &c, &s, ox, oy, stepx, stepy)) return 0;
     int mod = tex->mr != 255 || tex->mg != 255 || tex->mb != 255;
     for (int y = 0; y < c.h; y++) {
         int ty = (int)(((Uint32)(oy + y) * stepy) >> 16) + s.y;
