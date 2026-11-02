@@ -1175,3 +1175,7 @@ while the browser's machine does it. The bitstream must also be re-synthesised f
 `ZM_HW_VIDEO_BASE` anyway (memmap.vh). The seal's `linear` window (`rtl/seal/zm_seal_map.vh`, 8 MiB)
 is also smaller than the new memory; the board firmware runs the cart in M today, so it is not
 enforced, but the seal plan must widen it to 16 MiB. Both are roadmap rows.
+The board firmware still links (`make board-fw CART=tutorial`, both `ZM_AUDIO=1` and `snd`): the heap
+the memories are calloc'd from is 14.0 MiB (needs 9 + 3 MiB for the players' memory) and 10.05 MiB
+with `snd` (needs 9 MiB): about 1 MiB to spare in the sound-CPU layout, so the next growth needs that
+link (board.mk `HRV_LDFLAGS_snd`, 12 MiB) widened first.
