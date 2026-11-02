@@ -25,9 +25,6 @@ const cq = players.cart_paula_queue;
 /// The cart holds the channels.
 pub var claimed: bool = false;
 var queue: cq.Queue = .{};
-/// The host copies a batch here, then calls audioPaulaQueue(n).
-const STAGE: u32 = 512;
-var stage: [STAGE]cq.Entry = undefined;
 /// Writes to an address Paula does not have (counted, never applied).
 var refused: u32 = 0;
 var applied: u32 = 0;
@@ -78,16 +75,16 @@ export fn audioPaulaChipSize() u32 {
 }
 
 export fn audioPaulaStagePtr() u32 {
-    return @intCast(@intFromPtr(&stage));
+    return @intCast(@intFromPtr(&queue.stage)); // the host copies a batch here, then audioPaulaQueue(n)
 }
 export fn audioPaulaStageCap() u32 {
-    return STAGE;
+    return cq.STAGE;
 }
 
 /// The `n` staged writes, queued for their samples. Returns those taken (0 unclaimed).
 export fn audioPaulaQueue(n: u32) u32 {
     if (!claimed) return 0;
-    return queue.push(stage[0..@min(n, STAGE)]);
+    return queue.pushStaged(n);
 }
 
 export fn audioPaulaApplied() u32 {

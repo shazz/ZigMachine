@@ -54,7 +54,10 @@ const ALLOW = {
     // The module itself (code, song, samples) lives in the 68000's RAM, not here.
     // +1 B (2026-10-24): the 68000's cycles into the running call, the Amiga beam counter's
     // clock (sndh_player.zig call_spent, amiga_beam.zig), joining the run.
-    "demo-audio.wasm": 591327,
+    // +44 B (2026-11-02): a cart's Paula (HW 1.14.0): the four voices' AUDxPAN, the claim and its
+    // counters (paula.zig, demo_audio_paula.zig) join the run; the 40 KB queue and stage sit in a
+    // struct with non-zero fields, outside it.
+    "demo-audio.wasm": 591371,
 };
 
 function uleb(b, p) {

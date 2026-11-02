@@ -36,6 +36,8 @@ comptime {
 
 /// Writes waiting at most: a lead's worth of a busy replay (pt2: ~40 a row).
 pub const CAP: u32 = 2048;
+/// A batch is copied in here by the host, then pushStaged(n) queues it.
+pub const STAGE: u32 = 512;
 pub const LEAD_MIN: u32 = 256;
 pub const LEAD_MAX: u32 = 16384; // 371 ms
 /// A batch whose first stamp is further ahead than this many leads re-anchors.
@@ -43,6 +45,9 @@ const AHEAD_LEADS: u32 = 4;
 
 pub const Queue = struct {
     ring: [CAP]Entry = undefined,
+    // Here rather than a static of its own: an all-zero static joins demo-audio.wasm's big zero
+    // run in its data section (apps/zero_segments.mjs counts it).
+    stage: [STAGE]Entry = undefined,
     head: u32 = 0,
     len: u32 = 0,
     offset: u32 = 0,
@@ -53,8 +58,21 @@ pub const Queue = struct {
     resyncs: u32 = 0,
     dropped: u32 = 0,
 
+    /// The `n` entries the host staged, queued (push).
+    pub fn pushStaged(self: *Queue, n: u32) u32 {
+        return self.push(self.stage[0..@min(n, STAGE)]);
+    }
+
     pub fn reset(self: *Queue, lead: u32) void {
-        self.* = .{ .lead = @max(LEAD_MIN, @min(lead, LEAD_MAX)) };
+        // Field by field: `self.* = .{}` would put a second copy of the struct in the data section.
+        self.head = 0;
+        self.len = 0;
+        self.offset = 0;
+        self.anchored = false;
+        self.now = 0;
+        self.resyncs = 0;
+        self.dropped = 0;
+        self.lead = @max(LEAD_MIN, @min(lead, LEAD_MAX));
     }
 
     fn ahead(self: *const Queue, t: u32) i32 {
