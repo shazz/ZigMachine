@@ -89,6 +89,7 @@ async function hostEnv(memory, machine, rom) {
         hwRomRamFree: machine.hwRomRamFree,
         beep: noop, diskReadBlock: noop,
         hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
+        hostPaulaClaim: () => 0, hostPaulaUpload: noop, hostPaulaWrite: noop, hostPaulaRelease: noop, // HW 1.14.0
         hostMicros: () => 0, // the benchmark clock (decisions.md 2026-10-10); 0 = none, fixed work
         audioPlay: noop, audioStop: noop, loadSample: noop,   // RETIRED, kept as stubs
     };

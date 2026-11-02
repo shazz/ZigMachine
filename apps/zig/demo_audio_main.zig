@@ -33,6 +33,7 @@ comptime {
 }
 pub const sap_exports = @import("demo_audio_sap.zig");
 pub const hip_exports = @import("demo_audio_hip.zig");
+pub const cart_paula = @import("demo_audio_paula.zig"); // the channels lent to a cart (HW 1.14.0)
 
 /// Every player stopped, before one starts: they share song RAM (a SAP's Atari
 /// lives in it), so one left "active" under another would read garbage.
@@ -63,12 +64,15 @@ export fn audioInit() void {
     sap_exports.sap = .{};
     hip_exports.hip.abandon();
     sfx = .{};
+    cart_paula.release();
     current_mode = 0;
 }
 
 export fn audioRender(frames: u32) void {
     const n: usize = @intCast(frames);
-    if (sndh.active) {
+    if (cart_paula.claimed) {
+        cart_paula.render(n);
+    } else if (sndh.active) {
         sndh.renderStereo(n);
     } else if (hip_exports.hip.active) {
         hip_exports.hip.renderStereo(n);
@@ -201,6 +205,7 @@ export fn audioSndhStop() void {
 /// Stopping every player rather than "the one that was playing" is deliberate:
 /// the host would have to track that, and a host that tracks state gets it wrong.
 export fn audioReset() void {
+    cart_paula.release(); // the next cart starts with the channels the machine's
     stopAll();
     audio.machineAudioReset();
     current_mode = 0;

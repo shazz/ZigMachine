@@ -382,6 +382,7 @@ async function instantiateCart(bytes, what) {
         // next one. The audio half lives on the worklet thread, so it is a
         // message rather than a call.
         if (audioNode) audioNode.port.postMessage({ type: "reset" });
+        paulaCart = null; // the reset gives the Paula channels back to the machine
         sndhResident = null; // ...and the new cart's first zg.sndhCall loads its image
         cartTrapped = false; // a fresh cart runs again
         return mod;
@@ -469,6 +470,12 @@ async function boot() {
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
             hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring
+            // The four Paula channels lent to the cart (HW 1.14.0): claim, chip RAM uploads,
+            // timed register writes, release (apps/zig/demo_audio_paula.zig, docs/HW_API.md 5).
+            hostPaulaClaim: (lead) => hostPaulaClaim(lead),
+            hostPaulaUpload: (src, off, len) => hostPaulaUpload(src, off, len),
+            hostPaulaWrite: (ptr, n) => hostPaulaWrite(ptr, n),
+            hostPaulaRelease: () => hostPaulaRelease(),
             // Free-running microseconds, u32 (wraps every ~71 min). A BENCHMARK aid
             // (the raytrace carts): carts stay frame-locked, never time-driven.
             // decisions.md 2026-10-10.
@@ -1155,6 +1162,9 @@ function startAudio() {
                     console.warn(`zg.sndhCall(d0=${hex(msg.d0)}) found no SNDH playing` +
                         (msg.stuckPc ? `: INIT ran away at ${hex(msg.stuckPc)}` : ""));
                 }
+                else if (msg.type === "paulaRefused") {
+                    console.warn(`audio: ${msg.what} refused, the cart holds the Paula channels (hostPaulaClaim)`);
+                }
                 else if (msg.type === "audioState") {
                     // These write through the running cart's pointers. During a swap
                     // those addresses belong to the cart being unpacked: skip.
@@ -1183,6 +1193,7 @@ function startAudio() {
         audioNode.connect(audioCtx.destination);
         await audioCtx.resume();
         flushPendingStream(); // a scene may have requested streaming before audio was enabled
+        flushPaulaClaim(); // ...or claimed the Paula channels (its uploads are in paulaCart.chip)
     })();
     return audioReady;
 }
@@ -1293,6 +1304,7 @@ function playSongByName(name, tune) {
     sndhResident = null; // whatever this request is, it replaces the SNDH playing
     // "none" is the reserved stop request (zg.stopSong / zm_stop_song / stop_song):
     // the same player reset the machine does when a program ends.
+    if (paulaCart) { console.warn(`song ${name} refused: the cart holds the Paula channels`); return; }
     if (name === "none") { if (audioNode) audioNode.port.postMessage({ type: "reset" }); return; }
     if (!name || name.includes("..") || name.startsWith("/")) return;
     const url = "music/" + name;
@@ -1407,7 +1419,8 @@ function hostAudioStreamStop() {
     streamRate = null;
     streamStarted = false;
     recentChunks.length = 0; // nothing to pre-fill a restart with
-    if (audioNode) audioNode.port.postMessage({ type: "streamStop" });
+    // A cart holding the Paula channels: its claim already silenced the ring, and song RAM is its chip RAM.
+    if (audioNode && !paulaCart) audioNode.port.postMessage({ type: "streamStop" });
 }
 function hostAudioFeed(ptr, len) {
     if (len <= 0) return;
@@ -1417,6 +1430,39 @@ function hostAudioFeed(ptr, len) {
     if (!audioNode || !streamStarted) return; // audio not live / stream not started yet
     const bytes = src.slice().buffer; // transferable copy
     audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);
+}
+// A cart's Paula (HW 1.14.0). The claim is the loader's until sound is on, so it keeps a copy of
+// chip RAM: uploads made before the worklet exists are posted with the claim. Writes before then
+// are dropped, as hostAudioFeed's are: the cart's next trigger plays.
+const PAULA_CHIP = 0x100000; // machine/sdk/audio.zig SONG_CAP: chip RAM is song RAM
+let paulaCart = null; // { lead, chip } while the cart holds the channels
+function hostPaulaClaim(lead) {
+    paulaCart = { lead: lead >>> 0, chip: new Uint8Array(PAULA_CHIP) };
+    flushPaulaClaim();
+    return 1;
+}
+function flushPaulaClaim() {
+    if (!paulaCart || !audioNode) return;
+    const chip = paulaCart.chip.slice().buffer;
+    audioNode.port.postMessage({ type: "paulaClaim", lead: paulaCart.lead, chip }, [chip]);
+}
+function hostPaulaUpload(src, off, len) {
+    if (!paulaCart || len <= 0 || off + len > PAULA_CHIP || src + len > memory.buffer.byteLength) return;
+    const bytes = new Uint8Array(memory.buffer, src, len);
+    paulaCart.chip.set(bytes, off);
+    if (!audioNode) return;
+    const copy = bytes.slice().buffer;
+    audioNode.port.postMessage({ type: "paulaUpload", off, bytes: copy }, [copy]);
+}
+function hostPaulaWrite(ptr, n) {
+    if (!paulaCart || !audioNode || n <= 0 || ptr + 16 * n > memory.buffer.byteLength) return;
+    const bytes = new Uint8Array(memory.buffer, ptr, 16 * n).slice().buffer;
+    audioNode.port.postMessage({ type: "paulaWrite", bytes }, [bytes]);
+}
+function hostPaulaRelease() {
+    if (!paulaCart) return;
+    paulaCart = null;
+    if (audioNode) audioNode.port.postMessage({ type: "paulaRelease" });
 }
 window.playMod = playMod;
 window.playYm = playYm;

@@ -12,6 +12,8 @@
 const AUDIO_PAGES = 48; // must match src/sdk/audio.zig AUDIO_PAGES
 const RING = 32768; // the stream ring at SONG_BASE: STREAM_RING in demo_audio_main.zig
 const CUSHION = 4096; // a sample's bytes kept written ahead of the channel (fpga/host/audio_pcm.c)
+// What a cart holding the Paula channels still lets through: the machine's reset (the next cart).
+const KEPT_WHILE_CLAIMED = new Set(["reset", "beepStop"]);
 
 class ZigAudioSealedProcessor extends AudioWorkletProcessor {
     constructor(options) {
@@ -75,6 +77,13 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 dst.set(src.subarray(0, len));
                 return len;
             };
+            if (msg.type.startsWith("paula")) return this.cartPaula(msg);
+            // While a cart holds the Paula channels (HW 1.14.0) every song, stream and effect is
+            // refused: they would take song RAM, which is the cart's chip RAM now.
+            if (d.audioPaulaClaimed() && !KEPT_WHILE_CLAIMED.has(msg.type)) {
+                this.port.postMessage({ type: "paulaRefused", what: msg.type });
+                return;
+            }
             if (msg.type === "loadMod") {
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadMod(len);
@@ -247,6 +256,34 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
         return true;
     }
 }
+
+// A cart's Paula (env.hostPaula*, docs/sealed-loader.js; apps/zig/demo_audio_paula.zig): the claim
+// (with the loader's copy of chip RAM: uploads made before sound was on), uploads into chip RAM,
+// and batches of 16-byte register writes, staged and queued for their samples.
+ZigAudioSealedProcessor.prototype.cartPaula = function (msg) {
+    const d = this.demo, mem = this.memory;
+    const chip = () => new Uint8Array(mem.buffer, d.audioPaulaChipPtr(), d.audioPaulaChipSize());
+    if (msg.type === "paulaClaim") {
+        this.sample = null;
+        this.ringWrite = 0;
+        d.audioPaulaClaim(msg.lead);
+        if (msg.chip) chip().set(new Uint8Array(msg.chip).subarray(0, d.audioPaulaChipSize()));
+    } else if (msg.type === "paulaRelease") {
+        d.audioPaulaRelease();
+    } else if (!d.audioPaulaClaimed()) {
+        return; // a cart's late upload or write after its release: nothing holds the channels
+    } else if (msg.type === "paulaUpload") {
+        const src = new Uint8Array(msg.bytes);
+        if (msg.off + src.length <= d.audioPaulaChipSize()) chip().set(src, msg.off);
+    } else if (msg.type === "paulaWrite") {
+        const src = new Uint8Array(msg.bytes), cap = d.audioPaulaStageCap() * 16;
+        for (let at = 0; at + 16 <= src.length; at += cap) {
+            const part = src.subarray(at, Math.min(src.length, at + cap));
+            new Uint8Array(mem.buffer, d.audioPaulaStagePtr(), part.length).set(part);
+            d.audioPaulaQueue(part.length >> 4);
+        }
+    }
+};
 
 // zg.samplePlay, before the players render `n` frames: the ring written up to
 // where the channel will have read after them, plus CUSHION; past a one-shot's

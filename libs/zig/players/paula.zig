@@ -34,8 +34,11 @@
 //     replay's beam wait ends after as many cycles as on an Amiga. No DMA steals
 //     cycles from the CPU here, so a wait timed against the display is a little
 //     short; the frame (VBL) rate itself is the player's 50 Hz.
+//   * AUDxPAN ($DFF0AC + 16x) is not an Amiga register: a cart driving the voices
+//     (cart_ext) sets a voice's pan with it, signed -128..128 (/128, the machine's).
 //   * a re-latch lands on an output sample: the cycle's sub-sample phase (under
 //     one 44.1 kHz sample) is dropped when the pointer moves.
+const std = @import("std");
 const audio = @import("audio_hw");
 const mod = @import("mod.zig");
 const beam = @import("amiga_beam.zig");
@@ -71,11 +74,16 @@ const Voice = struct {
     span: u64 = 0, // the live region's length in bytes, 16.16
     pos: u64 = 0, // where the channel is inside it, 16.16 (shadows the machine's)
     pending: bool = false, // LC/LEN written since the last latch
+    pan: ?f32 = null, // AUDxPAN (a cart's extension): null = mod.pan(ch), the Amiga's hard sides softened
 };
 
 /// Decode $DFF000.. and $BFE001 only while an Amiga module runs: an ST tune
 /// that writes there is counted as unhandled, as it always was.
 pub var enabled: bool = false;
+/// A cart drives these voices (apps/zig/demo_audio_paula.zig): AUDxPAN at $DFF0AC + 16x, a
+/// register the Amiga does not have, is taken. Off for a 68000 replay, whose write there is
+/// counted as unhandled as before.
+pub var cart_ext: bool = false;
 /// Test only: 1 = DMACON's switch-on edge is ignored, so no voice ever starts;
 /// 2 = LC/LEN written to a playing voice are taken at once, not at its wrap;
 /// 3 = the beam counter never moves (VHPOSR reads 0: a beam wait hangs).
@@ -117,6 +125,7 @@ pub fn reset(on: bool) void {
     bad_ptr = 0;
     irq_wanted = 0;
     enabled = on;
+    cart_ext = false;
 }
 
 pub fn read16(addr: u32) u16 {
@@ -182,6 +191,13 @@ fn voiceWrite(ch: u2, r: u32, value: u16) bool {
             audio.machinePaulaSetVolume(ch, mod.chipVolume(@intCast(@min(value & 0x7F, 64))));
             return true;
         },
+        0xC => {
+            if (!cart_ext) return false;
+            const p: f32 = @floatFromInt(std.math.clamp(@as(i16, @bitCast(value)), -128, 128));
+            v.pan = p / 128.0;
+            audio.machinePaulaSetPan(ch, v.pan.?);
+            return true;
+        },
         else => return false, // AUDxDAT: CPU-driven output, not modelled
     }
     v.pending = true; // LC or LEN: picked up at the next switch-on or wrap
@@ -230,7 +246,7 @@ fn latch(ch: u2) bool {
         audio.machinePaulaSetActive(ch, 0);
         return false;
     }
-    audio.machinePaulaTrigger(ch, audio.songAddr(v.lc), bytes, 0, bytes, mod.pan(ch));
+    audio.machinePaulaTrigger(ch, audio.songAddr(v.lc), bytes, 0, bytes, v.pan orelse mod.pan(ch));
     audio.machinePaulaSetStep(ch, v.step);
     v.span = @as(u64, bytes) << FRAC;
     v.on = true;

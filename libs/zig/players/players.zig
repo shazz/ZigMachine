@@ -13,6 +13,7 @@ pub const xm_format = @import("xm_format.zig");
 pub const sap_bus = @import("sap_bus.zig");
 pub const HipPlayer = @import("hip_player.zig").HipPlayer;
 pub const paula = @import("paula.zig");
+pub const cart_paula_queue = @import("cart_paula_queue.zig");
 
 /// Diagnosis for a tune that will not run: the 68000 PC where a replay call
 /// gave up (0 if none has), and the last trap the little TOS could not answer.
