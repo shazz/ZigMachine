@@ -88,7 +88,8 @@ $(CYC)/%/common/aplayer.o: $(CYC)/src/aplayer.c
 	$(RV_CC) $(RV_CFLAGS) $(V_$*) -c $< -o $@
 $(HCYC)/songs/%.c: $(ROOT)/docs/demo-%.wasm $(HOST)/%/host_audio tools/song_pack.py
 	@mkdir -p $(@D)
-	ZM_AUDIO_LOG=$(HCYC)/songs/$* $(HOST)/$*/host_audio $* $(SONG_FRAMES) $(SONG_FRAMES) >/dev/null
+	ZM_AUDIO_LOG=$(HCYC)/songs/$* $(HOST)/$*/host_audio $* $(SONG_FRAMES) $(SONG_FRAMES) \
+		$(if $(wildcard $(ROOT)/docs/demo-$*.zmd),--disk $(ROOT)/docs/demo-$*.zmd) >/dev/null
 	uv run python tools/song_pack.py $< $@ --log $(HCYC)/songs/$*.w
 
 # --- the players' cost alone (cycles/baudio_bench.c), on the board SoC sim: no cart.

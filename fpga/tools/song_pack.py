@@ -30,16 +30,20 @@ SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap", "hip")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
 # Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
 LOCAL_SONGS = frozenset({"local.xm"})
+# Carts whose string literals are not song requests: ported C programs (apps/ports) name their own documents
+# ("untitled.mod", a tracker's module list) and play through the stream ring (hostAudioFeed), never zg.requestSong.
+# Only the songs the log saw them start count.
+NO_LITERAL_SONGS = frozenset({"demo-pt2.wasm", "demo-grafx2.wasm", "demo-klystrack.wasm", "demo-chipnomad.wasm"})
 
 
 class MissingSong(Exception):
     """A song the cart names that is no file under the music directory."""
 
 
-def song_names(wasm: bytes, music: Path, log: str = "") -> list[str]:
-    """Every song the log started or a literal in the module names; each must be a file under `music`
-    (a LOCAL_SONGS name that is no file is left out instead)."""
-    found = {m.group().decode() for m in NAME.finditer(wasm)}
+def song_names(wasm: bytes, music: Path, log: str = "", literals: bool = True) -> list[str]:
+    """Every song the log started or (`literals`) a literal in the module names; each must be a file under
+    `music` (a LOCAL_SONGS name that is no file is left out instead)."""
+    found = {m.group().decode() for m in NAME.finditer(wasm)} if literals else set()
     found |= {line.split(" ", 3)[3] for line in log.splitlines() if line.startswith("L ") and line.count(" ") >= 3}
     absent_local = {n for n in found & LOCAL_SONGS if not (music / n).is_file()}
     if absent_local:
@@ -72,7 +76,8 @@ def main() -> None:
     ap.add_argument("--log", type=Path, help="host_audio's write log (<prefix>.w)")
     a = ap.parse_args()
     try:
-        names = song_names(a.cart.read_bytes(), a.music, a.log.read_text() if a.log else "")
+        log = a.log.read_text() if a.log else ""
+        names = song_names(a.cart.read_bytes(), a.music, log, literals=a.cart.name not in NO_LITERAL_SONGS)
     except MissingSong as e:
         sys.exit(f"song_pack: {a.cart.name}: {e}")
     a.out.parent.mkdir(parents=True, exist_ok=True)

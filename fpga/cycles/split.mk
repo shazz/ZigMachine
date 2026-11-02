@@ -46,12 +46,12 @@ $(HOST)/%/cart_env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/r
 
 # One lean cart image: cart.c, its env, the shared runtime forwarders, its songs; libgcc only.
 $(CARTS_DIR)/%/cart.elf: $(CYC)/src/%/cart.c $(HOST)/%/cart_env.c gen/zm_cart_rt.c $(HCYC)/songs/%.c \
-		cycles/cart.ld gen/zm_sys_abi.h cycles/baudio.h host/host.h FORCE
+		cycles/cart.ld cycles/cart_str.c gen/zm_sys_abi.h cycles/baudio.h host/host.h FORCE
 	@mkdir -p $(@D)
 	$(RV_CC) $(CART_CFLAGS) -I$(HOST)/$* -c $(CYC)/src/$*/cart.c -o $(@D)/cart.o
-	for s in $(HOST)/$*/cart_env.c gen/zm_cart_rt.c $(HCYC)/songs/$*.c; do \
+	for s in $(HOST)/$*/cart_env.c gen/zm_cart_rt.c cycles/cart_str.c $(HCYC)/songs/$*.c; do \
 		$(RV_CC) $(CART_CFLAGS) -I$(HOST)/$* -c $$s -o $(@D)/$$(basename $$s .c).o || exit 1; done
-	$(RV_CC) $(CART_LDFLAGS) -o $@ $(@D)/cart.o $(@D)/cart_env.o $(@D)/zm_cart_rt.o $(@D)/$*.o -lgcc
+	$(RV_CC) $(CART_LDFLAGS) -o $@ $(@D)/cart.o $(@D)/cart_env.o $(@D)/zm_cart_rt.o $(@D)/cart_str.o $(@D)/$*.o -lgcc
 $(CARTS_DIR)/%/cart.bin: $(CARTS_DIR)/%/cart.elf
 	$(RV_OBJCOPY) -O binary $< $@
 	truncate -s %8 $@

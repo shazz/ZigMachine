@@ -21,11 +21,11 @@
 /* The board SoC's registers a native cart may read (it runs in M-mode: bsys.c never drops
  * to U). From the hp SoC's csr.json (build/hcycles/gen/csr_addr.h), checked by native_check.c
  * when that header is built. ZMCycles: free-running counters, cycles first (soc/zm_cycles.py). */
-#define NATIVE_CSR_CYCLES 0xf0002000u
-#define NATIVE_CSR_ZMV_STATUS 0xf0001804u /* FRESCO's status: READY, PAINTED, DRAINED, PENDING... */
-#define NATIVE_CSR_ZMV_FRAME 0xf0001818u  /* VBLs since reset */
-#define NATIVE_CSR_ZMV_COMP_BUSY 0xf000181cu /* FRESCO: comp clocks (125 MHz) a pass ran, mod 2^32 */
-#define NATIVE_CSR_ZMV_DMA_BUSY 0xf0001820u  /* the video DMA: sys clocks a burst was active */
+#define NATIVE_CSR_CYCLES 0xf0001800u
+#define NATIVE_CSR_ZMV_STATUS 0xf0001004u /* FRESCO's status: READY, PAINTED, DRAINED, PENDING... */
+#define NATIVE_CSR_ZMV_FRAME 0xf0001018u  /* VBLs since reset */
+#define NATIVE_CSR_ZMV_COMP_BUSY 0xf000101cu /* FRESCO: comp clocks (125 MHz) a pass ran, mod 2^32 */
+#define NATIVE_CSR_ZMV_DMA_BUSY 0xf0001020u  /* the video DMA: sys clocks a burst was active */
 #define NATIVE_ZMB_WINDOW 0x91000000u     /* CHISEL: word 0 = GO (a byte store) / STATUS (bit 31 BUSY) */
 /* The cart window as the ARM sees it (glass/src/map.zig): CPU address a is DDR a - CPU + DDR. */
 #define NATIVE_CART_CPU_BASE 0x40000000u

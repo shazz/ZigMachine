@@ -62,3 +62,12 @@ def test_a_local_song_is_packed_when_present_and_left_out_when_absent(tmp_path: 
 def test_only_the_local_name_is_optional(tmp_path: Path) -> None:
     with pytest.raises(song_pack.MissingSong, match="other.xm"):
         song_pack.song_names(b"\0asm other.xm\0local.xm\0", tmp_path)
+
+
+def test_ported_programs_literals_are_not_songs(tmp_path):
+    # pt2-clone names its own documents ("untitled.mod"): with literals off only the log's songs count.
+    wasm = b"\0asm untitled.mod\0"
+    assert song_pack.song_names(wasm, tmp_path, literals=False) == []
+    with pytest.raises(song_pack.MissingSong):
+        song_pack.song_names(wasm, tmp_path)
+    assert "demo-pt2.wasm" in song_pack.NO_LITERAL_SONGS
