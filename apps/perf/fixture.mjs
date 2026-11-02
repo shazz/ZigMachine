@@ -61,7 +61,7 @@ export function cart(frameBody, { locals = [[4, 0x7f], [2, 0x7e], [2, 0x7c], [2,
     const tkeys = Object.keys(T);
     const types = section(1, [...encU32(tkeys.length), ...tkeys.flatMap((k) => T[k])]);
     const imports = section(2, [2, ...encName("env"), ...encName("hwBlit"), 0, tkeys.indexOf("void"),
-        ...encName("env"), ...encName("memory"), 2, 1, 144, 144]);
+        ...encName("env"), ...encName("memory"), 2, 1, ...encU32(144), ...encU32(144)]); // SHARED_PAGES (LEB128: 2 bytes)
     const funcs = section(3, [...encU32(fns.length), ...fns.map((f) => tkeys.indexOf(f.type))]);
     const exps = fns.slice(0, 5);
     const exports = section(7, [...encU32(exps.length), ...exps.flatMap((f, i) => [...encName(f.name), 0, i + 1])]);
