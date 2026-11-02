@@ -1291,3 +1291,30 @@ op is ~10 cycles, the BLEP's 16-tap convolution per edge would still cost more t
 **Consequences:** pt2's sound loses BLEP's alias suppression and the 5 Hz DC filter (inaudible through the 8-bit
 mono stream). klystrack and ChipNomad keep their UI rate on the board but play slow until their synths fit
 (ROADMAP). A glass without the system image (or the reverse) is off by 80/40 pixels.
+
+## 2026-11-02 — ChipNomad's AY resampled by a box filter; pt2 presents only the rectangles it drew
+
+**Status:** accepted (perf/ports-synth; follows "The C ports pace their audio by `hostMicros`")
+**Context:** On the board ChipNomad ran 11 fps and its song slow: ayumi cost ~4,900 cycles a 44.1 kHz sample
+(8 substeps, a cubic interpolator and a 19-tap FIR in float a sample) and needs rate >= clock / 64. pt2 idled
+at 28 fps: its present read the whole 320x255 ARGB frame buffer every frame (~1.7 Mc, a D$ miss every 8 pixels)
+although idle pt2 redraws only its scopes, VU meters and pointer. klystrack's cyd cost ~15,000 cycles a sample.
+**Decision:**
+- `apps/ports/chipnomad/kestrel_ayumi.cpp` replaces upstream's `ayumi.cpp` (same API, struct and chip model:
+  counters, LFSR, envelope shapes, DAC tables, pans, the soft-oscillator timer once a tick). The chip is stepped
+  event to event in integers; a sample is the exact mean of its ticks (a box filter); DC removal is a one-pole
+  high-pass. ChipNomad runs 22.05 kHz: ~1,000 cycles a sample with its mixer (~22 % of ZIGGY for real time).
+- pt2: every `video.frameBuffer` write site calls `kestrel_fb_dirty(x, y, w, h)` (sed patches); `present()`
+  converts only the marked rows and columns. `-DKESTREL_PRESENT_CHECK` builds compare with a full conversion.
+- klystrack keeps cyd, made cheaper only where the stream stays byte-identical (32-bit wavetable accumulators
+  via klystron's own `LOWRESWAVETABLE`, reverb taps by delay, idle FX buses and unheard channels skipped), and
+  the shared software renderer gets an indexed fast path. cyd still costs ~12,500 cycles a sample: the feed
+  stays capped at 33 ms.
+**Alternatives considered:** keep ayumi with a shorter FIR (still 8 float substeps a sample and the rate floor);
+an integer port of ayumi's interpolator + FIR (several times the box filter's work, for alias suppression the
+8-bit mono stream does not keep); pt2's present comparing with the previous frame, or checksumming rows (both
+still read every pixel); klystrack at 11 kHz (halves cyd, dulls every song).
+**Consequences:** ChipNomad's high tones alias more than with the FIR and its top octave is a little softer (rms
+-9 % on the gate's note); pitch and chip behaviour are upstream's tick for tick. A new pt2 write site that does
+not mark its rectangle leaves stale pixels: the check build finds it. klystrack plays slow on the board until cyd
+is cut further (fewer channels or taps, a lower rate) or moves to BARD (ROADMAP).
