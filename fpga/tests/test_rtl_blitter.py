@@ -48,7 +48,9 @@ MUTANTS = [
     ("triangle_top_edge_open", "zm_blit_tri.v", "y < ay ||", "y <= ay ||"),
     ("triangle_floor_is_truncation", "zm_blit_tri.v", "neg ? -up[17:0] : q[17:0]", "neg ? -q[17:0] : q[17:0]"),
     ("desc_ignored", "zm_blit_core.v", ".desc(f_con[6])", ".desc(1'b0)"),
-    ("key_compare_inverted", "zm_blit_pxq.v", "bval == key", "bval != key"),
+    ("key_compare_inverted", "zm_blit_pxq.v", "bv_next == key", "bv_next != key"),
+    # the key test made as the head loads: it must be the loading pixel's B, not the one in H
+    ("key_tested_on_the_pixel_before", "zm_blit_pxq.v", "h_skip <= skip_next;", "h_skip <= keyen && bval == key;"),
     ("halftone_bit_order", "zm_blit_regs.v", "{nz[hi] ? lane[hi[1:0]] : 8'd0, nz[lo] ? lane[lo[1:0]] : 8'd0}",
      "{nz[lo] ? lane[lo[1:0]] : 8'd0, nz[hi] ? lane[hi[1:0]] : 8'd0}"),
     ("halftone_sniff_counts_zero_bytes", "zm_blit_regs.v", "<= ld_data[8*(b%4) +: 8] != 8'd0;", "<= 1'b1;"),

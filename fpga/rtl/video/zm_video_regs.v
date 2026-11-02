@@ -69,7 +69,23 @@ module zm_video_regs (
         end
     endgenerate
 
-    assign cpu_rdata = regs[cpu_rword*32 +: 32];
+    // The read-back answers only the words the firmware reads (fpga/cycles/vseq.c copy_back:
+    // BACKGROUND, BEAM_DROPPED, BEAM_COUNT, FRAME; vseq_group.c vseq_copper_end: HSCROLL x2; the
+    // testbench's replay reads the first four): every other word reads 0. A 32:1 mux of 32 bits
+    // was -138 LUT (OOC, the true-colour study, fpga/review/TRUECOLOR_PLANE.md "payer 1").
+    localparam integer W_HS0 = ZM_REG_HSCROLL / 4, W_HS1 = ZM_REG_HSCROLL / 4 + 1;
+    localparam [4:0] C_BG = W_BG, C_FRAME = W_FRAME, C_HS0 = W_HS0, C_HS1 = W_HS1, C_BCOUNT = W_BCOUNT, C_BDROP = W_BDROP;
+    reg [31:0] rd;
+    always @(*) case (cpu_rword)
+        C_BG:     rd = regs[W_BG * 32 +: 32];
+        C_FRAME:  rd = regs[W_FRAME * 32 +: 32];
+        C_HS0:    rd = regs[W_HS0 * 32 +: 32];
+        C_HS1:    rd = regs[W_HS1 * 32 +: 32];
+        C_BCOUNT: rd = regs[W_BCOUNT * 32 +: 32];
+        C_BDROP:  rd = regs[W_BDROP * 32 +: 32];
+        default:       rd = 32'd0;
+    endcase
+    assign cpu_rdata = rd;
 endmodule
 
 `default_nettype wire

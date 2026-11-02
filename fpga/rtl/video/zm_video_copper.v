@@ -73,7 +73,7 @@ module zm_video_copper (
     reg [9:0] rword;                      // the buffer word read
     reg [9:0] wbase;                      // buffer word of body word 0
     reg rhalf;
-    reg [31:0] wq;                        // the word read, registered
+    wire [31:0] wq;                       // the word read, registered (zm_video_copchk.v)
     reg after;                            // the word read is the HEAD after the record
     // The pass's plane's record, copied out of the arrays (SEL), then compared (DONE): two clocks,
     // so no path runs from the LUT RAMs through the adders into the burst.
@@ -93,28 +93,18 @@ module zm_video_copper (
     assign fb_we = rd_rsp_valid && busy && st != HEAD;
     assign fb_raddr = rword[8:1];
     // DEC's and PAL's checks of wq are computed on the word a clock before it is wq (the buffer's
-    // read through the half mux) and registered with it. Each is a function of (word, room, k):
+    // read, zm_video_copchk.v) and registered with it. Each is a function of (word, room, k):
     // wq is loaded every clock, room and k change only on a HEAD, DEC or PAL edge, and DEC and PAL
     // are entered from RD2 alone, so a flag read in DEC or PAL equals its check on wq there. Before
     // this the 9-bit add and the 21-bit compares sat between wq and the state machine: the comp
     // domain's worst path in the 97 %-full bitstream (-0.385 ns at 125 MHz, 2026-11-01).
-    wire [31:0] w_pre = rhalf ? fb_rdata[63:32] : fb_rdata[31:0];
-    wire [8:0] wk_pre = {1'b0, w_pre[19:12]};
-    wire bad_blk_pre = wk_pre == 9'd0 || {1'b0, w_pre[27:20]} + wk_pre > 9'd256;
-    wire [18:0] t_word_pre = w_pre[20:2] - VW[18:0];
-    reg blk_ok_r, ref_blk_ok_r, lb_ok_r, ref_ok_pre;   // a PALETTE block fits; a PALREF's; LBASE in VRAM; a table
-    reg [18:0] t_word_q;
+    wire blk_ok_r, ref_blk_ok_r, lb_ok_r, ref_ok_pre;   // a PALETTE block fits; a PALREF's; LBASE in VRAM; a table
+    wire [18:0] t_word_q;
+    zm_video_copchk u_chk (.clk(clk), .fb_rdata(fb_rdata), .rhalf(rhalf), .room(room), .k(k), .wq(wq),
+        .blk_ok(blk_ok_r), .ref_blk_ok(ref_blk_ok_r), .lb_ok(lb_ok_r), .ref_ok(ref_ok_pre), .t_word(t_word_q));
     reg phys_r;                                        // phys a clock late: mode and stride hold while busy
     always @(posedge clk) begin
         rhalf <= rword[0];
-        wq <= w_pre;
-        blk_ok_r <= !bad_blk_pre && wk_pre < {1'b0, room};
-        ref_blk_ok_r <= !bad_blk_pre && room > 8'd1;
-        lb_ok_r <= w_pre[27:21] == 7'd0 && w_pre[20:0] >= ZM_OFF_VRAM && w_pre[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;
-        // PALREF's table: a word-aligned region offset whose k words lie in VRAM.
-        ref_ok_pre <= w_pre[1:0] == 2'd0 && w_pre[31:21] == 11'd0 && w_pre[20:2] >= VW[18:0]
-                      && t_word_pre + {11'd0, k} <= VWORDS;
-        t_word_q <= t_word_pre;
         phys_r <= phys;
     end
 

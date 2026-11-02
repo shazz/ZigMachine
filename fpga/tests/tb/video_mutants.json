@@ -114,7 +114,7 @@
   {
     "id": "scroll_no_hscroll",
     "file": "zm_video_plane.v",
-    "old": "m == SCROLL ? hs_live_i : 16'd0",
+    "old": "m == SCROLL || m == OVS ? hs_live_i : 16'd0",
     "new": "16'd0",
     "catch": "s:scroll"
   },
@@ -434,15 +434,15 @@
   {
     "id": "lbase_row_not_kept",
     "file": "zm_video_latch.v",
-    "old": "r_lrow[plane] <= lb_row;",
-    "new": "r_lrow[plane] <= 9'd0;",
+    "old": "r_lrow[wplane] <= lb_row;",
+    "new": "r_lrow[wplane] <= 9'd0;",
     "catch": "s:lbase"
   },
   {
     "id": "copper_check_a_word_late",
-    "file": "zm_video_copper.v",
-    "old": "blk_ok_r <= !bad_blk_pre && wk_pre < {1'b0, room};",
-    "new": "blk_ok_r <= wq[19:12] != 8'd0 && {1'b0, wq[27:20]} + {1'b0, wq[19:12]} <= 9'd256 && {1'b0, wq[19:12]} < {1'b0, room};",
+    "file": "zm_video_copchk.v",
+    "old": "blk_ok <= rhalf ? fit_hi && room_hi : fit_lo && room_lo;",
+    "new": "blk_ok <= wq[19:12] != 8'd0 && {1'b0, wq[27:20]} + {1'b0, wq[19:12]} <= 9'd256 && wq[19:12] < room;",
     "catch": "s:copper"
   },
   {
@@ -461,15 +461,15 @@
   },
   {
     "id": "lbase_vram_unchecked",
-    "file": "zm_video_copper.v",
-    "old": "&& w_pre[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;",
+    "file": "zm_video_copchk.v",
+    "old": "&& w[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;",
     "new": ";",
     "catch": "s:lbase"
   },
   {
     "id": "lbase_not_reset_at_latch",
     "file": "zm_video_latch.v",
-    "old": "r_lrow[plane] <= 9'd0;",
+    "old": "r_lrow[wplane] <= 9'd0;",
     "new": "",
     "catch": "s:lbase"
   },
@@ -479,5 +479,19 @@
     "old": "m == SCROLL || m == OVS ? hs_live_i : 16'd0",
     "new": "m == SCROLL ? hs_live_i : 16'd0",
     "catch": "s:lbase"
+  },
+  {
+    "id": "paint_index_a_column_late",
+    "file": "zm_video_paint.v",
+    "old": "(wrap ? s_n[10:0] : {1'b0, c_n});",
+    "new": "(wrap ? s[10:0] : {1'b0, c});",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "readback_drops_background",
+    "file": "zm_video_regs.v",
+    "old": "C_BG:     rd = regs[W_BG * 32 +: 32];",
+    "new": "C_BG:     rd = 32'd0;",
+    "catch": "s:beam"
   }
 ]

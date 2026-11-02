@@ -43,7 +43,14 @@ module zm_video_paint (
     reg [9:0]  c;
     reg [15:0] s;
     reg [7:0]  noise;                       // noise index of column c (+37 a column)
-    wire [10:0] bi = {9'd0, align} + (wrap ? s[10:0] : {1'b0, c});
+    // The buffer index align + (wrap ? s : c), kept in a register stepped with c and s (from c and
+    // s's next values): the add and the select sat between c and the fetch buffer's address
+    // (comp -0.77 ns, board_combo7). align and wrap are zm_video_plane's, written only at its `go`,
+    // and it stays in PAINT until this paint is done, so they hold from `start` to the last column.
+    reg [10:0] bi;
+    wire [9:0]  c_n = rst || start ? 10'd0 : run ? c + 10'd1 : c;
+    wire [15:0] s_n = rst || start ? s0 : run ? (s + 16'd1 == stride ? 16'd0 : s + 16'd1) : s;
+    always @(posedge clk) bi <= {9'd0, align} + (wrap ? s_n[10:0] : {1'b0, c_n});
     wire inner = !band && c >= L && c < R;
     wire open_c = band ? band_open : hit;
     wire wr0 = !ov || inner || open_c || flick;
@@ -61,14 +68,12 @@ module zm_video_paint (
     assign pal_raddr = nz1 ? n1 : byte1;
 
     always @(posedge clk) begin
+        c <= c_n;
+        s <= s_n;
         if (rst || start) begin
             run <= start;
-            c <= 10'd0;
-            s <= s0;
             noise <= nbase;
         end else if (run) begin
-            c <= c + 10'd1;
-            s <= s + 16'd1 == stride ? 16'd0 : s + 16'd1;
             noise <= noise + 8'd37;
             if (c + 10'd1 == ncols) run <= 1'b0;
         end

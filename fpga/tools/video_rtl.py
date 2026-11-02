@@ -38,6 +38,7 @@ SOURCES = [
     "zm_video_planepath.v",
     "zm_video_mix.v",
     "zm_video_rowio.v",
+    "zm_video_copchk.v",
     "zm_video_copper.v",
     "zm_video_palwb.v",
     "zm_video_pass.v",

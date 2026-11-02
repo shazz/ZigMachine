@@ -11,8 +11,9 @@
 
 module zm_video_latch (
     input  wire          clk,
-    input  wire          latch,          // copy the registers into slot `plane`
-    input  wire [1:0]    plane,
+    input  wire          latch,          // copy the registers into slot `wplane`
+    input  wire [1:0]    wplane,         // the slot written: the command's plane on its take
+    input  wire [1:0]    plane,          // the slot read: the compositor's registered plane
     input  wire [1023:0] regs,
     input  wire          upd,            // a plane pass ran: store its overscan state
     input  wire [15:0]   upd_seen,
@@ -38,27 +39,33 @@ module zm_video_latch (
 
     always @(posedge clk) begin
         if (latch) begin
-            r_mode[plane] <= regs[(ZM_REG_FB_MODE + plane) * 8 +: 8];
-            r_base[plane] <= regs[(ZM_REG_FB_BASE + plane * 4) * 8 +: 32];
-            r_lrow[plane] <= 9'd0;
-            r_stride[plane] <= regs[(ZM_REG_FB_STRIDE + plane * 2) * 8 +: 16];
-            r_hpos[plane] <= regs[(ZM_REG_FB_HBL_POS + plane * 2) * 8 +: 16];
-            r_hs[plane] <= regs[(ZM_REG_HSCROLL + plane * 2) * 8 +: 16];
-            r_seed[plane] <= regs[ZM_REG_FRAME * 8 +: 8];   // noise uses seed mod 256
-            r_seen[plane] <= regs[ZM_REG_RES_FLICKER * 8 +: 16];
-            r_top[plane] <= 1'b0;
-            r_bot[plane] <= 1'b0;
+            r_mode[wplane] <= regs[(ZM_REG_FB_MODE + wplane) * 8 +: 8];
+            r_base[wplane] <= regs[(ZM_REG_FB_BASE + wplane * 4) * 8 +: 32];
+            r_lrow[wplane] <= 9'd0;
+            r_stride[wplane] <= regs[(ZM_REG_FB_STRIDE + wplane * 2) * 8 +: 16];
+            r_hpos[wplane] <= regs[(ZM_REG_FB_HBL_POS + wplane * 2) * 8 +: 16];
+            r_hs[wplane] <= regs[(ZM_REG_HSCROLL + wplane * 2) * 8 +: 16];
+            r_seed[wplane] <= regs[ZM_REG_FRAME * 8 +: 8];   // noise uses seed mod 256
+            r_seen[wplane] <= regs[ZM_REG_RES_FLICKER * 8 +: 16];
+            r_top[wplane] <= 1'b0;
+            r_bot[wplane] <= 1'b0;
         end else if (upd) begin
-            r_seen[plane] <= upd_seen;
-            if (upd_top) r_top[plane] <= 1'b1;
-            if (upd_bot) r_bot[plane] <= 1'b1;
+            r_seen[wplane] <= upd_seen;
+            if (upd_top) r_top[wplane] <= 1'b1;
+            if (upd_bot) r_bot[wplane] <= 1'b1;
         end else if (lb_we) begin
             // LBASE: row r now reads lb_val + (r - lb_row) * stride; the next LATCH restores FB_BASE.
-            r_base[plane] <= {11'd0, lb_val};
-            r_lrow[plane] <= lb_row;
+            r_base[wplane] <= {11'd0, lb_val};
+            r_lrow[wplane] <= lb_row;
         end
     end
 
+    // Read with the registered plane, written with the take's: the read address no longer hangs on
+    // the command's take (cmd_ready -> the plane mux -> every LUT RAM read was comp's worst cone,
+    // board_combo7: the copper's d_stop and phys_r, the plane's moved/ncols). Only the take's own
+    // clock reads another slot than before, and nothing uses that clock's read: zm_video_plane
+    // starts a pass only once its inputs have held four clocks (`moved`, `held`), the copper
+    // reads mode/stride in SEL and DEC (busy: no take), the paint in PAINT (busy).
     assign mode = r_mode[plane];
     assign base = r_base[plane];
     assign stride = r_stride[plane];

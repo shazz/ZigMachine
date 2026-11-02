@@ -5,7 +5,9 @@
     "old": "else if (hold && op == OP_PLANE)",
     "new": "else if (1'b0)",
     "catch": "union_intro",
-    "args": ["--line-major"]
+    "args": [
+      "--line-major"
+    ]
   },
   {
     "id": "hold_reloads_fused",
@@ -13,7 +15,9 @@
     "old": "else if (hold && op == OP_PLANE)",
     "new": "else if (1'b0)",
     "catch": "union_intro",
-    "args": ["--line-major"],
+    "args": [
+      "--line-major"
+    ],
     "fuse": true
   },
   {
@@ -22,7 +26,9 @@
     "old": "if (take && !hold) dirty <= 1'b0;",
     "new": "if (take) dirty <= 1'b0;",
     "catch": "s:alpha",
-    "args": ["--line-major"]
+    "args": [
+      "--line-major"
+    ]
   },
   {
     "id": "filled_not_sticky",
@@ -30,7 +36,9 @@
     "old": "if (take && !hold) filled <=",
     "new": "if (take) filled <=",
     "catch": "leonard",
-    "args": ["--line-major"],
+    "args": [
+      "--line-major"
+    ],
     "fuse": true
   },
   {
@@ -39,7 +47,9 @@
     "old": "if (p_keep) {st, busy, done} <= {IDLE, 2'b01};",
     "new": "if (1'b0) {st, busy, done} <= {IDLE, 2'b01};",
     "catch": "union_intro",
-    "args": ["--line-major"],
+    "args": [
+      "--line-major"
+    ],
     "timing": true
   },
   {
@@ -48,7 +58,10 @@
     "old": "wire      to_pfb = (dirty || filled) && !p_nopfb;",
     "new": "wire      to_pfb = (dirty || filled);",
     "catch": "union_intro",
-    "args": ["--line-major", "--nopfb"],
+    "args": [
+      "--line-major",
+      "--nopfb"
+    ],
     "timing": true
   },
   {
@@ -57,6 +70,18 @@
     "old": ".hold(cmd_hold)",
     "new": ".hold(1'b0)",
     "catch": "s:worst",
-    "args": ["--line-major"]
+    "args": [
+      "--line-major"
+    ]
+  },
+  {
+    "id": "plane_start_the_clock_after_a_take",
+    "file": "zm_video_comp.v",
+    "old": "wire pl_wait = cop_busy || took;",
+    "new": "wire pl_wait = cop_busy;",
+    "catch": "union_intro",
+    "args": [
+      "--line-major"
+    ]
   }
 ]

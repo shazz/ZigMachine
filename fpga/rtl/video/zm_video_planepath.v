@@ -10,7 +10,8 @@ module zm_video_planepath (
     input  wire          rst,
     input  wire          latch,
     input  wire          start,
-    input  wire [1:0]    plane,
+    input  wire [1:0]    plane,            // registered; `wplane` is the latch's write slot
+    input  wire [1:0]    wplane,
     input  wire [8:0]    py,
     input  wire [1023:0] regs,
     input  wire          cop_flick,
@@ -49,7 +50,7 @@ module zm_video_planepath (
     wire top_open, bot_open, upd, upd_top, upd_bot;
     assign upd_seen = regs[ZM_REG_RES_FLICKER * 8 +: 16];
     zm_video_latch u_latch (
-        .clk(clk), .latch(latch), .plane(plane), .regs(regs), .upd(upd), .upd_seen(upd_seen),
+        .clk(clk), .latch(latch), .wplane(wplane), .plane(plane), .regs(regs), .upd(upd), .upd_seen(upd_seen),
         .upd_top(upd_top), .upd_bot(upd_bot), .lb_we(lb_we), .lb_val(lb_val), .lb_row(lb_row),
         .mode(mode), .base(base), .stride(stride), .hpos(hpos), .hs(hs), .seen(seen), .lrow(lrow), .seed(seed), .top_open(top_open), .bot_open(bot_open));
 

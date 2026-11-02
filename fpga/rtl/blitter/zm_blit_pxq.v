@@ -75,11 +75,14 @@ module zm_blit_pxq #(parameter LQ = 5) (
     end
 
     // H: the head pixel, all its bytes in
-    reg        hv, h_nop, h_row;
+    // h_skip, the key test, is made as the head loads, from the byte it loads (ben, keyen and key
+    // are the op's, fixed while any pixel is in flight: the core drains the unit between ops):
+    // ben's select and the compare sat before every H and hw_* clock enable (sys -0.53 ns, combo7).
+    reg        hv, h_nop, h_row, h_skip;
     reg [22:0] h_dst;
     reg [7:0]  h_a, h_b, h_c, h_bimm;
     wire [7:0] bval = ben ? h_b : h_bimm;
-    wire skip = keyen && bval == key;
+    wire skip = h_skip;
     wire [7:0] res;
     genvar i;
     generate
@@ -124,6 +127,9 @@ module zm_blit_pxq #(parameter LQ = 5) (
     wire [31:0] wa = h_reuse[0] ? hw_a : q_a[hs], wb = h_reuse[1] ? hw_b : q_b[hs];
     wire [31:0] wc = h_reuse[2] ? hw_c : q_c[hs];
     wire [22:0] hd = q_dst[hs];
+    wire [7:0] hb_next = h_need[1] ? wb >> {h_lanes[3:2], 3'b000} : 8'd0;
+    wire [7:0] bv_next = ben ? hb_next : q_bimm[hs];
+    wire skip_next = keyen && bv_next == key;
 
     always @(posedge clk) begin
         if (rst) begin
@@ -141,7 +147,8 @@ module zm_blit_pxq #(parameter LQ = 5) (
                 hv <= 1'b1; h_dst <= q_dst[hs]; h_bimm <= q_bimm[hs]; h_nop <= q_nop[hs]; h_row <= q_row[hs];
                 // a channel not read is 0, as the machine has it (the slot keeps an older pixel's word)
                 h_a <= h_need[0] ? wa >> {h_lanes[1:0], 3'b000} : 8'd0;
-                h_b <= h_need[1] ? wb >> {h_lanes[3:2], 3'b000} : 8'd0;
+                h_b <= hb_next;
+                h_skip <= skip_next;
                 h_c <= h_need[2] ? wc >> {hd[1:0], 3'b000} : 8'd0;
                 if (h_need[0]) hw_a <= wa;
                 if (h_need[1]) hw_b <= wb;

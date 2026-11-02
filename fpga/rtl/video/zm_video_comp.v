@@ -201,10 +201,14 @@ module zm_video_comp #(
         .fb_rdata(fb_rdata), .pal_we(cop_pal_we), .pal_waddr(cop_pal_waddr), .pal_wdata(cop_pal_wdata),
         .hs_we(cop_hs_we), .hs_word(cop_hs_word), .hs_be(cop_hs_be), .hs_wdata(cop_hs_wdata),
         .lb_we(cop_lb_we), .lb_val(cop_lb_val), .lb_row(cop_lb_row));
-    // The plane's paint waits for the copper: a start held while it runs.
-    reg pl_pend = 1'b0;
-    wire pl_go = (start_pl || pl_pend) && !cop_busy;
-    always @(posedge clk) pl_pend <= !rst && (start_pl || pl_pend) && cop_busy;
+    // The plane's paint waits for the copper: a start held while it runs. It also waits out the
+    // clock after a take (`took`): the latch is read with the registered plane, so a start that
+    // soon would meet zm_video_plane's inputs before `moved` can see them change.
+    reg pl_pend = 1'b0, took = 1'b0;
+    always @(posedge clk) took <= take;
+    wire pl_wait = cop_busy || took;
+    wire pl_go = (start_pl || pl_pend) && !pl_wait;
+    always @(posedge clk) pl_pend <= !rst && (start_pl || pl_pend) && pl_wait;
 
     // --- plane pass: its fetch and the row loads share the read port, by phase (the copper first) ---
     wire pl_rd_valid, rw_rd_valid;
@@ -216,7 +220,7 @@ module zm_video_comp #(
     assign rd_req_addr = cop_busy || fetching ? vbase + rd_off : rw_rd_addr;
     assign rd_req_len = cop_busy ? cop_rd_len : fetching ? pl_rd_len : rw_rd_len;
     zm_video_planepath u_pp (
-        .clk(clk), .rst(rst), .latch(latch), .start(pl_go), .plane(take ? cmd_plane : plane),
+        .clk(clk), .rst(rst), .latch(latch), .start(pl_go), .plane(plane), .wplane(take ? cmd_plane : plane),
         .py(line), .regs(regs), .cop_flick(cop_flick), .lb_we(cop_lb_we), .lb_val(cop_lb_val),
         .lb_row(cop_lb_row), .lmode(pl_mode), .lstride(pl_stride), .done(pl_done),
         .rd_req_valid(pl_rd_valid), .rd_req_ready(!cop_busy && fetching && rd_req_ready), .rd_req_addr(pl_rd_addr),
