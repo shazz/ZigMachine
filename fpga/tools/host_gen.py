@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 import wasm_info
-from host_bridges import HOST_DEFAULTS, HOST_ENTRIES, MIRROR, disk_app_bridge, export_table, input_bridge, mirror_bind
+from host_bridges import HOST_DEFAULTS, HOST_ENTRIES, MIRROR, PAULA, disk_app_bridge, export_table, input_bridge, mirror_bind
 from host_bridges import song_bridge
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -152,9 +152,10 @@ def forwarder(name: str, ret: str, params: list[str], target: str | None, export
     if name in HOST_ENTRIES:  # the stream ring's, the audio mirror's: a hook macro each
         want_ret, want_params, macro = HOST_ENTRIES[name]
         if target is not None or (ret, params) != (want_ret, want_params):
-            who = "audio mirror" if name in MIRROR else "stream"
+            who = "audio mirror" if name in MIRROR else "Paula" if name in PAULA else "stream"
             sys.exit(f"host_gen: env.{name} must be the {who}'s {want_ret}{want_params}, not {ret}{params} via {target}")
-        return f"{head} {{ {macro}({', '.join(['e', *(f'a{i}' for i in range(len(params)))])}); }}\n"
+        ret_kw = "" if ret == "void" else "return "
+        return f"{head} {{ {ret_kw}{macro}({', '.join(['e', *(f'a{i}' for i in range(len(params)))])}); }}\n"
     if name in DRIVE:
         if target is not None or (ret, params) != DRIVE[name]:
             sys.exit(f"host_gen: env.{name} must be the drive's {DRIVE[name]}, not {ret}{params} via {target}")

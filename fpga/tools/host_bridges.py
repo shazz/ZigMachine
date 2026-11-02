@@ -75,6 +75,25 @@ STREAM_DEFAULTS = """/* Stream hooks: the stub's no-op. host/hstream.h (-include
 """
 
 
+# A cart's Paula (HW 1.14.0, apps/zig/demo_audio_paula.zig): claim, chip RAM upload, timed register
+# writes, release. Hooks as the stream's: the claim answers 0 (no Paula for the cart: it mixes in
+# software) unless host/hstream.h (-include, where the players run) defines them.
+PAULA = {
+    "hostPaulaClaim": ("u32", ["u32"], "HOST_PAULA_CLAIM"),
+    "hostPaulaUpload": ("void", ["u32", "u32", "u32"], "HOST_PAULA_UPLOAD"),
+    "hostPaulaWrite": ("void", ["u32", "u32"], "HOST_PAULA_WRITE"),
+    "hostPaulaRelease": ("void", [], "HOST_PAULA_RELEASE"),
+}
+PAULA_DEFAULTS = """/* Paula hooks: no Paula for the cart (claim 0). host/hstream.h (-include) defines them where the players run. */
+#ifndef HOST_PAULA_CLAIM
+#define HOST_PAULA_CLAIM(e, lead) ((void)(e), (void)(lead), 0u)
+#define HOST_PAULA_UPLOAD(e, src, off, len) ((void)(e), (void)(src), (void)(off), (void)(len))
+#define HOST_PAULA_WRITE(e, ptr, n) ((void)(e), (void)(ptr), (void)(n))
+#define HOST_PAULA_RELEASE(e) ((void)(e))
+#endif
+"""
+
+
 # The audio-state mirror (cycles/aud_state.h): the cart's ZigOS fields docs/sealed-loader.js
 # writes from the worklet's "audioState" (ym_regs, audio_mode, song_ms), as offsets in its memory,
 # handed to the HOST_AUDIO_MIRROR hook once, after the cart's instantiation. No wasm imports it:
@@ -87,9 +106,10 @@ MIRROR_DEFAULTS = """/* The audio-state hook: a no-op unless cycles/bmirror.h (-
 #define HOST_AUDIO_MIRROR(e, ym, mode, ms) ((void)(e), (void)(ym), (void)(mode), (void)(ms))
 #endif
 """
-# The system table's host entries (table 1.1: the stream ring; 1.2: the mirror), and their defaults.
-HOST_ENTRIES = {**STREAM, **MIRROR}
-HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS
+# The system table's host entries (table 1.1: the stream ring; 1.2: the mirror; 1.6: the cart's
+# Paula), and their defaults.
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA}
+HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:

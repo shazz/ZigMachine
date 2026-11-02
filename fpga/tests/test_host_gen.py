@@ -170,6 +170,20 @@ def test_the_stream_imports_call_their_hooks_whose_default_is_the_stubs_no_op() 
     assert "#define HOST_AUDIO_FEED(e, ptr, len) ((void)(e), (void)(ptr), (void)(len))" in host_gen.HOST_DEFAULTS
 
 
+def test_the_paula_imports_call_their_hooks_and_the_claim_returns_its_answer() -> None:
+    claim = host_gen.forwarder("hostPaulaClaim", "u32", ["u32"], None, EXPORTS)
+    assert claim == "u32 w2c_env_hostPaulaClaim(struct w2c_env* e, u32 a0) { return HOST_PAULA_CLAIM(e, a0); }\n"
+    write = host_gen.forwarder("hostPaulaWrite", "void", ["u32", "u32"], None, EXPORTS)
+    assert write == "void w2c_env_hostPaulaWrite(struct w2c_env* e, u32 a0, u32 a1) { HOST_PAULA_WRITE(e, a0, a1); }\n"
+    # No Paula where no player runs: the default claim is 0, so the cart mixes in software.
+    assert "#define HOST_PAULA_CLAIM(e, lead) ((void)(e), (void)(lead), 0u)" in host_gen.HOST_DEFAULTS
+
+
+def test_a_paula_import_with_the_wrong_signature_is_refused() -> None:
+    with pytest.raises(SystemExit, match="Paula"):
+        host_gen.forwarder("hostPaulaClaim", "void", ["u32"], None, EXPORTS)
+
+
 def test_a_stream_import_with_the_wrong_signature_is_refused() -> None:
     with pytest.raises(SystemExit, match="stream"):
         host_gen.forwarder("hostAudioFeed", "void", ["u32"], None, EXPORTS)

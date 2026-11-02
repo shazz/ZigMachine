@@ -128,8 +128,16 @@ static void song_bytes(const audio_fx* fx) {
 }
 
 /* playSongByName: the extension picks the player; "none" stops everything. */
+/* While a cart holds the Paula channels (HW 1.14.0): its chip RAM is song RAM, nothing else plays. */
+static int paula_refuses(const char* what) {
+    if (!audio_paula_holds()) return 0;
+    printf("ZM PAULA %s refused: the cart holds the channels\n", what);
+    return 1;
+}
+
 void audio_play(const char* name, uint32_t tune) {
     w2c_audio* p = &g_aud.player;
+    if (paula_refuses(name)) return;
     audio_backend_song(name, tune);
     if (strcmp(name, "none") == 0) {
         g_resident[0] = 0;
@@ -164,6 +172,7 @@ void audio_play(const char* name, uint32_t tune) {
 /* One zg.sndhCall: INIT with d0 on the SNDH playing if it is `name`, else load `name`
  * and make d0 its first INIT (the image is not the one playing). */
 void audio_sndh_call(const char* name, uint32_t d0) {
+    if (paula_refuses(name)) return;
     if (strcmp(name, g_resident) == 0) {
         w2c_audio_audioSndhCall(&g_aud.player, d0);
         return;
@@ -186,7 +195,10 @@ static int sfx_play(const audio_fx* fx) {
 static void effect(const audio_fx* fx) {
     w2c_audio* p = &g_aud.player;
     const char* missed = NULL;
-    if (audio_pcm_effect(fx)) {
+    if (audio_paula_effect(fx)) {
+        /* a cart's Paula: host/audio_paula.c */
+    } else if (paula_refuses("an effect")) {
+    } else if (audio_pcm_effect(fx)) {
         /* the stream ring: host/audio_pcm.c */
     } else if (fx->op == FX_PLAY) {
         if (!sfx_play(fx)) missed = "sfxPlay";

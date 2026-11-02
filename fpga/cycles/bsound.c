@@ -99,7 +99,9 @@ void audio_sndh_call(const char* name, uint32_t d0) { post(OP_SNDH_CALL, name, d
  * (zg.requestSongBytes: BARD copies it into its song RAM) bytes are read by the sound CPU from the
  * cart's memory while it runs the command, so a command holding one is waited for:
  * the browser copies them as it drains the queue, and the cart may reuse the buffer next frame (a
- * feed's, within the frame). A sample's (FX_SAMPLE) are read as it plays: the cart keeps them. */
+ * feed's, within the frame); so is a cart's Paula write batch (FX_PAULA_WRITE: its buffer is the next
+ * frame's). A sample's (FX_SAMPLE) are read as it plays, and a Paula upload's (FX_PAULA_UPLOAD) before
+ * the next command is taken: the cart keeps them (its samples). */
 void audio_effects(const audio_fx* fx, uint32_t n) {
 #ifdef ZM_SND_FX_DROP /* the mutant tools/bard_fx_run.py --drop builds: the requests never reach BARD */
     (void)fx, (void)n;
@@ -116,7 +118,7 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
             w[1] = (uint32_t)f->pcm;
             w[2] = f->len;
             w[3] = f->rate;
-            plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED || f->op == FX_SONG;
+            plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED || f->op == FX_SONG || f->op == FX_PAULA_WRITE;
         }
         SND_REG(SND_C2S + C_OP) = OP_EFFECTS;
         SND_REG(SND_C2S + C_ARG) = k;

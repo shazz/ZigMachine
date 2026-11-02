@@ -72,6 +72,7 @@ static void effects(struct w2c_env* e) {
 }
 
 static uint32_t g_pending_rate; /* a stream start made before the players were up (audio_live) */
+static int g_paula;             /* the cart holds the Paula channels (audio_paula_claim, below) */
 
 int audio_bridge(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
@@ -114,7 +115,45 @@ void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) {
 void audio_stream_stop(struct w2c_env* e) {
     (void)e;
     g_pending_rate = 0;
-    if (!audio_live()) return;
+    if (!audio_live() || g_paula) return; /* the claim silenced the ring; song RAM is the cart's chip RAM */
     audio_fx f = {.op = FX_STREAM_STOP};
+    audio_effects(&f, 1);
+}
+
+/* env.hostPaulaClaim / Upload / Write / Release (HW 1.14.0, host/hstream.h): as the loader's, carried
+ * to the players as effects (on the board BARD reads the bytes in the cart's memory; a write batch is
+ * waited for, cycles/bsound.c). The claim answers 0 while no player runs (a host with no audio side,
+ * or the board's sound CPU not up): the cart mixes in software then. */
+#define PAULA_CHIP 0x100000u /* machine/sdk/audio.zig SONG_CAP: chip RAM is song RAM */
+#define PAULA_BATCH 4096u    /* the most writes one call hands over */
+
+static int in_cart(struct w2c_env* e, uint32_t ptr, uint64_t len) { return (uint64_t)ptr + len <= e->memory.size; }
+
+uint32_t audio_paula_claim(struct w2c_env* e, uint32_t lead) {
+    (void)e;
+    if (!audio_live()) return 0;
+    audio_fx f = {.op = FX_PAULA_CLAIM, .rate = lead};
+    audio_effects(&f, 1);
+    g_paula = 1;
+    return 1;
+}
+
+void audio_paula_upload(struct w2c_env* e, uint32_t src, uint32_t off, uint32_t len) {
+    if (!g_paula || !len || (uint64_t)off + len > PAULA_CHIP || !in_cart(e, src, len)) return;
+    audio_fx f = {.op = FX_PAULA_UPLOAD, .pcm = (uintptr_t)(e->memory.data + src), .len = len, .rate = off};
+    audio_effects(&f, 1);
+}
+
+void audio_paula_write(struct w2c_env* e, uint32_t ptr, uint32_t n) {
+    if (!g_paula || !n || n > PAULA_BATCH || !in_cart(e, ptr, 16ull * n)) return;
+    audio_fx f = {.op = FX_PAULA_WRITE, .pcm = (uintptr_t)(e->memory.data + ptr), .len = n};
+    audio_effects(&f, 1);
+}
+
+void audio_paula_release(struct w2c_env* e) {
+    (void)e;
+    if (!g_paula) return;
+    g_paula = 0;
+    audio_fx f = {.op = FX_PAULA_RELEASE};
     audio_effects(&f, 1);
 }
