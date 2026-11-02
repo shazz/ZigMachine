@@ -5,13 +5,15 @@
 const m = @import("ram.zig");
 const R = @import("rick_ram.zig");
 const snd = @import("sound.zig");
+const trainer = @import("trainer.zig");
 
 const RIGHT_TO_LEFT: i64 = 0xFC0; // the left-facing frames follow the right-facing ones
 
-/// $3C266: lives - 1, scream (digi $13), vy = $FD00, drift 3 px a frame.
+/// $3C266: lives - 1 (not with the trainer's infinite lives), scream (digi
+/// $13), vy = $FD00, drift 3 px a frame.
 pub fn die() void {
     m.wb(R.DYING, 0xFF);
-    m.wb(R.LIVES, m.rb(R.LIVES) - 1);
+    if (!trainer.infinite_lives) m.wb(R.LIVES, m.rb(R.LIVES) - 1);
     m.wb(R.DIRTY_LIVES, 0xFF);
     m.ww(R.BONUS_ON, 0);
     snd.play(0x13, 1);

@@ -3,6 +3,13 @@
 The finished items of the KESTREL roadmap, newest first. The open items live in [ROADMAP.md](ROADMAP.md) (Matt's
 view: the roadmap artifact, https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W).
 
+## Done 1 Nov
+
+| Prio | Item | Area | Notes | Who |
+|---|---|---|---|---|
+| P3 | Rick Dangerous: Empire cracktro + trainer | screens | 656835dd: EMP_CABL.PRG (The Empire's Cabal) in front of Rick, its look and Leavin' Teramis subtune 11 (matched register for register against the original in Hatari), the trainer's y/n options (infinite lives / bullets / dynamite) | agent + lead |
+| P2 | Leonard's Spirit: the scrolltext falls, the 1,872 balls fade in, the missing letters | screens | When the bottom border opens for good the scroller drops and bounces (a compile-time Q8 table, fall.zig) to rest 6 px above the open bottom; snakes 1..6 fade in from black once fullscreen + hw scroll run (only the 312 before); J Q ? : = drawn into font.raw; harness break `fall` | lead |
+
 ## Done 31 Oct
 
 | Prio | Item | Area | Notes | Who |

@@ -3,6 +3,7 @@
 // the new file in song RAM, which is the playing SNDH's 68000 RAM: a load that leaves the
 // SNDH active lets it render first and run its PLAY/EXIT over the new bytes (the Union
 // cracktro's "keys 3+ crash" for a YM dump, 2026-10-20; the same hole in the SAP load).
+// The same for a raw sample (audioPlayRaw), whose SNDH whined 4 s then went silent.
 // For each kind: SNDH playing -> load + play the other file -> its mode, no runaway
 // 68000, a sound; then back to an SNDH, which must play again.
 //
@@ -14,6 +15,8 @@ const KINDS = [
     { file: "docs/music/Gauntlet.sap", mode: 5, load: (d, n) => d.audioLoadSap(n), play: (d) => d.audioSapPlay(0) },
     { file: "docs/music/shaolin_title.hip", mode: 1, load: (d, n) => d.audioLoadHip(n), play: (d) => d.audioHipPlay(1) },
     { file: "docs/music/union/Drooling.ymraw", mode: 2, load: (d, n) => d.audioLoadYm(n), play: (d) => d.audioYmPlay() },
+    // A .raw has no load step: audioPlayRaw stages and plays (the Dyno scroller's main part, 2026-11-01).
+    { file: "docs/music/dyno_paradis3_boris.raw", mode: 3, load: (d, n) => (d.audioPlayRaw(n, 12517, 0), true), play: () => {} },
 ];
 const BLOCK = 1024, SECOND = 43;
 
@@ -50,7 +53,7 @@ for (const k of KINDS) {
     const t0 = performance.now();
     const loaded = k.load(d, await stage(k.file));
     if (loaded) k.play(d);
-    const peak = second();
+    const peak = Math.min(second(), second()); // the second second too: a runaway SNDH sounds on, then dies
     const ran = d.audioSndhStuckPc() !== stuck, ms = performance.now() - t0;
     ok(!!loaded && d.audioMode() === k.mode && !ran && peak > 0.01,
         `${k.file} over it: loaded ${!!loaded}, mode ${d.audioMode()} (want ${k.mode}), ` +

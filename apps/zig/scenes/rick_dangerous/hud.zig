@@ -16,11 +16,14 @@ pub fn score() void {
 }
 
 /// $3AF7E: 6 blanks ($5E), then `count` icon tiles from the left, then print.
+/// At most 6 icons: the text has 6 slots, and a count over 6 (extra lives on
+/// top of a trainer's) would run the original's loop past them into the
+/// next text.
 fn icons(text: i64, off: i64, count: i64, tile: i64) void {
     var k: i64 = 0;
     while (k < 6) : (k += 1) m.wb(text + k, 0x5E);
     k = 0;
-    while (k < count) : (k += 1) m.wb(text + k, tile);
+    while (k < @min(count, 6)) : (k += 1) m.wb(text + k, tile);
     core.printText(off, text);
 }
 

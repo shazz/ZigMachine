@@ -24,7 +24,9 @@
 // would cost one more FRESCO pass a frame for the same clear. Palettes
 // merged: 0-3 picture, 4-6 ball, 7 scroller ink. Borders open for real: the
 // plane's HBL flickers the resolution at the magic column on the lines of
-// each open side (borderHbl), never on a closed one.
+// each open side (borderHbl), never on a closed one. When the bottom border
+// has opened for good the scrolltext falls to the open screen's bottom and
+// bounces to rest there (leonard_spirit/fall.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -35,6 +37,7 @@ const show = @import("leonard_spirit/show.zig");
 const restore = @import("leonard_spirit/restore.zig");
 const lay = @import("leonard_spirit/layout.zig");
 const text = @import("leonard_spirit/text.zig");
+const fall = @import("leonard_spirit/fall.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -64,6 +67,7 @@ const font_b = @embedFile(A ++ "font.raw");
 // merged palette: picture 0-3, ball 1-3 -> 4-6, font ink 1 -> 7
 pub const BALL_INK = 3;
 pub const FONT_INK = 7;
+pub const FADE_INK = 7; // the fading snakes' ball: 8-10, a copy of 4-6 faded (show.fadeLevel)
 const palette: [256]Color = blk: {
     const back = zg.convertU8ArraytoColors(@embedFile(A ++ "back_pal.dat"));
     const ball = zg.convertU8ArraytoColors(@embedFile(A ++ "ball_pal.dat"));
@@ -72,10 +76,12 @@ const palette: [256]Color = blk: {
     for (0..4) |i| p[i] = back[i];
     for (1..4) |i| p[BALL_INK + i] = ball[i];
     p[FONT_INK] = font[1];
+    for (1..4) |i| p[FADE_INK + i] = .{ .r = 0, .g = 0, .b = 0, .a = ball[i].a };
     break :blk p;
 };
 
 pub const Ball = ball_mod.Sprite(16, 16, ball_b.*, BALL_INK);
+pub const FadeBall = ball_mod.Sprite(16, 16, ball_b.*, FADE_INK);
 pub const Strip = scroll.Strip(font_b, text.full(NB, path.SNAKES), FONT_INK);
 const SCROLL_TICKS: u32 = Strip.TEXT_W / scroll.SPEED; // one lap of the text
 
@@ -89,6 +95,7 @@ pub var frame: u32 = 0; // the balls' phase, 0..359
 pub var phase: u32 = 0; // the scroll's phase, Q16 path frames, 0..360<<16
 pub var tick: u32 = 0; // the scroller's
 pub var open_mask: u8 = 0; // the borders the HBL opens this frame
+pub var fade: u32 = 0; // the extra snakes' brightness (show.fadeLevel)
 pub var plane: [*]align(4) u8 = undefined;
 
 // Per line of the window: flicker on the lines of an open side only, at the
@@ -115,6 +122,7 @@ pub const Demo = struct {
         frame = 0;
         phase = 0;
         tick = 0;
+        fade = 0;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -130,10 +138,12 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[0];
         const s = path.SCROLL[phase >> 16];
         open_mask = show.openMask(t);
+        const level = show.fadeLevel(t);
+        if (level != fade) setFade(fb, level);
         fb.setScroll(s.x, s.y);
         restore.window(&self.blitter, fb, back_b, s.x, s.y, OX, OY);
-        drawBalls(frame, s, fb.stride); // = lay.BUF_W, but a run-time value: see ball.zig
-        var band = restore.rowView(fb, s.y + lay.SCROLL_Y);
+        drawBalls(frame, s, fb.stride, fade != 0); // = lay.BUF_W, but a run-time value: see ball.zig
+        var band = restore.rowView(fb, s.y + fall.row(t)); // drops and bounces once the bottom opens (fall.zig)
         self.blitter.blitImage(&band, @intCast(s.x), 0, &Strip.pixels, Strip.W, Strip.windowX(tick), 0, lay.WIN_W, scroll.CW, 0);
         phase = show.stepPhase(phase, t);
         frame = if (frame + 1 == path.PERIOD) 0 else frame + 1;
@@ -142,15 +152,35 @@ pub const Demo = struct {
     }
 };
 
-fn drawBalls(f: u32, s: path.Pan, stride: u32) void {
-    var k: u32 = 0;
-    while (k < path.SNAKES) : (k += 1) {
-        var c = path.Chain.start(f, k);
-        var i: u32 = 0;
-        while (i < path.SNAKE_LEN) : (i += 1) {
-            Ball.draw(plane, stride, c.x() + s.x, c.y() + s.y);
-            c.next();
-        }
+// The fading snakes first, under the record's: Leonard's 312 stay on top.
+fn drawBalls(f: u32, s: path.Pan, stride: u32, extra: bool) void {
+    if (extra) {
+        var k: u32 = 1;
+        while (k < path.SNAKES) : (k += 1) drawSnake(FadeBall, f, k, s, stride);
+    }
+    drawSnake(Ball, f, 0, s, stride);
+}
+
+fn drawSnake(comptime B: type, f: u32, k: u32, s: path.Pan, stride: u32) void {
+    var c = path.Chain.start(f, k);
+    var i: u32 = 0;
+    while (i < path.SNAKE_LEN) : (i += 1) {
+        B.draw(plane, stride, c.x() + s.x, c.y() + s.y);
+        c.next();
+    }
+}
+
+// The fading ball's three shades: the record's, times level / FADE_LEVELS.
+fn setFade(fb: *LogicalFB, level: u32) void {
+    fade = level;
+    for (1..4) |i| {
+        const c = palette[BALL_INK + i];
+        fb.setPaletteEntry(@intCast(FADE_INK + i), .{
+            .r = @intCast(c.r * level / show.FADE_LEVELS),
+            .g = @intCast(c.g * level / show.FADE_LEVELS),
+            .b = @intCast(c.b * level / show.FADE_LEVELS),
+            .a = c.a,
+        });
     }
 }
 

@@ -27,7 +27,7 @@ import * as M from "./leonard_spirit_model.mjs";
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const argv = process.argv.slice(2);
 const opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv[i + 1]; };
-const BREAKS = ["pixels", "count", "music", "palette", "border", "scroll"];
+const BREAKS = ["pixels", "count", "music", "palette", "border", "scroll", "fall"];
 const brk = opt("--break");
 if (brk && !BREAKS.includes(brk)) throw new Error(`--break ${BREAKS.join("|")}`);
 const ppm = opt("--ppm");
@@ -66,12 +66,14 @@ const st = (k) => demo.lsState(k); // 0 NB, 1 ball frame, 2 tick, 4 lap, 5 t, 6 
 }
 
 // ---------------- 2. every frame ---------------------------------------------
-const MERGED = M.mergedPalette();
-if (brk === "palette") [MERGED[4], MERGED[5]] = [MERGED[5], MERGED[4]];
+const BASE = M.mergedPalette();
+let MERGED = BASE;
+if (brk === "palette") [BASE[4], BASE[5]] = [BASE[5], BASE[4]];
 const FRAMES = Math.max(M.CRUISE + 720, st(4) + 400);
 const want = new Uint8Array(M.WIN_W * M.WIN_H), fails = {};
 const fail = (what, msg) => { fails[what] ??= { n: 0, first: msg }; fails[what].n++; };
 let phase = 0, closedWord = null;
+const FALL = M.fallRows(brk !== "fall");
 for (let t = 0; t < FRAMES; t++) {
     const f = st(1), tick = st(2), p = phase >> 16, pan = M.pan(p);
     if (st(5) !== Math.min(t, M.CRUISE) || st(6) !== phase) fail("show", `t ${t}: cart t ${st(5)} phase ${st(6)}, model ${phase}`);
@@ -79,7 +81,8 @@ for (let t = 0; t < FRAMES; t++) {
     demo.frame(16.6);
     const mask = st(7);
     if (mask !== M.openMask(t)) fail("show", `t ${t}: borders open ${mask}, model ${M.openMask(t)}`);
-    M.windowPixels(want, f, pan, tick, M.TEXT, brk === "count" ? 1 : 0);
+    M.windowPixels(want, f, pan, tick, M.TEXT, brk === "count" ? 1 : 0, M.scrollRow(t, FALL), M.fadeLevel(t));
+    MERGED = M.fadedPalette(BASE, M.fadeLevel(t));
     if (brk === "pixels" && t === 777) want[60000] ^= 1;
     const buf = new Uint8Array(memory.buffer, demo.lsPlane(), M.BUF_W * 448);
     pixels: for (let y = 0; y < M.WIN_H; y++) for (let x = 0; x < M.WIN_W; x++) {
