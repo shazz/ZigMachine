@@ -54,11 +54,17 @@ module zm_audio_sched #(
     // rptr moves at t, the RAM reads it at t+1, head_q holds it from t+2, loaded rises at t+2.
     // A write now leaves every three clocks instead of two; a sample period is thousands, and
     // a write still lands only between two mixes, so no sample changes.
-    reg         loaded = 1'b0, l1 = 1'b0;
+    // `due` is registered too (board_combo8: the DSP's `now` through the 22-bit subtract into the
+    // pop and every chip register's enable was sys's next path, -0.14 ns): it is head_q's a clock
+    // late, so `loaded` waits one more clock (l2) and a write leaves every four clocks. Against
+    // `now` it is a clock late as well, which no pop can see: `now` moves on the strobe, and
+    // `mixing` (the strobe, then the PCM mix: CHK..NEXT for four channels) holds every pop for the
+    // clocks after it, longer than one.
+    reg         loaded = 1'b0, l1 = 1'b0, l2 = 1'b0, due = 1'b0;
     reg  [63:0] head_q = 64'd0;
     wire [21:0] stamp = head_q[63:42];
     wire [21:0] ahead = stamp - now[21:0];   // > 0: due later (mod 2^22, 95 s)
-    wire        due = ahead == 22'd0 || ahead[21];
+    always @(posedge clk) due <= ahead == 22'd0 || ahead[21];
     wire        pop = loaded && due && !mixing && core_ready;
     assign core_wr = pop;
     assign core_addr = head_q[41:32];
@@ -68,14 +74,15 @@ module zm_audio_sched #(
     always @(posedge clk) head_q <= head;
     always @(posedge clk) begin
         if (rst) begin
-            {wptr, rptr, count, loaded, l1, late, overflow} <= 0;
+            {wptr, rptr, count, loaded, l1, l2, late, overflow} <= 0;
             {now, applied} <= 0;
         end else begin
             if (take) wptr <= wptr + 1'b1;
             if (pop) rptr <= rptr + 1'b1;
             count <= count + take - pop;
             l1 <= !pop && count != 0;
-            loaded <= !pop && l1;
+            l2 <= !pop && l1;
+            loaded <= !pop && l2;
             if (tick) now <= now + 32'd1;
             if (pop) applied <= applied + 32'd1;
             late <= clear ? 1'b0 : late | (pop && ahead != 22'd0);

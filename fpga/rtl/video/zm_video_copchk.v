@@ -27,12 +27,15 @@ module zm_video_copchk (
     function blk_fits(input [31:0] w);         // k != 0 and first + k <= 256 (9 bits: no wrap)
         blk_fits = w[19:12] != 8'd0 && {1'b0, w[27:20]} + {1'b0, w[19:12]} <= 9'd256;
     endfunction
-    // (w - VW) + k <= VWORDS as w + k <= VW + VWORDS, no subtract before the add (comp -0.83 ns,
-    // board_combo7): the same test, as w >= VW and w - VW + k < 2^19 (VW = 1088 > 255), so the
-    // 19-bit sum the old form compared never wrapped.
-    function tab_fits(input [31:0] w, input [7:0] kk);
-        tab_fits = w[1:0] == 2'd0 && w[31:21] == 11'd0 && w[20:2] >= VW
-                   && {1'b0, w[20:2]} + {12'd0, kk} <= VEND;
+    // (w - VW) + k <= VWORDS as w <= VW + VWORDS - k: the same test, as w >= VW and
+    // w - VW + k < 2^19 (VW = 1088 > 255), so the 19-bit sum the old form compared never wrapped
+    // (board_combo7: the subtract then the add after the block RAM, comp -0.83 ns). `lim` is
+    // VEND - k a clock late: k moves on a DEC or PAL edge, and the one read of ref_ok, a PALREF's
+    // offset in PAL, is the check made in RD2, two clocks after the DEC that set k.
+    reg [19:0] lim;
+    always @(posedge clk) lim <= VEND - {12'd0, k};
+    function tab_fits(input [31:0] w);
+        tab_fits = w[1:0] == 2'd0 && w[31:21] == 11'd0 && w[20:2] >= VW && {1'b0, w[20:2]} <= lim;
     endfunction
     function lb_fits(input [31:0] w);
         lb_fits = w[27:21] == 7'd0 && w[20:0] >= ZM_OFF_VRAM && w[20:0] < ZM_OFF_VRAM + ZM_VRAM_BYTES;
@@ -48,7 +51,7 @@ module zm_video_copchk (
         blk_ok <= rhalf ? fit_hi && room_hi : fit_lo && room_lo;
         ref_blk_ok <= fit && room > 8'd1;
         lb_ok <= rhalf ? lb_fits(hi) : lb_fits(lo);
-        ref_ok <= rhalf ? tab_fits(hi, k) : tab_fits(lo, k);
+        ref_ok <= rhalf ? tab_fits(hi) : tab_fits(lo);
         t_word <= w[20:2] - VW;
     end
 endmodule

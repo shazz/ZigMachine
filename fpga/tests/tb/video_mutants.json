@@ -493,5 +493,12 @@
     "old": "C_BG:     rd = regs[W_BG * 32 +: 32];",
     "new": "C_BG:     rd = 32'd0;",
     "catch": "s:beam"
+  },
+  {
+    "id": "copper_palref_limit_unset",
+    "file": "zm_video_copchk.v",
+    "old": "lim <= VEND - {12'd0, k};",
+    "new": "lim <= 20'd0;",
+    "catch": "s:copper"
   }
 ]

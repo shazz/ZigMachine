@@ -50,6 +50,8 @@ MUTANTS = [
     ("desc_ignored", "zm_blit_core.v", ".desc(f_con[6])", ".desc(1'b0)"),
     ("key_compare_inverted", "zm_blit_pxq.v", "bv_next == key", "bv_next != key"),
     # the key test made as the head loads: it must be the loading pixel's B, not the one in H
+    ("word_compared_to_the_buffer_before_it_moves", "zm_blit_pxq.v", "h_weq <= (h_ret && h_wr ? h_dst[22:2] : c_word) == hd[22:2];",
+     "h_weq <= c_word == hd[22:2];"),
     ("key_tested_on_the_pixel_before", "zm_blit_pxq.v", "h_skip <= skip_next;", "h_skip <= keyen && bval == key;"),
     ("halftone_bit_order", "zm_blit_regs.v", "{nz[hi] ? lane[hi[1:0]] : 8'd0, nz[lo] ? lane[lo[1:0]] : 8'd0}",
      "{nz[lo] ? lane[lo[1:0]] : 8'd0, nz[hi] ? lane[hi[1:0]] : 8'd0}"),
@@ -98,7 +100,7 @@ MUTANTS = [
     ("answer_paired_with_the_newest_read", "zm_blit_px.v", "tag[tr[LT-1:0]]", "tag[tw[LT-1:0] - 1'b1]"),
     ("answer_byte_from_the_wrong_lane", "zm_blit_pxq.v", "wa >> {h_lanes[1:0], 3'b000}", "wa >> {h_lanes[3:2], 3'b000}"),
     ("pixel_leaves_before_its_answers", "zm_blit_pxq.v", "h_got == q_need[hs]", "h_got[0] == q_need[hs][0]"),
-    ("bytes_merged_across_words", "zm_blit_pxq.v", "wire same = cv && c_word == h_dst[22:2];", "wire same = cv;"),
+    ("bytes_merged_across_words", "zm_blit_pxq.v", "wire same = cv && h_weq;", "wire same = cv;"),
     # word reuse: never across ops, never a source an ordered op may write, always the last word fetched
     ("reuse_survives_between_ops", "zm_blit_px.v", "if (px_idle) lw_v <= 3'd0;", ""),
     ("reuse_of_sources_while_ordered", "zm_blit_px.v", "{!ordered_c, !ordered, !ordered}", "{!ordered_c, 2'b11}"),

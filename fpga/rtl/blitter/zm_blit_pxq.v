@@ -103,15 +103,20 @@ module zm_blit_pxq #(parameter LQ = 5) (
     reg [7:0] carry;
     wire [7:0] cin = h_row ? carry0 : carry;
     wire [7:0] wv = fill[0] ? cin | res : fill[1] ? cin ^ res : res;
-    wire same = cv && c_word == h_dst[22:2];
+    // h_weq: H's word is the buffer's, compared as H loads (c_word only moves as H leaves)
+    reg h_weq;
+    wire same = cv && h_weq;
     // keep the buffer while the next byte may join it: H's, or the waiting head's
-    wire keep = hv ? !(h_wr && !same) : !q_empty && q_dst[hs][22:2] == c_word;
+    wire h_go = h_wr && !same;            // H's byte cannot join: the buffer goes out first
+    wire keep = hv ? !h_go : !q_empty && q_dst[hs][22:2] == c_word;
     assign wr_req_valid = cv && !keep;
     assign wr_req_addr = {9'd0, c_word, 2'b00};
     assign wr_req_data = c_data;
     assign wr_req_strb = c_strb;
     wire wtake = wr_req_valid && wr_req_ready;
-    wire h_ret = hv && (skip || h_nop || !cv || same || wtake);
+    // H's return takes the buffer's write by H's own branch of `keep` (wr_req_ready does not
+    // depend on valid, zm_blit_hp.py): the waiting head's compare is not on the clock enables
+    wire h_ret = hv && (skip || h_nop || !cv || same || cv && h_go && wr_req_ready);
     assign wrote = h_ret && !skip;
     assign coll_hit = coll_en && h_ret && h_wr && h_c != 8'd0;
 
@@ -149,6 +154,7 @@ module zm_blit_pxq #(parameter LQ = 5) (
                 h_a <= h_need[0] ? wa >> {h_lanes[1:0], 3'b000} : 8'd0;
                 h_b <= hb_next;
                 h_skip <= skip_next;
+                h_weq <= (h_ret && h_wr ? h_dst[22:2] : c_word) == hd[22:2];
                 h_c <= h_need[2] ? wc >> {hd[1:0], 3'b000} : 8'd0;
                 if (h_need[0]) hw_a <= wa;
                 if (h_need[1]) hw_b <= wb;
