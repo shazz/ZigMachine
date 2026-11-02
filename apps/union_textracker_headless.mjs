@@ -30,7 +30,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeReplay, mouseAt, SHOTS } from "./union_textracker_replay.mjs";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // machine/sdk/audio.zig
 const AUDIO_RATE = 44100, FRAME_SAMPLES = AUDIO_RATE / 60;
 const TOP = 40, LEFT = 80; // the 320x200 window in the physical frame (x doubled)

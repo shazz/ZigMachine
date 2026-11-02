@@ -4,7 +4,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 
 /// extraEnv(memory): host imports to provide instead of the no-op stubs, e.g.
 /// a diskReadBlock serving a .zmd (apps/skystrike_levels.mjs).

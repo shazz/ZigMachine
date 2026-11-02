@@ -26,7 +26,7 @@ import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeReplay, SHOTS, SPACE_AT } from "./union_texcopier_replay.mjs";
 
-const PAGES = 112, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
+const PAGES = 144, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // the 320x200 window in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_texcopier";
 const PANEL = `${ASSETS}/loader_texcopier.txt`;

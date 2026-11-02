@@ -18,7 +18,7 @@ cd "$(dirname "$0")"
 OUT=../../docs
 
 # Layout MUST match build.zig's demo module (see apps/c/build.sh for the why).
-MEM=7340032; GLOBAL_BASE=1048576                 # 112*65536 (memmap.SHARED_PAGES) ; 0x100000
+MEM=9437184; GLOBAL_BASE=1048576                 # 144*65536 (memmap.SHARED_PAGES) ; 0x100000
 EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode input)
 # --no-stack-first: rustc's wasm32 default puts the 1 MiB stack FIRST, growing
 # down from --global-base -- i.e. from 0x100000 into the MACHINE's RAM below the
@@ -36,7 +36,7 @@ LDFLAGS+=(-C link-arg=--export-if-defined=tuneIn) # zigmachine_tvnoise.rs, where
 
 build() { # <crate root .rs> <out .wasm>
     # strip=debuginfo: a scene with bounds checks links libcore's panic formatting,
-    # and the prebuilt libcore brings ~600 KB of DWARF with it into the 2 MB window.
+    # and the prebuilt libcore brings ~600 KB of DWARF with it into the 4 MB window.
     rustc --target wasm32-unknown-unknown --edition 2021 -C opt-level=2 -C strip=debuginfo \
         --crate-type cdylib "${LDFLAGS[@]}" -o "$2" "$1"
     printf '%-34s %8d bytes   ?demo=%s\n' "$1" "$(stat -c%s "$2")" "$(basename "$2")"

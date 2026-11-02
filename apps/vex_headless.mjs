@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1;  // the whole intro is one 16-colour plane, as the ST screen was
 
 async function boot(cart = "docs/demo-vex.wasm") {

@@ -4,7 +4,7 @@
 // malloc for a cart: zeroed memory above the cart's static data + stack, below
 // the video region. Prefer it to a big `static` buffer: with --import-memory the
 // linker cannot assume memory is zero, so a zero-filled static can be written
-// out byte for byte into the cart binary and count against the 2 MiB window
+// out byte for byte into the cart binary and count against the 4 MiB window
 // before the cart runs (apps/zero_segments.mjs fails the build on one of 64 KB+).
 //
 //     #include "../zigmachine_mem.h"

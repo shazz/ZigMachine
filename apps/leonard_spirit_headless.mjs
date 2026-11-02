@@ -24,7 +24,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { cartRam } from "../docs/wasm_hiwater.js";
 import * as M from "./leonard_spirit_model.mjs";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const argv = process.argv.slice(2);
 const opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv[i + 1]; };
 const BREAKS = ["pixels", "count", "music", "palette", "border", "scroll", "fall"];

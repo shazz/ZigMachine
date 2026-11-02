@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDrive } from "./scene_hash_disk.mjs";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 
 export async function boot(cartPath, diskPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });

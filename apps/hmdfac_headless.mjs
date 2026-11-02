@@ -37,7 +37,7 @@ import { cartRam } from "../docs/wasm_hiwater.js";
 import * as H from "./hmdfac_model.mjs";
 import * as P from "./hmdfac_p4_model.mjs";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/hmdfac";
 const TICK_MS = 20.0;
 

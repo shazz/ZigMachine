@@ -16,7 +16,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk
+const PAGES = 144; // SHARED_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
 const W = 320, H = 200, FRAMES = 30, TEXT_COL = 202; // effects.zig
 const LABEL = { x0: 254, x1: 310, y0: 184, y1: 192 }; // blitter_demo.zig: 8x8 text, right edge at 310

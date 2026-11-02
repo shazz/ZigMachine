@@ -26,7 +26,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // the scene draws everything into plane 0
 
 async function boot(cart) {

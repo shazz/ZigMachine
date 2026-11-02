@@ -15,10 +15,12 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
 
+// Re-pinned for HW 1.12.0: only ST Replay's "bytes free" figure (top right) moved, the
+// cart window being 4 MiB; the selector's pixels are unchanged.
 const PINS = {
-    open: "412d1823309c467713e8f7918c7a9a030b265cf327e7b221869c49f6a7e58a11",
-    drumloop: "fbb81d1ecb58a7852b382beb00397cfa83c7360bfe0e876585ff3aad39ea228a",
-    short: "aa331187076c268842d6e4fcedba99278a3f138599c80e4d41b85411883b0264",
+    open: "7756a6d7e579bbed6ac25b260d4ed19349ce824253a54fbff7b65cb71e8c977e",
+    drumloop: "802ff50a6f9b3496a7ac0cfd581ddaaed131583ab9aa381b5d338bc5b13af6af",
+    short: "4817142174c869a61029c7a99834b9f3001f995f5a6ece8aeca4cfd9582a9e64",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
 const DX = 160, DY = 24;                 // the 320 x 152 box, centred in 640 x 200
@@ -48,7 +50,7 @@ async function testDisk() {
 }
 
 async function boot() {
-    const memory = new WebAssembly.Memory({ initial: 112, maximum: 112 });
+    const memory = new WebAssembly.Memory({ initial: 144, maximum: 144 });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;

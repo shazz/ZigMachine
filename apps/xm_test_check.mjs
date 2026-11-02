@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112, AUDIO_PAGES = 48, SR = 44100, SECONDS = 2;
+const PAGES = 144, AUDIO_PAGES = 48, SR = 44100, SECONDS = 2;
 const BROKE = process.argv.includes("--break");
 const WANT = ["keygen_9000.xm", BROKE ? "other.xm" : "poppy_flower_girls.xm", "local.xm", "none"];
 /** The bundled modules: The Mod Archive's md5 (module.php?173938 and ?175325) and channel count. */

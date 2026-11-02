@@ -20,7 +20,9 @@
 //     --write         (re)write apps/ancool_expected.json from --cart (never in the gate)
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { boot } from "./ancool_boot.mjs";
 
 const EXPECTED = "apps/ancool_expected.json";
@@ -32,9 +34,15 @@ const opt = (name, dflt) => { const i = argv.indexOf(name); return i < 0 ? dflt 
 const brk = opt("--break", null);
 if (brk && !["skip", "planes", "raster"].includes(brk)) throw new Error(`--break takes skip|planes|raster, not ${brk}`);
 let cartBytes = readFileSync(opt("--cart", "docs/demo-ancool.wasm"));
-if (brk === "planes") cartBytes = execFileSync("git", ["show", `${OLD_REV}:docs/demo-ancool.wasm`], { maxBuffer: 16 << 20 });
-
-const m = await boot(cartBytes);
+const gitShow = (path) => execFileSync("git", ["show", `${OLD_REV}:${path}`], { maxBuffer: 16 << 20 });
+let m;
+if (brk === "planes") {
+    // The old cart was linked for HW 1.11's 112-page memory: boot it on the machine and ROM
+    // of its own revision, in that memory (HW 1.12.0 moved the map to 144 pages).
+    const dir = mkdtempSync(join(tmpdir(), "ancool-old-"));
+    for (const f of ["machine-video.wasm", "rom.wasm"]) writeFileSync(join(dir, f), gitShow(`docs/${f}`));
+    m = await boot(gitShow("docs/demo-ancool.wasm"), dir, 112);
+} else m = await boot(cartBytes);
 const { W, H } = m;
 const comp = new Uint32Array(W * H);
 const fails = [];

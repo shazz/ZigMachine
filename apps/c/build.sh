@@ -19,8 +19,8 @@ ZIG="${ZIG:-$HOME/.local/zig/0.16.0/zig}"
 OUT=../../docs
 
 # Layout MUST match build.zig's demo module: import the machine's ONE memory,
-# keep data/stack in the 2 MiB demo window [0x100000..0x300000).
-MEM=7340032; GLOBAL_BASE=1048576                 # 112*65536 (memmap.SHARED_PAGES) ; 0x100000
+# keep data/stack in the 4 MiB demo window [0x100000..0x500000).
+MEM=9437184; GLOBAL_BASE=1048576                 # 144*65536 (memmap.SHARED_PAGES) ; 0x100000
 EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode input)
 LDFLAGS=(-Wl,--no-entry -Wl,--import-memory
          -Wl,--initial-memory=$MEM -Wl,--max-memory=$MEM -Wl,--global-base=$GLOBAL_BASE)

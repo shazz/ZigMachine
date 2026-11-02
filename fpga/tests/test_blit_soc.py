@@ -171,7 +171,7 @@ def watch(t: Tap, cycles: int) -> Sim:
 
 
 def test_tap_forwards_region_stores_masks_command_and_starts_only_from_the_window() -> None:
-    vbase = CPU_BASE + 0x30_0000
+    vbase = CPU_BASE + mm.HW_VIDEO_BASE
     t = Tap(vbase)
     blit = vbase + mm.OFF_BLIT
 
@@ -187,7 +187,7 @@ def test_tap_forwards_region_stores_masks_command_and_starts_only_from_the_windo
 
 
 def test_tap_drop_mutant_loses_the_d_stride_store() -> None:
-    vbase = CPU_BASE + 0x30_0000
+    vbase = CPU_BASE + mm.HW_VIDEO_BASE
     t = Tap(vbase, break_="drop")  # the hp_sim break test `drop`
 
     def bench() -> Sim:

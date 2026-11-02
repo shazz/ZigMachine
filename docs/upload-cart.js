@@ -28,7 +28,7 @@ async function prepareUpload(file) {
         const missing = UPLOAD_EXPORTS.filter((n) => !names.includes(n));
         if (missing.length) return { error: `Not a ZigMachine cart: it does not export ${missing.join("(), ")}().` };
         const ram = globalThis.ZMRam && globalThis.ZMRam.cartRam(buf);
-        if (ram && ram.over) return { error: "This cart's data and stack overrun the 2 MB cart window." };
+        if (ram && ram.over) return { error: "This cart's data and stack overrun the 4 MB cart window." };
     }
     if (c.kind === "disk") Z.parseDisk(buf, file.name); // a corrupt disk throws here, before anything is mounted
     return { kind: c.kind, buf };

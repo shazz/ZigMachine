@@ -13,7 +13,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam, CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // memmap.SHARED_PAGES
+const PAGES = 144; // memmap.SHARED_PAGES
 let failures = 0;
 
 function check(what, got, want) {

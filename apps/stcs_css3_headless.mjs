@@ -30,7 +30,7 @@ import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const HBL_GLOBAL_ID = 5; // machine/sdk/memmap.zig
 const CART = "docs/demo-stcs_css3.wasm";
 

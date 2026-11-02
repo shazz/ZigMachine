@@ -17,7 +17,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const VBL_MS = 20; // one ST VBL per frame
 const END = 0x1e00;
 

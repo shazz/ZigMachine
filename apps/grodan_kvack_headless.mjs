@@ -25,7 +25,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200;
 const OUT = process.argv[2] || "/tmp/grodan_kvack";
 const TICK_MS = Math.fround(1000 / 60); // the cart's 60 Hz step; one tick a frame

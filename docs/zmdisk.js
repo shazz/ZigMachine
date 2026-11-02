@@ -10,11 +10,11 @@
 // globalThis for the classic sealed-loader.js.
 // --------------------------------------------------------------------------
 
-// Upload caps. A raw cart runs in the 2 MiB cart window, so a bigger wasm cannot
+// Upload caps. A raw cart runs in the 4 MiB cart window, so a bigger wasm cannot
 // fit; a ZX0-packed cart is also unpacked into it. A disk has no format limit
 // (total blocks is a u32), so this is host policy: the biggest disk on the shelf
 // is under 1 MB, and 16 MiB leaves room while refusing a mistaken multi-GB pick.
-export const CART_MAX_BYTES = 2 * 1024 * 1024;
+export const CART_MAX_BYTES = 4 * 1024 * 1024;
 export const DISK_MAX_BYTES = 16 * 1024 * 1024;
 
 const dec = new TextDecoder();

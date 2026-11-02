@@ -7,7 +7,7 @@
 #define ZM_NATIVE_H
 
 /* machine/sdk/memmap.zig (checked against build/vdump/zm_memmap.h by native_check.c). */
-#define NATIVE_PAGES 112              /* SHARED_PAGES: the header must say what the system has */
+#define NATIVE_PAGES 144              /* SHARED_PAGES: the header must say what the system has */
 #define NATIVE_REG_BACKGROUND 0x04    /* in the video registers: the border/background RGBA */
 #define NATIVE_CART_RAM_BASE 0x100000 /* the cart window: a wasm cart's statics start here */
 /* The cart's own bytes in the shared memory: the text the ROM draws. CART_HIGH tells the

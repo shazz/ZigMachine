@@ -13,8 +13,8 @@ const std = @import("std");
 const blitter = @import("blitter");
 
 const LO: usize = 0x100000;
-const HI: usize = 0x700000;
-const VIDEO: usize = 0x300000; // memmap.HW_VIDEO_BASE
+const HI: usize = 0x900000; // memmap.ROM_RAM_TOP
+const VIDEO: usize = 0x500000; // memmap.HW_VIDEO_BASE
 const REGS_END: usize = VIDEO + 0x100; // the register block: STATUS and CYCLES are the CPU's
 const CMD: usize = 0x80; // memmap.BLIT_COMMAND
 const LINE: usize = 32;

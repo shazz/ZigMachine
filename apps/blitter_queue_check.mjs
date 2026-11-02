@@ -9,7 +9,7 @@
 // Usage: node apps/blitter_queue_check.mjs        (exit 1 on any failure)
 import { readFile } from "node:fs/promises";
 
-const PAGES = 112, VIDEO = 0x300000, OFF_BLIT = 0x80, P0 = 0x1100, STRIDE = 320;
+const PAGES = 144, VIDEO = 0x500000, OFF_BLIT = 0x80, P0 = 0x1100, STRIDE = 320;
 const RING = VIDEO + 0x1dc000, RING_WORDS = 512, Q = VIDEO + OFF_BLIT + 0x68, CYCLES = VIDEO + OFF_BLIT + 0x60;
 const FILL = 2, BLIT = 1, LINE = 3, TRI = 4, QUEUE = 5;
 const wasm = await readFile(process.env.MACHINE || "docs/machine-video.wasm");

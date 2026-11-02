@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112, BLOCK = 512, RATE = 10000, K_ALT = 0xe013, K_F10 = 0xe00a;
+const PAGES = 144, BLOCK = 512, RATE = 10000, K_ALT = 0xe013, K_F10 = 0xe00a;
 const BREAK = process.argv.includes("--break");
 const errors = [];
 const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) errors.push(what); };

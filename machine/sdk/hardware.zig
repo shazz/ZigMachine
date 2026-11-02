@@ -182,7 +182,7 @@ pub extern fn hwVersion() u32; // ZM_HW_VERSION
 // deliberately indistinguishable from "full": treat 0 as "take nothing".
 pub extern fn hwRamBase() u32; // first byte of the cart's window (0x100000)
 pub extern fn hwRamTop() u32; // first byte ABOVE it (= the video region)
-pub extern fn hwRamSize() u32; // the whole window, in bytes (2 MiB)
+pub extern fn hwRamSize() u32; // the whole window, in bytes (4 MiB since HW 1.12.0)
 pub extern fn hwRamUsed() u32; // this cart's static data + stack + RAM arena
 pub extern fn hwRamFree() u32; // what is left below the video region, above the arena
 

@@ -23,7 +23,7 @@ RV_CFLAGS  := $(RV_ARCH) -std=gnu11 -O2 -ffp-contract=off -fno-strict-aliasing -
 	-Icycles/shim -include rt_shim.h -I$(WABT)/include -I$(W2C_RT) -Icycles -Ihost \
 	-I$(CYC)/gen -I$(HOST)/common
 # main_ram (soc/cycles_sim.py): 16 MiB of code and constants, then 16 MiB of
-# data, heap (the 7 MiB wasm memory is calloc'd there) and a 1 MiB stack. The
+# data, heap (the 9 MiB wasm memory is calloc'd there) and a 1 MiB stack. The
 # script comes AFTER the --defsym's, or it reads __stack_size as undefined.
 RV_LDFLAGS := $(RV_ARCH) -Wl,--defsym=__flash=0x40000000,--defsym=__flash_size=0x01000000 \
 	-Wl,--defsym=__ram=0x41000000,--defsym=__ram_size=0x01000000,--defsym=__stack_size=0x00100000 \

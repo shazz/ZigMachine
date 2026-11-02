@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { inflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 export const OFF_PAL = 0x0100, REG_FB_BASE = 0x44; // memmap.zig
 
 // Boot the cart the way docs/sealed-loader.js does. `hbl` wraps the cart's

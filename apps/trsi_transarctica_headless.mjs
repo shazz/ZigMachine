@@ -21,7 +21,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
 const VBL_MS = 20;
 const W = 320, H = 240, TOP = 20; // the display, and its first physical row

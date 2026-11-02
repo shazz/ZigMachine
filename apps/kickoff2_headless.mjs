@@ -20,7 +20,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const VBL_MS = 20;
 const OUT = process.argv[2] || "/tmp/kickoff2";
 const W = 320, H = 200;

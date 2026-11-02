@@ -1,5 +1,6 @@
-// A channel's pixel address, base + (y - yorg) * stride + (x - xorg) modulo 2^23 (every
-// address an op may touch is below 0x700000), with no multiplier between the sequencer's
+// A channel's pixel address, base + (y - yorg) * stride + (x - xorg) modulo 2^23 (until HW 1.12.0 every
+// address an op may touch was below 0x700000; the ROM window now ends at 0x900000, see
+// docs/ROADMAP.md: CHISEL's linear addresses must widen to 24 bits), with no multiplier between the sequencer's
 // (x, y) and the pixel unit: the row address follows y instead of being computed from it.
 // Every sequencer moves its y by at most one row a clock, and always the same way during
 // an op (`dn`: BLIT DESC, a LINE drawn upwards), so the row it is on is either the one

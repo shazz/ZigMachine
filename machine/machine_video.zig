@@ -89,7 +89,7 @@ export fn hwRamAllocFailures() u32 {
 }
 
 // --- ROM chip RAM (Phase 2) ---
-// The ROM gets its own window ABOVE the video region, so an app's 2 MiB stays the
+// The ROM gets its own window ABOVE the video region, so an app's 4 MiB stays the
 // app's. Reports 0 until a rom.wasm is actually fitted and declared.
 export fn hwSetRomHigh(high: u32) void {
     video.setRomHigh(high);

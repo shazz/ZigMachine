@@ -21,7 +21,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
 const SOUND = "north_south_digi.sndh";
 const MODES = { 0: 0, 1: 1, 2: 2, 3: 3 };

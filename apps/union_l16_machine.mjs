@@ -5,7 +5,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
 
 // The hub's return note (union_demo/return_note.zig): "UNI1", u8 length 14, u8 XOR,

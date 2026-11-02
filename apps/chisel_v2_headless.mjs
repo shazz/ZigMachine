@@ -16,7 +16,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112, OFF_PAL = 0x100, REG_FB_BASE = 0x44, OFF_BLIT = 0x80;
+const PAGES = 144, OFF_PAL = 0x100, REG_FB_BASE = 0x44, OFF_BLIT = 0x80;
 const W = 320, H = 200, FRAMES = 20;
 const NAMES = ["ROTOZOOM", "MODE 7", "TUNNEL", "SPRITES", "FILL"];
 const LABEL = { x1: 10 + 8 * 8, y1: 16 }; // printText at (10, 8): skip the label's box

@@ -4,7 +4,7 @@
 // counter where `counter` runs first); boot() locals: 0-1 i32.
 import { I, loop, PLANE, BUF2, HW_BLIT } from "./fixture.mjs";
 
-const VB = 0x300000;
+const VB = 0x500000;
 const counter = [...I.i32(0), ...I.i32(0), ...I.load(BUF2 + 64), ...I.i32(1), ...I.add, ...I.tee(4), ...I.store(BUF2 + 64)];
 const word = (i) => [...I.get(i), ...I.i32(2), ...I.shl];            // byte offset of word i
 const frameWord = [...I.get(4), ...I.i32(0x01010101), ...I.mul];     // this frame's colour, 4 pixels

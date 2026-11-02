@@ -30,7 +30,7 @@ import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeReplay } from "./union_tnt1_replay.mjs";
 
-const PAGES = 112, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
+const PAGES = 144, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_tnt1";
 const BIN_BYTES = 20016;

@@ -16,9 +16,9 @@
 // Loaded by docs/sealed-loader.js (browser) and apps/*.mjs (node).
 // --------------------------------------------------------------------------
 export const CART_RAM_BASE = 0x100000; // memmap.CART_RAM_BASE
-export const CART_RAM_TOP = 0x300000; // memmap.CART_RAM_TOP (= HW_VIDEO_BASE)
-export const ROM_RAM_BASE = 0x500000; // memmap.ROM_RAM_BASE  (Phase 2)
-export const ROM_RAM_TOP = 0x700000; // memmap.ROM_RAM_TOP
+export const CART_RAM_TOP = 0x500000; // memmap.CART_RAM_TOP (= HW_VIDEO_BASE)
+export const ROM_RAM_BASE = 0x700000; // memmap.ROM_RAM_BASE  (Phase 2)
+export const ROM_RAM_TOP = 0x900000; // memmap.ROM_RAM_TOP
 
 // The AUDIO thread has its own memory and its own map (machine/sdk/audio.zig) —
 // a different, SMALLER window at the same address. A cart measured against the

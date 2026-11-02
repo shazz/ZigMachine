@@ -21,7 +21,7 @@ setTimeout(() => {
 }, 90_000).unref();
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112, VIDEO_BASE = 0x300000, AUDIO_PAGES = 48;
+const PAGES = 144, VIDEO_BASE = 0x500000, AUDIO_PAGES = 48;
 const dec = new TextDecoder();
 
 async function bootCart(path) {

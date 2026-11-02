@@ -2,7 +2,7 @@
  * same modules in node's WebAssembly (the browser's engine) and compares every line.
  *
  *   bootsec_test sector FILE FRAMES   FILE: a .zmd (its 1 KB sector) or a bare .wasm. Memory of
- *       112 pages seeded i*7, hwVideoBase = VBASE with the plane-0 pointer at VBASE+68 = FB.
+ *       144 pages seeded i*7, hwVideoBase = VBASE with the plane-0 pointer at VBASE+68 = FB.
  *       Prints "boot <status> <fnv>", then per frame "f <n> <rc> <plane0> <fnv>".
  *   bootsec_test calls FILE <LINES   "EXPORT ARG..." per line (ARGs i64 decimal): "<status> <result>".
  *   bootsec_test exec FILE   bootsec_executable() of a disk: 0 or 1. */
@@ -12,7 +12,7 @@
 
 #include "bootsec.h"
 
-#define PAGES 112u
+#define PAGES 144u
 #define MEM (PAGES * WINT_PAGE)
 #define VBASE 0x200000u
 #define FB 0x1000u
