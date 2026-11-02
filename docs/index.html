@@ -97,16 +97,16 @@
     </body>
     <!-- Measures a cart's RAM high-water for hwSetCartHigh; module, so it must
          come first (it publishes globalThis.ZMRam for the classic loader). -->
-    <script type="module" src="wasm_hiwater.js?v=93758d24"></script>
+    <script type="module" src="wasm_hiwater.js?v=18cb0a85"></script>
     <!-- The disk parser, same hand-over (globalThis.ZMDisk). Modules run before
          the load event that boots the machine. -->
-    <script type="module" src="zmdisk.js?v=9c1824f9"></script>
+    <script type="module" src="zmdisk.js?v=6d19bd99"></script>
     <!-- KOS's power-on (the POST, then drive A): ZMKos, used by the loader's boot(). -->
     <script src="kos-boot.js?v=43fe4dc6"></script>
-    <script src="sealed-loader.js?v=0f4fa1d0"></script>
+    <script src="sealed-loader.js?v=2e43dc88"></script>
     <!-- "Run your own cart": the upload button and drag & drop (after the loader,
          whose state it shares). -->
-    <script src="upload-cart.js?v=9104eb0f"></script>
+    <script src="upload-cart.js?v=1aca86b1"></script>
     <!-- The VHS name card the deck paints when a cart boots (after the loader,
          whose state it shares). -->
     <script src="cart-osd.js?v=39652902"></script>
