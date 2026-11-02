@@ -595,6 +595,14 @@ gate dune_gen4 node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh 2  
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
+gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): the committed cart boots off its committed disk with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard
+gate ports_pt2 node apps/ports_headless.mjs pt2 --break load   # ...and the file never clicked (nothing loaded, nothing heard) is caught
+gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels
+gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
+gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPORT2.KT opened off the floppy, UI pinned; F5 plays it: the stream is not silent and the screen follows play
+gate ports_klystrack node apps/ports_headless.mjs klystrack --break silent   # ...and F5 never pressed (silence) is caught
+gate ports_chipnomad node apps/ports_headless.mjs chipnomad   # CHIPNOMAD (C++): the song screen in the ST font pinned; X (the A button) puts chain 00 in the first cell
+gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break key   # ...and X never pressed is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
