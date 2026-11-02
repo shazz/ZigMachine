@@ -1166,8 +1166,10 @@ rebuilt (the imported memory's declared max), as at 1.3.0.
 GEM's, VRAM is already the plane pool); stream the module from disk (a tracker edits the module in
 RAM); a growable memory (the board places the memory once, at a fixed offset: it must never move).
 
-**Consequences:** a breaking ABI change: all wasm carts, the C and Rust carts, disks and board images
-are rebuilt. On the board the wasm memory (calloc'd from ZIGGY's data region) grows 7 → 9 MiB.
+**Consequences:** a breaking ABI change: all wasm carts, the C and Rust carts and the disks are rebuilt
+on the branch. Board images are NOT (only `tutorial`, as a link proof): `bsys.c` refuses a cart whose
+header `pages` is not the system's (TRAP_CART_ABI), so a new `system.rv32` refuses every image on the SD
+card until `make board-shelf` and the `progs/<disk>/*.zmd` are redone. On the board the wasm memory (calloc'd from ZIGGY's data region) grows 7 → 9 MiB.
 **CHISEL's RTL carries 23-bit linear addresses** (`zm_blit_core/px/pxq/row.v`, `zm_blit_chk.v`'s
 `s_small`): the old map ended at 0x700000 < 2^23, the new ROM window ends at 0x900000, so on the board
 a CHISEL op with an absolute source in the ROM window's top 1 MiB (0x800000+) is refused or wraps,
