@@ -18,9 +18,9 @@ import { parseDisk } from "../docs/zmdisk.js";
 // Re-pinned for HW 1.13.0: only ST Replay's "bytes free" figure (top right) moved, the
 // cart window being 3 MiB; the selector's pixels are unchanged.
 const PINS = {
-    open: "7756a6d7e579bbed6ac25b260d4ed19349ce824253a54fbff7b65cb71e8c977e",
-    drumloop: "802ff50a6f9b3496a7ac0cfd581ddaaed131583ab9aa381b5d338bc5b13af6af",
-    short: "4817142174c869a61029c7a99834b9f3001f995f5a6ece8aeca4cfd9582a9e64",
+    open: "e1481a76ab8bebba7849bb2460594901efb6f26cc4f005eee8cde070f1d7f10c",
+    drumloop: "6f9e483c3836ce11ff420c3fcb7d37b4f6cbd3bcf611b0e455c0e582c3a8c29f",
+    short: "e2280b48cc381829e82c1fa2090fa6a56778ffec6338a460fd9d4244f7c7921f",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
 const DX = 160, DY = 24;                 // the 320 x 152 box, centred in 640 x 200
