@@ -81,7 +81,7 @@ function hbl(hw, mods, call, by) {
 
 // cartBytes: the cart wasm. opts: { machineDir, disk, pal, names: {cart, rom} (Maps) }.
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
-export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, pal = true, names = {} } = {}) {
+export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, pal = true, names = {}, paula = false } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblBy: [0, 0, 0, 0, 0], hblStores: 0, snoopOverflow: 0, diskBlocks: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];
@@ -108,6 +108,7 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
         env.diskReadBlock = (block, dst) => { const n = drive(block, dst); if (n) hw.diskBlocks++; return n; };
     }
     const noop = () => {};
+    if (paula) env.hostPaulaClaim = () => 1; // HW 1.14.0: the channels are lent (frame_cost --paula)
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;
     const cartInst = (await WebAssembly.instantiate(cartI.bytes, { env })).instance;

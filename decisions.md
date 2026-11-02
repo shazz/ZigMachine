@@ -1291,3 +1291,54 @@ op is ~10 cycles, the BLEP's 16-tap convolution per edge would still cost more t
 **Consequences:** pt2's sound loses BLEP's alias suppression and the 5 Hz DC filter (inaudible through the 8-bit
 mono stream). klystrack and ChipNomad keep their UI rate on the board but play slow until their synths fit
 (ROADMAP). A glass without the system image (or the reverse) is off by 80/40 pixels.
+
+## 2026-11-02 — Paula channels for carts: Amiga registers, chip RAM uploads, timed writes (HW 1.14.0)
+
+**Status:** accepted (feat/cart-paula, step 1 of the ROADMAP row "Paula channels for carts")
+**Context:** Matt, 2 Nov: "using them like Paula channels is the minimum". Only the players (BARD on the board,
+the worklet in the browser) could drive the four Paula channels, so pt2-clone re-mixed Paula in software on
+ZIGGY into an 8-bit mono 24 kHz stream. The questions: what a cart calls, where its samples live, when a write
+takes effect, who owns the channels.
+**Decision:**
+1. *The API* is four `env` imports, the host's own like `hostAudioFeed`: `hostPaulaClaim(lead) -> u32`,
+   `hostPaulaUpload(src, off, len)`, `hostPaulaWrite(entries, n)`, `hostPaulaRelease()`. The writes are Amiga
+   Paula's registers ($DFF096 DMACON, $DFF0A0+16x LCH/LCL/LEN/PER/VOL) plus a KESTREL AUDxPAN at +$C, applied
+   by `libs/zig/players/paula.zig`, the model the Hippel player's 68000 already drives: LC/LEN latched at the
+   DMA start and at the wrap, so attack-then-loop, sample swaps and 9xx offsets are the hardware's, and an
+   Amiga replay ports by forwarding its register writes (pt2 does, verbatim). Not a register page: the cart's
+   memory is not the audio side's in either host, and a batch import is one call a frame on the board's ABI.
+   Served by `docs/sealed-loader.js` + the worklet, and by `host/hstream.h` hooks where the players run in C
+   (native host, BARD, ZIGGY without BARD): system table 1.6 (four host entries appended, carts for 1.5 run).
+   HW 1.14.0, the version reserved for this and the coming true-colour plane (it joins the same number).
+2. *Samples* live in chip RAM = song RAM (1 MiB), uploaded by the cart, as an Amiga program copies samples to
+   chip RAM. Zero-copy is not possible in the browser (the worklet is another thread with its own memory). On
+   the board it would be: PCM_BASE is any bus address and `AudioHP` adds the DATA offset masked to 4 MiB, so
+   PCM_BASE = the cart's memory makes the 3 MiB cart window reachable without an RTL change; left for later
+   (it would bypass the players' module, which is where the latch model and the timing live today, and only
+   the board would have it). pt2 uploads what a voice is about to play at its DMA start and when a playing
+   voice gets an LC/LEN outside it (~13 KB a note at most: cheap in the browser, a BARD memcpy on the board).
+3. *Timing*: every write carries the cart's sample clock (44.1 kHz) and is played at that sample by
+   `cart_paula_queue.zig` in demo-audio.wasm (so the browser, the native host and BARD run the same code). One
+   offset ties the clocks, the first batch a `lead` ahead (the claim's argument: the cart's longest frame;
+   pt2 125 ms, its stream's lead before); a late batch or a jumping clock re-anchors (counted). The Amiga's
+   one-shot is the sample then its 2-byte loop (paula.zig), not the machine engine's "stop at the end".
+4. *Ownership*: the claim stops every player, stream and sample and zeroes chip RAM; while a cart holds the
+   channels the worklet and `host/audio.c` refuse every song, `sndhCall`, effect and stream; the machine's
+   reset on the next cart (`audioReset`) releases them. A song request is refused, not queued.
+5. *pt2*: `kestrel_paula_hw.c` forwards `paulaWriteWord/Ptr` (LC as an offset in `song->sampleData`, the null
+   sample to chip RAM's zeroed top 128 KB), pans LRRL from `config.stereoSeparation` on the machine's pan law,
+   and stamps each write with its own output clock (the replayer ticks inside the audio callback, so a tick's
+   writes carry the tick's sample). When the claim answers 0 (a host without the channels, a pool over 896 KB)
+   the integer software mixer plays as before; it also stays for PAT2SMP / MOD2WAV (never forwarded). The
+   A500 / LED filters are dropped on the hardware path. Scopes and VU need no read-back (pt2's are its
+   replayer's).
+**Alternatives considered:** a PCM-level API (trigger(ptr, len, loop) + step/volume/pan, the machine's
+`machinePaula*`): every Amiga replay would re-implement the AUDxLC/LEN latch, which is what makes it sound
+right (paula.zig's header); per-call imports per register (a mailbox round trip each on the board); applying
+writes at the frame edge (a 50 Hz replay on a 20-60 fps cart jitters by a frame); copying samples at every
+trigger into per-channel slots (the trigger lands up to a lead after the copy: a re-triggered voice would be
+overwritten while it still plays).
+**Consequences:** pt2's sound is 44.1 kHz, 16-bit, stereo on the hardware channels, and ZIGGY no longer mixes
+(its audio cost is the replayer). An edit to a sample a voice is looping is heard at its next trigger. A cart
+holding the channels has no SNDH/MOD music or effects. The board needs the system image (table 1.6, the
+Paula hooks), BARD's image and the rebuilt pt2 cart; no bitstream change. No POS read-back yet.

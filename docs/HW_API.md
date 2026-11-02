@@ -410,6 +410,38 @@ machineClear(n)  →  [player writes chip regs via the setters above]
                  →  machineClamp(n)     →  worklet copies left/right to the output
 ```
 
+### The four Paula channels lent to a cart — since 1.14.0
+
+A cart may drive the four Paula channels itself, as an Amiga program does (pt2-clone does:
+`apps/ports/pt2/kestrel_paula_hw.c`). Four `env` imports (the host's, like `hostAudioFeed`):
+
+```c
+u32  hostPaulaClaim(u32 lead);                 // 1: the cart holds the channels; 0: no Paula here (mix yourself)
+void hostPaulaUpload(u32 src, u32 off, u32 len); // copy cart bytes [src, src+len) into chip RAM at off
+void hostPaulaWrite(u32 entries, u32 n);         // n timed register writes, 16 bytes each (below)
+void hostPaulaRelease(void);                     // give them back (the next cart's reset does too)
+```
+
+- **The registers are Amiga Paula's**: `$DFF096` DMACON (bits 0-3, bit 15 set/clear) and per voice
+  `$DFF0A0 + 16x`: `+0` LCH, `+2` LCL, `+4` LEN (words; 0 = 65,536), `+6` PER (PAL clock 3,546,895 /
+  period), `+8` VOL (0..64), plus KESTREL's `+C` PAN (signed -128..128, the machine's pan / 128; default
+  the MOD player's ±0.6, LRRL). LC/LEN are double-buffered as on the Amiga: latched at the DMA start and
+  again when the live region runs out (`libs/zig/players/paula.zig`, the model the Hippel player's 68000
+  drives). A one-shot is "the sample, then its 2-byte loop", as on the Amiga.
+- **Chip RAM** is the 1 MiB song RAM: an LC is an offset in it, and the samples get there by
+  `hostPaulaUpload` (the browser's audio thread cannot read the cart's memory; on the board the PCM engine
+  reads only the players' memory). The claim zeroes it. Copy what a voice is about to play before the write
+  that starts it; an upload lands at once, ahead of the timed writes.
+- **Each write is timed**: an entry is `{u32 t, u32 addr, u32 value, u32 0}` (little-endian), `t` the cart's
+  own sample clock at 44.1 kHz. The audio side plays each write at its sample: the first batch is placed
+  `lead` samples ahead (the claim's argument: the latest a batch can arrive, i.e. the cart's longest frame,
+  256..16,384), and later batches keep their distance to it. A batch that arrives late, or with a clock that
+  jumped, is re-anchored a lead ahead (`audioPaulaResyncs`).
+- **One owner.** The claim stops every player, stream and sample; while the cart holds the channels the host
+  refuses every song request, `sndhCall`, effect and stream (the browser warns `... refused, the cart holds the
+  Paula channels`, the board logs `ZM PAULA ... refused`).
+- No read-back (POS) in 1.14.0: a cart that shows scopes keeps its own (pt2's are its replayer's).
+
 ---
 
 ## 6. What you build against this

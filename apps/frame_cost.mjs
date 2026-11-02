@@ -8,6 +8,7 @@
 //   node apps/frame_cost.mjs <cart.wasm> [--frames 60] [--warmup 120] [--top 10]
 //        [--call F:export:args]... [--disk X.zmd | --no-disk] [--json] [--no-pal] [--names DIR]
 //        (--call F:set8@ptrExport:bytes pokes bytes at the address ptrExport returns, see scene_hash)
+//        [--paula]        the host lends the Paula channels (a cart that claims them stops mixing itself)
 //        [--machine DIR]  (machine-video.wasm + rom.wasm; default $MACHINE_DIR or docs)
 //        [--budget]       the frame budget instead: cart Mc of what FRESCO's line passes leave, per plane
 //   node apps/frame_cost.mjs --all [--jobs 4] [--json] [--top-n 20] [--out F.json]
@@ -35,6 +36,8 @@ const OPTIONS = {
     "--names": [true, (o, v) => { o.namesDir = v; }, true],
     "--machine": [true, (o, v) => { o.machineDir = v; }, true],
     "--no-pal": [false, (o) => { o.pal = false; }, true],
+    // the host lends the cart the Paula channels (HW 1.14.0: env.hostPaulaClaim answers 1; the writes go nowhere)
+    "--paula": [false, (o) => { o.paula = true; }, true],
     // the song clock (zigos.song_ms = frame x 1000/60) is ON by default: the board's music always runs
     "--no-song-clock": [false, (o) => { o.songClock = false; }, true],
     "--json": [false, (o) => { o.json = true; }, false],
