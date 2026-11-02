@@ -140,6 +140,29 @@ for w in "$OUT"/demo-*.wasm; do
         # The streaming demo carries the track it block-streams.
         stream)    pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "MICROMIX.RAW=$OUT/music/micromix30.raw" ;;
+        # The C program ports (apps/ports): their carts are committed prebuilt, their
+        # files come from apps/ports/<port>/ (named one by one: a glob's order follows
+        # the locale, and the disk must be the same bytes on every machine).
+        # pt2-clone: two public-domain modules for its DISK OP to load.
+        pt2)       pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                        --file "RONKEN.MOD=$OUT/music/ronken.mod" \
+                        --file "HYBRID.MOD=$OUT/music/hybridglenz.mod" ;;
+        # GrafX2: its default skin, font and ini (data/), and our own pictures (ownpics/).
+        # Pictures ripped from other people's work never go on this disk.
+        grafx2)    P=apps/ports/grafx2
+                   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                        --file "gfx2def.ini=$P/data/gfx2def.ini" --file "gfx2.gif=$P/data/gfx2.gif" \
+                        --file "skin_DPaint.gif=$P/data/skin_DPaint.gif" \
+                        --file "font_DPaint.gif=$P/data/font_DPaint.gif" \
+                        --file "ZIGPLASMA.PI1=$P/ownpics/ZIGPLASMA.PI1" --file "ZIGPLASMA.NEO=$P/ownpics/ZIGPLASMA.NEO" \
+                        --file "ZIGPLASMA.GIF=$P/ownpics/ZIGPLASMA.GIF" --file "ZIGWAVES.PI1=$P/ownpics/ZIGWAVES.PI1" \
+                        --file "ZIGWAVES.NEO=$P/ownpics/ZIGWAVES.NEO" --file "ZIGWAVES.GIF=$P/ownpics/ZIGWAVES.GIF" ;;
+        # klystrack: the Default theme bundle and four upstream example songs (data/,
+        # made by its `make data`); it opens STARPORT2.KT at boot.
+        klystrack) P=apps/ports/klystrack/data
+                   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --file "Default=$P/Default" \
+                        --file "STARPORT2.KT=$P/STARPORT2.KT" --file "CASTLEVANIA.KT=$P/CASTLEVANIA.KT" \
+                        --file "OCEANLOADER3.KT=$P/OCEANLOADER3.KT" --file "DPINTRO.KT=$P/DPINTRO.KT" ;;
         *)         pack "$OUT/demo-$tag.zmd" "$tag" "$w" ;;
     esac
 done

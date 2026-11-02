@@ -30,6 +30,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "chipnomad",
+  "title": "CHIPNOMAD (C++)",
+  "type": "pc"
+ },
+ {
   "tag": "chisel_v2",
   "title": "CHISEL V2",
   "type": "zigmachine"
@@ -130,6 +135,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "grafx2",
+  "title": "GRAFX2 (C)",
+  "type": "pc"
+ },
+ {
   "tag": "grodan_kvack",
   "title": "GRODAN KVACK KVACK",
   "type": "atari st"
@@ -158,6 +168,11 @@
   "tag": "kickoff2",
   "title": "KICK OFF 2",
   "type": "amiga"
+ },
+ {
+  "tag": "klystrack",
+  "title": "KLYSTRACK (C)",
+  "type": "pc"
  },
  {
   "tag": "leonard_spirit",
@@ -258,6 +273,11 @@
   "tag": "polkadots_f32",
   "title": "POLKA DOTS F32",
   "type": "zigmachine"
+ },
+ {
+  "tag": "pt2",
+  "title": "PT2-CLONE (C)",
+  "type": "pc"
  },
  {
   "tag": "raytrace_f32",

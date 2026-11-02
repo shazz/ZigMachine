@@ -6,14 +6,15 @@
 // This is a plain string list — the menu links NO scenes (that's the whole point:
 // each scene is its own cartridge, so nothing bloats the launcher). MUST stay in
 // sync with the cartridge matrix in build.zig — except polyglot carts (tags
-// c-* / rust-*), which apps/{c,rust}/build.sh builds; tools/mkdisks.sh packs a
-// floppy for any polyglot tag listed here.
+// c-* / rust-*), which apps/{c,rust}/build.sh builds, and the C program ports
+// (pt2, grafx2, klystrack, chipnomad: apps/ports, committed prebuilt);
+// tools/mkdisks.sh packs a floppy for every one listed here.
 //
 // Excluded (pre-existing bit-rot vs the current ZigOS API): demo, demo_test,
 // bladerunners_fullscreen.
 // --------------------------------------------------------------------------
 // The trailing comment on each entry is its TYPE — the machine the screen comes
-// from: "atari st", "amiga", "zigmachine" (an original screen or a tech demo),
+// from: "atari st", "amiga", "pc" (a desktop program ported), "zigmachine" (an original screen or a tech demo),
 // "system" (GEM, ST Replay: not demos), or "unknown" where the scene's own source
 // does not say and nobody has checked. tools/channels.py parses it into
 // docs/channels.json, and the host's VHS name card (docs/cart-osd.js) prints it.
@@ -125,6 +126,11 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "LINE LIST TEST", .tag = "linebase_test" }, // zigmachine — HW 1.10.0 copper LBASE: the STE video-counter line list
     .{ .name = "MIND REWIND", .tag = "mindwind" }, // atari st — STE only: Reservoir Gods' EIL 2003 intro, ported from the depacked binary
     .{ .name = "CHISEL V2", .tag = "chisel_v2" }, // zigmachine — the blitter's HW 1.11.0 ops: AFFINE, MAP, mirror, collision, area fill
+    // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
+    .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2
+    .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2
+    .{ .name = "KLYSTRACK (C)", .tag = "klystrack" }, // pc — kometbomb's chiptune tracker (MIT), apps/ports/klystrack
+    .{ .name = "CHIPNOMAD (C++)", .tag = "chipnomad" }, // pc — Megus's AY tracker (MIT), apps/ports/chipnomad
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.

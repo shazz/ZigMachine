@@ -63,6 +63,10 @@ below).
 | rick_dangerous | RICK DANGEROUS | matches `rick_dangerous.zig:2`: `RICK DANGEROUS -- Core Design / Firebird 1989` — game title |
 | union_intro_screen | UNION DEMO | **must not change**: `apps/union_demo_doors_check.mjs:91` hardcodes a regex match on `.name = "UNION DEMO"` to find this entry's tag; the name is already accurate (the demo's opening splash) |
 | automation442 | AUTOMATION 442 | matches `automation442.zig` header (AUTOMATION disk-mag issue 442, part A); already short and accurate |
+| pt2 | PT2-CLONE (C) | the program's own name (`apps/ports/pt2`, upstream README: "pt2-clone"), a desktop program, not a demo; `(C)` marks a C port as for FUJIBOINK (C) |
+| grafx2 | GRAFX2 (C) | the program's own name (`apps/ports/grafx2`, upstream README: "GrafX2") |
+| klystrack | KLYSTRACK (C) | the program's own name (`apps/ports/klystrack`, upstream README: "klystrack") |
+| chipnomad | CHIPNOMAD (C++) | the program's own name (`apps/ports/chipnomad`, upstream README: "ChipNomad"); written in C++ |
 
 ## Length limit
 
