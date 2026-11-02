@@ -15,7 +15,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk
+const PAGES = 144; // SHARED_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
 // assets.zig's palette slots
 const PANEL = 0, GLENZ_R = 1, GLENZ_W = 2, GLENZ_RW = 3, BG = 4, WHITE = 5, BAR = 6;

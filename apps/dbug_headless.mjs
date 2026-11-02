@@ -11,7 +11,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 4; // only the enabled ones are composited: the overscan plane (the credit panel rides it)
 
 async function boot(cart = "docs/demo-dbug.wasm") {

@@ -9,7 +9,7 @@
 #
 # Both audio modules import their memory and the chip calls from `env`, as the
 # cart does; tools/wasm_env_rename.py moves them to `aud` first, so the two
-# memories stay apart (the players' 3 MiB is not the cart's 7 MiB).
+# memories stay apart (the players' 3 MiB is not the cart's 9 MiB).
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
 AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c

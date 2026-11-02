@@ -16,7 +16,7 @@ plasma, which `apps/verify.mjs` reads back.
 - **Draw**: palette-index bytes at `hwVideoBase()+OFF_VRAM`; RGBA palette at
   `+OFF_PAL` (**alpha 255 = opaque**). Offsets mirror `machine/sdk/memmap.zig`.
 - **Link layout** (must match `build.zig`'s demo module): `--import-memory`,
-  `--initial-memory=--max-memory=7340032` (112 pages), `--global-base=0x100000`,
+  `--initial-memory=--max-memory=9437184` (144 pages), `--global-base=0x100000`,
   `--no-entry`.
 
 ## Music: `zigmachine_music.rs`

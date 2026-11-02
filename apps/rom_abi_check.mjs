@@ -24,8 +24,8 @@
 // Usage: node apps/rom_abi_check.mjs        (exit 1 on any failure)
 import { readFile } from "node:fs/promises";
 
-const PAGES = 112;               // memmap.SHARED_PAGES
-const VIDEO = 0x300000;          // HW_VIDEO_BASE
+const PAGES = 144;               // memmap.SHARED_PAGES
+const VIDEO = 0x500000;          // HW_VIDEO_BASE
 const OFF_VRAM = 0x1100;         // plane framebuffer pool base
 const FB_BYTES = 320 * 200;      // one normal plane
 const CANARY = 0x5a;

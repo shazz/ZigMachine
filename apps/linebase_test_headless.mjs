@@ -16,7 +16,7 @@ import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { RH, REG_HSCROLL, REG_FB_COPPER, OFF_VRAM, decodeList, model, firstMismatch } from "./linebase_model.mjs";
 
-const PAGES = 112, REG_BACKGROUND = 0x04, REG_FB_BASE = 0x44, OFF_PAL = 0x100, RW = 800, PHASE = 150;
+const PAGES = 144, REG_BACKGROUND = 0x04, REG_FB_BASE = 0x44, OFF_PAL = 0x100, RW = 800, PHASE = 150;
 const bi = process.argv.indexOf("--break"), brk = bi > 0 ? process.argv[bi + 1] : null;
 const FRAMES = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || 420);
 

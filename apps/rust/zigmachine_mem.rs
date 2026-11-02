@@ -5,7 +5,7 @@
 // above the cart's static data + stack, below the video region. Prefer it to a
 // big `static mut BUF: [u8; N] = [0; N]`, which the linker writes out byte for
 // byte into the cart binary (imported memory is not known to be zero) and which
-// counts against the 2 MiB window before the cart runs (apps/zero_segments.mjs
+// counts against the 4 MiB window before the cart runs (apps/zero_segments.mjs
 // fails the build on a zero run of 64 KB+).
 //
 //     mod zigmachine_mem;

@@ -48,7 +48,7 @@ async function testDisk() {
 }
 
 async function boot() {
-    const memory = new WebAssembly.Memory({ initial: 112, maximum: 112 });
+    const memory = new WebAssembly.Memory({ initial: 144, maximum: 144 });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;

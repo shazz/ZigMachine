@@ -260,7 +260,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <article class="api" id="hwVersion"><code class="sig"><b class="fn">hwVersion</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwVersion" aria-label="Link to hwVersion">#</a><p class="doc">ZM_HW_VERSION</p></article>
 <article class="api" id="hwRamBase"><code class="sig"><b class="fn">hwRamBase</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamBase" aria-label="Link to hwRamBase">#</a><p class="doc">first byte of the cart&#x27;s window (0x100000)</p></article>
 <article class="api" id="hwRamTop"><code class="sig"><b class="fn">hwRamTop</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamTop" aria-label="Link to hwRamTop">#</a><p class="doc">first byte ABOVE it (= the video region)</p></article>
-<article class="api" id="hwRamSize"><code class="sig"><b class="fn">hwRamSize</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamSize" aria-label="Link to hwRamSize">#</a><p class="doc">the whole window, in bytes (2 MiB)</p></article>
+<article class="api" id="hwRamSize"><code class="sig"><b class="fn">hwRamSize</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamSize" aria-label="Link to hwRamSize">#</a><p class="doc">the whole window, in bytes (4 MiB since HW 1.12.0)</p></article>
 <article class="api" id="hwRamUsed"><code class="sig"><b class="fn">hwRamUsed</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamUsed" aria-label="Link to hwRamUsed">#</a><p class="doc">this cart&#x27;s static data + stack + RAM arena</p></article>
 <article class="api" id="hwRamFree"><code class="sig"><b class="fn">hwRamFree</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamFree" aria-label="Link to hwRamFree">#</a><p class="doc">what is left below the video region, above the arena</p></article>
 <article class="api" id="hwRamAlloc"><code class="sig"><b class="fn">hwRamAlloc</b>(bytes: u32, alignment: u32) <span class="ret">u32</span></code><a class="anchor" href="#hwRamAlloc" aria-label="Link to hwRamAlloc">#</a><p class="doc">address, or 0 (counted)</p></article>
@@ -273,7 +273,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <article class="api" id="hwRomRamUsed"><code class="sig"><b class="fn">hwRomRamUsed</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamUsed" aria-label="Link to hwRomRamUsed">#</a></article>
 <article class="api" id="hwRomRamFree"><code class="sig"><b class="fn">hwRomRamFree</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamFree" aria-label="Link to hwRomRamFree">#</a></article></section>
 <section class="ref" id="memory-management"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Memory<small>cart RAM, the RAM arena, VRAM</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#memory-management-memory-management">Memory management</a></li><li class="toc-4"><a href="#memory-management-what-lives-in-the-cart-window">What lives in the cart window</a></li><li class="toc-4"><a href="#memory-management-zero-filled-statics-are-not-free">Zero-filled statics are not free</a></li><li class="toc-4"><a href="#memory-management-the-ram-arena-hwramalloc-hw-1-7-0">The RAM arena: hwRamAlloc (HW 1.7.0)</a></li><li class="toc-4"><a href="#memory-management-zg-mem-zig">zg.mem (Zig)</a></li><li class="toc-4"><a href="#memory-management-c-and-rust">C and Rust</a></li><li class="toc-4"><a href="#memory-management-vram-is-a-different-pool">VRAM is a different pool</a></li><li class="toc-4"><a href="#memory-management-what-check-fits-cannot-see">What check_fits cannot see</a></li></ul><h3 id="memory-management-memory-management">Memory management</h3>
-<p>A cart gets <strong>2 MiB of RAM</strong>, the window <code>[0x100000, 0x300000)</code>, and nothing
+<p>A cart gets <strong>4 MiB of RAM</strong> (2 MiB before HW 1.12.0), the window <code>[0x100000, 0x500000)</code>, and nothing
 traps when it runs out: one byte past the top is the video region, so an
 overrun corrupts VRAM and the machine dies later, somewhere else. This chapter
 is how to spend that window: what is already in it, what a big buffer really
@@ -288,16 +288,16 @@ costs, and the machine's allocator (HW 1.7.0).</p>
   are linked <code>--no-stack-first</code> for the same layout (<code>apps/rust/build.sh</code>). Stack
   first, rustc's default, grew the stack down from <code>0x100000</code> into the machine's
   RAM and left the cart's zeroed statics out of the measured high-water.</li>
-<li><strong>free RAM</strong>, up to the video region at <code>0x300000</code>.</li>
+<li><strong>free RAM</strong>, up to the video region at <code>0x500000</code>.</li>
 </ul>
 <p>The code is not in the window: wasm keeps functions outside linear memory. GEM
 is not in it either: since Phase 2 the ROM chip has its own 2 MiB window above
-the video region, <code>[0x500000, 0x700000)</code>.</p>
+the video region, <code>[0x700000, 0x900000)</code>.</p>
 <p>The host measures where the data and stack end (the <strong>high-water</strong>) when it
 loads the cart (<code>docs/wasm_hiwater.js</code>) and declares it to the machine
 (<code>hwSetCartHigh</code>). Everything below is arithmetic on that number.</p>
 <figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">hwRamBase</span>()  <span class="tok-cm">// 0x100000</span>
-<span class="tok-fn">hwRamTop</span>()   <span class="tok-cm">// 0x300000, the video region</span>
+<span class="tok-fn">hwRamTop</span>()   <span class="tok-cm">// 0x500000, the video region</span>
 <span class="tok-fn">hwRamUsed</span>()  <span class="tok-cm">// statics + stack + the RAM arena</span>
 <span class="tok-fn">hwRamFree</span>()  <span class="tok-cm">// hwRamTop() - max(high-water, arena top); 0 = full OR undeclared</span></code></pre></figure>
 <p><code>hwRamFree()</code> returns 0 when the high-water was never declared: treat 0 as
@@ -609,7 +609,7 @@ one cart + its assets is well under 24.)</p>
   content (<code>ZMDISK</code> at <code>$0</code> or <code>\0asm</code> + <code>ZMDISK</code> at <code>$400</code> = disk, <code>\0asm</code> = cart,
   <code>ZX0!</code> = packed cart) and mounted by the same parser as a URL disk
   (<code>docs/zmdisk.js</code>, <code>mountDiskBytes</code>), so streaming works identically. Host caps:
-  a cart (raw or packed) at most <strong>2 MB</strong> (the cart window); a disk at most <strong>16 MB</strong>
+  a cart (raw or packed) at most <strong>4 MB</strong> (the cart window, since HW 1.12.0); a disk at most <strong>16 MB</strong>
   (the format has no limit, <code>total blocks</code> is a u32: this is host policy).</li>
 </ul>
 <hr />

@@ -10,7 +10,7 @@ import { blitCycles, BLIT_CALL, BLIT_UNIT_ORDERED } from "./cost_model.mjs";
 import { BLIT_SITE, STORE_TOTAL, PAL_TOTAL, MIS_LOADS, MIS_STORES } from "./hooks.mjs";
 import { SNOOP_QUEUE } from "./cost_model.mjs";
 
-const PAGES = 112;          // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144;          // SHARED_PAGES in machine/sdk/memmap.zig
 // machine/sdk/memmap.zig: palettes, VRAM pool, blitter block
 export const OFF_PAL = 0x100, PAL_BYTES = 4 * 1024, OFF_VRAM = 0x1100;
 export const REG_GLOBAL_HBL_ID = 0x10, REG_FB_HBL_ID = 0x20, REG_FB_MODE = 0x54;

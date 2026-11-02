@@ -26,7 +26,7 @@ import { brotliDecompressSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { WALKS, music, soundMusic, walk } from "./dune_gen4_keys.mjs";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const BREAKS = { pixels: "pixels: main-44", lag: "pixels: bounce", music: "music:", quartet: "music: visit 1",
     sound: "music: F3 visit 1" };
 const bi = process.argv.indexOf("--break");

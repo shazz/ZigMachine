@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { png } from "./skystrike_zig_frame.mjs";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
 export const W = 320, H = 200;
 // The rows the object can reach (radius 1 at DIST 3.2, FOV 150: |dy| <= 69):

@@ -19,7 +19,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112, AUDIO_PAGES = 48;
+const PAGES = 144, AUDIO_PAGES = 48;
 const FAIL_PROOF = process.argv.includes("--fail-proof");
 // Fail proof: each screen is asked for the file it used to play before its SNDH.
 const MENU_WANT = FAIL_PROOF ? "union_demo_menu.ymraw" : "union/alloy_run.sndh";

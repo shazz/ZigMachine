@@ -27,7 +27,7 @@ import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const A = "apps/zig/assets/screens/tcb_weirddream/";
 const SPLASH = 200;
 

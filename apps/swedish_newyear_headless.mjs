@@ -37,7 +37,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { loadAssets } from "./swedish_newyear_assets.mjs";
 import { Remake, PW, PH } from "./swedish_newyear_replay.mjs";
 
-const PAGES = 112, OFF_PAL = 0x100, REG_FB_BASE = 0x44;
+const PAGES = 144, OFF_PAL = 0x100, REG_FB_BASE = 0x44;
 const DT = 1000 / 60;
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
 const SONGS = { // each tune -> what the port must request (swedish_newyear/music.zig)

@@ -30,7 +30,7 @@ import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { ASSETS, loadAssets, makeReplay } from "./union_reps_replay.mjs";
 
-const PAGES = 112, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
+const PAGES = 144, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const BLACK = 1; // union_reps/assets.zig: maincanvas.fill('#000000')
 const SCREEN_FRAMES = [0, 1, 2, 60, 61, 200, 350, 430, 600, 800, 1234, 3000];

@@ -16,7 +16,7 @@ from soc.zm_hp import CPU_BASE
 from test_blit_soc import Tap, store, watch
 
 Sim = Generator[object, None, None]
-VBASE = CPU_BASE + 0x30_0000
+VBASE = CPU_BASE + mm.HW_VIDEO_BASE
 RING = VBASE + mm.OFF_BLIT_QUEUE
 
 

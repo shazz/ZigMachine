@@ -1,15 +1,18 @@
 const std = @import("std");
 
+const memmap = @import("machine/sdk/memmap.zig");
+
 const page_size = 65536; // in bytes
 
 // Video shared main-thread memory (see machine/sdk/memmap.zig): machine-video.wasm +
 // demo.wasm import the SAME WebAssembly.Memory; demo linked above the machine.
-const video_shared_bytes = 112 * page_size; // 7 MiB (2 MiB demo window + VRAM + PFB + the 2 MiB ROM window; see memmap SHARED_PAGES)
-const demo_global_base: u64 = 0x100000; // 1 MiB
+// 9 MiB since HW 1.12.0: the 4 MiB cart window + VRAM + PFB + the 2 MiB ROM window.
+const video_shared_bytes = @as(u64, memmap.SHARED_PAGES) * page_size;
+const demo_global_base: u64 = memmap.CART_RAM_BASE; // 1 MiB
 const machine_stack = 1 * page_size;
 const demo_stack = 6 * page_size;
-// The ROM chip's own window (memmap ROM_RAM_BASE/TOP): 2 MiB at 5 MiB.
-const rom_global_base: u64 = 0x500000;
+// The ROM chip's own window (memmap ROM_RAM_BASE/TOP): 2 MiB at 7 MiB.
+const rom_global_base: u64 = memmap.ROM_RAM_BASE;
 const rom_stack = 4 * page_size;
 
 // Audio shared worklet-thread memory (see machine/sdk/audio.zig).

@@ -29,7 +29,7 @@ import { inflateSync } from "node:zlib";
 import { performance } from "node:perf_hooks";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200;
 const OUT = process.argv[2] || "/tmp/larcociel5";
 const TICK_MS = 20.0; // the cart's 50 Hz step; the harness gives exactly one tick a frame

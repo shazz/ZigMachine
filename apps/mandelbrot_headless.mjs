@@ -13,7 +13,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const K_F = 0x66;
 const DONE = 80; // 280 rows / 4 per frame = 70 frames, with margin
 const argv = process.argv.slice(2);

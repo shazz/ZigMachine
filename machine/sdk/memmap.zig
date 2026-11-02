@@ -342,44 +342,45 @@ pub const HBL_GLOBAL_ID: u16 = 5;
 // is the "you get the memory map, not the schematics" contract, and it gives
 // the authentic fixed-address feel the spec's §10 asks about.
 //
-// Layout of the shared memory (v1.1 — demo window raised to 2 MiB):
+// Layout of the shared memory (v1.2 — cart window raised to 4 MiB, HW 1.12.0):
 //   [0x000000 .. 0x100000)  machine module data + stack  (global-base 0x400)
-//   [0x100000 .. 0x300000)  demo module data + stack     (global-base 0x100000) — 2 MiB
-//   [0x300000 .. ~0x4DC000) video hardware region        (this base)
-// The demo window grew from 1 MiB to 2 MiB: a full cart (code + all @embedFile'd
-// assets + 6-page stack) was overflowing 1 MiB into the video region (silent
-// corruption of the top of the stack). VRAM also grew to 1 MiB so 3 fullscreen
-// planes + effect sheets fit the pool.
+//   [0x100000 .. 0x500000)  demo module data + stack     (global-base 0x100000) — 4 MiB
+//   [0x500000 .. ~0x6DC000) video hardware region        (this base)
+//   [0x700000 .. 0x900000)  ROM chip data + stack        (global-base 0x700000) — 2 MiB
+// The demo window grew from 1 MiB to 2 MiB (v1.1: a full cart was overflowing 1 MiB
+// into the video region, silently corrupting the top of its stack), then to 4 MiB
+// (HW 1.12.0, 2026-11-01): the C port of pt2-clone could not load a ProTracker
+// module in 2 MiB. The video region and the ROM window moved up 2 MiB with it.
 // --------------------------------------------------------------------------
-pub const HW_VIDEO_BASE: usize = 0x300000; // 3 MiB (demo cart gets [0x100000..0x300000))
+pub const HW_VIDEO_BASE: usize = 0x500000; // 5 MiB (demo cart gets [0x100000..0x500000))
 // The cart's RAM window, as reported by the hwRam* instructions. The ceiling is
 // HW_VIDEO_BASE: one byte past it is the video region, and a cart that runs into
 // it corrupts VRAM silently rather than trapping.
 pub const CART_RAM_BASE: usize = 0x100000; // = build.zig demo_global_base
 pub const CART_RAM_TOP: usize = HW_VIDEO_BASE;
-pub const CART_RAM_BYTES: usize = CART_RAM_TOP - CART_RAM_BASE; // 2 MiB
+pub const CART_RAM_BYTES: usize = CART_RAM_TOP - CART_RAM_BASE; // 4 MiB
 
 // The ROM chip's own RAM window (Phase 2 — see docs/PHASE2_ROM_CHIP.md). Placed
 // ABOVE the video region, never carved out of the cart's: the whole point is that
-// an app's 2 MiB stays the app's. The video region ends at OFF_PFB + PFB_BYTES =
-// 0x4DBFE0, so 0x500000 clears it with room to spare.
+// an app's window stays the app's. The video region ends at HW_VIDEO_BASE + OFF_PFB
+// + PFB_BYTES = 0x6DBFE0, so 0x700000 clears it with room to spare.
 //
 // It is one shared linear memory, so a pointer an app passes is directly readable
 // by the ROM — strings and structs cross the module boundary with no copy, and
 // GEM keeps drawing straight into the framebuffers in the video region.
-pub const ROM_RAM_BASE: usize = 0x500000; // 5 MiB
-pub const ROM_RAM_TOP: usize = 0x700000; // 7 MiB
+pub const ROM_RAM_BASE: usize = 0x700000; // 7 MiB (= build.zig rom_global_base)
+pub const ROM_RAM_TOP: usize = 0x900000; // 9 MiB
 pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
-// Region ends at OFF_PFB + PFB_BYTES = 1052768 + 896000 = 1948768 above the base;
-// 3 MiB base + 1948768 needs ~78 pages, so 79 (~5.2 MiB) gives headroom. initial == max.
-// 112 pages = 7 MiB = ROM_RAM_TOP. Raised from 79 for the ROM window; note that
-// this is a BREAKING change for any cart packed before it — a cart declares the
-// imported memory's initial/max, and an old cart's max (79 pages) is smaller
-// than the memory the host now creates, so it fails to instantiate. Repack with
-// tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
-pub const SHARED_PAGES: u32 = 112;
+// The shared memory ends at ROM_RAM_TOP: SHARED_PAGES * 64 KiB == ROM_RAM_TOP
+// (checked below). initial == max. History: 79 pages (video only), 112 (7 MiB, the
+// ROM window), 144 (9 MiB, the 4 MiB cart window, HW 1.12.0). Every raise is a
+// BREAKING change for any cart packed before it — a cart declares the imported
+// memory's initial/max, and an old cart's max is smaller than the memory the host
+// now creates, so it fails to instantiate. Repack with tools/mkdisks.sh and
+// rebuild the C/Rust carts; node apps/disk_check.mjs is what catches it.
+pub const SHARED_PAGES: u32 = 144;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0B00; // 1.11.0 — CHISEL v2: QUEUE (COMMAND 5), AFFINE, MAP, mirror, collision, area fill (1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
+pub const ZM_HW_VERSION: u32 = 0x0001_0C00; // 1.12.0 — the cart RAM window is 4 MiB [0x100000..0x500000), video at 0x500000, ROM RAM at 0x700000 (1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.
@@ -398,4 +399,7 @@ comptime {
     if (BLIT_ASYNC + 1 > BLIT_Q_START or BLIT_Q_COUNT + 2 > OFF_PAL) @compileError("memmap: BLIT_Q_* overlap ASYNC or the palettes");
     if (OFF_BLIT_QUEUE < OFF_BEAM_TABLE + BEAM_TABLE_BYTES) @compileError("memmap: QUEUE ring overlaps the BEAM table");
     if (HW_VIDEO_BASE + OFF_BLIT_QUEUE + BLIT_QUEUE_BYTES > ROM_RAM_BASE) @compileError("memmap: QUEUE ring runs into the ROM window");
+    if (CART_RAM_TOP > HW_VIDEO_BASE) @compileError("memmap: the cart window runs into the video region");
+    if (HW_VIDEO_BASE + OFF_PFB + PFB_BYTES > ROM_RAM_BASE) @compileError("memmap: the video region runs into the ROM window");
+    if (@as(usize, SHARED_PAGES) * 65536 != ROM_RAM_TOP) @compileError("memmap: SHARED_PAGES must end exactly at ROM_RAM_TOP");
 }

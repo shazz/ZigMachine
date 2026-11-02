@@ -3,8 +3,8 @@ const std = @import("std");
 const plan = @import("chisel_copy_plan.zig");
 const expect = std.testing.expect;
 
-const BASE: usize = 0x300000;
-const M = plan.Map{ .vram = 0x1100, .region = 1948928, .cart = .{ 0x100000, 0x300000 }, .rom = .{ 0x500000, 0x700000 } };
+const BASE: usize = 0x500000; // memmap.HW_VIDEO_BASE
+const M = plan.Map{ .vram = 0x1100, .region = 1948928, .cart = .{ 0x100000, 0x500000 }, .rom = .{ 0x700000, 0x900000 } };
 const VRAM = BASE + 0x1100;
 
 test "a long copy from cart RAM into VRAM goes to CHISEL" {
@@ -26,9 +26,9 @@ test "an overlap or a source across two windows stays on the CPU" {
     try expect(!plan.eligible(M, BASE, VRAM, VRAM + 100, 8192, 4096));
     try expect(!plan.eligible(M, BASE, VRAM + 100, VRAM, 8192, 4096));
     try expect(plan.eligible(M, BASE, VRAM, VRAM + 8192, 8192, 4096)); // touching is not overlapping
-    try expect(!plan.eligible(M, BASE, VRAM + 0x80000, 0x300000 - 4096, 8192, 4096)); // cart RAM into the region
+    try expect(!plan.eligible(M, BASE, VRAM + 0x80000, 0x500000 - 4096, 8192, 4096)); // cart RAM into the region
     try expect(!plan.eligible(M, BASE, VRAM, BASE + M.region + 16, 8192, 4096)); // the gap below the ROM
-    try expect(plan.eligible(M, BASE, VRAM, 0x500000, 8192, 4096)); // the ROM's RAM
+    try expect(plan.eligible(M, BASE, VRAM, 0x700000, 8192, 4096)); // the ROM's RAM
 }
 
 test "the split covers every byte once" {

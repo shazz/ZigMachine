@@ -98,7 +98,7 @@ addresses, so a source can be a cart's own RAM: an `@embedFile` sprite sheet, a
 scratch buffer, a ROM-window image. The Amiga's blitter could only reach chip
 RAM; this one reads anything a program may hold, and the sealed side checks it:
 the whole `W×H` source rectangle must lie inside **one** readable window (cart
-RAM `[0x100000, 0x300000)`, the video region, ROM RAM `[0x500000, 0x700000)`),
+RAM `[0x100000, 0x500000)`, the video region, ROM RAM `[0x700000, 0x900000)`; HW 1.12.0's map),
 or the BLIT draws nothing. `D_BASE` is always a video-region offset: the blitter
 reads where a program may, and writes only video memory.
 
@@ -427,7 +427,7 @@ or for an unknown command. A `NOP` leaves it alone.
 
 A master with **separate read and write ports**, the video RTL's valid/ready style,
 sized for an AXI HP master behind it (`soc/zm_hp.py` is that bridge). Addresses are the
-machine's linear byte addresses (the video region is `0x300000 + offset`; SRC_ABS
+machine's linear byte addresses (the video region is `0x500000 + offset` since HW 1.12.0; SRC_ABS
 sources are absolute); the SoC adds its DDR base.
 
 | Port | Signals | Contract |

@@ -21,7 +21,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // the visible window in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_demo_intro/";
 const FRAMES = [1, 2, 3, 32, 33, 61, 300, 301, 1000, 1001];

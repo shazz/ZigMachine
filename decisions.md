@@ -1145,3 +1145,33 @@ dependent-read path); 1.10.0 (taken by LBASE).
 context; over the "LUT-neutral" wish, cuts ranked in docs/ROADMAP.md's CHISEL v2 row and BLITTER_HW_SPEC
 10.4. stniccc queues every fill (painter's order) against its CPU path: the board decides. 88 mutants,
 cart 112 and its harness prove the ops.
+
+## 2026-11-01 — The cart RAM window grows to 4 MiB; video and the ROM window move up 2 MiB (HW 1.12.0)
+
+**Status:** accepted (Matt, 1 Nov 2026); branch `feat/cart-window-4mb`. The board's CHISEL RTL needs a follow-up (below).
+
+**Context:** the C port of pt2-clone (a ProTracker clone) cannot load a module in the 2 MiB cart window
+`[0x100000, 0x300000)`: code statics, the tracker's buffers and a 1-2 MB module do not fit. The window
+was last raised in v1.1 (1 → 2 MiB), and the ROM got its own window above the video region in 1.3.0.
+
+**Decision:** cart `[0x100000, 0x500000)` (4 MiB), video region at `HW_VIDEO_BASE = 0x500000`
+(ends ~0x6DC000), ROM RAM `[0x700000, 0x900000)`, `SHARED_PAGES` 112 → 144 (9 MiB). Every number is
+in `machine/sdk/memmap.zig`; `build.zig` now imports it (`SHARED_PAGES`, `CART_RAM_BASE`,
+`ROM_RAM_BASE`) instead of repeating literals, and memmap gains comptime checks that the cart window
+stops at the video base, the video region clears the ROM window, and `SHARED_PAGES` ends exactly at
+`ROM_RAM_TOP`. Carts that ask `hwVideoBase()` / `hwRamTop()` need no source change; every cart must be
+rebuilt (the imported memory's declared max), as at 1.3.0.
+
+**Alternatives considered:** carve the ROM window or VRAM smaller to stay at 7 MiB (the ROM's 2 MiB is
+GEM's, VRAM is already the plane pool); stream the module from disk (a tracker edits the module in
+RAM); a growable memory (the board places the memory once, at a fixed offset: it must never move).
+
+**Consequences:** a breaking ABI change: all wasm carts, the C and Rust carts, disks and board images
+are rebuilt. On the board the wasm memory (calloc'd from ZIGGY's data region) grows 7 → 9 MiB.
+**CHISEL's RTL carries 23-bit linear addresses** (`zm_blit_core/px/pxq/row.v`, `zm_blit_chk.v`'s
+`s_small`): the old map ended at 0x700000 < 2^23, the new ROM window ends at 0x900000, so on the board
+a CHISEL op with an absolute source in the ROM window's top 1 MiB (0x800000+) is refused or wraps,
+while the browser's machine does it. The bitstream must also be re-synthesised for the new
+`ZM_HW_VIDEO_BASE` anyway (memmap.vh). The seal's `linear` window (`rtl/seal/zm_seal_map.vh`, 8 MiB)
+is also smaller than the new memory; the board firmware runs the cart in M today, so it is not
+enforced, but the seal plan must widen it to 16 MiB. Both are roadmap rows.

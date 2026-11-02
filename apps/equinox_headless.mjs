@@ -22,7 +22,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const SW = 320, SH = 228; // 640x456 canvas halved
 const ASSETS = "apps/zig/assets/screens/equinox";

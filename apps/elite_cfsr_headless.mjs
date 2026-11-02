@@ -12,7 +12,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // one overscan plane: the ST drew this on one screen
 
 // The scene's geometry, from apps/zig/scenes/elite_cfsr/ (which took it from the

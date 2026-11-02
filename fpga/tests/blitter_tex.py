@@ -22,7 +22,7 @@ class TexScript(RandomScript):
         absolute = r.random() < 0.6
         need = vm * stride + um + 1
         if absolute:
-            base = r.choice([0x120000, 0x1C0000, 0x500000 + r.randrange(0, 0x100000), mm.CART_RAM_TOP - need])
+            base = r.choice([0x120000, 0x1C0000, mm.ROM_RAM_BASE + r.randrange(0, 0x100000), mm.CART_RAM_TOP - need])
             if r.random() < 0.07:  # past the window's end: refused
                 base = mm.CART_RAM_TOP - need + r.randint(1, 8)
         else:  # in the video region: a plane, maybe the destination's own

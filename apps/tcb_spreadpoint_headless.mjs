@@ -29,7 +29,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const OFF_PAL = 0x100, REG_FB_BASE = 0x44;
 const W = 320, H = 200;
 const ASSETS = "apps/zig/assets/screens/tcb_spreadpoint/";

@@ -46,7 +46,7 @@
 #define AUDIO(call) ((void)0)
 #endif
 
-static struct w2c_env g_env; /* static: 7 MiB of memory is heap, the instances are not */
+static struct w2c_env g_env; /* static: 9 MiB of memory is heap, the instances are not */
 static const char* g_bootsec;  /* --bootsec: the disk whose boot sector runs instead of the cart */
 static const char* g_kos;      /* --kos: drive A at power-on ("none": empty) */
 static uint32_t g_post = 180;  /* --post-frames: the POST's length (0: none), rom/kos/kos.zig's default */

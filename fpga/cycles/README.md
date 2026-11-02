@@ -36,7 +36,7 @@ the table in `../CYCLES.md` between its markers.
 The toolchain is the system `riscv64-unknown-elf-gcc` 13.2 with
 `-march=rv32im -mabi=ilp32` and picolibc's multilib, so soft-float is **libgcc's**
 soft-fp (same routine names as compiler-rt). `-ffp-contract=off` as in the native
-host. The images are 0.3 to 0.5 MB; the wasm memory (7 MiB) is calloc'd.
+host. The images are 0.3 to 0.5 MB; the wasm memory (9 MiB since HW 1.12.0) is calloc'd.
 
 ## Who owns a cycle (the split that matters)
 

@@ -21,7 +21,7 @@ two outputs identical byte for byte, so `cmp` is enough to compare them.
 
 ## The call sequence (scene_hash.mjs, reproduced in `boot.c` / `main.c`)
 
-1. One memory, `initial = maximum = SHARED_PAGES` (112 pages = 7 MiB, from
+1. One memory, `initial = maximum = SHARED_PAGES` (144 pages = 9 MiB since HW 1.12.0, from
    `machine/sdk/memmap.zig` via `gen/memmap.py`). Every module imports it as
    `env.memory`, and none of them grows it.
 2. Instantiate `machine-video` (env: `memory`, `hblDispatch -> cart.hblDispatch`).
@@ -89,7 +89,7 @@ for an f32. A missing argument converts as `undefined` does.
 ## Portability (for step 0b-ii)
 
 - **Bounds-checked memory, no mmap:** `-DWASM_RT_USE_MMAP=0
-  -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1`. The 7 MiB memory is `calloc`'d, and there
+  -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1`. The 9 MiB memory is `calloc`'d, and there
   are no guard pages or signal handlers. Stack exhaustion is a depth counter
   (`WASM_RT_MAX_CALL_STACK_DEPTH=10000`, deep enough for V8's own limit to bite first).
 - **`-ffp-contract=off`:** wasm never fuses `a*b+c`. An FPU with `fmadd.s` (rv32 F)

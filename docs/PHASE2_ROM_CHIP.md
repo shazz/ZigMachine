@@ -68,7 +68,8 @@ de-risking step**: change the call *shape* first, the module boundary second.
   `REG_ROM_HIGH`, declared by the host the same way (`docs/wasm_hiwater.js`
   already measures any module).
 - ABI change → **clean-rebuild both wasm modules** (`.zig-cache` too).
-- *Done:* `ROM_RAM_BASE/TOP` = `[0x500000, 0x700000)`, `SHARED_PAGES` 79 → 112,
+- *Done:* `ROM_RAM_BASE/TOP` = `[0x500000, 0x700000)`, `SHARED_PAGES` 79 → 112 (HW 1.12.0 later moved
+  it to `[0x700000, 0x900000)`, 144 pages, when the cart window grew to 4 MiB),
   `REG_ROM_HIGH` at 0x60, and `hwRomRam{Base,Top,Size,Used,Free}` +
   `hwSetRomHigh`. `ram_check` covers both windows, including that they do not
   alias and both survive `hwInit`.

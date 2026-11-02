@@ -26,7 +26,7 @@ import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_multifake";
 const SCREEN_FRAMES = [0, 1, 2, 60, 61, 200, 1234, 3000];

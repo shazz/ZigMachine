@@ -2,7 +2,7 @@
  *
  * COLD (the ARM reloaded the image and zeroed the rest of the window): crt0
  * copies .data and zeroes .bss, then main() lays out the machine's memory
- * arena (the wasm linear memory, 7 MiB, at a FIXED address past .bss, not a
+ * arena (the wasm linear memory, 9 MiB, at a FIXED address past .bss, not a
  * heap calloc, so a warm boot can find it again), applies the wasm modules'
  * data segments, marks the arena (glass_boot_mark) and calls the cart's init.
  *

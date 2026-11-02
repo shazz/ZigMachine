@@ -20,7 +20,7 @@ import { inflateSync } from "node:zlib";
 import { cartRam } from "../docs/wasm_hiwater.js";
 import { loadAssets, Original, PW, PH } from "./gnomes_model.mjs";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/gnomes";
 const BREAKS = ["raster", "sweep", "scroll", "page", "vu", "music", "pixels"];
 const bi = process.argv.indexOf("--break");

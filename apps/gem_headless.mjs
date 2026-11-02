@@ -15,7 +15,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-click
 
 export async function bootGem() {

@@ -33,7 +33,7 @@ from sys_abi_manifest import parse
 HDR_BYTES, PAGES_AT, HDR_SIZE_AT, TAG_AT = 96, 20, 8, 80
 STUB = FPGA / "cycles/native/browser_stub.c"
 ZIG = Path.home() / ".local/zig/0.16.0/zig"
-SHARED_PAGES = 112  # machine/sdk/memmap.zig, as apps/c/build.sh's MEM
+SHARED_PAGES = 144  # machine/sdk/memmap.zig, as apps/c/build.sh's MEM
 
 
 def system_version() -> int:

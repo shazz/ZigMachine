@@ -31,7 +31,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112;
+const PAGES = 144;
 const W = 320, H = 240, VIS = 200;
 const PW = 800, PH = 280; // the machine's low-res raster is x-doubled
 const TICK_MS = 20;

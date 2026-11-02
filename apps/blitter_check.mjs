@@ -13,12 +13,13 @@
 // Usage: node apps/blitter_check.mjs        (exit 1 on any failure)
 import { readFile } from "node:fs/promises";
 
-const PAGES = 112;               // memmap.SHARED_PAGES
-const VIDEO = 0x300000;          // HW_VIDEO_BASE
+const PAGES = 144;               // memmap.SHARED_PAGES
+const VIDEO = 0x500000;          // HW_VIDEO_BASE
 const CART_BASE = 0x100000;      // CART_RAM_BASE
 const CART_TOP = VIDEO;          // CART_RAM_TOP
 const REGION_BYTES = 1948768;    // OFF_PFB + PFB_BYTES
-const ROM_BASE = 0x500000;       // ROM_RAM_BASE
+const ROM_BASE = 0x700000;       // ROM_RAM_BASE
+const ROM_TOP = 0x900000;        // ROM_RAM_TOP = the end of memory
 const OFF_BLIT = 0x80;
 const P0 = 0x1100;               // plane 0 framebuffer (OFF_VRAM)
 const P1 = 0x1100 + 64000;       // plane 1
@@ -108,9 +109,9 @@ check("SRC_ABS: last bytes of the cart window", () => {
     return matches(base, 10, 4, 10, 0, 0);
 });
 check("SRC_ABS: the ROM window", () => {
-    image(0x600000, 8, 8, 8);
-    blit({ con2: 1, base: 0x600000, stride: 8, w: 8, h: 8, x: 300, y: 190 });
-    return matches(0x600000, 8, 8, 8, 300, 190);
+    image(ROM_BASE + 0x100000, 8, 8, 8);
+    blit({ con2: 1, base: ROM_BASE + 0x100000, stride: 8, w: 8, h: 8, x: 300, y: 190 });
+    return matches(ROM_BASE + 0x100000, 8, 8, 8, 300, 190);
 });
 check("SRC_ABS: the video region by absolute address", () => {
     image(VIDEO + P1, 16, 4, STRIDE);
@@ -129,7 +130,7 @@ const refusals = [
     ["rect straddling cart RAM into the video region", { base: CART_TOP - 8, stride: 16, w: 16, h: 1 }],
     ["rect running off the cart window downward", { base: CART_TOP - 100, stride: 64, w: 16, h: 4 }],
     ["the gap between the video region and the ROM", { base: VIDEO + REGION_BYTES + 16, stride: 16, w: 16, h: 16 }],
-    ["past the ROM window (end of memory)", { base: 0x700000 - 8, stride: 16, w: 16, h: 1 }],
+    ["past the ROM window (end of memory)", { base: ROM_TOP - 8, stride: 16, w: 16, h: 1 }],
     ["stride x height large enough to wrap 32 bits", { base: 0x200000, stride: 65535, w: 16, h: 65535 }],
 ];
 for (const [name, r] of refusals) {
@@ -144,7 +145,7 @@ for (const [name, r] of refusals) {
 // wrote straight into the ROM's RAM. Both are now refused without a trap.
 const romGuard = () => u8().subarray(ROM_BASE, ROM_BASE + 4096);
 check("relative source past the video region is refused, no trap", () => {
-    const cyc = blit({ base: 0x3ff000, stride: 320, w: 64, h: 64, x: 0, y: 0 });
+    const cyc = blit({ base: ROM_TOP - VIDEO - 0x1000, stride: 320, w: 64, h: 64, x: 0, y: 0 });
     return untouched() ?? (cyc === 0 ? null : `CYCLES ${cyc}`);
 });
 check("relative source rect running off the region's end is refused", () => {
@@ -176,7 +177,7 @@ for (const [name, cmd] of [["FILL", 2], ["LINE", 3], ["TRIANGLE", 4]]) {
     });
 }
 check("FILL whose box runs off the end of memory is refused, no trap", () => {
-    const cyc = destBlit(2, 0x3fff00, 320, [0, 0, 0, 0, 0, 0, 320, 200]);
+    const cyc = destBlit(2, ROM_TOP - VIDEO - 0x100, 320, [0, 0, 0, 0, 0, 0, 320, 200]);
     return cyc === 0 ? null : `CYCLES ${cyc}`;
 });
 check("a huge-stride view that only writes its first rows still works", () => {

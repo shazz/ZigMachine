@@ -23,7 +23,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
 
 async function boot(cart = "docs/demo-tlb_spoon.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
