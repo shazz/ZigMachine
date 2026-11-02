@@ -5,7 +5,7 @@ import { deflateSync } from "node:zlib";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 export const CANVAS = { x: 8, y: 5, w: 384, h: 270 }; // ulm_dsots/draw.zig OX, OY, CANVAS_W/H
 
 export async function boot(cart = "docs/demo-ulm_dsots.wasm") {

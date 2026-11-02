@@ -6,7 +6,7 @@ const page_size = 65536; // in bytes
 
 // Video shared main-thread memory (see machine/sdk/memmap.zig): machine-video.wasm +
 // demo.wasm import the SAME WebAssembly.Memory; demo linked above the machine.
-// 9 MiB since HW 1.12.0: the 4 MiB cart window + VRAM + PFB + the 2 MiB ROM window.
+// 8 MiB since HW 1.13.0: the 3 MiB cart window + VRAM + PFB + the 2 MiB ROM window.
 const video_shared_bytes = @as(u64, memmap.SHARED_PAGES) * page_size;
 const demo_global_base: u64 = memmap.CART_RAM_BASE; // 1 MiB
 const machine_stack = 1 * page_size;

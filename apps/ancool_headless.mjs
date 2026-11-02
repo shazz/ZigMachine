@@ -38,7 +38,7 @@ const gitShow = (path) => execFileSync("git", ["show", `${OLD_REV}:${path}`], { 
 let m;
 if (brk === "planes") {
     // The old cart was linked for HW 1.11's 112-page memory: boot it on the machine and ROM
-    // of its own revision, in that memory (HW 1.12.0 moved the map to 144 pages).
+    // of its own revision, in that memory (HW 1.12.0 moved the map; it is 128 pages since 1.13.0).
     const dir = mkdtempSync(join(tmpdir(), "ancool-old-"));
     for (const f of ["machine-video.wasm", "rom.wasm"]) writeFileSync(join(dir, f), gitShow(`docs/${f}`));
     m = await boot(gitShow("docs/demo-ancool.wasm"), dir, 112);

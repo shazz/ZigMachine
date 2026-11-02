@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const REG_FB_COPPER = 0x78;
 const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 

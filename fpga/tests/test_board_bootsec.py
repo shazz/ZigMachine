@@ -97,7 +97,7 @@ def test_the_native_host_draws_the_boot_screen_scene_hash_draws(disk: Path) -> N
 
 
 def _module(tmp: Path, body: str, name: str) -> Path:
-    head = '(module (import "env" "memory" (memory 144 144)) (func (export "run") (param i64) (result i64) '
+    head = '(module (import "env" "memory" (memory 128 128)) (func (export "run") (param i64) (result i64) '
     return wat2wasm(head + body + "))", tmp / f"{name}.wasm")
 
 
@@ -105,7 +105,7 @@ def _module(tmp: Path, body: str, name: str) -> Path:
 @pytest.mark.parametrize(("body", "want"), [
     ("(loop $l (br $l)) (local.get 0)", "fuel 0"),                                    # never ends: fuel, no hang
     ("(i64.reinterpret_f64 (f64.add (f64.const 1) (f64.const 2)))", "load unsupported"),  # float arithmetic
-    ("(i64.load (i32.const 0x900000))", "oob 0"),                                     # one byte past the memory
+    ("(i64.load (i32.const 0x800000))", "oob 0"),                                     # one byte past the memory
 ])  # fmt: skip
 def test_the_sandbox_cuts_short_what_it_does_not_run(exe: Path, tmp_path: Path, body: str, want: str) -> None:
     m = _module(tmp_path, body, "m")

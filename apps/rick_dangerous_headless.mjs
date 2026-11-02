@@ -36,7 +36,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync, inflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const CART = "docs/demo-rick_dangerous.wasm";
 const MUSIC = "rick_dangerous.sndh";
 const NIDS = 29;

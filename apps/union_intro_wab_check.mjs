@@ -36,7 +36,7 @@ const LOGO = 132, LOGO_X = 134, LOGO_Y = 74;
 // The part as the f64 port drew it (before its flight and fade became comptime tables,
 // wab_table.zig / wab_fade.zig, 2026-10-20): those must keep every frame byte for byte.
 const PART_PIN = "16e8bf050c73d9330721d8985ffa53f9cc4493f1753353f0a5a457c75c5c5ccd";
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 let failed = false;
 const verdict = (ok, msg) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${msg}`); if (!ok) failed = true; };
 

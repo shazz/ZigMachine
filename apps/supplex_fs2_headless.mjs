@@ -26,7 +26,7 @@ const argv = process.argv.slice(2);
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !["silent", "latch", "song"].includes(BREAK)) { console.error(`supplex_fs2: unknown --break ${BREAK}`); process.exit(1); }
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const MUSIC = "shaolin_title.hip";
 const MD5 = "48e2ebc6c7588bee78796281b677facc"; // modland's "shaolin title.hip"
 const SECONDS = 20;

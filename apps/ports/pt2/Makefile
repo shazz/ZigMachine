@@ -15,7 +15,7 @@ GEN    := $(OUT)/gen
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I../kestrel_sdl2/include -include kestrel_port.h \
           -D__KESTREL__ -Wno-unused-parameter -Wno-unused-but-set-variable
 # The cart's memory layout, as apps/c/build.sh: the machine's one memory, data from 0x100000.
-MEM := 9437184
+MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=262144 -Wl,--strip-debug
 

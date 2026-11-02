@@ -9,7 +9,7 @@ const FRAMES = +(process.argv[2] ?? 3), OUT = process.argv[3] ?? "apps/ports/pt2
 const CART = "apps/ports/pt2/build/demo-pt2.wasm";
 const DISK = await readFile("docs/demo-pt2.zmd").catch(() => null); // the drive's floppy
 const CLICKS = (process.env.CLICKS ?? "").split(";").filter(Boolean).map((c) => c.split(",").map(Number)); // frame,x,y (pt2 coords)
-const memory = new WebAssembly.Memory({ initial: 144, maximum: 144 });
+const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
 const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
 const romBytes = await readFile("docs/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;

@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { parseDisk } from "../docs/zmdisk.js";
 
-const PAGES = 144, BLOCK = 512, COLS = 80, ROWS = 25, CELL = 8, W = 640;
+const PAGES = 128, BLOCK = 512, COLS = 80, ROWS = 25, CELL = 8, W = 640;
 const TITLE = "SYSINFO FOR ZIGMACHINE, VERSION ";
 const DRAWS = ["guiText", "guiTextAlign", "guiFill", "guiRect", "guiFrame", "guiBox", "guiButton", "guiPlot"];
 export const K = { F1: 0xe001, HELP: 0xe011, ESC: 0xe012 };

@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { OFF_VRAM, RH, REG_HSCROLL, REG_FB_COPPER, decodeList, model, firstMismatch } from "./linebase_model.mjs";
 
-const PAGES = 144, VIDEO = 0x500000;
+const PAGES = 128, VIDEO = 0x400000;
 const REG_BACKGROUND = 0x04, REG_FB_HBL_POS = 0x28, REG_FB_STRIDE = 0x34;
 const REG_FB_BASE = 0x44, REG_FB_MODE = 0x54, OFF_PAL = 0x100;
 const RW = 800, BG = 0xFF123456;

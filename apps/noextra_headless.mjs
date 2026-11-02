@@ -20,7 +20,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const W = 400, H = 280, RW = 800;
 const FRAMES = 2400, EVERY = 10;
 const PAD = 7, SX = 40, MAIN = 749, BOB_WAIT = 767; // noextra/rasters.zig, timeline.zig

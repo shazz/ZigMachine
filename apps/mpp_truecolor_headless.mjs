@@ -22,7 +22,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { checkLists, dropTails } from "./mpp_truecolor_lists.mjs";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // first visible physical row / column (low res is doubled)
 const IMG_W = 320, IMG_H = 180; // the picture; the caption band is below it
 const WARMUP = 30, FRAMES = 60; // per mode: untimed, then timed, then the shot

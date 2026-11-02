@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig (the 4 MiB cart window)
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig (the 3 MiB cart window)
 export const DT = 1000 / 60;
 
 // boot(cart, disk): disk = the .zmd bytes in drive A, or null for an empty drive.

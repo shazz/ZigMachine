@@ -5,7 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 
 // machineDir/pages: an old cart needs the machine and the memory size it was built for
 // (a cart refuses a memory bigger than its declared max).

@@ -30,7 +30,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/ikplus";
 const TICK_MS = 20.0; // the cart steps once a frame; one 50 Hz VBL a frame
 

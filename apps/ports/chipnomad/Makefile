@@ -26,7 +26,7 @@ FLAGS  := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory $(INCS) -include ke
           -Wno-builtin-macro-redefined '-D__DATE__="$(BUILD_DATE)"'
 CXXFLAGS := $(FLAGS) -std=c++17 -fno-exceptions -fno-rtti
 CFLAGS := $(FLAGS) -std=gnu11
-MEM := 9437184
+MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=262144 -Wl,--strip-debug
 OBJS   := $(patsubst %,$(OUT)/up/%.o,$(UP_SRC)) $(patsubst %,$(OUT)/%.o,$(wildcard kestrel_*.cpp)) \

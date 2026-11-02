@@ -18,8 +18,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
-const VIDEO = 0x500000; // HW_VIDEO_BASE
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
+const VIDEO = 0x400000; // HW_VIDEO_BASE
 const REG_BEAM_COUNT = 0x64, REG_BEAM_DROPPED = 0x68, OFF_BEAM_TABLE = 0x1DBD00;
 const W = 400, RW = 800, RH = 280;
 const VBL_MS = 20;

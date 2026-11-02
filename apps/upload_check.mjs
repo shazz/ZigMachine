@@ -90,7 +90,7 @@ const sniff = [
     ["ancool's packed cart", packedCart, "zx0"],
     ["a text file", new TextEncoder().encode("hello, this is not a cart\n"), null],
     ["an empty file", new Uint8Array(0), null],
-    ["a 5 MB wasm (over the 4 MB cart cap)", big(5 << 20, [0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]), null],
+    ["a 5 MB wasm (over the 3 MB cart cap)", big(5 << 20, [0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]), null],
     ["a 17 MB disk", big(17 << 20, new TextEncoder().encode("ZMDISK")), null],
 ];
 for (const [what, bytes, want] of sniff) {

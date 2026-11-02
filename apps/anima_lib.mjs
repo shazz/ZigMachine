@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 export const CART = "docs/demo-anima.wasm";
-const PAGES = 144;
+const PAGES = 128;
 
 export async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });

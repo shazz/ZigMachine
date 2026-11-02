@@ -13,13 +13,13 @@
 // Usage: node apps/blitter_check.mjs        (exit 1 on any failure)
 import { readFile } from "node:fs/promises";
 
-const PAGES = 144;               // memmap.SHARED_PAGES
-const VIDEO = 0x500000;          // HW_VIDEO_BASE
+const PAGES = 128;               // memmap.SHARED_PAGES
+const VIDEO = 0x400000;          // HW_VIDEO_BASE
 const CART_BASE = 0x100000;      // CART_RAM_BASE
 const CART_TOP = VIDEO;          // CART_RAM_TOP
 const REGION_BYTES = 1948768;    // OFF_PFB + PFB_BYTES
-const ROM_BASE = 0x700000;       // ROM_RAM_BASE
-const ROM_TOP = 0x900000;        // ROM_RAM_TOP = the end of memory
+const ROM_BASE = 0x600000;       // ROM_RAM_BASE
+const ROM_TOP = 0x800000;        // ROM_RAM_TOP = the end of memory
 const OFF_BLIT = 0x80;
 const P0 = 0x1100;               // plane 0 framebuffer (OFF_VRAM)
 const P1 = 0x1100 + 64000;       // plane 1

@@ -12,7 +12,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, MODES = 10, K_ESC = 0xe012, DIR_LEFT = 2, DIR_RIGHT = 3;
+const PAGES = 128, MODES = 10, K_ESC = 0xe012, DIR_LEFT = 2, DIR_RIGHT = 3;
 const argv = process.argv.slice(2), opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv.splice(i, 2)[1]; };
 const CART = opt("--cart") ?? "docs/demo-scrolllab.wasm", RECORD = opt("--record");
 const HASHES = new URL("./scrolllab_hashes.json", import.meta.url);

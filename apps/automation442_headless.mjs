@@ -13,7 +13,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 2; // 0 = panned overscan skull, 1 = overscan scrolltext
 
 async function boot(cart = "docs/demo-automation442.wasm") {

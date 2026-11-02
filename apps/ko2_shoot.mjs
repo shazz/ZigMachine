@@ -1,7 +1,7 @@
 // Render the kickoff2 match plane to PPMs at several moments for visual checks.
 import { readFile, writeFile } from "node:fs/promises";
 
-const PAGES = 144;
+const PAGES = 128;
 const VBL_MS = 20;
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;

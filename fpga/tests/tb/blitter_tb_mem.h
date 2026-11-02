@@ -11,7 +11,7 @@
 #include "zm_blit.cc"
 
 static cxxrtl_design::p_zm__blit top;
-static const uint32_t LO = 0x100000, HI = 0x900000, VIDEO = 0x500000, REGS_END = VIDEO + 0x100;
+static const uint32_t LO = 0x100000, HI = 0x800000, VIDEO = 0x400000, REGS_END = VIDEO + 0x100;
 static const uint8_t PAL[8] = {0, 1, 2, 0x55, 0xAA, 0xFF, 0x0F, 0xF0};
 static std::vector<uint8_t> mem(HI, 0);
 static uint64_t rng = 1, lcg = 12345;

@@ -44,7 +44,7 @@ from soc.zm_memtiming import ZMMemTiming
 FPGA = Path(__file__).resolve().parent.parent
 OUT = FPGA / "build/soc_cycles"
 MAIN_RAM = 0x40000000  # LiteX's default main_ram origin; cycles/link.ld agrees
-MAIN_RAM_SIZE = 32 << 20  # 9 MiB of wasm memory + three translated modules + heap
+MAIN_RAM_SIZE = 32 << 20  # 8 MiB of wasm memory + three translated modules + heap
 
 
 def add_main_ram(soc: ZigMachineSoC, platform: SimPlatform) -> None:

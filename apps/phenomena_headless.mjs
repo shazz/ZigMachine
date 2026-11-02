@@ -33,7 +33,7 @@ import { cartRam } from "../docs/wasm_hiwater.js";
 import { Model, Assets, LINE } from "./phenomena_model.mjs";
 import { picture } from "./phenomena_picture.mjs";
 
-const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/phenomena";
 const BREAKS = ["seq", "dna", "pixels", "raster", "music"];
 const bi = process.argv.indexOf("--break");

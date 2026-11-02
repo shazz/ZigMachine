@@ -21,7 +21,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const RING = 32768; // STREAM_RING (audio-worklet-sealed.js streamFeed)
 const BLOCK = 512, DUR = 30;
 const K_ENTER_FIELD = "SAMPLE.RAW", OK_BUTTON = [416, 127]; // filesel.zig: OK spans dx 160 + 221 .. +306, dy 24 + 101 .. +114

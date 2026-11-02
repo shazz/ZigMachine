@@ -12,8 +12,8 @@
 import { readFile } from "node:fs/promises";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // memmap.SHARED_PAGES
-const VIDEO_BASE = 0x500000; // hwVideoBase() return value (HW_VIDEO_BASE)
+const PAGES = 128; // memmap.SHARED_PAGES
+const VIDEO_BASE = 0x400000; // hwVideoBase() return value (HW_VIDEO_BASE)
 const OFF_PAL = 0x0100, OFF_VRAM = 0x1100, W = 320, H = 200;
 
 // Every import name a wasm module asks for, so the check can tell a cart that

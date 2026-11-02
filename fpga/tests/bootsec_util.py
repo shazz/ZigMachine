@@ -17,7 +17,7 @@ WABT = FPGA / ".tools/wabt"
 NODE = r"""
 import { readFileSync } from "node:fs";
 const [mode, file, arg] = process.argv.slice(-3); // node -e: no script path in argv
-const PAGES = 144, VBASE = 0x200000, FB = 0x1000;
+const PAGES = 128, VBASE = 0x200000, FB = 0x1000;
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const mem = new Uint8Array(memory.buffer);
 for (let i = 0; i < mem.length; i++) mem[i] = (i * 7) & 255;
@@ -135,7 +135,7 @@ CONTROL = r"""
 
 
 def ops_wat() -> str:
-    head = ('(module (import "env" "memory" (memory 144 144)) (import "env" "id" (func $id (param i64) (result i64)))'
+    head = ('(module (import "env" "memory" (memory 128 128)) (import "env" "id" (func $id (param i64) (result i64)))'
             ' (import "env" "nothere" (func $nothere (result i32))) (global $g (mut i64) (i64.const 5))')  # fmt: skip
     return "\n".join([head, *_ops(), *_mem(), CONTROL, ")"])
 
@@ -148,7 +148,7 @@ def wat2wasm(text: str, out: Path) -> Path:
 
 
 EDGES = [0, 1, -1, 2, 7, 31, 32, 33, 63, 64, 0x7FFFFFFF, -0x80000000, 0xFFFFFFFF, 0x80000000, 2**63 - 1, -(2**63)]
-MEM_EDGES = [0, 1, 3, 4, 0x200000, 0x8FFFF0, 0x8FFFF8, 0x8FFFFA, 0x8FFFFF, 0x900000, 0xFFFFFFFF, -1]
+MEM_EDGES = [0, 1, 3, 4, 0x200000, 0x7FFFF0, 0x7FFFF8, 0x7FFFFA, 0x7FFFFF, 0x800000, 0xFFFFFFFF, -1]
 
 
 def op_calls(seed: int = 7) -> str:
@@ -162,8 +162,8 @@ def op_calls(seed: int = 7) -> str:
         lines += [f"ld.{o} {a}" for a in MEM_EDGES]
     for o in STORES:
         lines += [f"st.{o} {a} {rnd.choice(vals)}" for a in MEM_EDGES]
-    lines += [f"fill {d} {v} {n}" for d, v, n in [(16, 0xAB, 40), (0x8FFFF0, 1, 16), (0x8FFFF0, 1, 17), (0, 0, 0)]]
-    lines += [f"copy {d} {s} {n}" for d, s, n in [(100, 90, 40), (90, 100, 40), (0x8FFFF0, 0, 17), (5, 0x8FFFF0, 17)]]
+    lines += [f"fill {d} {v} {n}" for d, v, n in [(16, 0xAB, 40), (0x7FFFF0, 1, 16), (0x7FFFF0, 1, 17), (0, 0, 0)]]
+    lines += [f"copy {d} {s} {n}" for d, s, n in [(100, 90, 40), (90, 100, 40), (0x7FFFF0, 0, 17), (5, 0x7FFFF0, 17)]]
     lines += ["msize", "mgrow 0", "mgrow 1", "fact 20", "loop_sum 1000", "mv 9 4", "gcount 3", "gcount -10"]
     lines += [f"brt {k}" for k in (0, 1, 2, 3, 4, 99, -1)] + [f"sel 1 2 {c}" for c in (0, 1, 7)]
     lines += [f"selt 1 2 {c}" for c in (0, 1)] + ["callid 77", "stub 0", "unreach 0", "unreach 5", "f64const 0", "f32const 0"]

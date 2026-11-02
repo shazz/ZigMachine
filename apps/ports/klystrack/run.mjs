@@ -12,7 +12,7 @@ const FRAMES = +(process.argv[2] ?? 60), OUT = process.argv[3] ?? "apps/ports/kl
 const CART = "apps/ports/klystrack/build/demo-klystrack.wasm";
 const DISK = await readFile("docs/demo-klystrack.zmd").catch(() => null); // the drive's floppy
 const CLICKS = (process.env.CLICKS ?? "").split(";").filter(Boolean).map((c) => c.split(",").map(Number)); // frame,x,y (klystrack 320x240 coords)
-const memory = new WebAssembly.Memory({ initial: 144, maximum: 144 });
+const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
 const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
 const romBytes = await readFile("docs/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;

@@ -5,7 +5,7 @@
 //!   blitter_ref <script> <trace>
 //!
 //! Script lines (tests/tb/blitter_script.h reads the same; `#` starts a comment):
-//!   seed <n>             fill 0x100000..0x900000 from a PRNG (few distinct bytes, so keys hit);
+//!   seed <n>             fill 0x100000..0x800000 from a PRNG (few distinct bytes, so keys hit);
 //!                        the register block (offsets 0..0xFF) is kept
 //!   w8|w16|w32 <off> <v> write the register at video-region offset <off> (little-endian)
 //!   m8|m16|m32 <adr> <v> write memory at linear address <adr> (span lists, maps, textures)
@@ -17,8 +17,8 @@ const std = @import("std");
 const blitter = @import("blitter");
 
 const LO: usize = 0x100000;
-const HI: usize = 0x900000; // memmap.ROM_RAM_TOP
-const VIDEO: usize = 0x500000; // memmap.HW_VIDEO_BASE
+const HI: usize = 0x800000; // memmap.ROM_RAM_TOP
+const VIDEO: usize = 0x400000; // memmap.HW_VIDEO_BASE
 const REGS_END: usize = VIDEO + 0x100; // the register block: not memory
 const CMD: usize = 0x80; // memmap.BLIT_COMMAND
 const STATUS: usize = 0x83;

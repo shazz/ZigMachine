@@ -3,8 +3,8 @@
 // is tested on a cart with the pattern and on its clean twin.
 import { encU32, encS32, encName, section } from "./wasm_bin.mjs";
 
-export const BUF = 0x180000, BUF2 = 0x1a0000; // cart RAM (0x100000..0x500000), unused by the host
-export const PAL = 0x500000 + 0x100;          // HW_VIDEO_BASE + OFF_PAL: plane 0's palette
+export const BUF = 0x180000, BUF2 = 0x1a0000; // cart RAM (0x100000..0x400000), unused by the host
+export const PAL = 0x400000 + 0x100;          // HW_VIDEO_BASE + OFF_PAL: plane 0's palette
 
 const f64b = (x) => [...new Uint8Array(new Float64Array([x]).buffer)];
 const f32b = (x) => [...new Uint8Array(new Float32Array([x]).buffer)];
@@ -34,8 +34,8 @@ const T = { void: [0x60, 0, 0], f32v: [0x60, 1, 0x7d, 0], i32i32: [0x60, 1, 0x7f
 
 export const HW_BLIT = 0;    // function 0: the env.hwBlit import
 export const fn = (k) => 6 + k; // index of extra helper k (after the import and the 5 exports)
-export const PLANE = 0x500000 + 0x1100; // plane 0's buffer when `plane` is set (OFF_VRAM)
-const VB = 0x500000;
+export const PLANE = 0x400000 + 0x1100; // plane 0's buffer when `plane` is set (OFF_VRAM)
+const VB = 0x400000;
 
 // plane 0 at OFF_VRAM, 320 wide, normal mode, and a grey ramp palette (index i -> i,i,i)
 const PLANE_BOOT = [
@@ -61,7 +61,7 @@ export function cart(frameBody, { locals = [[4, 0x7f], [2, 0x7e], [2, 0x7c], [2,
     const tkeys = Object.keys(T);
     const types = section(1, [...encU32(tkeys.length), ...tkeys.flatMap((k) => T[k])]);
     const imports = section(2, [2, ...encName("env"), ...encName("hwBlit"), 0, tkeys.indexOf("void"),
-        ...encName("env"), ...encName("memory"), 2, 1, ...encU32(144), ...encU32(144)]); // SHARED_PAGES (LEB128: 2 bytes)
+        ...encName("env"), ...encName("memory"), 2, 1, ...encU32(128), ...encU32(128)]); // SHARED_PAGES (LEB128: 2 bytes)
     const funcs = section(3, [...encU32(fns.length), ...fns.map((f) => tkeys.indexOf(f.type))]);
     const exps = fns.slice(0, 5);
     const exports = section(7, [...encU32(exps.length), ...exps.flatMap((f, i) => [...encName(f.name), 0, i + 1])]);

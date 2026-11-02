@@ -14,7 +14,7 @@ KINC   := ../kestrel_sdl2/include
 DEFS   := -DUSE_SDL2 -DNOTTF=1 -DNOLUA=1 -DNORECOIL -D__no_pnglib__ -D__no_tifflib__ -D__KESTREL__
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I$(KINC) -I$(KINC)/SDL2 -Iinclude -I$(GEN) -include kestrel_port.h $(DEFS) \
           -Wno-unused-parameter -Wno-unused-but-set-variable
-MEM := 9437184
+MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=262144 -Wl,--strip-debug
 

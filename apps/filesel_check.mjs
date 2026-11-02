@@ -15,8 +15,8 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
 
-// Re-pinned for HW 1.12.0: only ST Replay's "bytes free" figure (top right) moved, the
-// cart window being 4 MiB; the selector's pixels are unchanged.
+// Re-pinned for HW 1.13.0: only ST Replay's "bytes free" figure (top right) moved, the
+// cart window being 3 MiB; the selector's pixels are unchanged.
 const PINS = {
     open: "7756a6d7e579bbed6ac25b260d4ed19349ce824253a54fbff7b65cb71e8c977e",
     drumloop: "802ff50a6f9b3496a7ac0cfd581ddaaed131583ab9aa381b5d338bc5b13af6af",
@@ -50,7 +50,7 @@ async function testDisk() {
 }
 
 async function boot() {
-    const memory = new WebAssembly.Memory({ initial: 144, maximum: 144 });
+    const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;

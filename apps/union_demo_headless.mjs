@@ -45,7 +45,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const PREROLL = 3;
 const HOLD_TAIL = 3; // frames held after the last event: 3 x 16.6 ms < 60 ms
 const DT = 16.6;

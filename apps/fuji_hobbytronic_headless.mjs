@@ -31,7 +31,7 @@ const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : nul
 if (BREAK !== null && !["raster", "still", "song"].includes(BREAK)) { console.error(`fuji_hobbytronic: unknown --break ${BREAK}`); process.exit(1); }
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
 const FRONT = 4, BACK = 5, SIDE = 6, SIDES = 8, SCROLL = 14; // raster.zig, logo.zig
 const SCROLL_Y = 184, H = 200, W = 320;

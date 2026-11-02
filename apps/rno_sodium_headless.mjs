@@ -16,7 +16,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // one plane: the ST showed one screen
 const CART = "docs/demo-rno_sodium.wasm";
 const MUSIC = "gritty.sndh";

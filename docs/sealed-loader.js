@@ -13,12 +13,12 @@
 // thread; JS mirrors its YM regs / player mode / scopes into the demo module.
 // --------------------------------------------------------------------------
 
-// MUST match machine/sdk/memmap.zig SHARED_PAGES. HW 1.12.0: 4 MiB cart window + 1 MiB
-// VRAM + PFB + the 2 MiB ROM window (9 MiB). Raising it is a BREAKING change for carts
+// MUST match machine/sdk/memmap.zig SHARED_PAGES. HW 1.13.0: 3 MiB cart window + 1 MiB
+// VRAM + PFB + the 2 MiB ROM window (8 MiB). Raising it is a BREAKING change for carts
 // packed against the old value — a cart declares the imported memory's
 // initial/max, so it refuses a memory bigger than its max. Repack with
 // tools/mkdisks.sh (node apps/disk_check.mjs catches it).
-const SHARED_PAGES = 144;
+const SHARED_PAGES = 128;
 
 // Cache-bust every wasm fetch with the page-load time, so a rebuilt .wasm is
 // always picked up on reload (mobile browsers cache the 1.9 MB blob hard and

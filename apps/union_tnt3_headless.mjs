@@ -29,7 +29,7 @@ import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeRemake, findRemake } from "./union_tnt3_replay.mjs";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const DEPACK_FRAMES = Math.ceil(68608 / (3 * 280)); // DEPACK_BYTES_PER_LINE = 3

@@ -36,7 +36,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
 import { kosBoot } from "./scene_hash_kos.mjs";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 
 async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });

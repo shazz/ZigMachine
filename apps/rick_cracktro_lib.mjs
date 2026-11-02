@@ -4,7 +4,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const CART = "docs/demo-rick_dangerous.wasm";
 const RW = 800; // the physical frame: 320x200 at (40, 40), x doubled
 /// The ST's VBL: 512 x 313 cycles of 8.021247 MHz, 19.98 ms.

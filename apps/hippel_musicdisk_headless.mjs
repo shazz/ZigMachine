@@ -29,7 +29,7 @@ import { cartRam } from "../docs/wasm_hiwater.js";
 import { screenModel } from "./hippel_musicdisk_model.mjs";
 import { playHip } from "./hippel_musicdisk_audio.mjs";
 
-const PAGES = 144, W = 400, H = 280, PW = 800;
+const PAGES = 128, W = 400, H = 280, PW = 800;
 const argv = process.argv.slice(2);
 const opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv[i + 1]; };
 const brk = opt("--break");

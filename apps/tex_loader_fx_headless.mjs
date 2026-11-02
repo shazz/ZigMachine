@@ -16,7 +16,7 @@ import { spawnSync } from "node:child_process";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const out = process.argv[2] || "/tmp/tex_loader_fx";
 const asset = process.argv[3] || "apps/zig/assets/screens/union_intro/trsi_turn.raw";
 // 7 bytes a line = 1960 a frame: the 196,560-byte TRSI turn depacks in 101 frames,

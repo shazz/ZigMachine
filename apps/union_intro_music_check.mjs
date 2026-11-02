@@ -22,7 +22,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, FRAMES = 1200; // main starts around frame 960
+const PAGES = 128, FRAMES = 1200; // main starts around frame 960
 const FAIL_PROOF = process.argv.includes("--fail-proof");
 const FIRST = FAIL_PROOF ? "union/150_mph.sndh" : "union/sharpness_buzztone.sndh";
 const KEYS = [[30, 3], [45, 4], [60, 5], [90, 5]]; // [frames after the first TRSI frame, key]

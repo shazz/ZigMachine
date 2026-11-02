@@ -11,7 +11,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // the panned field, with the logo and the scroll strip drawn into it
 
 // Machine registers this driver reads directly (machine/sdk/memmap.zig). The pan

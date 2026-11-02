@@ -26,7 +26,7 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TUNE = 25; // TUNE_FRAMES in docs/sealed-loader.js
 const AFTER = 60;
 const ESC_AT = 10;

@@ -23,7 +23,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeZigChecks } from "./replicants_emlyn_zig.mjs";
 import { copperRecords } from "./copper_lines.mjs";
 
-const PAGES = 144, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
+const PAGES = 128, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
 const REG_FB_HBL_ID = 0x20, REG_FB_HBL_POS = 0x28;
 const FIRST_BUCKET = 107, MAX_BUCKETS = 149; // emlyn/assets.zig, emlyn/rasters.zig

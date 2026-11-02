@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
+const PAGES = 128, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // the 320x200 window in the physical frame (x doubled)
 const SR = 44100, BLOCK = 882;
 

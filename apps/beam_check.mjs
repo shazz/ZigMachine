@@ -16,8 +16,8 @@
 //                                       the machine counted the drops.
 import { readFile } from "node:fs/promises";
 
-const PAGES = 144;                  // memmap.SHARED_PAGES
-const VIDEO = 0x500000;             // HW_VIDEO_BASE
+const PAGES = 128;                  // memmap.SHARED_PAGES
+const VIDEO = 0x400000;             // HW_VIDEO_BASE
 const REG_BACKGROUND = 0x04, REG_GLOBAL_HBL_ID = 0x10, HBL_GLOBAL_ID = 5;
 const REG_BEAM_COUNT = 0x64, REG_BEAM_DROPPED = 0x68;
 const OFF_BEAM_TABLE = 0x1DBD00;    // OFF_PFB + PFB_BYTES

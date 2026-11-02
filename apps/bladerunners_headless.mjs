@@ -25,7 +25,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const FRAMES = 10500, BLOCK = 500; // the whole scroll text (625 letters x 16 frames) and its wrap
 const W = 800, TOP = 40, BX = 80;
 const EXPECTED = "apps/bladerunners_expected.json";

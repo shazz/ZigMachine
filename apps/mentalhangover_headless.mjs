@@ -33,7 +33,7 @@ import { performance } from "node:perf_hooks";
 import { inflateSync } from "node:zlib";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144;
+const PAGES = 128;
 const TICK_MS = 20.0;
 const TOTAL = 3341; // 33 fade-in + 3275 active + 33 fade-out
 

@@ -36,7 +36,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { copperRecords, copperColour } from "./copper_lines.mjs";
 import { Replay, loadAssets, W, H, ulmDistTable, mocheDistTable } from "./gen4_3615_replay.mjs";
 
-const PAGES = 144, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
+const PAGES = 128, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
 const HBL_PLANE_ID = 0; // the raster plane (its copper list)
 const CANVAS_X = 8, CANVAS_Y = 10; // the scene's placement of the 384x270 canvas

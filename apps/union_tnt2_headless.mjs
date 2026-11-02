@@ -28,7 +28,7 @@ import { performance } from "node:perf_hooks";
 import { deflateSync, inflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, AUDIO_PAGES = 48; // SHARED_PAGES in machine/sdk/memmap.zig; machine/sdk/audio.zig
+const PAGES = 128, AUDIO_PAGES = 48; // SHARED_PAGES in machine/sdk/memmap.zig; machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_tnt2";
 const TEXT_FILE = `${ASSETS}/scrolltext.txt`; // jsApp.scrolltext, a copy of the hub's

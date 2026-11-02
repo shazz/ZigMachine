@@ -20,7 +20,7 @@ CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I$(KINC
           -I$(GEN)/src -I$(GEN)/klystron -include kestrel_port.h $(DEFS) \
           -Wno-unused-parameter -Wno-unused-but-set-variable \
           -Wno-pointer-sign -Wno-deprecated-non-prototype
-MEM := 9437184
+MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=131072 -Wl,--strip-debug
 

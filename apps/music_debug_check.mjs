@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, AUDIO_PAGES = 48, SR = 44100, SECONDS = 4;
+const PAGES = 128, AUDIO_PAGES = 48, SR = 44100, SECONDS = 4;
 const BROKE = process.argv.includes("--break");
 const WANT = ["lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh",
     BROKE ? "other.xm" : "keygen_9000.xm", "local.xm"];

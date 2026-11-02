@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, REG_FB_BASE = 0x44;
+const PAGES = 128, REG_FB_BASE = 0x44;
 export const PW = 400, PH = 280;
 
 /// `setMute(true)` keeps the plane's HBLs from running (the --break hbl case).

@@ -48,7 +48,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { checkRefined } from "./raytrace_refine_lib.mjs";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200, IMG_H = 176, HORIZON = 62;
 const FRAMES_TO_DONE = { none: 110, fake: 220 };
 const FAKE_RATE = 32000; // px/s: 256 px per 8000 fake us

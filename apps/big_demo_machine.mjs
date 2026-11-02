@@ -5,7 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
+const PAGES = 128, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
 
 export async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });

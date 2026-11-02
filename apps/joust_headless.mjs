@@ -28,7 +28,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const CART = "docs/demo-joust.wasm";
 const MUSIC = "joust_sfx.sndh";
 const W = 400, RW = 800, RH = 280; // the physical frame: 320x200 at (40, 40), x doubled

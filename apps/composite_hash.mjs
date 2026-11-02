@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDrive } from "./scene_hash_disk.mjs";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TUBE = [0, 0, 0]; // black, zm_video_mix.v TUBE (since 2026-10-20)
 
 async function boot(cartPath, machineDir, diskPath) {

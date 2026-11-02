@@ -25,7 +25,7 @@ import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { loadAssets, makeReplay, regsAt, FX_NAMES } from "./union_deltaforce_replay.mjs";
 
-const PAGES = 144, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
+const PAGES = 128, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const DEPACK_FRAMES = Math.ceil(186774 / (7 * 280)); // DEPACK_BYTES_PER_LINE = 7
 const TEX_INK = [0xc0, 0xa0, 0x00];

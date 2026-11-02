@@ -17,7 +17,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 144; // SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40; // first visible physical row
 const FRAME = 1200; // text fills the top lines and the 3D grid is up
 const OVERLAY = new Set([0xc0c0c0, 0xe0e0e0, 0xa0a0a0, 0xff0000]); // logo_pal.dat 0, 2, 3; the grid
