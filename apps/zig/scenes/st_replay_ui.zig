@@ -61,6 +61,7 @@ pub const K_UNDO: u32 = 0xE010;
 pub const K_HELP: u32 = 0xE011;
 pub const K_ESC: u32 = 0xE012;
 pub const K_ALT: u32 = 0xE013;
+pub const K_ALT_RIGHT: u32 = 0xE018; // Right Alt has its own code (sealed-loader.js MOD_CODES): Alt too here
 
 // The left column selects the replay rate (f1..f8), then the machine's modes.
 //

@@ -233,7 +233,7 @@ pub const App = struct {
                 self.wants_quit = true;
             },
             'r', 'R' => self.reverse(),
-            ui.K_ALT => self.alternate(),
+            ui.K_ALT, ui.K_ALT_RIGHT => self.alternate(),
             'w', 'W' => self.wipe(),
             ui.K_UNDO => { // RESET cursors
                 self.low = 0;

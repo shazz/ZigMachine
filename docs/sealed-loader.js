@@ -799,8 +799,10 @@ const KEY_CODES = {
 };
 // The modifier keys, told apart by SIDE (evt.code, not evt.key): a game may bind
 // left Ctrl and left Shift as buttons of their own (Rick Dangerous: fire up /
-// dynamite). 0xE013 is ST Replay's K_ALT, so these start at 0xE014.
-const MOD_CODES = { ControlLeft: 0xE014, ShiftLeft: 0xE015, ControlRight: 0xE016, ShiftRight: 0xE017 };
+// dynamite). 0xE013 is ST Replay's K_ALT, so these start at 0xE014. Right Alt
+// (AltGr, whose evt.key is "AltGraph" on many layouts) has its own code after
+// them, 0xE018 (pt2-clone's play song); a cart that knows only Alt takes it as Alt.
+const MOD_CODES = { ControlLeft: 0xE014, ShiftLeft: 0xE015, ControlRight: 0xE016, ShiftRight: 0xE017, AltRight: 0xE018 };
 
 window.document.body.addEventListener('keydown', function (evt) {
     if (!demo) return;
@@ -848,6 +850,10 @@ window.document.body.addEventListener('keydown', function (evt) {
         if (evt.key === "Backspace") { evt.preventDefault(); demo.key(8); }
         else if (evt.key === "Enter") demo.key(13);
         else if (evt.key.length === 1) demo.key(evt.key.charCodeAt(0));
+        else if (evt.code === "AltRight") { // before KEY_CODES: its evt.key is "Alt" (or "AltGraph")
+            evt.preventDefault();
+            if (!evt.repeat) demo.key(MOD_CODES.AltRight); // once a press (its release: keyUp)
+        }
         else if (KEY_CODES[evt.key] !== undefined) {
             evt.preventDefault();
             if (!(evt.key === "Alt" && evt.repeat)) demo.key(KEY_CODES[evt.key]); // Alt is a toggle: once a press

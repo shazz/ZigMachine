@@ -34,7 +34,8 @@ void glass_dispatch(uint32_t event, int owns_keyboard, glass_call_fn call, void*
 /* The joypad: input()/inputRelease() for every bit that changed. */
 void glass_joy(uint32_t before, uint32_t now, glass_call_fn call, void* ctx);
 
-/* demo.pointer(x, y, buttons), or NULL for a cart without that export. */
+/* demo.pointer(x, y, buttons), or NULL for a cart without that export: x, y as the browser sends them,
+ * the visible window's (REG_POINTER's raster coordinates less PTR_BORDER_X/Y), negative over the border. */
 typedef void (*glass_pointer_fn)(void* ctx, int x, int y, uint32_t buttons);
 
 /* The mouse, once a poll: `ptr` is the glass_pointer CSR (REG_POINTER), `seen`

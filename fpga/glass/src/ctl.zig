@@ -77,7 +77,7 @@ const names = [_]Named{
     .{ "right", map.KEY_ARROW_RIGHT }, .{ "insert", map.KEY_INSERT },      .{ "delete", map.KEY_DELETE },
     .{ "undo", map.KEY_UNDO },         .{ "help", map.KEY_HELP },          .{ "alt", map.KEY_ALT },
     .{ "shift", map.KEY_SHIFT_LEFT },  .{ "rshift", map.KEY_SHIFT_RIGHT }, .{ "ctrl", map.KEY_CTRL_LEFT },
-    .{ "rctrl", map.KEY_CTRL_RIGHT },
+    .{ "rctrl", map.KEY_CTRL_RIGHT },  .{ "ralt", map.KEY_ALT_RIGHT },
 };
 
 /// A key as the cart sees it (map.zig KEY_*): one character is itself ("1", "a", "A"),

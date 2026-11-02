@@ -49,10 +49,13 @@ static void expect_ptr(uint32_t word, uint32_t* seen, glass_pointer_fn fn, const
 static void test_pointer(void) {
     uint32_t seen = 0;
     expect_ptr(ptr(0, 0, 0, 0), &seen, record_pointer, "", -1);  /* never touched: no call */
-    expect_ptr(ptr(639, 199, PTR_BTN_PRESS, 1), &seen, record_pointer, "pointer(639,199,1)", 1);
-    expect_ptr(ptr(639, 199, PTR_BTN_PRESS, 1), &seen, record_pointer, "", -1);  /* same SEQ: once */
-    expect_ptr(ptr(12, 34, PTR_BTN_DOUBLE | PTR_BTN_PRESS, 2), &seen, record_pointer, "pointer(12,34,3)", 2);
-    expect_ptr(ptr(12, 34, 0, 0), &seen, record_pointer, "pointer(12,34,0)", 0);  /* SEQ wraps */
+    /* The word is on the raster (borders included); the cart gets the browser's visible-window coordinates. */
+    expect_ptr(ptr(719, 239, PTR_BTN_PRESS, 1), &seen, record_pointer, "pointer(639,199,1)", 1);
+    expect_ptr(ptr(719, 239, PTR_BTN_PRESS, 1), &seen, record_pointer, "", -1);  /* same SEQ: once */
+    expect_ptr(ptr(92, 74, PTR_BTN_DOUBLE | PTR_BTN_PRESS, 2), &seen, record_pointer, "pointer(12,34,3)", 2);
+    expect_ptr(ptr(92, 74, 0, 0), &seen, record_pointer, "pointer(12,34,0)", 0);  /* SEQ wraps */
+    expect_ptr(ptr(0, 0, 0, 1), &seen, record_pointer, "pointer(-80,-40,0)", 1);  /* over the top-left border */
+    expect_ptr(ptr(799, 279, 0, 2), &seen, record_pointer, "pointer(719,239,0)", 2);  /* bottom-right border */
     seen = 0;
     expect_ptr(ptr(5, 6, PTR_BTN_PRESS, 7), &seen, NULL, "", 7);  /* no pointer(): acked, not called */
     if (seen != 7) {
@@ -81,6 +84,9 @@ int main(void) {
     expect(D | R | KEY_SHIFT_LEFT, 0, "");                 /* a modifier's repeat is not sent */
     expect(D | R | 'x', 1, "key(120)");                    /* other repeats are */
     expect(KEY_SHIFT_LEFT, 0, "keyUp(57365)");
+    expect(D | KEY_ALT_RIGHT, 1, "key(57368)");             /* Right Alt: its own code (pt2's play song) */
+    expect(D | R | KEY_ALT_RIGHT, 1, "");                   /* a modifier too: no repeat */
+    expect(KEY_ALT_RIGHT, 1, "keyUp(57368)");
     log_buf[0] = 0;
     glass_joy(0, JOY_LEFT | JOY_FIRE, record, NULL);
     glass_joy(JOY_LEFT | JOY_FIRE, JOY_FIRE, record, NULL);

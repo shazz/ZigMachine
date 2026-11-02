@@ -80,6 +80,7 @@ static void map_key(Uint32 cp, SDL_Scancode *sc, SDL_Keycode *sym)
     case 0xE015: *sc = SDL_SCANCODE_LSHIFT; *sym = SDLK_LSHIFT; return;
     case 0xE016: *sc = SDL_SCANCODE_RCTRL; *sym = SDLK_RCTRL; return;
     case 0xE017: *sc = SDL_SCANCODE_RSHIFT; *sym = SDLK_RSHIFT; return;
+    case 0xE018: *sc = SDL_SCANCODE_RALT; *sym = SDLK_RALT; return; /* Right Alt: pt2's play song */
     default:
         if (cp >= 0xE001 && cp <= 0xE00A) { *sc = (SDL_Scancode)(SDL_SCANCODE_F1 + (cp - 0xE001)); *sym = (SDL_Keycode)(*sc | SDLK_SCANCODE_MASK); return; }
         *sym = 0;
@@ -94,6 +95,7 @@ static Uint16 mod_bit(SDL_Scancode sc)
     case SDL_SCANCODE_LCTRL: return KMOD_LCTRL;
     case SDL_SCANCODE_RCTRL: return KMOD_RCTRL;
     case SDL_SCANCODE_LALT: return KMOD_LALT;
+    case SDL_SCANCODE_RALT: return KMOD_RALT;
     default: return 0;
     }
 }

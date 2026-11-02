@@ -89,7 +89,7 @@ test "the mouse reaches the cart only while the OSD is closed; a held button is 
     a.sync();
     const held = a.mouse.word(map.PTR_BTN_PRESS);
     try std.testing.expectEqual(held, r.glass.ptr);
-    try std.testing.expectEqual(@as(u32, 330), a.mouse.x());
+    try std.testing.expectEqual(@as(u32, 410), a.mouse.x()); // the raster's middle (400) + 10
     a.key(keymap.OSD_HOTKEY, 1);
     try std.testing.expectEqual(a.mouse.word(0), r.glass.ptr); // released, kept in place
     const seq = r.glass.ptr_seq;

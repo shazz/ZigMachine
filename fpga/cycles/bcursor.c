@@ -20,8 +20,9 @@ static const uint16_t DATA[16] = {0x0000, 0x4000, 0x6000, 0x7000, 0x7800, 0x7C00
 #define WHITE 0x00FFFFFFu /* {0,B,G,R} */
 #define BLACK 0x00000000u
 
-/* GEM starts with the arrow mid-screen, before the mouse has moved. */
-static uint32_t g_x = PTR_WIDTH / 2, g_y = ZM_RASTER_HEIGHT / 2 - ZM_RASTER_BORDER_Y;
+/* The pointer word's raster coordinates (glass/src/map.zig PTR_*: borders included, as the picture).
+ * GEM starts with the arrow mid-screen, before the mouse has moved (glass/src/mouse.zig starts there). */
+static uint32_t g_x = PTR_WIDTH / 2, g_y = PTR_HEIGHT / 2;
 
 void bcursor_track(uint32_t ptr) {
     g_x = (ptr >> PTR_X_SHIFT) & PTR_COORD_MASK;
@@ -41,7 +42,7 @@ void bcursor_draw(void) {
     /* FRONT is the picture on screen; the one being completed is the other (mb_presenting). */
     uint32_t back = (zmv_status() & ZMV_BIT(FRONT)) ? ZM_FB0_ADDR : ZM_FB1_ADDR;
     volatile uint32_t* pic = (volatile uint32_t*)(uintptr_t)back;
-    uint32_t x0 = g_x + ZM_RASTER_BORDER_X, y0 = g_y + ZM_RASTER_BORDER_Y;
+    uint32_t x0 = g_x, y0 = g_y;
     uint32_t w = vseq_plane_mode(0) == ZM_FB_MODE_MEDIUM ? 1 : 2; /* GEM's desktop is plane 0 */
     for (uint32_t r = 0; r < 16 && y0 + r < ZM_RASTER_HEIGHT; r++)
         row(pic + (y0 + r) * ZM_RASTER_WIDTH, x0, w, MASK[r], DATA[r]);

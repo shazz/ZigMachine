@@ -5,8 +5,9 @@
 #define CODE(ev) ((ev) & KEY_CODE_MASK)
 
 static int is_arrow(uint32_t c) { return c >= KEY_ARROW_UP && c <= KEY_ARROW_RIGHT; }
-/* Alt (0xE013) is a modifier too: the browser sends it once a press, never its auto-repeat. */
-static int is_mod(uint32_t c) { return c >= KEY_ALT && c <= KEY_SHIFT_RIGHT; }
+/* Alt (0xE013) and Right Alt (0xE018) are modifiers too: the browser sends them once a press, never
+ * their auto-repeat. */
+static int is_mod(uint32_t c) { return (c >= KEY_ALT && c <= KEY_SHIFT_RIGHT) || c == KEY_ALT_RIGHT; }
 
 /* directionOf(): arrows always; WASD, Enter and Space only when the cart does
  * not own the keyboard. The browser compares evt.key, so 'W' is not 'w'. */
@@ -58,8 +59,10 @@ int glass_pointer(uint32_t ptr, uint32_t* seen, glass_pointer_fn pointer, void* 
     if (seq == *seen) return -1;
     *seen = seq;
     if (pointer) {
-        int x = (int)((ptr >> PTR_X_SHIFT) & PTR_COORD_MASK);
-        int y = (int)((ptr >> PTR_Y_SHIFT) & PTR_COORD_MASK);
+        /* The word is on the whole raster (borders included); the browser sends the visible window's
+         * coordinates, negative or past 640x200 over the border (sealed-loader.js "Pointer input"). */
+        int x = (int)((ptr >> PTR_X_SHIFT) & PTR_COORD_MASK) - (int)PTR_BORDER_X;
+        int y = (int)((ptr >> PTR_Y_SHIFT) & PTR_COORD_MASK) - (int)PTR_BORDER_Y;
         pointer(ctx, x, y, (ptr >> PTR_BTN_SHIFT) & PTR_BTN_MASK);
     }
     return (int)seq;

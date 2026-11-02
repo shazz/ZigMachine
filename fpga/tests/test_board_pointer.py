@@ -17,12 +17,14 @@ import pytest
 FPGA = Path(__file__).resolve().parent.parent
 CART = "gem"  # the desktop boots in LOW res: pointer() halves x (gem_desktop.zig)
 HOST = FPGA / f"build/host/{CART}/host"
-X, Y = 40, 30  # physical-visible coords (PTR_*): the FLOPPY DISK icon
+X, Y = 40, 30  # physical-visible coords (the browser's, what pointer() gets): the FLOPPY DISK icon
+BORDER_X, BORDER_Y = 80, 40  # the ARM's word is on the whole raster (map.zig PTR_BORDER_X/Y)
 
 
 def word(x: int, y: int, buttons: int) -> str:
-    """What the ARM writes to REG_POINTER (fpga/glass/src/map.zig PTR_*), as the script's hex."""
-    return f"{x | y << 10 | buttons << 20:x}"
+    """What the ARM writes to REG_POINTER for the visible-window point (x, y) (fpga/glass/src/map.zig
+    PTR_*: raster coordinates, borders included), as the script's hex."""
+    return f"{(x + BORDER_X) | (y + BORDER_Y) << 10 | buttons << 20:x}"
 
 
 # Move onto the floppy, click it (selects), then the browser's double-click pulse (opens: no disk,

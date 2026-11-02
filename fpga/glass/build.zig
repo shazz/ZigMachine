@@ -6,7 +6,7 @@
 //                                                    the board binary (Zynq-7000: dual Cortex-A9)
 const std = @import("std");
 
-const VERSION = "0.3.0"; // 0.3: the control channel (glass ctl); 0.2: console + debug pages, shelf.txt
+const VERSION = "0.4.0"; // 0.4: REG_POINTER in raster coordinates (with the cart firmware that subtracts the borders); 0.3: the control channel (glass ctl); 0.2: console + debug pages, shelf.txt
 
 fn gitHash(b: *std.Build) []const u8 {
     var code: u8 = 0;

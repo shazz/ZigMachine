@@ -93,7 +93,8 @@ fn named(code: u16) ?u32 {
         KEY_RIGHTCTRL => map.KEY_CTRL_RIGHT,
         KEY_LEFTSHIFT => map.KEY_SHIFT_LEFT,
         KEY_RIGHTSHIFT => map.KEY_SHIFT_RIGHT,
-        KEY_LEFTALT, KEY_RIGHTALT => map.KEY_ALT, // the browser's evt.key "Alt": one code, either side
+        KEY_LEFTALT => map.KEY_ALT, // the browser's KEY_CODES.Alt
+        KEY_RIGHTALT => map.KEY_ALT_RIGHT, // the browser's MOD_CODES.AltRight (evt.code: AltGr too)
         else => null,
     };
 }
@@ -138,7 +139,7 @@ test "named keys use the browser's codes; unknown keys send nothing" {
     try std.testing.expectEqual(@as(?u32, 13 | map.KEY_DOWN), event(KEY_KPENTER, 1, &m));
     try std.testing.expectEqual(@as(?u32, map.KEY_SHIFT_RIGHT | map.KEY_DOWN), event(KEY_RIGHTSHIFT, 1, &m));
     try std.testing.expectEqual(@as(?u32, 0xE013 | map.KEY_DOWN), event(KEY_LEFTALT, 1, &m)); // ST Replay's Alt
-    try std.testing.expectEqual(@as(?u32, 0xE013 | map.KEY_DOWN), event(KEY_RIGHTALT, 1, &m));
+    try std.testing.expectEqual(@as(?u32, 0xE018 | map.KEY_DOWN), event(KEY_RIGHTALT, 1, &m)); // its own: pt2's play song
     try std.testing.expectEqual(@as(?u32, null), event(KEY_F11, 1, &m)); // the browser has no F11 code
     try std.testing.expectEqual(@as(?u32, null), event(KEY_CAPSLOCK, 1, &m));
     try std.testing.expectEqual(@as(?u32, null), event(240, 1, &m));

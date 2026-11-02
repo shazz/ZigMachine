@@ -22,26 +22,30 @@ fn one(mo: *m.Mouse) ?u32 {
     return if (n == 1) out[0] else null;
 }
 
-test "the coordinate space is the browser's: the machine's physical-visible area" {
-    try std.testing.expectEqual(@as(u32, memmap.RASTER_VIS_WIDTH), map.PTR_WIDTH);
-    try std.testing.expectEqual(@as(u32, memmap.RASTER_VIS_HEIGHT), map.PTR_HEIGHT);
+test "the coordinate space is the browser's canvas: the whole physical raster, borders included" {
+    try std.testing.expectEqual(@as(u32, memmap.RASTER_WIDTH), map.PTR_WIDTH);
+    try std.testing.expectEqual(@as(u32, memmap.RASTER_HEIGHT), map.PTR_HEIGHT);
+    try std.testing.expectEqual(@as(u32, memmap.RASTER_BORDER_X), map.PTR_BORDER_X);
+    try std.testing.expectEqual(@as(u32, memmap.RASTER_BORDER_Y), map.PTR_BORDER_Y);
+    try std.testing.expectEqual(@as(u32, memmap.RASTER_VIS_WIDTH), map.PTR_WIDTH - 2 * map.PTR_BORDER_X);
+    try std.testing.expectEqual(@as(u32, memmap.RASTER_VIS_HEIGHT), map.PTR_HEIGHT - 2 * map.PTR_BORDER_Y);
     try std.testing.expect(map.PTR_WIDTH - 1 <= map.PTR_COORD_MASK);
 }
 
 test "relative motion sums into an absolute position, y at half rate" {
     var mo = m.Mouse{};
-    try std.testing.expectEqual(@as(u32, 320), mo.x()); // starts in the middle
-    try std.testing.expectEqual(@as(u32, 100), mo.y());
+    try std.testing.expectEqual(@as(u32, 400), mo.x()); // starts mid-screen: visible (320, 100)
+    try std.testing.expectEqual(@as(u32, 140), mo.y());
     mo.update(m.EV_REL, m.REL_X, 10, 0);
     mo.update(m.EV_REL, m.REL_Y, -10, 0);
     const w = one(&mo).?;
-    try std.testing.expectEqual(@as(u32, 330), x(w));
-    try std.testing.expectEqual(@as(u32, 95), y(w));
+    try std.testing.expectEqual(@as(u32, 410), x(w));
+    try std.testing.expectEqual(@as(u32, 135), y(w));
     try std.testing.expectEqual(@as(u32, 0), btn(w));
     try std.testing.expectEqual(@as(?u32, null), one(&mo)); // nothing new since
 }
 
-test "the position clamps to the screen and comes straight back from the edge" {
+test "the position clamps to the raster's edge, over the borders" {
     var mo = m.Mouse{};
     mo.update(m.EV_REL, m.REL_X, -100_000, 0);
     mo.update(m.EV_REL, m.REL_Y, std.math.maxInt(i32), 0); // saturates, never wraps
@@ -59,7 +63,7 @@ test "the sensitivity scale keeps sub-pixel motion" {
     var mo = m.Mouse{ .scale = m.SCALE_ONE / 4 };
     mo.update(m.EV_REL, m.REL_X, 4, 0); // four counts: one pixel
     const x0 = x(one(&mo).?);
-    try std.testing.expectEqual(@as(u32, 321), x0);
+    try std.testing.expectEqual(@as(u32, 401), x0);
     for (0..3) |_| mo.update(m.EV_REL, m.REL_X, 1, 0);
     try std.testing.expectEqual(x0, mo.x());
     try std.testing.expectEqual(@as(?u32, null), one(&mo)); // a sub-pixel nudge writes nothing

@@ -112,6 +112,9 @@ pub const KEY_CTRL_LEFT: u32 = 0xE014; // MOD_CODES in sealed-loader.js
 pub const KEY_SHIFT_LEFT: u32 = 0xE015;
 pub const KEY_CTRL_RIGHT: u32 = 0xE016;
 pub const KEY_SHIFT_RIGHT: u32 = 0xE017;
+// Right Alt (AltGr), MOD_CODES.AltRight in sealed-loader.js: its own code so a program can bind it
+// (pt2-clone: play song); a cart that knows only Alt treats it as KEY_ALT (st_replay.zig).
+pub const KEY_ALT_RIGHT: u32 = 0xE018;
 // The browser sends arrows to demo.input() and never to demo.key(), so they had
 // no code: these are the glass's own, and the firmware turns them into input().
 pub const KEY_ARROW_UP: u32 = 0xE020;
@@ -156,12 +159,18 @@ pub const PTR_SEQ_MASK: u32 = 0xFF;
 // pulse of bit 1 (gem_desktop.zig opens the item under the pointer on it).
 pub const PTR_BTN_PRESS: u32 = 1 << 0;
 pub const PTR_BTN_DOUBLE: u32 = 1 << 1;
-// The coordinate space: the machine's physical-visible area, what the browser
-// sends (hwPhysWidth - 2*hwBorderX by hwPhysHeight - 2*hwBorderY = 800-160 by
-// 280-80). A low-res cart halves x itself. app_test.zig checks it against
+// The coordinate space of the WORD: the whole physical raster (hwPhysWidth x
+// hwPhysHeight = 800 x 280, borders included, x in medium-res pixels), so the
+// pointer reaches a cart drawn over the borders (pt2: 320x255 in a 400x280
+// plane). The cart CPU's firmware subtracts the borders (glass_input.c), so
+// demo.pointer() gets what the browser sends: physical-visible coordinates,
+// negative or past 640x200 over the border (sealed-loader.js "Pointer input").
+// A low-res cart halves x itself. mouse_test.zig checks these against
 // machine/sdk/memmap.zig.
-pub const PTR_WIDTH: u32 = 640;
-pub const PTR_HEIGHT: u32 = 200;
+pub const PTR_WIDTH: u32 = 800;
+pub const PTR_HEIGHT: u32 = 280;
+pub const PTR_BORDER_X: u32 = 80; // the visible window's origin in the raster
+pub const PTR_BORDER_Y: u32 = 40;
 
 // --- REG_CART_STATE, as the cart CPU's firmware reports it --------------------
 pub const CART_RESET: u32 = 0; // also what a CPU held in reset leaves there

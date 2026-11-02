@@ -1,8 +1,9 @@
 // USB mouse -> REG_POINTER: what the browser hands demo.pointer(x, y, buttons)
 // (docs/sealed-loader.js, "Pointer input"). A mouse reports relative motion,
 // the browser an absolute position on the canvas, so the motion is summed into
-// a position in the cart's coordinate space (map.PTR_WIDTH x PTR_HEIGHT) and
-// clamped to it, as a pointer stops at the edge of a screen.
+// a position on the whole physical raster (map.PTR_WIDTH x PTR_HEIGHT, borders
+// included, as the browser's canvas) and clamped to it, as a pointer stops at
+// the edge of a screen. The firmware makes it the browser's coordinates.
 //
 // The browser's buttons are not the mouse's: ANY button is bit 0, and a
 // double-click is a one-off pulse of bit 1. Linux has no double-click, so it
@@ -36,8 +37,9 @@ const MAX_Y: i32 = @as(i32, map.PTR_HEIGHT) * SCALE_ONE - 1;
 
 pub const Mouse = struct {
     // Sub-pixel position, so a scale below one pixel a count still moves.
-    fx: i32 = map.PTR_WIDTH / 2 * SCALE_ONE, // the middle, on a pixel's edge
-    fy: i32 = map.PTR_HEIGHT / 2 * SCALE_ONE,
+    // The middle of the visible window (also the raster's), on a pixel's edge.
+    fx: i32 = (map.PTR_BORDER_X + (map.PTR_WIDTH - 2 * map.PTR_BORDER_X) / 2) * SCALE_ONE,
+    fy: i32 = (map.PTR_BORDER_Y + (map.PTR_HEIGHT - 2 * map.PTR_BORDER_Y) / 2) * SCALE_ONE,
     scale: i32 = SCALE_ONE,
     held: u32 = 0, // physical buttons down, bit (code - BTN_LEFT)
     last_press_ms: ?i64 = null,
