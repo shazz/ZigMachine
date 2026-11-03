@@ -9,6 +9,8 @@
 
 #include "haudio.h"
 
+void audio_backend_paula(int held); /* cycles/baudio.c: the debug page's music block; audio_soft.c: nothing */
+
 int audio_paula_holds(void) { return audio_live() && w2c_audio_audioPaulaClaimed(&g_aud.player) != 0; }
 
 static void upload(const audio_fx* fx) {
@@ -39,12 +41,14 @@ int audio_paula_effect(const audio_fx* fx) {
     case FX_PAULA_CLAIM:
         audio_pcm_forget(); /* a sample refilling the ring would write over chip RAM */
         w2c_audio_audioPaulaClaim(p, fx->rate);
+        audio_backend_paula(1);
         printf("ZM PAULA claimed by the cart, lead %lu\n", (unsigned long)fx->rate);
         return 1;
     case FX_PAULA_UPLOAD: upload(fx); return 1;
     case FX_PAULA_WRITE: write_batch(fx); return 1;
     case FX_PAULA_RELEASE:
         w2c_audio_audioPaulaRelease(p);
+        audio_backend_paula(0);
         printf("ZM PAULA released\n");
         return 1;
     default: return 0;

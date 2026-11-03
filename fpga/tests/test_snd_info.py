@@ -39,6 +39,8 @@ int main(void) {
     sndinfo_mode(1); dump();
     sndinfo_song(ROUTE_BARD, "c.sndh", 1); dump();
     sndinfo_song(ROUTE_BARD, "shaolin_title.hip", 1); dump();
+    sndinfo_paula(ROUTE_BARD, 1); dump();
+    sndinfo_paula(ROUTE_BARD, 0); dump();
     return 0;
 }
 """
@@ -117,3 +119,10 @@ def test_a_mode_switch_is_published_and_a_new_song_clears_it(steps: list[list[in
 def test_a_hippel_module_is_the_hip_player(steps: list[list[int]]) -> None:
     hip = steps[12]  # supplex_fs2's tune: OSD/ZMSTAT "BARD:HIP_68k", not "unknown"
     assert head(hip)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_HIP) and name(hip) == "shaolin_title.hip"
+
+
+def test_a_cart_holding_paula_is_named_and_its_release_is_idle(steps: list[list[int]]) -> None:
+    held, freed = steps[13], steps[14]  # pt2 on the hardware channels: "BARD:Paula_(cart)", not "idle"
+    assert head(held)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_PAULA) and held[mc.SI_FLAGS] & mc.SIF_STARTED
+    assert name(held) == "cart" and held[mc.SI_SEQ] % 2 == 0
+    assert head(freed)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and freed[mc.SI_FLAGS] == 0

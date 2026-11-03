@@ -74,6 +74,18 @@ static inline void sndinfo_started(uint32_t native) {
     sndinfo_close();
 }
 
+/* The cart claimed (held) or released the Paula channels (env.hostPaulaClaim, host/audio_paula.c):
+ * the claim stopped every player, and the cart's own register writes play, so the page names
+ * that instead of "idle". */
+static inline void sndinfo_paula(uint32_t route, int held) {
+    sndinfo_song(route, held ? "cart" : "none", 0);
+    if (!held) return;
+    sndinfo_open();
+    sndinfo_head(route, PLAYER_PAULA, 0);
+    ZM_SND_INFO[SI_FLAGS] = SIF_STARTED;
+    sndinfo_close();
+}
+
 /* A zg.requestSndhMode took effect: `mode` (1-3) is the mode now in force (map_cart.zig SIF_MODE_*). */
 static inline void sndinfo_mode(uint32_t mode) {
     uint32_t flags = ZM_SND_INFO[SI_FLAGS] & ~(SIF_MODE_MASK << SIF_MODE_SHIFT);

@@ -74,6 +74,9 @@ void audio_backend_native(uint32_t native) {
 /* A song request (host/audio.c): the debug page's song until its player starts. */
 void audio_backend_song(const char* name, uint32_t tune) { sndinfo_song(SND_ROUTE, name, tune); }
 
+/* The cart claimed or released the Paula channels (host/audio_paula.c). */
+void audio_backend_paula(int held) { sndinfo_paula(SND_ROUTE, held); }
+
 /* A zg.requestSndhMode took effect: the debug page's and the F11 overlay's mode. */
 void audio_backend_mode(uint32_t mode) { sndinfo_mode(mode); }
 
