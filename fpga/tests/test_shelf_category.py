@@ -5,6 +5,7 @@ nothing places stops the staging instead of landing in a catch-all folder."""
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -89,3 +90,11 @@ def test_staging_puts_each_disk_in_its_folder_and_shelf_txt_names_the_path(tmp_p
     assert "zigmachine/progs/demo-st_replay/BOOT.WSM.zmd" in rows  # programs stay in progs/, by the bare name
     lines = [ln.split("\t")[0] for ln in (sd / "shelf.txt").read_text().splitlines() if not ln.startswith("#")]
     assert sorted(lines) == ["demos/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]
+
+
+def test_path_prints_where_an_upload_script_finds_the_disk() -> None:
+    tool = [sys.executable, str(FPGA / "tools/shelf_category.py"), "--path"]
+    ok = subprocess.run([*tool, "joust"], capture_output=True, text=True, check=False)
+    assert (ok.returncode, ok.stdout) == (0, "games/demo-joust.zmd\n")
+    bad = subprocess.run([*tool, "no_such_cart"], capture_output=True, text=True, check=False)
+    assert bad.returncode == 1 and "no_such_cart: no category" in bad.stderr

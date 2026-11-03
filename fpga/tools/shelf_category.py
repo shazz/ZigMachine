@@ -1,6 +1,6 @@
 """The SD card's folders: which one each cart's fat disk goes in (docs/FPGA_GLASS.md, "The menu").
 
-    uv run python tools/shelf_category.py [--check]
+    uv run python tools/shelf_category.py [--check] [--path TAG]
 
 The glass OSD lists the shelf's folders first and a folder's carts inside it, so every disk
 the card carries sits at zigmachine/<category>/demo-<tag>.zmd (tools/glass_shelf.py). The
@@ -113,7 +113,14 @@ def every_tag() -> list[str]:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--check", action="store_true", help="exit 1 if any cart has no category")
+    p.add_argument("--path", metavar="TAG", help="print TAG's disk path under zigmachine/ (for upload scripts)")
     a = p.parse_args()
+    if a.path:
+        try:
+            print(disk_path(a.path))
+        except UnknownCategory as e:
+            sys.exit(str(e))
+        return 0
     tags = every_tag()
     bad = problems(tags)
     if not a.check:
