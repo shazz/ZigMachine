@@ -9,7 +9,7 @@
 //   hud       rows 186..201 carry the HUD's ink, and its text changes with the mode
 //   escape    Escape asks to leave (pollCartRequest -1)
 //   node apps/ziggy_check.mjs [--break] [--png <dir>]
-//     --break: ZM-X off is compared one frame later, so "same" must fail
+//     --break: ZM-X off is compared one frame later, so the four "same" checks must fail (then exit 0)
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -17,8 +17,8 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128, W = 320, ROWS = 184, PAPER = 254, INK = 255, SKY0 = 200, REG_FB_BASE = 0x44;
 const BROKE = process.argv.includes("--break");
 const PNG = process.argv.includes("--png") ? process.argv[process.argv.indexOf("--png") + 1] : null;
-let failed = 0;
-const ok = (c, m) => { console.log(`  ${c ? "ok  " : "FAIL"} ${m}`); if (!c) failed++; };
+let failed = 0, sameFails = 0;
+const ok = (c, m) => { console.log(`  ${c ? "ok  " : "FAIL"} ${m}`); if (!c) { failed++; if (m.includes("draw the same picture")) sameFails++; } };
 
 async function bootCart() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -81,8 +81,16 @@ ok(!eq(hud(r64), hud(vox), 14 * W), "the HUD text changes with the mode");
 const q = await bootCart();
 q.demo.key(0xE012);
 ok(q.demo.pollCartRequest() === -1, "Escape asks to leave");
-console.log(failed ? `ziggy: FAIL (${failed})` : "ziggy: PASS");
-process.exit(failed ? 1 : 0);
+// exitCode, never process.exit() (apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
+if (BROKE) {
+    // Caught = every "same picture" check failed (ZM-X off one frame late) and nothing else did.
+    const caught = sameFails === 4 && failed === 4;
+    console.log(caught ? "ziggy: PASS (--break caught: ZM-X off a frame late differs)" : "ziggy: FAILED -- --break not caught");
+    process.exitCode = caught ? 0 : 1;
+} else {
+    console.log(failed ? `ziggy: FAILED (${failed})` : "ziggy: PASS");
+    process.exitCode = failed ? 1 : 0;
+}
 
 /** Plane 0 composited by the machine, as an RGB PNG (a look, not a check). */
 async function png(c, path) {
