@@ -19,12 +19,11 @@ const gallery = @import("gallery.zig");
 
 const W = blob.W;
 const H = blob.H;
-const PLANES = blob.PLANES;
 pub const IMAGE_H: usize = 180; // rows 180..199 are the caption band (converter's IMAGE_H)
 pub const INK: u8 = 1; // caption palette: 0 black, 1 white
 pub const FINISH: u32 = std.math.maxInt(u32);
 const TABLE_ROWS: usize = 32; // 1 KB CHISEL rows a slice
-const PIXEL_ROWS: usize = 25; // plane rows a slice (mode 3 splits them on the CPU)
+const PIXEL_ROWS: usize = 25; // plane rows a slice
 
 pub const Progress = blob.Progress;
 
@@ -38,7 +37,7 @@ pub const Job = struct {
     /// Build `picture` in `mode` into `work` and the hidden VRAM; null when the blob is
     /// unreadable (the caller says so).
     pub fn init(picture: u8, mode: u8, work: []align(4) u8) ?Job {
-        const d = blob.Decoder.init(gallery.PACKED[picture][mode], gallery.MODES[mode].planes, work) orelse return null;
+        const d = blob.Decoder.init(gallery.PACKED[picture][mode], gallery.MODES[mode].kind, work) orelse return null;
         return .{ .picture = picture, .mode = mode, .decoder = d };
     }
 
@@ -46,8 +45,8 @@ pub const Job = struct {
         return self.decoder.view;
     }
 
-    pub fn planes(self: *const Job) usize {
-        return gallery.MODES[self.mode].planes;
+    pub fn kind(self: *const Job) blob.Kind {
+        return gallery.MODES[self.mode].kind;
     }
 
     /// One slice (`units` = 1) or, with FINISH, all of it. The table pass runs only with lists.
@@ -56,7 +55,7 @@ pub const Job = struct {
             .decode => switch (self.decoder.step(units)) {
                 .more => {},
                 .failed => self.pass = .failed,
-                .done => self.pass = if (lists) .table else .pixels,
+                .done => self.pass = if (lists and self.kind() == .indexed) .table else .pixels,
             },
             .table => {
                 const pal = self.view().pal;
@@ -65,7 +64,7 @@ pub const Job = struct {
             },
             .pixels => {
                 const end = @min(H, self.row +| PIXEL_ROWS *| @as(usize, units));
-                if (self.planes() == 1) copyRows(os, self.view().idx, self.row, end) else splitRows(os, self.view().idx, self.row, end);
+                if (self.kind() == .indexed) copyRows(os, self.view().idx, self.row, end) else copyTcRows(os, self.view().idx, self.row, end);
                 self.row = end;
                 if (end == H) self.next(.caption);
             },
@@ -95,35 +94,46 @@ pub const Job = struct {
         self.row = 0;
     }
 
-    // Into the hidden plane 0, through a copy of the plane whose pixels are that buffer.
+    // Into the hidden plane 0, through a copy of the plane whose pixels are that buffer; for
+    // the true-colour plane the same text, then its ink widened to white 565 words.
     fn caption(self: *const Job, os: *zg.ZigOS) void {
         var fb = os.lfbs[0];
-        fb.fb = flip.target(os, 0);
+        fb.fb = flip.target(os);
         @memset(fb.fb[IMAGE_H * W .. H * W], 0);
         var buf: [40]u8 = undefined;
         const p = self.picture;
         const stats = std.fmt.bufPrint(&buf, "{d}/{d} {s}: {d} OF {d} COLOURS", .{ p + 1, gallery.NAMES.len, gallery.NAMES[p], gallery.count(p, self.mode + 1), gallery.count(p, 0) }) catch "?";
         os.printText(&fb, gallery.MODES[self.mode].title, 4, IMAGE_H + 2, INK, 0);
         os.printText(&fb, stats, 4, IMAGE_H + 11, INK, 0);
+        if (self.kind() == .rgb565) widenCaption(fb.fb, flip.targetTc(os));
     }
 };
 
+// The caption band's ink (index INK) as white, the rest black, two pixels a store.
+fn widenCaption(ink: [*]const u8, tc: zg.tc.Fb) void {
+    for (IMAGE_H..H) |y| {
+        var x: usize = 0;
+        while (x < W) : (x += 2) {
+            const a: u16 = if (ink[y * W + x] == INK) 0xFFFF else 0;
+            const b: u16 = if (ink[y * W + x + 1] == INK) 0xFFFF else 0;
+            tc.put2(x, y, a, b);
+        }
+    }
+}
+
 // Modes 1 and 2: the index rows as they are (CHISEL from cart RAM, else the CPU).
 fn copyRows(os: *zg.ZigOS, idx: []const u8, from: usize, to: usize) void {
-    const dst = flip.target(os, 0) + from * W;
+    const dst = flip.target(os) + from * W;
     const src = idx[from * W .. to * W];
     if (zg.blit.chisel.copy) |copy| if (copy(dst, W, src.ptr, W, W, to - from, null)) return;
     @memcpy(dst[0..src.len], src);
 }
 
-// Mode 3: index bytes, then plane bytes (blob checked < PLANES); 0 in the other planes.
-fn splitRows(os: *zg.ZigOS, idx: []const u8, from: usize, to: usize) void {
-    var dst: [PLANES][*]u8 = undefined;
-    for (&dst, 0..) |*d, p| {
-        d.* = flip.target(os, p);
-        @memset(d.*[from * W .. to * W], 0);
-    }
-    const index = idx[from * W .. to * W];
-    const plane = idx[W * H ..][from * W .. to * W];
-    for (index, plane, from * W..) |i, p, at| dst[p][at] = i;
+// Mode 3: the RGB565 rows into the true-colour plane (640 bytes a row, CHISEL from cart RAM).
+fn copyTcRows(os: *zg.ZigOS, words: []const u8, from: usize, to: usize) void {
+    const ROW = 2 * W;
+    const dst: [*]u8 = @ptrCast(flip.targetTc(os).pixels);
+    const src = words[from * ROW .. to * ROW];
+    if (zg.blit.chisel.copy) |copy| if (copy(dst + from * ROW, ROW, src.ptr, ROW, ROW, to - from, null)) return;
+    @memcpy(dst[from * ROW ..][0..src.len], src);
 }

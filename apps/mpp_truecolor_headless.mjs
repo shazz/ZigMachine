@@ -5,12 +5,14 @@
 // (setShadeMode 0/1/2) it composites the enabled planes the way the host does
 // (hwClear, frame, hwRenderPlane per enabled plane) and asserts:
 //   - every mode shows exactly the distinct colours its caption claims (p<P>_counts.bin),
-//   - PER-LINE shows more than GLOBAL, and 4 PLANES at least as many as PER-LINE,
-//   - 4 PLANES is lossless: the picture's RGB hashes to the source's (FNV-1a in counts),
+//   - PER-LINE shows more than GLOBAL, and TRUE COLOUR more than GLOBAL,
+//   - TRUE COLOUR is ONE plane in FB_MODE_TRUECOLOR (HW 1.15.0; it was 4 planes of per-line
+//     palettes) and shows exactly the converter's RGB565 picture, expanded as the machine does
+//     (its FNV-1a in counts): the source within 4 per channel,
 //   - after the last picture, Fire wraps to picture 0 and the frame (caption included)
 //     is byte-identical to the first pass, in two modes: the depack buffer is not stale.
-// A handler that missed lines, a plane split that left a pixel opaque in two planes
-// or in none, or a palette decoded wrong changes a count or a hash; nothing would error.
+// A handler that missed lines, a 565 row copied short or swapped, or a palette decoded wrong
+// changes a count or a hash; nothing would error.
 // Each switch depacks one packed blob; the slowest switch is reported.
 // The palettes are copper lists (HW 1.9.0, scenes/mpp_truecolor/cop.zig): each mode's lists are read
 // back and must load exactly the converter's records (apps/mpp_truecolor_lists.mjs).
@@ -98,6 +100,13 @@ function picture(layer, W) {
     return rgb;
 }
 
+// Mode 3's planes: exactly one enabled, and it is a true-colour plane.
+function onePlane(name) {
+    const on = [...Array(machine.hwPlanesNumber()).keys()].filter((p) => demo.isPlaneEnabled(p));
+    const mode = on.length === 1 ? new DataView(memory.buffer).getUint8(machine.hwVideoBase() + REG_FB_MODE + on[0]) : -1;
+    return mode === FB_MODE_TRUECOLOR ? [] : [`${name} TRUE COLOUR: planes ${on.join(",")} enabled, mode ${mode} (one FB_MODE_TRUECOLOR plane expected)`];
+}
+
 function distinct(rgb) {
     const seen = new Set();
     for (let i = 0; i < rgb.length; i += 3) seen.add((rgb[i] << 16) | (rgb[i + 1] << 8) | rgb[i + 2]);
@@ -117,7 +126,8 @@ const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = argv;
 const { memory, machine, demo } = await boot(cart);
 // The working buffer is taken from zg.mem once, in init; no switch may take another.
 const arenaAfterInit = machine.hwRamMark();
-const NAMES = ["GLOBAL", "PER-LINE", "4 PLANES"];
+const NAMES = ["GLOBAL", "PER-LINE", "TRUE COLOUR"];
+const FB_MODE_TRUECOLOR = 5, REG_FB_MODE = 0x54;
 const PICTURES = ["spheres", "parrot", "sunset", "halo", "hills"]; // the scene's order; Fire steps to the next
 const FIRE = 5; // demo_main Direction.Fire, what the host sends for Space
 const W = machine.hwPhysWidth();
@@ -144,7 +154,7 @@ for (let p = 0; p < PICTURES.length; p++) {
     const counts = new Uint32Array((await readFile(`${ASSETS}/p${p}_counts.bin`)).buffer.slice(0, 20));
     const measured = [];
     let frameMs = 0;
-    if (p > 0) shoot(() => demo.input(FIRE)); // keeps the mode (4 PLANES); timed like any switch
+    if (p > 0) shoot(() => demo.input(FIRE)); // keeps the mode (TRUE COLOUR); timed like any switch
     for (let m = 0; m < 3; m++) {
         frameMs = Math.max(frameMs, shoot(() => demo.setShadeMode(m)));
         const rgb = picture(layer, W);
@@ -152,24 +162,25 @@ for (let p = 0; p < PICTURES.length; p++) {
         if (p === 0) firstPass.push(fnv1a(layer));
         if (measured[m] !== counts[m + 1]) errors.push(`${name} ${NAMES[m]}: ${measured[m]} colours on screen, caption claims ${counts[m + 1]}`);
         errors.push(...(await checkLists(memory, machine.hwVideoBase(), ASSETS, p, m)));
-        if (m === 2 && fnv1a(rgb) !== counts[4]) errors.push(`${name} 4 PLANES: not the source picture (hash mismatch)`);
+        if (m === 2 && fnv1a(rgb) !== counts[4]) errors.push(`${name} TRUE COLOUR: not the converter's 565 picture (hash mismatch)`);
+        if (m === 2) errors.push(...onePlane(name));
         if (outdir) {
             const hdr = new TextEncoder().encode(`P6\n${IMG_W} ${IMG_H}\n255\n`);
             await writeFile(`${outdir}/mpp-${name}-mode${m + 1}.ppm`, Buffer.concat([hdr, rgb]));
         }
     }
     if (measured[1] <= measured[0]) errors.push(`${name}: PER-LINE ${measured[1]} not above GLOBAL ${measured[0]}`);
-    if (measured[2] < measured[1]) errors.push(`${name}: 4 PLANES ${measured[2]} below PER-LINE ${measured[1]}`);
+    if (measured[2] <= measured[0]) errors.push(`${name}: TRUE COLOUR ${measured[2]} not above GLOBAL ${measured[0]}`);
     console.log(`mpp_truecolor: ${name.padEnd(7)} ${measured.join(" / ")} colours (source ${counts[0]}), ${frameMs.toFixed(2)} ms/frame max`);
 }
 
-// Wrap: Fire from the last picture lands on picture 0 in 4 PLANES (the mode stays),
+// Wrap: Fire from the last picture lands on picture 0 in TRUE COLOUR (the mode stays),
 // then GLOBAL; both frames must match the first pass byte for byte.
 shoot(() => demo.input(FIRE));
-if (fnv1a(layer) !== firstPass[2]) errors.push("wrap to spheres: 4 PLANES frame differs from the first pass");
+if (fnv1a(layer) !== firstPass[2]) errors.push("wrap to spheres: TRUE COLOUR frame differs from the first pass");
 shoot(() => demo.setShadeMode(0));
 if (fnv1a(layer) !== firstPass[0]) errors.push("wrap to spheres: GLOBAL frame differs from the first pass");
-console.log(`mpp_truecolor: ${PICTURES.length} pictures, 4 PLANES lossless, wrap identical; slowest switch (depack) ${slowest.toFixed(1)} ms`);
+console.log(`mpp_truecolor: ${PICTURES.length} pictures, TRUE COLOUR = the 565 pictures on one plane, wrap identical; slowest switch (depack) ${slowest.toFixed(1)} ms`);
 if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused: the pictures never loaded`);
 if (machine.hwRamMark() !== arenaAfterInit) errors.push(`a switch allocated again: zg.mem grew ${machine.hwRamMark() - arenaAfterInit} B after init`);
 if (broke) {

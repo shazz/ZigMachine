@@ -491,7 +491,7 @@ pub fn build(b: *std.Build) void {
         "demo-elite_snooker", // 40 — ELITE / Jimmy White Snooker crack intro (CODEF screen 422)
         "demo-union_demo", // 41 — The Union / Union Demo main menu (melonJS remake hub)
         "demo-tutorial", // 42 — docs/TUTORIAL.md: the newcomer's first screen (Zig version)
-        "demo-mpp_truecolor", // 43 — truecolor picture via per-line palettes on 1 and 4 planes (MPP)
+        "demo-mpp_truecolor", // 43 — truecolor picture via per-line palettes (MPP) and one RGB565 plane (HW 1.15.0)
         "demo-union_multifake", // 44 — The Union Demo / TCB3 MULTIFAKE scroller (melonJS remake)
         "demo-union_textracker", // 45 — The Union Demo hidden screen, TEX's Sample-Mon ST (melonJS remake)
         "", // 46 — was demo-union_intro_screen: the splash now opens union_demo itself (one intro screen, no swap; Matt, 2026-10-23)

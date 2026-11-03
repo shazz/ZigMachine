@@ -1,7 +1,8 @@
 // mpp_truecolor's copper lists (apps/zig/scenes/mpp_truecolor/cop.zig), read back from the
 // machine for apps/mpp_truecolor_headless.mjs: every plane the mode shows carries a list whose
 // line y (raster line TOP + y) loads exactly the converter's record for that line, the
-// palette words included, and no HBL handler stores them as well.
+// palette words included, and no HBL handler stores them as well. Mode 3 (TRUE COLOUR, one RGB565
+// plane, HW 1.15.0) has no palette: plane 0's list is empty and no plane has a handler.
 import { readFile } from "node:fs/promises";
 import { copperRecords } from "./copper_lines.mjs";
 
@@ -11,8 +12,8 @@ const REG_FB_HBL_ID = 0x20; // memmap.zig
 // The converter's map and its palette widened to RGBA words (blob.zig's decode).
 async function source(dir, picture, mode) {
     const b = await readFile(`${dir}/p${picture}_m${mode + 1}.bin`);
-    const planes = mode < 2 ? 1 : PLANES;
-    const head = PLANES * H * 8 + (planes === 1 ? W * H : 2 * W * H);
+    const planes = 1;
+    const head = PLANES * H * 8 + W * H;
     const rgb = Uint8Array.from(b.subarray(head));
     for (let i = 3; i < rgb.length; i++) rgb[i] = (rgb[i] + rgb[i - 3]) & 255;
     const pal = new Uint32Array(rgb.length / 3);
@@ -24,8 +25,15 @@ async function source(dir, picture, mode) {
 
 /** Errors (strings) for picture/mode's lists in the running machine. */
 export async function checkLists(memory, vb, dir, picture, mode) {
-    const { planes, pal, map } = await source(dir, picture, mode), errors = [], tag = `p${picture} mode ${mode + 1}`;
+    const errors = [], tag = `p${picture} mode ${mode + 1}`;
     const regs = new DataView(memory.buffer, vb);
+    if (mode === 2) {
+        for (let p = 0; p < PLANES; p++) if (regs.getUint16(REG_FB_HBL_ID + 2 * p, true)) errors.push(`${tag} plane ${p}: an HBL handler (no palette to load)`);
+        const recs = copperRecords(memory, vb, 0);
+        if (recs?.length) errors.push(`${tag}: plane 0's list still holds ${recs.length} records`);
+        return errors;
+    }
+    const { planes, pal, map } = await source(dir, picture, mode);
     for (let p = 0; p < planes; p++) {
         if (regs.getUint16(REG_FB_HBL_ID + 2 * p, true)) errors.push(`${tag} plane ${p}: an HBL handler beside the list`);
         const recs = copperRecords(memory, vb, p);

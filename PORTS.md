@@ -48,7 +48,7 @@ Every browser cart (`build.zig` cart matrix) and its KESTREL board port. Generat
 | 37 | `mandelbrot` |  |  | 50 KB | built (#127) | frame? (f64 0, f32 2) | zg.Mandelbrot lib f32 escapeTime per pixel in render |  |  | the fractal channel from the original gh-page |
 | 20 | `maxi` |  |  | 95 KB | built (#127) | frame (f64 0, f32 11) | f32 sin per frame in update; za/wireframe lib |  |  | za/wireframe family: boss's perf/za-wireframe |
 | 21 | `medium_overscan` |  |  | 52 KB | built (#127) | frame? (f64 0, f32 5) | f32 wheel() palette gradient; caller unclear |  |  |  |
-| 43 | `mpp_truecolor` |  |  | 1,197 KB | built (#127) | none |  |  |  | truecolor picture via per-line palettes on 1 and 4 planes (MPP) |
+| 43 | `mpp_truecolor` |  |  | 1,197 KB | built (#127) | none |  |  |  | truecolor picture via per-line palettes (MPP) and one RGB565 true-colour plane (HW 1.15.0) |
 | 3 | `music` |  |  | 1,535 KB | built (#127) | frame (f64 0, f32 54) | f32 per-pixel sin in drawTrsiLogo/drawYmScopes; Starfield3D |  | 1 fps (Matt) | boss's agent |
 | 83 | `naos_nitrowave` |  |  | 357 KB | built (#127) | none |  |  |  | NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (porte |
 | 28 | `noextra` |  |  | 286 KB | built (#127) | frame (f64 0, f32 33) | f32 renderBand/renderScroll/fadePalette per frame; wave lib |  |  | NoExtra Team / DHS Megademo 2005 (CODEF screen 198) |

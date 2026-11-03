@@ -4,11 +4,12 @@
 // scanlines. A plane's HBL handler runs once before each line is composited, so
 // every line can take a whole new palette. A gallery of truecolor pictures, three modes:
 //
-//   key 1  GLOBAL    one 256-colour palette for the whole picture, 1 plane
-//   key 2  PER-LINE  1 plane, a best 256-colour palette for EACH of the lines
-//   key 3  4 PLANES  each pixel opaque in exactly one plane; every plane has its
-//                    own per-line palette (255 + transparent) = 1020 per line
-//   Space            the next picture (wraps)
+//   key 1  GLOBAL       one 256-colour palette for the whole picture, 1 plane
+//   key 2  PER-LINE     1 plane, a best 256-colour palette for EACH of the lines
+//   key 3  TRUE COLOUR  one RGB565 plane (HW 1.15.0, FB_MODE_TRUECOLOR): no palette at
+//                       all, each pixel within 4 of the source per channel. It replaced
+//                       "4 PLANES" (1020 per-line colours, lossless, four FRESCO passes)
+//   Space               the next picture (wraps)
 //
 // The pictures, chosen for smooth gradients that band at 256 colours:
 //   SPHERES  procedural (tools/mpp_picture.py)
@@ -25,7 +26,8 @@
 // Unpacked they overflow the 2 MB cart window, so the one on screen is depacked into
 // one working buffer per switch (mpp_truecolor/blob.zig). On a 1.9.0 machine the per-line palettes
 // are copper lists the machine applies (mpp_truecolor/cop.zig): no CPU store a frame; else the HBL
-// handler loads them, storing only the records that change. The next switch is built a slice a
+// handler loads them, storing only the records that change. Mode 3 shows plane 1 (flip.TC) as a
+// true-colour window instead of plane 0 (needs HW 1.15.0). The next switch is built a slice a
 // frame while the current picture shows (mpp_truecolor/stage.zig) and lands on the frame it
 // always did: that frame only flips the plane buffers (flip.zig) and rewrites the lists.
 // --------------------------------------------------------------------------
@@ -41,7 +43,6 @@ const LogicalFB = zg.LogicalFB;
 
 const W = blob.W;
 const H = blob.H;
-const PLANES = blob.PLANES;
 const CYCLE_FRAMES: u32 = 8 * 60;
 const IMAGE_H: i16 = stage.IMAGE_H;
 const INK = stage.INK;
@@ -56,21 +57,20 @@ var view: blob.View = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
 // The record last loaded into each plane's palette: the same record again (GLOBAL mode: all
 // 180 lines) needs no copy at all. A switch forgets them, as it rewrites entries itself.
 const NONE = blob.Rec{ .off = std.math.maxInt(u32), .span = 0 };
-var loaded: [PLANES]blob.Rec = .{NONE} ** PLANES;
+var loaded: blob.Rec = NONE;
 // The machine applies the palettes from copper lists (cop.install succeeded): no handler.
 var lists = false;
 
-// Load this line's palette run for this plane: a straight word copy. A new record changes
-// ~all of its entries (PER-LINE and 4 PLANES: 0 of 52,660 stores a frame rewrote a colour),
-// so comparing first would only add a load per entry; the repeated record is skipped whole.
+// Load this line's palette run for plane 0: a straight word copy. A new record changes
+// ~all of its entries (PER-LINE: no store a frame rewrote a colour), so comparing first
+// would only add a load per entry; the repeated record is skipped whole.
 fn hbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     if (line >= H or view.map.len == 0) return;
-    const p: usize = fb.id;
-    const r = view.map[p * H + line];
+    const r = view.map[line];
     const n: usize = r.span >> 16;
     if (n == 0) return;
-    if (loaded[p].off == r.off and loaded[p].span == r.span) return;
-    loaded[p] = r;
+    if (loaded.off == r.off and loaded.span == r.span) return;
+    loaded = r;
     const first: usize = r.span & 0xffff;
     @memcpy(fb.palette[first..][0..n], view.pal[r.off / 4 ..][0..n]);
 }
@@ -88,7 +88,8 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.* = .{ .os = zigos, .picture = 0, .mode = 0, .frames = 0, .work = &.{}, .job = null, .spread = false };
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
-        for (&zigos.lfbs) |*fb| fb.setFrameBufferHBLHandler(0, hbl);
+        flip.setup(zigos); // first: the true-colour plane's 128,000 B always fit
+        zigos.lfbs[0].setFrameBufferHBLHandler(0, hbl);
         // On zg.mem, taken once at the largest blob's size: every switch reuses it.
         // u32 words, so the map and palette views blob.load takes are aligned.
         const len = gallery.workLen() orelse return self.fail("a packed picture is unreadable");
@@ -159,15 +160,14 @@ pub const Demo = struct {
         self.picture = job.picture;
         self.mode = job.mode;
         view = job.view();
-        loaded = .{NONE} ** PLANES;
+        loaded = NONE;
         const lfbs = &self.os.lfbs;
-        for (lfbs, 0..) |*fb, p| {
-            fb.is_enabled = p < job.planes();
-            fb.setPaletteEntry(0, .{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        }
+        const tc = job.kind() == .rgb565;
+        for (lfbs, 0..) |*fb, p| fb.is_enabled = if (tc) p == flip.TC else p == 0;
+        lfbs[0].setPaletteEntry(0, .{ .r = 0, .g = 0, .b = 0, .a = 0 });
         lfbs[0].setPaletteEntry(INK, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
-        flip.show(self.os);
-        if (lists) cop.commit(self.os, view, job.planes());
+        flip.show(self.os, job.kind());
+        if (lists) cop.commit(self.os, view, !tc);
     }
 
     // Say so on screen and in the console, with nothing half-loaded behind it.
@@ -175,7 +175,7 @@ pub const Demo = struct {
         zg.Console.log("mpp_truecolor: {s}", .{why});
         self.job = null;
         view = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
-        if (lists) cop.load(self.os, view, 0); // empty lists: no stale palette over the message
+        if (lists) cop.load(self.os, view, false); // an empty list: no stale palette over the message
         const lfbs = &self.os.lfbs;
         for (lfbs, 0..) |*fb, p| fb.is_enabled = p == 0;
         @memset(lfbs[0].fb[0 .. W * H], 0);

@@ -4,7 +4,7 @@
 MPP (Multi Palette Picture, https://codeberg.org/zerkman/mpp) shows more colours than
 the hardware palette holds by reloading the palette between scanlines. ZigMachine's
 per-plane HBL handler runs once before each line is composited, so a plane can take a
-whole new 256-entry palette per line. The three modes (GLOBAL, PER-LINE, 4-PLANE) are
+whole new 256-entry palette per line. The three modes (GLOBAL, PER-LINE, TRUE COLOUR) are
 built in tools/mpp_modes.py.
 
 The image area is IMAGE_H rows; the last CAPTION_H rows are the scene's caption band
@@ -12,19 +12,20 @@ The image area is IMAGE_H rows; the last CAPTION_H rows are the scene's caption 
 through them, are PICTURES below, with their credits.
 
 Outputs under apps/zig/assets/screens/mpp_truecolor/, per picture <P> and mode <N>:
-  p<P>_m<N>.bin   one blob; build.zig ZX0-packs it and the scene depacks only the one it shows:
+  p<P>_m<N>.bin   one blob; build.zig ZX0-packs it and the scene depacks only the one it shows.
+                  Modes 1, 2:
                     map   4 planes x 200 lines of (u32 byte offset into the RGBA palette,
                           u16 first entry, u16 count): the HBL copies count*4 bytes
-                    idx   modes 1, 2: 320x200 u8 indices for plane 0
-                          mode 3: 320x200 index bytes, then 320x200 plane bytes
+                    idx   320x200 u8 indices for plane 0
                     pal   RGB, each byte minus the byte 3 before it (mod 256); the scene
                           undoes the delta and widens it to RGBA (alpha 255) after depacking
+                  Mode 3: 320x200 RGB565 words, little-endian (the caption rows 0: the scene
+                          prints the caption into them)
   p<P>_counts.bin 5 x u32 LE: source, mode 1, mode 2, mode 3 distinct colours (image area),
-                  then FNV-1a 32 of the source's RGB bytes (the harness's lossless check)
+                  then FNV-1a 32 of mode 3's RGB as the machine shows it (the harness's check)
 
 Why this layout: ZX0 has no entropy coder and a 32 KB window. An alpha byte between
 random RGB costs a literal; palettes sorted by luminance and delta-coded repeat; the
-plane bytes of mode 3 are spatially coherent once they are not interleaved. The
 spheres: 655 KB unpacked, 422 KB packed as the old nine raw files, 328 KB as these.
 
 Usage:
@@ -40,7 +41,7 @@ from pathlib import Path
 from PIL import Image
 
 import mpp_gradients
-from mpp_modes import METHODS, W, mode_four_planes, mode_global, mode_per_line
+from mpp_modes import METHODS, W, mode_global, mode_per_line, mode_truecolor
 from mpp_picture import IMAGE_H, generate
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -92,15 +93,21 @@ def convert(p, name, img, method, source_out):
         img.save(Path(source_out) / f"p{p}_source.png")
     m1, idx1, pal1, q1 = mode_global(img, method)
     counts, sizes = [len(set(img.getdata()))], []
-    for n, (mode, idx) in enumerate([(m1, idx1), mode_per_line(img, method), mode_four_planes(img)], 1):
+    for n, (mode, idx) in enumerate([(m1, idx1), mode_per_line(img, method)], 1):
         blob = mode.blob(idx)
         (OUT / f"p{p}_m{n}.bin").write_bytes(blob)
         sizes.append(len(blob) + len(mode.pal) // 3)  # the scene's buffer, palette widened to RGBA
         counts.append(len(mode.shown))
-    (OUT / f"p{p}_counts.bin").write_bytes(struct.pack("<5I", *counts, fnv1a(img.tobytes())))
+    blob, shown = mode_truecolor(img)
+    (OUT / f"p{p}_m3.bin").write_bytes(blob)
+    sizes.append(len(blob))
+    counts.append(len(set(shown)))
+    rgb = bytes(v for c in shown for v in c)
+    (OUT / f"p{p}_counts.bin").write_bytes(struct.pack("<5I", *counts, fnv1a(rgb)))
     psnr, worst = banding(list(img.getdata()), pal1, q1)
+    tc_worst = max(abs(a - b) for s, t in zip(img.getdata(), shown) for a, b in zip(s, t))
     print(f"mpp_convert: {name}: source {counts[0]} colours; global {counts[1]} ({psnr:.2f} dB, max error {worst}), "
-          f"per-line {counts[2]}, 4-plane {counts[3]}; largest mode {max(sizes)} bytes depacked")
+          f"per-line {counts[2]}, 565 {counts[3]} (max error {tc_worst}); largest mode {max(sizes)} bytes depacked")
 
 
 def main():
