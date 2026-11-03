@@ -57,7 +57,10 @@ const ALLOW = {
     // +44 B (2026-11-02): a cart's Paula (HW 1.14.0): the four voices' AUDxPAN, the claim and its
     // counters (paula.zig, demo_audio_paula.zig) join the run; the 40 KB queue and stage sit in a
     // struct with non-zero fields, outside it.
-    "demo-audio.wasm": 591371,
+    // +16 B (2026-11-03): the klystrack player's refusal count and reason (demo_audio_kt.zig) join
+    // the run; the player's state is a struct with non-zero fields, and its song tables, FX delay
+    // lines and render block live in song RAM (kt.zig), not here.
+    "demo-audio.wasm": 591387,
 };
 
 function uleb(b, p) {
