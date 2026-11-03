@@ -204,7 +204,7 @@ def main() -> None:
         help="z7: the players on the sound CPU (soc/zm_sound_cpu.py), sharing HP3 with the core's PCM",
     )  # fmt: skip
     p.add_argument(
-        "--sound-core", help="z7: BARD's vexgen netlist (default soc/zm_sound_cpu.py SOUND_CORE, D$ 4 KB), e.g. build/vexgen/VexRiscv_SndNdD16.v"
+        "--sound-core", help="z7: BARD's vexgen netlist (default soc/zm_sound_cpu.py SOUND_CORE: SndNdD16, D$ 16 KB since v1.1), e.g. build/vexgen/VexRiscv_SndNd.v for the old 4 KB"
     )
     p.add_argument(
         "--posted", type=int, default=8, help="z7: ZIGGY's HP0 store buffer (soc/zm_hp_posted.py), 0 = blocking"
