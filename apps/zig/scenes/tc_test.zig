@@ -121,7 +121,11 @@ pub const Demo = struct {
         self.view = v;
         self.picture = null;
         self.shown_at = self.fc;
-        fade.apply(&self.os.lfbs[0], .{}); // every other view unfaded; FADE starts on its next render
+        const plane = &self.os.lfbs[0];
+        fade.apply(plane, .{}); // every other view unfaded; FADE starts on its next render
+        // FADE shows the plane's buffer with no list at all (FB_BASE): only the fade registers move
+        // it, so the board's dirty-line planner sees lines that never change but for the fade.
+        if (v == FADE) plane.clearCopperList() else if (self.list) |l| _ = plane.copperList(l.len);
         if (v == PLASMA) return;
         if (stills[v]) |s| copy(self.fb, s) else _ = paintInto(v, self.fb, self.os.system_font);
         self.still();

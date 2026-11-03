@@ -3,12 +3,21 @@
 //   model     every composited frame equals an independent model of the fade applied to the
 //             plane's 565 pixels as they sit in memory, under the registers the cart left
 //             (docs/HW_API.md "True-colour fade": the formula written with divisions)
-//   pixels    the pixel memory hashes the same every frame: only the registers move the picture
+//   pixels    the plane's buffer (FB_BASE) hashes the same every frame and the view has no copper
+//             list: only the registers move the picture (and the board's planner sees static lines)
 //   reaches   a frame of full black, one of full white, a flash (a positive red offset) and one
 //             the same as the hues view (no fade): the cycle is really there
 // Mutants (--break): fadeoff (the registers zeroed after each frame), softfade (one pixel
 // rewritten a frame, as a Falcon fade would), model (the model forgets the fade).
+import { createHash } from "node:crypto";
+
 const W = 400, H = 280, STRIDE = 800, REG_TC_FADE = 0x0C, REG_OFS = [0x14, 0x18, 0x1C], REG_FB_BASE = 0x44;
+const REG_FB_COPPER = 0x78;
+
+function bufHash(m, dv) {
+    const base = dv.getUint32(m.video + REG_FB_BASE, true) & ~1;
+    return createHash("md5").update(new Uint8Array(m.memory.buffer, m.video + base, STRIDE * H)).digest("hex");
+}
 export const FADE_VIEW = 7, PERIOD = 256;
 
 const expand5 = (v) => (v << 3) | (v >> 2), expand6 = (v) => (v << 2) | (v >> 4);
@@ -39,11 +48,12 @@ function model(m, dv, f, brk) {
 const all = (img, v) => img.every((c) => c === v);
 const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-// `t` gives the harness's frame(m, hook), pixelHash(m), dv(m) and want(errors, ok, msg); `hues` is
+// `t` gives the harness's frame(m, hook), dv(m) and want(errors, ok, msg); `hues` is
 // key 5's picture. Returns the view's first frame (for the views-are-distinct check).
 export function fadeChecks(m, errors, brk, hues, t) {
     m.demo.setShadeMode(FADE_VIEW);
-    const h0 = t.pixelHash(m);
+    const h0 = bufHash(m, t.dv(m));
+    t.want(errors, t.dv(m).getUint16(m.video + REG_FB_COPPER, true) === 0, "fade: the view has a copper list");
     const hook = (mm) => {
         const d = t.dv(mm);
         if (brk === "fadeoff") for (const r of [REG_TC_FADE, ...REG_OFS]) d.setUint8(mm.video + r, 0);
@@ -62,7 +72,7 @@ export function fadeChecks(m, errors, brk, hues, t) {
         flash += r.ofs[0] > 0 && !same(img, hues);
         plain += same(img, hues);
     }
-    const h1 = t.pixelHash(m);
+    const h1 = bufHash(m, t.dv(m));
     t.want(errors, bad === 0, `fade: ${bad}/${PERIOD} frames differ from the model of the fade registers`);
     t.want(errors, h0 === h1, "fade: the pixel memory changed (a fade must be the registers alone)");
     t.want(errors, black && white && flash && plain, `fade: black ${black}, white ${white}, flash ${flash}, plain ${plain} frames (each must be > 0)`);
