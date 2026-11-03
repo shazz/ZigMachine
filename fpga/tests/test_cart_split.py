@@ -132,12 +132,12 @@ def test_the_split_card_carries_the_system_once_and_lean_carts(tmp_path: Path) -
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", _carts(tmp_path, V1), tmp_path / "none.h",
                                         ("tutorial",), system=sysbin))  # fmt: skip
     assert rows["zigmachine/system.rv32"].endswith("(table 1.0)")
-    assert rows["zigmachine/demo-tutorial.zmd"].endswith("carts/tutorial/cart.bin")
+    assert rows["zigmachine/tutorials/demo-tutorial.zmd"].endswith("carts/tutorial/cart.bin")
     packed = tmp_path / "sd" / "system.rv32"
     subprocess.run([glass_shelf.zx0unpack(), packed, tmp_path / "sys.raw"], check=True, capture_output=True)
     assert split_image.sys_unfile((tmp_path / "sys.raw").read_bytes()) == (V1, system_image(V1))
     assert sorted(p.name for p in (tmp_path / "sd").iterdir()) == [
-        "demo-tutorial.zmd", "kos", "shelf.txt", "system.rv32"]  # fmt: skip: GEM is KOS's desktop, kos/desktop.rv32
+        "kos", "shelf.txt", "system.rv32", "tutorials"]  # fmt: skip: GEM is KOS's desktop, kos/desktop.rv32
 
 
 def test_a_card_never_carries_a_cart_its_system_refuses_or_lacks(tmp_path: Path) -> None:
@@ -145,7 +145,7 @@ def test_a_card_never_carries_a_cart_its_system_refuses_or_lacks(tmp_path: Path)
     sysbin.write_bytes(system_image(V1))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", _carts(tmp_path, V1 | 1), tmp_path / "none.h",
                                         ("tutorial", "stniccc"), system=sysbin))  # fmt: skip
-    assert rows["zigmachine/demo-tutorial.zmd"].startswith("REFUSED:") and "needs system table 1.1" in rows[
-        "zigmachine/demo-tutorial.zmd"]  # fmt: skip
-    assert rows["zigmachine/demo-stniccc.zmd"].endswith("make -C fpga split-cart CART=stniccc")
-    assert not (tmp_path / "sd" / "demo-tutorial.zmd").exists()
+    assert rows["zigmachine/tutorials/demo-tutorial.zmd"].startswith("REFUSED:") and "needs system table 1.1" in rows[
+        "zigmachine/tutorials/demo-tutorial.zmd"]  # fmt: skip
+    assert rows["zigmachine/demos/demo-stniccc.zmd"].endswith("make -C fpga split-cart CART=stniccc")
+    assert not (tmp_path / "sd" / "tutorials" / "demo-tutorial.zmd").exists()

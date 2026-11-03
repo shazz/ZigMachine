@@ -52,11 +52,11 @@ def test_the_shelf_stages_st_replay_as_it_is_and_kos_desktop_once(tmp_path: Path
     csr.write_text("x")
     os.utime(csr, (100, 100))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, csr, ("st_replay",)))
-    assert rows["zigmachine/demo-st_replay.zmd"] == "docs/demo-st_replay.zmd (a data disk: KOS's desktop boots over it)"
-    assert (tmp_path / "sd" / "demo-st_replay.zmd").read_bytes() == (ROOT / "docs/demo-st_replay.zmd").read_bytes()
+    assert rows["zigmachine/tools/demo-st_replay.zmd"] == "docs/demo-st_replay.zmd (a data disk: KOS's desktop boots over it)"
+    assert (tmp_path / "sd" / "tools" / "demo-st_replay.zmd").read_bytes() == (ROOT / "docs/demo-st_replay.zmd").read_bytes()
     assert rows["zigmachine/kos/desktop.rv32"].endswith(f"{fws / 'gem' / 'fw.bin'} (KOS's desktop)")
     packed = (tmp_path / "sd" / "kos" / "desktop.rv32").read_bytes()
-    assert packed[:4] == b"ZX0!" and "zigmachine/demo-gem.zmd" not in rows  # GEM is no shelf disk now
+    assert packed[:4] == b"ZX0!" and "zigmachine/system/demo-gem.zmd" not in rows  # GEM is no shelf disk now
 
 
 def test_without_gems_firmware_kos_desktop_is_missing(tmp_path: Path) -> None:
@@ -65,7 +65,7 @@ def test_without_gems_firmware_kos_desktop_is_missing(tmp_path: Path) -> None:
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("st_replay",)))
     want = f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
     assert rows["zigmachine/kos/desktop.rv32"] == want
-    assert rows["zigmachine/demo-st_replay.zmd"].endswith("(a data disk: KOS's desktop boots over it)")
+    assert rows["zigmachine/tools/demo-st_replay.zmd"].endswith("(a data disk: KOS's desktop boots over it)")
 
 
 def test_the_disk_bridge_takes_each_export_of_the_right_type_else_null() -> None:

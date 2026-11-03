@@ -83,7 +83,7 @@ def test_sysinfo_is_a_data_disk_whose_boot_wsm_is_the_sysinfo_carts_image(tmp_pa
     _fw(fws, "gem")
     _fw(fws, "sysinfo")
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("sysinfo",)))
-    assert rows["zigmachine/demo-sysinfo.zmd"].endswith("(a data disk: KOS's desktop boots over it)")  # Q has a GEM to go back to
+    assert rows["zigmachine/tools/demo-sysinfo.zmd"].endswith("(a data disk: KOS's desktop boots over it)")  # Q has a GEM to go back to
     assert rows["zigmachine/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")
     assert rows["zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd"].endswith("sysinfo/fw.bin (BOOT.WSM)")
     fat = (tmp_path / "sd/progs/demo-sysinfo/BOOT.WSM.zmd").read_bytes()

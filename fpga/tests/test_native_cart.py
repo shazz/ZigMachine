@@ -90,9 +90,9 @@ def test_the_shelf_stages_a_native_cart_from_its_own_disk(tmp_path: Path) -> Non
     sysbin = tmp_path / "sys.bin"
     sysbin.write_bytes(b"system" * 8 + struct.pack("<3I", glass_cart.SYS_MAGIC, native_cart.system_version(), 7) + bytes(16))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", NATIVE, tmp_path / "none.h", (), system=sysbin))
-    assert rows["zigmachine/demo-hello.zmd"] == "fpga/build/hcycles/split/native_fpu/hello/disk.zmd + " \
+    assert rows["zigmachine/tests/demo-hello.zmd"] == "fpga/build/hcycles/split/native_fpu/hello/disk.zmd + " \
         "build/hcycles/split/native_fpu/hello/cart.bin"  # fmt: skip
-    fat = (tmp_path / "sd" / "demo-hello_asm.zmd").read_bytes()
+    fat = (tmp_path / "sd" / "tests" / "demo-hello_asm.zmd").read_bytes()
     (name, start, length, kind), = zmd_fat.files(fat)
     assert (name, kind) == ("CART.RV32", glass_map.ZMD_TYPE_RV32)
     (tmp_path / "c.zx0").write_bytes(fat[start : start + length])

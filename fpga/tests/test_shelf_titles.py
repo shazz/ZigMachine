@@ -21,7 +21,7 @@ def _row(tag: str) -> tuple[str, ...]:
 
 
 def test_gem_is_the_gem_desktop_of_digital_research_1985() -> None:
-    assert _row("gem")[:5] == ("demo-gem.zmd", "GEM DESKTOP", "Digital Research", "1985", "system")
+    assert _row("gem")[:5] == ("system/demo-gem.zmd", "GEM DESKTOP", "Digital Research", "1985", "system")
     assert "EXIT TO GEM" in {name for name, tag, _ in shelf_meta.channels.entries() if tag == "gem"}  # the menu's
 
 
@@ -33,8 +33,8 @@ def test_an_empty_override_field_keeps_the_catalogs() -> None:
 def test_shelf_txt_carries_the_overridden_titles(tmp_path: Path) -> None:
     text = shelf_meta.write(tmp_path, ["gem", "st_replay"]).read_text()
     lines = [ln.split("\t") for ln in text.splitlines() if not ln.startswith("#")]
-    assert [ln[:4] for ln in lines] == [["demo-gem.zmd", "GEM DESKTOP", "Digital Research", "1985"],
-                                       ["demo-st_replay.zmd", "ST REPLAY", "Microdeal", ""]]  # fmt: skip
+    assert [ln[:4] for ln in lines] == [["system/demo-gem.zmd", "GEM DESKTOP", "Digital Research", "1985"],
+                                       ["tools/demo-st_replay.zmd", "ST REPLAY", "Microdeal", ""]]  # fmt: skip
 
 
 @pytest.mark.parametrize("tag", list(shelf_meta.OVERRIDES))

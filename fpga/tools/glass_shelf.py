@@ -26,6 +26,7 @@ from pathlib import Path
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
+import shelf_category
 import shelf_meta  # after the path insert
 import split_image
 from glass_zx0 import program_cart, zx0pack, zx0unpack  # re-exported: the shelf's tests use them
@@ -123,16 +124,18 @@ def stage_desktop(images: Images, dest: Path) -> tuple[str, str]:
 
 
 def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple[str, str]]:
-    name = f"zigmachine/demo-{tag}.zmd"
+    rel = shelf_category.disk_path(tag)  # <category>/demo-<tag>.zmd: the OSD's folder
+    name, out = f"zigmachine/{rel}", dest / rel
     native = images.fw_dir / tag / "disk.zmd"  # a native cart's board-only disk (tools/native_cart.py)
     disk = native if native.exists() else ROOT / "docs" / f"demo-{tag}.zmd"
     if not disk.exists():
         return [(name, f"MISSING: no {disk.name} on the shelf")]
     img = disk.read_bytes()
     if not boots(img):  # a data disk: just files, the desktop boots over it
-        (dest / f"demo-{tag}.zmd").write_bytes(img)
-        rel = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
-        return [(name, f"{rel} (a data disk: KOS's desktop boots over it)"), *programs(tag, img, images, dest)]
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(img)
+        src = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
+        return [(name, f"{src} (a data disk: KOS's desktop boots over it)"), *programs(tag, img, images, dest)]
     cart = tag
     fw = images.path(cart)
     if why := images.problem(cart):
@@ -141,7 +144,8 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple
         return [(name, f"STALE: {fw} predates the CSR map; make board-fw CART={cart}")]
     packed = dest / f"{tag}.rv32.zx0"
     subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
-    (dest / f"demo-{tag}.zmd").write_bytes(zmd_fat.fatten(img, packed.read_bytes()))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(zmd_fat.fatten(img, packed.read_bytes()))
     packed.unlink()
     src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
     disk = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
@@ -174,10 +178,12 @@ def build_shelf(
         row, version = stage_system(dest, system, csr_map)
         rows, images = [row], Images(fw_dir, version)
     every = sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob(f"*/{images.path('x').name}")} - {OS_CART})
+    if bad := shelf_category.problems(every):  # no catch-all folder: a cart nobody placed stops the card
+        raise SystemExit("glass_shelf: " + "; ".join(bad))
     rows += [stage_desktop(images, dest)]
     rows += [row for tag in every for row in _fat_disk(tag, images, csr_map, dest)]
-    shelf_rows = [r for r in rows if r[0].startswith("zigmachine/demo-") and not r[1].startswith("MISSING")]
-    tags = [r[0].removeprefix("zigmachine/demo-").removesuffix(".zmd") for r in shelf_rows]
+    staged = {f"zigmachine/{shelf_category.disk_path(t)}": t for t in every}
+    tags = [staged[r[0]] for r in rows if r[0] in staged and not r[1].startswith("MISSING")]
     if not tags:
         return rows
     shelf_meta.write(dest, tags)

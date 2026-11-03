@@ -3,7 +3,8 @@
     uv run python tools/shelf_meta.py [--out DIR] [--check]
 
 One line a disk, tab-separated: FILE, TITLE, GROUP, YEAR, TYPE, DESCRIPTION
-(fpga/glass/src/meta.zig reads it). Nothing is typed twice; each field comes
+(fpga/glass/src/meta.zig reads it). FILE is the disk's path under zigmachine/,
+its folder first (tools/shelf_category.py): "demos/demo-stniccc.zmd". Nothing is typed twice; each field comes
 from where the repo already keeps it:
 
 - TITLE and TYPE: apps/zig/scenes/catalog.zig (tools/channels.py's parser, so
@@ -36,6 +37,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import channels  # after the path insert: the catalog parser
+import shelf_category  # tools/ is on sys.path when run as a script or from the tests
 
 BUILD_ZIG = ROOT / "build.zig"
 CART_ZIG = ROOT / "apps/zig/cart.zig"
@@ -150,7 +152,7 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
         title, group, year = (
             o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (name, group, year), strict=True)
         )
-        out.append((f"demo-{tag}.zmd", ascii_text(title), group, year, kind, desc))
+        out.append((shelf_category.disk_path(tag), ascii_text(title), group, year, kind, desc))
     kinds = {tag: kind for _, tag, kind in channels.entries()}
     for tag in [t for t in cart_tags() if t not in kinds and (tags is None or t in tags)]:
         hub = next((h for p, h in HUBS.items() if tag.startswith(p)), "")
@@ -159,7 +161,7 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
             title, group, year = (
                 o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (hub_title(desc), group, year))
             )
-            out.append((f"demo-{tag}.zmd", ascii_text(title), group, year, kinds[hub], desc))
+            out.append((shelf_category.disk_path(tag), ascii_text(title), group, year, kinds[hub], desc))
     return out
 
 
@@ -183,8 +185,14 @@ def write(dest: Path, tags: list[str] | None = None) -> Path:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", type=Path, default=FPGA / "build/glass/sd/zigmachine")
-    p.add_argument("--check", action="store_true", help="list carts with no group, year or description; write nothing")
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="list carts with no group, year or description; exit 1 on a cart with no category",
+    )
     a = p.parse_args()
+    if bad := shelf_category.problems(shelf_category.every_tag()):
+        sys.exit("\n".join(bad))  # records() would raise on the first: name them all
     rows = records()
     gaps = [f"{r[0]}: no {', '.join(n for n, v in zip(('group', 'year', 'description'), r[2:4] + r[5:]) if not v)}"
             for r in rows if not (r[2] and r[3] and r[5])]  # fmt: skip

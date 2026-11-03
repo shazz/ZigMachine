@@ -16,8 +16,9 @@ On the card:
     zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot); the rootfs gets
                              this glass at /usr/bin/glass (S99glass runs it; tools/rootfs_glass.py)
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
-    zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin;
-                             a data disk is staged as it is: tools/glass_shelf.py)
+    zigmachine/<category>/demo-<tag>.zmd    the shelf: fat disks (wasm cart + rv32 BOARD image,
+                             build/hcycles/board/<cart>/fw.bin; a data disk is staged as it is: tools/glass_shelf.py),
+                             one folder a category (demos, games, tools, ...: tools/shelf_category.py)
     zigmachine/kos/desktop.rv32  KOS's desktop (GEM's board image), booted for a data disk or an empty drive
     zigmachine/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
     zigmachine/system.rv32   --system: firmware + machine + ROM + BARD, once; the fat disks then carry lean

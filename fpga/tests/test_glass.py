@@ -28,6 +28,7 @@ WORK = FPGA / "build" / "glass" / "test"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
 sys.path.insert(0, str(FPGA / "tools"))
 import glass_sd
+import shelf_category
 import shelf_meta
 import uboot_serial
 import zmd_fat
@@ -190,12 +191,13 @@ def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) ->
     assert (out / "boot.scr").read_bytes()[:4] == bytes.fromhex("27051956")
     assert rows["zImage"].endswith("zImage")
     shelf = {k: v for k, v in rows.items() if k.startswith("zigmachine/")}
-    data = {"zigmachine/demo-st_replay.zmd", "zigmachine/demo-sysinfo.zmd"}  # just files: KOS's desktop boots them
-    carts = {f"zigmachine/demo-{t}.zmd" for t in glass_sd.SHELF} - data | {"zigmachine/kos/desktop.rv32"}
+    apps = ("chipnomad", "grafx2", "klystrack", "pt2", "st_replay", "sysinfo")  # GEM programs on data disks
+    data = {f"zigmachine/tools/demo-{t}.zmd" for t in apps}  # just files: KOS's desktop boots them
+    carts = {f"zigmachine/{shelf_category.disk_path(t)}" for t in glass_sd.SHELF} - data | {"zigmachine/kos/desktop.rv32"}
     assert carts | data <= set(shelf)  # every listed cart is named...
     assert all(shelf[k].startswith("MISSING: no ") for k in carts)  # ...as missing its firmware
     assert all(shelf[k].endswith("(a data disk: KOS's desktop boots over it)") for k in data)
-    assert sorted(p.name for p in (out / "zigmachine").glob("*.zmd")) == ["demo-st_replay.zmd", "demo-sysinfo.zmd"]
+    assert sorted(p.name for p in (out / "zigmachine").glob("*/*.zmd")) == [f"demo-{t}.zmd" for t in apps]
     with pytest.raises(SystemExit, match="device"):
         glass_sd.stage(Path("/dev/null"), None)
 
@@ -213,10 +215,10 @@ def test_sd_shelf_takes_board_firmwares_and_skips_one_older_than_the_csr_map(tmp
     os.utime(fws / "tutorial" / "fw.bin", (200, 200))
     os.utime(fws / "blitter" / "fw.bin", (50, 50))  # built against an older map
     rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr, ("tutorial", "gem")))
-    assert rows["zigmachine/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
-    assert rows["zigmachine/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
-    assert rows["zigmachine/demo-blitter.zmd"].startswith("STALE")
-    assert not (tmp_path / "sd" / "demo-blitter.zmd").exists()
+    assert rows["zigmachine/system/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
+    assert rows["zigmachine/tutorials/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
+    assert rows["zigmachine/demos/demo-blitter.zmd"].startswith("STALE")
+    assert not (tmp_path / "sd" / "demos" / "demo-blitter.zmd").exists()
 
 
 def _c_test(sources: list[str], test: str, name: str) -> subprocess.CompletedProcess[str]:
@@ -236,7 +238,7 @@ def test_cart_boot_is_cold_unless_warm_finds_its_memory() -> None:
 
 
 def test_shelf_meta_describes_every_catalog_cart_from_the_repo() -> None:
-    rows = {r[0]: r for r in shelf_meta.records()}
+    rows = {r[0].split("/")[-1]: r for r in shelf_meta.records()}  # FILE is <category>/demo-<tag>.zmd
     names = {f"demo-{tag}.zmd": name for name, tag, _ in shelf_meta.channels.entries()}
     assert set(rows) == set(names)
     named = {f"demo-{t}.zmd" for t, o in shelf_meta.OVERRIDES.items() if o[0]}  # tests/test_shelf_titles.py
@@ -250,7 +252,7 @@ def test_shelf_meta_describes_every_catalog_cart_from_the_repo() -> None:
 def test_shelf_meta_skips_tags_it_does_not_know(tmp_path: Path) -> None:
     out = shelf_meta.write(tmp_path, ["stniccc", "no_such_cart"])
     lines = [ln for ln in out.read_text().splitlines() if not ln.startswith("#")]
-    assert [ln.split("\t")[0] for ln in lines] == ["demo-stniccc.zmd"]
+    assert [ln.split("\t")[0] for ln in lines] == ["demos/demo-stniccc.zmd"]
 
 
 def test_the_menu_shows_shelf_txt_details_for_the_selected_cart(tools: dict[str, Path], tmp_path: Path) -> None:

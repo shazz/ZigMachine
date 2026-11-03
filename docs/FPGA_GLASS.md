@@ -492,7 +492,21 @@ ENTER load  > console  F12 close    status
 ```
 
 ↑/↓ move, Enter or Space loads, → opens the console page, Esc closes the OSD
-over a running cart, and R and W are the cold and warm reset. A title longer
+over a running cart, and R and W are the cold and warm reset.
+
+**Folders** (`shelf_view.zig`, Matt 3 Nov: "reorganize the carts in folders ... and of course
+showing the folders in the OSD"). The card keeps each fat disk in a category folder,
+`zigmachine/<category>/demo-<tag>.zmd` (`demos`, `games`, `tools`, `tutorials`, `tests`,
+`system`: `fpga/tools/shelf_category.py`). The shelf page lists the folders first, `DEMOS/`
+with its cart count, then any disk lying at the top; Enter (or the pad's fire) opens a
+folder, whose first row is `..`; Enter on `..`, ← or Backspace (the pad's left) go back up,
+the cursor on the folder just left. The title bar names the folder (`ZIGMACHINE DEMOS 2/24`),
+and a folder row carries the `A` / `*` mark of a disk in it. The scan goes one level down
+and never into `progs/` or `kos/` (the shelf's own) or a dot-directory. A disk is still known
+by its bare file name everywhere (glass.cfg's drive A, a cart's REQ_LOAD_CART, `progs/`,
+`glass ctl load`); its folder only says where it is read from. **A flat card** (every disk at
+the top, before 3 Nov) lists exactly as before; a disk at the top that a folder also holds
+(an old copy nobody deleted) is ignored, with a warning in the log. A title longer
 than its 31 columns is cut with `~` in the list and **scrolls** (a marquee,
 holding at each end) while it is the selected one. A disk that `shelf.txt` does
 not list shows `no shelf.txt entry` and its file name in the details.
@@ -597,13 +611,13 @@ The glass serves it from its main loop, between two input events, as it would a 
 
 | Command | Does |
 |---|---|
-| `load <file.zmd> [PROGRAM]` | the OSD's load, by the shelf's file name (case ignored; the shelf is re-read once if it is not there); with PROGRAM, that program off the disk as GEM would ask for it (`progs/`, "Programs off a data disk") |
+| `load <file.zmd> [PROGRAM]` | the OSD's load, by the shelf's file name or its folder path (`demo-joust.zmd`, `games/demo-joust.zmd`; a path also finds the file flat on an older card; case ignored; the shelf is re-read once if it is not there); with PROGRAM, that program off the disk as GEM would ask for it (`progs/`, "Programs off a data disk") |
 | `key <key> [down\|up\|tap]` | a key as the keyboard sends it: the menu's while it is open, else the cart's. `1`, `a`, `A` (one character is itself), `space`, `enter`, `esc`, `up`..`right`, `f1`..`f10`, `shift`, `alt`, ..., or a raw code `0xE012`. `tap` (default) holds it 100 ms |
 | `joy <bits>` | the joypad bits held now: `0x20`, `up+fire`, `0` |
 | `stats [N]` | one `ZMSTAT` line over the last N seconds (default 5, up to 50) |
 | `osd open\|close` | F12 |
 | `quit-cart` | the cart CPU held in reset, the menu up |
-| `list`, `help` | the shelf (`file<TAB>title` a line), the commands |
+| `list`, `help` | the shelf (`file<TAB>title<TAB>folder` a line, the folder empty for a disk at the top), the commands |
 
 The `stats` line, one `key=value` a field, never a space in a value (`_` stands in), `-` for
 "none" or "not measured", `song` last:
@@ -754,9 +768,20 @@ machine and a one-line description. They come from `<SHELF_DIR>/shelf.txt`, one
 line a disk, tab-separated:
 
 ```
-FILE              TITLE                 GROUP    YEAR  TYPE      DESCRIPTION
-demo-stniccc.zmd  OXYGENE STNICCC 2000  Oxygene  2000  atari st  Oxygene / STNICCC 2000, the polygon flight ...
+FILE                    TITLE                 GROUP    YEAR  TYPE      DESCRIPTION
+demos/demo-stniccc.zmd  OXYGENE STNICCC 2000  Oxygene  2000  atari st  Oxygene / STNICCC 2000, the polygon flight ...
 ```
+
+FILE is the disk's path under the shelf, its folder first (`shelf_category.py`). The glass
+matches a disk by that path, then by its file name alone, so an older flat `shelf.txt` still
+describes a foldered card and this one a flat card.
+
+**The folder** (`fpga/tools/shelf_category.py`): its `TABLE` first (the games among the
+ST ports, the test carts, the native carts, the "zigmachine" screens); a Union Demo screen
+(`union_*`) is a demo; else the catalog's type: `pc` is `tools`, `atari st` / `amiga` /
+`atari falcon` are `demos`. A "zigmachine", "system" or "unknown" cart must be in the table.
+There is no catch-all: a cart nothing places stops `glass_sd.py` before it stages anything,
+and `shelf_category.py --check` (also `shelf_meta.py`) exits 1, naming it.
 
 **Why a side file, not a block in the `.zmd`.** The disk format has no free
 room for it without a format change, and the browser loader parses those
@@ -1340,7 +1365,7 @@ ssh to the board over its RJ45; no Wi-Fi dongle is needed.
   UART (`ip addr show eth0`).
 - **Cart upload over the network** comes nearly free with it:
   `ssh root@zigmachine.local mount -o remount,rw /mnt/sd`, then `scp
-  demo-x.zmd root@zigmachine.local:/mnt/sd/zigmachine/` and remount read-only.
+  demo-x.zmd root@zigmachine.local:/mnt/sd/zigmachine/<category>/` and remount read-only.
   Then **Shift+F12** in `glass` rescans the shelf over the running cart.
 - Unverified until Buildroot builds the image and the bitstream carries the
   EMIO wiring.
