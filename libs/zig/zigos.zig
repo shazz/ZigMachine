@@ -683,6 +683,21 @@ pub const LogicalFB = struct {
         return tc.view(self.fb, size);
     }
 
+    // The true-colour fade of this plane (HW 1.16.0): coef 0 (none) .. 31 (full black or white),
+    // applied by the machine to every pixel from the next line composited; the pixels stay.
+    pub fn setTruecolorFade(self: *LogicalFB, coef: u5, dir: tc.Dir) void {
+        writeU8(hw.REG_TC_FADE + @as(usize, self.id), tc.fadeCtl(coef, dir));
+    }
+
+    // A signed tint per channel (HW 1.16.0), added after the fade and clamped to 0..255: a flash,
+    // a tint, a colour cycle of the whole plane. All zero is none.
+    pub fn setTruecolorOffset(self: *LogicalFB, r: i8, g: i8, b: i8) void {
+        const id: usize = self.id;
+        writeU8(hw.REG_TC_OFS_R + id, @bitCast(r));
+        writeU8(hw.REG_TC_OFS_G + id, @bitCast(g));
+        writeU8(hw.REG_TC_OFS_B + id, @bitCast(b));
+    }
+
     // Show another true-colour buffer (zg.truecolorBuffer) from the next frame: FB_BASE moves,
     // the pixels stay. Returns the buffer it showed before, to draw the next frame in.
     pub fn showTruecolor(self: *LogicalFB, next: tc.Fb) tc.Fb {

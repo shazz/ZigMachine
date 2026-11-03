@@ -53,7 +53,7 @@ test "bit 0 of a line address is ignored: odd base or HSCROLL lands on the pixel
 test "a line writes each pixel doubled, little-endian words" {
     const src = [_]u8{ 0xFF, 0xFF, 0x00, 0xF8, 0x1F, 0x00 } ++ [_]u8{0} ** 2;
     var out = [_]u64{0} ** 4;
-    tc.line(&out, &src, 0, 3);
+    tc.line(&out, &src, 0, 3, .{});
     try expectEqual(@as(u64, 0xFFFFFFFF_FFFFFFFF), out[0]);
     try expectEqual(@as(u64, 0xFF0000FF_FF0000FF), out[1]);
     try expectEqual(@as(u64, 0xFFFF0000_FFFF0000), out[2]);

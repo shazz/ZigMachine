@@ -10,6 +10,10 @@
 // copper LBASE are byte offsets too, and bit 0 of a line's address is ignored
 // (an odd one shows the even pixel below). LogicalFB's u8 methods (setPixelValue,
 // printText, the blitter helpers) do not apply to it: draw through an Fb.
+//
+// HW 1.16.0 adds a FADE (LogicalFB.setTruecolorFade / setTruecolorOffset): the machine fades the
+// expanded pixel toward black or white and adds a signed tint per channel, so a fade or a flash
+// is one register write and no pixel is rewritten.
 // --------------------------------------------------------------------------
 const std = @import("std");
 
@@ -19,6 +23,20 @@ pub const Size = enum { window, full };
 /// every value it can show).
 pub inline fn rgb565(r: u8, g: u8, b: u8) u16 {
     return (@as(u16, r >> 3) << 11) | (@as(u16, g >> 2) << 5) | (b >> 3);
+}
+
+/// The fade (HW 1.16.0, docs/HW_API.md "True-colour fade"): toward black or toward white.
+pub const Dir = enum(u1) { black, white };
+
+/// REG_TC_FADE's byte: coef 0 (none) .. 31 (full black / white), bit 5 the direction.
+pub inline fn fadeCtl(coef: u5, dir: Dir) u8 {
+    return @as(u8, coef) | @as(u8, @intFromEnum(dir)) << 5;
+}
+
+/// A copper REG word writing byte register `reg` (REG_TC_FADE / REG_TC_OFS_R/G/B + the plane)
+/// to `v` on its line: a per-line fade or tint (the register keeps it for the lines after).
+pub inline fn copperReg(reg: usize, v: u8) u32 {
+    return 0x2000_0000 | @as(u32, @intCast(reg)) << 20 | v;
 }
 
 pub fn width(size: Size) u16 {
@@ -82,6 +100,14 @@ test "rgb565 keeps each channel's top bits" {
     try std.testing.expectEqual(@as(u16, 0x07E0), rgb565(0, 255, 0));
     try std.testing.expectEqual(@as(u16, 0x001F), rgb565(0, 0, 255));
     try std.testing.expectEqual(@as(u16, 0x0000), rgb565(7, 3, 7)); // below one step: black
+}
+
+test "fadeCtl packs the coefficient and the direction, copperReg a REG word" {
+    try std.testing.expectEqual(@as(u8, 0), fadeCtl(0, .black));
+    try std.testing.expectEqual(@as(u8, 31), fadeCtl(31, .black));
+    try std.testing.expectEqual(@as(u8, 0x3F), fadeCtl(31, .white));
+    try std.testing.expectEqual(@as(u8, 0x20), fadeCtl(0, .white)); // coef 0: no fade either way
+    try std.testing.expectEqual(@as(u32, 0x20D0_0080), copperReg(0x0D, 0x80));
 }
 
 test "put2, fill, copyRect and the clip" {

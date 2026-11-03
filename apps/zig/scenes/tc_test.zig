@@ -10,6 +10,8 @@
 //   5  HUES      hue x value and hue x saturation
 //   6  SKY       a radial gradient between two close colours: 565's banding worst case
 //   7  DITHER    the same sky, plain beside 2x2 ordered dither
+//   8  FADE      the hues faded to black, to white and flashed by the fade registers alone
+//                (HW 1.16.0, tc_test/fade.zig): no pixel written a frame
 //   N / Space / Right   the next local picture,  P / Backspace / Left   the previous one
 //   Escape              back to the menu
 //
@@ -30,10 +32,12 @@ const zg = @import("zigos");
 const paint = @import("tc_test/paint.zig");
 const plasma = @import("tc_test/plasma.zig");
 const art = @import("tc_test/art.zig");
+const fade = @import("tc_test/fade.zig");
 const ZigOS = zg.ZigOS;
 const tc = zg.tc;
 
-pub const VIEWS = 7;
+pub const VIEWS = 8;
+pub const FADE: u8 = 7;
 pub const PLASMA: u8 = 1;
 const ROWS = paint.H;
 const K_ESC: u32 = 0xE012; // demo_main.zig's code for Escape
@@ -49,6 +53,7 @@ pub const Demo = struct {
     list: ?[]u32 = null,
     tex: ?plasma.Texture = null,
     view: u8 = 0,
+    shown_at: u32 = 0, // fc when the view was shown (the fade's clock)
     picture: ?usize = null, // a local picture shown instead of view
     fc: u32 = 0,
     wants_quit: bool = false,
@@ -60,12 +65,12 @@ pub const Demo = struct {
         plane.is_enabled = true;
         self.tex = plasma.build();
         self.list = zg.linelist.install(plane, ROWS, false); // after the VRAM buffers: hashable below it
-        for (0..VIEWS) |v| stills[v] = paintStill(@intCast(v), zigos.system_font);
+        for (0..VIEWS) |v| stills[v] = if (v == FADE) stills[4] else paintStill(@intCast(v), zigos.system_font); // FADE fades the hues
         art.announce();
         self.show(PLASMA);
     }
 
-    /// Digits 1-7 from the host (mode = digit - 1).
+    /// Digits 1-8 from the host (mode = digit - 1).
     pub fn setShadeMode(self: *Demo, mode: u32) void {
         if (mode < VIEWS) self.show(@intCast(mode));
     }
@@ -95,6 +100,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = zigos;
         _ = dt;
+        if (self.picture == null and self.view == FADE) fade.apply(&self.os.lfbs[0], fade.at(self.fc -% self.shown_at));
         if (self.picture != null or self.view != PLASMA) return;
         const t = self.tex orelse return;
         for (&lines, 0..) |*l, y| l.* = plasma.line(t, @intCast(y), self.fc);
@@ -106,6 +112,7 @@ pub const Demo = struct {
         if (art.count == 0) return;
         const i = if (self.picture) |p| (p + by) % art.count else 0;
         self.picture = i;
+        fade.apply(&self.os.lfbs[0], .{});
         art.show(self.fb, i);
         self.still();
     }
@@ -113,6 +120,8 @@ pub const Demo = struct {
     fn show(self: *Demo, v: u8) void {
         self.view = v;
         self.picture = null;
+        self.shown_at = self.fc;
+        fade.apply(&self.os.lfbs[0], .{}); // every other view unfaded; FADE starts on its next render
         if (v == PLASMA) return;
         if (stills[v]) |s| copy(self.fb, s) else _ = paintInto(v, self.fb, self.os.system_font);
         self.still();
@@ -149,7 +158,7 @@ fn paintInto(v: u8, fb: tc.Fb, font: []const u8) bool {
         0 => paint.gamut(fb, font),
         2 => paint.compare(fb, font),
         3 => paint.ramps(fb, font),
-        4 => paint.hues(fb),
+        4, FADE => paint.hues(fb),
         5 => paint.sky(fb, font, false),
         6 => paint.sky(fb, font, true),
         else => return false,

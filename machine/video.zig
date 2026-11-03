@@ -20,6 +20,7 @@ const beam = @import("beam.zig");
 const arena = @import("arena.zig");
 const copper = @import("copper.zig");
 const tc = @import("video_tc.zig");
+const tc_fade = @import("video_tc_fade.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
@@ -446,7 +447,8 @@ fn renderPlaneTruecolor(fb_id: usize, full: bool) void {
         const py = oy + ly;
         _ = lineStart(fb_id, hid, ly, hpos, py);
         const at = tc.lineAt(lb.at(ly, stride), hscroll(fb_id));
-        tc.line(out64[(py * RW + ox) >> 1 ..][0..cols], region(), at, cols);
+        const f = tc_fade.read(region()[memmap.OFF_REG..][0..0x80], fb_id); // after the handler and record
+        tc.line(out64[(py * RW + ox) >> 1 ..][0..cols], region(), at, cols, f);
     }
 }
 
@@ -473,6 +475,7 @@ fn lineStart(fb_id: usize, hid: u16, hline: usize, hpos: u16, py: usize) bool {
     if (!cop.live) return false;
     const fx = copper.line(region()[0..memmap.OFF_PFB], &cop, fb_id, @intCast(py), PalWrites{ .palette = pal(fb_id) });
     if (fx.hscroll) |h| w16(memmap.REG_HSCROLL + fb_id * 2, h);
+    for (fx.tc, copper.TC_REGS) |v, r| if (v) |b| w8(r + fb_id, b);
     if (fx.lbase) |v| lb = .{ .off = v, .row = hline };
     return fx.flick;
 }

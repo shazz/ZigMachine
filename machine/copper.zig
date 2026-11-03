@@ -8,7 +8,9 @@
 //   HEAD  0xF << 28 | line << 19 | n     the record of `line` has n body words, then the next HEAD
 //                                         (line 511: the end of the list)
 //   PAL   0x1 << 28 | first << 20 | k << 12, then k palette words: entries first..first+k-1
-//   REG   0x2 << 28 | off << 20 | value   a u16 register of this plane: HSCROLL+2p only
+//   REG   0x2 << 28 | off << 20 | value   a register of this plane: HSCROLL+2p (u16), or since
+//                                         1.16.0 TC_FADE+p, TC_OFS_R+p, TC_OFS_G+p, TC_OFS_B+p
+//                                         (u8: value's low byte; bits 15..8 ignored)
 //   FLICK 0x3 << 28                       this plane flickers the border on this line (RES_FLICKER untouched)
 //   PALREF 0x4 << 28 | first << 20 | k << 12, then 1 word: the region offset (in VRAM, 4-aligned)
 //                                         of k palette words for entries first..first+k-1 (a table
@@ -44,7 +46,16 @@ pub const Effects = struct {
     flick: bool = false,
     hscroll: ?u16 = null,
     lbase: ?u32 = null, // an LBASE: the line's source, a region offset in VRAM
+    tc: [4]?u8 = .{ null, null, null, null }, // TC_FADE, TC_OFS_R, _G, _B (1.16.0)
 };
+
+/// The true-colour fade registers a REG may write, in Effects.tc's order.
+pub const TC_REGS = [4]usize{ memmap.REG_TC_FADE, memmap.REG_TC_OFS_R, memmap.REG_TC_OFS_G, memmap.REG_TC_OFS_B };
+
+fn tcReg(off: usize, plane: usize) ?usize {
+    for (TC_REGS, 0..) |r, k| if (off == r + plane) return k;
+    return null;
+}
 
 /// Where a plane's lines read from during its frame (LBASE): FB_BASE until a record moves it.
 /// Row r reads off + (r - row) * stride; records come in increasing line order, so r >= row.
@@ -110,8 +121,11 @@ pub fn line(region: []const u8, cur: *Cursor, plane: usize, py: u16, t: anytype)
             },
             OP_REG => {
                 const off: usize = (w >> 20) & 0xFF;
-                if (off != memmap.REG_HSCROLL + plane * 2) return stop(cur, fx);
-                fx.hscroll = @truncate(w);
+                if (off == memmap.REG_HSCROLL + plane * 2) {
+                    fx.hscroll = @truncate(w);
+                } else if (tcReg(off, plane)) |k| {
+                    fx.tc[k] = @truncate(w);
+                } else return stop(cur, fx);
             },
             OP_FLICK => fx.flick = true,
             OP_LBASE => {
