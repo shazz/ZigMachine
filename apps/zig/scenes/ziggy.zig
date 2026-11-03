@@ -8,6 +8,8 @@
 //               each on the board) or the plain rv32 code they replace. The
 //               two give the SAME pixels (the harness checks it), only the
 //               cost moves
+//   F           freeze the camera (the same frame again and again: toggle Z or T on it
+//               and the Mc line is a clean A/B)
 //   Esc         back to the menu
 // Under the picture: FPS, the cart's own time a frame in Mc at 100 MHz, and
 // cycles a pixel (fpga/review/KESTREL_NEXT_ISA.md's roto128 and voxel256
@@ -37,6 +39,7 @@ pub const Demo = struct {
     zmx_on: bool = true,
     t: u32 = 0,
     cam_h: i32 = 0,
+    frozen: bool = false,
     wants_quit: bool = false,
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
@@ -88,6 +91,7 @@ pub const Demo = struct {
                 self.zmx_on = !self.zmx_on;
                 self.hud.reset();
             },
+            'f', 'F' => self.frozen = !self.frozen,
             else => {},
         }
     }
@@ -108,7 +112,7 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = zigos;
         _ = dt;
-        self.t +%= 1;
+        if (!self.frozen) self.t +%= 1;
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {

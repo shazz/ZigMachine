@@ -59,7 +59,7 @@ pub const Hud = struct {
         var b0: [COLS]u8 = undefined;
         var tb: [8]u8 = undefined;
         const tex = if (size == 0) "    " else std.fmt.bufPrint(&tb, "{d:>3} ", .{size}) catch "";
-        pad(&l[0], std.fmt.bufPrint(&b0, "{s} {s}ZM-X {s}  1/2 T Z", .{ mode, tex, if (zmx_on) "ON " else "OFF" }) catch "");
+        pad(&l[0], std.fmt.bufPrint(&b0, "{s} {s}ZM-X {s}  1/2 T Z F", .{ mode, tex, if (zmx_on) "ON " else "OFF" }) catch "");
         var b1: [COLS]u8 = undefined;
         if (self.fps10 == 0) {
             pad(&l[1], "");
