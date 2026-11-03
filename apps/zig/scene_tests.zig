@@ -22,6 +22,7 @@ test {
     _ = @import("scenes/union_demo/hub_note.zig");
     _ = @import("scenes/union_texcopier/copier_test.zig");
     _ = @import("scenes/rno_natrium/verify_test.zig");
+    _ = @import("scenes/rno_natrium/zig_math_test.zig");
     _ = @import("scenes/lockbuster2/engine_test.zig");
     _ = @import("scenes/lockbuster2/chunky_test.zig");
     _ = @import("scenes/chonchon/chunky_test.zig");

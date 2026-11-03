@@ -28,6 +28,16 @@
 // over, music and all. Space quit the original; Escape leaves here, as on
 // every screen.
 //
+// ZIG MODE (Z toggles it; default off): the KESTREL showcase -- overscan with
+// every border open, the tunnel (CHISEL MAP) and the rotozoom (CHISEL AFFINE)
+// over the whole window, the face wobble drawn by ZIGGY with ZM-X tex2d, the
+// env objects a new frame every host frame in ONE AFFINE op, all without
+// dither, at the board's 60 Hz (rno_natrium/zig_mode.zig). It only reads the
+// sequencer, which runs the original in both modes: Z back shows its frame.
+//
+// Keys: this cart declares key(), so it owns every key (demo_main.zig): Z
+// toggles ZIG mode, Escape hands the screen back to the menu (wants_quit).
+//
 // MUSIC: "Triplex" by 505, the SNDH ripped out of NATRIUM.PRG itself (the VBL
 // calls its play vector at $564DA; init $564D2, exit $564D6), 36,424 bytes,
 // verified on the sealed YM (apps/sndh_headless.mjs: mode 4, peak 0.56). The
@@ -42,6 +52,7 @@ const Color = zg.Color;
 const st = @import("rno_natrium/st.zig");
 const timeline = @import("rno_natrium/timeline.zig");
 const envmap = @import("rno_natrium/envmap.zig");
+const zig = @import("rno_natrium/zig_mode.zig");
 
 const MUSIC = "rno_natrium.sndh";
 const PLANE = 0;
@@ -49,6 +60,7 @@ const PLANE = 0;
 /// The timeline is music-synced, so it advances by real 20 ms VBLs.
 const VBL_US: u32 = 20_000;
 const MAX_VBLS_PER_FRAME: u32 = 3; // after a stall, catch up a little, not all of it
+const K_ESC: u32 = 0xE012;
 
 /// The two ST screens and the env-map chunky buffer, from zg.mem (zeroed), ONCE
 /// per cart load: as statics they were 80 KB of zeros in the cart and its window.
@@ -64,10 +76,16 @@ pub const Demo = struct {
     seq: timeline.Seq,
     vbl_us: u32, // microseconds towards the next VBL
     dirty: bool, // the ST screen or palette changed since the plane was last expanded
+    /// demo_main's pollCartRequest: back to the menu (Escape).
+    wants_quit: bool,
+    /// Z pressed since the last update(): the toggle needs the ZigOS handle.
+    zig_toggle: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.vbl_us = 0;
         self.dirty = true;
+        self.wants_quit = false;
+        self.zig_toggle = false;
         allocRam(); // before seq.reset, which clears the screens
         self.seq.reset();
         const fb = &zigos.lfbs[PLANE];
@@ -77,8 +95,18 @@ pub const Demo = struct {
         zg.requestSong(MUSIC);
     }
 
+    // Declaring key() gives this cart every key: Escape must be handled here.
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        if (cp == 'z' or cp == 'Z') self.zig_toggle = true;
+    }
+
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
+        if (self.zig_toggle) {
+            self.zig_toggle = false;
+            zig.toggle(zigos);
+            self.dirty = true; // plane 0 re-expands the shown screen when it is back
+        }
         const ms = if (dt > 0 and dt < 1000) dt else 0;
         self.vbl_us += @intFromFloat(ms * 1000);
         var n: u32 = 0;
@@ -98,6 +126,11 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
+        if (zig.on) {
+            zig.render(zigos, &self.seq, self.vbl_us, self.dirty);
+            self.dirty = false;
+            return;
+        }
         // The plane keeps its pixels between frames and the screen only changes
         // on a VBL (50 Hz against the host's rate), so expand it only then.
         if (!self.dirty) return;
@@ -107,3 +140,10 @@ pub const Demo = struct {
         st.toChunky(self.seq.shownBuf(), fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride);
     }
 };
+
+// The harness's exports exist only when this scene IS the cart (grodan_kvack's pattern).
+comptime {
+    if (@import("../cart.zig").Cart == Demo) {
+        _ = @import("rno_natrium/zig_api.zig");
+    }
+}
