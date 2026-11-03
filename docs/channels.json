@@ -395,6 +395,11 @@
   "type": "atari st"
  },
  {
+  "tag": "tc_test",
+  "title": "TC TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "tcb_colorshock",
   "title": "TCB COLORSHOCK 2",
   "type": "atari st"

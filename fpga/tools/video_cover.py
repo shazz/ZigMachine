@@ -16,7 +16,7 @@ import memmap as mm
 REG_WORDS = 32
 PAL0 = REG_WORDS
 BEAM0 = PAL0 + mm.NB_PLANES * mm.PAL_ENTRIES
-MODES = {0: "normal", 1: "fullscreen", 2: "scroll", 3: "medium", 4: "overscan"}
+MODES = {0: "normal", 1: "fullscreen", 2: "scroll", 3: "medium", 4: "overscan", 5: "truecolor", 6: "truecolor_full"}
 
 
 def records(path: Path) -> list[tuple[int, int, int, dict[int, int]]]:
@@ -43,7 +43,7 @@ def mode_of(state: dict[int, int], plane: int) -> str:
     """video.zig's renderPlane dispatch, including the stride-400 back-compat rule."""
     mode = _byte(state, mm.REG_FB_MODE + plane, 1)
     stride = _byte(state, mm.REG_FB_STRIDE + plane * 2, 2)
-    if mode in (1, 2, 3, 4):
+    if mode in MODES and mode:
         name = MODES[mode]
         return "medium_overscan" if mode == 3 and stride >= mm.RASTER_WIDTH else name
     return "fullscreen" if stride == mm.STRIDE_FULLSCREEN else "normal"

@@ -19,6 +19,7 @@ const memmap = @import("sdk/memmap.zig");
 const beam = @import("beam.zig");
 const arena = @import("arena.zig");
 const copper = @import("copper.zig");
+const tc = @import("video_tc.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
@@ -427,6 +428,28 @@ fn renderPlaneScroll(fb_id: usize) void {
     }
 }
 
+// TRUE-COLOUR plane (HW 1.15.0): RGB565 words, no palette (video_tc.zig). `full`: 400x280 over
+// the whole raster from (0, 0), physical lines, borders always open (a Videl mode, nothing to
+// earn); else the 320x200 window, logical lines. HSCROLL is a byte offset re-read per line after
+// the handler and the record, as in SCROLL mode; bit 0 of the line's address is ignored.
+fn renderPlaneTruecolor(fb_id: usize, full: bool) void {
+    const stride: usize = fbStride(fb_id);
+    const out64: [*]u64 = @ptrCast(@alignCast(pfb()));
+    const hid = fbHblId(fb_id);
+    const hpos = fbHblPos(fb_id);
+    const rows: usize = if (full) RH else memmap.HEIGHT;
+    const oy: usize = if (full) 0 else BY;
+    const ox: usize = if (full) 0 else BX;
+    const cols: usize = if (full) memmap.PHYSICAL_WIDTH else memmap.WIDTH;
+    var ly: usize = 0;
+    while (ly < rows) : (ly += 1) {
+        const py = oy + ly;
+        _ = lineStart(fb_id, hid, ly, hpos, py);
+        const at = tc.lineAt(lb.at(ly, stride), hscroll(fb_id));
+        tc.line(out64[(py * RW + ox) >> 1 ..][0..cols], region(), at, cols);
+    }
+}
+
 // The copper list of the plane being rendered (machine/copper.zig): its frame starts here.
 var cop: copper.Cursor = .{};
 // Where its lines read from: FB_BASE (the ST(E) screen base, a byte offset into the region, so a
@@ -462,6 +485,8 @@ pub fn renderPlane(fb_id: usize) void {
         memmap.FB_MODE_FULLSCREEN => return renderPlaneFullscreen(fb_id),
         memmap.FB_MODE_OVERSCAN => return renderPlaneOverscan(fb_id),
         memmap.FB_MODE_MEDIUM => return renderPlaneMedium(fb_id),
+        memmap.FB_MODE_TRUECOLOR => return renderPlaneTruecolor(fb_id, false),
+        memmap.FB_MODE_TRUECOLOR_FULL => return renderPlaneTruecolor(fb_id, true),
         else => {},
     }
     // Back-compat: fullscreen was once detected purely by stride == 400.

@@ -114,7 +114,7 @@
   {
     "id": "scroll_no_hscroll",
     "file": "zm_video_plane.v",
-    "old": "m == SCROLL || m == OVS ? hs_live_i : 16'd0",
+    "old": "m == SCROLL || m == OVS || m == TC || m == TCF ? hs_live_i : 16'd0",
     "new": "16'd0",
     "catch": "s:scroll"
   },
@@ -476,15 +476,15 @@
   {
     "id": "overscan_hscroll_ignored",
     "file": "zm_video_plane.v",
-    "old": "m == SCROLL || m == OVS ? hs_live_i : 16'd0",
-    "new": "m == SCROLL ? hs_live_i : 16'd0",
+    "old": "m == SCROLL || m == OVS || m == TC || m == TCF ? hs_live_i : 16'd0",
+    "new": "m == SCROLL || m == TC || m == TCF ? hs_live_i : 16'd0",
     "catch": "s:lbase"
   },
   {
     "id": "paint_index_a_column_late",
     "file": "zm_video_paint.v",
-    "old": "(wrap ? s_n[10:0] : {1'b0, c_n});",
-    "new": "(wrap ? s[10:0] : {1'b0, c});",
+    "old": "(wrap ? s_n[10:0] : tc ? {c_n, 1'b0} : {1'b0, c_n});",
+    "new": "(wrap ? s[10:0] : tc ? {c, 1'b0} : {1'b0, c});",
     "catch": "s:fullscreen"
   },
   {
@@ -500,5 +500,61 @@
     "old": "lim <= VEND - {12'd0, k};",
     "new": "lim <= 20'd0;",
     "catch": "s:copper"
+  },
+  {
+    "id": "tc_expanded_by_shift",
+    "file": "zm_video_paint.v",
+    "old": "{8'hFF, h2[4:0], h2[4:2], h2[10:5], h2[10:9], h2[15:11], h2[15:13]}",
+    "new": "{8'hFF, h2[4:0], 3'd0, h2[10:5], 2'd0, h2[15:11], 3'd0}",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_other_half_word",
+    "file": "zm_video_paint.v",
+    "old": "fb_rdata[sel1[1]*16 +: 16]",
+    "new": "fb_rdata[{~sel1[1], 4'd0} +: 16]",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_index_not_doubled",
+    "file": "zm_video_paint.v",
+    "old": "tc ? {c_n, 1'b0} : {1'b0, c_n}",
+    "new": "tc ? {1'b0, c_n} : {1'b0, c_n}",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_through_the_palette",
+    "file": "zm_video_paint.v",
+    "old": "lb_data <= tc ? tc_px : pal_rdata;",
+    "new": "lb_data <= pal_rdata;",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_fetch_half_a_line",
+    "file": "zm_video_plane.v",
+    "old": "m == TC ? 11'd640",
+    "new": "m == TC ? 11'd320",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_hscroll_ignored",
+    "file": "zm_video_plane.v",
+    "old": "m == SCROLL || m == OVS || m == TC || m == TCF ? hs_live_i",
+    "new": "m == SCROLL || m == OVS ? hs_live_i",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_full_as_window",
+    "file": "zm_video_plane.v",
+    "old": "m == FS || m == OVS || m == TCF || (m == MED && ovm)",
+    "new": "m == FS || m == OVS || (m == MED && ovm)",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tc_copper_cover_without_full",
+    "file": "zm_video_copper.v",
+    "old": "mode == 8'd4 || mode == 8'd6 ||",
+    "new": "mode == 8'd4 ||",
+    "catch": "s:truecolor"
   }
 ]

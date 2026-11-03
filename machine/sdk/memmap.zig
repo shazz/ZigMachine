@@ -43,6 +43,11 @@ pub const MEDIUM_PLANES: u8 = 2;
 pub const MEDIUM_FB_BYTES: usize = @as(usize, MEDIUM_WIDTH) * @as(usize, MEDIUM_HEIGHT); // 128000
 // A medium OVERSCAN plane covers the whole raster (borders included): 800x280 logical.
 pub const MEDIUM_FULL_FB_BYTES: usize = @as(usize, RASTER_WIDTH) * @as(usize, RASTER_HEIGHT); // 224000
+// A true-colour plane (FB_MODE_TRUECOLOR / _FULL) is two bytes a pixel: its FB_STRIDE is in BYTES.
+pub const TRUECOLOR_STRIDE: u16 = 2 * WIDTH; // 640
+pub const TRUECOLOR_FULL_STRIDE: u16 = 2 * PHYSICAL_WIDTH; // 800
+pub const TRUECOLOR_FB_BYTES: usize = 2 * NORMAL_FB_BYTES; // 128000
+pub const TRUECOLOR_FULL_FB_BYTES: usize = 2 * FULLSCREEN_FB_BYTES; // 224000
 
 // --- the physical RASTER (actual PFB the host blits) ---
 // Low-res doubles horizontally (not vertically — low & medium are both 200 lines).
@@ -149,6 +154,8 @@ pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 low-res overscan plane (Option 
 pub const FB_MODE_SCROLL: u8 = 2; // window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL
 pub const FB_MODE_MEDIUM: u8 = 3; // 640x200 medium-res plane (1:1 into the raster)
 pub const FB_MODE_OVERSCAN: u8 = 4; // 400x280 buffer, borders CLOSED until opened by the resolution-flicker trick (see OVERSCAN_* below)
+pub const FB_MODE_TRUECOLOR: u8 = 5; // 320x200 RGB565 plane (u16 LE pixels, no palette, doubled from x 80), HSCROLL per line; bit 0 of a line's address is ignored (HW 1.15.0)
+pub const FB_MODE_TRUECOLOR_FULL: u8 = 6; // 400x280 RGB565 plane over the whole raster, borders open (nothing to earn), HSCROLL per line (HW 1.15.0)
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
@@ -385,7 +392,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // rebuild the C/Rust carts; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 128;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0E00; // 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02; the true-colour plane joins this version); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
+pub const ZM_HW_VERSION: u32 = 0x0001_0F00; // 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (decisions.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.

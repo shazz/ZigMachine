@@ -81,7 +81,14 @@ if [ -z "$FAST$ONLY" ] && sh tools/gate_stamp.sh clean; then STAMPABLE=1; fi
 # gate / gate_timed / always / run_gates: the harness queue (parallel, bounded)
 . tools/gate_lib.sh
 
-zig build -Drelease=true -Dwasm
+if [ -n "${ZM_TC_ART:-}" ]; then
+    # TC TEST's local pictures (tools/tc_art.py): docs/demo-tc_test.* then carries pictures not
+    # cleared to publish. Look, then rebuild without ZM_TC_ART before committing docs/.
+    echo "ZM_TC_ART=$ZM_TC_ART: docs/demo-tc_test.* carries LOCAL pictures, do not commit it"
+    zig build -Drelease=true -Dwasm -Dtc-art="$ZM_TC_ART"
+else
+    zig build -Drelease=true -Dwasm
+fi
 
 # --fast stops here. The C and Rust carts are NOT rebuilt (slow, and irrelevant
 # to a Zig scene edit), so a --fast build is never a pushable one.
@@ -195,11 +202,13 @@ NATIVE_TESTS="
     machine/beam_test.zig
     machine/copper_test.zig
     machine/copper_lbase_test.zig
+    machine/video_tc_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
     machine/arena_test.zig
     libs/zig/mem_test.zig
+    libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig
     libs/zig/sndh_call_test.zig
     libs/zig/shapes_test.zig
@@ -386,6 +395,8 @@ gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break nokey   # .
 gate chisel_v2 node apps/chisel_v2_headless.mjs   # CHISEL V2 (cart 112, HW 1.11.0): every AFFINE (rotozoom, Mode 7) and MAP (tunnel) pixel equals a model written from the spec, four mirrored bobs a frame with the collision bit set and clear over a cycle, the IFE fill equal to a per-bit carry model, the pentagram's centre hollow
 gate chisel_v2 node apps/chisel_v2_headless.mjs --break pixel   # ...and a rotozoom pixel changed is caught
 gate chisel_v2 node apps/chisel_v2_headless.mjs --break fill   # ...and a model filling exclusive is caught
+gate tc_test node apps/tc_test_check.mjs   # TC TEST (cart 113, HW 1.15.0): plane 0 alone in FB_MODE 6; the gamut shows all 65,536 colours, the plasma and hue views > 4,096, compare's bands 565 > 256-palette > 16 ST colours, ramps 32/64/32/64 steps, dither > plain; the plasma moves every frame while the pixel memory hashes the same (only the copper list moves it), the still views do not move; seven distinct views; N/P pictures only in a ZM_TC_ART build, and the git-tracked cart carries none
+gate tc_test node apps/tc_test_check.mjs --break   # ...and mode 5, colours quantised to 3 bits, a pixel written a frame, a frozen list and a tracked cart with local pictures are each caught
 gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1-4 pick the object (4: GLENZ NEST, 60/104), + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the other objects), S cycles seven distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels, DOTS one pixel a vertex), only last frame's box erased (no stale pixel in any mode, nest included), five sphere and three nest pins under every split, the HUD follows, Escape leaves
 gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never arrive are caught
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught
@@ -619,8 +630,10 @@ gate equinox node apps/equinox_headless.mjs "$SHOTS"   # the dragons morph egg -
 gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS/tex_neoshow"   # TEX NEO SHOW: the scroller band is a REAL per-line raster (copper), full plane width
 gate tex_neoshow_music node apps/monty_native_check.mjs   # its tune (Monty, Timer D digidrums) played natively = the 68000, bit for bit over 50 s, modes 1/2 unbroken
 gate tex_neoshow_music node apps/monty_native_check.mjs --break   # ...and volume C written over the drums (mutant 3) is caught
-gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions; the copper lists load exactly the converter's records
+gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions; the copper lists load exactly the converter's records; mode 3 is ONE true-colour plane showing the converter's 565 picture
 gate mpp_truecolor node apps/mpp_truecolor_headless.mjs --break k1tail   # ...and a 256-entry line that loses its entry-255 PALREF is caught
+gate truecolor node apps/truecolor_check.mjs   # the true-colour plane (HW 1.15.0): modes 5 and 6 composited by the machine equal an independent model pixel for pixel: all 65,536 565 values expanded by bit replication, the window and the whole raster, odd FB_BASE / stride / HSCROLL (bit 0 ignored), HSCROLL per line, copper LBASEs, the frame restarting from FB_BASE
+gate truecolor node apps/truecolor_check.mjs --break   # ...and a model with the expansion by shift, bit 0 honoured, the stride in pixels, HSCROLL latched, mode 6 as a window or LBASE ignored is caught
 gate_timed union_textracker node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
 gate_timed union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay
 gate_timed stream_pacing node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps, 144 Hz and across a 3 s stall

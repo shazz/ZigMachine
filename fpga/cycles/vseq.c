@@ -137,9 +137,9 @@ int vseq_plane_handler(int p) { return r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p) 
 void vseq_plane_lines(int p, uint32_t* oy, uint32_t* rows) {
     uint8_t mode = r8(ZM_REG_FB_MODE + (uint32_t)p);
     uint16_t stride = r16(ZM_REG_FB_STRIDE + 2u * (uint32_t)p);
-    int whole = mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN;
+    int whole = mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN || mode == ZM_FB_MODE_TRUECOLOR_FULL;
     if (mode == ZM_FB_MODE_MEDIUM) whole = stride >= ZM_RASTER_WIDTH;
-    else if (mode != ZM_FB_MODE_SCROLL && !whole) whole = stride == ZM_STRIDE_FULLSCREEN;
+    else if (mode == ZM_FB_MODE_NORMAL || mode > ZM_FB_MODE_TRUECOLOR_FULL) whole = stride == ZM_STRIDE_FULLSCREEN;
     *oy = whole ? 0 : ZM_RASTER_BORDER_Y;
     *rows = whole ? ZM_RASTER_HEIGHT : ZM_HEIGHT;
 }

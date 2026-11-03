@@ -1,6 +1,7 @@
 // One MPP TRUECOLOR picture in one mode, as tools/mpp_convert.py writes it and
-// build.zig ZX0-packs it: map (4 planes x 200 lines of u32 RGBA offset, u16 first
-// entry, u16 count), then the indices, then the palette as delta-coded RGB.
+// build.zig ZX0-packs it. Indexed (modes 1, 2): map (4 planes x 200 lines of u32 RGBA
+// offset, u16 first entry, u16 count), then the indices, then the palette as
+// delta-coded RGB. RGB565 (mode 3): 320x200 little-endian words, nothing else.
 //
 // The pictures stay packed in the cart; the scene depacks the one on screen into a
 // single working buffer, once per switch. The palette is stored as RGB deltas
@@ -23,39 +24,38 @@ comptime {
 }
 const PAL_ENTRIES: usize = 256;
 
-/// The depacked views the HBL handler and the plane split read.
-/// Word views, so the HBL's loads are aligned u32 loads (a misaligned one traps on the board).
+/// Palette indices for one 8-bit plane, or RGB565 words for one true-colour plane (HW 1.15.0).
+pub const Kind = enum { indexed, rgb565 };
+pub const TC_LEN: usize = 2 * W * H;
+
+/// The depacked views the HBL handler and the pixel copy read (rgb565: `idx` is the words'
+/// bytes, map and pal empty). Word views, so the HBL's loads are aligned u32 loads (a
+/// misaligned one traps on the board).
 pub const View = struct {
     map: []const Rec, // [plane * H + line]
     idx: []const u8,
     pal: []const u32, // RGBA, the plane palette's byte order
 };
 
-/// Mode 1 and 2 carry a u8 index per pixel; mode 3 an index byte and a plane byte.
-pub fn idxLen(planes: usize) usize {
-    return if (planes == 1) W * H else 2 * W * H;
-}
-
 /// Bytes the working buffer needs for this blob: depacked, plus the alpha bytes.
-pub fn need(image: []const u8, planes: usize) ?usize {
+pub fn need(image: []const u8, kind: Kind) ?usize {
     const len: usize = zx0.depackedLen(image) orelse return null;
-    const head = MAP_LEN + idxLen(planes);
+    if (kind == .rgb565) return if (len == TC_LEN) len else null;
+    const head = MAP_LEN + W * H;
     if (len < head or (len - head) % 3 != 0) return null;
     return len + (len - head) / 3;
 }
 
 /// Palette words this blob decodes to (the VRAM table copper lists name, cop.zig).
-pub fn paletteWords(image: []const u8, planes: usize) ?usize {
-    const len: usize = zx0.depackedLen(image) orelse return null;
-    const head = MAP_LEN + idxLen(planes);
-    if (len < head or (len - head) % 3 != 0) return null;
-    return (len - head) / 3;
+pub fn paletteWords(image: []const u8, kind: Kind) ?usize {
+    const size = need(image, kind) orelse return null;
+    return if (kind == .rgb565) 0 else (size - MAP_LEN - W * H) / 4;
 }
 
 /// Depack into `work` and decode the palette, all at once. Null when the image is unreadable
 /// or a map record points outside the palette (the HBL would copy out of bounds).
-pub fn load(image: []const u8, planes: usize, work: []align(4) u8) ?View {
-    var d = Decoder.init(image, planes, work) orelse return null;
+pub fn load(image: []const u8, kind: Kind, work: []align(4) u8) ?View {
+    var d = Decoder.init(image, kind, work) orelse return null;
     while (true) switch (d.step(std.math.maxInt(u32))) {
         .more => {},
         .done => return d.view,
@@ -70,24 +70,23 @@ pub const Progress = zx0.Progress;
 pub const Decoder = struct {
     stream: zx0.Stream,
     work: []align(4) u8,
-    planes: usize,
+    kind: Kind,
     head: usize = 0,
     colours: usize = 0,
-    pass: enum { depack, delta, widen, check, done, failed } = .depack,
-    i: usize = 0, // the pass's progress (delta: the next byte; widen: entries left; check: bytes done)
+    pass: enum { depack, delta, widen, done, failed } = .depack,
+    i: usize = 0, // the pass's progress (delta: the next byte; widen: entries left)
     view: View = undefined,
 
     // Base slice sizes, each ~0.1-0.2 Mc on the board (frame_cost).
     const DEPACK_BYTES: u32 = 1536;
     const DELTA_BYTES: usize = 16 * 1024;
     const WIDEN_ENTRIES: usize = 4 * 1024;
-    const CHECK_BYTES: usize = 32 * 1024;
 
-    pub fn init(image: []const u8, planes: usize, work: []align(4) u8) ?Decoder {
-        const size = need(image, planes) orelse return null;
+    pub fn init(image: []const u8, kind: Kind, work: []align(4) u8) ?Decoder {
+        const size = need(image, kind) orelse return null;
         if (work.len < size) return null;
         const stream = zx0.Stream.init(image, work) orelse return null;
-        return .{ .stream = stream, .work = work, .planes = planes };
+        return .{ .stream = stream, .work = work, .kind = kind };
     }
 
     pub fn step(self: *Decoder, units: u32) Progress {
@@ -106,7 +105,6 @@ pub const Decoder = struct {
                 if (end >= pal.len) self.startWiden();
             },
             .widen => self.widen(WIDEN_ENTRIES *| k),
-            .check => self.check(CHECK_BYTES *| k),
             .done => return .done,
             .failed => return .failed,
         }
@@ -117,9 +115,15 @@ pub const Decoder = struct {
         };
     }
 
+    // RGB565 has no palette: the depacked words are the view.
     fn startDelta(self: *Decoder) void {
         const len: usize = self.stream.written();
-        self.head = MAP_LEN + idxLen(self.planes);
+        if (self.kind == .rgb565) {
+            self.view = .{ .map = &.{}, .idx = self.work[0..TC_LEN], .pal = &.{} };
+            self.pass = if (len == TC_LEN) .done else .failed;
+            return;
+        }
+        self.head = MAP_LEN + W * H;
         self.colours = (len - self.head) / 3;
         self.pass = .delta;
         self.i = 3;
@@ -145,29 +149,13 @@ pub const Decoder = struct {
         }
         self.i = stop;
         if (stop > 0) return;
-        // head is a multiple of 4 (MAP_LEN and idxLen are), so both word views stay aligned.
+        // head is a multiple of 4 (MAP_LEN and W * H are), so both word views stay aligned.
         self.view = .{
             .map = std.mem.bytesAsSlice(Rec, self.work[0..MAP_LEN]),
             .idx = self.work[MAP_LEN..self.head],
             .pal = std.mem.bytesAsSlice(u32, @as([]align(4) u8, @alignCast(pal))),
         };
-        self.pass = if (mapFits(self.view)) .check else .failed;
-    }
-
-    // Mode 3's plane bytes must all be < PLANES (the split indexes the planes with them).
-    fn check(self: *Decoder, n: usize) void {
-        if (self.planes == 1) {
-            self.pass = .done;
-            return;
-        }
-        const plane = self.view.idx[W * H ..][0 .. W * H];
-        const end = @min(plane.len, self.i +| n);
-        for (plane[self.i..end]) |p| if (p >= PLANES) {
-            self.pass = .failed;
-            return;
-        };
-        self.i = end;
-        if (end == plane.len) self.pass = .done;
+        self.pass = if (mapFits(self.view)) .done else .failed;
     }
 };
 

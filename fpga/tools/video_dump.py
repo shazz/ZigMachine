@@ -99,7 +99,7 @@ def build_synth() -> Path:
         shutil.copy2(HOST / "common" / f, work / f)
     inc = [*CFLAGS, f"-I{work}", f"-I{OUT}", f"-I{SRC}"]
     objs = []
-    for src in ["vsynth.c", "vsynth_scen.c", "vsynth_copper.c", "vsynth_lbase.c", "vdump_rec.c"]:
+    for src in ["vsynth.c", "vsynth_scen.c", "vsynth_copper.c", "vsynth_lbase.c", "vsynth_tc.c", "vdump_rec.c"]:
         obj = work / (Path(src).stem + ".o")
         subprocess.run(["clang", *inc, "-c", str(SRC / src), "-o", str(obj)], check=True)
         objs.append(str(obj))

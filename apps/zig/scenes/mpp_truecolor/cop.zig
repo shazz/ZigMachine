@@ -6,7 +6,8 @@
 // PER-LINE, 27 fps 4 PLANES.
 //
 // The picture's decoded palette is copied once a switch into a VRAM table (one
-// CHISEL copy), and each enabled plane gets a static list: a line with a record
+// CHISEL copy), and plane 0 (the only indexed plane since mode 3 became one
+// true-colour plane, HW 1.15.0) gets a static list: a line with a record
 // is HEAD + PALREF(first, count) naming its run in the table. PALREF's count is 8
 // bits, so a 256-entry record (GLOBAL, PER-LINE) is two ops: 255 + the last one.
 // Every record is applied, also one equal to the line above (which the handler
@@ -17,7 +18,6 @@ const zg = @import("zigos");
 const blob = @import("blob.zig");
 
 const H = blob.H;
-const PLANES = blob.PLANES;
 // A line: HEAD, PALREF + offset, and a second PALREF + offset for a 256-entry record.
 const WORDS = H * 5 + 1;
 const HEAD: u32 = 0xF000_0000;
@@ -33,13 +33,13 @@ var tables: [2]zg.VramWords = .{ .{ .words = &.{}, .off = 0 }, .{ .words = &.{},
 var count: usize = 0;
 var shown: usize = 0; // the table the lists name
 
-/// The tables and a list buffer on every plane; false (the HBL handler stays) on a machine
-/// without lists or with no VRAM left. The second table is optional (`spread`).
+/// The tables and plane 0's list buffer; false (the HBL handler stays) on a machine without
+/// lists or with no VRAM left. The second table is optional (`spread`).
 pub fn install(os: *zg.ZigOS, colours: usize) bool {
     tables[0] = zg.vramWords(colours) orelse return false;
     count = 1;
-    for (&os.lfbs) |*fb| if (fb.copperList(WORDS) == null) return false;
-    for (&os.lfbs) |*fb| fb.clearFrameBufferHBLHandler();
+    if (os.lfbs[0].copperList(WORDS) == null) return false;
+    os.lfbs[0].clearFrameBufferHBLHandler();
     if (zg.vramWords(colours)) |t| {
         tables[1] = t;
         count = 2;
@@ -75,22 +75,23 @@ pub fn copyRows(pal: []const u32, from: usize, rows: usize) usize {
     return end;
 }
 
-/// Name the spare table (copied by copyRows) in each plane's list (enabled: its records; the
-/// others: empty). Once a switch: the lists are static until the next one.
-pub fn commit(os: *zg.ZigOS, view: blob.View, planes: usize) void {
-    shown = spare();
-    for (&os.lfbs, 0..) |*fb, p| {
-        const l = fb.copperBuffer() orelse continue;
-        var w: usize = 0;
-        if (p < planes) for (view.map[p * H ..][0..H], 0..) |r, y| record(l, &w, r, y);
-        l[w] = HEAD | 511 << 19;
+/// Name the spare table (copied by copyRows) in plane 0's list: its records when `on` (an
+/// indexed mode), else empty (the true-colour mode: no table is copied, none changes hands).
+/// Once a switch: the list is static until the next one.
+pub fn commit(os: *zg.ZigOS, view: blob.View, on: bool) void {
+    const l = os.lfbs[0].copperBuffer() orelse return;
+    var w: usize = 0;
+    if (on) {
+        shown = spare();
+        for (view.map[0..H], 0..) |r, y| record(l, &w, r, y);
     }
+    l[w] = HEAD | 511 << 19;
 }
 
-/// Copy and commit in one go (init, and the failure screen's empty lists).
-pub fn load(os: *zg.ZigOS, view: blob.View, planes: usize) void {
+/// Copy and commit in one go (init, and the failure screen's empty list).
+pub fn load(os: *zg.ZigOS, view: blob.View, on: bool) void {
     _ = copyRows(view.pal, 0, tableRows(view.pal));
-    commit(os, view, planes);
+    commit(os, view, on);
 }
 
 fn record(l: []u32, w: *usize, r: blob.Rec, y: usize) void {

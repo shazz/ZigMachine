@@ -53,7 +53,7 @@ const scene = switch (opts.index) {
     40 => @import("scenes/elite_snooker.zig"),
     41 => @import("scenes/union_demo.zig"),
     42 => @import("scenes/tutorial.zig"), // docs/TUTORIAL.md: your first screen
-    43 => @import("scenes/mpp_truecolor.zig"), // more than 256 colours: per-line palettes (MPP)
+    43 => @import("scenes/mpp_truecolor.zig"), // more than 256 colours: per-line palettes (MPP), one RGB565 plane
     44 => @import("scenes/union_multifake.zig"),
     45 => @import("scenes/union_textracker.zig"),
     // 46: union_intro_screen, excluded in build.zig (its splash opens union_demo now).
@@ -123,6 +123,7 @@ const scene = switch (opts.index) {
     110 => @import("scenes/linebase_test.zig"), // LINE LIST TEST: the STE line list (HW 1.10.0 copper LBASE + overscan HSCROLL): wobble, line zoom, flipped bands, a colour-0 raster through open borders, no HBL handler
     111 => @import("scenes/mindwind.zig"), // MIND REWIND (Reservoir Gods, STE 2003): a line list on the copper's LBASE, the parts played forwards then rewound
     112 => @import("scenes/chisel_v2.zig"), // CHISEL V2: the blitter's HW 1.11.0 ops, a mode each: AFFINE rotozoom and Mode 7 (span lists), MAP tunnel, mirrored bobs with the collision bit, the Amiga area fill
+    113 => @import("scenes/tc_test.zig"), // TC TEST: the RGB565 true-colour plane (HW 1.15.0), keys 1-7 generated views, N/P local pictures
     else => @compileError("bad cart index"),
 };
 

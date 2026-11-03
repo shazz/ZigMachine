@@ -8,11 +8,12 @@ const blob = @import("blob.zig");
 
 const DIR = "../../assets/screens/mpp_truecolor/";
 
-pub const Mode = struct { planes: usize, title: []const u8 };
+pub const Mode = struct { kind: blob.Kind, title: []const u8 };
 pub const MODES = [_]Mode{
-    .{ .planes = 1, .title = "1 GLOBAL: ONE 256-COLOUR PALETTE" },
-    .{ .planes = 1, .title = "2 PER-LINE: 256 COLOURS EACH LINE" },
-    .{ .planes = blob.PLANES, .title = "3 4 PLANES: 4x255 COLOURS A LINE" },
+    .{ .kind = .indexed, .title = "1 GLOBAL: ONE 256-COLOUR PALETTE" },
+    .{ .kind = .indexed, .title = "2 PER-LINE: 256 COLOURS EACH LINE" },
+    // Until HW 1.15.0: 4 planes of 255 per-line colours (lossless, four FRESCO passes a line).
+    .{ .kind = .rgb565, .title = "3 TRUE COLOUR: ONE RGB565 PLANE" },
 };
 
 // In the converter's PICTURES order; the packed blobs are [picture][mode].
@@ -34,7 +35,7 @@ pub fn count(picture: usize, i: usize) u32 {
 pub fn workLen() ?usize {
     var most: usize = 0;
     for (PACKED) |modes| for (modes, MODES) |image, m| {
-        most = @max(most, blob.need(image, m.planes) orelse return null);
+        most = @max(most, blob.need(image, m.kind) orelse return null);
     };
     return most;
 }
@@ -43,7 +44,7 @@ pub fn workLen() ?usize {
 pub fn mostColours() ?usize {
     var most: usize = 0;
     for (PACKED) |modes| for (modes, MODES) |image, m| {
-        most = @max(most, blob.paletteWords(image, m.planes) orelse return null);
+        most = @max(most, blob.paletteWords(image, m.kind) orelse return null);
     };
     return most;
 }

@@ -93,5 +93,6 @@ in every pass, and a break test of that rule is caught.
 | picture rows loaded back for the next plane's fold | **proven** | `--timing 24` replays of 7 multi-plane keys; `no_picture_load`, `loads_swapped`, `picture_halves_swapped` |
 | scanout: 800x600 stream, bars, two clocks (5:2, 15:4, 2:1) | **proven** | `video_out_tb` on `union_main`, `dhs_0pxl0reg` (2 frames), `worst`; 2:1 on `worst` must underrun |
 | TMDS encoding | **proven** | 2 M symbols equal to a spec encoder, decode and DC balance (worst disparity 8) |
+| true colour (modes 5 and 6, HW 1.15.0): 565 expansion of every value, HSCROLL per line (odd too), odd base and stride, LBASE and HSCROLL records on border lines, under an 8-bit alpha plane | **proven, synthetic only** | synthetic `truecolor` (`tools/video_dump/vsynth_tc.c`); 8 break tests (`tc_*` in `video_mutants.json`: shift-only expansion, the other half-word, the index not doubled, through the palette, half a line fetched, HSCROLL ignored, mode 6 as a window, the copper's cover without mode 6); the browser's `apps/truecolor_check.mjs` against an independent model |
 | fullscreen stride > 1021 | **not supported** | flagged (`overflow`) and not drawn. The machine has no such limit. |
 

@@ -114,8 +114,8 @@ module zm_video_copper (
     assign hs_be = hs_off[1] ? 4'b1100 : 4'b0011;
     assign hs_wdata = {wq[15:0], wq[15:0]};
     // The lines the plane covers, as zm_video_plane.v reads its mode: every one, or the visible band.
-    wire fs = mode == 8'd1 || ((mode == 8'd0 || mode > 8'd4) && stride == ZM_STRIDE_FULLSCREEN);
-    wire phys = fs || mode == 8'd4 || (mode == 8'd3 && stride >= ZM_RASTER_WIDTH);
+    wire fs = mode == 8'd1 || ((mode == 8'd0 || mode > 8'd6) && stride == ZM_STRIDE_FULLSCREEN);
+    wire phys = fs || mode == 8'd4 || mode == 8'd6 || (mode == 8'd3 && stride >= ZM_RASTER_WIDTH);
     wire covers = phys || (line >= ZM_RASTER_BORDER_Y && line < ZM_RASTER_BORDER_Y + ZM_HEIGHT);
     // LBASE (lb_ok_r): bits 27..21 zero and the offset in VRAM; its row is the plane's (zm_video_plane.v).
     // At a LATCH: the plane's list.

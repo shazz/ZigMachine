@@ -1400,3 +1400,56 @@ already does); `CYD_PAUSED` when stopped (klystrack plays note previews and keyj
 the picture with no event, timer or song after 15 identical repaints would not be drawn until the next event; none
 is known in klystrack. `apps/ports_headless.mjs klystrack` moves the pointer over the idle UI (`--break pointer`) and
 presses F5 only after cyd has gone quiet, so both new paths are gated.
+## 2026-11-02 — True-colour plane: RGB565 through FRESCO's painter (HW 1.15.0)
+
+**Status:** accepted (feat/truecolor-plane; the study and Matt's decisions of 1 Nov in
+`fpga/review/TRUECOLOR_PLANE.md`)
+**Context:** Matt, 31 Oct / 1 Nov: one plane in true colour, the Falcon's 16-bit 565 first, for the port of
+"Are You Sitting Comfortably?" (feedback blur, additive light, 565 pictures) and for pictures that band at 256
+colours. The study costed four designs; Matt chose A0 with payer 1, no colour key, bit 0 ignored, 8888 later,
+scanout from the cart's buffer (option B) and CHISEL 16-bit lanes declined, mpp_truecolor's 4-plane mode first.
+The study said HW 1.12.0 and then 1.14.0 ("joins the Paula version"); main had taken 1.12.0, 1.13.0 (cart window)
+and 1.14.0 (cart Paula) by the time it was built, so it is **1.15.0** (`ZM_HW_VERSION 0x0001_0F00`).
+**Decision:**
+1. *The ABI*: `FB_MODE_TRUECOLOR` (5, 320x200 in the window, logical HBL lines) and `FB_MODE_TRUECOLOR_FULL`
+   (6, 400x280 over the whole raster from (0, 0), borders open, physical lines). A pixel is a little-endian u16
+   R5 G6 B5, expanded by bit replication (`machine/video_tc.zig expand`, Hatari's Videl formula) with alpha 255.
+   `FB_STRIDE`, `HSCROLL` (re-read per line, as SCROLL mode) and LBASE are bytes; **bit 0 of a line's address is
+   ignored** on both machines. No new register; mode values above 6 keep the stride-400 back-compat rule.
+2. *A compositor citizen*: the browser renders it in the same line loop as every mode (`renderPlaneTruecolor`:
+   handler, copper record, LBASE, HSCROLL), and FRESCO paints it through the painter: the byte index doubles,
+   the half-word at `align + 2c` is registered beside the palette read and expanded (wiring) in place of the
+   palette's answer (`zm_video_paint.v`); `zm_video_plane.v` gives the two modes their geometry and fetch (640 /
+   800 bytes) and HSCROLL; `zm_video_copper.v` covers mode 6's border lines. The half-word select ignores bit 0
+   by construction, so the study's AND on the address was not needed. Fetch, mixer, row I/O, pass, dirty lines,
+   the PFB oracle and the browser's canvases are untouched.
+3. *Payer 1* (the read-back mux cut to the 6 words the firmware reads, -138 LUT) was already on main (77fad6fd,
+   board_combo8). So this branch's bill is the mode alone: **OOC synth of `zm_video_comp` at 8 ns (Vivado
+   2026.1, maxThreads 2): 2,422 -> 2,450 LUT (+28), 1,944 -> 1,961 FF (+17), 15 BRAM tiles, 13 DSP, WNS +1.029 ->
+   +0.932 ns** (u_paint 87 -> 97, u_plane 237 -> 248, u_cop 636 -> 637). The study measured +28 / +17 on its
+   older base: the same.
+4. *The firmware* (`cycles/vseq.c`, `vdrow.h`, `host/vdirty_copper.h`) gives mode 6 physical lines and mode 5
+   the window; the dirty-line planner compares 640 / 800-byte lines at `(base + row * stride + HSCROLL) & ~1`.
+   No CSR, no read-back, no system-table change: the glass reads nothing new.
+5. *ZigOS*: `fb.setTruecolorPlane(.window | .full)` returns a `zg.tc.Fb` (`row`, `put`, `put2` two pixels a
+   32-bit store, `fill`, `copyRect`), `zg.tc.rgb565`, `zg.truecolorBuffer` and `fb.showTruecolor` to
+   double-buffer. Nothing more until a cart asks.
+6. *mpp_truecolor*: mode 3 becomes one RGB565 plane (plane 1, its own two buffers) in place of four planes of
+   255 per-line colours. The converter writes the nearest 565 word under the machine's expansion (every pixel
+   within 4 of the source per channel); the caption is printed into the 8-bit spare and widened to white words.
+   It is no longer lossless (5,390 colours on the spheres where 4 planes showed all 39,015), and the look is the
+   same at a glance. frame_cost: mode 3 **2.49 -> 0.70 Mc/frame** (FRESCO 4 passes -> 1); modes 1 / 2 0.81 / 0.97
+   -> 0.81 / 0.70 (the next switch is built with a row copy, no per-pixel plane split).
+**Alternatives considered:** option B, the board scanning the cart's buffer out (saves ~0.46 Mc for a whole-screen
+565 plane, but the picture is no longer the PFB, tears unless the cart flips at VBL, and reverses the 2026-10-24
+frame-serial decision); 8888 (twice the bandwidth, a 9-bit painter index; later, when a cart asks); a colour key
+(+6-10 LUT, loses one 565 value; the Falcon parts put the 8-bit plane over the 565 one); CHISEL 16-bit lanes
+(150-250 LUT in a block already over its target).
+**Consequences:** +28 LUT in the comp domain, which board_combo9 closed by +0.105 ns: the lead's next bitstream
+is the real timing check (OOC slack has not predicted the placed design's before). The worst OOC path moved to
+`u_plane`'s mode decode -> the address stage (mode_i -> addr_q, still +0.93 ns). A true-colour plane cannot
+show holes: sprites and text over it come from an 8-bit plane. mpp_truecolor needs a 1.15.0 machine and board.
+Tests: `machine/video_tc_test.zig` (all 65,536 values), `apps/truecolor_check.mjs` (+ `--break`, 6 model
+mutants), synthetic `truecolor` in `fpga/tests/test_rtl_video.py` with 8 RTL break tests (`tc_*`),
+`test_vdirty.py::test_a_truecolor_plane_skips_only_unchanged_lines`, and mpp_truecolor's harness (one
+`FB_MODE_TRUECOLOR` plane showing the converter's 565 picture).

@@ -1,18 +1,16 @@
-"""The three MPP modes tools/mpp_convert.py builds from one 320x180 truecolor picture.
+"""The three modes tools/mpp_convert.py builds from one 320x180 truecolor picture.
 
-  1 GLOBAL     one 256-colour palette for the whole image, 1 plane (the baseline)
-  2 PER-LINE   1 plane, a best 256-colour palette for every line
-  3 4-PLANE    every pixel opaque in exactly ONE of the 4 planes; each plane gets its
-               own per-line palette of 255 colours + transparent index 0, so a line
-               can hold up to 4*255 = 1020 colours
+  1 GLOBAL       one 256-colour palette for the whole image, 1 plane (the baseline)
+  2 PER-LINE     1 plane, a best 256-colour palette for every line (MPP)
+  3 TRUE COLOUR  one RGB565 plane (HW 1.15.0, FB_MODE_TRUECOLOR): each pixel the nearest 565
+                 colour, no palette. Until 2 Nov 2026 mode 3 was 4 planes of 255 per-line
+                 colours each (1020 a line, lossless), which cost FRESCO four plane passes;
+                 the true-colour plane is one (fpga/review/TRUECOLOR_PLANE.md, Matt's decision).
 
-A line is only 320 pixels wide, so it never has more than 320 distinct colours: mode 3
-holds every line exactly (the per-line clustering to 1020 is the identity), and mode 2
-merges only the lines that carry more than 256. A line's colours are sorted by
-luminance (both per-line modes) and mode 3 cuts them into 4 contiguous runs, one per plane.
+A line's colours are sorted by luminance in mode 2; it merges only the lines that carry
+more than 256.
 """
 import struct
-import sys
 
 from PIL import Image
 
@@ -111,24 +109,24 @@ def mode_per_line(img, method):
     return m, bytes(out) + bytes(W * CAPTION_H)
 
 
-def mode_four_planes(img):
-    """idx: the 320x200 index bytes, then the 320x200 plane bytes."""
-    m = Mode()
-    low, high = bytearray(), bytearray()
-    for y, row in enumerate(rows(img)):
-        colours = sorted(set(row), key=lambda c: (luma(c), c))
-        if len(colours) > PLANES * 255:
-            sys.exit(f"mpp_convert: line {y} has {len(colours)} colours > {PLANES * 255}")
-        per = -(-len(colours) // PLANES)
-        where = {}
-        for p in range(PLANES):
-            run = colours[p * per:(p + 1) * per]
-            m.map[p][y] = m.add(run, 1)
-            for i, c in enumerate(run):
-                where[c] = (p, i + 1)
-        low += bytes(where[c][1] for c in row)
-        high += bytes(where[c][0] for c in row)
-        m.shown |= set(row)
-    m.caption()
-    pad = bytes(W * CAPTION_H)
-    return m, bytes(low) + pad + bytes(high) + pad
+def to565(c):
+    """The nearest RGB565 word to an RGB triple, under the machine's bit-replication expansion."""
+    r, g, b = (min(range(1 << n), key=lambda k, v=v, n=n: abs(expand_channel(k, n) - v)) for v, n in zip(c, (5, 6, 5)))
+    return r << 11 | g << 5 | b
+
+
+def expand_channel(k, n):
+    """An n-bit channel to 8 bits by bit replication (machine/video_tc.zig expand)."""
+    return k << (8 - n) | k >> (2 * n - 8)
+
+
+def expand565(w):
+    return expand_channel(w >> 11, 5), expand_channel(w >> 5 & 63, 6), expand_channel(w & 31, 5)
+
+
+def mode_truecolor(img):
+    """Mode 3: one RGB565 plane (HW 1.15.0), 320x200 little-endian words, the caption rows black.
+    Returns the blob and the colours the machine shows for the image area."""
+    near = {c: to565(c) for c in set(img.getdata())}
+    words = [near[c] for c in img.getdata()] + [0] * (W * CAPTION_H)
+    return struct.pack(f"<{W * H}H", *words), [expand565(w) for w in words[: W * IMAGE_H]]

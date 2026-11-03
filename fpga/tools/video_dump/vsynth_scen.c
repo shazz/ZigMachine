@@ -194,6 +194,10 @@ void vs_copper_hbl(uint32_t id, uint32_t plane, uint32_t line);
 void vs_lbase_setup(void);
 void vs_lbase_frame(int f);
 void vs_lbase_hbl(uint32_t id, uint32_t plane, uint32_t line);
+/* vsynth_tc.c: RGB565 planes of both modes under an 8-bit plane (HW 1.15.0) */
+void vs_tc_setup(void);
+void vs_tc_frame(int f);
+void vs_tc_hbl(uint32_t id, uint32_t plane, uint32_t line);
 
 const vs_scenario vs_scenarios[] = {
     {"fullscreen", 2, 0x7, fs_setup, reset_bases, fs_hbl},
@@ -208,5 +212,6 @@ const vs_scenario vs_scenarios[] = {
     {"worst", 2, 0xF, worst_setup, reset_bases, worst_hbl},
     {"copper", 2, 0x7, vs_copper_setup, vs_copper_frame, vs_copper_hbl},
     {"lbase", 2, 0xF, vs_lbase_setup, vs_lbase_frame, vs_lbase_hbl},
+    {"truecolor", 2, 0xF, vs_tc_setup, vs_tc_frame, vs_tc_hbl},
     {0, 0, 0, 0, 0, 0},
 };
