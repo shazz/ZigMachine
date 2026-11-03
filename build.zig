@@ -621,6 +621,7 @@ pub fn build(b: *std.Build) void {
     // spelled out here rather than derived from the name.
     const boot_progs = [_]struct { name: []const u8, src: []const u8 }{
         .{ .name = "novirus", .src = "apps/zig/boot/novirus.zig" },
+        .{ .name = "sdl", .src = "apps/zig/boot/sdl.zig" },
         .{ .name = "replicants_emlyn", .src = "apps/zig/scenes/replicants_emlyn/boot.zig" },
     };
     for (boot_progs) |bp| {
