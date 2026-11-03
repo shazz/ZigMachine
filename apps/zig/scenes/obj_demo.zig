@@ -6,12 +6,16 @@
 // and down, and the top lines show V/F and, where the host has a clock, the
 // fps and the cart's own time a frame.
 //
-//   keys 1-4    the OBJECT: icosahedron, gem, sphere, GLENZ NEST (three
-//               nested shells, big faces: GLENZ there shows key C's split)
+//   keys 1-5    the OBJECT: icosahedron, gem, sphere, GLENZ NEST (three
+//               nested shells, big faces: GLENZ there shows key C's split),
+//               RNO CUBE (Natrium's chamfered cube, best in ENVMAP)
 //   S           the SHADING: FLAT (CHISEL triangles, flat-lit), GLENZ (OR
 //               see-through), WIRE (every edge), SOFT (CPU scanline fill),
 //               GOURAUD (CPU, per-vertex light), HIDDEN (hidden-line wire),
-//               DOTS (one CPU byte a vertex, ink by depth)
+//               DOTS (one CPU byte a vertex, ink by depth), TEXTURE (bevelled
+//               tiles glued on), ENVMAP (a chrome sphere map read by the turned
+//               normals): both one CHISEL AFFINE op a frame over the faces'
+//               spans, set up with ZM-X's mulsh (obj/texmap.zig)
 //   + / -       the sphere's resolution (13 levels, 36 to 3968 faces)
 //   C           where faces/edges go: CHISEL, the CPU below 8/16/24/48 rows, or the CPU
 //   Esc         back to the menu
@@ -29,18 +33,22 @@ const fx = @import("obj/fixed3d.zig");
 const fmesh = @import("obj/fmesh.zig");
 const sphere = @import("obj/sphere.zig");
 const nest = @import("obj/nest.zig");
+const rnocube = @import("obj/rnocube.zig");
 const xform = @import("obj/xform.zig");
 const draw = @import("obj/draw.zig");
 const pal = @import("obj/palette.zig");
 const Hud = @import("obj/hud.zig").Hud;
+const textures = @import("obj/textures.zig");
+const MAX_SPANS = 16384; // the AFFINE list: 384 KB of cart RAM
 
 const MODELS = [_][]const u8{
     @embedFile("../assets/obj/icosahedron.obj"),
     @embedFile("../assets/obj/gem.obj"),
 };
-const OBJECTS = [_][]const u8{ "ICOSAHEDRON", "GEM", "SPHERE", "GLENZ NEST" };
+const OBJECTS = [_][]const u8{ "ICOSAHEDRON", "GEM", "SPHERE", "GLENZ NEST", "RNO CUBE" };
 const SPHERE: u8 = 2;
 const NEST: u8 = 3;
+const RNO: u8 = 4; // Natrium's chamfered cube (obj/rnocube.zig)
 const K_ESC: u32 = 0xE012;
 // The old f32 steps a frame (0.019, 0.027, 0.011 rad) as Angles.
 const STEP = [3]fx.Angle{ fx.angle(0.019), fx.angle(0.027), fx.angle(0.011) };
@@ -53,6 +61,8 @@ pub const Demo = struct {
     loader: *zg.obj.Mesh = undefined,
     mesh: *fmesh.Mesh = undefined,
     frame: *xform.Frame = undefined,
+    spans: []zg.chisel_v2.Span = &.{},
+    tex: []u8 = &.{},
     hud: Hud = .{},
     object: u8 = 0,
     mode: draw.Mode = .flat,
@@ -69,6 +79,10 @@ pub const Demo = struct {
         self.loader = &zg.mem.mustAlloc(zg.obj.Mesh, 1)[0];
         self.mesh = &zg.mem.mustAlloc(fmesh.Mesh, 1)[0];
         self.frame = &zg.mem.mustAlloc(xform.Frame, 1)[0];
+        self.spans = zg.mem.mustAlloc(zg.chisel_v2.Span, MAX_SPANS);
+        self.tex = zg.mem.mustAlloc(u8, 2 * textures.BYTES);
+        textures.wall(self.tex[0..textures.BYTES]);
+        textures.natrium(self.tex[textures.BYTES..]);
         self.os = zigos;
         self.blitter.init();
         const fb = &zigos.lfbs[0];
@@ -83,6 +97,7 @@ pub const Demo = struct {
         switch (o) {
             SPHERE => sphere.build(self.mesh, sphere.LEVELS[self.level]),
             NEST => nest.build(self.mesh),
+            RNO => rnocube.build(self.mesh),
             else => self.loadObj(MODELS[o]),
         }
         zg.Console.log("obj: object {} -> {} verts, {} faces", .{ o, self.mesh.nverts, self.mesh.nfaces });
@@ -114,7 +129,7 @@ pub const Demo = struct {
     pub fn key(self: *Demo, cp: u32) void {
         switch (cp) {
             K_ESC => self.wants_quit = true,
-            '1'...'4' => self.selectObject(@intCast(cp - '1')),
+            '1'...'5' => self.selectObject(@intCast(cp - '1')),
             's', 'S' => {
                 self.mode = @enumFromInt((@intFromEnum(self.mode) + 1) % draw.NAMES.len);
                 self.palette();
@@ -146,6 +161,7 @@ pub const Demo = struct {
         for (0..3) |k| self.ang[k] +%= STEP[k];
         const m = fx.rotation(self.ang[0], self.ang[1], self.ang[2]);
         self.frame.transform(self.mesh, &m, self.mode == .gouraud);
+        if (self.mode == .envmap) self.frame.envCoords(self.mesh, &m);
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
@@ -153,7 +169,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[0];
         self.erase(fb);
         const split = draw.SPLITS[self.split];
-        draw.draw(.{ .fb = fb, .b = &self.blitter, .m = self.mesh, .fr = self.frame, .split = split }, self.mode);
+        draw.draw(.{ .fb = fb, .b = &self.blitter, .m = self.mesh, .fr = self.frame, .split = split, .spans = self.spans, .tex = self.tex }, self.mode);
         self.drawn = self.frame.box;
         const level: ?u8 = if (self.object == SPHERE) self.level else null;
         self.hud.draw(zigos, fb, .{ .mode = draw.NAMES[@intFromEnum(self.mode)], .object = OBJECTS[self.object], .level = level, .split = split.name, .v = self.mesh.nverts, .f = self.mesh.nfaces });

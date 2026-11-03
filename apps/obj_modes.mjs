@@ -2,7 +2,7 @@
 // and GLENZ NEST pins, the HUD and Escape. Split out to keep each file short.
 import { OBJ_Y0, OBJ_Y1, key } from "./obj_machine.mjs";
 
-const MODES = ["FLAT", "GLENZ", "WIRE", "SOFT", "GOURAUD", "HIDDEN", "DOTS"];
+const MODES = ["FLAT", "GLENZ", "WIRE", "SOFT", "GOURAUD", "HIDDEN", "DOTS", "TEXTURE", "ENVMAP"];
 const SPHERE_L6_VERTS = 222; // sphere level 6: 2 + 20 x 11
 const RAMP = 12, WIRE_INK = 201;
 
@@ -12,7 +12,7 @@ function inks(S) {
     return count;
 }
 
-// 3: S cycles seven distinct modes on the sphere, back to the first on the 8th.
+// 3: S cycles nine distinct modes on the sphere, back to the first on the 10th.
 async function cycle({ boot, press, fail }) {
     const S = await boot();
     press(S, "3");
@@ -25,14 +25,14 @@ async function cycle({ boot, press, fail }) {
         S.frame(); // the next frame advances the turn; compare the same phase below
         S.frame();
     }
-    // Mode m's picture at frame 1 + 3m; the turn differs, so compare the 7th with a fresh FLAT run.
+    // Mode m's picture at frame 1 + 3m; the turn differs, so compare the last with a fresh FLAT run.
     const R = await boot();
     key(R, "3");
     for (let i = 0; i < 5; i++) key(R, "+");
     for (let f = 0; f < 1 + 3 * MODES.length; f++) R.frame();
-    if (pics[MODES.length].hash !== R.hash()) fail("the 8th S press is not FLAT again");
-    if (new Set(pics.slice(0, MODES.length).map((p) => p.hash)).size !== MODES.length) fail("S does not give seven different pictures");
-    const [flat, glenz, wire, soft, gouraud, hidden, dots] = pics.map((p) => p.inks);
+    if (pics[MODES.length].hash !== R.hash()) fail("the 10th S press is not FLAT again");
+    if (new Set(pics.slice(0, MODES.length).map((p) => p.hash)).size !== MODES.length) fail("S does not give nine different pictures");
+    const [flat, glenz, wire, soft, gouraud, hidden, dots, texture, envmap] = pics.map((p) => p.inks);
     const keys = (m) => [...m.keys()];
     if (!keys(flat).length || keys(flat).some((v) => v > RAMP)) fail(`FLAT inks ${keys(flat)}: want the ramp 1..${RAMP}`);
     if (!keys(glenz).some((v) => v > RAMP && v < 64)) fail("GLENZ shows no OR'ed bit combination past the ramp");
@@ -44,6 +44,9 @@ async function cycle({ boot, press, fail }) {
     const ndots = [...dots.values()].reduce((a, b) => a + b, 0);
     if (!(ndots > SPHERE_L6_VERTS / 2 && ndots <= SPHERE_L6_VERTS)) fail(`DOTS sets ${ndots} pixels: want one a vertex, at most ${SPHERE_L6_VERTS}`);
     if (keys(dots).some((v) => v < 1 || v > RAMP) || keys(dots).length < 4) fail(`DOTS inks ${keys(dots)}: want several depth steps of 1..${RAMP}`);
+    // TEXTURE / ENVMAP: one CHISEL AFFINE op of texels, the wall's 64 colours / Natrium's env map's 13 greys
+    if (keys(texture).some((v) => v < 1 || v > 64) || keys(texture).length < 24) fail(`TEXTURE inks ${keys(texture).length} texels: want many of the wall's 1..64`);
+    if (keys(envmap).some((v) => v < 1 || v > 13) || keys(envmap).length < 6) fail(`ENVMAP inks ${keys(envmap)}: want several of Natrium's 13 grey levels (1..13)`);
 }
 
 // 4: each frame equals one drawn on cleared rows (B clears them before every frame):

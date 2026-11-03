@@ -6,10 +6,13 @@
 //   GLENZ: the six face bits' colours summed, 1..63; GLENZ NEST instead the
 //   Amiga red and white glenz (NEST_GLENZ, built at compile time)
 //   GOURAUD: the same ramp in 32 steps, 1..32
+//   TEXTURE: the wall texture's own 64 colours at 1..64 (textures.zig)
+//   ENVMAP: Natrium's 13 greys at 1..13 (its ST colours 000/333/555/777, undithered)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const draw = @import("draw.zig");
 const xform = @import("xform.zig");
+const textures = @import("textures.zig");
 
 pub const TEXT: u8 = 200;
 
@@ -24,6 +27,17 @@ pub fn program(fb: *zg.LogicalFB, mode: draw.Mode, nest: bool) void {
     switch (mode) {
         .glenz => if (nest) nestGlenz(fb) else glenz(fb),
         .gouraud => ramp(fb, xform.GOURAUD_TOP + 1),
+        .texture => for (0..64) |i| {
+            const c = textures.WALL_PAL[3 * i ..][0..3];
+            fb.setPaletteEntry(@intCast(1 + i), .{ .r = c[0], .g = c[1], .b = c[2], .a = 255 });
+        },
+        .envmap => for (0..13) |l| { // Natrium's 13 levels: 000 -> 333 -> 555 -> 777 (ST greys), 4 steps each
+            const li: u32 = @intCast(l);
+            const seg: u32 = @min(li / 4, 2);
+            const g0 = [4]u32{ 0, 96, 160, 224 };
+            const g: u8 = @intCast(g0[seg] + (g0[seg + 1] - g0[seg]) * (li - 4 * seg) / 4);
+            fb.setPaletteEntry(@intCast(1 + l), .{ .r = g, .g = g, .b = g, .a = 255 });
+        },
         else => ramp(fb, xform.FLAT_LEVELS),
     }
 }
@@ -54,6 +68,16 @@ fn ramp(fb: *zg.LogicalFB, n: u8) void {
             .b = chan(0.55 + 0.45 * f),
             .a = 255,
         });
+    }
+}
+
+/// `n` steps from colour a to colour b at first..first+n-1 (once a key press).
+fn band(fb: *zg.LogicalFB, first: u8, n: u8, a: [3]f32, b: [3]f32) void {
+    var l: u8 = 0;
+    while (l < n) : (l += 1) {
+        const f: f32 = @as(f32, @floatFromInt(l)) / @as(f32, @floatFromInt(n - 1));
+        const g = f * f * (3 - 2 * f); // eased, so the highlight blooms instead of banding
+        fb.setPaletteEntry(first + l, .{ .r = chan(a[0] + (b[0] - a[0]) * g), .g = chan(a[1] + (b[1] - a[1]) * g), .b = chan(a[2] + (b[2] - a[2]) * g), .a = 255 });
     }
 }
 
