@@ -240,7 +240,9 @@ def test_cart_boot_is_cold_unless_warm_finds_its_memory() -> None:
 def test_shelf_meta_describes_every_catalog_cart_from_the_repo() -> None:
     rows = {r[0].split("/")[-1]: r for r in shelf_meta.records()}  # FILE is <category>/demo-<tag>.zmd
     names = {f"demo-{tag}.zmd": name for name, tag, _ in shelf_meta.channels.entries()}
-    assert set(rows) == set(names)
+    hub_only = {f for f in rows if f not in names}  # the union hubs' screens: reached only through its doors
+    assert hub_only and all(f.startswith("demo-union_") for f in hub_only)
+    assert set(names) <= set(rows)
     named = {f"demo-{t}.zmd" for t, o in shelf_meta.OVERRIDES.items() if o[0]}  # tests/test_shelf_titles.py
     assert all(rows[f][1] == shelf_meta.ascii_text(n) for f, n in names.items() if f not in named)
     assert rows["demo-stniccc.zmd"][2:5] == ("Oxygene", "2000", "atari st")

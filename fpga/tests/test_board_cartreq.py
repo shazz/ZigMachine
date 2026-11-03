@@ -6,6 +6,7 @@ progs/, and a program's sim image carries the program's descriptor magic."""
 from __future__ import annotations
 
 import json
+import shutil
 import struct
 import subprocess
 import sys
@@ -87,7 +88,7 @@ def test_sysinfo_is_a_data_disk_whose_boot_wsm_is_the_sysinfo_carts_image(tmp_pa
     assert rows["zigmachine/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")
     assert rows["zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd"].endswith("sysinfo/fw.bin (BOOT.WSM)")
     fat = (tmp_path / "sd/progs/demo-sysinfo/BOOT.WSM.zmd").read_bytes()
-    assert [f[0] for f in zmd_fat.files(fat)] == ["BOOT.WSM", "JINKS.SND", "GAUNTLET.SAP", "SAMPLE.RAW", "CART.RV32"]
+    assert [f[0] for f in zmd_fat.files(fat)] == ["BOOT.WSM", "JINKS.SND", "GAUNTLET.SAP", "SAMPLE.RAW", "KEYGEN.XM", "THALION.HIP", "CART.RV32"]
     assert not list((tmp_path / "sd").glob("progs/**/JINKS.SND*"))  # the sound files are data, not programs
 
 
@@ -115,6 +116,8 @@ def test_a_programs_sim_image_says_so_in_its_descriptor() -> None:
 
 def test_the_launched_program_quits_back_to_gem_as_scene_hash_says() -> None:
     """ST Replay as GEM launched it (--program: the disk in, no listing): X asks for GEM (request 4)."""
+    if not (shutil.which("wasm2c") or (FPGA / ".tools/wabt/bin/wasm2c").exists()):
+        pytest.skip("wasm2c (wabt) missing: `make -C fpga setup` installs it into fpga/.tools, absent in a fresh worktree")
     subprocess.run(["make", "-s", "memmap", "build/host/st_replay/host"], cwd=FPGA, check=True, capture_output=True)
     args = ["20", "5", "--data-disk", str(ST_REPLAY), "--program", "--call", "10:key:120"]
     nat = subprocess.run([str(FPGA / "build/host/st_replay/host"), "st_replay", *args], capture_output=True, text=True,

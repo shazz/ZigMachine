@@ -3,6 +3,12 @@
 The finished items of the KESTREL roadmap, newest first. The open items live in [ROADMAP.md](ROADMAP.md) (Matt's
 view: the roadmap artifact, https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W).
 
+## Done 3 Nov
+
+| Prio | Item | Area | Notes | Who |
+|---|---|---|---|---|
+| P2 | On the board 3 Nov (main 7bd25c78; installed by moving the flat disks into folders, md5 checked) | SD card folders in the OSD (Matt 3 Nov: "reorganize the carts in folders? like games, demos, tutorials ... and of course showing the folders in the OSD") | ZWINDOW glass / fpga/tools | Branch `feat/sd-folders`, on main 7bd25c78. Staging puts each fat disk at `zigmachine/<category>/demo-<tag>.zmd` (demos, games, tools, tutorials, tests, system; `progs/`, `kos/` unchanged); the category from `fpga/tools/shelf_category.py` (catalog type + an explicit table, no catch-all: an unplaced cart stops the staging, `--check` exits 1); shelf.txt's FILE is the folder path. Glass scans one level down (never progs/kos/dot-dirs), lists folders first, `..` / Left / Backspace back up (pad left/fire work), a disk still known by its bare name (ctl `load` takes either, `list` adds a folder column); a flat card lists as before, a flat copy of a foldered disk is ignored. Install: the new glass (rootfs `/usr/bin/glass`), the staged `zigmachine/<category>/` folders + shelf.txt, then DELETE the old flat `zigmachine/demo-*.zmd`, killall glass | agent |
+
 ## Done 2 Nov
 
 | Prio | Item | Area | Notes | Who |
