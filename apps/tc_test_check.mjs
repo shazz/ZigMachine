@@ -8,18 +8,22 @@
 //             ramps: R 32, G 64, B 32, grey 64 steps; dither: more colours than the plain half
 //   moving    the plasma's frames differ while the pixel memory (plane buffer + texture, all VRAM
 //             below the copper list) hashes the same every frame: only the list moves it
-//   still     every other view is the same frame twice; the seven views are seven pictures
+//   still     every other view is the same frame twice; the eight views are eight pictures
+//   fade      key 8: a whole fade cycle equals a model of the fade registers over the unchanged
+//             pixel memory, and reaches black, white, a flash and the plain picture (tc_test_fade.mjs)
 //   pictures  N / P step through local pictures when the cart has any (ZM_TC_ART builds), and
 //             do nothing without; the git-tracked cart (HEAD and index) carries NO local picture
 //             (tools/tc_art.py's marker), whatever the working tree's cart holds
 //   node apps/tc_test_check.mjs [outdir] [cart.wasm]   (outdir: one PPM per view)
-//   node apps/tc_test_check.mjs --break   each mutant (mode, colours, pixels, frozen, marker) must
+//   node apps/tc_test_check.mjs --break   each mutant (mode, colours, pixels, frozen, marker,
+//                                         fadeoff, softfade, model) must
 //                                         be caught by the checks above
 import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { OFF_VRAM, REG_FB_COPPER } from "./linebase_model.mjs";
+import { fadeChecks } from "./tc_test_fade.mjs";
 
 const PAGES = 128, RW = 800, W = 400, H = 280, REG_FB_MODE = 0x54, MARKER = "TC_TEST_LOCAL_ART";
 const CART_PATH = "docs/demo-tc_test.wasm";
@@ -151,7 +155,8 @@ async function run(brk) {
     const mode = dv(m).getUint8(m.video + REG_FB_MODE);
     want(errors, on.join() === "0" && mode === (brk === "mode" ? 5 : 6), `planes ${on.join(",")} enabled, plane 0 mode ${mode} (only plane 0, mode 6, expected)`);
     for (let v = 0; v < NAMES.length; v++) viewChecks(m, errors, v, brk, shots);
-    want(errors, new Set(shots.map((s) => md5(new Uint8Array(s.buffer)))).size === NAMES.length, "keys: the seven views are not seven pictures");
+    shots.push(fadeChecks(m, errors, brk, shots[4], { frame, pixelHash, dv, want }));
+    want(errors, new Set(shots.map((s) => md5(new Uint8Array(s.buffer)))).size === NAMES.length + 1, "keys: the eight views are not eight pictures");
     if (!brk) pictureChecks(m, errors);
     await gitChecks(errors, brk);
     return { errors, shots };
@@ -165,16 +170,17 @@ async function ppm(path, img) {
 
 if (!BROKE) {
     const { errors, shots } = await run(null);
-    if (outdir) for (const [v, s] of shots.entries()) await ppm(`${outdir}/tc_test-${v + 1}-${NAMES[v]}.ppm`, s);
+    if (outdir) for (const [v, s] of shots.entries()) await ppm(`${outdir}/tc_test-${v + 1}-${NAMES[v] ?? "fade"}.ppm`, s);
     for (const e of errors) console.log(`  FAIL ${e}`);
     console.log(errors.length ? `tc_test_check: ${errors.length} FAILED` : "tc_test_check: all pass");
-    process.exit(errors.length ? 1 : 0);
+    process.exitCode = errors.length ? 1 : 0;
+} else {
+    let missed = 0;
+    for (const brk of ["mode", "colours", "pixels", "frozen", "marker", "fadeoff", "softfade", "model"]) {
+        const { errors } = await run(brk);
+        console.log(`  ${errors.length ? "ok  " : "FAIL"} the '${brk}' mutant is caught${errors.length ? `: ${errors[0]}` : ""}`);
+        missed += !errors.length;
+    }
+    console.log(missed ? `tc_test_check --break: ${missed} mutant(s) NOT caught` : "tc_test_check --break: every mutant caught");
+    process.exitCode = missed ? 1 : 0;
 }
-let missed = 0;
-for (const brk of ["mode", "colours", "pixels", "frozen", "marker"]) {
-    const { errors } = await run(brk);
-    console.log(`  ${errors.length ? "ok  " : "FAIL"} the '${brk}' mutant is caught${errors.length ? `: ${errors[0]}` : ""}`);
-    missed += !errors.length;
-}
-console.log(missed ? `tc_test_check --break: ${missed} mutant(s) NOT caught` : "tc_test_check --break: every mutant caught");
-process.exit(missed ? 1 : 0);
