@@ -14,7 +14,9 @@
 //                (the song-name row changes to its name), then PLAY: the module is heard
 //     grafx2     OK closes the read-only-device warning (Asyncify'd modal loop), then a freehand
 //                stroke paints pixels in the picture
-//     klystrack  the pointer moves over the idle UI; F5 plays STARPRT2.KT (opened off the floppy at boot): the stream is not silent
+//     klystrack  the pointer moves over the idle UI; F5 plays STARPRT2.KT (opened off the floppy at boot) on the
+//                machine's .kt player: the song is handed over as a .kt that the audio modules play, cyd's stream stops;
+//                a note typed while it plays (edit mode on before Play: Space) re-sends it from the row playing
 //     chipnomad  X (the A button) on the song screen's first cell puts chain 00 there; then chain 00 gets
 //                phrase 00, the phrase a C-4, instrument 00 becomes AY Classic (a fresh project's
 //                instruments are type None: silent), and START (Space) plays it: the stream is not silent
@@ -27,12 +29,13 @@
 // --break SABOTAGES the interaction and passes only if a check notices:
 //   pt2 load (the file is never clicked), grafx2 stroke (the stroke is never drawn) or disk (the
 //   drive emptied as GEM starts the program: no skin, no font, and GrafX2 stops in boot),
-//   klystrack silent (F5 is never pressed) or pointer (the mouse never moves), chipnomad key (X is never pressed) or silent (START is never
+//   klystrack silent (F5 is never pressed), edit (no note typed while it plays) or pointer (the mouse never moves), chipnomad key (X is never pressed) or silent (START is never
 //   pressed); every port: quit (the quit is never asked for).
 // Pins: re-bless only for a deliberate change to a cart (print them with PINS=1).
 import { readFile, mkdir } from "node:fs/promises";
 import { machine, step, picture, colours, sha, rows, png, DT } from "./ports_machine.mjs";
 import { launchFromGem, serviceQuit } from "./ports_gem.mjs";
+import { drainSongs, playKt } from "./ports_kt.mjs";
 
 const QUIT_FRAMES = 120; // after the port's own frames: its quit, and GEM coming back
 
@@ -66,7 +69,7 @@ const SPECS = {
         use: useGrafx2,
     },
     klystrack: {
-        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer", "quit"],
+        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer", "edit", "quit"],
         pinAt: 20, pin: "c535877893c812bf1cb6e491a9e6ebe27c5aecf5258c8e661d630fe6e9608d5b",
         // the UI is idle by frame 70 (no repaints: kestrel_sdl.c) and the pointer must still move; F5 at 160,
         // after cyd went quiet (QUIET_AFTER_MS 2.2 s of silence in kestrel_sdl.c = frame ~133 here), so playing also
@@ -74,8 +77,10 @@ const SPECS = {
         events: (brk) => [
             ...(brk === "pointer" ? [] : [[70, click(150, 100, 0)]]),
             ...(brk === "silent" ? [] : [[160, (d) => d.key(F_KEY5)], [163, (d) => d.keyUp(F_KEY5)]]),
+            ...(brk === "edit" ? [] : [...tap(150, key(32), keyUp(32)), ...tap(206, key(0x7a), keyUp(0x7a))]),
         ],
-        quit: (f) => tap(f + 5, key(ESC), keyUp(ESC)), // Esc: Quit
+        // Esc: Quit; the edit made it "Save song?": Right (No), Return
+        quit: (f) => [...tap(f + 5, key(ESC), keyUp(ESC)), ...tap(f + 25, (d) => d.input(RIGHT), (d) => d.inputRelease(RIGHT)), ...tap(f + 35, key(13), keyUp(13))],
         use: useKlystrack,
     },
     chipnomad: {
@@ -141,13 +146,15 @@ async function run() {
     const quitting = !clockUs && broke !== "disk"; // --break disk pulls the drive: no desktop to come back to
     const events = [...spec.events(broke), ...(quitting && broke !== "quit" ? spec.quit(spec.frames) : [])];
     const frames = spec.frames + (quitting ? QUIT_FRAMES : 0), shots = new Map(), audio = { peak: 0, n: 0, rate: 0 };
-    let trap = "", m = { demo: { isPlaneEnabled: () => 0 }, audio }, gem = null, plane0 = 0, last = "";
+    let trap = "", m = { demo: { isPlaneEnabled: () => 0 }, audio, songs: [] }, gem = null, plane0 = 0, last = "";
     try {
         m = await machine(await readFile(spec.disk), clockUs);
+        m.songs = [];
         gem = await launchFromGem(m, spec.cart, broke === "disk"); // --break disk: the drive pulled as it starts
         for (let f = 1; f <= frames; f++) {
             if (!m.backs) for (const [ef, fn] of events) if (ef === f) fn(m.demo); // the program's events, until it quits
             step(m);
+            drainSongs(m, f);
             if (f === spec.frames) plane0 = m.demo.isPlaneEnabled(0);
             serviceQuit(m);
             if (spec.keep(f)) shots.set(f, picture(m));
@@ -205,8 +212,23 @@ function useGrafx2(r) {
 }
 SPECS.grafx2.keep = (f) => [90, 120, 240].includes(f);
 
-function useKlystrack(r) {
-    check("klystrack plays STARPRT2.KT", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak}, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
+// F5 plays the song on the machine's .kt player (apps/ports/klystrack/kestrel_bard.c): the cart hands it over
+// as a .kt (requestSongBytes, kind 5, row 0) that the audio modules play; cyd's stream stops.
+const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+async function useKlystrack(r) {
+    const kt = r.m.songs.find((s) => s.kind === 5);
+    check("klystrack hands STARPRT2.KT to the .kt player", kt && kt.row === 0 && kt.bytes.length > 1000,
+        kt ? `frame ${kt.frame}: ${kt.bytes.length} B from row ${kt.row}` : `no song image asked for (${r.m.songs.length} requests)`);
+    const p = kt ? await playKt(kt.bytes, kt.row) : { ok: false };
+    check("the .kt player plays it", p.ok && p.mode === 1 && p.rms > 0.01 && p.peak <= 1,
+        p.ok ? `mode ${p.mode}, rms ${p.rms.toFixed(3)}, peak ${p.peak.toFixed(3)}` : `refused (error ${p.error})`);
+    check("cyd's stream stops while it plays", (r.m.audio.stops || 0) >= 1, `${r.m.audio.stops || 0} stream stop(s)`);
+    // An edit while it plays (Space, then z at frame 206) re-sends the song, from the row playing.
+    const again = kt && r.m.songs.find((s) => s.kind === 5 && s.frame > 206);
+    check("an edit while it plays re-sends it", !!again && again.row > 0 && !sameBytes(again.bytes, kt.bytes),
+        again ? `frame ${again.frame} (${again.frame - 206} frames after the key), from row ${again.row}, ${again.bytes.length} B` : "not re-sent");
+    // (Esc's quit needs no "none": the host resets the players when the next program starts, GEM here.)
     const a = r.shots.get(20), b = r.shots.get(270);
     check("klystrack screen follows play", a && b && sha(a.px) !== sha(b.px));
     const p0 = r.shots.get(65), p1 = r.shots.get(75);
@@ -237,7 +259,7 @@ useGem(r);
 if (clockUs) useClock(r);
 else {
     useCommon(r);
-    spec.use(r);
+    await spec.use(r);
 }
 if (pngDir) {
     await mkdir(pngDir, { recursive: true });

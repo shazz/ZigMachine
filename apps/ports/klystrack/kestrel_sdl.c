@@ -6,7 +6,8 @@
  * yields the frame (kestrel_main.c).
  * Window: fixed 320x240 (patches/mused.c.sed makes that klystrack's default size).
  * Audio: klystron's cyd opens the legacy SDL_OpenAudio device with its mixing callback; kestrel_audio_frame()
- * runs the callback for the frame's real time (kestrel_audio_pump) and feeds the machine's stream. */
+ * runs the callback for the frame's real time (kestrel_audio_pump) and feeds the machine's stream; a song that
+ * plays is handed to the machine's .kt player instead, cyd keeping only its sequencer (kestrel_bard.c). */
 #include <SDL2/SDL.h>
 #include "kestrel_audio.h"
 #include "snd/cyd.h"
@@ -90,10 +91,13 @@ static int cyd_busy(void)
     return 0;
 }
 
+int kestrel_bard_mix(CydEngine *cyd, int16_t *stereo, int frames); /* kestrel_bard.c */
+
 static void mix(void *ctx, int16_t *stereo, int frames)
 {
     (void)ctx;
     if (audio_paused) { memset(stereo, 0, (size_t)frames * 4); return; }
+    if (kestrel_bard_mix(spec.userdata, stereo, frames)) return; /* the song plays on the machine's .kt player */
     if (cyd_busy()) rest_samples = 0;
     else if (rest_samples >= spec.freq / 1000 * QUIET_AFTER_MS) { memset(stereo, 0, (size_t)frames * 4); return; }
     spec.callback(spec.userdata, (Uint8 *)stereo, frames * 4);
