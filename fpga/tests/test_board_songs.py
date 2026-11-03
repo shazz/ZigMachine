@@ -71,3 +71,10 @@ def test_ported_programs_literals_are_not_songs(tmp_path):
     with pytest.raises(song_pack.MissingSong):
         song_pack.song_names(wasm, tmp_path)
     assert "demo-pt2.wasm" in song_pack.NO_LITERAL_SONGS
+
+
+def test_a_song_with_no_player_yet_is_skipped_with_a_note(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "a.sndh").write_bytes(b"x")
+    names = song_pack.song_names(b"\0a.sndh\0starport2.kt\0", tmp_path)
+    assert names == ["a.sndh"]
+    assert "no player for starport2.kt yet: not packed" in capsys.readouterr().err

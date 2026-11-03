@@ -565,6 +565,7 @@ pub fn build(b: *std.Build) void {
         "demo-mindwind", // 111 — RESERVOIR GODS / MIND REWIND (EIL 2003, STE): the 280-line list (video counter, HSCROLL, colour 0 a line) on the copper's LBASE, the demo rewinding itself halfway (ported from the depacked original)
         "demo-chisel_v2", // 112 — CHISEL V2: the blitter's HW 1.11.0 ops (AFFINE spans: rotozoom + Mode 7, MAP tunnel, mirrored bobs + collision, IFE area fill), every pixel CHISEL's
         "demo-tc_test", // 113 — TC TEST: the RGB565 true-colour plane (HW 1.15.0): the gamut, a plasma warped by copper LBASE + HSCROLL, palette vs 565, banding gradients, local pictures
+        "demo-kt_test", // 114 — KT TEST: one text plane, keys 1-4 ask for the klystrack example songs by name, 5 stops; plays once the BARD .kt player lands
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

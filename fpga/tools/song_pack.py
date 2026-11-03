@@ -28,6 +28,11 @@ FPGA = Path(__file__).resolve().parent.parent
 # The players' extensions: tests/test_audio_soc.py holds this to host/audio.c's audio_play.
 SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap", "hip")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
+# Extensions a cart may ask for before any player takes them (klystrack .kt: apps/zig/scenes/kt_test.zig, the BARD
+# player is on docs/ROADMAP.md). They are not packed: the board would hold bytes nothing plays, and there is no player to
+# refuse them. The note says so, so a missing song is never a silent one.
+UNPLAYED_EXTS = ("kt",)
+UNPLAYED = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(UNPLAYED_EXTS).encode() + rb")(?![A-Za-z0-9])")
 # Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
 LOCAL_SONGS = frozenset({"local.xm"})
 # Carts whose string literals are not song requests: ported C programs (apps/ports) name their own documents
@@ -45,6 +50,9 @@ def song_names(wasm: bytes, music: Path, log: str = "", literals: bool = True) -
     `music` (a LOCAL_SONGS name that is no file is left out instead)."""
     found = {m.group().decode() for m in NAME.finditer(wasm)} if literals else set()
     found |= {line.split(" ", 3)[3] for line in log.splitlines() if line.startswith("L ") and line.count(" ") >= 3}
+    skipped = sorted({m.group().decode() for m in UNPLAYED.finditer(wasm)}) if literals else []
+    if skipped:
+        print(f"song_pack: no player for {', '.join(skipped)} yet: not packed", file=sys.stderr)
     absent_local = {n for n in found & LOCAL_SONGS if not (music / n).is_file()}
     if absent_local:
         print(f"song_pack: no local song {', '.join(sorted(absent_local))}: not packed", file=sys.stderr)

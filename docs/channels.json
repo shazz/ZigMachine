@@ -175,6 +175,11 @@
   "type": "pc"
  },
  {
+  "tag": "kt_test",
+  "title": "KT TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "leonard_spirit",
   "title": "LEONARD'S SPIRIT",
   "type": "zigmachine"

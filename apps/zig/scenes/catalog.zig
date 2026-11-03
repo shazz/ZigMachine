@@ -104,6 +104,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "REPLICANTS EMLYN F32", .tag = "replicants_emlyn_f32" }, // atari st
     .{ .name = "POLKA DOTS F32", .tag = "polkadots_f32" }, // zigmachine
     .{ .name = "XM TEST", .tag = "xm_test" }, // zigmachine
+    .{ .name = "KT TEST", .tag = "kt_test" }, // zigmachine — klystrack .kt songs, once BARD has the player
     .{ .name = "SYSINFO", .tag = "sysinfo" }, // system
     .{ .name = "DMA SHRINKING SPHERE", .tag = "lockbuster2" }, // atari st — DMA "Incredible Shrinking Sphere Cracktro" (demozoo 79466)
     .{ .name = "KICK OFF 2", .tag = "kickoff2" }, // amiga

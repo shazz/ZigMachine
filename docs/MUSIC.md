@@ -289,6 +289,18 @@ What the player leaves out of them (`xm.zig`'s ignored list): the volume column'
 vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
 slide and the volume column's panning slide.
 
+The klystrack songs (`.kt`), upstream's example songs (kometbomb/klystrack, MIT, `apps/ports/klystrack/data/*.KT`
+copied byte for byte with lower-case names). KT TEST (keys 1-4) asks for them; no player takes `.kt` yet (the BARD
+player is the ROADMAP row "klystrack songs on BARD"), so today the request is dropped and the screen says
+"NO KT PLAYER YET". `fpga/tools/song_pack.py` skips a `.kt` literal with a note. `apps/kt_test_check.mjs` holds the md5s:
+
+| File | Size | md5 |
+|---|---|---|
+| `starport2.kt` | 1,822 B | `0246c50252e717ea7677fefb5c044ea4` |
+| `castlevania.kt` | 2,793 B | `9657f6b0554d8df5548bb35c3f91cef5` |
+| `oceanloader3.kt` | 8,144 B | `22139dc5dbaf6df1ec72b35b2db25775` |
+| `dpintro.kt` | 9,725 B | `eaee7e7520571ce27a857b7edcd58e68` |
+
 The Amiga modules (`.hip`), each modland's file byte for byte, renamed without spaces:
 
 | File | Title, artist | Size | Source | md5 |
