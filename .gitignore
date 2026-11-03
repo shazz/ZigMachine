@@ -35,3 +35,4 @@ docs/music/local.xm
 # The C program ports (apps/ports): upstream sources fetched at their pins by apps/ports/fetch.sh, and build output.
 apps/ports/upstream/
 apps/ports/*/build/
+apps/ports/*/*/build/
