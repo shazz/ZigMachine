@@ -76,9 +76,9 @@ int vd_begin(wasm_rt_memory_t* m, const char* dir, long frame) {
 static int phys_lines(wasm_rt_memory_t* m, uint32_t plane) {
     uint32_t mode = rd(m, ZM_REG_FB_MODE + plane, 1);
     uint32_t stride = rd(m, ZM_REG_FB_STRIDE + plane * 2, 2);
-    if (mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN) return 1;
+    if (mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN || mode == ZM_FB_MODE_TRUECOLOR_FULL) return 1;
     if (mode == ZM_FB_MODE_MEDIUM) return stride >= ZM_RASTER_WIDTH;
-    if (mode == ZM_FB_MODE_SCROLL) return 0;
+    if (mode != ZM_FB_MODE_NORMAL && mode <= ZM_FB_MODE_TRUECOLOR_FULL) return 0;
     return stride == ZM_STRIDE_FULLSCREEN;
 }
 

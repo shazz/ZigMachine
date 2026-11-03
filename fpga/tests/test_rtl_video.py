@@ -37,8 +37,10 @@ CARTS = [
     # union_intro's main screen (from frame ~949; the union_main cart is gone). Every frame listed must
     # exercise the whole set: its part at 100 is one normal plane, which tutorial covers.
     ("union_intro", [1300], {"layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
-    ("replicants_emlyn", [300], {"mode_overscan", "flicker_hit", "palette_per_line"}),
-    ("gen4_3615", [300], {"mode_overscan", "palette_per_line", "alpha_zero"}),
+    # rasters (and emlyn's border FLICK) on copper lists since 576e13bd / zg.copper: no handler
+    # writes, so palette_per_line and flicker_hit (read from handler writes) are list records now
+    ("replicants_emlyn", [300], {"mode_overscan", "copper"}),
+    ("gen4_3615", [300], {"mode_overscan", "copper", "alpha_zero"}),
     ("maxi", [300], {"mode_overscan", "flicker_hit"}),
     ("badflicker", [300], {"mode_overscan", "flicker_miss"}),
     ("res_switch", [300], {"mode_medium", "resolution_per_line"}),
@@ -71,11 +73,14 @@ SYNTH = [
     ("copper", [1, 2], {"copper", "layered", "mode_overscan", "mode_normal", "mode_scroll", "flicker_hit"}),
     # copper LBASE in every mode and HSCROLL on overscan (HW 1.10.0, tools/video_dump/vsynth_lbase.c)
     ("lbase", [1, 2], {"copper", "layered", "mode_overscan", "mode_normal", "mode_fullscreen", "mode_medium"}),
+    # RGB565 planes of both modes, odd bases/stride/HSCROLL, LBASE on border lines, under an 8-bit
+    # alpha plane (HW 1.15.0, tools/video_dump/vsynth_tc.c)
+    ("truecolor", [1, 2], {"mode_truecolor", "mode_truecolor_full", "copper", "layered", "alpha_partial", "hscroll_per_line"}),
 ]
 # Multi-plane frames replayed again against a memory with the HP port's first-beat
 # latency (CYCLES.md "Memory path": +24 clocks) and no stalls: the clock figures
 # of rtl/video/README.md "Throughput", and the picture must still match.
-TIMING = ["union_intro", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium", "s:worst"]
+TIMING = ["union_intro", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium", "s:worst", "s:truecolor"]
 HP_LATENCY = 24
 # One rule of the RTL broken at a time, and the dump that must catch it.
 MUTANTS = json.loads((FPGA / "tests" / "tb" / "video_mutants.json").read_text())

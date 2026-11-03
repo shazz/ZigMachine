@@ -12,7 +12,7 @@
 
 #define VD_ROWMAX ZM_RASTER_WIDTH /* the longest fetch a comparable line makes (medium overscan) */
 
-enum { K_NORMAL = 0, K_FS = 1, K_SCROLL = 2, K_MED = 3, K_OVS = 4 };
+enum { K_NORMAL = 0, K_FS = 1, K_SCROLL = 2, K_MED = 3, K_OVS = 4, K_TC = 5, K_TCF = 6 };
 
 typedef struct {
     uint8_t kind, res;
@@ -27,10 +27,11 @@ static uint32_t rd(const vd_frame* fr, uint32_t off, int n) {
 /* Plane p's geometry (zm_video_plane.v's decode); 0 if its lines cannot be compared. */
 static int geom(const vd_frame* fr, int p, pcfg* c) {
     uint32_t mode = rd(fr, ZM_REG_FB_MODE + (uint32_t)p, 1), stride = rd(fr, ZM_REG_FB_STRIDE + 2u * (uint32_t)p, 2);
-    uint32_t k = mode >= 1 && mode <= 4 ? mode : stride == ZM_STRIDE_FULLSCREEN ? K_FS : K_NORMAL;
-    int ovm = stride >= ZM_RASTER_WIDTH, phys = k == K_FS || k == K_OVS || (k == K_MED && ovm);
+    uint32_t k = mode >= 1 && mode <= 6 ? mode : stride == ZM_STRIDE_FULLSCREEN ? K_FS : K_NORMAL;
+    int ovm = stride >= ZM_RASTER_WIDTH, phys = k == K_FS || k == K_OVS || k == K_TCF || (k == K_MED && ovm);
     uint32_t res = k == K_MED ? rd(fr, ZM_REG_RESOLUTION, 1) : 0, med = res == ZM_RES_MEDIUM;
     uint32_t len = k == K_FS ? stride : k == K_MED ? (med ? (ovm ? 800u : 640u) : (ovm ? 400u : 320u)) : ZM_WIDTH;
+    if (k == K_TC || k == K_TCF) len = k == K_TCF ? 2u * ZM_PHYSICAL_WIDTH : 2u * ZM_WIDTH; /* RGB565: 640 / 800 bytes */
     memset(c, 0, sizeof *c);
     c->kind = (uint8_t)k, c->res = (uint8_t)res, c->len = (uint16_t)len;
     c->oy = phys ? 0 : ZM_RASTER_BORDER_Y, c->rows = phys ? VD_LINES : ZM_HEIGHT;
@@ -38,11 +39,14 @@ static int geom(const vd_frame* fr, int p, pcfg* c) {
     return k != K_OVS && len > 0 && len <= VD_ROWMAX;
 }
 
-/* Where line y's fetch starts in the cart's memory; 0 if outside it. */
+/* Where line y's fetch starts in the cart's memory; 0 if outside it. HSCROLL moves a scroll or
+ * true-colour line, and a true-colour line's address drops bit 0 (zm_video_plane.v). */
 static const uint8_t* fetch(const vd_frame* fr, int p, const pcfg* c, uint32_t y) {
     uint64_t row = y - c->oy, stride = rd(fr, ZM_REG_FB_STRIDE + 2u * (uint32_t)p, 2);
-    uint64_t sc = c->kind == K_SCROLL ? rd(fr, ZM_REG_HSCROLL + 2u * (uint32_t)p, 2) : 0;
-    uint64_t at = (uint64_t)ZM_HW_VIDEO_BASE + rd(fr, ZM_REG_FB_BASE + 4u * (uint32_t)p, 4) + row * stride + sc;
+    int tc = c->kind == K_TC || c->kind == K_TCF;
+    uint64_t sc = c->kind == K_SCROLL || tc ? rd(fr, ZM_REG_HSCROLL + 2u * (uint32_t)p, 2) : 0;
+    uint64_t at = rd(fr, ZM_REG_FB_BASE + 4u * (uint32_t)p, 4) + row * stride + sc;
+    at = (uint64_t)ZM_HW_VIDEO_BASE + (tc ? at & ~(uint64_t)1 : at);
     return at + c->len <= fr->mem_size ? fr->mem + at : 0;
 }
 

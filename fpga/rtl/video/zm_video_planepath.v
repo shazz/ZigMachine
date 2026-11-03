@@ -58,7 +58,7 @@ module zm_video_planepath (
     wire [31:0] fetch_addr;
     wire [10:0] fetch_len;
     wire [9:0] ncols, dst0;
-    wire single, wrap, ov, band, band_open, hit, flick;
+    wire single, wrap, ov, band, band_open, hit, flick, tc;
     wire [15:0] s0;
     wire [7:0] nbase;
     zm_video_plane u_plane (
@@ -68,7 +68,7 @@ module zm_video_planepath (
         .flicker(regs[ZM_REG_RES_FLICKER * 8 +: 16]), .cop_flick(cop_flick), .upd(upd), .upd_top(upd_top), .upd_bot(upd_bot),
         .fetch_start(fetch_start), .fetch_addr(fetch_addr), .fetch_len(fetch_len), .fetch_done(fetch_done),
         .paint_start(paint_start), .ncols(ncols), .dst0(dst0), .single(single), .wrap(wrap), .ov(ov),
-        .band(band), .band_open(band_open), .hit(hit), .flick(flick), .s0(s0), .nbase(nbase),
+        .band(band), .band_open(band_open), .hit(hit), .flick(flick), .tc(tc), .s0(s0), .nbase(nbase),
         .paint_done(paint_done), .done(done));
 
     zm_video_fetch u_fetch (
@@ -88,7 +88,7 @@ module zm_video_planepath (
 
     zm_video_paint u_paint (
         .clk(clk), .rst(rst), .start(paint_start), .ncols(ncols), .align(fetch_addr[1:0]),
-        .single(single), .dst0(dst0), .wrap(wrap), .stride(stride), .s0(s0), .ov(ov), .band(band),
+        .single(single), .dst0(dst0), .wrap(wrap), .tc(tc), .stride(stride), .s0(s0), .ov(ov), .band(band),
         .band_open(band_open), .hit(hit), .flick(flick), .nbase(nbase), .fb_raddr(word_raddr),
         .fb_rdata(word_rdata), .pal_raddr(pal_raddr), .pal_rdata(pal_rdata), .lb_we_lo(lb_we_lo),
         .lb_we_hi(lb_we_hi), .lb_addr(lb_addr), .lb_data(lb_data), .done(paint_done));

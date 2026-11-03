@@ -89,6 +89,15 @@ def test_lbase_lists_are_redrawn_every_frame() -> None:
     assert bad == 0 and moved == 0 and lines > 0
 
 
+def test_a_truecolor_plane_skips_only_unchanged_lines() -> None:
+    """mpp_truecolor's mode 3 (from frame 961) is one RGB565 plane (HW 1.15.0): the planner
+    compares its 640-byte lines (cycles/vdrow.h K_TC) and skips the unchanged ones exactly."""
+    lines, skipped, moved, bad, *_ = proof_n("mpp_truecolor", "1100")
+    assert bad == 0 and moved == 0
+    before = proof_n("mpp_truecolor", "960")[1]  # modes 1 and 2
+    assert skipped - before > (1100 - 961) * 260  # nearly every line of the 565 frames: 38,920 of 39,200
+
+
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 @pytest.mark.parametrize(("mutant", "cart"), BREAKS)
 def test_a_forgotten_input_is_caught(mutant: str, cart: str) -> None:

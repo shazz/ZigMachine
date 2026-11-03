@@ -66,9 +66,16 @@ pictures depend on it:
 | overscan | 0..279 | `py` | 400 | doubled, borders earned (below) |
 | medium | 40..239 | `py - 40` | 640 1:1, or 320 doubled | from x 80 |
 | medium, stride ≥ 800 | 0..279 | `py` | 800 1:1, or 400 doubled | from x 0 |
+| true colour (5, HW 1.15.0) | 40..239 | `py - 40`, plus live `HSCROLL` | 320 RGB565 (640 bytes) | doubled, from x 80 |
+| true colour full (6) | 0..279 | `py`, plus live `HSCROLL` | 400 RGB565 (800 bytes) | doubled, from x 0 |
 
 Any other `FB_MODE` value is fullscreen when the stride is 400 and normal
-otherwise, as in `video.zig`. A medium line is 1:1 when `RESOLUTION` is
+otherwise, as in `video.zig`. A true-colour column is the half-word at byte
+`align + 2c` of the fetched line, expanded 565 -> RGBA by bit replication in
+place of the palette's answer (`zm_video_paint.v`, a clock behind like it); the
+half-word select makes bit 0 of the line address irrelevant, which is the rule
+(`fpga/review/TRUECOLOR_PLANE.md`). OOC synth at 8 ns: `zm_video_comp` +28 LUT,
++17 FF (2,422 -> 2,450). A medium line is 1:1 when `RESOLUTION` is
 `RES_MEDIUM` and doubled otherwise.
 
 **Overscan:** a line *flickered* when `RES_FLICKER` differs from the value the

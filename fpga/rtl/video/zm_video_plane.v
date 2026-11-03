@@ -8,11 +8,15 @@
 //   overscan    0..279     py, + HSCROLL       400       doubled, borders earned (HSCROLL: 1.10.0)
 //   medium      40..239    py - 40             640/320   1:1 or doubled from x 80
 //   medium ovs  0..279     py (stride >= 800)  800/400   1:1 or doubled from x 0
+//   truecolor   40..239    py - 40, + HSCROLL  320       RGB565, 640 bytes, doubled from x 80 (1.15.0)
+//   tc full     0..279     py, + HSCROLL       400       RGB565, 800 bytes, doubled from x 0
 // Any other mode is fullscreen when the stride is 400 and normal otherwise
 // (video.zig's back-compat rule). Medium re-reads RESOLUTION per line: a
 // RES_MEDIUM line is 1:1, anything else doubled.
 // A copper LBASE (HW 1.10.0) moves the latched base and the row it is at: the row's address is
 // base + (row - lrow) * stride, lrow 0 from FB_BASE (fpga/review/COPPER_LINEBASE.md).
+// A true-colour line's address ignores bit 0 (fpga/review/TRUECOLOR_PLANE.md, both machines): the
+// painter takes the half-word at byte align + 2c, which is pixel floor(addr / 2) + c for any align.
 `default_nettype none
 
 module zm_video_plane (
@@ -39,6 +43,7 @@ module zm_video_plane (
     output reg         paint_start,
     output reg  [9:0]  ncols, dst0,
     output reg         single, wrap, ov, band, band_open, hit, flick,
+    output reg         tc,             // a 565 line: two bytes a column, no palette (zm_video_paint.v)
     output reg  [15:0] s0,
     output reg  [7:0]  nbase,
     input  wire        paint_done,
@@ -60,18 +65,18 @@ module zm_video_plane (
         {base_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, py_i, mode_i, seed_i, res_i, top_open_i, bot_open_i}
             <= {base, stride, hpos, seen, hs_live, flicker, py, mode, seed, res, top_open, bot_open};
 
-    localparam [2:0] NORMAL = 3'd0, FS = 3'd1, SCROLL = 3'd2, MED = 3'd3, OVS = 3'd4;
-    wire [2:0] m = (mode_i >= 8'd1 && mode_i <= 8'd4) ? mode_i[2:0] : (stride_i == ZM_STRIDE_FULLSCREEN ? FS : NORMAL);
+    localparam [2:0] NORMAL = 3'd0, FS = 3'd1, SCROLL = 3'd2, MED = 3'd3, OVS = 3'd4, TC = 3'd5, TCF = 3'd6;
+    wire [2:0] m = (mode_i >= 8'd1 && mode_i <= 8'd6) ? mode_i[2:0] : (stride_i == ZM_STRIDE_FULLSCREEN ? FS : NORMAL);
     wire vis = py_i >= ZM_RASTER_BORDER_Y && py_i < ZM_RASTER_BORDER_Y + ZM_HEIGHT;
     wire ovm = stride_i >= ZM_RASTER_WIDTH;
-    wire phys = m == FS || m == OVS || (m == MED && ovm);
+    wire phys = m == FS || m == OVS || m == TCF || (m == MED && ovm);
     wire [8:0] row = phys ? py_i : py_i - ZM_RASTER_BORDER_Y[8:0];
     wire med_line = m == MED && res_i == ZM_RES_MEDIUM;
     wire [10:0] med_len = med_line ? (ovm ? 11'd800 : 11'd640) : (ovm ? 11'd400 : 11'd320);
     // A fullscreen row longer than the fetch buffer asks for 2047 bytes, which
     // the fetcher refuses and flags (`overflow`) instead of wrapping silently.
     wire [10:0] fs_len = stride_i > 16'd1021 ? 11'h7FF : stride_i[10:0];
-    wire [10:0] len = m == FS ? fs_len : m == OVS ? 11'd400 : m == MED ? med_len : 11'd320;
+    wire [10:0] len = m == FS ? fs_len : m == OVS ? 11'd400 : m == TCF ? 11'd800 : m == TC ? 11'd640 : m == MED ? med_len : 11'd320;
     // Overscan: did this line's HBL flicker, and on the magic column?
     wire flk = flicker_i != seen_i || cop_flick_i;
     wire [15:0] dx = hpos_i > ZM_OVERSCAN_MAGIC_X ? hpos_i - ZM_OVERSCAN_MAGIC_X : ZM_OVERSCAN_MAGIC_X - hpos_i;
@@ -96,7 +101,7 @@ module zm_video_plane (
     reg [31:0] base_2, bs_3, addr_q;
     reg [24:0] prod_3;
     always @(posedge clk) begin
-        {row_2, stride_2, sc_2, base_2} <= {row - lrow_i, stride_i, m == SCROLL || m == OVS ? hs_live_i : 16'd0, base_i};
+        {row_2, stride_2, sc_2, base_2} <= {row - lrow_i, stride_i, m == SCROLL || m == OVS || m == TC || m == TCF ? hs_live_i : 16'd0, base_i};
         prod_3 <= row_2 * stride_2;    // 25 bits wide here, not 16 as in a {}
         bs_3 <= base_2 + {16'd0, sc_2};
         addr_q <= bs_3 + {7'd0, prod_3};
@@ -135,7 +140,8 @@ module zm_video_plane (
     always @(posedge clk) if (st == IDLE && go) begin
         fetch_addr <= addr_q;
         fetch_len <= len_q;
-        ncols <= m_q == FS ? ZM_PHYSICAL_WIDTH[9:0] : len_q[9:0];
+        ncols <= m_q == FS || m_q == TCF ? ZM_PHYSICAL_WIDTH[9:0] : m_q == TC ? ZM_WIDTH[9:0] : len_q[9:0];
+        tc <= m_q == TC || m_q == TCF;
         dst0 <= phys_q ? 10'd0 : ZM_RASTER_BORDER_X[9:0];
         {single, wrap, ov, band, hit, flick} <= {med_q, m_q == FS, m_q == OVS, !vis_q, hit_q, flk_q};
         band_open <= open_q;

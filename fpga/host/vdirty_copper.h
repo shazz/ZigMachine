@@ -23,9 +23,9 @@ static uint32_t vdc_word(const uint8_t* reg, uint32_t off) {
 static void vdc_cover(const uint8_t* reg, int p, uint32_t* y0, uint32_t* y1) {
     uint8_t mode = reg[ZM_REG_FB_MODE + (uint32_t)p];
     uint16_t stride = (uint16_t)(reg[ZM_REG_FB_STRIDE + 2u * (uint32_t)p] | reg[ZM_REG_FB_STRIDE + 2u * (uint32_t)p + 1] << 8);
-    int whole = mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN;
+    int whole = mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN || mode == ZM_FB_MODE_TRUECOLOR_FULL;
     if (mode == ZM_FB_MODE_MEDIUM) whole = stride >= ZM_RASTER_WIDTH;
-    else if (mode != ZM_FB_MODE_SCROLL && !whole) whole = stride == ZM_STRIDE_FULLSCREEN;
+    else if (mode == ZM_FB_MODE_NORMAL || mode > ZM_FB_MODE_TRUECOLOR_FULL) whole = stride == ZM_STRIDE_FULLSCREEN;
     *y0 = whole ? 0 : ZM_RASTER_BORDER_Y;
     *y1 = whole ? ZM_RASTER_HEIGHT : ZM_RASTER_BORDER_Y + ZM_HEIGHT;
 }
