@@ -9,7 +9,9 @@
  *
  *   kestrel_plane_init()                once from boot(): plane registers, black background
  *   kestrel_plane_origin(w, h, &x, &y)  where a w x h picture's (0,0) lands in the plane (for kestrel_input_origin)
- *   kestrel_plane_colours()             colours in the last presented picture */
+ *   kestrel_plane_colours()             colours in the last presented picture
+ *   kestrel_plane_changed()             1 when the last present's picture differed from the one before
+ *   kestrel_plane_cursor()              once a frame with no present: move the pointer over the last picture */
 #include <SDL2/SDL.h>
 
 void kestrel_log(const char *m);
@@ -102,22 +104,60 @@ void kestrel_plane_origin(int w, int h, int *x, int *y)
 
 unsigned kestrel_plane_colours(void) { return ncolours; }
 
+/* The cursor's last drawn rectangle (picture coordinates, clipped), so a pointer move with no new picture
+ * (kestrel_plane_cursor) restores just that from the last picture. */
+static const Uint32 *last_src;
+static int last_w, last_h, cur_x, cur_y, cur_w, cur_h, cur_mx = -100000, cur_my;
+static const Uint32 *cur_img;
+static Uint32 hash, last_hash;
+
 static void draw_cursor(int w, int h)
 {
     int cw, chh, hx, hy, mx, my;
     const Uint32 *cp = kestrel_cursor_image(&cw, &chh, &hx, &hy);
+    cur_img = cp; cur_w = cur_h = 0;
     if (!cp) return;
     SDL_GetMouseState(&mx, &my);
-    for (int y = 0; y < chh; y++) {
-        int py = my - hy + y;
-        if (py < 0 || py >= h) continue;
-        for (int x = 0; x < cw; x++) {
-            int px = mx - hx + x;
-            Uint32 c = cp[y * cw + x];
-            if (px < 0 || px >= w || (c >> 24) < 128) continue;
-            vbase[OFF_VRAM + (oy + py) * pw + ox + px] = colour_index(c);
+    cur_mx = mx; cur_my = my;
+    int x0 = mx - hx, y0 = my - hy, x1 = x0 + cw, y1 = y0 + chh;
+    cur_x = x0 < 0 ? 0 : x0; cur_y = y0 < 0 ? 0 : y0;
+    cur_w = (x1 > w ? w : x1) - cur_x; cur_h = (y1 > h ? h : y1) - cur_y;
+    if (cur_w <= 0 || cur_h <= 0) { cur_w = cur_h = 0; return; }
+    for (int py = cur_y; py < cur_y + cur_h; py++)
+        for (int px = cur_x; px < cur_x + cur_w; px++) {
+            Uint32 c = cp[(py - y0) * cw + px - x0];
+            if ((c >> 24) >= 128) vbase[OFF_VRAM + (oy + py) * pw + ox + px] = colour_index(c);
         }
+}
+
+static void write_palette(unsigned from)
+{
+    for (unsigned i = from; i < ncolours; i++) {
+        Uint8 *p = vbase + OFF_PAL + i * 4;
+        Uint32 c = pal_rgb[i];
+        p[0] = (Uint8)(c >> 16); p[1] = (Uint8)(c >> 8); p[2] = (Uint8)c; p[3] = 255;
     }
+}
+
+/* 1 when the last present's picture (cursor aside) differed from the one before. */
+int kestrel_plane_changed(void) { return hash != last_hash; }
+
+/* Once a frame when nothing was presented: if the pointer moved (or changed shape), put back the last
+ * picture's pixels under the old cursor and draw the new one. A port that repaints only on changes
+ * (klystrack) keeps a live pointer without repainting. */
+void kestrel_plane_cursor(void)
+{
+    if (!vbase || !last_src) return;
+    int cw, chh, hx, hy, mx, my;
+    const Uint32 *cp = kestrel_cursor_image(&cw, &chh, &hx, &hy);
+    SDL_GetMouseState(&mx, &my);
+    if (cp == cur_img && mx == cur_mx && my == cur_my) return;
+    unsigned before = ncolours;
+    for (int py = cur_y; py < cur_y + cur_h; py++)
+        for (int px = cur_x; px < cur_x + cur_w; px++)
+            vbase[OFF_VRAM + (oy + py) * pw + ox + px] = colour_index(last_src[py * last_w + px]);
+    draw_cursor(last_w, last_h);
+    write_palette(before);
 }
 
 void kestrel_plane_present(const Uint32 *src, int w, int h)
@@ -128,6 +168,7 @@ void kestrel_plane_present(const Uint32 *src, int w, int h)
     plane_size(w, h);
     kestrel_plane_origin(w, h, &ox, &oy);
     palette_reset();
+    last_hash = hash; hash = 2166136261u;           /* FNV-style over the indices and then the palette */
     Uint32 last = ~0u; Uint8 li = 0;
     int words = ((ox | w) & 3) == 0;                /* rows start word-aligned: four pixels a store */
     for (int y = 0; y < h; y++) {
@@ -146,6 +187,7 @@ void kestrel_plane_present(const Uint32 *src, int w, int h)
                     }
                 }
                 dw[x >> 2] = v;
+                hash = (hash ^ v) * 16777619u;
             }
             continue;
         }
@@ -153,13 +195,12 @@ void kestrel_plane_present(const Uint32 *src, int w, int h)
             Uint32 c = s[x];
             if (c != last) { last = c; li = colour_index(c); }
             dst[x] = li;
+            hash = (hash ^ li) * 16777619u;
         }
     }
+    for (unsigned i = 0; i < ncolours; i++) hash = (hash ^ pal_rgb[i]) * 16777619u;
+    last_src = src; last_w = w; last_h = h;
     draw_cursor(w, h);
-    for (unsigned i = 0; i < ncolours; i++) {
-        Uint8 *p = vbase + OFF_PAL + i * 4;
-        Uint32 c = pal_rgb[i];
-        p[0] = (Uint8)(c >> 16); p[1] = (Uint8)(c >> 8); p[2] = (Uint8)c; p[3] = 255;
-    }
+    write_palette(0);
     plane_regs();
 }

@@ -15,7 +15,7 @@ KSDL   := ../kestrel_sdl2/src
 KINC   := ../kestrel_sdl2/include
 # upstream's EXTFLAGS minus MIDI (ALSA + a thread); the window is 320x240 at scale 1 (patches/mused.c.sed).
 DEFS   := -DNOSDL_MIXER -DUSESDLMUTEXES -DSTEREOOUTPUT -DUSESDL_IMAGE -DUSESDL_RWOPS -DCONFIG_DEFAULT_DISABLE_RENDER_TO_TEXTURE \
-          -DLOWRESWAVETABLE -DRES_PATH= -DCONFIG_PATH=/klystrack.cfg -DKLYSTRON=klystron -D__KESTREL__ -DKESTREL_SDL_IMAGE
+          -DLOWRESWAVETABLE -DRES_PATH= -DCONFIG_PATH=/klystrack.cfg -DKLYSTRON=klystron -D__KESTREL__ -DKESTREL_SDL_IMAGE -DKESTREL_HEAP_ROVER
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I$(KINC) -I$(KINC)/SDL2 \
           -I$(GEN)/src -I$(GEN)/klystron -include kestrel_port.h $(DEFS) \
           -Wno-unused-parameter -Wno-unused-but-set-variable \
@@ -36,7 +36,8 @@ OBJS   := $(addprefix $(OUT)/,$(KLY_C:.c=.o) $(APP_C:.c=.o)) $(patsubst %.c,$(OU
 GENALL := $(addprefix $(GEN)/,$(KLY_C) $(APP_C) $(UP_H)) $(GEN)/src/version.h $(GEN)/src/version_number.h $(GEN)/klystron/version.h
 SHIMH  := $(wildcard $(KINC)/*.h $(KINC)/SDL2/* $(KSDL)/opt/*.h)
 
-.PHONY: objs link data clean install
+.PHONY: objs link data clean install names
+comma := ,
 .SECONDARY:
 objs: $(OBJS)
 
@@ -80,6 +81,15 @@ $(OUT)/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm
 	$(WASM_OPT) $< --enable-bulk-memory --enable-sign-ext --enable-mutable-globals --enable-nontrapping-float-to-int \
 	  --asyncify -O2 -o $@
 	@echo "imports (must all be env.*):"; $(WABT)/wasm-objdump -x -j Import $@ | grep -o '<- [^ ]*' | sort | uniq -c
+
+# The same cart with its function names (no --strip-debug, wasm-opt -g), for apps/frame_cost.mjs and
+# tools/perf_audit.sh: `node apps/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd`
+names: $(OUT)/names/demo-klystrack.wasm
+$(OUT)/names/demo-klystrack.wasm: $(OBJS)
+	@mkdir -p $(dir $@)
+	$(ZIG) cc $(CFLAGS) $(filter-out -Wl$(comma)--strip-debug,$(LDFLAGS)) $^ -o $(OUT)/names/raw.wasm
+	$(WASM_OPT) $(OUT)/names/raw.wasm --enable-bulk-memory --enable-sign-ext --enable-mutable-globals \
+	  --enable-nontrapping-float-to-int --asyncify -O2 -g -o $@
 
 clean:
 	rm -rf $(OUT)

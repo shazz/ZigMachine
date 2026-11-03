@@ -12,6 +12,10 @@ void kestrel_log(const char *m);
 static struct { SDL_TimerID id; Uint32 interval, due; SDL_TimerCallback cb; void *param; } timers[MAX_TIMERS];
 static SDL_TimerID next_id = 1;
 static Uint32 now;
+static unsigned fired;
+
+/* Timer callbacks run so far: a port that repaints only when something changed (klystrack) repaints after one. */
+unsigned kestrel_timers_fired(void) { return fired; }
 
 SDL_TimerID SDL_AddTimer(Uint32 interval, SDL_TimerCallback cb, void *param)
 {
@@ -43,6 +47,7 @@ void kestrel_timers_tick(Uint32 now_ms)
         if (!timers[i].id || (Sint32)(now - timers[i].due) < 0) continue;
         SDL_TimerID id = timers[i].id;
         Uint32 next = timers[i].cb(timers[i].interval, timers[i].param);
+        fired++;
         if (timers[i].id != id) continue;            /* the callback removed (or replaced) it */
         if (next == 0) { timers[i].id = 0; continue; }
         timers[i].interval = next;

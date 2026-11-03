@@ -606,8 +606,9 @@ gate ports_pt2 node apps/pt2_paula_headless.mjs --break upload   # ...and no sam
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break owner   # ...and the worklet's refusal bypassed (a song let in over chip RAM) is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
-gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPORT2.KT opened off the floppy, UI pinned; F5 plays it: the stream is not silent and the screen follows play
+gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPORT2.KT opened off the floppy, UI pinned; the pointer moves over the idle UI (no repaint); F5 after cyd went quiet plays it: the stream is not silent and the screen follows play
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break silent   # ...and F5 never pressed (silence) is caught
+gate ports_klystrack node apps/ports_headless.mjs klystrack --break pointer   # ...and a pointer that never moves is caught
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad   # CHIPNOMAD (C++): the song screen in the ST font pinned; X (the A button) puts chain 00 in the first cell; chain -> phrase -> a C-4 on instrument 00 made AY Classic, START plays it: the stream is not silent
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break key   # ...and X never pressed is caught
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break silent   # ...and START never pressed (silence) is caught

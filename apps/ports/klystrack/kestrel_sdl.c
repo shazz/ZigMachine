@@ -9,6 +9,8 @@
  * runs the callback for the frame's real time (kestrel_audio_pump) and feeds the machine's stream. */
 #include <SDL2/SDL.h>
 #include "kestrel_audio.h"
+#include "snd/cyd.h"
+#include "snd/music.h"
 
 __attribute__((import_module("env"), import_name("consoleLogJS"))) extern void consoleLogJS(const char *p, int len);
 void kestrel_log(const char *m) { consoleLogJS(m, (int)strlen(m)); }
@@ -72,12 +74,69 @@ int SDL_OpenAudio(SDL_AudioSpec *want, SDL_AudioSpec *have)
 void SDL_PauseAudio(int p) { audio_paused = p; }
 void SDL_CloseAudio(void) { audio_open = 0; }
 
+/* cyd at rest: no song (the tick callback has none, or is off), every channel's gate off and envelope at 0,
+ * and the output exactly 0 for longer than the longest echo (the reverb's 2 s delay line, no feedback; the
+ * chorus's 50 ms). Then the callback would only compute silence (8 channels, ~2.4 Mc a frame): it is skipped
+ * and zeros are fed until a note or a song starts (keyjazz gates a channel; play sets the song). */
+#define QUIET_AFTER_MS 2200
+static Uint32 rest_samples;
+
+static int cyd_busy(void)
+{
+    const CydEngine *cyd = spec.userdata;
+    const MusEngine *mus = cyd->callback ? cyd->callback_parameter : NULL;
+    if (mus && mus->song) return 1;
+    for (int i = 0; i < cyd->n_channels; i++)
+        if ((cyd->channel[i].flags & CYD_CHN_ENABLE_GATE) || cyd->channel[i].adsr.envelope) return 1;
+    return 0;
+}
+
 static void mix(void *ctx, int16_t *stereo, int frames)
 {
     (void)ctx;
-    if (audio_paused) memset(stereo, 0, (size_t)frames * 4);
-    else spec.callback(spec.userdata, (Uint8 *)stereo, frames * 4);
+    if (audio_paused) { memset(stereo, 0, (size_t)frames * 4); return; }
+    if (cyd_busy()) rest_samples = 0;
+    else if (rest_samples >= spec.freq / 1000 * QUIET_AFTER_MS) { memset(stereo, 0, (size_t)frames * 4); return; }
+    spec.callback(spec.userdata, (Uint8 *)stereo, frames * 4);
+    const Uint32 *w = (const Uint32 *)stereo;
+    for (int i = 0; i < frames; i++) if (w[i]) { rest_samples = 0; return; }
+    rest_samples += (Uint32)frames;
 }
+
+/* --- redraws (patches/main.c.sed) ---
+ * Upstream repaints the whole UI 30 times a second whatever happens (gfx_domain_is_next_frame): ~45 Mc a
+ * repaint on the board. Here the 30 Hz repaint runs only while something moves: a song plays, or one of the
+ * last SETTLE repaints changed the picture (VU meters falling, a keyjazz note's scope), or an SDL timer fired
+ * (the info line clears itself after 5 s). An event (key, click, drag) still repaints at once, as upstream. */
+#define SETTLE 15
+static int settle = SETTLE;
+unsigned kestrel_timers_fired(void);
+int kestrel_plane_changed(void);
+
+int kestrel_redraw_due(int tick_due, int playing)
+{
+    static unsigned fired;
+    unsigned f = kestrel_timers_fired();
+    if (playing || f != fired) settle = SETTLE;
+    fired = f;
+    if (!tick_due || settle <= 0) return 0;
+    settle--;
+    return 1;
+}
+
+/* Once a frame before klystrack runs: a queued key, button, wheel or drag wakes the repaints, so a dialog opened
+ * by it (its own loop repaints on the same 30 Hz tick, patches/msgbox.c.sed, help.c.sed) is drawn. A plain
+ * pointer move does not: kestrel_plane_cursor() moves the pointer without a repaint, as upstream does. */
+void kestrel_input_wake(void)
+{
+    SDL_Event q[16];
+    int n = SDL_PeepEvents(q, 16, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+    for (int i = 0; i < n; i++)
+        if (q[i].type != SDL_MOUSEMOTION || q[i].motion.state) { settle = SETTLE; return; }
+}
+
+/* After each present: a repaint that changed the picture keeps the 30 Hz repaints going. */
+void kestrel_after_present(void) { if (kestrel_plane_changed()) settle = SETTLE; }
 
 /* Once a frame: cyd's callback (the song's clock too) for the real time the frame took. */
 void kestrel_audio_frame(Uint32 us)

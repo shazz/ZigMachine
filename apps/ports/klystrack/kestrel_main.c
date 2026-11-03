@@ -23,6 +23,14 @@ void kestrel_log(const char *m);
 void kestrel_heap_report(void);
 void kestrel_input_origin(int dx, int dy);
 extern void (*kestrel_present_hook)(void);
+void kestrel_after_present(void);
+void kestrel_plane_cursor(void);
+void kestrel_input_wake(void);
+static int presented;
+void kestrel_yield(void);
+
+/* SDL_RenderPresent's hook: note the picture (kestrel_sdl.c: a changed one keeps the repaints going), yield. */
+static void after_present(void) { presented = 1; kestrel_after_present(); kestrel_yield(); }
 
 /* Asyncify's save area: {current, end} then the saved call stack (locals of every suspended frame). */
 static uint8_t unwind_stack[64 * 1024];
@@ -54,7 +62,7 @@ __attribute__((export_name("boot"))) void boot(void)
 {
     kestrel_plane_init();
     kestrel_input_origin(0, 20);   /* 320x240 at (40,20) of the 400x280 plane; the visible window starts at (40,40) */
-    kestrel_present_hook = kestrel_yield;
+    kestrel_present_hook = after_present;
     run();
     kestrel_log(finished ? "klystrack: did not reach its main loop" : "klystrack: booted");
     kestrel_heap_report();
@@ -70,9 +78,12 @@ __attribute__((export_name("frame"))) void frame(float elapsed_ms)
     kestrel_audio_frame(us);
     if (finished || !suspended) return;
     suspended = 0;
+    kestrel_input_wake();
     rewinding = 1;
+    presented = 0;
     asyncify_start_rewind(&adata);
     run();
+    if (!presented) kestrel_plane_cursor();   /* no repaint this frame: the pointer still follows the mouse */
 }
 
 __attribute__((export_name("isPlaneEnabled"))) int isPlaneEnabled(int p) { return p == 0; }

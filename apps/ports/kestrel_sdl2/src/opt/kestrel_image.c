@@ -47,21 +47,22 @@ static SDL_Surface *to_index8(const stbi_uc *rgba, int w, int h, int alpha)
 {
     Uint32 pal[256], hk[512]; Uint16 hv[512]; Uint8 hu[512] = { 0 };
     int n = 0;
+    Uint8 *idx = malloc((size_t)w * (size_t)h);   /* one hashing pass: the indices are kept as they are found */
+    if (!idx) return NULL;
+    Uint32 last = 0; Uint8 li = 0; int have = 0;  /* runs of one colour skip the hash */
     for (int i = 0; i < w * h; i++) {
         Uint32 c = argb(rgba + i * 4);
-        unsigned k = (c * 2654435761u) >> 23;
-        while (hu[k] && hk[k] != c) k = (k + 1) & 511;
-        if (!hu[k]) { if (n == 256) return NULL; hu[k] = 1; hk[k] = c; hv[k] = (Uint16)n; pal[n++] = c; }
+        if (!have || c != last) {
+            unsigned k = (c * 2654435761u) >> 23;
+            while (hu[k] && hk[k] != c) k = (k + 1) & 511;
+            if (!hu[k]) { if (n == 256) { free(idx); return NULL; } hu[k] = 1; hk[k] = c; hv[k] = (Uint16)n; pal[n++] = c; }
+            last = c; li = (Uint8)hv[k]; have = 1;
+        }
+        idx[i] = li;
     }
     SDL_Surface *s = kestrel_surface_index8(w, h, pal, n, alpha);
-    if (!s) return NULL;
-    Uint8 *px = s->pixels;
-    for (int i = 0; i < w * h; i++) {
-        Uint32 c = argb(rgba + i * 4);
-        unsigned k = (c * 2654435761u) >> 23;
-        while (hk[k] != c) k = (k + 1) & 511;
-        px[i] = (Uint8)hv[k];
-    }
+    if (s) memcpy(s->pixels, idx, (size_t)w * (size_t)h);
+    free(idx);
     return s;
 }
 

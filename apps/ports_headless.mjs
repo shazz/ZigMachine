@@ -11,7 +11,7 @@
 //                (the song-name row changes to its name), then PLAY: the module is heard
 //     grafx2     OK closes the read-only-device warning (Asyncify'd modal loop), then a freehand
 //                stroke paints pixels in the picture
-//     klystrack  F5 plays STARPORT2.KT (opened off the floppy at boot): the stream is not silent
+//     klystrack  the pointer moves over the idle UI; F5 plays STARPORT2.KT (opened off the floppy at boot): the stream is not silent
 //     chipnomad  X (the A button) on the song screen's first cell puts chain 00 there; then chain 00 gets
 //                phrase 00, the phrase a C-4, instrument 00 becomes AY Classic (a fresh project's
 //                instruments are type None: silent), and START (Space) plays it: the stream is not silent
@@ -22,7 +22,7 @@
 // --break SABOTAGES the interaction and passes only if a check notices:
 //   pt2 load (the file is never clicked), grafx2 stroke (the stroke is never drawn) or disk (an
 //   empty drive: no skin, no font, and GrafX2 stops in boot),
-//   klystrack silent (F5 is never pressed), chipnomad key (X is never pressed) or silent (START is never
+//   klystrack silent (F5 is never pressed) or pointer (the mouse never moves), chipnomad key (X is never pressed) or silent (START is never
 //   pressed).
 // Pins: re-bless only for a deliberate change to a cart (print them with PINS=1).
 import { readFile, mkdir } from "node:fs/promises";
@@ -53,9 +53,14 @@ const SPECS = {
         use: useGrafx2,
     },
     klystrack: {
-        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 120, minColours: 24, breaks: ["silent"],
+        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer"],
         pinAt: 20, pin: "c535877893c812bf1cb6e491a9e6ebe27c5aecf5258c8e661d630fe6e9608d5b",
-        events: (brk) => (brk === "silent" ? [] : [[30, (d) => d.key(F_KEY5)], [33, (d) => d.keyUp(F_KEY5)]]),
+        // the UI is idle by frame 70 (no repaints: kestrel_sdl.c) and the pointer must still move; F5 at 160,
+        // after cyd went quiet (2.2 s of silence, kestrel_sdl.c), so playing also proves the synth wakes up
+        events: (brk) => [
+            ...(brk === "pointer" ? [] : [[70, click(150, 100, 0)]]),
+            ...(brk === "silent" ? [] : [[160, (d) => d.key(F_KEY5)], [163, (d) => d.keyUp(F_KEY5)]]),
+        ],
         use: useKlystrack,
     },
     chipnomad: {
@@ -159,10 +164,12 @@ SPECS.grafx2.keep = (f) => [90, 120, 240].includes(f);
 
 function useKlystrack(r) {
     check("klystrack plays STARPORT2.KT", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak}, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
-    const a = r.shots.get(20), b = r.shots.get(120);
+    const a = r.shots.get(20), b = r.shots.get(270);
     check("klystrack screen follows play", a && b && sha(a.px) !== sha(b.px));
+    const p0 = r.shots.get(65), p1 = r.shots.get(75);
+    check("klystrack pointer moves over the idle UI", p0 && p1 && sha(p0.px) !== sha(p1.px), "frame 75 differs from 65 (no repaint between)");
 }
-SPECS.klystrack.keep = (f) => [20, 120].includes(f);
+SPECS.klystrack.keep = (f) => [20, 65, 75, 270].includes(f);
 
 function useChipnomad(r) {
     const a = r.shots.get(20), b = r.shots.get(38);

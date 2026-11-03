@@ -15,6 +15,17 @@
 #define RESERVE (64u * 1024u)     /* left in the machine arena for anything else */
 
 static uint8_t *heap_lo, *heap_hi;
+/* KESTREL_HEAP_ROVER (opt-in, klystrack): no free block starts below `rover`, so malloc's first-fit scan starts
+ * there instead of at heap_lo. Same block chosen as without it (first fit), but a boot that makes thousands of
+ * small allocations stops walking every used block each time (klystrack: 404k block visits, ~23 Mc at boot). */
+#ifdef KESTREL_HEAP_ROVER
+static uint8_t *rover;
+#define ROVER_START (rover ? rover : heap_lo)
+#define ROVER_SET(p) (rover = (p))
+#else
+#define ROVER_START heap_lo
+#define ROVER_SET(p) ((void)0)
+#endif
 void kestrel_log(const char *m);
 int snprintf(char *, size_t, const char *, ...);
 static size_t bsz_(uint8_t *b) { return *(size_t *)b & ~(size_t)1; }
@@ -58,15 +69,19 @@ void *malloc(size_t n)
 #endif
     if (!heap_init() || n > (size_t)(heap_hi - heap_lo)) { oom(n); errno = ENOMEM; return NULL; }
     size_t need = (n + HDR + ALIGN - 1) & ~(size_t)(ALIGN - 1);
-    for (uint8_t *b = heap_lo; b < heap_hi; b += bsize(b)) {
+    uint8_t *first_free = NULL;
+    for (uint8_t *b = ROVER_START; b < heap_hi; b += bsize(b)) {
         if (used(b)) continue;
         merge_next(b);
+        if (!first_free) first_free = b;
         size_t sz = bsize(b);
         if (sz < need) continue;
         if (sz - need >= HDR + ALIGN) { *hdr(b + need) = sz - need; sz = need; }
         *hdr(b) = sz | 1;
+        ROVER_SET(b == first_free ? b + sz : first_free);
         return b + HDR;
     }
+    ROVER_SET(first_free ? first_free : heap_hi);
     oom(n);
     errno = ENOMEM;
     return NULL;
@@ -78,6 +93,9 @@ void free(void *p)
     uint8_t *b = (uint8_t *)p - HDR;
     *hdr(b) = bsize(b);
     merge_next(b);
+#ifdef KESTREL_HEAP_ROVER
+    if (b < ROVER_START) rover = b;
+#endif
 }
 
 void *calloc(size_t a, size_t b)
@@ -101,6 +119,9 @@ void *realloc(void *p, size_t n)
         size_t sz = bsize(b);
         if (sz - need >= HDR + ALIGN) { *hdr(b + need) = sz - need; sz = need; }
         *hdr(b) = sz | 1;
+#ifdef KESTREL_HEAP_ROVER
+        if (rover > b && rover < b + sz) rover = b + sz;   /* the grown block swallowed the rover's free block */
+#endif
         return p;
     }
     void *q = malloc(n);

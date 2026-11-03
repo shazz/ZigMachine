@@ -6,12 +6,16 @@ s/^\tcyd->oversample = MAX_OVERSAMPLE;$/\tcyd->oversample = 0; \/* KESTREL *\//
 # frame_cost: the synth runs every channel every sample, played or not.
 /^static Sint32 cyd_output_channel(CydEngine \*cyd, CydChannel \*chn)$/i\
 static int kestrel_osc_needed = 1; /* KESTREL: set by cyd_output before each channel */\
-static int kestrel_heard(const CydEngine *cyd, int i) /* KESTREL */\
+static Uint32 kestrel_ringed; /* KESTREL: channels a gated channel ring-modulates from, this sample */\
+static int kestrel_heard(const CydEngine *cyd, int i) /* KESTREL: called for i = 0, 1, ... each sample */\
 {\
-	if (cyd->channel[i].flags & CYD_CHN_ENABLE_GATE) return 1;\
-	for (int c = 0 ; c < cyd->n_channels ; ++c)\
-		if ((cyd->channel[c].flags & (CYD_CHN_ENABLE_GATE | CYD_CHN_ENABLE_RING_MODULATION)) == (CYD_CHN_ENABLE_GATE | CYD_CHN_ENABLE_RING_MODULATION) && cyd->channel[c].ring_mod == i) return 1;\
-	return 0;\
+	if (i == 0)\
+	{\
+		kestrel_ringed = 0;\
+		for (int c = 0 ; c < cyd->n_channels ; ++c)\
+			if ((cyd->channel[c].flags & (CYD_CHN_ENABLE_GATE | CYD_CHN_ENABLE_RING_MODULATION)) == (CYD_CHN_ENABLE_GATE | CYD_CHN_ENABLE_RING_MODULATION)) kestrel_ringed |= 1u << (cyd->channel[c].ring_mod & 31);\
+	}\
+	return (cyd->channel[i].flags & CYD_CHN_ENABLE_GATE) || (kestrel_ringed >> i & 1);\
 }\
 
 s/^\t\t\tif (chn->subosc\[s\].frequency != 0)$/\t\t\tif (chn->subosc[s].frequency != 0 \&\& kestrel_osc_needed) \/* KESTREL *\//

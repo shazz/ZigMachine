@@ -9,7 +9,7 @@ import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
 
 const FRAMES = +(process.argv[2] ?? 60), OUT = process.argv[3] ?? "apps/ports/klystrack/build/frame";
-const CART = "apps/ports/klystrack/build/demo-klystrack.wasm";
+const CART = process.env.CART ?? "apps/ports/klystrack/build/demo-klystrack.wasm"; // CART=...: another build (a before/after)
 const DISK = await readFile("docs/demo-klystrack.zmd").catch(() => null); // the drive's floppy
 const CLICKS = (process.env.CLICKS ?? "").split(";").filter(Boolean).map((c) => c.split(",").map(Number)); // frame,x,y (klystrack 320x240 coords)
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });

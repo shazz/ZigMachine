@@ -227,6 +227,26 @@ static int make_indexed(SDL_Texture *t, SDL_Surface *s)
     Uint8 *idx = malloc((size_t)s->w * (size_t)s->h);
     Uint32 *pal = malloc(256 * 4);
     if (!idx || !pal) { free(idx); free(pal); return 0; }
+    if (IS8(s)) {   /* an INDEX8 surface: hash each surface index once, then one table read a pixel (same result) */
+        Uint16 map[256];
+        memset(map, 0xFF, sizeof map);
+        for (int y = 0; y < s->h; y++) {
+            const Uint8 *row = (const Uint8 *)s->pixels + y * s->pitch;
+            for (int x = 0; x < s->w; x++) {
+                Uint8 i = row[x];
+                if (map[i] == 0xFFFF) {
+                    Uint32 c = surf_value(s, x, y);
+                    unsigned h = (c * 2654435761u) >> 23;
+                    while (hu[h] && hk[h] != c) h = (h + 1) & 511;
+                    if (!hu[h]) { hu[h] = 1; hk[h] = c; hv[h] = (Uint16)n; pal[n++] = c; }
+                    map[i] = hv[h];
+                }
+                idx[y * s->w + x] = (Uint8)map[i];
+            }
+        }
+        t->idx = idx; t->pal = pal; t->npal = (int)n;
+        return 1;
+    }
     for (int y = 0; y < s->h; y++) {
         for (int x = 0; x < s->w; x++) {
             Uint32 c = surf_value(s, x, y);
@@ -436,6 +456,17 @@ static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_
         const Uint8 *ip = tex->idx + ty * tex->w + s->x;
         Uint32 *dp = t.px + (c->y + y) * t.pitch + c->x;
         Uint32 fx = (Uint32)ox * stepx;
+        if (stepx == 0x10000u && (m == SDL_BLENDMODE_NONE || m == SDL_BLENDMODE_BLEND)) {   /* unscaled: most UI art */
+            const Uint8 *sp = ip + ox;
+            if (m == SDL_BLENDMODE_NONE) for (int x = 0; x < c->w; x++) dp[x] = pal[sp[x]] | 0xFF000000u;
+            else for (int x = 0; x < c->w; x++) {
+                Uint32 p = pal[sp[x]];
+                unsigned a = p >> 24;
+                if (a == 255) dp[x] = p;
+                else if (a) dp[x] = blend_px(dp[x], p, a, m);
+            }
+            continue;
+        }
         for (int x = 0; x < c->w; x++, fx += stepx) {
             Uint32 p = pal[ip[fx >> 16]];
             unsigned a = p >> 24;
@@ -454,7 +485,8 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
     SDL_Rect d = dr ? (SDL_Rect){ dr->x + r->vx, dr->y + r->vy, dr->w, dr->h } : (SDL_Rect){ r->vx, r->vy, t.w, t.h };
     if (s.w <= 0 || s.h <= 0 || d.w <= 0 || d.h <= 0) return 0;
     /* source step in 16.16 per destination pixel; clipping moves the destination, the source follows */
-    Uint32 stepx = ((Uint32)s.w << 16) / (Uint32)d.w, stepy = ((Uint32)s.h << 16) / (Uint32)d.h;
+    Uint32 stepx = s.w == d.w ? 0x10000u : ((Uint32)s.w << 16) / (Uint32)d.w;   /* unscaled (each glyph): no divide */
+    Uint32 stepy = s.h == d.h ? 0x10000u : ((Uint32)s.h << 16) / (Uint32)d.h;
     SDL_Rect c = d;
     int ox = 0, oy = 0;
     if (!clip_rect(&c, &ox, &oy, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;

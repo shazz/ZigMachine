@@ -1369,3 +1369,34 @@ still read every pixel); klystrack at 11 kHz (halves cyd, dulls every song).
 -9 % on the gate's note); pitch and chip behaviour are upstream's tick for tick. A new pt2 write site that does
 not mark its rectangle leaves stale pixels: the check build finds it. klystrack plays slow on the board until cyd
 is cut further (fewer channels or taps, a lower rate) or moves to BARD (ROADMAP).
+
+## 2026-11-02 — klystrack repaints only while something moves; cyd sleeps when silent; the chorus LUT in integers
+
+**Status:** accepted (perf/klystrack-board; follows "ChipNomad's AY resampled by a box filter; pt2 presents only the rectangles it drew")
+**Context:** On the board klystrack ran 5-6 fps doing nothing (OSD cart_c 19.9 Mc) and took ~11 s to show its UI.
+`apps/frame_cost.mjs` (a names build: `make -C apps/ports/klystrack names`) showed the idle frames alternating 46.7 /
+3.2 Mc est: upstream repaints the whole UI 30 times a second whatever happens (`gfx_domain_is_next_frame` in the main
+loop and in each dialog's loop), and cyd mixes every channel every sample with nothing playing. boot() was 1002 Mc,
+630 of them a double `sin()` for each of the chorus LUT's 88,200 entries (`cydchr_set`, at every load of a song with
+a chorus). pt2's way (each draw site marks its rectangle) does not apply: klystrack repaints everything each time.
+**Decision:**
+- The 30 Hz repaint (main loop, msgbox, help, hub dialog) runs only while something moves: a song plays, one of the
+  last 15 repaints changed the picture (the presenter hashes each picture), an SDL timer fired (the info line clears
+  itself), or a key/click/drag was queued (it may open a dialog that paints on the tick). Events and song-position
+  changes repaint at once, as upstream. A frame with no present moves the SDL cursor over the last picture
+  (`kestrel_plane_cursor`): upstream never repaints for a plain pointer move.
+- cyd's callback is skipped (zeros fed) when no song is set, every channel's gate is off and envelope 0, and the
+  output has been exactly 0 for 2.2 s, longer than the reverb's 2 s delay line (no feedback) and the 50 ms chorus.
+- The chorus LUT comes from a generated Q30 sine table, linearly interpolated, phase stepped exactly: within +-1/256
+  sample of upstream (7 of 151,404 stream bytes differ by 1 LSB over a 7 s play).
+- `kestrel_heap.c` gets an opt-in first-fit rover (`-DKESTREL_HEAP_ROVER`, klystrack only): same blocks chosen; the
+  other three ports compile to the same object without it.
+**Alternatives considered:** a dirty-rectangle present (the union is the whole screen on every repaint); repaint at a
+lower fixed rate (still ~15 Mc a repaint on the board, every frame once a frame takes over 33 ms); a shadow copy of
+the last picture to compare (300 KB the heap does not spare; the hash is folded into the conversion the present
+already does); `CYD_PAUSED` when stopped (klystrack plays note previews and keyjazz through the same engine).
+**Consequences:** frame_cost idle 24.9 -> 0.72 Mc (cart 6.7 -> 0.02), boot() 1002 -> 204 Mc; playing unchanged
+(34.2: one repaint + cyd at 2.7x real time; next an 8-bit renderer target and cyd on BARD). Something that changes
+the picture with no event, timer or song after 15 identical repaints would not be drawn until the next event; none
+is known in klystrack. `apps/ports_headless.mjs klystrack` moves the pointer over the idle UI (`--break pointer`) and
+presses F5 only after cyd has gone quiet, so both new paths are gated.
