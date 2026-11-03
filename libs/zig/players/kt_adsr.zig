@@ -89,6 +89,15 @@ pub inline fn output(chn_flags: u32, a: *const c.Adsr, input: i32) i32 {
         const g: i32 = tab.ym_lut[idx % tab.YM_LUT_SIZE];
         return @divTrunc(@divTrunc(input *% g, 32768) *% vol, 128);
     }
+    // |input| < 2^15: input * a 16-bit gain fits 32 bits, and so does the volume's product, so the
+    // Sint64 arithmetic below gives the same value in 32 (BARD's rv32 does 64-bit in several ops).
+    if (input > -32768 and input < 32768) {
+        const v32: i32 = if (a.state == c.ATTACK)
+            @divTrunc(input * @divTrunc(@as(i32, @bitCast(a.envelope)), 0x10000), 256)
+        else
+            @divTrunc(input * @as(i32, tab.env_lut[(a.envelope / (65536 * 256 / tab.LUT_SIZE)) & (tab.LUT_SIZE - 1)]), 65536);
+        return @divTrunc(v32 * vol, 128);
+    }
     var v: i64 = undefined;
     if (a.state == c.ATTACK) {
         const e: i32 = @divTrunc(@as(i32, @bitCast(a.envelope)), 0x10000);

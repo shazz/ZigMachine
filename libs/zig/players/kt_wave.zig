@@ -39,16 +39,19 @@ pub inline fn cycle(w: *c.WaveState, entry: ?*const song.WaveEntry) void {
     const e = entry orelse return;
     if (!w.playing) return;
     const looped = e.flags & song.WAVE_LOOP != 0 and e.loop_end != e.loop_begin;
-    const lb: u64 = @as(u64, e.loop_begin) * RES;
-    const le: u64 = @as(u64, e.loop_end) * RES;
+    // Upstream's (Uint64) loop products land in a Uint32 acc: the same value mod 2^32, in 32 bits.
+    const lb: u32 = e.loop_begin *% RES;
+    const le: u32 = e.loop_end *% RES;
     if (w.direction == 0) {
+        // At frequency 0 (a sub-oscillator the note leaves unused) the phase stays where it is.
+        if (w.frequency == 0 and w.acc / RES < (if (looped) e.loop_end else e.samples)) return;
         w.acc +%= w.frequency;
         if (looped) {
             if (w.acc / RES >= e.loop_end) {
                 if (e.flags & song.WAVE_PINGPONG != 0) {
-                    w.acc = @truncate(le -% (@as(u64, w.acc) -% le));
+                    w.acc = le -% (w.acc -% le);
                     w.direction = 1;
-                } else w.acc = @truncate(@as(u64, w.acc) -% le +% lb);
+                } else w.acc = w.acc -% le +% lb;
             }
         } else if (w.acc / RES >= e.samples) w.playing = false;
         return;
@@ -58,10 +61,10 @@ pub inline fn cycle(w: *c.WaveState, entry: ?*const song.WaveEntry) void {
         const sacc: i32 = @bitCast(w.acc);
         if (@divTrunc(sacc, IRES) < @as(i32, @bitCast(e.loop_begin))) {
             if (e.flags & song.WAVE_PINGPONG != 0) {
-                const slb: i32 = @bitCast(@as(u32, @truncate(lb)));
+                const slb: i32 = @bitCast(lb);
                 w.acc = @bitCast(slb -% (sacc -% slb));
                 w.direction = 0;
-            } else w.acc = @truncate(@as(u64, w.acc) -% lb +% le);
+            } else w.acc = w.acc -% lb +% le;
         }
     } else if (@as(i32, @bitCast(w.acc)) < 0) w.playing = false;
 }
