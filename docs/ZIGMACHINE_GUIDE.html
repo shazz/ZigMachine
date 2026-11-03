@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-11-02 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-11-03 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -882,7 +882,7 @@ tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>s
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
-<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -934,6 +934,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 <td><code>.sap</code></td>
 <td>an Atari 8-bit tune's own 6502 code on the machine's POKEY (<code>libs/zig/players/sap_player.zig</code>): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console</td>
 <td>yes: <code>tune</code> counts from 1, 0 = the file's DEFSONG</td>
+</tr>
+<tr>
+<td><code>.kt</code></td>
+<td>a klystrack song: klystron's cyd synth and music.c sequencer in integer Zig (<code>libs/zig/players/kt.zig</code>), bit-exact against upstream, its 16-bit stereo on the four Paula channels (see <a href="#kt-klystrack">KT</a> below)</td>
+<td>no</td>
 </tr>
 <tr>
 <td><code>.hip</code></td>
@@ -1171,9 +1176,7 @@ archive's file byte for byte (<code>apps/xm_test_check.mjs</code> holds the md5s
 vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
 slide and the volume column's panning slide.</p>
 <p>The klystrack songs (<code>.kt</code>), upstream's example songs (kometbomb/klystrack, MIT, <code>apps/ports/klystrack/data/*.KT</code>
-copied byte for byte with lower-case names). KT TEST (keys 1-4) asks for them; no player takes <code>.kt</code> yet (the BARD
-player is the ROADMAP row "klystrack songs on BARD"), so today the request is dropped and the screen says
-"NO KT PLAYER YET". <code>fpga/tools/song_pack.py</code> skips a <code>.kt</code> literal with a note. <code>apps/kt_test_check.mjs</code> holds the md5s:</p>
+copied byte for byte with lower-case names). KT TEST (keys 1-4) plays them. <code>apps/kt_test_check.mjs</code> holds the md5s:</p>
 <table>
 <thead>
 <tr>
@@ -1241,6 +1244,39 @@ board, songs are linked into the firmware, so build <code>make board-fw CART=mus
 with the file in place: <code>fpga/tools/song_pack.py</code> packs <code>local.xm</code> when it is
 there and leaves it out, with a note, when it is not. That firmware then holds
 the song: keep it off anything you publish.</p>
+<h4 id="music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</h4>
+<p><code>zg.requestSong("song.kt")</code> plays a klystrack song, in the browser and on BARD. The player
+(<code>libs/zig/players/kt*.zig</code>) is klystron's own engine ported line for line to integer Zig: the
+sequencer (patterns, sequences, instrument programs, every command), the synth (pulse, saw,
+triangle, noise and LFSR oscillators, the SID and YM envelopes, the ladder filter, ring
+modulation, hard sync, FM, wavetables) and the FX buses (chorus, the 16-tap reverb, the bit
+crusher). It runs at the klystrack cart's 22050 Hz with no oversampling, only the song's
+channels, and skips the oscillator reads of a channel nobody hears.</p>
+<p><strong>It is bit-exact against upstream.</strong> <code>apps/ports/klystrack/kt_ref</code> builds upstream's cyd and
+music.c untouched (from <code>apps/ports/fetch.sh</code>) and renders a song as the klystrack cart plays it;
+<code>tools/kt_render.zig</code> renders the same song with the player; the four bundled songs are byte
+identical for 300 s. The gate pins 45 s of each (<code>libs/zig/players/kt_core_test.zig</code>,
+<code>apps/kt_check.mjs</code>). What "upstream" means where it is not defined:</p>
+<ul>
+<li>the chorus delay curve is the klystrack cart's integer one (<code>kestrel_chorus.c</code>, within 1/256 of a
+  sample of upstream's double <code>sin()</code>), computed when read rather than held as a 4 s table a bus;</li>
+<li><code>get_freq</code> reads one entry past the frequency table for a note in the top semitone (95.01-95.99):
+  the cart has 0 there, so 0 it is (kt_ref's <code>freqs.sed</code> makes upstream read the same);</li>
+<li>the random LFO shape's table is glibc's first 128 <code>rand()</code> (klystrack on Linux); the cart's
+  wasi-libc gives another. No bundled song uses that shape;</li>
+<li>libm's constants (pan and reverb gains, the vibrato sine) are upstream's exact values,
+  generated by <code>apps/ports/klystrack/kt_ref/kt_tables.c</code> into <code>kt_tables_gen.zig</code>.</li>
+</ul>
+<p><strong>Output:</strong> cyd's 16-bit stereo, each sample held for two 44.1 kHz frames, on the four Paula
+channels as a high and a low byte a side (high byte at volume 511/256, low byte at 2/256, hard
+left and right): <code>s = 256 h + l</code> plays as <code>(511 h + 2 l) / 65536</code>, the sample at full scale to
+within 1/512 of gain and half a 16-bit step, from 8-bit channels and no machine change. The scope
+view is the MOD's (mode 1): channels 0-1 show the wave, 2-3 its low bytes.</p>
+<p><strong>Refused</strong> (<code>audioKtError</code>): not a klystrack song (1), a version before 8 or after 27 (2), a
+truncated file (3), more than 16 channels (4), tables over the song RAM (5), more than 8 FX buses
+or a reverb tap above 0 dB (6), a bad wavetable (7), a pattern index or program out of range (8),
+FX delay lines that do not fit the song RAM at start (9). Memory: the song's tables, 2 s of reverb
+line a reverb bus (176 KB at 22050 Hz) and the chorus lines live in song RAM after the file.</p>
 <h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no
@@ -1398,5 +1434,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>
