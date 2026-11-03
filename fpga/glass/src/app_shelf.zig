@@ -3,13 +3,15 @@
 // restarting glass, which would kill the running cart.
 //
 // The shelf is indexed by position, so everything holding an index is carried over BY FILE
-// NAME: the running cart (app.current), the disk in the window (menu.loaded) and the cursor.
+// NAME: the running cart (app.current), the disk in the window (menu.loaded) and the cursor
+// (a row: its cart's file or its folder's name, keepCursor).
 // A running cart whose disk vanished stays listed, copied from the old shelf: the cart is
 // still in the window, the watchdog and a cart's requests still need its entry, and R then
 // says FileNotFound, which is the truth. A vanished disk that is not running simply goes.
 const std = @import("std");
 const shelf = @import("shelf.zig");
-const SHOWN = @import("page_shelf.zig").SHOWN;
+const page_shelf = @import("page_shelf.zig");
+const sv = @import("shelf_view.zig");
 const App = @import("app.zig").App;
 
 pub fn rescan(app: *App) void {
@@ -26,14 +28,27 @@ pub fn rescan(app: *App) void {
     app.current = remap(old, next.disks, app.current);
     app.menu.loaded = remap(old, next.disks, app.menu.loaded);
     app.drive = remap(old, next.disks, app.drive); // drive A keeps its disk by name, or empties
-    const cursor = if (old.len > 0) find(next.disks, old[app.menu.list.cursor].file) else null;
-    app.menu.list.cursor = cursor orelse @min(app.menu.list.cursor, next.disks.len -| 1);
-    app.menu.list.top = (app.menu.list.cursor + 1) -| SHOWN; // the cursor's row on screen
+    keepCursor(&app.menu.list, old, next.disks);
     app.disks.deinit();
     app.disks = next;
     app.menu.disks = next.disks;
     app.menu.setStatus("{s}: {d} carts", .{ if (app.floppy) "floppy" else "shelf", next.disks.len });
     std.log.info("shelf rescan: {d} carts", .{next.disks.len});
+}
+
+/// The cursor stays on its row's cart or folder (rows are positions too); out of a folder
+/// that is gone (its last disk removed, or the floppy has none), back at the top.
+fn keepCursor(list: *page_shelf.State, old: []const shelf.Disk, new: []const shelf.Disk) void {
+    const was = if (old.len > 0) list.view(old).at(list.cursor) else null;
+    if (list.folder_len > 0 and sv.count(new, list.folder()) == 0) list.folder_len = 0;
+    const v = list.view(new);
+    const row: ?usize = if (was) |w| switch (w) {
+        .disk => |i| if (find(new, old[i].file)) |k| v.rowOfDisk(k) else null,
+        .folder => |f| v.rowOfFolder(f),
+        .up => if (list.folder_len > 0) 0 else null,
+    } else null;
+    list.cursor = row orelse @min(list.cursor, v.len() -| 1);
+    list.top = (list.cursor + 1) -| page_shelf.SHOWN; // the cursor's row on screen
 }
 
 fn find(disks: []const shelf.Disk, file: []const u8) ?usize {
@@ -52,7 +67,7 @@ fn keep(s: *shelf.Shelf, d: shelf.Disk) !void {
     const titles = try a.alloc([]const u8, s.disks.len + 1);
     @memcpy(disks[0..s.disks.len], s.disks);
     @memcpy(titles[0..s.disks.len], s.titles);
-    disks[s.disks.len] = .{ .file = try a.dupe(u8, d.file), .title = try a.dupe(u8, d.title) };
+    disks[s.disks.len] = .{ .file = try a.dupe(u8, d.file), .title = try a.dupe(u8, d.title), .folder = try a.dupe(u8, d.folder) };
     titles[s.disks.len] = disks[s.disks.len].title;
     s.disks = disks;
     s.titles = titles;

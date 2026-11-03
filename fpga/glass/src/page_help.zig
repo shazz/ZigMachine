@@ -33,6 +33,8 @@ pub const table = [_]Entry{
     .{ .group = .shelf, .keys = "Up/Down", .what = "select a cart", .check = .{ .menu = &.{ K.KEY_ARROW_UP, K.KEY_ARROW_DOWN } } },
     .{ .group = .shelf, .keys = "PgUp/PgDn", .what = "a screenful", .check = .{ .menu = &.{ K.KEY_PAGE_UP, K.KEY_PAGE_DOWN } } },
     .{ .group = .shelf, .keys = "Enter", .what = "insert in A + reset", .check = .{ .menu = &.{ K.KEY_ENTER, ' ' } } },
+    .{ .group = .shelf, .keys = "Enter", .what = "on a folder: open", .check = .{ .menu = &.{K.KEY_ENTER} } },
+    .{ .group = .shelf, .keys = "Left/Bksp", .what = "folder: back up", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_BACKSPACE } } },
     .{ .group = .shelf, .keys = "I / E", .what = "insert/eject A", .check = .{ .menu = &.{ 'i', 'e' } } },
     .{ .group = .shelf, .keys = "R / W", .what = "cold/warm reset", .check = .{ .menu = &.{ 'r', 'w' } } },
     .{ .group = .shelf, .keys = "Shift", .what = "+R/W/Enter: no POST", .check = .shift_reset },

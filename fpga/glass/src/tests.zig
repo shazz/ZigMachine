@@ -16,6 +16,9 @@ test {
     _ = @import("menu.zig");
     _ = @import("menu_test.zig");
     _ = @import("shelf.zig");
+    _ = @import("shelf_test.zig");
+    _ = @import("shelf_view_test.zig");
+    _ = @import("app_folders_test.zig");
     _ = @import("config.zig");
     _ = @import("meta.zig");
     _ = @import("stats.zig");

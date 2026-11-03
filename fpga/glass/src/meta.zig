@@ -5,6 +5,8 @@
 //
 //   FILE <TAB> TITLE <TAB> GROUP <TAB> YEAR <TAB> TYPE <TAB> DESCRIPTION
 //
+// FILE is the disk's path under the shelf, its folder first ("demos/demo-stniccc.zmd",
+// fpga/tools/shelf_category.py); an older shelf.txt names the bare file.
 // Any field but FILE and TITLE may be empty. A side file, not a block inside the
 // .zmd: the disk format and the browser loader stay as they are, and the text is
 // fixable without repacking a disk.
@@ -32,11 +34,21 @@ pub const Table = struct {
     first_bad: u32 = 0,
     missing: bool = false,
 
-    pub fn find(self: *const Table, file: []const u8) ?Meta {
-        for (self.entries) |e| if (std.ascii.eqlIgnoreCase(e.file, file)) return e.meta;
+    /// The record of disk `file` in `folder` ("" at the shelf's top): the line naming that path,
+    /// else one naming the same file anywhere, so a flat card still finds a foldered shelf.txt's
+    /// lines and a foldered card an old flat one's.
+    pub fn find(self: *const Table, folder: []const u8, file: []const u8) ?Meta {
+        for (self.entries) |e| if (samePath(e.file, folder, file)) return e.meta;
+        for (self.entries) |e| if (std.ascii.eqlIgnoreCase(std.fs.path.basenamePosix(e.file), file)) return e.meta;
         return null;
     }
 };
+
+fn samePath(path: []const u8, folder: []const u8, file: []const u8) bool {
+    if (folder.len == 0) return std.ascii.eqlIgnoreCase(path, file);
+    return path.len == folder.len + 1 + file.len and path[folder.len] == '/' and
+        std.ascii.eqlIgnoreCase(path[0..folder.len], folder) and std.ascii.eqlIgnoreCase(path[folder.len + 1 ..], file);
+}
 
 /// Parse `text` into records allocated from `a` (an arena: they live as long as the shelf).
 pub fn parse(a: std.mem.Allocator, text: []const u8) !Table {
@@ -98,9 +110,22 @@ test "shelf.txt lines become records; short lines are counted, not kept" {
     try std.testing.expectEqual(@as(usize, 2), t.entries.len);
     try std.testing.expectEqual(@as(u32, 1), t.bad_lines);
     try std.testing.expectEqual(@as(u32, 3), t.first_bad);
-    const m = t.find("DEMO-STNICCC.zmd").?;
+    const m = t.find("", "DEMO-STNICCC.zmd").?;
     try std.testing.expectEqualStrings("Oxygene", m.group);
     try std.testing.expectEqualStrings("The flight.", m.desc);
-    try std.testing.expectEqualStrings("", t.find("demo-x.zmd").?.year);
-    try std.testing.expectEqual(@as(?Meta, null), t.find("demo-unknown.zmd"));
+    try std.testing.expectEqualStrings("", t.find("", "demo-x.zmd").?.year);
+    try std.testing.expectEqual(@as(?Meta, null), t.find("", "demo-unknown.zmd"));
+}
+
+test "a foldered line is found by its path first, then by its file name on a flat card" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const t = try parse(arena.allocator(), "games/demo-joust.zmd\tJOUST GAME\nold/demo-joust.zmd\tJOUST OLD\n" ++
+        "demos/demo-stniccc.zmd\tSTNICCC\ndemo-flat.zmd\tFLAT\n");
+    try std.testing.expectEqualStrings("JOUST OLD", t.find("old", "demo-joust.zmd").?.title); // the path wins
+    try std.testing.expectEqualStrings("JOUST GAME", t.find("", "demo-joust.zmd").?.title); // flat card: the file
+    try std.testing.expectEqualStrings("STNICCC", t.find("Demos", "DEMO-STNICCC.ZMD").?.title);
+    try std.testing.expectEqualStrings("FLAT", t.find("demos", "demo-flat.zmd").?.title); // an old flat shelf.txt
+    try std.testing.expectEqual(@as(?Meta, null), t.find("demos", "demo-stniccc.zmdx"));
+    try std.testing.expectEqual(@as(?Meta, null), t.find("games", "joust.zmd")); // not a suffix match
 }

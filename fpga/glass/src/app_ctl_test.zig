@@ -47,7 +47,7 @@ test "load by file name runs the cart and closes the menu; a wrong name is an er
     defer r.deinit();
     var a = try rigApp(r);
     defer a.deinit();
-    try expectStarts(run(&a, "list"), "a.zmd\tFat Disk\nb.zmd\tWasm Only\nok 2 disks");
+    try expectStarts(run(&a, "list"), "a.zmd\tFat Disk\t\nb.zmd\tWasm Only\t\nok 2 disks");
     try expectStarts(run(&a, "load nope.zmd"), "err no disk nope.zmd");
     try expectStarts(run(&a, "load b.zmd"), "err b.zmd: NoDesktop"); // a data disk: KOS's desktop over it
     try expectStarts(run(&a, "load A.ZMD"), "ok a.zmd running");

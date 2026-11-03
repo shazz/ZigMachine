@@ -47,10 +47,9 @@ fn reply(w: *std.Io.Writer, comptime fmt: []const u8, args: anytype) void {
     w.print(fmt, args) catch {}; // a reply longer than the buffer is cut, never fatal
 }
 
+/// `demo-x.zmd` or its folder path `demos/demo-x.zmd` (shelf_view.find).
 fn find(app: *App, file: []const u8) ?usize {
-    for (app.disks.disks, 0..) |d, i| if (std.mem.eql(u8, d.file, file)) return i;
-    for (app.disks.disks, 0..) |d, i| if (std.ascii.eqlIgnoreCase(d.file, file)) return i;
-    return null;
+    return @import("shelf_view.zig").find(app.disks.disks, file);
 }
 
 fn load(app: *App, file: []const u8, program: ?[]const u8, w: *std.Io.Writer) void {
@@ -116,7 +115,8 @@ fn quit(app: *App, w: *std.Io.Writer) void {
 }
 
 fn list(app: *App, w: *std.Io.Writer) void {
-    for (app.disks.disks) |d| reply(w, "{s}\t{s}\n", .{ d.file, d.title });
+    // The bare file first (what `load` and scripts take), the folder last: an older reader keeps working.
+    for (app.disks.disks) |d| reply(w, "{s}\t{s}\t{s}\n", .{ d.file, d.title, d.folder });
     reply(w, "ok {d} disks\n", .{app.disks.disks.len});
 }
 

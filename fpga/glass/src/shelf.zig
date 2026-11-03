@@ -5,14 +5,23 @@
 // A file that is not a disk is listed under its file name, marked, so a bad
 // copy is visible in the menu instead of silently missing. shelf.txt (meta.zig)
 // gives a disk its catalog title, group, year and description when it lists it.
+//
+// Folders (docs/FPGA_GLASS.md, "The menu"): a disk sits at the shelf's top (a flat,
+// older card) or one level down, in a category folder (demos/, games/, ...:
+// fpga/tools/shelf_category.py). The menu shows the folders first (shelf_view.zig).
+// A disk is still known by its bare FILE name everywhere (the control channel,
+// glass.cfg's drive A, a cart's REQ_LOAD_CART, progs/demo-<tag>/): its folder only
+// says where it is read from. progs/ and kos/ are the shelf's own, never folders.
 const std = @import("std");
 const zmd = @import("zmd.zig");
 const meta = @import("meta.zig");
 
 pub const MAX_DISK = 16 << 20; // the host's disk cap (docs/FLOPPY_DISK.md)
 const HEADER = 0xC00; // v2's boot sector + descriptor + FAT; v1 needs less
+pub const MAX_FOLDER = 24; // a longer directory name is not a category folder
+const NOT_FOLDERS = [_][]const u8{ "progs", "kos" }; // a data disk's programs, KOS's desktop
 
-pub const Disk = struct { file: []const u8, title: []const u8, meta: ?meta.Meta = null };
+pub const Disk = struct { file: []const u8, title: []const u8, folder: []const u8 = "", meta: ?meta.Meta = null };
 
 pub const Shelf = struct {
     arena: std.heap.ArenaAllocator,
@@ -25,7 +34,10 @@ pub const Shelf = struct {
     }
 
     pub fn path(self: *Shelf, dir: []const u8, i: usize) ![]const u8 {
-        return std.fs.path.join(self.arena.allocator(), &.{ dir, self.disks[i].file });
+        const d = self.disks[i];
+        const a = self.arena.allocator();
+        if (d.folder.len == 0) return std.fs.path.join(a, &.{ dir, d.file });
+        return std.fs.path.join(a, &.{ dir, d.folder, d.file });
     }
 };
 
@@ -49,6 +61,56 @@ fn titleOf(a: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, name: []const u8) 
     return a.dupe(u8, disk.title);
 }
 
+fn isFolder(e: std.Io.Dir.Entry) bool {
+    if (e.kind != .directory or e.name.len == 0 or e.name.len > MAX_FOLDER or e.name[0] == '.') return false;
+    for (NOT_FOLDERS) |n| if (std.ascii.eqlIgnoreCase(e.name, n)) return false;
+    return true;
+}
+
+fn isDisk(e: std.Io.Dir.Entry) bool {
+    return e.kind == .file and std.ascii.endsWithIgnoreCase(e.name, ".zmd");
+}
+
+/// Every disk directly in `dir`, listed as in `folder`; with `sub`, every folder's too.
+fn collect(a: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, folder: []const u8, sub: bool, list: *std.ArrayList(Disk)) !void {
+    var it = dir.iterate();
+    while (try it.next(io)) |e| {
+        if (isDisk(e)) {
+            const name = try a.dupe(u8, e.name);
+            try list.append(a, .{ .file = name, .title = try titleOf(a, io, dir, name), .folder = folder });
+        } else if (sub and isFolder(e)) {
+            var child = dir.openDir(io, e.name, .{ .iterate = true }) catch |err| {
+                std.log.warn("shelf: folder {s}: {t}", .{ e.name, err });
+                continue;
+            };
+            defer child.close(io);
+            try collect(a, io, child, try a.dupe(u8, e.name), false, list);
+        }
+    }
+}
+
+/// A disk left at the top of a card that also carries it in a folder (an old flat copy
+/// nobody deleted) is dropped: the bare name must name ONE disk.
+fn dropFlatCopies(list: *std.ArrayList(Disk)) void {
+    var i: usize = 0;
+    while (i < list.items.len) {
+        const d = list.items[i];
+        const folder = foldered(list.items, d) orelse {
+            i += 1;
+            continue;
+        };
+        std.log.warn("shelf: {s} is in {s}/ too: the flat copy is ignored", .{ d.file, folder });
+        _ = list.orderedRemove(i);
+    }
+}
+
+/// The folder that also holds flat disk `d`, if any.
+fn foldered(disks: []const Disk, d: Disk) ?[]const u8 {
+    if (d.folder.len > 0) return null;
+    for (disks) |o| if (o.folder.len > 0 and std.mem.eql(u8, o.file, d.file)) return o.folder;
+    return null;
+}
+
 pub fn scan(gpa: std.mem.Allocator, io: std.Io, dir_path: []const u8) !Shelf {
     var shelf = Shelf{ .arena = .init(gpa) };
     errdefer shelf.deinit();
@@ -56,17 +118,13 @@ pub fn scan(gpa: std.mem.Allocator, io: std.Io, dir_path: []const u8) !Shelf {
     var dir = try std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true });
     defer dir.close(io);
     var list: std.ArrayList(Disk) = .empty;
-    var it = dir.iterate();
-    while (try it.next(io)) |e| {
-        if (e.kind != .file or !std.ascii.endsWithIgnoreCase(e.name, ".zmd")) continue;
-        const name = try a.dupe(u8, e.name);
-        try list.append(a, .{ .file = name, .title = try titleOf(a, io, dir, name) });
-    }
+    try collect(a, io, dir, "", true, &list);
+    dropFlatCopies(&list);
     shelf.table = meta.load(a, io, dir) catch |err| blk: {
         std.log.warn("{s}: {t}", .{ meta.FILE, err });
         break :blk .{ .missing = true };
     };
-    for (list.items) |*d| if (shelf.table.find(d.file)) |m| {
+    for (list.items) |*d| if (shelf.table.find(d.folder, d.file)) |m| {
         d.meta = m;
         d.title = m.title;
     };
@@ -75,50 +133,4 @@ pub fn scan(gpa: std.mem.Allocator, io: std.Io, dir_path: []const u8) !Shelf {
     shelf.titles = try a.alloc([]const u8, list.items.len);
     for (list.items, shelf.titles) |d, *t| t.* = d.title;
     return shelf;
-}
-
-test "the shelf lists disks by title, titles from their descriptors" {
-    const gpa = std.testing.allocator;
-    const io = std.testing.io;
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    const a = try zmd.testDisk(gpa, "Union Demo", &.{});
-    defer gpa.free(a);
-    try tmp.dir.writeFile(io, .{ .sub_path = "b-union.zmd", .data = a });
-    try tmp.dir.writeFile(io, .{ .sub_path = "a-broken.ZMD", .data = "not a disk" });
-    try tmp.dir.writeFile(io, .{ .sub_path = "notes.txt", .data = "ignored" });
-    const dir_path = try std.fmt.allocPrint(gpa, ".zig-cache/tmp/{s}", .{tmp.sub_path});
-    defer gpa.free(dir_path);
-    var shelf = try scan(gpa, io, dir_path);
-    defer shelf.deinit();
-    try std.testing.expectEqual(@as(usize, 2), shelf.disks.len);
-    try std.testing.expectEqualStrings("?a-broken.ZMD", shelf.titles[0]);
-    try std.testing.expectEqualStrings("Union Demo", shelf.titles[1]);
-    try std.testing.expect(shelf.table.missing and shelf.disks[1].meta == null);
-    try tmp.dir.writeFile(io, .{ .sub_path = meta.FILE, .data = "b-union.zmd\tUNION DEMO\tThe Union\t1989\n" });
-    var again = try scan(gpa, io, dir_path);
-    defer again.deinit();
-    try std.testing.expectEqualStrings("UNION DEMO", again.titles[1]);
-    try std.testing.expectEqualStrings("1989", again.disks[1].meta.?.year);
-    try std.testing.expectEqualStrings("?a-broken.ZMD", again.titles[0]); // not listed: its own name
-}
-
-test "the shelf sorts by the title shown, not the file name" {
-    const gpa = std.testing.allocator;
-    const io = std.testing.io;
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    for ([_][2][]const u8{ .{ "demo-a.zmd", "zebra" }, .{ "demo-b.zmd", "Apple" }, .{ "demo-c.zmd", "mango" } }) |d| {
-        const disk = try zmd.testDisk(gpa, d[1], &.{});
-        defer gpa.free(disk);
-        try tmp.dir.writeFile(io, .{ .sub_path = d[0], .data = disk });
-    }
-    const dir_path = try std.fmt.allocPrint(gpa, ".zig-cache/tmp/{s}", .{tmp.sub_path});
-    defer gpa.free(dir_path);
-    var shelf = try scan(gpa, io, dir_path);
-    defer shelf.deinit();
-    try std.testing.expectEqualStrings("Apple", shelf.titles[0]);
-    try std.testing.expectEqualStrings("mango", shelf.titles[1]);
-    try std.testing.expectEqualStrings("zebra", shelf.titles[2]);
-    try std.testing.expectEqualStrings("demo-b.zmd", shelf.disks[0].file);
 }

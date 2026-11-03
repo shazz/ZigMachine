@@ -57,16 +57,40 @@ pub const Menu = struct {
     }
 
     fn shelfKey(self: *Menu, code: u32) Action {
-        return switch (self.list.key(code, self.disks.len)) {
+        const view = self.list.view(self.disks);
+        return switch (self.list.key(code, view.len())) {
             .none => .none,
             .close => .close,
-            .load => .{ .load = self.list.cursor },
-            .insert => .{ .insert = self.list.cursor },
+            .open => self.open(view),
+            .insert => if (self.cursorDisk(view)) |i| .{ .insert = i } else .none,
+            .up => blk: {
+                _ = self.list.leave(self.disks);
+                break :blk .none;
+            },
             .eject => .eject,
             .console => self.go(.console),
             .cold => .cold,
             .warm => .warm,
             .source => .source,
+        };
+    }
+
+    /// Enter on the cursor's row: a cart loads, a folder opens, ".." goes back up.
+    fn open(self: *Menu, view: page_shelf.View) Action {
+        switch (view.at(self.list.cursor) orelse return .none) {
+            .disk => |i| return .{ .load = i },
+            .folder => |f| self.list.enter(f, self.disks),
+            .up => {
+                _ = self.list.leave(self.disks);
+            },
+        }
+        return .none;
+    }
+
+    fn cursorDisk(self: *const Menu, view: page_shelf.View) ?usize {
+        return switch (view.at(self.list.cursor) orelse return null) {
+            .disk => |i| i,
+            else => null,
         };
     }
 

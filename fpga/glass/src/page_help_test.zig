@@ -15,24 +15,27 @@ const test_rig = @import("test_rig.zig");
 const press = test_rig.press;
 
 /// Everything a menu key can change, to tell "handled" from "ignored".
-const Seen = struct { action: std.meta.Tag(menu.Action), page: menu.Page, cursor: usize, top: usize, item: usize, volume: u8, mute: bool, help_top: usize };
+const Seen = struct { action: std.meta.Tag(menu.Action), page: menu.Page, cursor: usize, top: usize, folder: usize, item: usize, volume: u8, mute: bool, help_top: usize };
 
 fn seen(m: *const menu.Menu, a: menu.Action) Seen {
-    return .{ .action = a, .page = m.page, .cursor = m.list.cursor, .top = m.list.top, .item = m.console.cursor, .volume = m.settings.volume, .mute = m.settings.mute, .help_top = m.help_top };
+    return .{ .action = a, .page = m.page, .cursor = m.list.cursor, .top = m.list.top, .folder = m.list.folder_len, .item = m.console.cursor, .volume = m.settings.volume, .mute = m.settings.mute, .help_top = m.help_top };
 }
 
 /// The menu on `page` in a few starting states (a cursor mid-list, the volume mid-way), so a
 /// key that only acts on some item still shows; true if `code` changed anything in any of them.
+/// The shelf is tried flat and inside a folder (shelf_view.zig): Left and Backspace only act
+/// in one, and the first cart of `disks` is in folder "demos".
 fn handled(page: menu.Page, code: u32, disks: []const shelf.Disk) bool {
-    for ([_]usize{ 0, 2 }) |item| {
-        var m = menu.Menu{ .disks = disks, .page = page, .help_top = 3 };
+    for ([_]usize{ 0, 2 }) |item| for ([_]bool{ false, true }) |in_folder| {
+        var m = menu.Menu{ .disks = if (in_folder) disks else disks[1..], .page = page, .help_top = 3 };
         m.list = .{ .cursor = 5, .top = 2 };
+        if (in_folder) m.list.enter("demos", disks);
         m.console.cursor = item;
         m.settings.volume = 128;
         const before = seen(&m, .none);
         const a = m.key(code | map.KEY_DOWN);
         if (!std.meta.eql(before, seen(&m, a))) return true;
-    }
+    };
     return false;
 }
 
@@ -50,6 +53,7 @@ fn pageOf(g: help.Group) menu.Page {
 test "every menu key the help lists is handled by the page it names" {
     var disks: [20]shelf.Disk = undefined;
     for (&disks) |*d| d.* = .{ .file = "x.zmd", .title = "x" };
+    disks[0].folder = "demos"; // handled() opens it: the folder keys act there
     for (help.table) |e| switch (e.check) {
         .menu => |codes| for (codes) |code| {
             if (!handled(pageOf(e.group), code, &disks)) {
@@ -134,7 +138,7 @@ test "the help page fits the strip's layout and scrolls within its lines" {
     o.dump(&dump);
     try std.testing.expect(std.mem.indexOf(u8, &dump, "\n  GLOBAL ---") != null); // strip, gap, heading
     try std.testing.expect(std.mem.indexOf(u8, &dump, "\nH F12        open/close the OSD") != null);
-    try std.testing.expect(std.mem.indexOf(u8, &dump, " ZIGMACHINE  HELP   1-14/31  Esc") != null);
+    try std.testing.expect(std.mem.indexOf(u8, &dump, " ZIGMACHINE  HELP   1-14/33  Esc") != null);
     try std.testing.expectEqual(menu.Action.none, m.key(map.KEY_ESCAPE | map.KEY_DOWN));
     try std.testing.expectEqual(menu.Page.console, m.page);
     m.page = .console; // Help... is the console's item below Debug...
