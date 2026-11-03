@@ -43,6 +43,7 @@ pub const KtPlayer = struct {
         if (len > chip.BUF_OFFSET) return error.TooLarge;
         const base: [*]u8 = @ptrFromInt(audio.SONG_BASE);
         const from = (len + 7) & ~@as(u32, 7);
+        if (from >= chip.BUF_OFFSET) return error.TooLarge;
         try self.core.load(base[0..len], base[from..chip.BUF_OFFSET]);
     }
 
