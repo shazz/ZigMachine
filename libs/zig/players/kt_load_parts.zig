@@ -138,6 +138,8 @@ pub fn wave(r: *rd.Reader, e: *s.WaveEntry, arena: *Arena) rd.Error!void {
     e.loop_end = try r.u32_();
     e.base_note = try r.u16_();
     e.data = null;
+    e.span = (e.loop_end -% e.loop_begin) *% 2048; // WAVETABLE_RESOLUTION
+    e.span_inv = if (e.span > 1) @intCast((@as(u64, 1) << 32) / e.span) else 0;
     if (e.samples == 0) return;
     if (e.samples > 1 << 20) return error.BadWave;
     const out = arena.alloc(i16, e.samples) catch return error.TooLarge;

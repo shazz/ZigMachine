@@ -13,6 +13,18 @@ const osc = @import("kt_osc.zig");
 const MODULATOR_MAX: u32 = 1024;
 const fb_shift = [8]u5{ 0, 6, 5, 4, 3, 2, 1, 0 }; // log2 of fbtab {0, 64, 32, 16, 8, 4, 2, 1}
 
+/// x % e.span with no divide (BARD has none: a `%` is a libgcc loop): q from the precomputed
+/// 2^32 / span is the quotient or one or two short, so the remainder is exact after at most two
+/// subtractions.
+inline fn modSpan(x: u32, e: *const song.WaveEntry) u32 {
+    if (x < e.span) return x;
+    if (e.span <= 1) return 0; // span 1: everything is 0 mod 1 (span 0 never reaches here)
+    const q: u32 = @intCast((@as(u64, x) * e.span_inv) >> 32);
+    var r = x -% q *% e.span;
+    while (r >= e.span) r -= e.span;
+    return r;
+}
+
 /// The feedback term: (Uint64)(fb1 + fb2) / 2 * (span * 4 / fbtab[feedback]) / MODULATOR_MAX.
 inline fn feedback(fm: *const c.Fm, span: u32) u32 {
     const fbsum: u64 = fm.fb1 +% fm.fb2;
@@ -22,11 +34,11 @@ inline fn feedback(fm: *const c.Fm, span: u32) u32 {
 
 fn modulator(fm: *const c.Fm) u32 {
     if (fm.flags & c.WAVE != 0) if (fm.wave_entry) |e| {
-        const length: u32 = (e.loop_end -% e.loop_begin) *% c.WAVETABLE_RESOLUTION;
+        const length = e.span;
         if (length == 0) return 0;
         var acc = fm.wave.acc;
         if (fm.feedback != 0) acc +%= feedback(fm, length);
-        const smp: i64 = wave.sample(&fm.wave, e, acc % length);
+        const smp: i64 = wave.sample(&fm.wave, e, modSpan(acc, e));
         return @truncate(@as(u64, @bitCast(@divTrunc(smp * fm.env_output, 32768) + 65536)));
     };
     var acc = fm.accumulator;
@@ -56,7 +68,8 @@ pub fn modulate(fm: *const c.Fm) u32 {
 /// cydfm_modulate_wave: a wavetable carrier's phase, offset within its loop.
 pub fn modulateWave(fm: *const c.Fm, e: *const song.WaveEntry, acc: u32) u32 {
     if (e.loop_begin == e.loop_end) return acc;
-    const length: u32 = (e.loop_end -% e.loop_begin) *% c.WAVETABLE_RESOLUTION;
+    const length = e.span;
+    if (length == 0) return 0; // upstream divides by 0 here: a loop of 2^21 samples; never in a real song
     const m: u32 = (fm.current_modulation *% length *% 8) / MODULATOR_MAX;
-    return (m +% acc) % length;
+    return modSpan(m +% acc, e);
 }

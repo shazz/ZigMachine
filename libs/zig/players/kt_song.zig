@@ -124,6 +124,10 @@ pub const WaveEntry = struct {
     loop_end: u32 = 0,
     base_note: u16 = 0,
     data: ?[*]const i16 = null,
+    // The FM's modulus, the loop in phase units ((loop_end - loop_begin) * 2048, a Uint32 that
+    // wraps as upstream's CydWaveAcc), and 2^32 / it: x % span by a multiply (kt_fm.zig).
+    span: u32 = 0,
+    span_inv: u32 = 0,
 };
 
 pub const Song = struct {
