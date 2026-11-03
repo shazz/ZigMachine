@@ -28,7 +28,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.xm` | FastTracker 2, up to 12 channels, mixed in software onto the four Paula channels (two voices a channel up to 8 channels, three a channel for 9..12; `libs/zig/players/xm.zig`, see [XM](#xm-fasttracker-2) below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
-| `.kt` | a klystrack song: klystron's cyd synth and music.c sequencer in integer Zig (`libs/zig/players/kt.zig`), bit-exact against upstream, its 16-bit stereo on the four Paula channels (see [KT](#kt-klystrack) below) | no |
+| `.kt` | a klystrack song: klystron's cyd synth and music.c sequencer in integer Zig (`libs/zig/players/kt.zig`), bit-exact against upstream, its 16-bit stereo on the four Paula channels (see [KT](#kt-klystrack) below) | no: `tune` is the sequence row to start at (0 = the start) |
 | `.hip` | a Jochen Hippel **Amiga** module as UADE plays it: the module's own 68000 replay on the SNDH player's Musashi, poking an emulated Paula (`libs/zig/players/hip_player.zig`, `paula.zig`) on the four sample channels. A file that is not a `bra` jump table plus a `TFMX` song is refused | yes: `tune` counts from 1, 0 = the first song |
 
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
