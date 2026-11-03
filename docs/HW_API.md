@@ -66,10 +66,10 @@ memory.
 | `0x20` | `FB_HBL_ID[4]` | u16×4 | per-plane HBL handler id (`0` = none) |
 | `0x28` | `FB_HBL_POS[4]` | u16×4 | x position at which the per-plane HBL fires |
 | `0x30` | `FRAME` | u32 (ro) | frame counter (incremented by `hwClear`) |
-| `0x34` | `FB_STRIDE[4]` | u16×4 | per-plane row stride in px (320 normal · 400 fullscreen · any SCROLL buffer width) |
+| `0x34` | `FB_STRIDE[4]` | u16×4 | per-plane row stride in BYTES, = px for the 8-bit modes (320 normal · 400 fullscreen · any SCROLL buffer width; 640 / 800 for a 1.15.0 true-colour plane) |
 | `0x3C` | `HSCROLL[4]` | u16×4 | per-plane horizontal offset — **re-read per scanline in SCROLL and (1.10.0) OVERSCAN mode** (line distort): a byte (= pixel) offset added to the line's first byte, no wrap; FULLSCREEN latches it once a frame and wraps within the row |
 | `0x44` | `FB_BASE[4]` | u32×4 | per-plane framebuffer screen base (byte offset into the region; the pan point) |
-| `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (always-open overscan) · `2` scroll · `3` medium · `4` overscan (trick-gated) |
+| `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (always-open overscan) · `2` scroll · `3` medium · `4` overscan (trick-gated) · **1.15.0** `5` true colour (RGB565, 320×200) · `6` true colour full (RGB565, 400×280, borders open) |
 | `0x58` | `RES_FLICKER` | u16 | overscan-trick latch: the SDK bumps it on a `RES_MEDIUM`→`RES_PLANES` flicker so the machine can observe the (untrappable) poke once per scanline |
 | `0x5C` | `CART_HIGH` | u32 | the running cart's data+stack high-water, declared by the host at load time (`hwSetCartHigh`). Survives `hwInit`. `0` = undeclared. Backs the RAM instructions in §4c |
 | `0x60` | `ROM_HIGH` | u32 | the same for the ROM module's window (`hwSetRomHigh`). `0` = no ROM chip fitted |
@@ -121,6 +121,35 @@ can set the plane's line source address: from that line on, line r reads
 `v + (r - r0) * stride` (+ `HSCROLL`), the STE's video counter `$FF8205/07/09`; every frame
 starts again from `FB_BASE`, which LBASE never writes. Any mode, byte-aligned, `v` in VRAM
 or the list stops. Distorters, wobbles, flips and line zooms become data.
+
+### True-colour planes — since 1.15.0
+
+`FB_MODE = 5` (`TRUECOLOR`) and `6` (`TRUECOLOR_FULL`): a pixel is a little-endian `u16`
+**R5 G6 B5** (`r << 11 | g << 5 | b`) with no palette, the Falcon's hi-colour. The machine
+expands it by bit replication (`R8 = r << 3 | r >> 2`, `G8 = g << 2 | g >> 4`, `B8 = b << 3 | b >> 2`:
+`0xFFFF` is white, `0x0000` black; Hatari's Videl conversion is the same formula) and writes it
+with alpha 255. It is a plane like the others, through the same line loop: planes over and under
+it, its own HBL handler, its copper list (LBASE, REG HSCROLL, FLICK; PAL / PALREF write a palette
+it never reads), HSCROLL and the board's dirty lines all work.
+
+| Mode | Buffer | Lines | Into the raster | HBL line numbers |
+|---|---|---|---|---|
+| `5` | 320×200, stride 640 B | 40..239 | doubled, from x 80 | logical 0..199 |
+| `6` | 400×280, stride 800 B | 0..279 | doubled, from x 0, borders open (nothing to earn) | physical 0..279 |
+
+- `FB_STRIDE`, `HSCROLL` (re-read every line, after the handler and the record, as in SCROLL
+  mode, no wrap) and an LBASE are **byte** offsets. **Bit 0 of a line's address is ignored**: an
+  odd `FB_BASE`, LBASE, `HSCROLL` or stride shows the even pixel below (the STE's `$FF820D` has no
+  bit 0 either). Line `r` reads `(base + (r - r0) * stride + HSCROLL) & ~1`.
+- No colour key: a true-colour plane covers everything under it where it draws. Put an 8-bit plane
+  with transparent entries over it for sprites or text.
+- ZigOS: `const tc = fb.setTruecolorPlane(.window)` (or `.full`) returns a `zg.tc.Fb`
+  (`row`, `put`, `put2` two pixels a 32-bit store, `fill`, `copyRect`); `zg.tc.rgb565(r, g, b)`;
+  `zg.truecolorBuffer(.window)` a second buffer and `fb.showTruecolor(next)` to flip to it.
+  The u8 drawing methods (`setPixelValue`, `printText`, blits by pixel) do not apply.
+- Cost on KESTREL: one plane pass a line, as a normal or overscan plane (the fetch is twice the
+  bytes). `apps/zig/scenes/mpp_truecolor.zig` mode 3 is the worked example; the design and its LUT
+  bill: `fpga/review/TRUECOLOR_PLANE.md`, `decisions.md` 2026-11-02 "True-colour plane".
 
 ### Opening the borders (overscan) — the ST timing trick
 

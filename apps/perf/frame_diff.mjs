@@ -14,9 +14,9 @@ export function planes(run, base) {
     for (let p = 0; p < run.machine.hwPlanesNumber(); p++) {
         if (!run.demo.isPlaneEnabled(p)) continue;
         const mode = v.getUint8(base + REG_FB_MODE + p), stride = v.getUint16(base + REG_FB_STRIDE + 2 * p, true);
-        const big = mode === 1 || mode === 4;
+        const big = mode === 1 || mode === 4 || mode === 6, tc = mode === 5 || mode === 6; // 5/6: RGB565, 2 bytes a pixel
         const off = v.getUint32(base + REG_FB_BASE + 4 * p, true) - OFF_VRAM;
-        const rows = big ? 280 : 200, width = mode === 3 ? 640 : big ? 400 : 320;
+        const rows = big ? 280 : 200, width = (mode === 3 ? 640 : big ? 400 : 320) * (tc ? 2 : 1);
         if (off < 0 || off + stride * rows > VRAM_BYTES || stride < width) continue; // not in the pool
         out.push({ p, off, stride, rows, width });
     }

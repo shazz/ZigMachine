@@ -88,6 +88,8 @@ ZigOS wraps them so effects use names, not raw addresses.
 | 0x20 | `FB_HBL_ID[4]` | u16×4 | per-plane HBL handler id (0 = none) |
 | 0x28 | `FB_HBL_POS[4]` | u16×4 | x position at which the per-plane HBL fires |
 | 0x30 | `FRAME` | u32 (ro) | frame counter |
+| 0x34 | `FB_STRIDE[4]` | u16×4 | per-plane row stride in bytes (= px for the 8-bit modes) |
+| 0x54 | `FB_MODE[4]` | u8×4 | 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan; 1.15.0: 5 true colour (RGB565 320×200, stride 640 B), 6 true colour full (RGB565 400×280, stride 800 B, borders open). A true-colour pixel is a LE u16 expanded by bit replication, alpha 255, no palette; HSCROLL is re-read per line; bit 0 of a line's address is ignored (`machine/video_tc.zig`, `fpga/review/TRUECOLOR_PLANE.md`, `docs/HW_API.md` §3) |
 | 0x64 | `BEAM_COUNT` | u16 | 1.6.0: colour-0 writes queued for the CURRENT line; the machine sets it back to 0 after the line |
 | 0x68 | `BEAM_DROPPED` | u32 | 1.6.0: running count of BEAM writes the machine refused; only `hwInit` zeroes it (the program reads and clears it) |
 | 0x6C | `RAM_ARENA_TOP` | u32 | 1.7.0: first byte above the cart's RAM arena (`hwRamAlloc`); 0 = empty. Survives `hwInit`; `hwSetCartHigh` empties it |

@@ -18,8 +18,8 @@ import { COMP_BASE, COMP_PASS, COMP_BG_PASS, FRAME_MC } from "./cost_model.mjs";
 import { REG_GLOBAL_HBL_ID, REG_FB_HBL_ID, REG_FB_MODE } from "./run_cart.mjs";
 
 const LINES = 280; // ZM_RASTER_HEIGHT
-const MODES = ["normal", "fullscreen", "scroll", "medium", "overscan"];
-const WIDE = new Set(["fullscreen", "medium", "overscan"]); // 400-pixel rows (machine/sdk/memmap.zig STRIDE_FULLSCREEN)
+const MODES = ["normal", "fullscreen", "scroll", "medium", "overscan", "truecolor", "truecolor_full"];
+const WIDE = new Set(["fullscreen", "medium", "overscan", "truecolor_full"]); // 400-pixel rows (machine/sdk/memmap.zig STRIDE_FULLSCREEN); a 565 plane costs its geometry's pass (fpga/review/TRUECOLOR_PLANE.md)
 
 export class Budget {
     constructor(run) {

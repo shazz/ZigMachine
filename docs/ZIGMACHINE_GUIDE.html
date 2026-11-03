@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -43,7 +43,7 @@
   <main>
     <section class="hero" id="top">
       <h1>Programmer's guide</h1>
-      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>26</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>109</b>library methods</a></li><li><a href="#geometry-resolution"><b>110</b>constants / registers</a></li></ul>
+      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>26</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>111</b>library methods</a></li><li><a href="#geometry-resolution"><b>112</b>constants / registers</a></li></ul>
       <div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
@@ -148,12 +148,14 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>STRIDE_NORMAL</code></td><td><code>WIDTH</code></td><td class="meaning">320</td></tr>
 <tr><td><code>STRIDE_FULLSCREEN</code></td><td><code>PHYSICAL_WIDTH</code></td><td class="meaning">400</td></tr>
 </tbody></table></section>
-<section class="ref" id="resolution-plane-modes"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Plane modes<small>FB_MODE_* and RES_*</small></h2><span class="count">8 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section class="ref" id="resolution-plane-modes"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Plane modes<small>FB_MODE_* and RES_*</small></h2><span class="count">10 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>FB_MODE_NORMAL</code></td><td><code>0</code></td><td class="meaning">320x200 low-res plane (pixel-doubled into the raster)</td></tr>
 <tr><td><code>FB_MODE_FULLSCREEN</code></td><td><code>1</code></td><td class="meaning">400x280 low-res overscan plane (Option B, doubled)</td></tr>
 <tr><td><code>FB_MODE_SCROLL</code></td><td><code>2</code></td><td class="meaning">window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL</td></tr>
 <tr><td><code>FB_MODE_MEDIUM</code></td><td><code>3</code></td><td class="meaning">640x200 medium-res plane (1:1 into the raster)</td></tr>
 <tr><td><code>FB_MODE_OVERSCAN</code></td><td><code>4</code></td><td class="meaning">400x280 buffer, borders CLOSED until opened by the resolution-flicker trick (see OVERSCAN_* below)</td></tr>
+<tr><td><code>FB_MODE_TRUECOLOR</code></td><td><code>5</code></td><td class="meaning">320x200 RGB565 plane (u16 LE pixels, no palette, doubled from x 80), HSCROLL per line; bit 0 of a line&#x27;s address is ignored (HW 1.15.0)</td></tr>
+<tr><td><code>FB_MODE_TRUECOLOR_FULL</code></td><td><code>6</code></td><td class="meaning">400x280 RGB565 plane over the whole raster, borders open (nothing to earn), HSCROLL per line (HW 1.15.0)</td></tr>
 <tr><td><code>RES_PLANES</code></td><td><code>0</code></td><td class="meaning"></td></tr>
 <tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td class="meaning"></td></tr>
 <tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td class="meaning">640x200, 2 planes, no border (ST-medium style)</td></tr>
@@ -1243,7 +1245,7 @@ the song: keep it off anything you publish.</p>
   the way the loader does, and plays it: it must reach SNDH mode with a non-zero
   peak. It runs in <code>./build.sh</code>.</li>
 </ul></div></section>
-<section class="ref" id="zigos-logicalfb-a-plane"><header class="sec-h"><span class="eyebrow">ZigOS</span><h2>LogicalFB<small>a plane</small></h2><span class="count">29 methods</span></header><article class="api" id="LogicalFB.init"><code class="sig"><b class="fn">init</b>(self: *LogicalFB, zigos: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.init" aria-label="Link to init">#</a></article>
+<section class="ref" id="zigos-logicalfb-a-plane"><header class="sec-h"><span class="eyebrow">ZigOS</span><h2>LogicalFB<small>a plane</small></h2><span class="count">31 methods</span></header><article class="api" id="LogicalFB.init"><code class="sig"><b class="fn">init</b>(self: *LogicalFB, zigos: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.init" aria-label="Link to init">#</a></article>
 <article class="api" id="LogicalFB.copperList"><code class="sig"><b class="fn">copperList</b>(self: *LogicalFB, words: usize) <span class="ret">?[]u32</span></code><a class="anchor" href="#LogicalFB.copperList" aria-label="Link to copperList">#</a><p class="doc">A buffer of `words` u32 for this plane&#x27;s copper list (HW 1.9.0, machine/copper.zig), in VRAM and published in REG_FB_COPPER, allocated once a scene; null when VRAM is full (the caller then plays its table from an HBL handler instead). No version test: the hosts do not hand a cart hwVersion (it reads 0), so a 1.9.0 cart needs a 1.9.0 machine, the board&#x27;s system too.</p></article>
 <article class="api" id="LogicalFB.lineAddr"><code class="sig"><b class="fn">lineAddr</b>(self: *const LogicalFB, x: u32, y: u32) <span class="ret">u32</span></code><a class="anchor" href="#LogicalFB.lineAddr" aria-label="Link to lineAddr">#</a><p class="doc">The region offset of this plane&#x27;s pixel (x, y): what a copper LBASE names (zg.linelist).</p></article>
 <article class="api" id="LogicalFB.clearCopperList"><code class="sig"><b class="fn">clearCopperList</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.clearCopperList" aria-label="Link to clearCopperList">#</a></article>
@@ -1254,6 +1256,8 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="LogicalFB.openBorders"><code class="sig"><b class="fn">openBorders</b>(self: *LogicalFB, which: Borders) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.openBorders" aria-label="Link to openBorders">#</a><p class="doc">Make this an overscan plane and open its borders with the flicker trick: .all flickers every line (top, sides, bottom), .top_bottom only the border bands (MAXI). Replaces this plane&#x27;s HBL handler; a scene that also needs per-line rasters uses copper.install(fb, entries, .{ .flicker = true }). Every enabled overscan plane needs this for itself: the machine replays a plane&#x27;s HBLs while rendering THAT plane.</p></article>
 <article class="api" id="LogicalFB.hblLinesArePhysical"><code class="sig"><b class="fn">hblLinesArePhysical</b>(self: *const LogicalFB) <span class="ret">bool</span></code><a class="anchor" href="#LogicalFB.hblLinesArePhysical" aria-label="Link to hblLinesArePhysical">#</a><p class="doc">True when this plane&#x27;s per-plane HBL receives PHYSICAL lines 0..279 (overscan, fullscreen, full-raster medium), false for LOGICAL lines 0..199 (normal, scroll, medium) — machine/video.zig&#x27;s renderPlane* loops.</p></article>
 <article class="api" id="LogicalFB.setScrollPlane"><code class="sig"><b class="fn">setScrollPlane</b>(self: *LogicalFB, buf_w: u16, buf_h: u16) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setScrollPlane" aria-label="Link to setScrollPlane">#</a><p class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</p></article>
+<article class="api" id="LogicalFB.setTruecolorPlane"><code class="sig"><b class="fn">setTruecolorPlane</b>(self: *LogicalFB, size: tc.Size) <span class="ret">tc.Fb</span></code><a class="anchor" href="#LogicalFB.setTruecolorPlane" aria-label="Link to setTruecolorPlane">#</a><p class="doc">Turn this plane into a TRUE-COLOUR plane (HW 1.15.0, zg.tc): RGB565, two bytes a pixel, no palette. .window: 320x200 in the visible window (logical HBL lines); .full: 400x280 over the whole raster, borders open (physical lines). FB_STRIDE is in bytes (640 / 800), so setScroll&#x27;s x and setScrollFine are byte offsets; bit 0 of a line address is ignored. The u8 drawing methods do not apply: draw through the returned Fb.</p></article>
+<article class="api" id="LogicalFB.showTruecolor"><code class="sig"><b class="fn">showTruecolor</b>(self: *LogicalFB, next: tc.Fb) <span class="ret">tc.Fb</span></code><a class="anchor" href="#LogicalFB.showTruecolor" aria-label="Link to showTruecolor">#</a><p class="doc">Show another true-colour buffer (zg.truecolorBuffer) from the next frame: FB_BASE moves, the pixels stay. Returns the buffer it showed before, to draw the next frame in.</p></article>
 <article class="api" id="LogicalFB.setScroll"><code class="sig"><b class="fn">setScroll</b>(self: *LogicalFB, x: u32, y: u32) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setScroll" aria-label="Link to setScroll">#</a><p class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</p></article>
 <article class="api" id="LogicalFB.setScrollFine"><code class="sig"><b class="fn">setScrollFine</b>(self: *LogicalFB, hs: u16) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setScrollFine" aria-label="Link to setScrollFine">#</a><p class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</p></article>
 <article class="api" id="LogicalFB.setMediumPlane"><code class="sig"><b class="fn">setMediumPlane</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setMediumPlane" aria-label="Link to setMediumPlane">#</a><p class="doc">Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster). Coordinates are 0..640 / 0..200; the machine composites it crisply (no pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.</p></article>
@@ -1359,5 +1363,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>

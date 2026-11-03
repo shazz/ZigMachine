@@ -63,6 +63,7 @@ pub const chrome_draw = @import("effects/chrome_draw.zig"); // Chrome's drawImag
 pub const spanfont = @import("effects/spanfont.zig"); // big 1-bit font as ink runs, sampled at half resolution
 const glyph_line = @import("effects/glyph_line.zig");
 pub const linepal = @import("effects/linepal.zig"); // rgb(); LinePalette below
+pub const tc = @import("truecolor.zig"); // HW 1.15.0 RGB565 planes: Fb, rgb565 (LogicalFB.setTruecolorPlane)
 /// Up to `n` palette entries per visible line, allocated per pixel colour, replayed by an HBL.
 pub fn LinePalette(comptime n: usize) type {
     return linepal.LinePalette(LogicalFB, ZigOS, .{ .rows = HEIGHT, .visible_top = VERTICAL_BORDERS_HEIGHT }, n);
@@ -189,6 +190,13 @@ pub fn vramWords(n: usize) ?VramWords {
     if (off + n * 4 > hw.OFF_VRAM + VRAM_BYTES) return null;
     vram_top = off + n * 4;
     return .{ .words = @as([*]u32, @ptrFromInt(g_base + off))[0..n], .off = @intCast(off) };
+}
+
+/// A second true-colour buffer from the VRAM pool (draw the next frame there, then
+/// LogicalFB.showTruecolor); null when the pool has no room.
+pub fn truecolorBuffer(size: tc.Size) ?tc.Fb {
+    const w = vramWords(tc.bytes(size) / 4) orelse return null;
+    return tc.view(@ptrCast(w.words.ptr), size);
 }
 
 inline fn writeU8(off: usize, v: u8) void {
@@ -639,7 +647,7 @@ pub const LogicalFB = struct {
     pub fn hblLinesArePhysical(self: *const LogicalFB) bool {
         const mode = @as(*const u8, @ptrFromInt(g_base + hw.REG_FB_MODE + @as(usize, self.id))).*;
         return switch (mode) {
-            hw.FB_MODE_OVERSCAN, hw.FB_MODE_FULLSCREEN => true,
+            hw.FB_MODE_OVERSCAN, hw.FB_MODE_FULLSCREEN, hw.FB_MODE_TRUECOLOR_FULL => true,
             hw.FB_MODE_MEDIUM => self.stride >= RASTER_WIDTH,
             else => false,
         };
@@ -656,6 +664,33 @@ pub const LogicalFB = struct {
         writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_SCROLL);
         self.bind(vramAlloc(@as(usize, buf_w) * @as(usize, buf_h)));
         self.clearFrameBuffer(0);
+    }
+
+    // Turn this plane into a TRUE-COLOUR plane (HW 1.15.0, zg.tc): RGB565, two bytes a pixel,
+    // no palette. .window: 320x200 in the visible window (logical HBL lines); .full: 400x280
+    // over the whole raster, borders open (physical lines). FB_STRIDE is in bytes (640 / 800),
+    // so setScroll's x and setScrollFine are byte offsets; bit 0 of a line address is ignored.
+    // The u8 drawing methods do not apply: draw through the returned Fb.
+    pub fn setTruecolorPlane(self: *LogicalFB, size: tc.Size) tc.Fb {
+        const full = size == .full;
+        self.stride = if (full) hw.TRUECOLOR_FULL_STRIDE else hw.TRUECOLOR_STRIDE;
+        self.fb_w = tc.width(size);
+        self.fb_h = tc.height(size);
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, self.stride);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), if (full) hw.FB_MODE_TRUECOLOR_FULL else hw.FB_MODE_TRUECOLOR);
+        self.bind(vramAlloc(tc.bytes(size)));
+        self.clearFrameBuffer(0);
+        return tc.view(self.fb, size);
+    }
+
+    // Show another true-colour buffer (zg.truecolorBuffer) from the next frame: FB_BASE moves,
+    // the pixels stay. Returns the buffer it showed before, to draw the next frame in.
+    pub fn showTruecolor(self: *LogicalFB, next: tc.Fb) tc.Fb {
+        const size: tc.Size = if (self.fb_w == tc.width(.full)) .full else .window;
+        const before = tc.view(self.fb, size);
+        self.fb = @ptrCast(next.pixels);
+        self.setScroll(0, 0);
+        return before;
     }
 
     // Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves

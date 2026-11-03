@@ -195,11 +195,13 @@ NATIVE_TESTS="
     machine/beam_test.zig
     machine/copper_test.zig
     machine/copper_lbase_test.zig
+    machine/video_tc_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
     machine/arena_test.zig
     libs/zig/mem_test.zig
+    libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig
     libs/zig/sndh_call_test.zig
     libs/zig/shapes_test.zig
@@ -618,8 +620,10 @@ gate equinox node apps/equinox_headless.mjs "$SHOTS"   # the dragons morph egg -
 gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS/tex_neoshow"   # TEX NEO SHOW: the scroller band is a REAL per-line raster (copper), full plane width
 gate tex_neoshow_music node apps/monty_native_check.mjs   # its tune (Monty, Timer D digidrums) played natively = the 68000, bit for bit over 50 s, modes 1/2 unbroken
 gate tex_neoshow_music node apps/monty_native_check.mjs --break   # ...and volume C written over the drums (mutant 3) is caught
-gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions; the copper lists load exactly the converter's records
+gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions; the copper lists load exactly the converter's records; mode 3 is ONE true-colour plane showing the converter's 565 picture
 gate mpp_truecolor node apps/mpp_truecolor_headless.mjs --break k1tail   # ...and a 256-entry line that loses its entry-255 PALREF is caught
+gate truecolor node apps/truecolor_check.mjs   # the true-colour plane (HW 1.15.0): modes 5 and 6 composited by the machine equal an independent model pixel for pixel: all 65,536 565 values expanded by bit replication, the window and the whole raster, odd FB_BASE / stride / HSCROLL (bit 0 ignored), HSCROLL per line, copper LBASEs, the frame restarting from FB_BASE
+gate truecolor node apps/truecolor_check.mjs --break   # ...and a model with the expansion by shift, bit 0 honoured, the stride in pixels, HSCROLL latched, mode 6 as a window or LBASE ignored is caught
 gate_timed union_textracker node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
 gate_timed union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay
 gate_timed stream_pacing node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps, 144 Hz and across a 3 s stall
