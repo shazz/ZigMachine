@@ -47,7 +47,7 @@ _BY_CATEGORY = {
         "hello", "hello_asm", "bench",  # native carts (cycles/native)
     ),
     "demos": (  # the "zigmachine" screens that are shows, not tests
-        "blitter", "scroll", "obj", "fullscreen", "maxi", "medium_overscan", "res_switch", "shapes",
+        "blitter", "scroll", "obj", "ziggy", "fullscreen", "maxi", "medium_overscan", "res_switch", "shapes",
         "mandelbrot", "mpp_truecolor", "polkadots", "raytrace", "fuji_hobbytronic", "anima",
         "leonard_spirit", "chisel_v2",
     ),

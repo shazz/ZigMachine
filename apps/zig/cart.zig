@@ -125,6 +125,7 @@ const scene = switch (opts.index) {
     112 => @import("scenes/chisel_v2.zig"), // CHISEL V2: the blitter's HW 1.11.0 ops, a mode each: AFFINE rotozoom and Mode 7 (span lists), MAP tunnel, mirrored bobs with the collision bit, the Amiga area fill
     113 => @import("scenes/tc_test.zig"), // TC TEST: the RGB565 true-colour plane (HW 1.15.0), keys 1-7 generated views, N/P local pictures
     114 => @import("scenes/kt_test.zig"), // KT TEST: one text plane, keys 1-4 ask for a klystrack .kt song, 5 stops (no player yet)
+    115 => @import("scenes/ziggy.zig"), // ZIGGY: the cart CPU's showcase: a CPU rotozoom (64/128/256 textures) and a voxel landscape, ZM-X on/off, live Mc and cycles a pixel
     else => @compileError("bad cart index"),
 };
 

@@ -498,5 +498,10 @@
   "tag": "xm_test",
   "title": "XM TEST",
   "type": "zigmachine"
+ },
+ {
+  "tag": "ziggy",
+  "title": "ZIGGY",
+  "type": "zigmachine"
  }
 ]
