@@ -36,8 +36,8 @@
 
 namespace vd {
 
-// The register words the compositor stores (zm_video_regs.v IMPL).
-const int kRegWords[] = {0, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26, 30, 31};
+// The register words the compositor stores (zm_video_regs.v IMPL; 3, 5, 6, 7: the TC fade, HW 1.16.0).
+const int kRegWords[] = {0, 1, 3, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26, 30, 31};
 // ... and the ones it writes itself.
 const int kOwnWords[] = {ZM_REG_BACKGROUND / 4, ZM_REG_BEAM_COUNT / 4, ZM_REG_BEAM_DROPPED / 4, ZM_REG_FRAME / 4};
 
