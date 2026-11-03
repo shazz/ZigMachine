@@ -107,9 +107,9 @@ static int load_paula(const char* name, uint32_t len, uint32_t tune) {
 /* zg.requestSongBytes (FX_SONG): the cart's image staged as a fetched file is, then loaded as the
  * worklet's message for its kind. No named image: zg.sndhCall cannot reach it (g_resident ""). */
 static void song_bytes(const audio_fx* fx) {
-    static const char* const NAMES[] = {0, "bytes.sndh", "bytes.sap", "bytes.xm", "bytes.hip"}; /* bsndinfo.h */
+    static const char* const NAMES[] = {0, "bytes.sndh", "bytes.sap", "bytes.xm", "bytes.hip", "bytes.kt"}; /* bsndinfo.h */
     w2c_audio* p = &g_aud.player;
-    if (fx->a < FX_SONG_SNDH || fx->a > FX_SONG_HIP) {
+    if (fx->a < FX_SONG_SNDH || fx->a > FX_SONG_KT) {
         printf("ZM FX requestSongBytes: unknown kind %u\n", (unsigned)fx->a);
         return;
     }
@@ -123,7 +123,7 @@ static void song_bytes(const audio_fx* fx) {
     else {
         audio_backend_native(0);
         audio_song_loaded(name);
-        if (!load_paula(name, n, fx->b)) printf("ZM SONG bytes %s refused\n", name);
+        if (!load_paula(name, n, fx->a == FX_SONG_KT ? fx->rate : fx->b)) printf("ZM SONG bytes %s refused\n", name);
     }
     g_resident[0] = 0;
     printf("ZM SONG bytes %s %lu mode %u\n", name, (unsigned long)n, (unsigned)w2c_audio_audioMode(p));

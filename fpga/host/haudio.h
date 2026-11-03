@@ -53,9 +53,10 @@ void audio_sndh_call(const char* name, uint32_t d0);
 enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7,
        FX_SONG = 8 };
 /* FX_SONG (zg.requestSongBytes): a song image in the cart's memory, `pcm` / `len`, loaded as the
- * worklet's loadSndh / loadSap / loadXm / loadHip: `a` its kind (1 SNDH, 2 SAP, 3 XM, 4 HIP), `b`
- * its tune (0 = the image's own; an XM's start BPM). */
-enum { FX_SONG_SNDH = 1, FX_SONG_SAP = 2, FX_SONG_XM = 3, FX_SONG_HIP = 4 };
+ * worklet's loadSndh / loadSap / loadXm / loadHip / loadKt: `a` its kind (1 SNDH, 2 SAP, 3 XM, 4 HIP,
+ * 5 KT), `b` its tune (0 = the image's own; an XM's start BPM); a KT's tune is the sequence row to start
+ * at, the entry's 32-bit `rate`. */
+enum { FX_SONG_SNDH = 1, FX_SONG_SAP = 2, FX_SONG_XM = 3, FX_SONG_HIP = 4, FX_SONG_KT = 5 };
 /* The stream ring's calls (zg.audioStreamStart / audioFeed / audioStreamStop), carried as effects
  * by this side (audio_bridge.c audio_stream_*): never on the cart's queue, so above its ops.
  * Start's rate is in `rate` (Hz); a feed's bytes are `pcm`, `len`. */

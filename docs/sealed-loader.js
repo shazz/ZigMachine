@@ -1362,7 +1362,7 @@ function sndhCallByName(name, d0) {
 let songPosted = Promise.resolve();
 let sfxChain = Promise.resolve();
 function postSfx(mem, at, n) {
-    const SONG_KINDS = [null, "loadSndh", "loadSap", "loadXm", "loadHip"]; // requestSongBytes' kind -> message
+    const SONG_KINDS = [null, "loadSndh", "loadSap", "loadXm", "loadHip", "loadKt"]; // requestSongBytes' kind -> message
     const dv = new DataView(mem.buffer, at, n * 16);
     const msgs = [];
     for (let i = 0; i < n; i++) {
@@ -1389,7 +1389,8 @@ function postSfx(mem, at, n) {
             ++songGen;           // a song still being fetched by name must not start over this one
             sndhResident = null; // not a named image: zg.sndhCall cannot reach it
             const tune = dv.getUint8(o + 2); // an XM's is its start BPM, as loadXm's bpm
-            msgs.push(type === "loadXm" ? { type, bytes, bpm: tune } : { type, bytes, tune });
+            if (type === "loadKt") msgs.push({ type, bytes, tune: dv.getUint32(o + 12, true) }); // a .kt's start row: 32 bits
+            else msgs.push(type === "loadXm" ? { type, bytes, bpm: tune } : { type, bytes, tune });
         }
     }
     const after = songPosted;

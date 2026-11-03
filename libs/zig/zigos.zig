@@ -342,8 +342,8 @@ pub const SongKind = sfx_queue.SongKind;
 /// Play a song image the cart holds in its OWN memory, e.g. one it read off its
 /// disk through the drive (zg.disk.read), where requestSong can only name a file
 /// the host fetches. `tune` counts from 1, 0 = the image's default (an XM's is
-/// its start BPM, 0 = its own tempo). The host copies the bytes when it drains
-/// the frame, then loads them exactly as a fetched .sndh / .sap / .xm / .hip: it
+/// its start BPM, 0 = its own tempo; a .kt's the sequence row to start at). The host copies the bytes when it drains
+/// the frame, then loads them exactly as a fetched .sndh / .sap / .xm / .hip / .kt: it
 /// replaces whatever plays, and stopSong() stops it. A
 /// requestSong made in the same frame is applied BEFORE it. False when refused
 /// (empty, over SONG_MAX, the queue full): counted in sfxDropped().

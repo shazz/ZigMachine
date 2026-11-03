@@ -54,7 +54,9 @@ pub const SAMPLE_MAX: usize = 2 * 1024 * 1024;
 
 pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5, sample = 6, sample_stop = 7, song = 8 };
 /// What a song image is (entry.a of a song): the player the host loads it into.
-pub const SongKind = enum(u8) { sndh = 1, sap = 2, xm = 3, hip = 4 };
+/// kt (5, 3 Nov 2026): a klystrack song; its tune is the sequence row to start at, carried in `rate`
+/// (32 bits: a C cart writes a row past 255 there, apps/ports/klystrack/kestrel_bard.c).
+pub const SongKind = enum(u8) { sndh = 1, sap = 2, xm = 3, hip = 4, kt = 5 };
 /// The largest song image the queue takes (a big SNDH is ~100 KB).
 pub const SONG_MAX: usize = 256 * 1024;
 pub const SNDH_MODES: u8 = 3; // sndh_native.zig Mode: 1..3
@@ -139,6 +141,7 @@ pub const Queue = struct {
             .b = tune,
             .ptr = @truncate(@intFromPtr(bytes.ptr)),
             .len = @intCast(bytes.len),
+            .rate = if (kind == .kt) tune else 0, // a .kt's start row (SongKind)
         });
     }
 

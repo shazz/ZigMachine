@@ -139,6 +139,14 @@ test "an XM and a Hippel module go out as kinds 3 and 4, an XM's start BPM in `b
     try std.testing.expectEqual(@as(u8, 2), s.entries[1].b);
 }
 
+test "a klystrack song goes out as kind 5, its start row in `rate`" {
+    var s: q.Queue = .{};
+    try std.testing.expect(s.song("cyd!song\x1b", .kt, 7));
+    try std.testing.expectEqual(@as(usize, 1), s.take());
+    try std.testing.expectEqual(@as(u8, 5), s.entries[0].a);
+    try std.testing.expectEqual(@as(u32, 7), s.entries[0].rate);
+}
+
 test "an empty song image or one over SONG_MAX is refused and counted" {
     var s: q.Queue = .{};
     try std.testing.expect(!s.song(&.{}, .sndh, 0));
