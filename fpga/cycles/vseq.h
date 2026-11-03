@@ -65,7 +65,8 @@ void vseq_group(struct w2c_env* e, unsigned g, int first, int nopfb);
 /* An enabled plane of `on` has a copper list (REG_FB_COPPER, HW 1.9.0). */
 int vseq_copper_on(unsigned on);
 /* After the planes, before PRESENT: with a copper list on, the palettes WRITTEN BACK to the region
- * and the compositor's HSCROLL copied there, where the browser's machine leaves them. */
+ * and the compositor's HSCROLL and TC fade words (HW 1.16.0) copied there, where the browser's
+ * machine leaves them. */
 void vseq_copper_end(unsigned on);
 /* Plane p has an HBL handler (FB_HBL_ID). */
 int vseq_plane_handler(int p);

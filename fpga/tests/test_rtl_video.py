@@ -74,8 +74,10 @@ SYNTH = [
     # copper LBASE in every mode and HSCROLL on overscan (HW 1.10.0, tools/video_dump/vsynth_lbase.c)
     ("lbase", [1, 2], {"copper", "layered", "mode_overscan", "mode_normal", "mode_fullscreen", "mode_medium"}),
     # RGB565 planes of both modes, odd bases/stride/HSCROLL, LBASE on border lines, under an 8-bit
-    # alpha plane (HW 1.15.0, tools/video_dump/vsynth_tc.c)
-    ("truecolor", [1, 2], {"mode_truecolor", "mode_truecolor_full", "copper", "layered", "alpha_partial", "hscroll_per_line"}),
+    # alpha plane (HW 1.15.0, tools/video_dump/vsynth_tc.c); the fade (HW 1.16.0): copper REGs, a
+    # handler's random bytes every line, the clamp's edges on both frames
+    ("truecolor", [1, 2], {"mode_truecolor", "mode_truecolor_full", "copper", "layered", "alpha_partial", "hscroll_per_line",
+                           "tc_fade", "tc_fade_per_line"}),
 ]
 # Multi-plane frames replayed again against a memory with the HP port's first-beat
 # latency (CYCLES.md "Memory path": +24 clocks) and no stalls: the clock figures

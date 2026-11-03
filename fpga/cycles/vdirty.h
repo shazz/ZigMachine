@@ -13,7 +13,7 @@
  *     global handler); a BEAM line is always new (its write-backs must run);
  *   - per frame: the enabled planes, fill or not, each plane's geometry (mode,
  *     and what the geometry depends on: stride and HSCROLL in fullscreen,
- *     RESOLUTION in medium) and its palette;
+ *     RESOLUTION in medium; a true-colour plane's fade registers, HW 1.16.0) and its palette;
  *   - per plane and line: the bytes the line's pass fetches.
  * The lines a plane with an HBL handler covers are always new: its stores land
  * between passes. So are those of a plane whose copper list opens with a PALREF

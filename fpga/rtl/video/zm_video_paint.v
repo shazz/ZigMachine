@@ -1,8 +1,9 @@
 // Painter: turns one fetched plane line into line-buffer writes, one column a
-// clock, through a 3-stage pipeline:
+// clock, through a 4-stage pipeline:
 //   0  column c -> byte index -> fetch-buffer read     (and the overscan choice)
 //   1  byte -> palette index (fetched, or overscan noise) -> palette read
-//   2  palette RGBA -> line buffer
+//   2  palette RGBA held; a 565 pixel into the fade's multipliers (zm_video_tcfade.v)
+//   3  RGBA -> line buffer
 // A column is one low-res pixel written as a doubled pair, or one medium pixel
 // (`single`) written into one half of a pair. Columns map to the raster from
 // `dst0` (raster pixels). Fullscreen (`wrap`) reads source byte (c + s0) mod
@@ -10,7 +11,9 @@
 //
 // True colour (`tc`, HW 1.15.0): column c is the half-word at byte 2c, expanded 565 -> RGBA by
 // bit replication (machine/video_tc.zig expand) in place of the palette's answer, a clock behind
-// like it. The line address is even (zm_video_plane.v), so `align` is 0 or 2.
+// like it. The line address is even (zm_video_plane.v), so `align` is 0 or 2. HW 1.16.0 fades it
+// (zm_video_tcfade.v) by the plane's TC_FADE / TC_OFS registers, latched at `start`: the line's
+// copper record and handler have run by then, and nothing writes them during a pass.
 //
 // Overscan (`ov`), video.zig renderPlaneOverscan row for row: the 320-wide window
 // of a visible line is always drawn; outside it a column comes from the buffer
@@ -28,6 +31,8 @@ module zm_video_paint (
     input  wire [9:0]  dst0,
     input  wire        wrap,
     input  wire        tc,             // a 565 line: byte index 2c, the half-word expanded, no palette
+    input  wire [7:0]  fade,           // the plane's TC_FADE: coef [4:0], toward white [5]
+    input  wire [23:0] ofs,            // its TC_OFS_B, _G, _R
     input  wire [15:0] stride,
     input  wire [15:0] s0,
     input  wire        ov, band, band_open, hit, flick,
@@ -72,7 +77,19 @@ module zm_video_paint (
     wire [7:0] byte1 = fb_rdata[sel1*8 +: 8];
     wire [15:0] half1 = fb_rdata[sel1[1]*16 +: 16];
     reg  [15:0] h2;                         // the 565 pixel, a clock behind like the palette's answer
-    wire [31:0] tc_px = {8'hFF, h2[4:0], h2[4:2], h2[10:5], h2[10:9], h2[15:11], h2[15:13]};
+    reg  [5:0]  fm;                         // the fade, latched at start: 32 - (coef + coef >> 4)
+    reg         fw;
+    reg  [23:0] fo;
+    always @(posedge clk) if (start) begin
+        fm <= 6'd32 - ({1'b0, fade[4:0]} + {5'd0, fade[4]});
+        fw <= fade[5];
+        fo <= ofs;
+    end
+    wire [31:0] tc_px;
+    zm_video_tcfade u_fade (.clk(clk), .px(h2), .m(fm), .white(fw), .ofs(fo), .rgba(tc_px));
+    reg         v3, wr3, single3;
+    reg  [9:0]  px3;
+    reg  [31:0] pal3;
     assign pal_raddr = nz1 ? n1 : byte1;
 
     always @(posedge clk) begin
@@ -91,12 +108,14 @@ module zm_video_paint (
         v1 <= run && !rst && !start;
         {wr1, nz1, sel1, n1, px1, single1} <= {wr0, nz0, bi[1:0], noise, px0, single};
         {v2, wr2, px2, single2} <= {v1, wr1, px1, single1};
+        {v3, wr3, px3, single3} <= {v2, wr2, px2, single2};
         h2 <= half1;
-        lb_we_lo <= v2 && wr2 && !(single2 && px2[0]);
-        lb_we_hi <= v2 && wr2 && !(single2 && !px2[0]);
-        lb_addr <= px2[9:1];
-        lb_data <= tc ? tc_px : pal_rdata;
-        done <= v2 && !v1;                  // the last column left stage 2
+        pal3 <= pal_rdata;
+        lb_we_lo <= v3 && wr3 && !(single3 && px3[0]);
+        lb_we_hi <= v3 && wr3 && !(single3 && !px3[0]);
+        lb_addr <= px3[9:1];
+        lb_data <= tc ? tc_px : pal3;
+        done <= v3 && !v2;                  // the last column left stage 3
     end
 endmodule
 

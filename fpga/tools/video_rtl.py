@@ -32,6 +32,7 @@ SOURCES = [
     "zm_video_regs.v",
     "zm_video_fetch.v",
     "zm_video_bg.v",
+    "zm_video_tcfade.v",
     "zm_video_paint.v",
     "zm_video_latch.v",
     "zm_video_plane.v",
