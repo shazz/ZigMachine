@@ -30,6 +30,7 @@ case class ZmArgs(
     noDiv: Boolean = false, // Zmmul: MUL/MULH only, DIV/REM trap (the sound CPU: docs/FPGA_SOUND_CPU.md)
     zmx: Boolean = false, // ZM-X v1 custom ops (review/KESTREL_NEXT_ISA.md): ZmXPlugin + ZmMulPlugin's mulsh
     zmxEarly: Boolean = false, // ZmXPlugin writes in EXECUTE (bypassed at once) instead of MEMORY
+    dTcm: Boolean = false, // a tightly coupled data port (ZmTcm.scala): the BARD scratchpad study
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -50,6 +51,7 @@ object GenZm {
       opt[Unit]("noDiv").action((_, c) => c.copy(noDiv = true))
       opt[Unit]("zmx").action((_, c) => c.copy(zmx = true))
       opt[Unit]("zmxEarly").action((_, c) => c.copy(zmx = true, zmxEarly = true))
+      opt[Unit]("dTcm").action((_, c) => c.copy(dTcm = true))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -80,7 +82,9 @@ object GenZm {
     )
   )
 
-  def dBus(a: ZmArgs) = new DBusCachedPlugin(
+  def dBus(a: ZmArgs) = { val p = dBusPlain(a); if (a.dTcm) ZmTcm.add(p) else p }
+
+  def dBusPlain(a: ZmArgs) = new DBusCachedPlugin(
     dBusCmdMasterPipe = true,
     dBusCmdSlavePipe = true,
     dBusRspSlavePipe = false,

@@ -83,11 +83,14 @@ def make_soc(
     sound: bool = False,
     hp_probe: bool = False,
     read_bypass: bool = zm_board_mem.READ_BYPASS,
+    sound_core: Path | None = None,
+    sound_tcm: int = 0,
 ) -> ZigMachineSoC:
     platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
     hp0, hp1, hp2, hp3 = hp_interface(), hp_interface(), hp_interface(), hp_interface()
     # the sound core and its tap (rtl/sim/zm_audio_tap.v); `sound`: its players on the sound CPU
     audio = {"hp": hp3, "tap": True, "break_": audio_break, "sound": sound}
+    audio |= {"sound_core": sound_core, "sound_tcm": sound_tcm}  # the BARD BRAM study's variants
     soc = ZigMachineSoC(
         platform, SYS_CLK, "pipe", glass=True, video_hp=hp1, hdmi=False, uart_name="sim",
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=audio,
@@ -120,11 +123,14 @@ def main() -> None:
     ap.add_argument("--no-read-bypass", action="store_true", help="every CPU read drains the stores (zm_hp_bypass.py)")
     ap.add_argument("--hp-probe", action="store_true", help="the read path's probe, as a z7 --hp-probe bitstream")
     ap.add_argument("--sound-cpu", action="store_true", help="the players on the sound CPU (soc/zm_sound_cpu.py)")
+    ap.add_argument("--sound-core", type=Path, help="the sound CPU's netlist (default: zm_sound_cpu.SOUND_CORE)")
+    ap.add_argument("--sound-tcm", type=int, default=0, help="bytes of BRAM on a `tcm` sound core (zm_sound_tcm.py)")
     a = ap.parse_args()
     out = a.out if a.out.is_absolute() else FPGA / a.out
     litex_compat.install()
     soc = make_soc(
-        a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu, a.hp_probe, not a.no_read_bypass
+        a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu, a.hp_probe, not a.no_read_bypass,
+        a.sound_core.resolve() if a.sound_core else None, a.sound_tcm,
     )
     sim_config = SimConfig()
     for name, hz in (("sys_clk", SYS_CLK), ("pix_clk", PIX_CLK), ("comp_clk", COMP_CLK)):

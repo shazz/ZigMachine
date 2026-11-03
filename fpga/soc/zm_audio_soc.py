@@ -158,13 +158,13 @@ _CORE = {"core_wr": 1, "core_addr": 10, "core_wdata": 32, "now": 32}
 
 
 def add_audio(soc: SoC, platform: Platform, hp: axi.AXIInterface, tap: bool = False, break_: str = "",
-              sound: bool = False) -> None:  # fmt: skip
+              sound: bool = False, sound_core: Path | None = None, sound_tcm: int = 0) -> None:  # fmt: skip
     """The audio on `hp` (HP3), its window on the bus; held in reset with the CPU (the glass).
     `sound`: the players on the sound CPU instead (soc/zm_sound_cpu.py), which then owns the window."""
     if sound:
-        from soc.zm_sound_cpu import add_sound  # it builds on ZMAudio: imported here, not at the top
+        from soc.zm_sound_cpu import SOUND_CORE, add_sound  # it builds on ZMAudio: imported here, not at the top
 
-        return add_sound(soc, platform, hp, tap, break_)
+        return add_sound(soc, platform, hp, tap, break_, sound_core or SOUND_CORE, sound_tcm)
     enable = soc.glass.cpu_run if hasattr(soc, "glass") else None
     soc.zm_audio = ZMAudio(platform, int(soc.sys_clk_freq), hp, enable=enable, tap=tap, break_=break_)
     soc.bus.add_slave("zm_audio", soc.zm_audio.bus, SoCRegion(origin=AUDIO_WINDOW, size=AUDIO_WINDOW_BYTES, cached=False))

@@ -32,6 +32,7 @@ from migen import ClockSignal, Instance, ResetSignal, Signal
 from soc.zm_audio_soc import AUDIO_WINDOW, AUDIO_WINDOW_BYTES, ZMAudio
 from soc.zm_hp import CPU_BASE, WINDOW, WishboneHP
 from soc.zm_sound_regs import SoundRegs
+from soc.zm_sound_tcm import SoundTcm
 
 FPGA = Path(__file__).resolve().parent.parent
 SOUND_CORE = FPGA / "build/vexgen/VexRiscv_SndNd.v"
@@ -67,17 +68,21 @@ class SoundCPU(LiteXModule):
     """The core, its decoder and HP3 bridge; `cart` is SOUND_WINDOW's slave on the cart CPU's bus."""
 
     def __init__(self, platform: Platform, hp: axi.AXIInterface, audio: wishbone.Interface, pcm: wishbone.Interface,
-                 enable: Signal | None = None, core: Path = SOUND_CORE) -> None:  # fmt: skip
+                 enable: Signal | None = None, core: Path = SOUND_CORE, tcm: int = 0) -> None:  # fmt: skip
         if not core.exists():
             raise FileNotFoundError(f"{core}: generate it with vexgen/gen.sh SndNd:16384:2:4096:1:snd,nodiv")
         self.cart = _wb()
         ibus, dbus, dmem, regs, mem = _wb(), _wb(), _wb(), _wb(), _wb()
         self.regs = SoundRegs(self.cart, regs, ibus, dbus)
         rst = ResetSignal("sys") | ~self.regs.run | (~enable if enable is not None else 0)
+        tcm_ports: dict[str, Any] = {}
+        if tcm:  # the `tcm` core's scratchpad (soc/zm_sound_tcm.py, review/BARD_BRAM_STUDY.md)
+            self.tcm = SoundTcm(tcm)
+            tcm_ports = self.tcm.ports()
         self.specials += Instance(
             "ZmSnd_VexRiscv", i_clk=ClockSignal("sys"), i_reset=rst, i_externalResetVector=SOUND_BASE,
             i_timerInterrupt=0, i_softwareInterrupt=0, i_externalInterruptArray=0,
-            **_core_ports("iBus", ibus), **_core_ports("dBus", dbus),
+            **_core_ports("iBus", ibus), **_core_ports("dBus", dbus), **tcm_ports,
         )  # fmt: skip
         slaves = [
             (_in(CPU_BASE, WINDOW), dmem),
@@ -93,11 +98,13 @@ class SoundCPU(LiteXModule):
         platform.add_source(str(FPGA / "rtl/sim/zm_snd_putc.v"))
 
 
-def add_sound(soc: SoC, platform: Platform, hp: axi.AXIInterface, tap: bool = False, break_: str = "") -> None:
-    """The audio core with its players on the sound CPU, both on `hp` (HP3); SOUND_WINDOW on the bus."""
+def add_sound(soc: SoC, platform: Platform, hp: axi.AXIInterface, tap: bool = False, break_: str = "",
+              core: Path = SOUND_CORE, tcm: int = 0) -> None:  # fmt: skip
+    """The audio core with its players on the sound CPU, both on `hp` (HP3); SOUND_WINDOW on the bus.
+    `core` / `tcm`: another sound core netlist and its scratchpad's bytes (hp_sim --sound-core/--sound-tcm)."""
     enable = soc.glass.cpu_run if hasattr(soc, "glass") else None
     pcm = _wb()
     soc.zm_audio = ZMAudio(platform, int(soc.sys_clk_freq), None, enable=enable, tap=tap, break_=break_, pcm_bus=pcm)
-    soc.zm_snd = SoundCPU(platform, hp, soc.zm_audio.bus, pcm, enable)
+    soc.zm_snd = SoundCPU(platform, hp, soc.zm_audio.bus, pcm, enable, core, tcm)
     region = SoCRegion(origin=SOUND_WINDOW, size=SOUND_WINDOW_BYTES, cached=False)
     soc.bus.add_slave("zm_snd", soc.zm_snd.cart, region)
