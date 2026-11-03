@@ -26,10 +26,13 @@ Rebuild it, byte for byte, from a checkout of this repository:
     make -C apps/ports/grafx2 link        # build/demo-grafx2.wasm == docs/demo-grafx2.wasm
     make -C apps/ports/grafx2 install     # copy it to docs/, repack docs/demo-grafx2.zmd (tools/mkdisks.sh)
 
-The disk carries `data/` (upstream's `share/grafx2`: `gfx2def.ini` as is, and the DPaint skin and font
-from `skins/` with the `gfx2.gif` icon re-saved as GIF, as this build has no libpng; GPLv2) and `ownpics/`
-(plasma and wave pictures made for this port, PI1 / NEO / GIF). Pictures ripped from other people's work
-are never put on it.
+The disk is a GEM data disk: GEM boots over it and lists the program, `BOOT.WSM`, beside its files; a
+double-click runs GrafX2, and Q (Quit; Discard or Save on its "Quit ?" box if the picture changed) goes back to
+the desktop (`../README.md`). It carries `data/` (upstream's `share/grafx2`: `gfx2def.ini` as is, and the DPaint
+skin and font from `skins/` with the `gfx2.gif` icon re-saved as GIF, as this build has no libpng; GPLv2; the skin
+and font keep GrafX2's `skin_`/`font_` names, which its pickers list by) and `ownpics/` (plasma and wave
+pictures made for this port, PI1 / NEO / GIF, on the disk as `ZIGPLASM.*` and `ZIGWAVES.*`). Pictures ripped
+from other people's work are never put on it.
 
 ## Layout
 
@@ -39,7 +42,7 @@ are never put on it.
 | `kestrel_sdl.c` | the SDL2 calls GrafX2 makes: the screen surface is plane 0's VRAM, the palette is palette 0, `SDL_Delay` yields the frame |
 | `kestrel_stubs.c` | what the cart leaves out: the C64 .PRG loader's 6502 emulator, the mounted-volume list (the floppy is the only drive) |
 | `include/zlib.h` | the declarations GrafX2 includes without libpng |
-| `patches/main.c.sed` | `main` -> `grafx2_main`, called and resumed by `kestrel_main.c` |
+| `patches/main.c.sed` | `main` -> `grafx2_main`, called and resumed by `kestrel_main.c`; no settings saved at quit (the floppy is read-only: a failed save was `exit()`, a trap instead of the desktop) |
 | `patches/setup.h.sed` | the default skin and font as GIF |
 | `run.mjs` | headless runner for experiments: PNGs of the frame, `CLICKS="frame,x,y;..."` |
 

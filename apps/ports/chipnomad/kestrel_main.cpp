@@ -15,6 +15,7 @@ void kestrel_audio_frame(uint32_t us);
 void kestrel_sdl_vbl(uint32_t us);
 void kestrel_heap_report(void);
 int kestrel_quit_requested(void);
+void kestrel_quit(void);
 void kestrel_input_origin(int dx, int dy);
 }
 
@@ -58,7 +59,8 @@ extern "C" __attribute__((export_name("frame"))) void frame(float elapsed_ms)
     appOnEvent(d);
     appDraw();
     kestrel_audio_frame(us);
-    if (kestrel_quit_requested()) { running = 0; kestrel_log("chipnomad: quit"); }
+    // Settings > Quit ChipNomad (mainLoopTriggerQuit): back to the GEM desktop (kestrel_sdl2/src/kestrel_quit.c).
+    if (kestrel_quit_requested()) { running = 0; kestrel_log("chipnomad: quit"); kestrel_quit(); }
 }
 
 extern "C" __attribute__((export_name("isPlaneEnabled"))) int isPlaneEnabled(int p) { return p == 0; }

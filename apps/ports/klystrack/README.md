@@ -18,7 +18,7 @@ songs. Ours (MIT, as the repo): every `kestrel_*` file, `mkbundle.py`, `patches/
     apps/ports/fetch.sh
     make -C apps/ports/klystrack link             # build/demo-klystrack.wasm (byte-identical to docs/ at the pin)
     make -C apps/ports/klystrack install          # copy it to docs/, repack docs/demo-klystrack.zmd (tools/mkdisks.sh)
-    node apps/ports_headless.mjs klystrack        # the gate's check: boot, UI pin, F5 plays STARPORT2.KT
+    node apps/ports_headless.mjs klystrack        # the gate's check: boot, UI pin, F5 plays STARPRT2.KT, Esc quits to GEM
     node apps/ports/klystrack/run.mjs 240         # from the repo root: headless run, PNGs in build/
     KEYS="30,57349" AUDIO=1 node ...run.mjs 240       # F5 (0xE005) at frame 30 = play; writes build/audio.wav
     CLICKS="30,270,87" node ...run.mjs 120            # click PLAY (klystrack 320x240 coordinates)
@@ -35,7 +35,7 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | file | what |
 |---|---|
 | `Makefile` | mirrors klystron (`gfx gui snd util`, not `lib/`) and klystrack (`src`, `src/import`, `src/view`, minus `midi.c`) into `build/gen/` (CRLF dropped, `patches/<file>.sed` applied: a patch must change its file), compiles with `zig cc -target wasm32-wasi`, links, runs binaryen 132's Asyncify (`../upstream/binaryen`, fetched by `../fetch.sh`); `make data` regenerates `data/` |
-| `kestrel_main.c` | the cart's exports. klystrack's `main()` (renamed `klystrack_main` by `patches/main.c.sed`) runs as an Asyncify coroutine, as GrafX2: it yields in `SDL_Delay` and after every `SDL_RenderPresent`. `frame()` = clock + SDL timers, the frame's real time of audio (`kestrel_audio.h`: hostMicros, else dt; at most 2 frames' worth), a queued key/click wakes the repaints, then resume; a frame that presented nothing moves the pointer alone (`kestrel_plane_cursor`). `argv[1]` = `STARPORT2.KT`, opened at boot |
+| `kestrel_main.c` | the cart's exports. klystrack's `main()` (renamed `klystrack_main` by `patches/main.c.sed`) runs as an Asyncify coroutine, as GrafX2: it yields in `SDL_Delay` and after every `SDL_RenderPresent`. `frame()` = clock + SDL timers, the frame's real time of audio (`kestrel_audio.h`: hostMicros, else dt; at most 2 frames' worth), a queued key/click wakes the repaints, then resume; a frame that presented nothing moves the pointer alone (`kestrel_plane_cursor`). `argv[1]` = `STARPRT2.KT`, opened at boot; when `klystrack_main` returns (Esc), `kestrel_quit()`: back to GEM |
 | `kestrel_sdl.c` | what is klystrack-shaped: clock (the frame's real time), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream. **Quiet synth:** no song, every channel's gate off and envelope 0, and 2.2 s of exact silence (longer than the reverb's 2 s line, no feedback): cyd is not called, zeros are fed, until a note or a song starts. **Repaints:** `kestrel_redraw_due` (below) |
 | `kestrel_chorus.c`, `kestrel_sine.h` | klystron's chorus LUT (`cydchr_set`) in integers: a Q30 sine table (generated, 1024 steps, interpolated), the phase stepped exactly, one 32x32->64 multiply. Within +-1/256 sample of upstream's double `sin()`; 7 of 151,404 stream bytes differ by 1 LSB over a 7 s play |
 | `kestrel_stubs.c` | `getpwuid` (no password database) |
@@ -92,15 +92,16 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 - Builds from a clean tree: all 72 klystron + klystrack sources, no warnings that matter (K&R prototypes only).
   Imports only `env` (memory, consoleLogJS, diskReadBlock, hwVideoBase, hwRamAlloc, hwRamFree, hostAudioStreamStart,
   hostAudioFeed). Cart 556 KB after Asyncify (411 KB before), floppy 592 KB.
-- Boots in ~60 ms headless into the classic editor with `STARPORT2.KT` loaded from the floppy; Default theme from the
+- Boots in ~60 ms headless into the classic editor with `STARPRT2.KT` loaded from the floppy; Default theme from the
   bundle (fonts, bevels, VU, cursor), mouse pointer drawn. F5 / clicking PLAY plays it: VU meters, follow-play,
   timer; `build/audio.wav` holds the fed stream (the machine's stream ring honours the 22050 Hz rate:
   `audioStreamStart` sets the Paula step from it). Ctrl+O opens klystrack's file dialog (an Asyncify'd modal
   loop), which lists the floppy's songs; each of the four, picked + OK, loads and plays with no trap (DPINTRO and
   Starport2 ask for more reverb/chorus buses than fit: those stay off, logged). ~2.5-2.9 ms a frame on average
   in node (worst ~17 ms, JIT warm-up).
-- Floppy: `Default` (theme bundle, 10 KB), `STARPORT2.KT`, `CASTLEVANIA.KT`, `OCEANLOADER3.KT`, `DPINTRO.KT`
-  (upstream examples, renamed to <= 16 characters).
+- Floppy (a GEM data disk: GEM lists `BOOT.WSM`, the program, beside these; a double-click runs it, Esc quits back to
+  the desktop, `../README.md`): `Default` (theme bundle, 10 KB), `STARPRT2.KT`, `CASTLEVA.KT`, `OCEANLD3.KT`, `DPINTRO.KT`
+  (upstream examples, `data/` keeps the long names; the disk gives them 8.3 ones, tools/mkdisks.sh).
 
 ### Memory (2 MiB window)
 

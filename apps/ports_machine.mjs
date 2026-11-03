@@ -16,26 +16,35 @@ export const DT = 1000 / 60;
 // dt); else hostMicros advances that much a frame while dt stays 16.6 ms, as on the board, where the
 // frame takes longer than its dt (kestrel_audio.h). extraEnv: imports over the defaults (the Paula
 // channels lent to the cart, apps/pt2_paula_headless.mjs).
+// The cart is started straight away; apps/ports_gem.mjs starts it the way the machine does, from GEM.
 export async function boot(cart, disk, usPerFrame = 0, extraEnv = {}) {
+    const m = await machine(disk, usPerFrame, extraEnv);
+    startCart(m, await readFile(cart), cart);
+    return m;
+}
+
+// The machine with no cart yet: video + ROM on one memory, the drive (m.drive.disk; null = pulled),
+// and the env every cart is linked against.
+export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo = null;
+    const live = { demo: null }; // the cart under the machine's HBL: replaced on every swap
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => demo?.hblDispatch(id, p, l, x) },
+        env: { memory, hblDispatch: (id, p, l, x) => live.demo?.hblDispatch(id, p, l, x) },
     })).instance.exports;
     const romBytes = await readFile("docs/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const bytes = await readFile(cart);
     const log = [], audio = { rate: 0, n: 0, peak: 0, keep: extraEnv.keepAudio ? [] : null }, clock = { us: 0, perFrame: usPerFrame };
+    const drive = { disk };
     const text = (p, n) => new TextDecoder().decode(new Uint8Array(memory.buffer, p, n));
     const env = {
         memory, ...rom,
         consoleLogJS: (p, n) => log.push(text(p, n)),
         diskReadBlock: (b, dst) => {
-            if (!disk) return 0;
-            const s = disk.subarray(b * 512, b * 512 + 512);
+            if (!drive.disk) return 0;
+            const s = drive.disk.subarray(b * 512, b * 512 + 512);
             new Uint8Array(memory.buffer, dst, s.length).set(s);
             return s.length;
         },
@@ -52,15 +61,23 @@ export async function boot(cart, disk, usPerFrame = 0, extraEnv = {}) {
         ...extraEnv,
     };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
-    const unknown = WebAssembly.Module.imports(new WebAssembly.Module(bytes))
+    return { memory, machine, rom, env, live, drive, demo: null, log, audio, clock };
+}
+
+// Start a cart as the loader does: link it (strictly: an import no host provides fails here, as in the
+// browser), declare its RAM, reclaim the outgoing program's ROM handles, then hwInit, boot, skipBoot.
+export function startCart(m, bytes, name, env = m.env) {
+    const mod = new WebAssembly.Module(bytes);
+    const unknown = WebAssembly.Module.imports(mod)
         .filter((i) => i.module !== "env" || !(i.name in env)).map((i) => `${i.module}.${i.name}`);
-    if (unknown.length) throw new Error(`${cart} imports what no host provides: ${unknown.join(" ")}`);
-    demo = (await WebAssembly.instantiate(bytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(bytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    return { memory, machine, demo, log, audio, clock };
+    if (unknown.length) throw new Error(`${name} imports what no host provides: ${unknown.join(" ")}`);
+    m.demo = m.live.demo = new WebAssembly.Instance(mod, { env }).exports;
+    m.machine.hwSetCartHigh(cartRam(bytes).high ?? 0);
+    m.rom.romReset?.();
+    m.machine.hwInit();
+    m.demo.boot();
+    m.demo.skipBoot();
+    return m.demo;
 }
 
 // One VBL as the host runs it: clear, frame(dt), composite every enabled plane.

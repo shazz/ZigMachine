@@ -33,7 +33,7 @@ FORCE=""
 #   machine-*  sealed hardware      demo-audio  worklet module, not a cart
 #   boot-*     v2 boot sectors      demo-c/rust polyglot demos (run via ?demo=)
 #   *bootloader/audio  retired legacy monolith
-SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus boot-replicants_emlyn demo-c demo-rust demo-tutorial_steps demo-c-tutorial_steps demo-rust-tutorial_steps"
+SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus boot-replicants_emlyn boot-sdl demo-c demo-rust demo-tutorial_steps demo-c-tutorial_steps demo-rust-tutorial_steps"
 
 packed=0; skipped=0
 TMP=$(mktemp -d)
@@ -77,6 +77,15 @@ pack() { # pack <out.zmd> <title> <cart.wasm> [extra mkdisk args...]
     out=$1 title=$2 cart=$3; shift 3
     if [ ! -f "$cart" ]; then echo "  -- $out: no $cart, skipped"; skipped=$((skipped+1)); return; fi
     repack "$out" "$(packcart "$cart")" --title "$title" --author "$AUTHOR" "$@"
+}
+
+# portdisk <tag> <cart.wasm> [--file ...]: a C program port's DATA disk (see the case below),
+# carrying the shared "SDL" boot sector (docs/boot-sdl.wasm, apps/zig/boot/sdl.zig): a v2 disk whose
+# descriptor names no cart, so the sector runs, then GEM follows (SysInfo's "No virus" pattern).
+portdisk() {
+    tag=$1 cart=$2; shift 2
+    [ -f "$OUT/boot-sdl.wasm" ] || { echo "mkdisks: $OUT/boot-sdl.wasm is missing: run zig build first"; exit 1; }
+    pack "$OUT/demo-$tag.zmd" "$tag" "$cart" --no-boot --boot-wasm "$OUT/boot-sdl.wasm" "$@"
 }
 
 # --- the menu ------------------------------------------------------------
@@ -140,29 +149,41 @@ for w in "$OUT"/demo-*.wasm; do
         # The streaming demo carries the track it block-streams.
         stream)    pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "MICROMIX.RAW=$OUT/music/micromix30.raw" ;;
-        # The C program ports (apps/ports): their carts are committed prebuilt, their
-        # files come from apps/ports/<port>/ (named one by one: a glob's order follows
-        # the locale, and the disk must be the same bytes on every machine).
+        # The C program ports (apps/ports) are GEM programs on DATA disks, as ST Replay and SysInfo:
+        # the machine boots GEM over the disk, the FLOPPY window lists the program (BOOT.WSM) beside
+        # its files, a double-click runs it (request 3) and its quit brings the desktop back (request
+        # 4, apps/ports/kestrel_sdl2/src/kestrel_quit.c). The program reads its files off the same
+        # disk (kestrel_wasi.c). portdisk adds the shared "SDL" boot sector (docs/boot-sdl.wasm: it
+        # runs, then GEM follows, as SysInfo's "No virus" one). Their carts are committed prebuilt;
+        # their files come from
+        # apps/ports/<port>/, named one by one (a glob's order follows the locale, and the disk
+        # must be the same bytes on every machine), with 8.3 names (GEM shows 12 at most).
         # pt2-clone: two public-domain modules for its DISK OP to load.
-        pt2)       pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+        pt2)       portdisk "$tag" "$w" \
                         --file "RONKEN.MOD=$OUT/music/ronken.mod" \
                         --file "HYBRID.MOD=$OUT/music/hybridglenz.mod" ;;
         # GrafX2: its default skin, font and ini (data/), and our own pictures (ownpics/).
-        # Pictures ripped from other people's work never go on this disk.
+        # Pictures ripped from other people's work never go on this disk. The skin and the font
+        # keep GrafX2's own names: its skin and font pickers list files by their skin_/font_ prefix.
         grafx2)    P=apps/ports/grafx2
-                   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                   portdisk "$tag" "$w" \
                         --file "gfx2def.ini=$P/data/gfx2def.ini" --file "gfx2.gif=$P/data/gfx2.gif" \
                         --file "skin_DPaint.gif=$P/data/skin_DPaint.gif" \
                         --file "font_DPaint.gif=$P/data/font_DPaint.gif" \
-                        --file "ZIGPLASMA.PI1=$P/ownpics/ZIGPLASMA.PI1" --file "ZIGPLASMA.NEO=$P/ownpics/ZIGPLASMA.NEO" \
-                        --file "ZIGPLASMA.GIF=$P/ownpics/ZIGPLASMA.GIF" --file "ZIGWAVES.PI1=$P/ownpics/ZIGWAVES.PI1" \
+                        --file "ZIGPLASM.PI1=$P/ownpics/ZIGPLASMA.PI1" --file "ZIGPLASM.NEO=$P/ownpics/ZIGPLASMA.NEO" \
+                        --file "ZIGPLASM.GIF=$P/ownpics/ZIGPLASMA.GIF" --file "ZIGWAVES.PI1=$P/ownpics/ZIGWAVES.PI1" \
                         --file "ZIGWAVES.NEO=$P/ownpics/ZIGWAVES.NEO" --file "ZIGWAVES.GIF=$P/ownpics/ZIGWAVES.GIF" ;;
         # klystrack: the Default theme bundle and four upstream example songs (data/,
-        # made by its `make data`); it opens STARPORT2.KT at boot.
+        # made by its `make data`); it opens STARPRT2.KT at boot (kestrel_main.c).
         klystrack) P=apps/ports/klystrack/data
-                   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --file "Default=$P/Default" \
-                        --file "STARPORT2.KT=$P/STARPORT2.KT" --file "CASTLEVANIA.KT=$P/CASTLEVANIA.KT" \
-                        --file "OCEANLOADER3.KT=$P/OCEANLOADER3.KT" --file "DPINTRO.KT=$P/DPINTRO.KT" ;;
+                   portdisk "$tag" "$w" --file "Default=$P/Default" \
+                        --file "STARPRT2.KT=$P/STARPORT2.KT" --file "CASTLEVA.KT=$P/CASTLEVANIA.KT" \
+                        --file "OCEANLD3.KT=$P/OCEANLOADER3.KT" --file "DPINTRO.KT=$P/DPINTRO.KT" ;;
+        # ChipNomad: three of upstream's example projects (songs/, MIT like the tracker), for its
+        # PROJECT screen's Load.
+        chipnomad) P=apps/ports/chipnomad/songs
+                   portdisk "$tag" "$w" --file "MICROEGG.CNM=$P/MICROEGG.CNM" \
+                        --file "MICROPIZ.CNM=$P/MICROPIZ.CNM" --file "WB7.CNM=$P/WB7.CNM" ;;
         *)         pack "$OUT/demo-$tag.zmd" "$tag" "$w" ;;
     esac
 done

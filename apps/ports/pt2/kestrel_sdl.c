@@ -18,7 +18,6 @@ static SDL_PixelFormat argb = { SDL_PIXELFORMAT_ARGB8888 };
 
 /* --- core --- */
 int SDL_Init(Uint32 flags) { (void)flags; return 0; }
-void SDL_Quit(void) {}
 const char *SDL_GetError(void) { return "KESTREL: not supported"; }
 void SDL_GetVersion(SDL_version *v) { SDL_VERSION(v); }
 SDL_bool SDL_SetHint(const char *n, const char *v) { (void)n; (void)v; return SDL_TRUE; }

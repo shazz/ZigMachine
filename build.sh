@@ -607,22 +607,26 @@ gate dune_gen4 node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh 2  
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
-gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): the committed cart boots off its committed disk with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard
+gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): its GEM data disk runs the SDL boot sector (request 2), GEM lists its files, a double-click runs BOOT.WSM = the committed cart with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard; Esc, Esc quits back to the desktop exactly as it was (request 4)
 gate ports_pt2 node apps/ports_headless.mjs pt2 --break load   # ...and the file never clicked (nothing loaded, nothing heard) is caught
+gate ports_pt2 node apps/ports_headless.mjs pt2 --break quit   # ...and the quit never asked for (no desktop) is caught
 gate ports_pt2 node apps/ports_headless.mjs pt2 --clock 33333   # ...and with the board's clock (hostMicros 33 ms a frame, dt 16.6): the audio fed follows the clock, not dt (kestrel_audio.h)
 gate ports_pt2 node apps/pt2_paula_headless.mjs   # ...and on the machine's hardware Paula channels (HW 1.14.0, env.hostPaula*, the real worklet): pt2 claims them and stops its stream, RONKEN.MOD plays with every write landed at its sample, its loudness and semitone spectrum follow the software mixer's, a song request while it holds them is refused
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break pitch   # ...and every period doubled on the way (an octave down) is caught
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break latch   # ...and LC/LEN taken at once, not at the wrap (paula.zig mutant 2), is caught
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break upload   # ...and no sample uploaded to chip RAM is caught
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break owner   # ...and the worklet's refusal bypassed (a song let in over chip RAM) is caught
-gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels
+gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels; Q + Discard quits back to GEM
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
-gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPORT2.KT opened off the floppy, UI pinned; the pointer moves over the idle UI (no repaint); F5 after cyd went quiet plays it: the stream is not silent and the screen follows play
+gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break quit   # ...and no quit is caught
+gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPRT2.KT opened off the floppy, launched from GEM, UI pinned; the pointer moves over the idle UI (no repaint); F5 after cyd went quiet plays it: the stream is not silent and the screen follows play; Esc quits back to GEM
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break silent   # ...and F5 never pressed (silence) is caught
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break pointer   # ...and a pointer that never moves is caught
-gate ports_chipnomad node apps/ports_headless.mjs chipnomad   # CHIPNOMAD (C++): the song screen in the ST font pinned; X (the A button) puts chain 00 in the first cell; chain -> phrase -> a C-4 on instrument 00 made AY Classic, START plays it: the stream is not silent
+gate ports_klystrack node apps/ports_headless.mjs klystrack --break quit   # ...and no quit is caught
+gate ports_chipnomad node apps/ports_headless.mjs chipnomad   # CHIPNOMAD (C++): the song screen in the ST font pinned; X (the A button) puts chain 00 in the first cell; chain -> phrase -> a C-4 on instrument 00 made AY Classic, START plays it: the stream is not silent; Settings > Quit ChipNomad goes back to GEM
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break key   # ...and X never pressed is caught
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break silent   # ...and START never pressed (silence) is caught
+gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break quit   # ...and no quit is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain

@@ -2,8 +2,11 @@
 
 [ChipNomad](https://github.com/Megus/chipnomad-tracker) (Megus, MIT) is an LSDJ-style tracker for the AY-3-8910 /
 YM2149, in C++17. Its text screen is drawn in the Atari ST's 8x8 system font in 8x10 cells: 40x20 cells =
-exactly a 320x200 plane. The cart is `docs/demo-chipnomad.wasm`, on `docs/demo-chipnomad.zmd` (the cart alone:
-it starts on an empty project).
+exactly a 320x200 plane. The cart is `docs/demo-chipnomad.wasm`, the program `BOOT.WSM` on the GEM data disk
+`docs/demo-chipnomad.zmd`, with three of upstream's example projects (`songs/`: `MICROEGG.CNM`, `MICROPIZ.CNM`,
+`WB7.CNM`, from `tracker/packaging/common/projects`, MIT as the tracker) for the PROJECT screen's Load. GEM boots
+over the disk, a double-click on `BOOT.WSM` runs ChipNomad (it starts on an empty project); SETTINGS (SELECT +
+Down from the song screen), "Quit ChipNomad", A goes back to the desktop (`../README.md`).
 
 ## Licence
 

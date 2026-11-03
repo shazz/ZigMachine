@@ -20,6 +20,7 @@ void kestrel_sdl_vbl(uint32_t us);
 void kestrel_audio_frame(uint32_t us);
 void kestrel_plane_init(void);
 void kestrel_log(const char *m);
+void kestrel_quit(void);
 void kestrel_heap_report(void);
 void kestrel_input_origin(int dx, int dy);
 extern void (*kestrel_present_hook)(void);
@@ -38,7 +39,7 @@ static struct { void *top, *end; } adata;
 static int unwinding, rewinding, suspended, finished;
 
 /* argv[1]: the song klystrack opens at start (main.c: fopen(argv[1]) -> open_song), from the floppy. */
-static char a0[] = "klystrack", a1[] = "STARPORT2.KT";
+static char a0[] = "klystrack", a1[] = "STARPRT2.KT";
 static char *argv0[] = { a0, a1, 0 };
 
 void kestrel_yield(void)
@@ -56,6 +57,7 @@ static void run(void)
     if (unwinding) { asyncify_stop_unwind(); unwinding = 0; suspended = 1; return; }
     finished = 1;
     kestrel_log(rc == 0 ? "klystrack: quit" : "klystrack: exited with an error");
+    kestrel_quit();   /* main returned: back to the GEM desktop (kestrel_sdl2/src/kestrel_quit.c) */
 }
 
 __attribute__((export_name("boot"))) void boot(void)

@@ -302,9 +302,12 @@ int32_t __imported_wasi_snapshot_preview1_poll_oneoff(int32_t in, int32_t out, i
     return 0;
 }
 
+/* exit(): the program cannot carry on. It asks to go back to the desktop (kestrel_quit.c), then traps. */
+void kestrel_quit(void);
 _Noreturn void __imported_wasi_snapshot_preview1_proc_exit(int32_t code)
 {
     (void)code;
     kestrel_log("exit() called");
+    kestrel_quit();
     __builtin_trap();
 }

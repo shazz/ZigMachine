@@ -16,6 +16,7 @@ void kestrel_video_init(void);
 void kestrel_video_frame(void);
 void kestrel_sdl_vbl(void);
 void kestrel_log(const char *m);
+void kestrel_quit(void);
 void kestrel_heap_report(void);
 void kestrel_input_origin(int dx, int dy);
 
@@ -42,6 +43,7 @@ static void run(void)
     if (unwinding) { asyncify_stop_unwind(); unwinding = 0; suspended = 1; return; }
     finished = 1;
     kestrel_log(rc == 0 ? "grafx2: quit" : "grafx2: exited with an error");
+    kestrel_quit();   /* main returned: back to the GEM desktop (kestrel_sdl2/src/kestrel_quit.c) */
 }
 
 __attribute__((export_name("boot"))) void boot(void)

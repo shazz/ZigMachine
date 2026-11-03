@@ -2,8 +2,12 @@
 
 [pt2-clone](https://github.com/8bitbubsy/pt2-clone) (Olav "8bitbubsy" Sørensen, BSD-3-Clause) is a
 pixel-exact ProTracker 2.3D clone in C on SDL2. Its screen is 320x255, drawn at (40,12) of the 400x280
-overscan plane. The cart is `docs/demo-pt2.wasm`, on `docs/demo-pt2.zmd` with two modules
-(`RONKEN.MOD`, `HYBRID.MOD`, from `docs/music/`) for its DISK OP to load.
+overscan plane. The cart is `docs/demo-pt2.wasm`, the program `BOOT.WSM` on the GEM data disk
+`docs/demo-pt2.zmd` with two modules (`RONKEN.MOD`, `HYBRID.MOD`, from `docs/music/`) for its DISK OP to load:
+GEM boots over the disk, a double-click on `BOOT.WSM` runs pt2. To quit, Esc on the main screen (or Alt+Q):
+"PRESS AGAIN: QUIT" on the status line, a second Esc within 3 s goes back to the desktop (`../README.md`).
+upstream's "REALLY QUIT ?" box (`askBox`) is a modal loop that never returns on a cart, so the quit sites are
+patched to that two-press confirm; pt2's other `askBox` dialogs (CLEAR, the sampler's, ...) still hang the cart.
 
 ## Licence
 
@@ -27,13 +31,13 @@ cart that opens a module at boot; the shipped cart is built without it.
 
 | file | what |
 |---|---|
-| `split_main.py` | build step: upstream `main()` -> `pt2_boot()`, its main-loop body -> `pt2_frame()`; fails loudly if upstream's loop changes shape |
+| `split_main.py` | build step: upstream `main()` -> `pt2_boot()`, its main-loop body -> `pt2_frame()`; fails loudly if upstream's loop changes shape; `pt2_frame()` ends with the loop's lost condition (`kestrel_quit()` once pt2 stops running) and gains `kestrel_confirm_quit()` |
 | `kestrel_main.c` | the cart's exports: `boot()` = `pt2_boot`, `frame(dt)` = one loop pass a VBL, then the scopes and the frame's real time of audio (`kestrel_audio.h`: hostMicros, else dt) |
 | `kestrel_sdl.c` | the SDL2 calls pt2 makes that the shared layer does not: the 320x255 ARGB frame buffer onto an 8-bit plane (4 pixels a store, only the rectangles pt2 drew since the last present: `kestrel_fb_dirty`), the audio callback fed to the machine's stream at 24 kHz, the clock, threads run inline, window/renderer no-ops |
 | `kestrel_paula.c` | Paula in integers, built instead of upstream's `pt2_paula.c` (same API): point-sampled voices, the A500 RC low-pass and the LED filter in fixed point, mono out. Upstream's double-precision BLEP mixer cost ~5,500 cycles a 48 kHz sample on the board; this one ~150 at 24 kHz |
 | `kestrel_bmp.c` | the 12 big screen bitmaps decoded on demand into one slot (pt2 decodes all of them at boot: ~1.2 MB) |
 | `kestrel_port.h` | force-included: the on-demand bitmap hook, `kestrel_fb_dirty` (a rectangle pt2 is about to draw) |
-| `patches/*.sed` | each says why in its header: lazy bitmaps, no scope thread (ticked from `frame()`), a smaller visual sync ring, samples capped at 13 KB, pt2 draws its own pointer, every `video.frameBuffer` write site marks its rectangle (`pt2_textout`, `pt2_visuals`, `pt2_sampler`, `pt2_scopes`, `pt2_sampling`), `outputAudio` handed to `kestrel_paula.c` and no 2x oversampling |
+| `patches/*.sed` | each says why in its header: lazy bitmaps, no scope thread (ticked from `frame()`), a smaller visual sync ring, samples capped at 13 KB, pt2 draws its own pointer, every `video.frameBuffer` write site marks its rectangle (`pt2_textout`, `pt2_visuals`, `pt2_sampler`, `pt2_scopes`, `pt2_sampling`), `outputAudio` handed to `kestrel_paula.c` and no 2x oversampling; `pt2_keyboard` and `pt2_mouse`: "REALLY QUIT ?" as the two-press `kestrel_confirm_quit()` |
 | `run.mjs` | headless runner for experiments: PNGs of the frame, `CLICKS="frame,x,y;..."` in pt2 coordinates |
 
 The shared layer `../kestrel_sdl2` gives the heap, WASI over the floppy (read-only) and the input queue.

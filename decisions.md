@@ -1453,3 +1453,30 @@ Tests: `machine/video_tc_test.zig` (all 65,536 values), `apps/truecolor_check.mj
 mutants), synthetic `truecolor` in `fpga/tests/test_rtl_video.py` with 8 RTL break tests (`tc_*`),
 `test_vdirty.py::test_a_truecolor_plane_skips_only_unchanged_lines`, and mpp_truecolor's harness (one
 `FB_MODE_TRUECOLOR` plane showing the converter's 565 picture).
+
+## 2026-11-02 — The C ports are GEM programs on data disks; quitting is request 4 from the shared SDL2 layer
+
+**Status:** accepted
+**Context:** Matt (2 Nov): "pt2 clone, grafx2, klystrack, chipnomad, can you make them like ST replay as
+FAT files?" The four ports booted as bootable disks: no desktop, no way to see or leave the disk, and on the
+board no OS to return to (SysInfo's reason for becoming a data disk). Each program already read its files off
+the mounted floppy (`kestrel_wasi.c`), and a program GEM launches keeps the same disk mounted.
+**Decision:** each port's disk is a DATA disk (`tools/mkdisks.sh` `portdisk`: `--no-boot`, plus the shared
+"SDL" boot sector `docs/boot-sdl.wasm`, as SysInfo's "No virus": the sector runs, then GEM boots over it, its FLOPPY window lists
+`BOOT.WSM` and the program's files (8.3 names; GEM's 12-file cap), a double-click runs it. Quitting lives in the
+shared layer, `apps/ports/kestrel_sdl2/src/kestrel_quit.c`: `kestrel_quit()` makes the cart's `pollCartRequest`
+export answer 4 (SysInfo's and ST Replay's protocol); `SDL_Quit()` and `exit()` call it, and each port calls
+it where its main loop ends (pt2: `editor.programRunning`, emitted by `split_main.py`; GrafX2 and klystrack:
+their main returning; ChipNomad: `mainLoopTriggerQuit`). pt2's "REALLY QUIT ?" (`askBox`, a modal loop that
+cannot return on a cart without Asyncify) becomes a two-press confirm on the status line.
+`apps/ports_headless.mjs` launches every port from GEM (`apps/ports_gem.mjs`, as `sealed-loader.js`), checks
+the program GEM runs is the committed cart, and quits it back to the desktop (`--break quit`).
+**Alternatives considered:** a per-port quit (four copies of the same request, and SDL_Quit/exit left
+dead); pt2 under Asyncify so `askBox` works (it would cover every pt2 dialog, but costs every input path
+pt2's frame reaches on the board: a separate decision); readable program names (`PT2.WSM`): `disk_check.mjs`,
+the glass and its tests look for `BOOT.WSM` on a v2 data disk, so the ports follow ST Replay and SysInfo.
+**Consequences:** on the board the four programs are staged under `progs/demo-<tag>/BOOT.WSM.zmd`
+(`fpga/tools/glass_shelf.py`), and a board firmware built before `pollCartRequest` existed in these carts
+quits nothing: rebuild the four board firmwares with the carts. pt2's other `askBox` dialogs (CLEAR, the
+sampler's) still hang the cart, as before. The ports harness now also depends on GEM (`docs/demo-gem.wasm`,
+`docs/rom.wasm`).
