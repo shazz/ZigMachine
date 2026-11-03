@@ -1170,6 +1170,41 @@ archive's file byte for byte (<code>apps/xm_test_check.mjs</code> holds the md5s
 <p>What the player leaves out of them (<code>xm.zig</code>'s ignored list): the volume column's
 vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
 slide and the volume column's panning slide.</p>
+<p>The klystrack songs (<code>.kt</code>), upstream's example songs (kometbomb/klystrack, MIT, <code>apps/ports/klystrack/data/*.KT</code>
+copied byte for byte with lower-case names). KT TEST (keys 1-4) asks for them; no player takes <code>.kt</code> yet (the BARD
+player is the ROADMAP row "klystrack songs on BARD"), so today the request is dropped and the screen says
+"NO KT PLAYER YET". <code>fpga/tools/song_pack.py</code> skips a <code>.kt</code> literal with a note. <code>apps/kt_test_check.mjs</code> holds the md5s:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Size</th>
+<th>md5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>starport2.kt</code></td>
+<td>1,822 B</td>
+<td><code>0246c50252e717ea7677fefb5c044ea4</code></td>
+</tr>
+<tr>
+<td><code>castlevania.kt</code></td>
+<td>2,793 B</td>
+<td><code>9657f6b0554d8df5548bb35c3f91cef5</code></td>
+</tr>
+<tr>
+<td><code>oceanloader3.kt</code></td>
+<td>8,144 B</td>
+<td><code>22139dc5dbaf6df1ec72b35b2db25775</code></td>
+</tr>
+<tr>
+<td><code>dpintro.kt</code></td>
+<td>9,725 B</td>
+<td><code>eaee7e7520571ce27a857b7edcd58e68</code></td>
+</tr>
+</tbody>
+</table>
 <p>The Amiga modules (<code>.hip</code>), each modland's file byte for byte, renamed without spaces:</p>
 <table>
 <thead>
