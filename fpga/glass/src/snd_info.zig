@@ -133,6 +133,7 @@ pub fn player(w: *std.Io.Writer, i: *const Info) void {
         mc.PLAYER_PCM => "PCM",
         mc.PLAYER_HIP => "HIP 68k", // ZMSTAT: BARD:HIP_68k
         mc.PLAYER_PAULA => "Paula (cart)", // ZMSTAT: BARD:Paula_(cart)
+        mc.PLAYER_KT => "KT", // ZMSTAT: BARD:KT
         mc.PLAYER_UNKNOWN => "unknown",
         else => return w.print("player#{d}", .{i.player}) catch {},
     };

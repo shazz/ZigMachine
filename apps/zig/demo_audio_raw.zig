@@ -66,6 +66,7 @@ fn stopPlayers() void {
     if (m.sndh.active) m.sndh.abandon();
     m.mod.stop();
     m.xm.stop();
+    m.kt_exports.kt.stop();
     m.ym.stop();
     m.sap_exports.sap.stop();
     m.hip_exports.hip.abandon();

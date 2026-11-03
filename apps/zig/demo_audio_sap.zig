@@ -21,6 +21,7 @@ export fn audioLoadSap(len: u32) bool {
         if (m.current_mode == 4) m.current_mode = 0;
     }
     m.hip_exports.hip.abandon();
+    m.kt_exports.kt.stop(); // its tables were in the song RAM just staged over
     return sap.load(len);
 }
 

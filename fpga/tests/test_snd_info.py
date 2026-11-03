@@ -41,6 +41,7 @@ int main(void) {
     sndinfo_song(ROUTE_BARD, "shaolin_title.hip", 1); dump();
     sndinfo_paula(ROUTE_BARD, 1); dump();
     sndinfo_paula(ROUTE_BARD, 0); dump();
+    sndinfo_song(ROUTE_BARD, "dpintro.kt", 0); dump();
     return 0;
 }
 """
@@ -126,3 +127,8 @@ def test_a_cart_holding_paula_is_named_and_its_release_is_idle(steps: list[list[
     assert head(held)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_PAULA) and held[mc.SI_FLAGS] & mc.SIF_STARTED
     assert name(held) == "cart" and held[mc.SI_SEQ] % 2 == 0
     assert head(freed)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and freed[mc.SI_FLAGS] == 0
+
+
+def test_a_klystrack_song_is_the_kt_player(steps: list[list[int]]) -> None:
+    kt = steps[15]  # kt_test's songs: OSD/ZMSTAT "BARD:KT", not "unknown"
+    assert head(kt)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_KT) and name(kt) == "dpintro.kt"

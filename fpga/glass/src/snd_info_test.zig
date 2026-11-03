@@ -71,6 +71,7 @@ test "ZIGGY playing a MOD, and a native SNDH driver on BARD" {
     try expectPage(page(&w, .{ .player = mc.PLAYER_SAP, .name = "Warhawk.sap" }), &.{"music BARD SAP 6502"});
     try expectPage(page(&w, .{ .player = mc.PLAYER_HIP, .name = "shaolin_title.hip" }), &.{"music BARD HIP 68k"});
     try expectPage(page(&w, .{ .player = mc.PLAYER_PAULA, .name = "cart" }), &.{"music BARD Paula (cart)"}); // pt2 on the channels
+    try expectPage(page(&w, .{ .player = mc.PLAYER_KT, .name = "dpintro.kt" }), &.{"music BARD KT"}); // a klystrack song
 }
 
 test "no music: a firmware without audio, BARD that never answered, nothing asked, a song that never started" {
@@ -88,7 +89,7 @@ test "no music: a firmware without audio, BARD that never answered, nothing aske
 
 test "codes this glass does not know are named by number, never guessed" {
     var w: [PAGE]u32 = undefined;
-    try expectPage(page(&w, .{ .player = 9, .name = "tune.xyz" }), &.{"music BARD player#9"});
+    try expectPage(page(&w, .{ .player = 10, .name = "tune.xyz" }), &.{"music BARD player#10"});
     try expectPage(page(&w, .{ .player = mc.PLAYER_UNKNOWN, .name = "tune.xyz" }), &.{"music BARD unknown"});
     try expectPage(page(&w, .{ .native = mc.NATIVE_LAST + 1 }), &.{"music BARD SNDH n#17"});
     try expectPage(page(&w, .{ .route = 5 }), &.{"music route#5 SNDH 68k"});

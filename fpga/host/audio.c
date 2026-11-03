@@ -92,12 +92,14 @@ static void load_sap(const char* name, int32_t len, uint32_t tune) {
                    (unsigned)(st >> 16 & 0xFF), (unsigned)w2c_audio_audioSapStopPc(p));
 }
 
-/* worklet "loadXm" / "loadHip" on the `len` bytes staged: an XM's tune is its start BPM (0 = the
- * song's own), a Hippel module's its song (its own 68000 replay on Paula; from 1). 0: refused. */
+/* worklet "loadXm" / "loadHip" / "loadKt" on the `len` bytes staged: an XM's tune is its start BPM
+ * (0 = the song's own), a Hippel module's its song (its own 68000 replay on Paula; from 1), a
+ * klystrack song's nothing (cyd on Paula, libs/zig/players/kt.zig). 0: refused. */
 static int load_paula(const char* name, uint32_t len, uint32_t tune) {
     w2c_audio* p = &g_aud.player;
     if (ends_with(name, ".xm") && w2c_audio_audioLoadXm(p, len)) w2c_audio_audioXmPlay(p, tune);
     else if (ends_with(name, ".hip") && w2c_audio_audioLoadHip(p, len)) w2c_audio_audioHipPlay(p, tune);
+    else if (ends_with(name, ".kt") && w2c_audio_audioLoadKt(p, len)) w2c_audio_audioKtPlay(p, tune);
     else return 0;
     return 1;
 }
