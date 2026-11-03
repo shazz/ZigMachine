@@ -64,7 +64,7 @@ $(GEN)/src/%: $(UP)/src/% $(wildcard patches/*.sed)
 $(OUT)/ksdl/%.o: $(KSDL)/%.c $(SHIMH)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
-$(OUT)/kestrel_%.o: kestrel_%.c kestrel_port.h $(SHIMH)
+$(OUT)/kestrel_%.o: kestrel_%.c kestrel_port.h kestrel_sine.h $(SHIMH)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
 $(OUT)/%.o: $(GEN)/%.c $(GENALL) kestrel_port.h $(SHIMH)

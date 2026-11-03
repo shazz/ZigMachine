@@ -56,7 +56,8 @@ const SPECS = {
         cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer"],
         pinAt: 20, pin: "c535877893c812bf1cb6e491a9e6ebe27c5aecf5258c8e661d630fe6e9608d5b",
         // the UI is idle by frame 70 (no repaints: kestrel_sdl.c) and the pointer must still move; F5 at 160,
-        // after cyd went quiet (2.2 s of silence, kestrel_sdl.c), so playing also proves the synth wakes up
+        // after cyd went quiet (QUIET_AFTER_MS 2.2 s of silence in kestrel_sdl.c = frame ~133 here), so playing also
+        // proves the synth wakes up: raise QUIET_AFTER_MS past ~2.6 s and F5 must move later
         events: (brk) => [
             ...(brk === "pointer" ? [] : [[70, click(150, 100, 0)]]),
             ...(brk === "silent" ? [] : [[160, (d) => d.key(F_KEY5)], [163, (d) => d.keyUp(F_KEY5)]]),

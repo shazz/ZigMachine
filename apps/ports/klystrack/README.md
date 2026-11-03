@@ -154,4 +154,7 @@ adds 690 KB (chorus 707 KB) at 44.1 kHz, half that at 22.05 kHz. Then raise `mus
   still plays slow on the board and the UI is ~3-5 fps while it plays. Next: an 8-bit renderer target (textures are
   already indexed, the UI ~32 colours: draw straight into the plane, no present), and cyd itself (BARD, or
   fewer channels / taps). The gate (`apps/ports_headless.mjs klystrack`) now also moves the pointer over the idle
-  UI (`--break pointer`) and presses F5 only after cyd has gone quiet.
+  UI (`--break pointer`) and presses F5 only after cyd has gone quiet. A keyjazz note ('z') after cyd went quiet sounds as
+  before (gate set at trigger, peak |s8| 9 on both builds). Disk: boot() reads 1,397 blocks (715 KB, ~3x the 245 KB
+  floppy; theme bundle and song re-read) through the one-block cache: ~2 Mc of copying in the cart, the firmware's
+  per-block cost unmeasured (`DISK_BLOCK` = 0 in the cost model); not what made the boot slow.
