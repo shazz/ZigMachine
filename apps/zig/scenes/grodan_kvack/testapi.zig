@@ -46,3 +46,54 @@ export fn gkState(sel: u32) i32 {
         else => @bitCast(s.swingy),
     };
 }
+
+// ---- ZIG mode (zig_mode.zig) ---------------------------------------------------
+const zig = @import("zig_mode.zig");
+
+/// 1 while ZIG mode is on.
+export fn gkZig() u32 {
+    return @intFromBool(zig.on);
+}
+
+/// The green plane: 0 = its pan column (HSCROLL), 1 = row (FB_BASE), 2 = times drawn.
+export fn gkZigGreen(sel: u32) u32 {
+    const g = @import("zig_green.zig");
+    return switch (sel) {
+        0 => g.pan_x,
+        1 => g.pan_y,
+        else => g.draws,
+    };
+}
+
+/// Plane p's pixel buffer and stride (0 before the first Z press).
+export fn gkPlanePtr(p: u32) u32 {
+    const os = zig.os orelse return 0;
+    return @intCast(@intFromPtr(os.lfbs[p & 3].fb));
+}
+export fn gkPlaneStride(p: u32) u32 {
+    const os = zig.os orelse return 0;
+    return os.lfbs[p & 3].stride;
+}
+
+/// Plane p's published copper list (HW 1.9.0): address and length in words, 0 = none.
+export fn gkCopperPtr(p: u32) u32 {
+    const os = zig.os orelse return 0;
+    const l = os.lfbs[p & 3].copperBuffer() orelse return 0;
+    return @intCast(@intFromPtr(l.ptr));
+}
+export fn gkCopperLen(p: u32) u32 {
+    const os = zig.os orelse return 0;
+    const l = os.lfbs[p & 3].copperBuffer() orelse return 0;
+    return @intCast(l.len);
+}
+
+/// CHISEL ops the last ZIG frame issued: the AFFINE plus the keyed blits.
+export fn gkZigBlits() u32 {
+    return 1 + @import("zig_layers.zig").blits_last_frame;
+}
+
+/// The rotozoom for tick t: 0 = its angle (u32), 1 = texels a pixel (Q16).
+export fn gkZigRoto(sel: u32, t: u32) u32 {
+    const r = @import("zig_roto.zig");
+    return if (sel == 0) r.angleAt(t) else @bitCast(r.scaleAt(t));
+}

@@ -41,8 +41,15 @@
 // chip dump, which this project no longer uses) and is a MOD, not an SNDH: the
 // ST demo played it as samples. The MOD player mixes it to DMA, as on the board.
 //
-// Escape hands the screen back to the menu (demo_main.zig's default: this cart
-// declares no key(), so the host's Escape is the way out).
+// ZIG MODE (Z toggles it; default off): the KESTREL showcase of this screen --
+// the pink layer rotozoomed by CHISEL AFFINE, overscan with every border opened,
+// the green layer on its own hardware-scrolled plane, 24-bit copper rasters and
+// a per-line colour cycle, two more vertical scrolltexts in the side borders.
+// It lives on planes 1 and 2 (grodan_kvack/zig_mode.zig); plane 0 and every
+// pixel of the original are untouched by it.
+//
+// Keys: this cart declares key(), so it owns every key (demo_main.zig): Z
+// toggles ZIG mode, Escape hands the screen back to the menu (wants_quit).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -51,6 +58,7 @@ const model = @import("grodan_kvack/model.zig");
 const assets = @import("grodan_kvack/assets.zig");
 const chunky = @import("grodan_kvack/chunky.zig");
 const draw = @import("grodan_kvack/draw.zig");
+const zig = @import("grodan_kvack/zig_mode.zig");
 
 const MUSIC = "ronken.mod";
 
@@ -61,6 +69,8 @@ const H: usize = zg.HEIGHT; // 200
 /// One 60 Hz tick. The Go runs at Ebitengine's default TPS (60) and its Update()
 // steps every counter once per call; dt arrives here in MILLISECONDS.
 const TICK_MS: f32 = 1000.0 / 60.0;
+
+const K_ESC: u32 = 0xE012;
 
 /// The demo's animation state and the tick count, module scope so the headless
 /// harness's exports can read the very words compose() draws from.
@@ -75,10 +85,16 @@ pub const Demo = struct {
     ready: bool,
     blitter: zg.Blitter,
     art: ?*const chunky.Art,
+    /// demo_main's pollCartRequest: back to the menu (Escape).
+    wants_quit: bool,
+    /// Z pressed since the last update(): the toggle needs the ZigOS handle.
+    zig_toggle: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.acc = 0;
         self.ready = false;
+        self.wants_quit = false;
+        self.zig_toggle = false;
         self.blitter = .{};
         self.blitter.init();
         self.art = chunky.get();
@@ -100,8 +116,18 @@ pub const Demo = struct {
         self.ready = true;
     }
 
-    pub fn update(self: *Demo, _: *ZigOS, dt_ms: f32) void {
+    // Declaring key() gives this cart every key: Escape must be handled here.
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        if (cp == 'z' or cp == 'Z') self.zig_toggle = true;
+    }
+
+    pub fn update(self: *Demo, zigos: *ZigOS, dt_ms: f32) void {
         if (!self.ready) return;
+        if (self.zig_toggle) {
+            self.zig_toggle = false;
+            zig.toggle(zigos, self.art);
+        }
         // dt > 0 is false for NaN, so a non-finite delta can never advance the
         // counter. The cap stops a stalled tab replaying minutes of the intro.
         if (dt_ms > 0) self.acc = @min(self.acc + @min(dt_ms, 200.0), TICK_MS * 4);
@@ -113,6 +139,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ready) return;
+        if (zig.on) return zig.render(zigos, &state, tick, &self.blitter, self.art.?);
         const fb = &zigos.lfbs[PLANE];
         // CHISEL from the chunky art (draw.zig); the CPU composer only if
         // cart RAM could not hold that art.

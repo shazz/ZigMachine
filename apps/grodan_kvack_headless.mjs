@@ -18,12 +18,17 @@
 //   raster   the window carries more than the eight static palette colours
 //            (entries 4/5/6 really are rewritten per scanline), and the border
 //            bands above/below line 200 stay black
+//   zig      Z: the ZIG mode's own checks (apps/grodan_kvack_zig.mjs: the
+//            hardware-scrolled green plane, the rotozoom pixel for pixel, the
+//            border scrolltexts, the copper lists), then Z again gives back the
+//            original's model pixel for pixel
 //   leave    Escape hands the screen back to the menu
 //   soak     no zg.mem allocation refused; ms/frame reported, not budgeted
 //   node apps/grodan_kvack_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam } from "../docs/wasm_hiwater.js";
+import { zigChecks, bindModel } from "./grodan_kvack_zig.mjs";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200;
@@ -396,6 +401,25 @@ ok(compared >= 1200, `${compared} frames compared pixel for pixel (the boot fram
 // A raster, not a static palette: the window carries more colours than the
 // eight palette words can, i.e. entries 4/5/6 really do change per scanline.
 ok(distinctMax > 16, `the per-line rasters put ${distinctMax} distinct colours on the window (a static palette gives 8)`);
+
+// ZIG mode (Z): its own checks (apps/grodan_kvack_zig.mjs), then Z again must
+// give back the original pixel for pixel; the state words stay the model's.
+{
+    let f = LAST + 1;
+    const step = () => {
+        machine.hwClear();
+        demo.frame(TICK_MS);
+        update(st);
+        f++;
+        if (demo.gkTick() !== f) throw new Error(`ZIG frame: gkTick ${demo.gkTick()} != ${f}`);
+        for (let i = 0; i < 4; i++)
+            if (demo.gkScroll(i) !== [st.s1.scroll, st.s2.scroll, st.s3.scroll, st.s4.scroll][i])
+                throw new Error(`ZIG frame ${f}: scroll ${i} drifted from the model`);
+    };
+    const c = { machine, demo, memory, ok, step, st, draw, windowRGB, fsin, fcos, fmul, bit, bgG, bgP };
+    bindModel(c);
+    await zigChecks(c);
+}
 
 // The border bands above/below the visible line are black (the tables end).
 machine.hwClear(); demo.frame(TICK_MS); machine.hwRenderPlane(0);
