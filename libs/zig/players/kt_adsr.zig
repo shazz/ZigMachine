@@ -9,7 +9,7 @@ const set = @import("kt_cyd_set.zig");
 
 /// One sample of the envelope; returns `flags` with GATE cleared when a
 /// release runs out (unless a wavetable overrides the envelope).
-pub fn cycle(rate: u32, flags: u32, shape: u8, a: *c.Adsr) u32 {
+pub inline fn cycle(rate: u32, flags: u32, shape: u8, a: *c.Adsr) u32 {
     if (flags & c.YM_ENV == 0) return sid(rate, flags, a);
     return ym(flags, shape, a);
 }
@@ -21,7 +21,7 @@ fn releaseDone(flags: u32, a: *c.Adsr) u32 {
     return flags;
 }
 
-fn sid(rate: u32, flags: u32, a: *c.Adsr) u32 {
+inline fn sid(rate: u32, flags: u32, a: *c.Adsr) u32 {
     switch (a.state) {
         c.ATTACK => {
             a.envelope +%= a.env_speed;
@@ -51,7 +51,7 @@ fn sid(rate: u32, flags: u32, a: *c.Adsr) u32 {
     return flags;
 }
 
-fn ym(flags: u32, shape: u8, a: *c.Adsr) u32 {
+inline fn ym(flags: u32, shape: u8, a: *c.Adsr) u32 {
     switch (a.state) {
         c.ATTACK => {
             a.envelope +%= a.env_speed;
@@ -82,7 +82,7 @@ fn ym(flags: u32, shape: u8, a: *c.Adsr) u32 {
 }
 
 /// The envelope's gain on `input`, then the channel volume (0..128).
-pub fn output(chn_flags: u32, a: *const c.Adsr, input: i32) i32 {
+pub inline fn output(chn_flags: u32, a: *const c.Adsr, input: i32) i32 {
     const vol: i32 = a.volume;
     if (chn_flags & c.YM_ENV != 0) {
         const idx: u32 = a.envelope *% tab.YM_LUT_SIZE / c.YM_LENGTH;

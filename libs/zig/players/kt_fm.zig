@@ -32,7 +32,7 @@ inline fn feedback(fm: *const c.Fm, span: u32) u32 {
     return @truncate(fbsum / 2 * k / MODULATOR_MAX);
 }
 
-fn modulator(fm: *const c.Fm) u32 {
+inline fn modulator(fm: *const c.Fm) u32 {
     if (fm.flags & c.WAVE != 0) if (fm.wave_entry) |e| {
         const length = e.span;
         if (length == 0) return 0;
@@ -48,7 +48,7 @@ fn modulator(fm: *const c.Fm) u32 {
 }
 
 /// cydfm_cycle: one sample of the modulator.
-pub fn cycle(rate: u32, fm: *c.Fm) void {
+pub inline fn cycle(rate: u32, fm: *c.Fm) void {
     _ = adsr.cycle(rate, 0, 0, &fm.adsr);
     fm.env_output = @bitCast(adsr.output(0, &fm.adsr, MODULATOR_MAX));
     wave.cycle(&fm.wave, fm.wave_entry);
@@ -60,13 +60,13 @@ pub fn cycle(rate: u32, fm: *c.Fm) void {
 }
 
 /// cydfm_modulate(cyd, fm, 0): the carrier's phase offset.
-pub fn modulate(fm: *const c.Fm) u32 {
+pub inline fn modulate(fm: *const c.Fm) u32 {
     const m: u32 = @truncate(@as(u64, fm.current_modulation) * c.ACC_LENGTH * 8 / MODULATOR_MAX);
     return m % c.ACC_LENGTH;
 }
 
 /// cydfm_modulate_wave: a wavetable carrier's phase, offset within its loop.
-pub fn modulateWave(fm: *const c.Fm, e: *const song.WaveEntry, acc: u32) u32 {
+pub inline fn modulateWave(fm: *const c.Fm, e: *const song.WaveEntry, acc: u32) u32 {
     if (e.loop_begin == e.loop_end) return acc;
     const length = e.span;
     if (length == 0) return 0; // upstream divides by 0 here: a loop of 2^21 samples; never in a real song

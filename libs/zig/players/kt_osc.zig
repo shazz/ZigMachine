@@ -22,7 +22,7 @@ inline fn triangle(acc: u32) u32 {
 }
 
 /// cyd_osc: the waveforms `flags` selects at phase `acc`, ANDed; none selected is mid-scale.
-pub fn osc(flags: u32, acc: u32, pw: u32, random: u32, lfsr_acc: u32) i32 {
+pub inline fn osc(flags: u32, acc: u32, pw: u32, random: u32, lfsr_acc: u32) i32 {
     const sel = flags & c.WAVEFORMS & ~c.WAVE;
     if (sel == 0) return c.WAVE_AMP / 2;
     var v: u32 = 0xffffffff;
@@ -49,8 +49,12 @@ fn runLfsrs(ch: *c.Channel) void {
 }
 
 /// cyd_advance_oscillators: one sample of every sub-oscillator's phase.
-pub fn advance(ch: *c.Channel) void {
+pub inline fn advance(ch: *c.Channel) void {
+    const lfsr = ch.flags & c.LFSR != 0;
     for (&ch.subosc, 0..) |*o, s| {
+        // Frequency 0: the phase stays (it is kept below ACC_LENGTH), so no sync bit and no
+        // noise step; only the LFSR, when on, still moves.
+        if (o.frequency == 0 and !lfsr) continue;
         const prev = o.accumulator;
         o.accumulator +%= o.frequency;
         if (s == 0) ch.sync_bit |= o.accumulator & c.ACC_LENGTH;

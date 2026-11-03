@@ -670,6 +670,7 @@ pub fn build(b: *std.Build) void {
     demo_audio.initial_memory = audio_bytes;
     demo_audio.max_memory = audio_bytes;
     demo_audio.global_base = audio_demo_base;
+    if (keep_names) demo_audio.root_module.strip = false; // apps/kt_cost.mjs ranks the players by function
     installTo(b, demo_audio, sealed_step);
 }
 

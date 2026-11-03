@@ -36,6 +36,8 @@ pub const Crush = struct {
 
 pub const Bus = struct {
     flags: u32 = 0,
+    in_l: i32 = 0, // this sample's input, summed from its channels (kt_synth.zig), cleared as read
+    in_r: i32 = 0,
     rvb: Reverb = .{},
     chr: chorus.Chorus = .{},
     crush: Crush = .{},
@@ -71,7 +73,7 @@ pub fn setCrush(k: *Crush, rate: u32, downsample: i32, bit_drop: i32, dither: i3
     if (gain >= 0) k.gain = gain;
 }
 
-fn reverb(r: *Reverb, in: i32, l: *i32, rr: *i32) void {
+inline fn reverb(r: *Reverb, in: i32, l: *i32, rr: *i32) void {
     const size: u32 = @intCast(r.line.len);
     r.position += 1;
     if (r.position >= size) r.position = 0;
@@ -88,7 +90,7 @@ fn reverb(r: *Reverb, in: i32, l: *i32, rr: *i32) void {
     rr.* +%= sr;
 }
 
-fn crushOne(k: *Crush, in: i32, err: *i32) i32 {
+inline fn crushOne(k: *Crush, in: i32, err: *i32) i32 {
     const mask: i32 = @bitCast(k.bit_drop);
     if (!k.dither) return ((in +% 32768) & mask) -% 32768;
     const h = (@max(0, @min(65535, in +% 32768 +% err.*)) & mask) -% 32768;
@@ -96,7 +98,7 @@ fn crushOne(k: *Crush, in: i32, err: *i32) i32 {
     return h;
 }
 
-fn crush(k: *Crush, l: *i32, r: *i32) void {
+inline fn crush(k: *Crush, l: *i32, r: *i32) void {
     const was = k.counter;
     k.counter +%= 1;
     if (was >= k.downsample) {

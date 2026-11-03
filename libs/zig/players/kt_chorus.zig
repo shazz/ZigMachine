@@ -61,7 +61,7 @@ fn at(n: u32, i: u32) Pos {
     return .{ .i = i, .q = @truncate(t / n), .r = @intCast(t % n) };
 }
 
-fn step(ch: *const Chorus, p: *Pos) void {
+inline fn step(ch: *const Chorus, p: *Pos) void {
     p.i += 1;
     if (p.i >= ch.n) {
         p.* = .{};
@@ -76,7 +76,7 @@ fn step(ch: *const Chorus, p: *Pos) void {
 }
 
 /// kestrel_chorus_lut's entry at phase q.
-fn curve(ch: *const Chorus, q: u32) i32 {
+inline fn curve(ch: *const Chorus, q: u32) i32 {
     const idx = q >> 22;
     const frac: i32 = @intCast((q >> 6) & 0xFFFF);
     const a = gen.sine_q30[idx];
@@ -89,7 +89,7 @@ fn curve(ch: *const Chorus, q: u32) i32 {
     return if (v < wrap) v else if (wrap > 0) @rem(v, wrap) else v;
 }
 
-fn tap(ch: *const Chorus, d: i32) i32 {
+inline fn tap(ch: *const Chorus, d: i32) i32 {
     const base: i32 = @as(i32, @intCast(ch.pos_buf + ch.buf_size)) - @divTrunc(d, ACCURACY);
     const a = ch.line[@intCast(base)];
     const b = ch.line[@intCast(base - 1)];

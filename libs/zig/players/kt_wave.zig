@@ -9,7 +9,7 @@ const song = @import("kt_song.zig");
 const RES = c.WAVETABLE_RESOLUTION;
 const IRES: i32 = RES;
 
-pub fn sample(st: *const c.WaveState, e: *const song.WaveEntry, acc: u32) i32 {
+pub inline fn sample(st: *const c.WaveState, e: *const song.WaveEntry, acc: u32) i32 {
     const data = e.data orelse return 0;
     if (e.flags & song.WAVE_NO_INTERPOLATION != 0) return data[acc / RES];
     const a: i32 = @intCast(acc / RES);
@@ -35,7 +35,7 @@ pub fn sample(st: *const c.WaveState, e: *const song.WaveEntry, acc: u32) i32 {
 }
 
 /// cyd_wave_cycle: one sample of the wavetable phase.
-pub fn cycle(w: *c.WaveState, entry: ?*const song.WaveEntry) void {
+pub inline fn cycle(w: *c.WaveState, entry: ?*const song.WaveEntry) void {
     const e = entry orelse return;
     if (!w.playing) return;
     const looped = e.flags & song.WAVE_LOOP != 0 and e.loop_end != e.loop_begin;

@@ -27,7 +27,7 @@ pub const Synth = struct {
 
 /// The oscillators' sum of channel `ch` (cyd_output_channel) plus its
 /// envelope-following wavetable voices.
-fn voice(ch: *c.Channel) i32 {
+inline fn voice(ch: *c.Channel) i32 {
     var ovr: i32 = 0;
     ch.sync_bit = 0;
     const mod: u32 = if (ch.flags & c.FM != 0) fm.modulate(&ch.fm) else 0;
@@ -41,7 +41,7 @@ fn voice(ch: *c.Channel) i32 {
 }
 
 /// The wavetable voices of `ch` (cyd_output's two loops share this).
-fn wavetable(ch: *const c.Channel, e: *const song.WaveEntry) i32 {
+inline fn wavetable(ch: *const c.Channel, e: *const song.WaveEntry) i32 {
     var sum: i32 = 0;
     for (&ch.subosc) |*o| {
         if (!o.wave.playing or o.wave.frequency == 0) continue;
@@ -52,7 +52,7 @@ fn wavetable(ch: *const c.Channel, e: *const song.WaveEntry) i32 {
 }
 
 /// Which channels a gated channel ring-modulates from, this sample.
-fn ringed(sy: *const Synth) u32 {
+inline fn ringed(sy: *const Synth) u32 {
     var m: u32 = 0;
     for (sy.chn[0..sy.n]) |*ch| {
         if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) m |= @as(u32, 1) << @intCast(ch.ring_mod & 31);
@@ -77,8 +77,6 @@ pub fn output(sy: *Synth, left: *i32, right: *i32) void {
             s[i] +%= wavetable(ch, e);
         };
     }
-    var fx_l = [_]i32{0} ** song.MAX_FX;
-    var fx_r = [_]i32{0} ** song.MAX_FX;
     var l: i32 = 0;
     var r: i32 = 0;
     for (sy.chn[0..sy.n], 0..) |*ch, i| {
@@ -99,24 +97,29 @@ pub fn output(sy: *Synth, left: *i32, right: *i32) void {
         const ol = @divTrunc(o *% ch.gain_left, c.STEREO_GAIN);
         const or_ = @divTrunc(o *% ch.gain_right, c.STEREO_GAIN);
         if (ch.flags & c.FX != 0) {
-            fx_l[ch.fx_bus] +%= ol;
-            fx_r[ch.fx_bus] +%= or_;
+            const b = &sy.bus[ch.fx_bus];
+            b.in_l +%= ol;
+            b.in_r +%= or_;
         } else {
             l +%= ol;
             r +%= or_;
         }
     }
     for (&sy.bus, 0..) |*b, i| {
-        if (sy.bus_used >> @intCast(i) & 1 != 0) fx.output(b, &fx_l[i], &fx_r[i]);
-        l +%= fx_l[i];
-        r +%= fx_r[i];
+        var bl = b.in_l;
+        var br = b.in_r;
+        b.in_l = 0;
+        b.in_r = 0;
+        if (sy.bus_used >> @intCast(i) & 1 != 0) fx.output(b, &bl, &br);
+        l +%= bl;
+        r +%= br;
     }
     left.* = l;
     right.* = r;
 }
 
 /// A wavetable that overrides the envelope: its voices at the channel volume only.
-fn wavetableOverride(ch: *const c.Channel, e: *const song.WaveEntry) i32 {
+inline fn wavetableOverride(ch: *const c.Channel, e: *const song.WaveEntry) i32 {
     var sum: i32 = 0;
     for (&ch.subosc) |*o| {
         if (!o.wave.playing or o.wave.frequency == 0) continue;

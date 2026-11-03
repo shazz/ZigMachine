@@ -13,11 +13,11 @@ pub fn setCoeff(f: *c.Filter, frequency: u16, resonance: u16) void {
     f.q = resonance;
 }
 
-fn mulq(a: i32, b: i32) i32 {
+inline fn mulq(a: i32, b: i32) i32 {
     return @divTrunc(a *% b, 2048);
 }
 
-pub fn cycle(f: *c.Filter, in: i32) void {
+pub inline fn cycle(f: *c.Filter, in: i32) void {
     const input = in -% mulq(f.q, f.b4); // feedback
     var t1 = f.b1;
     f.b1 = mulq(input +% f.b0, f.p) -% mulq(f.b1, f.f);
@@ -30,7 +30,7 @@ pub fn cycle(f: *c.Filter, in: i32) void {
     f.b0 = input;
 }
 
-pub fn output(f: *const c.Filter, kind: u8) i32 {
+pub inline fn output(f: *const c.Filter, kind: u8) i32 {
     return switch (kind) {
         c.FLT_HP => f.b0 -% f.b4,
         c.FLT_BP => 3 *% (f.b3 -% f.b4),
