@@ -106,6 +106,7 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
         getattr(args, "hp_probe", False),
         getattr(args, "posted", zm_board_mem.POSTED),
         not getattr(args, "no_read_bypass", not zm_board_mem.READ_BYPASS),
+        getattr(args, "sound_core", None),
     )
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
@@ -137,6 +138,7 @@ def _board_soc(
     hp_probe: bool = False,
     posted: int = zm_board_mem.POSTED,
     read_bypass: bool = zm_board_mem.READ_BYPASS,
+    sound_core: str | None = None,
 ) -> ZigMachineSoC:
     """With the glass: the cart CPU's RAM and the video DMA in PS DDR over HP0/HP1, the CPU
     reset into it (soc/zm_board_mem.py), with `blit` the blitter on HP2 (soc/zm_blit_soc.py),
@@ -151,7 +153,7 @@ def _board_soc(
     # nothing under ZM_BOARD), and its PHY and FIFOs cost LUTs. Same CSRs, so the same map as the sim.
     soc = ZigMachineSoC(
         platform, sys_hz, "pipe", glass=True, video_hp=hp1, uart_name="stub",
-        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3, "sound": sound},
+        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3, "sound": sound, "sound_core": Path(sound_core) if sound_core else None},
         hp_probe=hp_probe,
     )  # fmt: skip
     # ZIGGY's stores posted (soc/zm_io_fence.py), 0 = blocking; refills bypass them (soc/zm_hp_bypass.py)
