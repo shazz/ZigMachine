@@ -6,8 +6,10 @@
  * effects queue: zg.requestSongBytes's entry (libs/zig/sfx_queue.zig, op 8, kind 5 = .kt) with the sequence row
  * to start at. cyd then stops synthesising: the cart's stream is stopped (kestrel_audio_quiet) and only the
  * sequencer runs, at the song's rate, so the play position, the pattern view and the follow-play cursor move as
- * before. While it plays, the song is hashed every CHECK_FRAMES: an edit re-sends it from the row playing (a
- * restart of the voices there: the simple first form). On Stop the request "none" stops the machine's player
+ * before. While it plays, the song is hashed every CHECK_SAMPLES of its clock (a quarter second): an edit
+ * re-sends it from the row playing (a restart of the voices there: the simple first form). The cart's clock
+ * runs in real time meanwhile (kestrel_bard_owns: kestrel_main.c lifts cyd's 33 ms cap, as the sequencer
+ * alone is cheap), so the row the cart shows and re-sends is the one the machine plays. On Stop the request "none" stops the machine's player
  * and cyd takes the stream back. Keyjazz while a handed-over song plays is silent (cyd is not mixing).
  *
  * Fallback, nothing regresses: a song the machine's player would refuse (more than 16 channels, a .kt over the
@@ -24,7 +26,7 @@
 
 void kestrel_log(const char *m);
 
-enum { CHECK_FRAMES = 15, SONG_MAX = 256 * 1024, KT_MAX_CH = 16, OP_SONG = 8, KIND_KT = 5 };
+enum { CHECK_SAMPLES = 22050 / 4, SONG_MAX = 256 * 1024, KT_MAX_CH = 16, OP_SONG = 8, KIND_KT = 5 };
 /* libs/zig/players/kt.zig's song RAM: 1 MiB less the four Paula rings (64 KiB). */
 #define KT_RAM (1048576u - 65536u)
 
@@ -33,7 +35,9 @@ int kestrel_bard_saving; /* patches/diskop.c.sed: save_song_inner asks nothing w
 static uint8_t *buf;     /* the .kt handed over: read by the host when it drains the frame's queue */
 static uint32_t sent_len, sent_hash;
 static enum { IDLE, HANDED, REFUSED } state;
-static int frames_since_check;
+static uint32_t samples_since_check;
+
+int kestrel_bard_owns(void) { return state == HANDED; }
 
 /* --- the cart's side of the song bridge and the effects queue (docs/MUSIC.md) --- */
 static uint8_t queue[16];
@@ -139,6 +143,10 @@ static void sequencer_only(CydEngine *cyd, int frames)
 /* kestrel_sdl.c's mix, first: 1 when the machine plays the song (stereo is silence, the sequencer moved). */
 int kestrel_bard_mix(CydEngine *cyd, int16_t *stereo, int frames)
 {
+#ifdef KESTREL_NO_BARD /* the build that keeps cyd (apps/frame_cost.mjs before/after: make EXTRA=-DKESTREL_NO_BARD) */
+    (void)cyd; (void)stereo; (void)frames; (void)send; (void)sequencer_only;
+    return 0;
+#endif
     const MusEngine *mus = cyd->callback ? cyd->callback_parameter : NULL;
     if (!mus || mus->song != &mused.song) {
         if (state == HANDED) { stop_asked = 1; kestrel_audio_quiet(0); }
@@ -149,10 +157,10 @@ int kestrel_bard_mix(CydEngine *cyd, int16_t *stereo, int frames)
     if (state == IDLE) {
         if (!send(mus->song_position)) { state = REFUSED; kestrel_log("klystrack: song kept on cyd (too big for the .kt player)"); return 0; }
         state = HANDED;
-        frames_since_check = 0;
+        samples_since_check = 0;
         kestrel_audio_quiet(1);
-    } else if (++frames_since_check >= CHECK_FRAMES) {
-        frames_since_check = 0;
+    } else if ((samples_since_check += (uint32_t)frames) >= CHECK_SAMPLES) {
+        samples_since_check = 0;
         if (song_hash() != sent_hash && !send(mus->song_position)) {
             state = REFUSED; /* grown past the player: cyd takes the song back where it is */
             stop_asked = 1;

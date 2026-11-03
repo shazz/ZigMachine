@@ -29,6 +29,7 @@ void kestrel_plane_cursor(void);
 void kestrel_input_wake(void);
 static int presented;
 void kestrel_yield(void);
+int kestrel_bard_owns(void); /* kestrel_bard.c: the song plays on the machine's .kt player */
 
 /* SDL_RenderPresent's hook: note the picture (kestrel_sdl.c: a changed one keeps the repaints going), yield. */
 static void after_present(void) { presented = 1; kestrel_after_present(); kestrel_yield(); }
@@ -75,7 +76,7 @@ __attribute__((export_name("frame"))) void frame(float elapsed_ms)
     /* Real time (kestrel_audio.h), but at most 2 frames: cyd costs ~13,000 cycles a sample at 22.05 kHz on the
      * board (apps/frame_cost.mjs), more than the CPU has for real time, so a longer frame would only feed the
      * mixer more and slow the UI to ~1 fps. Until cyd fits the budget the song plays slow on the board. */
-    uint32_t us = kestrel_frame_us(elapsed_ms, 33);
+    uint32_t us = kestrel_frame_us(elapsed_ms, kestrel_bard_owns() ? 250 : 33); /* the machine plays: the clock is real */
     kestrel_sdl_vbl(us);
     kestrel_audio_frame(us);
     if (finished || !suspended) return;
