@@ -40,8 +40,18 @@ static struct {
 static const char *const FLAG_NAMES[16] = {"noise", "pulse", "triangle", "saw", "sync", "gate", "keysync", "metal",
                                            "ring", "filter", "fx", "ym_env", "wave", "wave_ovr_env", "lfsr", "fm"};
 
+static int trace_ticks; /* --trace N: each channel's state after each of the first N ticks */
+
 static int tick(void *udata) {
     int r = mus_advance_tick(udata);
+    if (st.ticks < (unsigned)trace_ticks)
+        for (int i = 0; i < cyd.n_channels; i++) {
+            CydChannel *c = &cyd.channel[i];
+            if (mus.channel[i].instrument) printf("  ins vd=%u vs=%u vsh=%u vdel=%u tdel=%u fl=%x fine=%d base=%u\n", mus.channel[i].instrument->vibrato_depth, mus.channel[i].instrument->vibrato_speed, mus.channel[i].instrument->vib_shape, mus.channel[i].instrument->vib_delay, mus.song_track[i].vib_delay, mus.channel[i].instrument->flags, mus.channel[i].instrument->finetune, mus.channel[i].instrument->base_note);
+            printf("T%u c%d n=%u vp=%u arp=%u fix=%u fl=%x pw=%u f=%u acc=%u env=%u st=%u vol=%u ft=%u fx=%d pan=%u\n", st.ticks, i, mus.channel[i].note, mus.song_track[i].vibrato_position, mus.channel[i].arpeggio_note, mus.channel[i].fixed_note, c->flags, c->pw,
+                   c->subosc[0].frequency, c->subosc[0].accumulator, c->adsr.envelope, c->adsr.envelope_state,
+                   c->adsr.volume, c->flttype, c->fx_bus, c->panning);
+        }
     unsigned g = 0;
     st.ticks++;
     for (int i = 0; i < cyd.n_channels; i++) {
@@ -95,6 +105,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--oversample") && i + 1 < argc) over = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--raw") && i + 1 < argc) raw = argv[++i];
         else if (!strcmp(argv[i], "--features")) feat = 1;
+        else if (!strcmp(argv[i], "--trace") && i + 1 < argc) trace_ticks = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--chorus") && i + 1 < argc) up_chorus = !strcmp(argv[++i], "upstream");
     }
     if (!mus_load_song(argv[1], &song, waves)) {
