@@ -5,7 +5,7 @@
 // Every pixel of the picture area is written once a frame.
 //
 // Per step: the map position moves by the band's step vector (adds), the map
-// index is tex2d, two loads (height, colour), and the screen row is
+// index is tex2d, one load (height << 8 | colour), and the screen row is
 // (camera height - ground) * (SCALE / z): ZM-X's mulsh16 (one instruction) or
 // the plain rv32 64-bit product (mul + mulh + shifts). Same integers either
 // way, so the two pictures are identical.
@@ -49,11 +49,28 @@ pub fn camera(t: u32, h: []const u8, prev_h: i32) Camera {
     return .{ .x = x, .y = y, .a = a, .h = ch };
 }
 
-pub fn draw(fb: *zg.LogicalFB, d: *const Depth, hmap: []const u8, cmap: []const u8, cam: Camera, use_zmx: bool) void {
-    if (use_zmx) frame(true, fb, d, hmap, cmap, cam) else frame(false, fb, d, hmap, cmap, cam);
+/// The map the frame reads: height << 8 | colour, one u16 a texel (one D$ miss a step, not two).
+pub fn merge(hmap: []const u8, cmap: []const u8, out: []u16) void {
+    for (out, 0..) |*o, i| o.* = @as(u16, hmap[i]) << 8 | cmap[i];
 }
 
-fn frame(comptime use_zmx: bool, fb: *zg.LogicalFB, d: *const Depth, hmap: []const u8, cmap: []const u8, cam: Camera) void {
+/// Per-column state, kept between depth steps (cart RAM, not the stack).
+pub const Columns = struct {
+    rx: [320]i32 = undefined,
+    ry: [320]i32 = undefined,
+    u: [320]u32 = undefined,
+    v: [320]u32 = undefined,
+    ybuf: [320]i32 = undefined,
+};
+
+pub fn draw(fb: *zg.LogicalFB, d: *const Depth, map: []const u16, cols: *Columns, cam: Camera, use_zmx: bool) void {
+    if (use_zmx) frame(true, fb, d, map, cols, cam) else frame(false, fb, d, map, cols, cam);
+}
+
+// Depth outer, columns inner (Comanche's own order): at one depth the 320 rays sit side by
+// side on the map, so neighbouring columns read neighbouring texels and the D$ keeps them.
+// (Column by column, each ray walked its own line across 128 KB of maps: ~3 Mc a frame.)
+fn frame(comptime use_zmx: bool, fb: *zg.LogicalFB, d: *const Depth, map: []const u16, c: *Columns, cam: Camera) void {
     const fwd_x = trig.cos(cam.a);
     const fwd_y = trig.sin(cam.a);
     const px = fb.fb;
@@ -61,32 +78,36 @@ fn frame(comptime use_zmx: bool, fb: *zg.LogicalFB, d: *const Depth, hmap: []con
     for (0..320) |col| {
         // The column's ray: forward + side * (col - 160) / 160 (a 90-degree field).
         const side: i32 = @divTrunc((@as(i32, @intCast(col)) - 160) << 16, 160);
-        const rx = fwd_x - mul(use_zmx, fwd_y, side);
-        const ry = fwd_y + mul(use_zmx, fwd_x, side);
-        var u: u32 = cam.x +% @as(u32, @bitCast(rx * 2));
-        var v: u32 = cam.y +% @as(u32, @bitCast(ry * 2));
-        var ybuf: i32 = ROWS;
-        var s: usize = 0;
-        for (0..BANDS) |b| {
-            const su: u32 = @bitCast(rx << @intCast(b)); // this band's step: 2^b map units
-            const sv: u32 = @bitCast(ry << @intCast(b));
-            for (0..PER_BAND) |_| {
-                const i = texel(use_zmx, u, v);
-                const y = HORIZON + mul(use_zmx, cam.h - hmap[i], d.rz[s]);
-                if (y < ybuf) {
-                    const top: usize = @intCast(@max(y, 0));
-                    const ink = cmap[i];
-                    var r = top;
-                    while (r < ybuf) : (r += 1) px[r * stride + col] = ink;
-                    ybuf = @intCast(top);
-                }
-                u +%= su;
-                v +%= sv;
-                s += 1;
+        c.rx[col] = fwd_x - mul(use_zmx, fwd_y, side);
+        c.ry[col] = fwd_y + mul(use_zmx, fwd_x, side);
+        c.u[col] = cam.x +% @as(u32, @bitCast(c.rx[col] * 2));
+        c.v[col] = cam.y +% @as(u32, @bitCast(c.ry[col] * 2));
+        c.ybuf[col] = ROWS;
+    }
+    var s: usize = 0;
+    for (0..BANDS) |b| {
+        const sh: u5 = @intCast(b); // this band's step: 2^b map units
+        for (0..PER_BAND) |_| {
+            const rz = d.rz[s];
+            for (0..320) |col| {
+                const ybuf = c.ybuf[col];
+                const t = map[texel(use_zmx, c.u[col], c.v[col])];
+                c.u[col] +%= @bitCast(c.rx[col] << sh);
+                c.v[col] +%= @bitCast(c.ry[col] << sh);
+                const y = HORIZON + mul(use_zmx, cam.h - @as(i32, t >> 8), rz);
+                if (y >= ybuf) continue;
+                const top: usize = @intCast(@max(y, 0));
+                const ink: u8 = @truncate(t);
+                var r = top;
+                while (r < ybuf) : (r += 1) px[r * stride + col] = ink;
+                c.ybuf[col] = @intCast(top);
             }
+            s += 1;
         }
-        var r: usize = 0; // the sky over what the ground left: a ramp by row
-        while (r < ybuf) : (r += 1) px[r * stride + col] = maps.SKY0 + @as(u8, @intCast(r * 47 / @as(usize, @intCast(ROWS))));
+    }
+    for (0..320) |col| { // the sky over what the ground left: a ramp by row
+        var r: usize = 0;
+        while (r < c.ybuf[col]) : (r += 1) px[r * stride + col] = maps.SKY0 + @as(u8, @intCast(r * 47 / @as(usize, @intCast(ROWS))));
     }
 }
 

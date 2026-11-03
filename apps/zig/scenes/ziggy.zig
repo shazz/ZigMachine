@@ -33,6 +33,8 @@ pub const Demo = struct {
     heights: []u8 = &.{},
     colours: []u8 = &.{},
     depth: *voxel.Depth = undefined,
+    map: []u16 = &.{},
+    cols: *voxel.Columns = undefined,
     hud: Hud = .{},
     mode: Mode = .roto,
     size: u8 = 1, // index in LOGS: 128 by default
@@ -50,9 +52,12 @@ pub const Demo = struct {
         self.heights = zg.mem.mustAlloc(u8, 256 * 256);
         self.colours = zg.mem.mustAlloc(u8, 256 * 256);
         self.depth = &zg.mem.mustAlloc(voxel.Depth, 1)[0];
+        self.map = zg.mem.mustAlloc(u16, 256 * 256);
+        self.cols = &zg.mem.mustAlloc(voxel.Columns, 1)[0];
         maps.buildTextures(self.tex);
         maps.buildHeights(self.heights);
         maps.buildColours(self.heights, self.colours);
+        voxel.merge(self.heights, self.colours, self.map);
         self.depth.init();
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
@@ -124,7 +129,7 @@ pub const Demo = struct {
             .voxel => {
                 const cam = voxel.camera(self.t, self.heights, self.cam_h);
                 self.cam_h = cam.h;
-                voxel.draw(fb, self.depth, self.heights, self.colours, cam, self.zmx_on);
+                voxel.draw(fb, self.depth, self.map, self.cols, cam, self.zmx_on);
             },
         }
         self.hud.workEnd();
