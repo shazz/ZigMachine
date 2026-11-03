@@ -91,7 +91,7 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 
 - Builds from a clean tree: all 72 klystron + klystrack sources, no warnings that matter (K&R prototypes only).
   Imports only `env` (memory, consoleLogJS, diskReadBlock, hwVideoBase, hwRamAlloc, hwRamFree, hostAudioStreamStart,
-  hostAudioFeed). Cart 556 KB after Asyncify (411 KB before), floppy 592 KB.
+  hostAudioFeed). Cart 566 KB after Asyncify; floppy 241 KB (2 Nov: the cart ZX0-packed, the SDL boot sector, 5 files).
 - Boots in ~60 ms headless into the classic editor with `STARPRT2.KT` loaded from the floppy; Default theme from the
   bundle (fonts, bevels, VU, cursor), mouse pointer drawn. F5 / clicking PLAY plays it: VU meters, follow-play,
   timer; `build/audio.wav` holds the fed stream (the machine's stream ring honours the 22050 Hz rate:
