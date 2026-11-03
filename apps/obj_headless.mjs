@@ -12,7 +12,7 @@
 //      up to 1986 / 3968 and stops there, - walks back and stops at the first;
 //      + / - do nothing on the icosahedron or GLENZ NEST; 4 picks the nest at
 //      60 / 104; 1 and 2 pick the models back;
-//   3. S cycles seven distinct modes and the eighth press is the first again;
+//   3. S cycles nine distinct modes and the tenth press is the first again;
 //      their inks: GLENZ ORs bits past the 12-step ramp, GOURAUD uses more
 //      than 12 levels, WIRE and HIDDEN only the wire ink, HIDDEN fewer pixels
 //      than WIRE, DOTS one pixel a vertex at most, in several depth inks;
@@ -114,4 +114,4 @@ if (errors.length) {
     for (const e of errors) console.log(`  - ${e}`);
     process.exit(1);
 }
-console.log("obj: OK - the old pictures pinned, 1-4 pick the object (4: GLENZ NEST 60/104), +/- walk the sphere's 13 levels (V/F from 20/36 to 1986/3968), S cycles 7 modes (DOTS last), only last frame's box erased, sphere + nest pins under every split, HUD, Escape");
+console.log("obj: OK - the old pictures pinned, 1-5 pick the object (4: GLENZ NEST 60/104, 5: RNO CUBE), +/- walk the sphere's 13 levels (V/F from 20/36 to 1986/3968), S cycles 9 modes (ENVMAP last), only last frame's box erased, sphere + nest pins under every split, HUD, Escape");

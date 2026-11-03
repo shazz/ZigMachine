@@ -11,9 +11,12 @@ const zg = @import("zigos");
 const raster = @import("raster.zig");
 const fmesh = @import("fmesh.zig");
 const xform = @import("xform.zig");
+const texmap = @import("texmap.zig");
+const textures = @import("textures.zig");
+const zmx = @import("rom_sdk").zmx;
 
-pub const Mode = enum(u8) { flat, glenz, wire, soft, gouraud, hidden, dots };
-pub const NAMES = [_][]const u8{ "FLAT", "GLENZ", "WIRE", "SOFT", "GOURAUD", "HIDDEN", "DOTS" };
+pub const Mode = enum(u8) { flat, glenz, wire, soft, gouraud, hidden, dots, texture, envmap };
+pub const NAMES = [_][]const u8{ "FLAT", "GLENZ", "WIRE", "SOFT", "GOURAUD", "HIDDEN", "DOTS", "TEXTURE", "ENVMAP" };
 pub const WIRE_INK: u8 = 201;
 
 /// Where the work splits: a face `rows` high or less is filled by the CPU, an
@@ -39,6 +42,8 @@ pub const Ctx = struct {
     m: *const fmesh.Mesh,
     fr: *xform.Frame,
     split: Split,
+    spans: []zg.chisel_v2.Span = &.{}, // TEXTURE / ENVMAP: the frame's AFFINE list (cart RAM)
+    tex: []const u8 = &.{}, // textures.zig's two maps, side by side
 
     fn target(c: Ctx) raster.Target {
         return .{ .px = c.fb.fb, .stride = c.fb.stride, .w = c.fb.fb_w, .h = c.fb.fb_h };
@@ -76,6 +81,8 @@ pub fn draw(c: Ctx, mode: Mode) void {
         .gouraud => gouraudLit(c),
         .hidden => hiddenLine(c),
         .dots => dotsAll(c),
+        .texture => texAll(c, false),
+        .envmap => texAll(c, true),
     }
 }
 
@@ -160,3 +167,25 @@ fn dotsAll(c: Ctx) void {
     }
 }
 
+
+/// ZM-X's mulsh (one instruction on the board, rom.wasm's twin elsewhere).
+fn mulsh16(a: i32, b: i32) i32 {
+    return zmx.zmMulsh16(a, b);
+}
+const Spans = texmap.Spans(zg.chisel_v2.Span, mulsh16);
+
+/// TEXTURE / ENVMAP: every face seen, far first, as spans in ONE list, and one
+/// CHISEL AFFINE op draws them all (texmap.zig). The CPU only sets the spans up.
+fn texAll(c: Ctx, env: bool) void {
+    c.fr.cullSort(c.m, true, false);
+    var s = Spans{ .out = c.spans, .w = @intCast(c.fb.fb_w), .h = @intCast(c.fb.fb_h) };
+    const uv = &c.fr.uv;
+    const vs = &c.m.verts;
+    for (c.fr.recs[0..c.fr.nvis]) |r| {
+        const t = if (env) .{ uv[r.a], uv[r.b], uv[r.c] } else texmap.boxUV(.{ vs[r.a], vs[r.b], vs[r.c] });
+        s.tri(.{ c.fr.pv[r.a].s, c.fr.pv[r.b].s, c.fr.pv[r.c].s }, t);
+    }
+    const t = if (env) c.tex[textures.BYTES..][0..textures.BYTES] else c.tex[0..textures.BYTES];
+    const tx = zg.chisel_v2.Texture{ .pixels = t, .stride = textures.SIZE, .umask = textures.MASK, .vmask = textures.MASK };
+    zg.chisel_v2.affine(c.fb, tx, s.out[0..s.n], .{});
+}

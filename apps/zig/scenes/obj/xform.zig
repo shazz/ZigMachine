@@ -27,6 +27,7 @@ pub const Rec = struct { a: u16, b: u16, c: u16, shade: u16 };
 pub const Frame = struct {
     pv: [MAXV]PV align(8) = undefined, // screen point + depth, one 8-byte record
     lev: [MAXV]i32 = undefined, // Gouraud light level, Q12
+    uv: [MAXV][2]u32 = undefined, // TEXTURE / ENVMAP coordinates, 16.16 texels
     vis: [MAXF]bool = undefined,
     recs: [MAXF]Rec align(8) = undefined, // sorted, far first: recs[0..nvis]
     tmp: [MAXF]Rec align(8) = undefined, // in file order
@@ -49,6 +50,16 @@ pub const Frame = struct {
             for (m.vnorm[0..m.nverts], 0..) |n, i| {
                 self.lev[i] = (@as(i32, @intCast(@abs(fx.dot(n, self.lobj)))) * GOURAUD_TOP) >> 2;
             }
+        }
+    }
+
+    /// ENVMAP: the turned vertex normal's x, y read from a 128-texel sphere map,
+    /// so the world it reflects stays put while the object turns. (TEXTURE's
+    /// coordinates are per face: texmap.boxUV.)
+    pub fn envCoords(self: *Frame, m: *const fmesh.Mesh, mat: *const fx.Mat) void {
+        for (m.vnorm[0..m.nverts], 0..) |n, i| {
+            const r = fx.apply(mat, n);
+            self.uv[i] = .{ @bitCast((64 << 16) + r[0] * 248), @bitCast((64 << 16) + r[1] * 248) };
         }
     }
 
