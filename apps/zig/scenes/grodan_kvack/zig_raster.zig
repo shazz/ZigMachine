@@ -4,8 +4,8 @@
 // borders are open on both planes, so each colour register paints the whole
 // 400-px line, as an ST's does).
 //
-//   green plane, entry 0  the background: three copper bars on sine paths over
-//                         a dark gradient, re-shaded every frame
+//   green plane, entry 0  the background: a dark gradient (the three sine-path
+//                         copper bars over it are commented out, Matt 3 Nov)
 //   main plane,  PINK     the rotozoomed layer's colour CYCLES per line: a
 //                         pastel hue wheel, three steps a row, moving a frame
 //   main plane,  BIG/VERT/SMALL  the original's three text rasters (ST-legal
@@ -124,25 +124,27 @@ fn box(rows: []const u32, i: usize, comptime s: u5) u32 {
 const BAR_HALF: i32 = 14;
 const BAR_COL = [3][3]u32{ .{ 255, 80, 40 }, .{ 60, 200, 255 }, .{ 255, 220, 60 } };
 
-/// This tick's per-line colours: the pink hue cycle and the background bars.
+/// This tick's per-line colours: the pink hue cycle (and the background, bars off).
 pub fn frame(tick: u32) void {
     const pink = &main_tables[0];
     for (pink, 0..) |*c, r| c.* = hue[(r * 3 + @as(usize, tick) * 2) & 255];
     const bg = &green_tables[0];
     @memcpy(bg, base);
-    for (BAR_COL, 0..) |col, i| {
-        const a: trig.Angle = tick *% (11_930_465 + @as(u32, @intCast(i)) * 3_000_000) +% @as(u32, @intCast(i)) * 0x5555_5555;
-        const centre: i32 = 140 + (trig.sin(a) * 118 >> 16);
-        var d: i32 = -BAR_HALF;
-        while (d <= BAR_HALF) : (d += 1) {
-            const r = centre + d;
-            if (r < 0 or r >= ROWS) continue;
-            // A rounded profile: 1 - (d / half)^2, Q8.
-            const t: u32 = @intCast(256 - @divTrunc(d * d * 256, BAR_HALF * BAR_HALF));
-            const o = bg[@intCast(r)];
-            bg[@intCast(r)] = rgb(mix(chan(o, 0), col[0], t), mix(chan(o, 8), col[1], t), mix(chan(o, 16), col[2], t));
-        }
-    }
+    // The three sine-path bars, off (Matt, 3 Nov: "remove the horizontal raster bars"):
+    // the background is the dark gradient alone. Kept commented to bring them back.
+    // for (BAR_COL, 0..) |col, i| {
+    //     const a: trig.Angle = tick *% (11_930_465 + @as(u32, @intCast(i)) * 3_000_000) +% @as(u32, @intCast(i)) * 0x5555_5555;
+    //     const centre: i32 = 140 + (trig.sin(a) * 118 >> 16);
+    //     var d: i32 = -BAR_HALF;
+    //     while (d <= BAR_HALF) : (d += 1) {
+    //         const r = centre + d;
+    //         if (r < 0 or r >= ROWS) continue;
+    //         // A rounded profile: 1 - (d / half)^2, Q8.
+    //         const t: u32 = @intCast(256 - @divTrunc(d * d * 256, BAR_HALF * BAR_HALF));
+    //         const o = bg[@intCast(r)];
+    //         bg[@intCast(r)] = rgb(mix(chan(o, 0), col[0], t), mix(chan(o, 8), col[1], t), mix(chan(o, 16), col[2], t));
+    //     }
+    // }
 }
 inline fn mix(a: u32, b: u32, t: u32) u32 {
     return (a * (256 - t) + b * t) >> 8;
