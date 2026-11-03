@@ -199,6 +199,16 @@ DIRECTIVES = {
         "vivado_route_directive": "AggressiveExplore",
         "vivado_post_route_phys_opt_directive": "AggressiveExplore",
     },
+    # fit_netdelay: fit_timing with the placer that pessimises long nets (board_combo12, 2 Nov: fit_timing
+    # missed comp by -0.092 ns on one copper-check path, half of it route; closure did not pack).
+    "fit_netdelay": {
+        "vivado_synth_directive": "AreaOptimized_high",
+        "vivado_opt_directive": "ExploreArea",
+        "vivado_place_directive": "ExtraNetDelay_high",
+        "vivado_post_place_phys_opt_directive": "AggressiveExplore",
+        "vivado_route_directive": "AggressiveExplore",
+        "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+    },
     "explore": {
         "vivado_place_directive": "ExtraTimingOpt",
         "vivado_post_place_phys_opt_directive": "AggressiveExplore",
