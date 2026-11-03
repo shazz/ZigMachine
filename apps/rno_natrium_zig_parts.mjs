@@ -33,18 +33,23 @@ function checkBorders(c, ok) {
     ok(open > 20000 && closed === 0, `the overscan plane's borders are open (${open} border pixels in their colour, ${closed} not)`);
 }
 
-/** An effect part: every window pixel the model's, on every `every`-th frame. */
-function effect(c, name, to, every, model) {
-    let frames = 0, misses = 0, why = "", seen = 0;
+/** An effect part: every window pixel the model's, on every `every`-th frame; the
+ *  girl panel (ST x `stx`, 98 x 200) on the raster as the original shows it. */
+function effect(c, name, to, every, stx, model) {
+    let frames = 0, misses = 0, why = "", seen = 0, panel = 0;
     c.zigRun(to, name, every, (idx, t) => {
         const m = model(t);
         const [bad, first] = c.against(idx, (x, y) => m(x, y));
         frames++;
         if (bad) { misses += bad; why = `t ${t}: ${first}`; }
         for (let i = 0; i < idx.length; i++) if (idx[i] >= Z.SHADE0) seen++;
+        const a = c.zig.raster(), b = c.ref.raster();
+        for (let y = Z.OY; y < Z.OY + 200; y++)
+            for (let x = Z.OX + stx; x < Z.OX + stx + 98; x++) if (a[y * Z.W + x] !== b[y * Z.W + x]) panel++;
     });
     c.ok(frames >= 4 && misses === 0 && seen > frames * 50000,
         `${name}: ${frames} frames, every pixel of the 400x280 window is the original's maths at f + fraction${misses ? ` (${misses} differ, last ${why})` : ""}`);
+    c.ok(panel === 0, `${name}: the girl panel over it is the original's, pixel for pixel (${panel} differ)`);
 }
 
 /** An env part: the picture off the object, true-colour levels on it, a new frame every VBL. */
@@ -88,10 +93,10 @@ export async function checkParts(c) {
     const map = c.zig.u16(c.zig.demo.natZigBuf(0), Z.MW * Z.MH);
     checkMap(map, c.ok);
     checkBorders(c, c.ok);
-    effect(c, "tunnel", 0x760, 4, (t) => (x, y) => Z.expectTunnel(map, t, x, y));
+    effect(c, "tunnel", 0x760, 4, 207, (t) => (x, y) => Z.expectTunnel(map, t, x, y));
     await c.shot("tunnel");
     c.zigRun(0x9F0, null, 1, null);
-    effect(c, "wobble", 0xA60, 6, (t) => (x, y) => Z.expectWobble(t, x, y));
+    effect(c, "wobble", 0xA60, 6, 207, (t) => (x, y) => Z.expectWobble(t, x, y));
     await c.shot("wobble");
     c.zigRun(0xCF0, null, 1, null);
     env(c, Z.picture("girl_grey.bin"), 0xD30);
@@ -110,7 +115,7 @@ export async function checkParts(c) {
     env(c, Z.picture("girl_red.bin"), 0x1930);
     await c.shot("prism");
     c.zigRun(0x1BF0, null, 1, null);
-    effect(c, "roto", 0x1C30, 3, (t) => { const s = Z.rotoStep(t); return (x, y) => Z.expectRoto(s, x, y); });
+    effect(c, "roto", 0x1C30, 3, 15, (t) => { const s = Z.rotoStep(t); return (x, y) => Z.expectRoto(s, x, y); });
     await c.shot("roto");
     c.roundTrip(0x1C30);
 }

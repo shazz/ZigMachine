@@ -10,9 +10,10 @@
 //   env      off the object, the girl picture; on it, >= 8 of the 13 true-colour
 //            levels (no dither) and a new picture EVERY VBL (the original: every 3)
 //   roto     every pixel is the skin at the original's matrix, over the whole window
+//   panel    the girl panel over tunnel, wobble and roto is the original's, pixel for pixel
 //   classic  the parts with no ZIG version show the original's frame at (40, 40)
 //   back     Z off (mid-cube at $D30, and at $1C30): the next 48 frames are REF's,
-//            pixel for pixel; Z on again at $D60 needs no new memory
+//            pixel for pixel, plane 0 alone; Z on again at $D60 needs no new memory
 //   ops      CHISEL ops a frame <= 3; Escape leaves (the cart now owns the keys)
 //   node apps/rno_natrium_zig.mjs [outdir] [--break]
 //     --break: REF runs one VBL ahead during the round trips, so "back" must fail (exit 0)
@@ -78,7 +79,7 @@ function roundTrip(at) {
     if (BROKE) ref.step();
     let diff = 0;
     for (let i = 0; i < 48; i++) { ref.step(); zig.step(); if (!same(ref.window(), zig.window())) diff++; }
-    ok(diff === 0 && zig.demo.natZig() === 0 && zig.demo.isPlaneEnabled(0), `back from ZIG at $${at.toString(16)}: 48 frames are the original's, pixel for pixel (${diff} differ)`);
+    ok(diff === 0 && zig.demo.natZig() === 0 && zig.demo.isPlaneEnabled(0) && !zig.demo.isPlaneEnabled(1), `back from ZIG at $${at.toString(16)}: 48 frames are the original's, pixel for pixel (${diff} differ)`);
     if (BROKE) zig.step(); // in step again for what follows
 }
 
