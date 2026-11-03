@@ -49,7 +49,7 @@ export function fadeChecks(m, errors, brk, hues, t) {
         if (brk === "fadeoff") for (const r of [REG_TC_FADE, ...REG_OFS]) d.setUint8(mm.video + r, 0);
         if (brk === "softfade") {
             const at = mm.video + (d.getUint32(mm.video + REG_FB_BASE, true) & ~1) + 2 * 5000;
-            d.setUint16(at, (d.getUint16(at, true) ^ 0x0841), true);
+            d.setUint16(at, (d.getUint16(at, true) + 0x0841) & 0xFFFF, true); // never back where it started
         }
     };
     let first = null, bad = 0, black = 0, white = 0, flash = 0, plain = 0;
