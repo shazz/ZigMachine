@@ -303,3 +303,36 @@ tools/vivado_ooc.sh zm_video_comp build/ooc_tc_comp_tc "" rtl/video/zm_video_{co
 fetch,sdpram,mix,copper,palwb,regs}.v ../prototypes/fresco_re/truecolor/zm_video_{plane,paint,planepath}.v`
 (the painter check: `iverilog -g2012 -I fpga/gen -o /tmp/x prototypes/fresco_re/truecolor/
 {tb_paint_tc,zm_video_paint}.v && vvp /tmp/x`).
+
+## Built (2 Nov 2026, `feat/truecolor-plane`, HW 1.15.0)
+
+A0 as sketched above, in `fpga/rtl/video/zm_video_{plane,paint,planepath,copper}.v`, the browser machine
+(`machine/video_tc.zig`, `video.zig renderPlaneTruecolor`), the firmware's mode dispatch and ZigOS (`zg.tc`);
+ADR `decisions.md` 2026-11-02 "True-colour plane". Differences from the sketch:
+
+- **Payer 1 was already on main** (77fad6fd, board_combo8: "the read-back mux to the 6 words the firmware
+  reads"), so this branch carries the mode alone.
+- The painter's buffer index had become a register stepped from `c_n` / `s_n` (board_combo8's timing fix): the
+  doubling `tc ? {c_n, 1'b0}` sits in that registered add, not after it.
+- **No AND on the address**: the painter takes the half-word at byte `align + 2c`, i.e. pixel
+  `floor(addr / 2) + c` whatever `align` is, so bit 0 is ignored by construction (the synthetic frames use odd
+  bases, strides and HSCROLLs).
+- `zm_video_copper.v`'s line cover takes mode 6 as physical, and modes above 6 keep the stride-400 rule (a
+  mode-6 plane's border-line records would otherwise stop its list on the board only).
+
+**Measured** (Vivado 2026.1, OOC synth of `zm_video_comp`, `create_clock -period 8` on `clk`, maxThreads 2;
+`fpga/build/ooc_tc_comp_{base,tc}/`; base = main 76cc2285's RTL):
+
+| run | LUT | logic / LUTRAM | FF | BRAM tiles | DSP | WNS at 8 ns |
+|---|---:|---:|---:|---:|---:|---:|
+| `zm_video_comp`, main (payer 1 in) | 2,422 | 2,237 / 176 | 1,944 | 15 | 13 | +1.029 |
+| `zm_video_comp`, with the 565 painter | **2,450 (+28)** | 2,265 / 176 | 1,961 (+17) | 15 | 13 | +0.932 |
+
+Where: u_paint 87 -> 97, u_plane 237 -> 248, u_cop 636 -> 637. The worst path moved from the mixer to
+u_plane's mode decode into the address stage (`mode_i` -> `addr_q`, +0.932 ns).
+
+**mpp_truecolor** (frame_cost, est. Mc/frame): mode 3 2.49 (four planes) -> **0.70** (one 565 plane); mode 1
+0.81 -> 0.81, mode 2 0.97 -> 0.70 (the next switch is a row copy, not a per-pixel split into four planes).
+The converter's 565 picture is within 4 of the source per channel; mode 3 is no longer lossless.
+
+**Not done here** (the lead's): the board bitstream with this RTL, its placed LUTs and timing.
