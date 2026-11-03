@@ -101,6 +101,12 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const ok = d.audioLoadXm(len);
                 if (ok) d.audioXmPlay(msg.bpm || 0);
                 this.port.postMessage({ type: "xmLoaded", ok: !!ok, len: len, error: d.audioXmError(), rejected: d.audioXmRejected() });
+            } else if (msg.type === "loadKt") {
+                // A klystrack song (libs/zig/players/kt.zig): staged, checked, played from its start.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadKt(len);
+                if (ok) d.audioKtPlay(0);
+                this.port.postMessage({ type: "ktLoaded", ok: !!(ok && d.audioKtActive()), len: len, error: d.audioKtError(), rejected: d.audioKtRejected() });
             } else if (msg.type === "sfxPlay") {
                 // zg.sfxPlay: the PCM into the effect buffer, then onto the MOD's
                 // quiet channel (libs/zig/players/sfx_voice.zig).

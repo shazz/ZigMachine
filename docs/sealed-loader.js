@@ -1144,6 +1144,13 @@ function startAudio() {
                         "a bad instrument", "an order past the patterns", "too big for the song RAM beside the mixer"][msg.error] || `error ${msg.error}`;
                     console.error(`XM REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);
                 }
+                else if (msg.type === "ktLoaded" && !msg.ok) {
+                    // libs/zig/players/kt_read.zig code(), and 9 from demo_audio_kt.zig.
+                    const why = ["", "not a klystrack song", "a version before 8 or after 27", "a truncated file",
+                        "more than 16 channels", "too big for the song RAM", "a bad FX bus", "a bad wavetable",
+                        "a bad pattern or program", "its FX delay lines do not fit the song RAM"][msg.error] || `error ${msg.error}`;
+                    console.error(`KT REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);
+                }
                 else if (msg.type === "sfxMissed") {
                     console.warn(`zg.${msg.what} refused on the audio thread (${msg.refused} so far): ` +
                         (msg.what === "ymWrite" ? "an SNDH or a YM dump drives the YM"
@@ -1278,6 +1285,17 @@ async function playHip(url, tune, gen) {
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 
+// A klystrack song (.kt): cyd's synth on the four Paula channels (libs/zig/players/kt.zig).
+// The worklet checks it and says so (ktLoaded: ok, or the refusal's reason).
+async function playKt(url, gen) {
+    await startAudio();
+    if (!audioNode) return; // no audio in this context
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
+    audioNode.port.postMessage({ type: "loadKt", bytes: bytes }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+
 // Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
 // sealed chip has no raw-stop, so this overwrites it with silence.
 function stopRaw() {
@@ -1316,6 +1334,7 @@ function playSongByName(name, tune) {
     else if (name.endsWith(".sndh")) sndhResident = { name, gen, ready: playSndh(url, tune, gen) };
     else if (name.endsWith(".sap")) playSap(url, tune, gen);
     else if (name.endsWith(".hip")) playHip(url, tune, gen);
+    else if (name.endsWith(".kt")) songPosted = playKt(url, gen).catch(() => {});
     else if (name.endsWith(".raw")) playRaw(url, 12517, false, gen);
 }
 // zg.sndhCall(name, d0): INIT(d0) on the SNDH already playing, no fetch and no

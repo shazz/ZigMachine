@@ -3,11 +3,9 @@
 // the same shape as XM TEST (xm_test.zig): one text plane, drawn only when
 // something changes, so the cart costs nothing a frame.
 //
-// THE PLAYER DOES NOT EXIST YET. Today no player takes ".kt": the browser
-// loader's playSongByName has no branch for it (the request is dropped without a
-// sound or a log), the player mode stays 0, and the screen says "NO KT PLAYER
-// YET". The cart asks for the songs by name already, so when the BARD .kt player
-// lands (docs/ROADMAP.md, "klystrack songs on BARD") they play with no change here.
+// The songs play on the .kt player (libs/zig/players/kt.zig: klystron's cyd in
+// integer Zig on the four Paula channels), in the browser and on BARD alike;
+// the player mode reads 1 while one plays.
 //
 // The songs are klystrack's own example songs, from upstream (kometbomb/klystrack,
 // MIT like the port, apps/ports/klystrack/LICENSE and README.md), copied from
@@ -97,7 +95,6 @@ pub const Demo = struct {
         zigos.printText(fb, line, 16, 138, SEL, BG);
         const status = std.fmt.bufPrint(&buf, "PLAYER MODE {d}: {s}", .{ mode, modeText(mode) }) catch "?";
         zigos.printText(fb, status, 16, 152, DIM, BG);
-        if (mode == 0) zigos.printText(fb, "NO KT PLAYER YET", 16, 180, SEL, BG);
     }
 };
 

@@ -158,6 +158,7 @@ NATIVE_TESTS="
     libs/zig/players/xm_instr_test.zig
     libs/zig/players/xm_mix_test.zig
     libs/zig/players/xm_ring_test.zig
+    libs/zig/players/kt_core_test.zig
     libs/zig/sfx_queue_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
@@ -342,8 +343,11 @@ gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expecte
 gate music node apps/music_debug_pin.mjs   # ...and its composited picture (borders, rasters, HBL), every 60 frames to 1200, silent and with a YM tune's registers mirrored in (scope on), equals the pin apps/music_debug_pin.json (re-blessed 2026-10-24 when the screen went fixed point); the picture moves and the scope changes it
 gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for keygen_9000.xm / poppy_flower_girls.xm / local.xm / "none" by name; the bundled XMs are The Mod Archive's Public Domain files byte for byte (md5), 8 and 12 channels, and play (mode 1, not silent); local.xm never committed
 gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
-gate kt_test node apps/kt_test_check.mjs   # KT TEST: keys 1..5 (setShadeMode) ask for starport2.kt / castlevania.kt / oceanloader3.kt / dpintro.kt / "none" by name; the bundled songs are upstream klystrack's examples byte for byte (md5); no player takes .kt yet (audio refuses it, no trap)
+gate kt_test node apps/kt_test_check.mjs   # KT TEST: keys 1..5 (setShadeMode) ask for starport2.kt / castlevania.kt / oceanloader3.kt / dpintro.kt / "none" by name; the bundled songs are upstream klystrack's examples byte for byte (md5); each loads and plays in the audio modules (mode 1, not silent)
 gate kt_test node apps/kt_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
+gate kt node apps/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted
+gate kt node apps/kt_check.mjs --break pin   # ...and a wrong pin fails
+gate kt node apps/kt_check.mjs --break lowbyte   # ...and the low-byte channels silenced (8-bit sides) fail the Paula check
 gate sysinfo node apps/sysinfo_check.mjs "$SHOTS/sysinfo"   # SYSINFO: every page's text is on the glass glyph for glyph; page 1's memory lines are hwRamFree/Base/Top/Size, the ROM window and hwVideoBase as the machine answers; plane 0's base is its register's; the disk lines are the .zmd descriptor's; player + YM lines follow the host live; idle frames draw nothing, a refresh only the changed span; no host clock = every speed test once, n/a; a clock = a time each, 6 ratios to the ST, f32 to the integer mul-add; Space opens the menu, a click on F4 shows the disk page whole; Q = request 4; page 3 lists the disk's JINKS.SND / GAUNTLET.SAP / SAMPLE.RAW / KEYGEN.XM / THALION.HIP, P reads each through the drive (the bytes handed over = the FAT file's; the ZX0-packed SNDH / XM / HIP's = the repo's file, depacked by the cart), an SNDH / SAP / XM / HIP goes out as requestSongBytes and the loader's postSfx + the audio module play it in mode 4 / 5 / 1 / 1, heard, the PCM is samplePlay at 12500 Hz; S stops each
 gate sysinfo node apps/sysinfo_check.mjs --break free   # ...and FREE expected 4 KB off hwRamFree() fails
 gate sysinfo node apps/sysinfo_check.mjs --break sound   # ...and a drive serving JINKS.SND with one byte changed fails the bytes check

@@ -1,11 +1,11 @@
-// KT TEST (cart "kt_test", apps/zig/scenes/kt_test.zig): the klystrack (.kt) test screen, ready for the
-// BARD player that does not exist yet. Boots the cart over the real machine + ROM, presses 1..5 through
+// KT TEST (cart "kt_test", apps/zig/scenes/kt_test.zig): the klystrack (.kt) test screen for the
+// .kt player (libs/zig/players/kt.zig; apps/kt_check.mjs checks the player itself). Boots the cart over the real machine + ROM, presses 1..5 through
 // setShadeMode (what the loader and the board's glass send a digit to) and polls the song bridge.
 //   names     keys 1..4 ask for starport2.kt, castlevania.kt, oceanloader3.kt, dpintro.kt; key 5 asks
 //             for "none" (zg.SONG_STOP)
 //   songs     the bundled files are upstream klystrack's examples (apps/ports/klystrack/data) byte for
 //             byte (md5), tracked in docs/music/
-//   today     no player takes .kt: the audio modules refuse it (mode stays 0), without a trap
+//   plays     the audio modules load and play each song (mode 1), not silent
 //   node apps/kt_test_check.mjs [--break name]
 //     name: key 2 is expected to ask for another file, so the check must fail
 import { readFile } from "node:fs/promises";
@@ -57,8 +57,8 @@ function request({ memory, demo }, frames) {
     return null;
 }
 
-/** The audio modules given a .kt (what a loader would feed a player): no player takes it, so it must refuse, not trap. */
-async function audioRefusesKt(bytes) {
+/** The audio modules given a .kt, as the loader feeds it (loadKt): it loads, plays in mode 1, and is heard. */
+async function audioPlaysKt(bytes) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
     const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
@@ -66,7 +66,14 @@ async function audioRefusesKt(bytes) {
     const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
-    return !a.audioLoadXm(bytes.length) && a.audioMode() === 0;
+    if (!a.audioLoadKt(bytes.length)) return false;
+    a.audioKtPlay(0);
+    let sum = 0;
+    for (let i = 0; i < 100; i++) {
+        a.audioRender(441);
+        for (const v of new Float32Array(memory.buffer, m.audioLeftPtr(), 441)) sum += v * v;
+    }
+    return a.audioMode() === 1 && Math.sqrt(sum / 44100) > 0.01;
 }
 
 const errors = [];
@@ -83,12 +90,12 @@ for (const [name, md5] of Object.entries(BUNDLED)) {
     const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
     const got = createHash("md5").update(bytes).digest("hex");
     if (got !== md5) errors.push(`songs: ${name} md5 ${got}, not upstream's ${md5}`);
-    if (!(await audioRefusesKt(bytes))) errors.push(`today: the audio modules did not refuse ${name} cleanly`);
+    if (!(await audioPlaysKt(bytes))) errors.push(`plays: the audio modules did not play ${name}`);
 }
-// No player today: the frames run on after a request, no trap (the "NO KT PLAYER YET" screen is drawn).
+// The frames run on after a request, no trap.
 cart.demo.setShadeMode(0);
 for (let f = 0; f < 5; f++) cart.demo.frame(16.6);
-console.log("  after key 1, 5 frames: no trap, no player");
+console.log("  after key 1, 5 frames: no trap; every bundled song plays in the audio modules");
 
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
