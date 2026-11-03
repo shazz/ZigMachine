@@ -91,6 +91,10 @@ static void features(void) {
     int nw = 0;
     for (int i = 0; i < CYD_WAVE_MAX_ENTRIES; i++) if (waves[i].data) nw++;
     printf("wavetable entries: %d\n", nw);
+    int rnd = 0; /* the random LFO's table is libc's rand(): glibc here, wasi-libc in the cart */
+    for (int i = 0; i < song.num_instruments; i++)
+        rnd += song.instrument[i].vib_shape == MUS_SHAPE_RANDOM || song.instrument[i].pwm_shape == MUS_SHAPE_RANDOM;
+    printf("instruments with a random LFO shape: %d\n", rnd);
 }
 
 int main(int argc, char **argv) {
