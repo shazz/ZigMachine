@@ -1,6 +1,7 @@
 // kt_render: the BARD .kt player's core (libs/zig/players/kt_core.zig) renders a song natively, as
 // apps/ports/klystrack/kt_ref renders it with upstream's cyd: the two raw files compare byte for byte.
 //
+//   kt_render <song.kt> <seconds> <out.s16> rows   each sequence row's gated voices * 16 + those on FX
 //   kt_render <song.kt> <seconds> <out.s16> [trace]   interleaved stereo s16le at 22050 Hz; with
 //                                                     a trace count, each channel's state after each of
 //                                                     the first ticks, as kt_ref --trace prints it
@@ -26,8 +27,12 @@ pub fn main(init: std.process.Init) !void {
     try core.load(src, mem);
     try core.start(kt.RATE);
     if (args.next()) |t| {
-        trace_left = try std.fmt.parseInt(u32, t, 10);
-        core.engine.on_tick = trace;
+        if (std.mem.eql(u8, t, "rows")) {
+            core.engine.on_tick = rows;
+        } else {
+            trace_left = try std.fmt.parseInt(u32, t, 10);
+            core.engine.on_tick = trace;
+        }
     }
     const n: usize = @intFromFloat(secs * kt.RATE);
     const pcm = try init.gpa.alloc(i16, 2 * n);
@@ -39,6 +44,26 @@ pub fn main(init: std.process.Init) !void {
         at += k;
     }
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = out, .data = std.mem.sliceAsBytes(pcm) });
+}
+
+var last_row: i32 = -1;
+var row_max: u32 = 0;
+
+/// "rows": each sequence row's most gated voices at once (and the FX buses they feed).
+fn rows(e: *const kt.Engine) void {
+    var g: u32 = 0;
+    var fx: u32 = 0;
+    for (e.synth.chn[0..e.synth.n]) |*c| {
+        if (c.flags & 32 == 0) continue; // CYD_CHN_ENABLE_GATE
+        g += 1;
+        if (c.flags & 1024 != 0) fx += 1; // CYD_CHN_ENABLE_FX
+    }
+    if (e.song_position != last_row) {
+        if (last_row >= 0) std.debug.print("row {d} gated {d}\n", .{ last_row, row_max });
+        last_row = e.song_position;
+        row_max = 0;
+    }
+    row_max = @max(row_max, g * 16 + fx);
 }
 
 var trace_left: u32 = 0;

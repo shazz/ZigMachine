@@ -46,9 +46,9 @@ pub const KtPlayer = struct {
         try self.core.load(base[0..len], base[from..chip.BUF_OFFSET]);
     }
 
-    /// Start the loaded song from its start, at the cart's 22050 Hz.
-    pub fn start(self: *KtPlayer) bool {
-        self.core.start(core.RATE) catch return false;
+    /// Start the loaded song at sequence row `position` (0: its start), at the cart's 22050 Hz.
+    pub fn start(self: *KtPlayer, position: u16) bool {
+        self.core.startAt(core.RATE, position) catch return false;
         self.pcm = self.core.arena.alloc(i16, audio.MAX_FRAMES + 2) catch return false;
         self.held_pending = false;
         self.ring_pos = 0;

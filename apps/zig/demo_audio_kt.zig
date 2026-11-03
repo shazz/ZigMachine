@@ -36,13 +36,13 @@ export fn audioKtRejected() u32 {
 export fn audioKtError() u32 {
     return kt_error;
 }
-/// Start the loaded song from its start (a .kt has one song: `tune` is ignored).
+/// Start the loaded song at sequence row `tune` (0: its start). A .kt has one song, so the
+/// request's tune field says where to start it, as klystrack's play from the cursor.
 export fn audioKtPlay(tune: u32) void {
-    _ = tune;
     m.sfx.songChanged();
     m.stopAll();
     audio.machinePaulaClearScopes();
-    if (!kt.start()) {
+    if (!kt.start(@intCast(@min(tune, 0xffff)))) {
         kt_rejected +%= 1;
         kt_error = 9;
     }

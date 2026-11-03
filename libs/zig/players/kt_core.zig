@@ -32,8 +32,13 @@ pub const Core = struct {
         self.loaded_mark = self.arena.used;
     }
 
-    /// mus_set_fx + mus_set_song(0): the FX buses' lines from the arena.
     pub fn start(self: *Core, rate: u32) Error!void {
+        return self.startAt(rate, 0);
+    }
+
+    /// mus_set_fx + mus_set_song(position): the FX buses' lines from the arena; the song from
+    /// sequence row `position` (past the end: its last row), as klystrack's play from cursor.
+    pub fn startAt(self: *Core, rate: u32, position: u16) Error!void {
         self.arena.reset(self.loaded_mark);
         const sy = &self.engine.synth;
         sy.bus_used = 0;
@@ -51,6 +56,7 @@ pub const Core = struct {
             fx.setCrush(&b.crush, rate, def.downsample, def.bit_drop, @intFromBool(def.flags & s.FX_CRUSH_DITHER != 0), def.crush_gain);
         }
         self.engine.start(&self.song, rate);
+        self.engine.song_position = @min(position, self.song.song_length -| 1);
     }
 
     pub fn render(self: *Core, out: []i16) void {
