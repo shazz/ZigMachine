@@ -9,6 +9,8 @@
 #                                        one song on the sound CPU, no cart: cycles a frame (SND_MODE: requestSndhMode first)
 #   ZM_SOC=$PWD/build/soc_hp_snd ZM_INIT=sim_zm_ddr.init tools/cycles_sim.sh \
 #       build/hcycles/snd/bench/zm_ddr.init /dev/shm/sb
+#   make snd-cbench CBENCH_SRC="<files>"  a plain C bench on the sound CPU, no players (cycles/sound/scbench.h):
+#                                        build/hcycles/snd/cbench/zm_ddr.init, run as snd-bench's
 #   make snd-fx SONG=union/beat_dis.sndh TUNE=1 FX_AT=6 FX_MODE=3 ZM_FRAMES=14 [FX_DROP=1]
 #                                        a scripted cart (cycles/sound/sfx_cart.c) on the cart CPU,
 #                                        the play image on the sound CPU: a song, then one
@@ -82,6 +84,35 @@ $(SOC_SND)/hp_sim.json: $(HP_DEPS) soc/zm_sound_cpu.py soc/zm_sound_regs.py rtl/
 $(SND_CORE):
 	vexgen/gen.sh SndNd:16384:2:4096:1:snd,nodiv
 
+# A plain C bench on the sound CPU, no players and no audio core (cycles/sound/scbench.h): CBENCH_SRC
+# names its sources (they define cbench_run), CBENCH_CFLAGS their flags, e.g. a third-party sound chip
+# core kept outside the repo. The cart side is snd-bench's (sbench_cart.c); run zm_ddr.init as its.
+#   make snd-cbench CBENCH_SRC="<files>" [CBENCH_CFLAGS="-I<dir>"]
+CB        := $(SND)/cbench
+CB_COMMON := cycles/sound/scbench.c cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S
+$(CB)/snd.elf: $(CB_COMMON) cycles/sound/scbench.h cycles/snd_mailbox.h $(HCYC)/gen/csr_addr.h FORCE
+	@test -n "$(CBENCH_SRC)" || (echo "snd-cbench: name the bench's sources, CBENCH_SRC=<files>"; exit 1)
+	rm -rf $(@D)/o && mkdir -p $(@D)/o
+	for s in $(CB_COMMON) $(CBENCH_SRC); do \
+		$(RV_CC) $(SND_CFLAGS) $(SND_ARCH) $(CBENCH_CFLAGS) -c $$s -o $(@D)/o/$$(basename $$s).o || exit 1; done
+	$(RV_CC) $(SND_LDFLAGS) -o $@ $(@D)/o/*.o -lm
+	! $(RV_OBJDUMP) -d $@ | grep -qP '\t(divu?|remu?)\t' || (echo "$@: a DIV/REM, which the sound core traps"; rm $@; exit 1)
+$(CB)/snd.bin: $(CB)/snd.elf
+	$(RV_OBJCOPY) -O binary $< $@
+	test $$(stat -c %s $@) -le 2097152 || (echo "$@: over 2 MiB, it would overlap the cart's data"; exit 1)
+$(CB)/snd_img.o: $(CB)/snd.bin
+	cd $(@D) && $(RV_OBJCOPY) -I binary -O elf32-littleriscv -B riscv \
+		--rename-section .data=.rodata,alloc,load,readonly,data,contents snd.bin snd_img.o
+$(CB)/fw.elf: $(CB)/snd_img.o cycles/sound/sbench_cart.c cycles/bsound.c host/audio_bridge.c \
+		$(HCYC)/sim/common/fw.a $(HOST)/common/machine.c $(HOST)/common/rom.c $(HOST)/common/aplayer.c \
+		$(HOST)/tutorial/cart.h FORCE
+	for s in cycles/sound/sbench_cart.c cycles/bsound.c host/audio_bridge.c; do \
+		$(RV_CC) $(SND_CFLAGS) -c $$s -o $(@D)/c_$$(basename $$s .c).o || exit 1; done
+	$(RV_CC) $(HRV_LDFLAGS_snd) -o $@ $(@D)/c_*.o $< $(HCYC)/sim/common/fw.a -lm
+$(CB)/zm_ddr.init: $(CB)/fw.elf
+	$(RV_OBJCOPY) -O binary $< $(@D)/fw.bin && truncate -s %8 $(@D)/fw.bin
+	od -An -v -tx8 -w8 $(@D)/fw.bin | tr -d ' ' >$@
+
 # The effects bench (cycles/sound/sfx_cart.c): the real cart-side path and the play image.
 # FX_DROP=1 is the mutant whose bsound.c drops every effect (build/hcycles/snd/fx_drop/).
 FX_AT   ?= 6
@@ -103,9 +134,10 @@ $(FXD)/zm_ddr.init: $(FXD)/fw.elf
 	$(RV_OBJCOPY) -O binary $< $(@D)/fw.bin && truncate -s %8 $(@D)/fw.bin
 	od -An -v -tx8 -w8 $(@D)/fw.bin | tr -d ' ' >$@
 
-.PHONY: snd-fw snd-bench snd-fx soc-hp-snd
+.PHONY: snd-fw snd-bench snd-cbench snd-fx soc-hp-snd
 snd-fw: memmap $(SND)/play/snd.bin
 	@ls -l $(SND)/play/snd.bin
 snd-bench: memmap $(SND)/bench/zm_ddr.init
+snd-cbench: memmap $(CB)/zm_ddr.init
 snd-fx: memmap $(FXD)/zm_ddr.init
 soc-hp-snd: $(SOC_SND)/hp_sim.json
