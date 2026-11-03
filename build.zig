@@ -29,6 +29,9 @@ pub fn build(b: *std.Build) void {
     // release build strips them. The code is the same bytes; tools/perf_names.sh builds
     // into a scratch prefix and checks that, so docs/ never holds these builds.
     const keep_names = b.option(bool, "names", "Keep function names (perf tools); never for docs/.") orelse false;
+    // TC TEST's local pictures (tools/tc_art.py): the owner's own, not cleared to publish, so only
+    // an explicit `-Dtc-art=<dir>` (build.sh: ZM_TC_ART=<dir>) puts them in the cart.
+    const tc_art_dir = b.option([]const u8, "tc-art", "TC TEST: embed the pictures in this directory (local only: never commit that cart).");
 
     if (!build_wasm) return;
 
@@ -561,6 +564,7 @@ pub fn build(b: *std.Build) void {
         "demo-linebase_test", // 110 — LINE LIST TEST: the STE line list as copper data (HW 1.10.0 LBASE + overscan HSCROLL), the mechanism's proof cart
         "demo-mindwind", // 111 — RESERVOIR GODS / MIND REWIND (EIL 2003, STE): the 280-line list (video counter, HSCROLL, colour 0 a line) on the copper's LBASE, the demo rewinding itself halfway (ported from the depacked original)
         "demo-chisel_v2", // 112 — CHISEL V2: the blitter's HW 1.11.0 ops (AFFINE spans: rotozoom + Mode 7, MAP tunnel, mirrored bobs + collision, IFE area fill), every pixel CHISEL's
+        "demo-tc_test", // 113 — TC TEST: the RGB565 true-colour plane (HW 1.15.0): the gamut, a plasma warped by copper LBASE + HSCROLL, palette vs 565, banding gradients, local pictures
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -587,6 +591,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
             },
         });
+        if (std.mem.eql(u8, name, "demo-tc_test")) cart_mod.addImport("tc_art", tcArt(b, tc_art_dir, wasm_target, optimize));
         const exe = b.addExecutable(.{
             .name = name,
             .root_module = b.createModule(.{
@@ -701,4 +706,24 @@ fn addMusashi(b: *std.Build, mod: *std.Build.Module) void {
     mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/upstream/m68kcpu.c"), .flags = &flags });
     mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/upstream/softfloat/softfloat.c"), .flags = &flags });
     mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/freestanding/stubs.c"), .flags = &flags });
+}
+
+// TC TEST's `tc_art` module: the pictures tools/tc_art.py converts from `dir`, or none (the
+// default build, the gate and every cart in docs/: the local pictures are not cleared to publish).
+fn tcArt(b: *std.Build, dir: ?[]const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Module {
+    const root = if (dir) |d| blk: {
+        const run = b.addSystemCommand(&.{ "uv", "run", "--quiet", "--with", "pillow", "python" });
+        run.addFileArg(b.path("tools/tc_art.py"));
+        run.setCwd(b.path(".")); // a relative <dir> is the checkout's
+        run.addArg(d);
+        run.has_side_effects = true; // the directory's files are not declared inputs: convert every build
+        break :blk run.addOutputDirectoryArg("tc_art").path(b, "tc_art.zig");
+    } else b.addWriteFiles().add("tc_art.zig",
+        \\// No local pictures (built without -Dtc-art): the cart shows its generated views only.
+        \\pub const marker = "";
+        \\pub const Image = struct { w: u16, h: u16, px: []const u8 };
+        \\pub const images = [_]Image{};
+        \\
+    );
+    return b.createModule(.{ .root_source_file = root, .target = target, .optimize = optimize });
 }
