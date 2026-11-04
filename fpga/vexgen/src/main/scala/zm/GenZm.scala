@@ -31,6 +31,8 @@ case class ZmArgs(
     zmx: Boolean = false, // ZM-X v1 custom ops (review/KESTREL_NEXT_ISA.md): ZmXPlugin + ZmMulPlugin's mulsh
     zmxEarly: Boolean = false, // ZmXPlugin writes in EXECUTE (bypassed at once) instead of MEMORY
     dTcm: Boolean = false, // a tightly coupled data port (ZmTcm.scala): the BARD scratchpad study
+    earlyBranch: Boolean = false, // branches resolved in EXECUTE, not MEMORY (review/BARD_CPI_STUDY.md)
+    shiftEarly: Boolean = false, // the barrel shifter's result in EXECUTE (bypassable at once)
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -52,6 +54,8 @@ object GenZm {
       opt[Unit]("zmx").action((_, c) => c.copy(zmx = true))
       opt[Unit]("zmxEarly").action((_, c) => c.copy(zmx = true, zmxEarly = true))
       opt[Unit]("dTcm").action((_, c) => c.copy(dTcm = true))
+      opt[Unit]("earlyBranch").action((_, c) => c.copy(earlyBranch = true))
+      opt[Unit]("shiftEarly").action((_, c) => c.copy(shiftEarly = true))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -120,12 +124,12 @@ object GenZm {
     new RegFilePlugin(regFileReadyKind = plugin.SYNC, zeroBoot = false),
     new IntAluPlugin,
     new SrcPlugin(separatedAddSub = false, executeInsertion = true),
-    new FullBarrelShifterPlugin,
+    new FullBarrelShifterPlugin(earlyInjection = a.shiftEarly),
     new HazardSimplePlugin(
       bypassExecute = true, bypassMemory = true, bypassWriteBack = true, bypassWriteBackBuffer = true,
       pessimisticUseSrc = false, pessimisticWriteRegFile = false, pessimisticAddressMatch = false
     ),
-    new BranchPlugin(earlyBranch = false, catchAddressMisaligned = true),
+    new BranchPlugin(earlyBranch = a.earlyBranch, catchAddressMisaligned = true),
     new CsrPlugin(csr(a)),
     if (a.zmx) new ZmMulPlugin else new MulPlugin
   ) ++ (if (a.zmx) List(new ZmXPlugin(early = a.zmxEarly)) else Nil) ++
