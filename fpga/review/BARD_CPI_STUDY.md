@@ -15,8 +15,9 @@ unchanged; the variants are selectable today with `--sound-core`.
 
 - Netlists from `vexgen/gen.sh` with the D$ 16 KB 2-way geometry of KESTREL v1.1
   (`16384:2:16384:2:snd,nodiv` + flags). New flags on this branch: `eb` (BranchPlugin `earlyBranch`),
-  `shex` (FullBarrelShifterPlugin `earlyInjection`), `mulm` (ZmMulPlugin: MUL's low word written and
-  bypassed from MEMORY). `dynpred` / `h8` were already there (TIMING_FABLE.md pass 3).
+  `shex` (FullBarrelShifterPlugin `earlyInjection`). A third, `mulm` (ZmMulPlugin: MUL's low word written
+  and bypassed from MEMORY, where it is already summed), was measured and then dropped (commit 0bf4d848,
+  reverted): 1-2 % does not pay for a custom pipeline change and its break test. `dynpred` / `h8` were already there (TIMING_FABLE.md pass 3).
 - Models: `soc.hp_sim --sound-cpu --sound-core <netlist>` on Matt's laptop (`~/cpi/zm`, this branch); the
   model's csr.json / hp_sim.json are byte-identical to the BRAM study's `bram_d16`, so its images are reused.
 - Images (core-independent DDR images): the klystrack SNAP benches of round 3 (`make snd-bench SONG=x.kt
@@ -74,14 +75,40 @@ Quartet is bound by its I$ misses (290k wait cycles a frame on every core), so t
 `PERIOD=10 IMPL=1 uv run python tools/sound_ooc.py --core build/vexgen/VexRiscv_<core>.v --out build/ooc_cpi_<core>`:
 the whole block (core, decoder, arbiter, posted bridge, registers), xc7z010-1, maxThreads 2.
 
-<!-- ooc-table -->
+| Core | LUT | FF | BRAM tiles | DSP | WNS @ 10 ns |
+|---|---|---|---|---|---|
+| SndNdD16 (baseline) | 2,004 | 1,650 | 13 | 7 | +0.673 ns |
+| SndNdD16Dyn8Sx, Dyn8EbSx, Sx, Dyn8, Dyn8EbSxM, DynEbSx | pending | | | | |
+
+The variant rows were not run in this session: the box ran the lead's full Vivado builds (combo14t). The
+queue (`ooc.sh` in the agent's scratchpad) starts them one at a time once Vivado has been idle for six
+minutes; results land in `fpga/build/ooc_cpi_<core>/` (`util.rpt`, `timing.rpt`) of the `study/bard-cpi`
+worktree. Expected cost, from ZIGGY's same predictor (CYCLES.md, Yosys): a 256-entry BTB is one RAMB18
+(+0.5 tile) plus ~100-150 LUT of compare/redirect; `shex` moves the shifter's last stage into EXECUTE
+(LUT-neutral, a longer EXECUTE path); `eb` moves the branch compare and target into EXECUTE, which
+CYCLES.md names as the sys critical path, so it is the most likely to cost WNS.
 
 ## Recommendation
 
-<!-- recommendation -->
+- **The 1.25x bar is not met** (best cheap core 1.21x / 1.16x; with `mulm` 1.22x / 1.18x). By the brief's
+  rule SOUND_CORE stays SndNdD16, and nothing on the board changes.
+- **It is still the best BARD speed-up on the table for its price**, and it changes what fits:
+  dpintro's worst section goes from 109 % to 94 % (fits), Quartet from 90 to 82 %, Thalion 64 to 57 %.
+  starport2 stays over (134 %): it needs player work (round 4), not a core.
+- **If the lead wants it anyway** (Matt's call), take `SndNdD16Dyn8Sx` first if the OOC shows `eb` costs
+  WNS (1.19x / 1.14x, keeps branches in MEMORY), else `SndNdD16Dyn8EbSx`. Both are selectable today:
+
+```
+cd fpga && vexgen/gen.sh SndNdD16Dyn8EbSx:16384:2:16384:2:snd,nodiv,dynpred,h8,eb,shex
+# board build: the usual combo command plus
+#   --sound-core build/vexgen/VexRiscv_SndNdD16Dyn8EbSx.v
+```
+
+  Gate it on the OOC row (LUT delta < ~300, WNS > 0 with margin at 10 ns) and on the full build's WNS,
+  then on the board: BARD load on the OSD for Thalion / Quartet / dpintro.
 
 ## Files
 
-- `fpga/vexgen/gen.sh` (flags `eb`, `shex`, `mulm`), `vexgen/src/main/scala/zm/GenZm.scala`
-  (`--earlyBranch`, `--shiftEarly`, `--mulMem`), `ZmMulPlugin.scala` (`mulMem`, `zmx = false`).
+- `fpga/vexgen/gen.sh` (flags `eb`, `shex`), `vexgen/src/main/scala/zm/GenZm.scala` (`--earlyBranch`,
+  `--shiftEarly`); `mulm` is in commit 0bf4d848 only (reverted).
 - Laptop only (not committed): `~/cpi/` (`model.sh`, `run.sh`, `summary.sh`, the UART logs in `out/`).
