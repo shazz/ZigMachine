@@ -40,7 +40,7 @@ module zm_video_copper (
     output reg           pal_we = 1'b0,
     output reg  [9:0]    pal_waddr,
     output reg  [31:0]   pal_wdata,
-    output reg           hs_we = 1'b0,   // HSCROLL of `plane`: register word, enables, data
+    output reg           hs_we = 1'b0,   // HSCROLL or a TC fade byte of `plane`: register word, enables, data
     output wire [4:0]    hs_word,
     output wire [3:0]    hs_be,
     output wire [31:0]   hs_wdata,
@@ -109,10 +109,17 @@ module zm_video_copper (
     end
 
     wire [3:0] op = wq[31:28];
+    // A REG names this plane's HSCROLL (u16) or, since 1.16.0, one of its true-colour fade bytes
+    // (TC_FADE 0x0C+p, TC_OFS_R/G/B 0x14/0x18/0x1C+p: word 3, 5, 6 or 7 of the block, lane p),
+    // which takes the value's low byte. The write is made the clock after DEC, while wq still
+    // holds the REG word (the buffer's next read lands two clocks later).
     wire [7:0] hs_off = ZM_REG_HSCROLL + {5'd0, p, 1'b0};
-    assign hs_word = hs_off[6:2];
-    assign hs_be = hs_off[1] ? 4'b1100 : 4'b0011;
-    assign hs_wdata = {wq[15:0], wq[15:0]};
+    wire [7:0] r_off = wq[27:20];
+    wire is_hs = r_off == hs_off;
+    wire is_tc = r_off[7:5] == 3'd0 && (r_off[4:2] == 3'd3 || r_off[4:2] >= 3'd5) && r_off[1:0] == p;
+    assign hs_word = r_off[6:2];
+    assign hs_be = is_hs ? (hs_off[1] ? 4'b1100 : 4'b0011) : 4'b0001 << r_off[1:0];
+    assign hs_wdata = is_hs ? {wq[15:0], wq[15:0]} : {4{wq[7:0]}};
     // The lines the plane covers, as zm_video_plane.v reads its mode: every one, or the visible band.
     wire fs = mode == 8'd1 || ((mode == 8'd0 || mode > 8'd6) && stride == ZM_STRIDE_FULLSCREEN);
     wire phys = fs || mode == 8'd4 || mode == 8'd6 || (mode == 8'd3 && stride >= ZM_RASTER_WIDTH);
@@ -202,7 +209,7 @@ module zm_video_copper (
             RD2: st <= after || k != 8'd0 ? PAL : DEC;   // then wq holds the word
             DEC: begin                     // wq is body word i
                 j <= 8'd0;
-                if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && wq[27:20] == hs_off) || (op == 4'h5 && lb_ok_r)) begin
+                if (op == 4'h0 || op == 4'h3 || (op == 4'h2 && (is_hs || is_tc)) || (op == 4'h5 && lb_ok_r)) begin
                     if (op == 4'h3) flick <= 1'b1;
                     if (op == 4'h2) hs_we <= 1'b1;
                     if (op == 4'h5) lb_we <= 1'b1;

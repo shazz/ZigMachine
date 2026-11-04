@@ -17,6 +17,7 @@ enum { K_NORMAL = 0, K_FS = 1, K_SCROLL = 2, K_MED = 3, K_OVS = 4, K_TC = 5, K_T
 typedef struct {
     uint8_t kind, res;
     uint16_t stride, hs, len, oy, rows; /* stride, hs: fullscreen only (they place the columns) */
+    uint32_t fade; /* true colour only (HW 1.16.0): TC_FADE | OFS_R << 8 | OFS_G << 16 | OFS_B << 24 */
 } pcfg;
 
 static uint32_t rd(const vd_frame* fr, uint32_t off, int n) {
@@ -36,6 +37,11 @@ static int geom(const vd_frame* fr, int p, pcfg* c) {
     c->kind = (uint8_t)k, c->res = (uint8_t)res, c->len = (uint16_t)len;
     c->oy = phys ? 0 : ZM_RASTER_BORDER_Y, c->rows = phys ? VD_LINES : ZM_HEIGHT;
     if (k == K_FS) c->stride = (uint16_t)stride, c->hs = (uint16_t)rd(fr, ZM_REG_HSCROLL + 2u * (uint32_t)p, 2);
+#ifndef VD_BREAK_FADE /* tests/test_vdirty.py's mutant: the fade forgotten */
+    if (k == K_TC || k == K_TCF) /* a fade moves every pixel and no byte the line fetches */
+        c->fade = rd(fr, ZM_REG_TC_FADE + (uint32_t)p, 1) | rd(fr, ZM_REG_TC_OFS_R + (uint32_t)p, 1) << 8 |
+                  rd(fr, ZM_REG_TC_OFS_G + (uint32_t)p, 1) << 16 | rd(fr, ZM_REG_TC_OFS_B + (uint32_t)p, 1) << 24;
+#endif
     return k != K_OVS && len > 0 && len <= VD_ROWMAX;
 }
 

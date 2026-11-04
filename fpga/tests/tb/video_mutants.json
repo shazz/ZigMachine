@@ -503,9 +503,9 @@
   },
   {
     "id": "tc_expanded_by_shift",
-    "file": "zm_video_paint.v",
-    "old": "{8'hFF, h2[4:0], h2[4:2], h2[10:5], h2[10:9], h2[15:11], h2[15:13]}",
-    "new": "{8'hFF, h2[4:0], 3'd0, h2[10:5], 2'd0, h2[15:11], 3'd0}",
+    "file": "zm_video_tcfade.v",
+    "old": "wire [7:0] r8 = {px[15:11], px[15:13]}, g8 = {px[10:5], px[10:9]}, b8 = {px[4:0], px[4:2]};",
+    "new": "wire [7:0] r8 = {px[15:11], 3'd0}, g8 = {px[10:5], 2'd0}, b8 = {px[4:0], 3'd0};",
     "catch": "s:truecolor"
   },
   {
@@ -525,8 +525,8 @@
   {
     "id": "tc_through_the_palette",
     "file": "zm_video_paint.v",
-    "old": "lb_data <= tc ? tc_px : pal_rdata;",
-    "new": "lb_data <= pal_rdata;",
+    "old": "lb_data <= tc ? tc_px : pal3;",
+    "new": "lb_data <= pal3;",
     "catch": "s:truecolor"
   },
   {
@@ -555,6 +555,83 @@
     "file": "zm_video_copper.v",
     "old": "mode == 8'd4 || mode == 8'd6 ||",
     "new": "mode == 8'd4 ||",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_fade_ignored",
+    "file": "zm_video_paint.v",
+    "old": ".px(h2), .m(fm),",
+    "new": ".px(h2), .m(6'd32),",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_weight_no_skip",
+    "file": "zm_video_paint.v",
+    "old": "fm <= 6'd32 - ({1'b0, fade[4:0]} + {5'd0, fade[4]});",
+    "new": "fm <= 6'd32 - {1'b0, fade[4:0]};",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_no_round",
+    "file": "zm_video_tcfade.v",
+    "old": "pr <= (r8 ^ inv) * m + 14'd16;",
+    "new": "pr <= (r8 ^ inv) * m;",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_white_not_back",
+    "file": "zm_video_tcfade.v",
+    "old": "y = p[12:5] ^ {8{w1}};",
+    "new": "y = p[12:5];",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_no_clamp",
+    "file": "zm_video_tcfade.v",
+    "old": "chan = s[9] ? 8'd0 : s[8] ? 8'd255 : s[7:0];",
+    "new": "chan = s[7:0];",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_offset_unsigned",
+    "file": "zm_video_tcfade.v",
+    "old": "{{2{o[7]}}, o}",
+    "new": "{2'b00, o}",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_cop_refused",
+    "file": "zm_video_copper.v",
+    "old": "(op == 4'h2 && (is_hs || is_tc))",
+    "new": "(op == 4'h2 && is_hs)",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_cop_other_plane",
+    "file": "zm_video_copper.v",
+    "old": "&& r_off[1:0] == p;",
+    "new": ";",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_cop_every_lane",
+    "file": "zm_video_copper.v",
+    "old": ": 4'b0001 << r_off[1:0];",
+    "new": ": 4'b1111;",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_regs_cop_dropped",
+    "file": "zm_video_regs.v",
+    "old": "wire cop = cop_we && COPW[cop_word];",
+    "new": "wire cop = cop_we && (cop_word == ZM_REG_HSCROLL / 4 || cop_word == ZM_REG_HSCROLL / 4 + 1);",
+    "catch": "s:truecolor"
+  },
+  {
+    "id": "tcf_latch_plane0",
+    "file": "zm_video_planepath.v",
+    "old": ".fade(regs[(ZM_REG_TC_FADE + plane) * 8 +: 8]),",
+    "new": ".fade(regs[ZM_REG_TC_FADE * 8 +: 8]),",
     "catch": "s:truecolor"
   }
 ]

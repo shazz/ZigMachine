@@ -62,7 +62,11 @@ memory.
 | `0x01` | `NB_PLANES` | u8 (ro) | `4` |
 | `0x04` | `BACKGROUND` | u32 | border/background RGBA (settable per scanline in the global HBL) |
 | `0x08` | `PLANE_ENABLE[4]` | u8×4 | informational in v1 (the host gates blits via `isPlaneEnabled`) |
+| `0x0C` | `TC_FADE[4]` | u8×4 | **1.16.0** plane p's true-colour fade: bits 0..4 coefficient (`0` none … `31` full), bit 5 `1` = toward white, bits 6..7 ignored. Other modes ignore it. See "True-colour fade" |
 | `0x10` | `GLOBAL_HBL_ID` | u16 | border/background HBL handler id (`0` = none) |
+| `0x14` | `TC_OFS_R[4]` | i8×4 | **1.16.0** plane p's signed red offset, added after the fade (`-128..127`) |
+| `0x18` | `TC_OFS_G[4]` | i8×4 | **1.16.0** green offset |
+| `0x1C` | `TC_OFS_B[4]` | i8×4 | **1.16.0** blue offset |
 | `0x20` | `FB_HBL_ID[4]` | u16×4 | per-plane HBL handler id (`0` = none) |
 | `0x28` | `FB_HBL_POS[4]` | u16×4 | x position at which the per-plane HBL fires |
 | `0x30` | `FRAME` | u32 (ro) | frame counter (incremented by `hwClear`) |
@@ -150,6 +154,43 @@ it never reads), HSCROLL and the board's dirty lines all work.
 - Cost on KESTREL: one plane pass a line, as a normal or overscan plane (the fetch is twice the
   bytes). `apps/zig/scenes/mpp_truecolor.zig` mode 3 is the worked example; the design and its LUT
   bill: `fpga/review/TRUECOLOR_PLANE.md`, `decisions.md` 2026-11-02 "True-colour plane".
+
+### True-colour fade — since 1.16.0
+
+On the Falcon a true-colour fade rewrote every pixel. Here the machine fades the pixel where it
+expands it: a brightness fade toward black or white (GBA `BLDY`, SNES `INIDISP`) then a signed
+offset per channel (the Saturn's colour offset: tints and flashes). A fade, a flash or a tint is
+**one register write** (four bytes per plane: `TC_FADE`, `TC_OFS_R/G/B`), like a palette fade;
+the pixels never change. All zero (the reset) is the 1.15.0 picture exactly.
+
+For each 8-bit channel `x` of the expanded pixel (the formula above), with `c` = `TC_FADE & 31`,
+`white` = bit 5 and `o` the channel's signed offset, in integers:
+
+```
+w   = c + (c >> 4)                       0..15, 17..32: coefficient 31 is weight 32 (full)
+m   = 32 - w
+y   = (x * m + 16) >> 5                  toward black (rounded half up)
+y   = 255 - (((255 - x) * m + 16) >> 5)  toward white (the same rule on the complement)
+out = min(255, max(0, y + o))            the offset after the fade, clamped
+```
+
+Alpha stays 255. Coefficient 0 is the identity whatever bit 5 says; 31 is full black (or white)
+whatever the pixel, before the offset: a flash is `TC_FADE = 31` with an offset, or `0` with a large
+offset decaying to 0. The browser machine (`machine/video_tc_fade.zig`) and FRESCO
+(`fpga/rtl/video/zm_video_tcfade.v`) compute exactly this; `machine/video_tc_fade_test.zig` checks
+every channel value, coefficient and direction against the formula.
+
+- **When it is read**: per line, after the line's HBL handler and copper record, as `HSCROLL`. A
+  handler or a copper `REG` can change it line by line (a fade curtain, a per-line tint).
+- **Copper**: a `REG` may name this plane's `TC_FADE + p`, `TC_OFS_R + p`, `TC_OFS_G + p` or
+  `TC_OFS_B + p` (a byte: the value's low byte, bits 15..8 ignored). Another plane's byte stops the
+  list. The register keeps what the record wrote (into the next frame), as for `HSCROLL`.
+  `zg.tc.copperReg(reg, v)` builds the word.
+- ZigOS: `fb.setTruecolorFade(coef, .black | .white)`, `fb.setTruecolorOffset(r, g, b)`;
+  `zg.tc.fadeCtl(coef, dir)` is the register byte. TC TEST's key 8 (`apps/zig/scenes/tc_test/fade.zig`)
+  is the worked example: a flash, a fade to black, one to white, four bytes a frame.
+- Cost on KESTREL: none per pixel for the CPU; FRESCO's painter takes one more clock a pass.
+  The board's dirty-line planner counts a fade change as a change to every line of the plane.
 
 ### Opening the borders (overscan) — the ST timing trick
 

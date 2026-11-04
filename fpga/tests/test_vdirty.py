@@ -39,13 +39,16 @@ def proof(cart: str, mutant: str = "", adapt: bool = False) -> tuple[int, int, i
     return proof_n(cart, FRAMES, mutant, adapt)
 
 
-def proof_n(cart: str, frames: str, mutant: str = "", adapt: bool = False) -> tuple[int, int, int, int, int, int]:
-    """proof() over `frames` frames."""
+def proof_n(
+    cart: str, frames: str, mutant: str = "", adapt: bool = False, calls: tuple[str, ...] = ()
+) -> tuple[int, int, int, int, int, int]:
+    """proof() over `frames` frames; `calls` are the host's --call FRAME:EXPORT:ARGS."""
     subprocess.run(["make", "-s", "memmap", "host-vdirty", f"CART={cart}", f"VD_BREAK={mutant}"], cwd=FPGA,
                    check=True, capture_output=True)  # fmt: skip
     binary = FPGA / f"build/host/{cart}/host_vdirty{'_' + mutant if mutant else ''}"
     env = dict(os.environ, ZM_VD_CURSOR="1" if cart == "gem" else "0", ZM_VD_ADAPT="1" if adapt else "0")
-    out = subprocess.run([str(binary), cart, frames], env=env, capture_output=True, text=True, check=False)
+    argv = [str(binary), cart, frames, *(a for c in calls for a in ("--call", c))]
+    out = subprocess.run(argv, env=env, capture_output=True, text=True, check=False)
     m = LINE.search(out.stdout)
     assert m, out.stdout + out.stderr
     assert mutant or m[7] == "0", f"{cart}: a skipped line holds a copper record ({m[7]})"  # vdirty_copper.h
@@ -79,6 +82,7 @@ def test_a_redrawn_plane_skips_its_borders_uncompared() -> None:
 BREAKS = [("ROWS", "scroll"), ("PAL", "joust"), ("BG", "union_intro"), ("BG", "dhs_0pxl0reg"),
           ("HANDLER", "ancool"), ("PICTURE", "scroll"), ("OVERDRAWN", "gem"),
           ("COPPER", "tutorial"), ("HOT", "scroll"), ("LBASE", "linebase_test")]  # fmt: skip
+TC_FADE_VIEW = ("10:setShadeMode:7",)  # tc_test's key 8: the fade registers move, the pixels do not
 
 
 def test_lbase_lists_are_redrawn_every_frame() -> None:
@@ -96,6 +100,20 @@ def test_a_truecolor_plane_skips_only_unchanged_lines() -> None:
     assert bad == 0 and moved == 0
     before = proof_n("mpp_truecolor", "960")[1]  # modes 1 and 2
     assert skipped - before > (1100 - 961) * 260  # nearly every line of the 565 frames: 38,920 of 39,200
+
+
+def test_a_truecolor_fade_moves_lines_whose_bytes_do_not() -> None:
+    """tc_test's FADE view (HW 1.16.0): every frame the plane's fade registers change and no byte
+    its lines fetch does; the plane's geometry (vdrow.h pcfg.fade) carries them, so no faded line
+    is skipped, and the plain stretch of the cycle (192..255) skips again."""
+    lines, skipped, moved, bad, *_ = proof_n("tc_test", "300", calls=TC_FADE_VIEW)
+    assert bad == 0 and moved == 0
+    assert skipped > 0  # the cycle's plain frames
+
+
+@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+def test_a_forgotten_fade_is_caught() -> None:
+    assert proof_n("tc_test", "300", "FADE", calls=TC_FADE_VIEW)[3] > 0
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

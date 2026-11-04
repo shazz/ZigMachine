@@ -59,8 +59,11 @@ void vseq_copper_end(unsigned on) {
     vseq_issue(ZMV_WB, 0, 0, 0, 0, 0, 0);
     vseq_idle();
     zmv_flush_dcache(); /* the compositor wrote the palettes behind the D$ */
-    for (uint32_t w = ZM_REG_HSCROLL / 4; w < ZM_REG_HSCROLL / 4 + 2; w++) {
-        uint32_t v = zmv_reg((int)w);
+    /* HSCROLL x2 and (HW 1.16.0) the true-colour fade's four words: a copper REG writes them */
+    static const uint8_t k_words[] = {ZM_REG_HSCROLL / 4, ZM_REG_HSCROLL / 4 + 1, ZM_REG_TC_FADE / 4,
+                                      ZM_REG_TC_OFS_R / 4, ZM_REG_TC_OFS_G / 4, ZM_REG_TC_OFS_B / 4};
+    for (uint32_t i = 0; i < sizeof k_words; i++) {
+        uint32_t w = k_words[i], v = zmv_reg((int)w);
         vseq_w16(w * 4, (uint16_t)v);
         vseq_w16(w * 4 + 2, (uint16_t)(v >> 16));
     }

@@ -7,6 +7,8 @@
 // FRESCO's painter (fpga/rtl/video/zm_video_paint.v) does exactly this per column.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const fade = @import("video_tc_fade.zig");
+pub const Fade = fade.Fade;
 
 /// 565 -> the PFB's RGBA word (R in the low byte, alpha 255), by bit replication: 0xFFFF is
 /// white, 0x0000 black. The RTL's expansion is the same wiring; Hatari's Videl hi-colour
@@ -28,11 +30,14 @@ pub inline fn lineAt(row: usize, hs: usize) usize {
     return (row + hs) & ~@as(usize, 1);
 }
 
-/// One line: `n` pixels from `src` (byte offset `at` in the region), each written doubled
-/// into the raster row `out64` (one u64 a logical pixel) from logical column 0.
-pub fn line(out64: []u64, src: [*]const u8, at: usize, n: usize) void {
+/// One line: `n` pixels from `src` (byte offset `at` in the region), each expanded, faded
+/// (HW 1.16.0, video_tc_fade.zig: the plane's registers as the line found them) and written
+/// doubled into the raster row `out64` (one u64 a logical pixel) from logical column 0.
+pub fn line(out64: []u64, src: [*]const u8, at: usize, n: usize, f: fade.Fade) void {
+    const plain = f.identity();
     for (out64[0..n], 0..) |*o, lx| {
-        const c = expand(std.mem.readInt(u16, src[at + 2 * lx ..][0..2], .little));
+        const e = expand(std.mem.readInt(u16, src[at + 2 * lx ..][0..2], .little));
+        const c = if (plain) e else fade.apply(e, f);
         o.* = @as(u64, c) | (@as(u64, c) << 32);
     }
 }

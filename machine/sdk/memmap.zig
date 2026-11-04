@@ -83,6 +83,15 @@ pub const REG_RESOLUTION: usize = 0x00; // u8   0 = planes, 1 = truecolor (borde
 pub const REG_NB_PLANES: usize = 0x01; // u8   (ro) = 4
 pub const REG_BACKGROUND: usize = 0x04; // u32  border/background RGBA
 pub const REG_PLANE_ENABLE: usize = 0x08; // u8 x4 (informational in v1; host gates blits)
+// --- TRUE-COLOUR FADE (1.16.0, docs/HW_API.md "True-colour fade"; machine/video_tc_fade.zig) ---
+// Applied to a true-colour plane's 888 pixel after the 565 expansion, every line (a copper REG
+// may rewrite them per line): a coefficient toward black or white, then a signed offset per
+// channel, clamped to 0..255. All zero (the reset) is the identity; other modes ignore them.
+pub const REG_TC_FADE: usize = 0x0C; // u8 x4 (0x0C..0x0F) bits 0..4 coef 0..31 (31 = full), bit 5 1 = toward white, bits 6..7 ignored
+pub const REG_TC_OFS_R: usize = 0x14; // i8 x4 (0x14..0x17) red offset of plane p, -128..127
+pub const REG_TC_OFS_G: usize = 0x18; // i8 x4 (0x18..0x1B)
+pub const REG_TC_OFS_B: usize = 0x1C; // i8 x4 (0x1C..0x1F)
+pub const TC_FADE_WHITE: u8 = 0x20;
 pub const REG_GLOBAL_HBL_ID: usize = 0x10; // u16  border/background HBL handler id (0 = none)
 pub const REG_FB_HBL_ID: usize = 0x20; // u16 x4 per-plane HBL handler id (0 = none)
 pub const REG_FB_HBL_POS: usize = 0x28; // u16 x4 x position at which the per-plane HBL fires
@@ -392,11 +401,13 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // rebuild the C/Rust carts; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 128;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0F00; // 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (decisions.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
+pub const ZM_HW_VERSION: u32 = 0x0001_1000; // 1.16.0 — the true-colour fade: REG_TC_FADE + REG_TC_OFS_R/G/B per plane, also copper REG targets (decisions.md 2026-11-03 "True-colour fade"); 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (decisions.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.
 comptime {
+    if (REG_PLANE_ENABLE + NB_PLANES > REG_TC_FADE or REG_TC_FADE + NB_PLANES > REG_GLOBAL_HBL_ID) @compileError("memmap: TC_FADE overlaps its neighbours");
+    if (REG_GLOBAL_HBL_ID + 2 > REG_TC_OFS_R or REG_TC_OFS_R + NB_PLANES > REG_TC_OFS_G or REG_TC_OFS_G + NB_PLANES > REG_TC_OFS_B or REG_TC_OFS_B + NB_PLANES > REG_FB_HBL_ID) @compileError("memmap: TC_OFS overlaps its neighbours");
     if (REG_ROM_HIGH + 4 > REG_BEAM_COUNT) @compileError("memmap: ROM_HIGH overlaps BEAM_COUNT");
     if (REG_BEAM_COUNT + 2 > REG_BEAM_DROPPED) @compileError("memmap: BEAM_COUNT overlaps BEAM_DROPPED");
     if (REG_BEAM_DROPPED + 4 > REG_RAM_ARENA_TOP) @compileError("memmap: BEAM_DROPPED overlaps RAM_ARENA_TOP");

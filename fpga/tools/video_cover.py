@@ -16,6 +16,7 @@ import memmap as mm
 REG_WORDS = 32
 PAL0 = REG_WORDS
 BEAM0 = PAL0 + mm.NB_PLANES * mm.PAL_ENTRIES
+TC_FADE_REGS = (mm.REG_TC_FADE, mm.REG_TC_OFS_R, mm.REG_TC_OFS_G, mm.REG_TC_OFS_B)  # HW 1.16.0
 MODES = {0: "normal", 1: "fullscreen", 2: "scroll", 3: "medium", 4: "overscan", 5: "truecolor", 6: "truecolor_full"}
 
 
@@ -66,6 +67,8 @@ def _effects(delta: dict[int, int], pas: int, state: dict[int, int]) -> set[str]
         out.add("hscroll_per_line")
     if mm.REG_RESOLUTION // 4 in delta:
         out.add("resolution_per_line")
+    if {r // 4 for r in TC_FADE_REGS} & delta.keys():
+        out.add("tc_fade_per_line")
     if mm.REG_RES_FLICKER // 4 in delta:
         hpos = _byte(state, mm.REG_FB_HBL_POS + plane * 2, 2)
         on_time = abs(hpos - mm.OVERSCAN_MAGIC_X) <= mm.OVERSCAN_X_TOL
@@ -100,6 +103,10 @@ def cover(frames_dir: Path, frame: int) -> set[str]:
             found.add("mode_" + mode_of(state, pas - 1))
             if _byte(state, mm.REG_FB_COPPER + 2 * (pas - 1), 2):
                 found.add("copper")  # a list (HW 1.9.0), applied by the compositor itself
+            if mode_of(state, pas - 1).startswith("truecolor") and (
+                _byte(state, mm.REG_TC_FADE + pas - 1, 1) & 31 or any(_byte(state, r + pas - 1, 1) for r in TC_FADE_REGS[1:])
+            ):
+                found.add("tc_fade")  # a true-colour pass with a fade or an offset (HW 1.16.0)
         if kind == 1:
             pre = dict(state)
         if kind == 2:

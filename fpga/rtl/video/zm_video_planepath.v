@@ -88,7 +88,9 @@ module zm_video_planepath (
 
     zm_video_paint u_paint (
         .clk(clk), .rst(rst), .start(paint_start), .ncols(ncols), .align(fetch_addr[1:0]),
-        .single(single), .dst0(dst0), .wrap(wrap), .tc(tc), .stride(stride), .s0(s0), .ov(ov), .band(band),
+        .single(single), .dst0(dst0), .wrap(wrap), .tc(tc), .fade(regs[(ZM_REG_TC_FADE + plane) * 8 +: 8]),
+        .ofs({regs[(ZM_REG_TC_OFS_B + plane) * 8 +: 8], regs[(ZM_REG_TC_OFS_G + plane) * 8 +: 8],
+              regs[(ZM_REG_TC_OFS_R + plane) * 8 +: 8]}), .stride(stride), .s0(s0), .ov(ov), .band(band),
         .band_open(band_open), .hit(hit), .flick(flick), .nbase(nbase), .fb_raddr(word_raddr),
         .fb_rdata(word_rdata), .pal_raddr(pal_raddr), .pal_rdata(pal_rdata), .lb_we_lo(lb_we_lo),
         .lb_we_hi(lb_we_hi), .lb_addr(lb_addr), .lb_data(lb_data), .done(paint_done));
