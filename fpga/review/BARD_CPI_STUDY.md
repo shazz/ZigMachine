@@ -113,3 +113,16 @@ cd fpga && vexgen/gen.sh SndNdD16Dyn8EbSx:16384:2:16384:2:snd,nodiv,dynpred,h8,e
 - `fpga/vexgen/gen.sh` (flags `eb`, `shex`), `vexgen/src/main/scala/zm/GenZm.scala` (`--earlyBranch`,
   `--shiftEarly`); `mulm` is in commit 0bf4d848 only (reverted).
 - Laptop only (not committed): `~/cpi/` (`model.sh`, `run.sh`, `summary.sh`, the UART logs in `out/`).
+
+## OOC, measured by the lead (4 Nov, 100 MHz, routed, `tools/sound_ooc.py`)
+| Core | LUT | FF | BRAM | DSP | WNS |
+|---|---|---|---|---|---|
+| SndNdD16 (baseline) | 2,004 | 1,650 | 13 | 7 | +0.673 |
+| SndNdD16Dyn8 | 1,971 | 1,734 | 14 | 7 | +0.927 |
+| SndNdD16Sx | 2,018 | 1,616 | 13 | 7 | +0.779 |
+| **SndNdD16Dyn8Sx** | **2,052 (+48)** | 1,700 | 14 | 7 | **+0.769** |
+| SndNdD16Dyn8EbSx | 2,142 (+138) | 1,635 | 14 | 7 | +0.063 |
+
+`eb` (branches resolved in EXECUTE) costs almost all the slack, as predicted. **Dyn8Sx** is the pick if a core is taken:
+1.19x on starport2's worst section, 1.14x on dpintro's (109 % -> 96 %), -6..-12 % on every other player, for +48 LUT
+and one BRAM tile, with more timing margin than today's core. Still under the 1.25x bar: Matt decides.
