@@ -56,7 +56,7 @@ drive, as a GEM program reads its data files) plays from the cart's memory inste
 
 ```zig
 const n = zg.disk.read(entry, buf);                         // the file, a block at a time
-_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip; copied this frame
+_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip / .kt; copied this frame
 zg.stopSong();                                              // stops it, as it stops a named one
 ```
 
@@ -353,6 +353,18 @@ truncated file (3), more than 16 channels (4), tables over the song RAM (5), mor
 or a reverb tap above 0 dB (6), a bad wavetable (7), a pattern index or program out of range (8),
 FX delay lines that do not fit the song RAM at start (9). Memory: the song's tables, 2 s of reverb
 line a reverb bus (176 KB at 22050 Hz) and the chorus lines live in song RAM after the file.
+
+**From memory:** `zg.requestSongBytes(bytes, .kt, row)` plays a .kt the cart holds (effects queue op
+8, kind 5); the row to start at rides the entry's 32-bit last word, so a C cart can ask for a row past
+255 (`apps/ports/klystrack/kestrel_bard.c` does: the klystrack tracker's Play hands its song over this
+way, see its README).
+
+**Cost on BARD** (16 KB D$ core, `make snd-bench`, Mc of a 60 Hz frame's 1.67): oceanloader3 0.44,
+castlevania 0.48 (row 98), dpintro 1.28 (row 788: 1.17), starport2 1.03 (row 250) but 2.10 in its
+intro (row 0: five FM-on-wavetable voices at once, 126 %). The synth runs a block at a time between
+sequencer ticks (`kt_block.zig`), each channel on a copy of its state in a loop built for the
+features it uses; ring modulation or hard sync in effect falls back to a sample at a time.
+`apps/kt_cost.mjs` ranks the player's code by function without a sim.
 
 ## Rules and limits
 

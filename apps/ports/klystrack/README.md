@@ -114,6 +114,25 @@ stays off ("klystron: no memory for a reverb, left off").
 With the 4 MiB window: 44.1 kHz with one reverb + one chorus needs ~2.3 MB of heap; every bus that enables reverb
 adds 690 KB (chorus 707 KB) at 44.1 kHz, half that at 22.05 kHz. Then raise `mused.c.sed`'s mix rate.
 
+## Playing on the machine's .kt player (3 Nov 2026)
+
+Play (F5, the PLAY button, play from the cursor) hands the song to the machine's `.kt` player
+(`libs/zig/players/kt.zig`: BARD on the board, the audio thread in the browser) instead of mixing it
+with cyd on the cart CPU (`kestrel_bard.c`): the song is written as a .kt (`save_song_inner`, its
+"save unused elements?" question skipped: `patches/diskop.c.sed`) and passed with `requestSongBytes`
+(kind 5) from the row Play started at; cyd's stream stops and cyd keeps only its sequencer, so the
+position, the pattern view and follow-play move as before, on the real-time clock (the 33 ms cap is
+lifted while the machine plays). An edit while it plays is caught by a hash of the song every quarter
+second of song time and re-sent from the row playing (the voices restart there). Stop asks for
+"none" and cyd takes the stream back. A song the player would refuse (more than 16 channels, over
+256 KiB, over its song RAM) stays on cyd. The machine's player has room for every reverb bus a song
+enables (cyd here keeps one). Keyjazz while a handed-over song plays is silent.
+`make EXTRA=-DKESTREL_NO_BARD` builds the cart with cyd as before.
+
+`apps/frame_cost.mjs` while playing STARPRT2.KT (est Mc a frame, frames 121-180): 34.1 with cyd ->
+23.8 with the hand-over (cart 9.6 -> 5.3, I$ misses 23.8 -> 17.9): the rest is the UI's 30 Hz repaint
+(SDL_RenderCopy / RenderPresent / colour_index), the next lever.
+
 ## What's left
 
 - In the browser, Ctrl+O / Ctrl+S are also browser shortcuts; whether the loader swallows them for a cart that
