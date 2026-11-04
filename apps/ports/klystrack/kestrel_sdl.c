@@ -79,7 +79,9 @@ void SDL_CloseAudio(void) { audio_open = 0; }
  * chorus's 50 ms). Then the callback would only compute silence (8 channels, ~2.4 Mc a frame): it is skipped
  * and zeros are fed until a note or a song starts (keyjazz gates a channel; play sets the song). */
 #define QUIET_AFTER_MS 2200
-static Uint32 rest_samples;
+/* At boot nothing has sounded, so nothing can echo: cyd starts at rest (it mixed 2.2 s of exact silence
+ * first, ~2.2 Mc a frame for the first 132 frames: most of the board's 5 s at 5 fps after loading). */
+static Uint32 rest_samples = 0x40000000u;
 
 static int cyd_busy(void)
 {

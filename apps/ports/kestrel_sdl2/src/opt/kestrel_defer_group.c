@@ -24,13 +24,22 @@ static int words_differ(const Uint32 *x, const Uint32 *y, unsigned n)
     return 0;
 }
 
+/* A key is the renderer/texture state (NS words) then the caller's words: stored together in the arena. */
+#define NS 7
+typedef struct { const Uint32 *st, *key; unsigned n; } gkey_t;   /* n: all of it, NS + the caller's */
+
+static int key_differs(const Uint32 *a, const gkey_t *k)
+{
+    return words_differ(a, k->st, NS) || words_differ(a + NS, k->key, k->n - NS);
+}
+
 /* Last frame's group at entry i, if it had this key: its length, else -1. */
-static int last_frames(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
+static int last_frames(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
 {
     if (i >= kd.nlast || kd.stale) return -1;
     const cmd_t *p = &kd.list[i];
     if (p->kind != kind || p->mod != n || p->colour + n > kd.na) return -1;
-    if (words_differ(kd.arena + p->colour, w, n)) return -1;
+    if (key_differs(kd.arena + p->colour, w)) return -1;
     unsigned len = LEN(p->box);
     return i + 1 + len <= kd.nlast ? (int)len : -1;
 }
@@ -40,12 +49,12 @@ static int last_frames(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
  * between are dropped (their tiles dirty) and last frame's rest moves down to i, so everything after it is
  * compared with what it really was rather than with whatever now sits at its position. */
 #define RESYNC 256
-static void resync(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
+static void resync(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
 {
     if (i >= kd.nlast || kd.stale || OP(&kd.list[i]) == C_GROUP) return;   /* a group in place: a real change */
     for (unsigned j = i + 1; j < kd.nlast && j <= i + RESYNC; j++) {
         const cmd_t *p = &kd.list[j];
-        if (p->kind != kind || p->mod != n || p->colour + n > kd.na || words_differ(kd.arena + p->colour, w, n)) continue;
+        if (p->kind != kind || p->mod != n || p->colour + n > kd.na || key_differs(kd.arena + p->colour, w)) continue;
         if (j + 1 + LEN(p->box) > kd.nlast) return;
         for (unsigned q = i; q < j; q++) kd_mark(&kd.list[q]);
         memmove(&kd.list[i], &kd.list[j], (kd.nlast - j) * sizeof(cmd_t));
@@ -54,8 +63,9 @@ static void resync(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
     }
 }
 
-int kestrel_defer_group_begin(int can, const Uint32 *w, unsigned n, Uint32 *out, unsigned nout)
+static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout)
 {
+    unsigned n = w->n;
     if (depth++ || !can || !kd.deferring || kd.immediate || !kd.list) return 0;
     unsigned i = kd.n, a = kd.na;
     if (i + 1 > kd.cap) return 0;
@@ -78,7 +88,8 @@ int kestrel_defer_group_begin(int can, const Uint32 *w, unsigned n, Uint32 *out,
         a = g->colour;
     else if (a + n + nout > KD_ARENA) return 0;               /* full: drawn as plain commands */
     else kd.na = a + n + nout;
-    memcpy(kd.arena + a, w, n * 4);
+    memcpy(kd.arena + a, w->st, NS * 4);
+    memcpy(kd.arena + a + NS, w->key, (n - NS) * 4);
     if (i < kd.nlast) kd_mark(g);                            /* replaced, as any entry */
     memset(g, 0, sizeof *g);
     g->kind = kind; g->mod = n; g->colour = a; g->box = NONE;
@@ -94,25 +105,33 @@ void kestrel_defer_group_end(const Uint32 *out, unsigned nout)
     if (!kd.deferring || !kd.list || start >= kd.n) return;      /* the list was let go meanwhile */
     cmd_t *g = &kd.list[start];
     for (unsigned j = 0; j < nout; j++) kd.arena[g->colour + g->mod + j] = out[j];
-    Uint32 blends = 0;
-    for (unsigned j = start + 1; j < kd.n; j++) blends |= kd.list[j].box & BLENDS;
+    Uint32 blends = 0, x0 = 31, y0 = 63, x1 = 0, y1 = 0;     /* and the tiles its commands touch, together */
+    for (unsigned j = start + 1; j < kd.n; j++) {
+        Uint32 b = kd.list[j].box;
+        blends |= b & BLENDS;
+        if (b & NONE) continue;
+        if (TX0(b) < x0) x0 = TX0(b);
+        if (TY0(b) < y0) y0 = TY0(b);
+        if (TX1(b) > x1) x1 = TX1(b);
+        if (TY1(b) > y1) y1 = TY1(b);
+    }
+    g->stepx = x0 > x1 ? NONE : x0 | x1 << 5 | y0 << 10 | y1 << 16;
     g->box = NONE | blends | (kd.n - start - 1);
 }
 
 /* The API (kestrel_port.h declares it for klystron's patches): the window renderer's state and the group's
- * texture (pointer, serial, colour mod, blend) lead the caller's key. A key longer than 57 words is not
- * grouped (the caller still calls kestrel_group_end). */
+ * texture (pointer, serial, colour mod, blend) lead the caller's key. */
 int kestrel_window_state(SDL_Renderer *r, Uint32 w[4]);
 int kestrel_group_begin(void *renderer, void *texture, const unsigned *key, unsigned n, unsigned *out, unsigned nout)
 {
-    Uint32 w[64];
+    Uint32 st[NS];
     SDL_Texture *t = texture;
-    int can = t && n <= 64 - 7 && kestrel_window_state(renderer, w);
+    int can = t && kestrel_window_state(renderer, st);
     if (can) {
-        w[4] = (Uint32)(uintptr_t)t; w[5] = t->serial;
-        w[6] = (Uint32)t->mr | (Uint32)t->mg << 8 | (Uint32)t->mb << 16 | (Uint32)t->blend << 24;
-        for (unsigned i = 0; i < n; i++) w[7 + i] = key[i];
+        st[4] = (Uint32)(uintptr_t)t; st[5] = t->serial;
+        st[6] = (Uint32)t->mr | (Uint32)t->mg << 8 | (Uint32)t->mb << 16 | (Uint32)t->blend << 24;
     }
-    return kestrel_defer_group_begin(can, w, 7 + n, out, nout);
+    gkey_t k = { st, key, NS + n };
+    return group_begin(can, &k, out, nout);
 }
 void kestrel_group_end(const unsigned *out, unsigned nout) { kestrel_defer_group_end(out, nout); }

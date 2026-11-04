@@ -120,8 +120,27 @@ static int copy_indexed8(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, co
 }
 
 /* Anything else (ARGB textures, a source partly outside the texture): kestrel_render.c's general path, per pixel. */
+/* The ARGB case klystrack has (its VU meter: unscaled, no colour mod, BLEND, the source inside the texture):
+ * the loop below without its per-pixel tests. Same pixels. 0: not this case. */
+static int copy_argb_plain(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int sx, int sy)
+{
+    if (!t->px || t->blend != SDL_BLENDMODE_BLEND || t->mr != 255 || t->mg != 255 || t->mb != 255) return 0;
+    if (sx < 0 || sy < 0 || sx + c->w > t->w || sy + c->h > t->h) return 0;
+    const Uint32 *src = t->px + sy * t->w + sx;
+    Uint8 *dp = fb + c->y * w + c->x;
+    for (int y = 0; y < c->h; y++, src += t->w, dp += w)
+        for (int x = 0; x < c->w; x++) {
+            Uint32 p = src[x];
+            unsigned a = p >> 24;
+            if (a == 255) dp[x] = index_of(p);
+            else if (a) dp[x] = blend8(dp[x], p, a, SDL_BLENDMODE_BLEND);
+        }
+    return 1;
+}
+
 static void copy_general8(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)
 {
+    if (stepx == 0x10000u && stepy == 0x10000u && copy_argb_plain(t, fb, w, c, s->x + ox, s->y + oy)) return;
     int mod = t->mr != 255 || t->mg != 255 || t->mb != 255;
     for (int y = 0; y < c->h; y++) {
         int ty = (int)(((Uint32)(oy + y) * stepy) >> 16) + s->y;
@@ -135,7 +154,8 @@ static void copy_general8(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, c
             unsigned a = p >> 24;
             if (t->blend != SDL_BLENDMODE_NONE && a == 0) continue;
             if (mod) p = (p & 0xFF000000u) | ((p >> 16 & 255) * t->mr / 255) << 16 | ((p >> 8 & 255) * t->mg / 255) << 8 | (p & 255) * t->mb / 255;
-            dp[x] = t->blend == SDL_BLENDMODE_NONE ? index_of(p) : blend8(dp[x], p, a, t->blend);
+            /* NONE, and BLEND at full alpha, draw the colour as it is (blend_px returns s | alpha then) */
+            dp[x] = t->blend == SDL_BLENDMODE_NONE || (t->blend == SDL_BLENDMODE_BLEND && a == 255) ? index_of(p) : blend8(dp[x], p, a, t->blend);
         }
     }
 }

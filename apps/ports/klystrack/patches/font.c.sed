@@ -7,11 +7,12 @@ s/^static void inner_write(const Font \*font, GfxDomain \*dest, const SDL_Rect \
 #define KESTREL_TEXT_MAX 180 /* bytes; a longer string is drawn as before */\
 static void inner_write(const Font *font, GfxDomain *dest, const SDL_Rect *r, Uint16 * cursor, SDL_Rect *bounds, const char * text)\
 {\
-	unsigned key[9 + KESTREL_TEXT_MAX / 4] = { 0 }, out[3], len = (unsigned)strlen(text);\
+	unsigned key[9 + KESTREL_TEXT_MAX / 4 + 1], out[3], len = (unsigned)strlen(text);\
 	if (len > KESTREL_TEXT_MAX || !font->surface) { inner_write_draw(font, dest, r, cursor, bounds, text); return; }\
 	key[0] = (unsigned)(uintptr_t)font; key[1] = (r != NULL) | (bounds != NULL) << 1; key[2] = *cursor; key[3] = (unsigned)dest->screen_w; key[4] = len;\
-	if (r) { key[5] = (unsigned)(Uint16)r->x | (unsigned)r->y << 16; key[6] = (unsigned)(Uint16)r->w | (unsigned)r->h << 16; }\
-	if (bounds) { key[7] = (unsigned)(Uint16)bounds->x | (unsigned)bounds->y << 16; key[8] = (unsigned)(Uint16)bounds->w | (unsigned)bounds->h << 16; }\
+	key[5] = r ? (unsigned)(Uint16)r->x | (unsigned)r->y << 16 : 0; key[6] = r ? (unsigned)(Uint16)r->w | (unsigned)r->h << 16 : 0;\
+	key[7] = bounds ? (unsigned)(Uint16)bounds->x | (unsigned)bounds->y << 16 : 0; key[8] = bounds ? (unsigned)(Uint16)bounds->w | (unsigned)bounds->h << 16 : 0;\
+	key[9 + len / 4] = 0; /* the last word's unused bytes */\
 	memcpy(key + 9, text, len);\
 	if (kestrel_group_begin(dest->renderer, font->surface->texture, key, 9 + (len + 3) / 4, out, 3))\
 	{\

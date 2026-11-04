@@ -32,6 +32,13 @@ void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Ui
     for (unsigned i = 0; i < n; i++) {
         const cmd_t *k = &cmds[i];
         Uint32 b = k->box;
+        if (OP(k) == C_GROUP) {                             /* none of its tiles dirty: skip all its commands */
+            Uint32 u = k->stepx, any = 0;
+            if (!(u & NONE))
+                for (unsigned ty = TY0(u); ty <= TY1(u) && !any; ty++) any = dirty[ty] & ((2u << TX1(u)) - (1u << TX0(u)));
+            if (!any) i += b & 0x3FFFFFu;
+            continue;
+        }
         if (b & NONE) continue;
         Uint32 span = (2u << TX1(b)) - (1u << TX0(b));
         unsigned whole = 1;                                 /* every tile it touches dirty: drawn once, unclipped */
