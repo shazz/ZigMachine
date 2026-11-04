@@ -1,5 +1,5 @@
-"""KOS's desktop over a real FAT floppy (docs/KOS_FAT.md F2): an Atari 720 KB image made by mkfs.fat
-and mtools (tools/kos_fat_fixture.py) in drive A, the desktop shell reading it with rom/kos/fat.zig.
+"""KOS's desktop over a real FAT floppy (docs/KOS_FAT.md F2): an Atari 720 KB image
+(tools/kos_fat_fixture.py writes it, no mtools) in drive A, the desktop shell reading it with rom/kos/fat.zig.
 The native host equals scene_hash.mjs frame for frame while GEM opens drive A (DEMO.WSM, PIC.PI1,
 README.TXT, the GAMES folder) and then GAMES (SAVE.DAT, the LEVELS folder); the empty drive's
 desktop differs from the first window on.
@@ -8,7 +8,6 @@ desktop differs from the first window on.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,8 +24,6 @@ CALLS = [a for f, x, y, b in SCRIPT for a in ("--call", f"{f}:pointer:{x},{y},{b
 
 @pytest.fixture(scope="module")
 def floppy(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    if not shutil.which("mkfs.fat") or not shutil.which("mcopy"):
-        pytest.skip("mkfs.fat / mtools not installed")
     out = tmp_path_factory.mktemp("fat") / "kos.st"
     subprocess.run([sys.executable, "tools/kos_fat_fixture.py", str(out)], cwd=ROOT, check=True)
     return out

@@ -107,5 +107,37 @@ class KosFat(unittest.TestCase):
         self.assertEqual("error Corrupt", self.reader(img)[0])
 
 
+class KosFatFixture(unittest.TestCase):
+    """tools/kos_fat_fixture.py writes its floppy itself (no mtools where the gate runs): KOS's reader
+    lists exactly what it wrote, and so does mtools where it is installed."""
+
+    def test_the_fixture_floppy_reads_back_file_for_file(self) -> None:
+        import importlib.util
+
+        tmp = Path(tempfile.mkdtemp(prefix="kos_fix_"))
+        self.addCleanup(shutil.rmtree, tmp)
+        spec = importlib.util.spec_from_file_location("kos_fat_fixture", ROOT / "tools/kos_fat_fixture.py")
+        fx = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]  # [spec-optional] the path exists
+        spec.loader.exec_module(fx)  # type: ignore[union-attr]  # [spec-optional] a file spec has a loader
+        cart, rv = tmp / "c.wasm", tmp / "c.rv"
+        cart.write_bytes(b"\x00asm" + os.urandom(5000))
+        rv.write_bytes(os.urandom(3000))
+        img = tmp / "kos.st"
+        fx.build(img, cart, rv)
+        dump = tmp / "fat_dump"
+        subprocess.run([ZIG, "build-exe", "-ODebug", str(ROOT / "rom/kos/fat_dump.zig"), f"-femit-bin={dump}"],
+                       check=True, cwd=tmp, capture_output=True)  # fmt: skip
+        lines = subprocess.run([str(dump), str(img)], capture_output=True, text=True, check=True).stdout.splitlines()
+        want = {("DEMO.WSM", 5004, fnv(cart.read_bytes())), ("DEMO.RV", 3000, fnv(rv.read_bytes())),
+                ("README.TXT", 1040, fnv(b"KOS reads real floppies.\r\n" * 40)), ("PIC.PI1", 32000, fnv(bytes(range(256)) * 125)),
+                ("GAMES/SAVE.DAT", 1800, fnv(b"\x01\x02" * 900)), ("GAMES/LEVELS/LEVEL1.MAP", 5000, fnv(b"#" * 5000))}  # fmt: skip
+        got = {(f[0], int(f[1]), f[3]) for f in (ln.split("\t") for ln in lines[1:]) if not f[0].endswith("/")}
+        self.assertEqual(("fat12", want), (lines[0], got))
+        b = img.read_bytes()
+        self.assertEqual((b"\x60\x38", b"\x00\x00", 737280), (b[0:2], b[510:512], len(b)))  # TOS's: no 55 AA
+        if TOOLS:
+            self.assertEqual(KosFat.oracle(self, img), got)  # type: ignore[arg-type]  # [duck] oracle only calls mt
+
+
 if __name__ == "__main__":
     unittest.main()
