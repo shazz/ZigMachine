@@ -41,7 +41,7 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `kestrel_sdl.c` | what is klystrack-shaped: clock (the frame's real time), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream. **Quiet synth:** no song, every channel's gate off and envelope 0, and 2.2 s of exact silence (longer than the reverb's 2 s line, no feedback): cyd is not called, zeros are fed, until a note or a song starts. **Repaints:** `kestrel_redraw_due` (below) |
 | `kestrel_chorus.c`, `kestrel_sine.h` | klystron's chorus LUT (`cydchr_set`) in integers: a Q30 sine table (generated, 1024 steps, interpolated), the phase stepped exactly, one 32x32->64 multiply. Within +-1/256 sample of upstream's double `sin()`; 7 of 151,404 stream bytes differ by 1 LSB over a 7 s play |
 | `kestrel_stubs.c` | `getpwuid` (no password database) |
-| `kestrel_printf.c`, `printf_test.c` | the labels' vsnprintf: %s %c %d %i %u %x %X %% with - 0 + space, a width, a %s precision; anything else is musl's whole. `make printf-test` checks it against the host C library |
+| `kestrel_printf.c`, `printf_test.c` | the labels' vsnprintf: %s %c %d %i %u %x %X %% with - 0 + space, a width, a %s precision; anything else is musl's whole. `make printf-test` (gated) checks it against the host C library (glibc; the board's fallback is musl, which agrees on these conversions) |
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
 | `patches/*.sed` | see below |

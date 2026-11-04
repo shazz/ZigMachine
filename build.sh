@@ -645,6 +645,7 @@ gate ports_klystrack node apps/ports_headless.mjs klystrack --break pointer   # 
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break quit   # ...and no quit is caught
 gate ports_klystrack node apps/klystrack_cost.mjs   # KLYSTRACK repaint cost (apps/frame_cost.mjs est. Mc, deterministic): playing STARPRT2 median repaint <= 7.5, worst (row scroll) <= 18; the menu bar open with the pointer moving <= 5 a frame (perf/klystrack-ui-2; before perf/klystrack-ui a repaint was ~41-46)
 gate ports_klystrack node apps/klystrack_cost.mjs --break cost   # ...and ceilings of ~0 are caught
+gate ports_klystrack make -s -C apps/ports/klystrack printf-test   # KLYSTRACK labels: kestrel_printf.c (the conversions it does itself, the rest handed to libc) equals the host C library's vsnprintf over 3,834 format/value/buffer-size cases (native zig cc)
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad   # CHIPNOMAD (C++): the song screen in the ST font pinned; X (the A button) puts chain 00 in the first cell; chain -> phrase -> a C-4 on instrument 00 made AY Classic, START plays it: the stream is not silent; Settings > Quit ChipNomad goes back to GEM
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break key   # ...and X never pressed is caught
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break silent   # ...and START never pressed (silence) is caught
