@@ -72,24 +72,29 @@ $(OUT)/%.o: $(GEN)/%.c $(GENALL) kestrel_port.h $(SHIMH)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
 
 # Asyncify (as GrafX2): klystrack blocks in its main loop and its dialogs; kestrel_main.c suspends it in
-# SDL_Delay and SDL_RenderPresent and resumes it each frame().
+# SDL_Delay and SDL_RenderPresent and resumes it each frame(). Only the functions that can be on the stack at
+# that unwind are instrumented: asyncify_leaves.py lists every other one (it resolves an indirect call by its
+# type; binaryen alone assumes any indirect call unwinds, and every printf and malloc makes one, so the
+# renderer's pixel loops and most of klystron's drawing ran its state checks), and no import unwinds.
+# The raw link keeps the function names for that; the shipped cart is stripped by wasm-opt.
 WASM_OPT := node $(UPSTREAM)/binaryen/bin/wasm-opt
+OPT_FEATURES := --enable-bulk-memory --enable-sign-ext --enable-mutable-globals --enable-nontrapping-float-to-int
+ASYNCIFY := --asyncify --pass-arg=asyncify-ignore-imports --pass-arg=asyncify-removelist@@$(OUT)/asyncify-leaves.txt
 link: $(OUT)/demo-klystrack.wasm
 $(OUT)/demo-klystrack.raw.wasm: $(OBJS)
-	$(ZIG) cc $(CFLAGS) $(LDFLAGS) $^ -o $@
-$(OUT)/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm
-	$(WASM_OPT) $< --enable-bulk-memory --enable-sign-ext --enable-mutable-globals --enable-nontrapping-float-to-int \
-	  --asyncify -O2 -o $@
+	$(ZIG) cc $(CFLAGS) $(filter-out -Wl$(comma)--strip-debug,$(LDFLAGS)) $^ -o $@
+$(OUT)/asyncify-leaves.txt: $(OUT)/demo-klystrack.raw.wasm asyncify_leaves.py
+	python3 asyncify_leaves.py $(WABT)/wasm-objdump $< $@
+$(OUT)/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify-leaves.txt
+	$(WASM_OPT) $< $(OPT_FEATURES) $(ASYNCIFY) -O2 --strip-debug -o $@
 	@echo "imports (must all be env.*):"; $(WABT)/wasm-objdump -x -j Import $@ | grep -o '<- [^ ]*' | sort | uniq -c
 
-# The same cart with its function names (no --strip-debug, wasm-opt -g), for apps/frame_cost.mjs and
+# The same cart with its function names (wasm-opt -g), for apps/frame_cost.mjs and
 # tools/perf_audit.sh: `node apps/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd`
 names: $(OUT)/names/demo-klystrack.wasm
-$(OUT)/names/demo-klystrack.wasm: $(OBJS)
+$(OUT)/names/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify-leaves.txt
 	@mkdir -p $(dir $@)
-	$(ZIG) cc $(CFLAGS) $(filter-out -Wl$(comma)--strip-debug,$(LDFLAGS)) $^ -o $(OUT)/names/raw.wasm
-	$(WASM_OPT) $(OUT)/names/raw.wasm --enable-bulk-memory --enable-sign-ext --enable-mutable-globals \
-	  --enable-nontrapping-float-to-int --asyncify -O2 -g -o $@
+	$(WASM_OPT) $< $(OPT_FEATURES) $(ASYNCIFY) -O2 -g -o $@
 
 clean:
 	rm -rf $(OUT)

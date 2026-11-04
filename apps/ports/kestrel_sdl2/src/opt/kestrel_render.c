@@ -8,14 +8,14 @@
  * format->BytesPerPixel, as klystron does) never notice. Blits into a surface support ARGB destinations only.
  * A texture is a copy of its surface with the colour key turned into alpha 0, itself 8-bit when it has at most
  * 256 colours. A renderer draws into its target: a TARGET texture, its software surface, or by default a
- * window-sized ARGB buffer that SDL_RenderPresent hands to kestrel_plane_present() (kestrel_plane.c) and then
- * to the port's kestrel_present_hook (e.g. an Asyncify yield). Supported: colour mod, NONE / BLEND / ADD / MOD
+ * window-sized 8-bit buffer of palette indices (kestrel_window8.c, kestrel_palette.c) that SDL_RenderPresent
+ * hands to kestrel_plane_present8() (kestrel_plane.c) and then to the port's kestrel_present_hook (e.g. an
+ * Asyncify yield). Supported: colour mod, NONE / BLEND / ADD / MOD
  * blending, nearest-neighbour scaling, clip rect, viewport offset. Not supported: rotation, render scale != 1
  * (logged). */
-#include <SDL2/SDL.h>
+#include "kestrel_render_priv.h"
 
 void kestrel_log(const char *m);
-void kestrel_plane_present(const Uint32 *argb, int w, int h);
 void (*kestrel_present_hook)(void);
 
 static SDL_PixelFormat argb_format = {
@@ -127,7 +127,7 @@ SDL_Surface *SDL_ConvertSurfaceFormat(SDL_Surface *s, Uint32 format, Uint32 flag
 }
 
 /* Clip *d (and the matching source origin) to the w x h target and an optional clip rect: 0 = nothing left. */
-static int clip_rect(SDL_Rect *d, int *sx, int *sy, int w, int h, const SDL_Rect *clip)
+int kestrel_clip_rect(SDL_Rect *d, int *sx, int *sy, int w, int h, const SDL_Rect *clip)
 {
     int x0 = 0, y0 = 0, x1 = w, y1 = h;
     if (clip) {
@@ -147,7 +147,7 @@ int SDL_FillRect(SDL_Surface *s, const SDL_Rect *r, Uint32 c)
 {
     if (!s) return -1;
     SDL_Rect d = r ? *r : (SDL_Rect){ 0, 0, s->w, s->h };
-    if (!clip_rect(&d, NULL, NULL, s->w, s->h, &s->clip_rect)) return 0;
+    if (!kestrel_clip_rect(&d, NULL, NULL, s->w, s->h, &s->clip_rect)) return 0;
     for (int y = d.y; y < d.y + d.h; y++) {
         if (IS8(s)) { memset((Uint8 *)s->pixels + y * s->pitch + d.x, (int)(c & 255), (size_t)d.w); continue; }
         Uint32 *p = (Uint32 *)((Uint8 *)s->pixels + y * s->pitch) + d.x;
@@ -169,7 +169,7 @@ int SDL_BlitSurface(SDL_Surface *src, const SDL_Rect *sr, SDL_Surface *dst, SDL_
     SDL_Rect s = sr ? *sr : (SDL_Rect){ 0, 0, src->w, src->h };
     SDL_Rect d = { dr ? dr->x : 0, dr ? dr->y : 0, s.w, s.h };
     int sx = s.x, sy = s.y;
-    if (!clip_rect(&d, &sx, &sy, dst->w, dst->h, &dst->clip_rect)) return 0;
+    if (!kestrel_clip_rect(&d, &sx, &sy, dst->w, dst->h, &dst->clip_rect)) return 0;
     for (int y = 0; y < d.h; y++) {
         Uint32 *dp = (Uint32 *)((Uint8 *)dst->pixels + (d.y + y) * dst->pitch) + d.x;
         for (int x = 0; x < d.w; x++) {
@@ -202,10 +202,7 @@ int SDL_BlitScaled(SDL_Surface *src, const SDL_Rect *sr, SDL_Surface *dst, SDL_R
  * A texture made from a surface with at most 256 distinct ARGB values (after the key is made transparent) is
  * kept as 8-bit indices + a 256-entry palette: a quarter of the memory, and theme art (fonts, bevels) always
  * qualifies. Other textures, and render targets, are ARGB. */
-struct SDL_Texture {
-    int w, h, access; Uint32 *px; Uint8 *idx; Uint32 *pal; Uint8 mr, mg, mb; SDL_BlendMode blend;
-    int npal; Uint32 *mpal; Uint8 pmr, pmg, pmb;   /* indexed: colours in pal; pal with the colour mod applied (cache) */
-};
+/* struct SDL_Texture: kestrel_render_priv.h */
 
 SDL_Texture *SDL_CreateTexture(SDL_Renderer *r, Uint32 format, int access, int w, int h)
 {
@@ -277,7 +274,7 @@ SDL_Texture *SDL_CreateTextureFromSurface(SDL_Renderer *r, SDL_Surface *s)
     for (int y = 0; y < s->h; y++) for (int x = 0; x < s->w; x++) t->px[y * t->w + x] = surf_value(s, x, y);
     return t;
 }
-void SDL_DestroyTexture(SDL_Texture *t) { if (t) { free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t); } }
+void SDL_DestroyTexture(SDL_Texture *t) { if (t) { free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t->gmap); free(t); } }
 int SDL_SetTextureBlendMode(SDL_Texture *t, SDL_BlendMode m) { if (!t) return -1; t->blend = m; return 0; }
 int SDL_SetTextureColorMod(SDL_Texture *t, Uint8 r, Uint8 g, Uint8 b) { if (!t) return -1; t->mr = r; t->mg = g; t->mb = b; return 0; }
 int SDL_SetTextureScaleMode(SDL_Texture *t, SDL_ScaleMode m) { (void)t; (void)m; return 0; }
@@ -287,11 +284,11 @@ int SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *rect, const void *px, int 
         Uint32 *argb = malloc((size_t)t->w * (size_t)t->h * 4);
         if (!argb) return -1;
         for (int i = 0; i < t->w * t->h; i++) argb[i] = t->pal[t->idx[i]];
-        free(t->idx); free(t->pal); free(t->mpal); t->idx = NULL; t->pal = NULL; t->mpal = NULL; t->px = argb;
+        free(t->idx); free(t->pal); free(t->mpal); free(t->gmap); t->idx = NULL; t->pal = NULL; t->mpal = NULL; t->gmap = NULL; t->px = argb;
     }
     SDL_Rect d = rect ? *rect : (SDL_Rect){ 0, 0, t->w, t->h };
     int sx = 0, sy = 0;
-    if (!clip_rect(&d, &sx, &sy, t->w, t->h, NULL)) return 0;
+    if (!kestrel_clip_rect(&d, &sx, &sy, t->w, t->h, NULL)) return 0;
     for (int y = 0; y < d.h; y++) memcpy(t->px + (d.y + y) * t->w + d.x, (const Uint8 *)px + (sy + y) * pitch + sx * 4, (size_t)d.w * 4);
     return 0;
 }
@@ -299,19 +296,19 @@ int SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *rect, const void *px, int 
 /* --- renderers --- */
 struct SDL_Renderer {
     SDL_Surface *surface;               /* software renderer target, or NULL: the window buffer below */
-    Uint32 *fb; int fw, fh;
+    Uint8 *fb8; int fw, fh;             /* the window: palette indices (kestrel_window8.c) */
     SDL_Texture *target;
     Uint8 dr, dg, db, da; SDL_BlendMode draw_blend;
     SDL_Rect clip; int clip_on;
     int vx, vy;                         /* viewport origin */
 };
-typedef struct { Uint32 *px; int w, h, pitch; } tgt_t;  /* pitch in pixels */
+typedef struct { Uint32 *px; int w, h, pitch; } tgt_t;  /* pitch in pixels; px NULL: the 8-bit window */
 
 static tgt_t target_of(SDL_Renderer *r)
 {
     if (r->target && r->target->px) return (tgt_t){ r->target->px, r->target->w, r->target->h, r->target->w };
     if (r->surface) return (tgt_t){ r->surface->pixels, r->surface->w, r->surface->h, r->surface->pitch / 4 };
-    return (tgt_t){ r->fb, r->fw, r->fh, r->fw };
+    return (tgt_t){ NULL, r->fw, r->fh, r->fw };
 }
 
 SDL_Renderer *SDL_CreateRenderer(SDL_Window *w, int index, Uint32 flags)
@@ -321,9 +318,10 @@ SDL_Renderer *SDL_CreateRenderer(SDL_Window *w, int index, Uint32 flags)
     SDL_GetWindowSize(w, &ww, &hh);
     SDL_Renderer *r = calloc(1, sizeof *r);
     if (!r) return NULL;
-    r->fb = calloc((size_t)ww * (size_t)hh, 4);
-    if (!r->fb) { free(r); return NULL; }
+    r->fb8 = calloc((size_t)ww * (size_t)hh, 1);
+    if (!r->fb8) { free(r); return NULL; }
     r->fw = ww; r->fh = hh; r->da = 255;
+    kestrel_palette_track(KPAL_WINDOW, r->fb8, (unsigned)(ww * hh));
     return r;
 }
 SDL_Renderer *SDL_CreateSoftwareRenderer(SDL_Surface *s)
@@ -334,7 +332,13 @@ SDL_Renderer *SDL_CreateSoftwareRenderer(SDL_Surface *s)
     if (r) { r->surface = s; r->da = 255; }
     return r;
 }
-void SDL_DestroyRenderer(SDL_Renderer *r) { if (r) { free(r->fb); free(r); } }
+void SDL_DestroyRenderer(SDL_Renderer *r)
+{
+    if (!r) return;
+    if (r->fb8) kestrel_palette_track(KPAL_WINDOW, NULL, 0);
+    free(r->fb8);
+    free(r);
+}
 int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info)
 {
     (void)r;
@@ -368,25 +372,11 @@ void SDL_RenderGetClipRect(SDL_Renderer *r, SDL_Rect *c)
 int SDL_SetRenderDrawColor(SDL_Renderer *r, Uint8 cr, Uint8 cg, Uint8 cb, Uint8 ca) { r->dr = cr; r->dg = cg; r->db = cb; r->da = ca; return 0; }
 int SDL_SetRenderDrawBlendMode(SDL_Renderer *r, SDL_BlendMode m) { r->draw_blend = m; return 0; }
 
-static inline Uint32 blend_px(Uint32 d, Uint32 s, unsigned a, SDL_BlendMode m)
-{
-    unsigned sr = s >> 16 & 255, sg = s >> 8 & 255, sb = s & 255;
-    unsigned dr = d >> 16 & 255, dg = d >> 8 & 255, db = d & 255;
-    if (m == SDL_BLENDMODE_MOD) { dr = dr * sr / 255; dg = dg * sg / 255; db = db * sb / 255; }
-    else if (m == SDL_BLENDMODE_ADD) {
-        dr += sr * a / 255; dg += sg * a / 255; db += sb * a / 255;
-        if (dr > 255) dr = 255;
-        if (dg > 255) dg = 255;
-        if (db > 255) db = 255;
-    } else if (a >= 255) return s | 0xFF000000u;
-    else { dr = (sr * a + dr * (255 - a)) / 255; dg = (sg * a + dg * (255 - a)) / 255; db = (sb * a + db * (255 - a)) / 255; }
-    return 0xFF000000u | dr << 16 | dg << 8 | db;
-}
-
 int SDL_RenderClear(SDL_Renderer *r)
 {
     tgt_t t = target_of(r);
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
+    if (!t.px) { kestrel_w8_clear(r->fb8, t.w, t.h, c); return 0; }
     for (int y = 0; y < t.h; y++) for (int x = 0; x < t.w; x++) t.px[y * t.pitch + x] = c;
     return 0;
 }
@@ -395,13 +385,14 @@ int SDL_RenderFillRect(SDL_Renderer *r, const SDL_Rect *rect)
 {
     tgt_t t = target_of(r);
     SDL_Rect d = rect ? (SDL_Rect){ rect->x + r->vx, rect->y + r->vy, rect->w, rect->h } : (SDL_Rect){ r->vx, r->vy, t.w, t.h };
-    if (!clip_rect(&d, NULL, NULL, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
+    if (!kestrel_clip_rect(&d, NULL, NULL, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
+    if (!t.px) { kestrel_w8_fill(r->fb8, t.w, &d, c, r->da, r->draw_blend); return 0; }
     int opaque = r->draw_blend == SDL_BLENDMODE_NONE || (r->draw_blend == SDL_BLENDMODE_BLEND && r->da == 255);
     for (int y = d.y; y < d.y + d.h; y++) {
         Uint32 *p = t.px + y * t.pitch + d.x;
         if (opaque) for (int x = 0; x < d.w; x++) p[x] = c;
-        else for (int x = 0; x < d.w; x++) p[x] = blend_px(p[x], c, r->da, r->draw_blend);
+        else for (int x = 0; x < d.w; x++) p[x] = kestrel_blend_px(p[x], c, r->da, r->draw_blend);
     }
     return 0;
 }
@@ -411,6 +402,7 @@ int SDL_RenderDrawLine(SDL_Renderer *r, int x1, int y1, int x2, int y2)
     tgt_t t = target_of(r);
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
     x1 += r->vx; x2 += r->vx; y1 += r->vy; y2 += r->vy;
+    if (!t.px) { kestrel_w8_line(r->fb8, t.w, t.h, r->clip_on ? &r->clip : NULL, x1, y1, x2, y2, c); return 0; }
     int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1, dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1, err = dx + dy;
     for (;;) {
         int in = x1 >= 0 && y1 >= 0 && x1 < t.w && y1 < t.h;
@@ -426,7 +418,7 @@ int SDL_RenderDrawLine(SDL_Renderer *r, int x1, int y1, int x2, int y2)
 
 /* An indexed texture's palette with its colour mod applied, kept until the mod changes (a font drawn in one colour
  * after another recomputes its few entries, not a divide a pixel). NULL: out of memory, take the general path. */
-static const Uint32 *mod_palette(SDL_Texture *t)
+const Uint32 *kestrel_mod_palette(SDL_Texture *t)
 {
     if (t->mr == 255 && t->mg == 255 && t->mb == 255) return t->pal;
     if (!t->mpal) { t->mpal = malloc(256 * 4); if (!t->mpal) return NULL; t->pmr = ~t->mr; }
@@ -448,7 +440,7 @@ static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_
     int tx0 = (int)(((Uint32)ox * stepx) >> 16) + s->x, tx1 = (int)(((Uint32)(ox + c->w - 1) * stepx) >> 16) + s->x;
     int ty0 = (int)(((Uint32)oy * stepy) >> 16) + s->y, ty1 = (int)(((Uint32)(oy + c->h - 1) * stepy) >> 16) + s->y;
     if (tx0 < 0 || ty0 < 0 || tx1 >= tex->w || ty1 >= tex->h) return 0;
-    const Uint32 *pal = mod_palette(tex);
+    const Uint32 *pal = kestrel_mod_palette(tex);
     if (!pal) return 0;
     SDL_BlendMode m = tex->blend;
     for (int y = 0; y < c->h; y++) {
@@ -463,7 +455,7 @@ static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_
                 Uint32 p = pal[sp[x]];
                 unsigned a = p >> 24;
                 if (a == 255) dp[x] = p;
-                else if (a) dp[x] = blend_px(dp[x], p, a, m);
+                else if (a) dp[x] = kestrel_blend_px(dp[x], p, a, m);
             }
             continue;
         }
@@ -471,7 +463,7 @@ static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_
             Uint32 p = pal[ip[fx >> 16]];
             unsigned a = p >> 24;
             if (m == SDL_BLENDMODE_NONE || (a == 255 && m == SDL_BLENDMODE_BLEND)) dp[x] = p | 0xFF000000u;
-            else if (a) dp[x] = blend_px(dp[x], p, a, m);
+            else if (a) dp[x] = kestrel_blend_px(dp[x], p, a, m);
         }
     }
     return 1;
@@ -489,7 +481,8 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
     Uint32 stepy = s.h == d.h ? 0x10000u : ((Uint32)s.h << 16) / (Uint32)d.h;
     SDL_Rect c = d;
     int ox = 0, oy = 0;
-    if (!clip_rect(&c, &ox, &oy, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
+    if (!kestrel_clip_rect(&c, &ox, &oy, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
+    if (!t.px) { kestrel_w8_copy(tex, r->fb8, t.w, &c, &s, ox, oy, stepx, stepy); return 0; }
     if (tex->idx && copy_indexed(tex, t, &c, &s, ox, oy, stepx, stepy)) return 0;
     int mod = tex->mr != 255 || tex->mg != 255 || tex->mb != 255;
     for (int y = 0; y < c.h; y++) {
@@ -506,7 +499,7 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
             unsigned a = p >> 24;
             if (tex->blend != SDL_BLENDMODE_NONE && a == 0) continue;
             if (mod) p = (p & 0xFF000000u) | ((p >> 16 & 255) * tex->mr / 255) << 16 | ((p >> 8 & 255) * tex->mg / 255) << 8 | (p & 255) * tex->mb / 255;
-            dp[x] = tex->blend == SDL_BLENDMODE_NONE ? p | 0xFF000000u : blend_px(dp[x], p, a, tex->blend);
+            dp[x] = tex->blend == SDL_BLENDMODE_NONE ? p | 0xFF000000u : kestrel_blend_px(dp[x], p, a, tex->blend);
         }
     }
     return 0;
@@ -515,7 +508,7 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
 void SDL_RenderPresent(SDL_Renderer *r)
 {
     if (r->surface || r->target) return;    /* software / texture targets have nothing to show */
-    kestrel_plane_present(r->fb, r->fw, r->fh);
+    kestrel_plane_present8(r->fb8, r->fw, r->fh);
     if (kestrel_present_hook) kestrel_present_hook();
 }
 

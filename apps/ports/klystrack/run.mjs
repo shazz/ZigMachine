@@ -4,8 +4,12 @@
 //   CLICKS="frame,x,y;..." clicks the left button at klystrack 320x240 coordinates; KEYS="frame,code;..." presses
 //   a key (codepoint or 0xE0xx code, see kestrel_input.c) for 3 frames. AUDIO=1 counts the samples fed and
 //   writes build/audio.wav (signed 8-bit mono as fed). SNAP=n also writes every n-th frame.
+//   A click may name its buttons and hold: "frame,x,y,buttons,hold" (buttons 1 = left, 4 = right; hold in frames, 6).
+//   MOVES="frame,x,y,buttons;..." puts the pointer there (buttons held) at that frame: menus, drags.
+//   HASHES=file writes the sha256 of every frame's physical picture, one a line: a before/after (CART=) proof.
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
 
 const FRAMES = +(process.argv[2] ?? 60), OUT = process.argv[3] ?? "apps/ports/klystrack/build/frame";
@@ -21,6 +25,7 @@ const cartBytes = await readFile(CART);
 const text = (p, n) => new TextDecoder().decode(new Uint8Array(memory.buffer, p, n));
 const KEYS = (process.env.KEYS ?? "").split(";").filter(Boolean).map((c) => c.split(",").map(Number)); // frame,code
 const SNAP = +(process.env.SNAP ?? 0);
+const MOVES = (process.env.MOVES ?? "").split(";").filter(Boolean).map((c) => c.split(",").map(Number)); // frame,x,y,buttons
 const audio = { rate: 0, chunks: [], n: 0, peak: 0 };
 const env = { memory, ...rom, consoleLogJS: (p, n) => console.log("cart:", text(p, n)),
     hostAudioStreamStart: (rate) => { audio.rate = rate; console.log("audio stream start", rate, "Hz"); },
@@ -60,15 +65,19 @@ function png(path) {
     return writeFile(path, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]));
 }
 let worst = 0, total = 0;
+const HASHES = process.env.HASHES, hashes = [];
 for (let f = 1; f <= FRAMES; f++) {
     for (const [kf, code] of KEYS) { if (kf === f) demo.key(code); if (kf + 3 === f) demo.keyUp(code); }
-    for (const [cf, x, y] of CLICKS) if (cf - 1 === f) { demo.pointer(x * 2, y - 20, 0); } else if (cf === f) { demo.pointer(x * 2, y - 20, 1); } else if (cf + 6 === f) { demo.pointer(x * 2, y - 20, 0); }
+    for (const [mf, x, y, b] of MOVES) if (mf === f) demo.pointer(x * 2, y - 20, b);
+    for (const [cf, x, y, b = 1, hold = 6] of CLICKS) if (cf - 1 === f) { demo.pointer(x * 2, y - 20, 0); } else if (cf === f) { demo.pointer(x * 2, y - 20, b); } else if (cf + hold === f) { demo.pointer(x * 2, y - 20, 0); }
     const t = performance.now();
     machine.hwClear(); demo.frame(1000 / 60); machine.hwRenderPlane(0);
     const dt = performance.now() - t; worst = Math.max(worst, dt); total += dt;
+    if (HASHES) hashes.push(createHash("sha256").update(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), machine.hwPhysWidth() * machine.hwPhysHeight() * 4)).digest("hex"));
     if (f === FRAMES || f === 1 || (SNAP && f % SNAP === 0)) { await png(`${OUT}${f}.png`); console.log(`wrote ${OUT}${f}.png`); }
 }
 console.log(`${FRAMES} frames, ${(total / FRAMES).toFixed(2)} ms a frame on average, worst ${worst.toFixed(1)} ms; audio: ${audio.n} samples at ${audio.rate} Hz fed (${(audio.n / Math.max(1, FRAMES)).toFixed(1)} a frame), peak |s8| ${audio.peak}`);
+if (HASHES) { await writeFile(HASHES, hashes.join("\n") + "\n"); console.log(`wrote ${HASHES} (${hashes.length} frames)`); }
 if (process.env.AUDIO && audio.n) {
     const pcm = Buffer.concat(audio.chunks).map((v) => (v + 128) & 255);   // WAV 8-bit is unsigned
     const h = Buffer.alloc(44); h.write("RIFF", 0); h.writeUInt32LE(36 + pcm.length, 4); h.write("WAVEfmt ", 8); h.writeUInt32LE(16, 16);
