@@ -56,7 +56,7 @@ desktop's shell cart (`apps/zig/scenes/gem_fat.zig`), through the `diskReadBlock
 already imports, not in rom.wasm behind a new import: a ROM import would have to be served by
 every host and by the ~100 harnesses that instantiate rom.wasm with a fixed env, for no gain the
 shell does not give (it is the desktop on every host, wasm2c'd on the board). The shell fills the
-ROM's desktop model through two appended exports (`deskFatReset`, `deskFatFolder`, sys_abi 1.5)
+ROM's desktop model through two appended exports (`deskFatReset`, `deskFatFolder`, sys_abi 1.7)
 and the existing record buffer, which gained a folder byte (records of 26 bytes, the hosts ask
 `deskDirEntryBytes`). `insertDisk(2)` means a FAT disk; a host mounts a raw image that is no
 `.zmd` as one (`ZMKos.fatImage`, `disk_app_fat_image`). The model holds 32 files and 16 folders
