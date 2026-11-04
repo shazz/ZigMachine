@@ -104,7 +104,7 @@ inline fn crushOne(k: *Crush, in: i32, err: *i32) i32 {
     return h;
 }
 
-inline fn crush(k: *Crush, l: *i32, r: *i32) void {
+pub inline fn crushSample(k: *Crush, l: *i32, r: *i32) void {
     const was = k.counter;
     k.counter +%= 1;
     if (was >= k.downsample) {
@@ -122,5 +122,5 @@ pub fn output(b: *Bus, l: *i32, r: *i32) void {
     const in_r = r.*;
     if (b.flags & song.FX_CHORUS != 0) chorus.output(&b.chr, in_l, in_r, l, r);
     if (b.flags & song.FX_REVERB != 0 and b.rvb.line.len != 0) reverb(&b.rvb, in_l, l, r);
-    if (b.flags & song.FX_CRUSH != 0) crush(&b.crush, l, r);
+    if (b.flags & song.FX_CRUSH != 0) crushSample(&b.crush, l, r);
 }

@@ -57,6 +57,7 @@ pub const Core = struct {
             fx.setCrush(&b.crush, rate, def.downsample, def.bit_drop, @intFromBool(def.flags & s.FX_CRUSH_DITHER != 0), def.crush_gain);
         }
         self.engine.start(&self.song, rate);
+        self.engine.mix = try self.arena.alloc(i32, @import("kt_block.zig").WORDS);
         self.engine.song_position = @min(position, self.song.song_length -| 1);
     }
 

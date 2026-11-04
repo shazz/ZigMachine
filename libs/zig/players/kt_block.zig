@@ -1,0 +1,81 @@
+// --------------------------------------------------------------------------
+// cyd a block at a time: each channel's samples of the block in one loop over
+// a COPY of its state (kt_synth.zig's per-sample stages, inlined), then the FX
+// buses a sample at a time. The same arithmetic in the same order per channel
+// as kt_synth.zig's sample loop, so the same bytes: channels only meet in the
+// sums (wrapping adds, in any order the same) and in ring modulation and hard
+// sync, which read another channel's sample; a block with either in effect
+// runs kt_synth.zig's way instead (eligible).
+// Why: on BARD the player is wasm2c'd demo-audio, where a field the release
+// build re-reads from a channel is a load each sample; one channel's state in
+// locals for a whole block keeps it in rv32 registers and the stack.
+// --------------------------------------------------------------------------
+const c = @import("kt_cyd.zig");
+const song = @import("kt_song.zig");
+const syn = @import("kt_synth.zig");
+const osc = @import("kt_osc.zig");
+const fxb = @import("kt_fxblock.zig");
+
+pub const BLOCK = 64;
+/// The mix's words: the dry pair, then each bus's pair, BLOCK samples each.
+pub const WORDS = (2 + 2 * song.MAX_FX) * BLOCK;
+
+/// No ring modulation into a gated channel and no hard sync: channels independent for the block.
+pub fn eligible(sy: *const syn.Synth) bool {
+    for (sy.chn[0..sy.n]) |*ch| {
+        if (ch.flags & c.SYNC != 0) return false;
+        if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) return false;
+    }
+    return true;
+}
+
+/// One channel's `n` samples, panned and added into dl/dr (its bus or the dry mix).
+noinline fn channel(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32) void {
+    var ch = chp.*;
+    var t: usize = 0;
+    while (t < n) : (t += 1) {
+        if (ch.flags & c.GATE != 0) {
+            const o = syn.shaped(&ch, syn.source(&ch));
+            dl[t] +%= @divTrunc(o *% ch.gain_left, c.STEREO_GAIN);
+            dr[t] +%= @divTrunc(o *% ch.gain_right, c.STEREO_GAIN);
+        } else {
+            ch.sync_bit = 0;
+            osc.advance(&ch); // unheard: the phase and noise still move
+        }
+        syn.cycleOne(rate, &ch);
+    }
+    chp.* = ch;
+}
+
+/// `out.len / 2` (<= BLOCK) stereo samples, s16, with no sequencer tick inside them.
+pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
+    const n = out.len / 2;
+    const m = mix.ptr;
+    for (sy.chn[0..sy.n]) |*ch| {
+        var at: usize = 0; // the dry pair
+        if (ch.flags & c.FX != 0 and sy.bus_used >> @intCast(ch.fx_bus) & 1 != 0) at = 2 + 2 * @as(usize, ch.fx_bus);
+        channel(sy.rate, ch, n, m + at * BLOCK, m + (at + 1) * BLOCK);
+    }
+    for (&sy.bus, 0..) |*b, i| {
+        if (sy.bus_used >> @intCast(i) & 1 != 0) fxb.output(b, m + (2 + 2 * i) * BLOCK, m + (3 + 2 * i) * BLOCK, n);
+    }
+    for (0..n) |t| {
+        var l = m[t];
+        var r = m[BLOCK + t];
+        m[t] = 0;
+        m[BLOCK + t] = 0;
+        for (0..song.MAX_FX) |i| {
+            if (sy.bus_used >> @intCast(i) & 1 == 0) continue;
+            l +%= m[(2 + 2 * i) * BLOCK + t];
+            r +%= m[(3 + 2 * i) * BLOCK + t];
+            m[(2 + 2 * i) * BLOCK + t] = 0;
+            m[(3 + 2 * i) * BLOCK + t] = 0;
+        }
+        out[2 * t] = clamp16(@divTrunc(l, 4));
+        out[2 * t + 1] = clamp16(@divTrunc(r, 4));
+    }
+}
+
+pub fn clamp16(v: i32) i16 {
+    return @intCast(@min(32767, @max(-32768, v)));
+}

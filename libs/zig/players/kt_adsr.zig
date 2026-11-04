@@ -14,7 +14,7 @@ pub inline fn cycle(rate: u32, flags: u32, shape: u8, a: *c.Adsr) u32 {
     return ym(flags, shape, a);
 }
 
-fn releaseDone(flags: u32, a: *c.Adsr) u32 {
+inline fn releaseDone(flags: u32, a: *c.Adsr) u32 {
     a.state = c.DONE;
     a.envelope = 0;
     if (flags & (c.WAVE | c.WAVE_OVERRIDE_ENV) != (c.WAVE | c.WAVE_OVERRIDE_ENV)) return flags & ~c.GATE;

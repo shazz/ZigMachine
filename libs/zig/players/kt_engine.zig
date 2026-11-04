@@ -10,6 +10,7 @@ const c = @import("kt_cyd.zig");
 const syn = @import("kt_synth.zig");
 const set = @import("kt_cyd_set.zig");
 const seq = @import("kt_seq.zig");
+const blk = @import("kt_block.zig");
 
 pub const CHN_PLAYING: u32 = 1;
 pub const CHN_PROGRAM_RUNNING: u32 = 2;
@@ -67,6 +68,8 @@ pub const Engine = struct {
     pitch_mask: u32 = 0xffffffff,
     callback_period: u32 = 1,
     callback_counter: u32 = 0,
+    countdown: u32 = 0, // samples to the next tick (render's), 0: one is due
+    mix: []i32 = &.{}, // kt_block.zig's buffers (kt_core.zig takes them from the arena)
     /// Called after each sequencer tick (tools/kt_render.zig --trace): never set on the machine.
     on_tick: ?*const fn (*const Engine) void = null,
 
@@ -99,28 +102,37 @@ pub const Engine = struct {
             set.setPanning(&e.synth.chn[i], @bitCast(sg.default_panning[i] +% @as(i8, @bitCast(c.PAN_CENTER))));
         }
         e.callback_counter = 0;
+        e.countdown = 0;
         e.setTickRate(sg.song_rate);
     }
 
-    /// `out.len / 2` stereo samples, s16 interleaved, as cyd_output_buffer_stereo.
+    /// `out.len / 2` stereo samples, s16 interleaved, as cyd_output_buffer_stereo: the sequencer
+    /// ticks at its sample (cyd's callback counter), the synth runs between ticks a block at a time
+    /// (kt_block.zig) or, with ring modulation or sync in effect, a sample at a time (kt_synth.zig).
     pub fn render(e: *Engine, out: []i16) void {
+        const all = out.len / 2;
         var i: usize = 0;
-        while (i + 1 < out.len) : (i += 2) {
-            if (e.callback_counter == 0) {
+        while (i < all) {
+            if (e.countdown == 0) {
                 e.callback_counter = e.callback_period - 1;
                 seq.advanceTick(e);
                 if (e.on_tick) |f| f(e);
-            } else e.callback_counter -= 1;
-            var l: i32 = 0;
-            var r: i32 = 0;
-            syn.output(&e.synth, &l, &r);
-            out[i] = clamp16(@divTrunc(l, 4));
-            out[i + 1] = clamp16(@divTrunc(r, 4));
-            syn.cycle(&e.synth);
+                e.countdown = e.callback_counter + 1; // a rate change in the tick moved the counter
+            }
+            var n: usize = @min(e.countdown, all - i);
+            if (e.mix.len != 0 and blk.eligible(&e.synth)) {
+                n = @min(n, blk.BLOCK);
+                blk.render(&e.synth, e.mix, out[2 * i ..][0 .. 2 * n]);
+            } else for (0..n) |k| {
+                var l: i32 = 0;
+                var r: i32 = 0;
+                syn.output(&e.synth, &l, &r);
+                out[2 * (i + k)] = blk.clamp16(@divTrunc(l, 4));
+                out[2 * (i + k) + 1] = blk.clamp16(@divTrunc(r, 4));
+                syn.cycle(&e.synth);
+            }
+            e.countdown -= @intCast(n);
+            i += n;
         }
     }
 };
-
-fn clamp16(v: i32) i16 {
-    return @intCast(@min(32767, @max(-32768, v)));
-}

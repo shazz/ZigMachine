@@ -40,8 +40,8 @@ pub inline fn shift(v: *u32, comptime t0: u5, comptime t1: u5) void {
     v.* = (v.* >> 1) ^ ((0 -% (v.* & 1)) & fb);
 }
 
-fn runLfsrs(ch: *c.Channel) void {
-    for (&ch.subosc) |*o| {
+inline fn runLfsrs(ch: *c.Channel) void {
+    inline for (&ch.subosc) |*o| {
         shift(&o.reg4, 4, 3);
         shift(&o.reg5, 5, 3);
         if (ch.lfsr_type & 8 != 0) shift(&o.reg9, 9, 5) else shift(&o.reg9, 17, 14);
@@ -51,13 +51,16 @@ fn runLfsrs(ch: *c.Channel) void {
 /// cyd_advance_oscillators: one sample of every sub-oscillator's phase.
 pub inline fn advance(ch: *c.Channel) void {
     const lfsr = ch.flags & c.LFSR != 0;
-    for (&ch.subosc, 0..) |*o, s| {
-        // Frequency 0: the phase stays (it is kept below ACC_LENGTH), so no sync bit and no
-        // noise step; only the LFSR, when on, still moves.
-        if (o.frequency == 0 and !lfsr) continue;
+    // Frequency 0: the phase stays (it is kept below ACC_LENGTH), so no sync bit and no noise step;
+    // only the LFSR, when on, still moves.
+    inline for (&ch.subosc, 0..) |*o, s| if (o.frequency != 0 or lfsr) step(ch, o, s == 0);
+}
+
+inline fn step(ch: *c.Channel, o: *c.Osc, comptime first: bool) void {
+    {
         const prev = o.accumulator;
         o.accumulator +%= o.frequency;
-        if (s == 0) ch.sync_bit |= o.accumulator & c.ACC_LENGTH;
+        if (first) ch.sync_bit |= o.accumulator & c.ACC_LENGTH;
         o.accumulator &= c.ACC_LENGTH - 1;
         if ((prev & (c.ACC_LENGTH / 32)) != (o.accumulator & (c.ACC_LENGTH / 32))) {
             if (ch.flags & c.METAL != 0) {
@@ -72,7 +75,7 @@ pub inline fn advance(ch: *c.Channel) void {
     }
 }
 
-fn lfsrStep(ch: *c.Channel, o: *c.Osc) void {
+inline fn lfsrStep(ch: *c.Channel, o: *c.Osc) void {
     o.lfsr_acc = if (o.lfsr & 1 != 0) AMP_MASK else 0;
     if (o.lfsr_ctr >= o.lfsr_period) {
         o.lfsr_ctr = 0;
