@@ -7,6 +7,10 @@
 #define KESTREL_MAX_PATTERNS 256
 #define KESTREL_MAX_SEQUENCES 256
 void kestrel_log(const char *m);
+/* kestrel_sdl2/src/opt/kestrel_defer_group.c: a bevel or a string drawn as one group, copied from last frame's
+ * draws when its key (and the renderer's state) did not change (patches/bevel.c.sed, font.c.sed). */
+int kestrel_group_begin(void *renderer, void *texture, const unsigned *key, unsigned n, unsigned *out, unsigned nout);
+void kestrel_group_end(const unsigned *out, unsigned nout);
 /* toolutil.c expands "~/" through the password database; the cart has none (no config path uses "~" here). */
 #include <sys/types.h>
 static inline uid_t getuid(void) { return 0; }

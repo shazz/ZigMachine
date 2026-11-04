@@ -1,0 +1,94 @@
+/* GROUPS of window draws that are a pure function of a key: a klystron bevel (its area, offset and flags; ~10
+ * to ~80 tile copies), a string of text (its font, position, cursor, bounds and bytes; one copy a glyph). The
+ * caller asks kestrel_group_begin(key) first; when the list's entry at this position is last frame's same
+ * group with the same key (and the same renderer and texture state, added below), its commands are still
+ * there and stay as they are, the outputs it returned (a text's cursor and bounds) are handed back, and the
+ * caller draws nothing: what kestrel_defer.c's entry-by-entry compare would have found equal anyway, without
+ * making the calls. Otherwise the caller draws and calls kestrel_group_end(out).
+ *
+ * In the list a group is one GROUP entry (it draws nothing and touches no tile: kind = C_GROUP | nout << 16,
+ * mod = key words, colour = where its key and outputs start in the arena, box = NONE | BLENDS if one of its
+ * commands blends | the number of commands after it), then its commands. The arena is written in place like
+ * the list: a group that did not change keeps its key where it is (nothing copied), a new one is appended;
+ * when it is 3/4 full it starts over and every group draws once (kestrel_defer.c, kd.stale). Groups do not
+ * nest: one inside another is drawn as the outer group's commands. */
+#include "kestrel_defer.h"
+
+#define LEN(b) ((b) & 0x3FFFFFu)
+static unsigned depth, start;
+static int open_;                       /* the outermost group is being recorded, its GROUP at `start` */
+
+static int words_differ(const Uint32 *x, const Uint32 *y, unsigned n)
+{
+    for (unsigned i = 0; i < n; i++) if (x[i] != y[i]) return 1;
+    return 0;
+}
+
+/* Last frame's group at entry i, if it had this key: its length, else -1. */
+static int last_frames(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
+{
+    if (i >= kd.nlast || kd.stale) return -1;
+    const cmd_t *p = &kd.list[i];
+    if (p->kind != kind || p->mod != n || p->colour + n > kd.na) return -1;
+    if (words_differ(kd.arena + p->colour, w, n)) return -1;
+    unsigned len = LEN(p->box);
+    return i + 1 + len <= kd.nlast ? (int)len : -1;
+}
+
+int kestrel_defer_group_begin(int can, const Uint32 *w, unsigned n, Uint32 *out, unsigned nout)
+{
+    if (depth++ || !can || !kd.deferring || kd.immediate || !kd.list) return 0;
+    unsigned i = kd.n, a = kd.na;
+    if (i + 1 > kd.cap) return 0;
+    Uint32 kind = C_GROUP | nout << 16;
+    cmd_t *g = &kd.list[i];
+    int len = last_frames(i, kind, w, n);
+    if (len >= 0) {                                         /* the same: its commands and key stay as they are */
+        const Uint32 *po = kd.arena + g->colour + n;
+        for (unsigned j = 0; j < nout; j++) out[j] = po[j];
+        if (g->box & BLENDS)
+            for (unsigned j = i + 1; j <= i + (unsigned)len; j++) if (kd.list[j].box & BLENDS) kd_mark(&kd.list[j]);
+        kd.n = i + 1 + (unsigned)len;
+        depth--;
+        return 1;
+    }
+    if (a + n + nout > KD_ARENA) return 0;                    /* full: drawn as plain commands */
+    memcpy(kd.arena + a, w, n * 4);
+    kd.na = a + n + nout;
+    if (i < kd.nlast) kd_mark(g);                            /* replaced, as any entry */
+    memset(g, 0, sizeof *g);
+    g->kind = kind; g->mod = n; g->colour = a; g->box = NONE;
+    kd.n = i + 1; start = i; open_ = 1;
+    return 0;
+}
+
+void kestrel_defer_group_end(const Uint32 *out, unsigned nout)
+{
+    if (depth && --depth) return;
+    if (!open_) return;
+    open_ = 0;
+    if (!kd.deferring || !kd.list || start >= kd.n) return;      /* the list was let go meanwhile */
+    cmd_t *g = &kd.list[start];
+    for (unsigned j = 0; j < nout; j++) kd.arena[g->colour + g->mod + j] = out[j];
+    Uint32 blends = 0;
+    for (unsigned j = start + 1; j < kd.n; j++) blends |= kd.list[j].box & BLENDS;
+    g->box = NONE | blends | (kd.n - start - 1);
+}
+
+/* The API (kestrel_port.h declares it for klystron's patches): the window renderer's state and the group's
+ * texture (pointer, serial, colour mod, blend) lead the caller's key. A key longer than 57 words is not
+ * grouped (the caller still calls kestrel_group_end). */
+int kestrel_window_state(SDL_Renderer *r, Uint32 w[4]);
+int kestrel_group_begin(void *renderer, void *texture, const unsigned *key, unsigned n, unsigned *out, unsigned nout)
+{
+    Uint32 w[64];
+    SDL_Texture *t = texture;
+    int can = t && n <= 64 - 7 && kestrel_window_state(renderer, w);
+    if (can) {
+        w[4] = (Uint32)(uintptr_t)t; w[5] = t->serial;
+        w[6] = (Uint32)t->mr | (Uint32)t->mg << 8 | (Uint32)t->mb << 16 | (Uint32)t->blend << 24;
+        for (unsigned i = 0; i < n; i++) w[7 + i] = key[i];
+    }
+    return kestrel_defer_group_begin(can, w, 7 + n, out, nout);
+}
+void kestrel_group_end(const unsigned *out, unsigned nout) { kestrel_defer_group_end(out, nout); }

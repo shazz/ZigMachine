@@ -475,6 +475,16 @@ static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_
 
 /* The window's case of SDL_RenderCopy below, which klystron makes ~2,500 times a repaint (glyphs, bevel
  * pieces), unscaled almost always: the same rectangles, without the general target and the divides. */
+/* For kestrel_defer_group.c: 1 when r draws into the window, with what its draws depend on (viewport, clip). */
+int kestrel_window_state(SDL_Renderer *r, Uint32 w[4])
+{
+    if (!r || r->surface || (r->target && r->target->px)) return 0;
+    w[0] = (Uint32)(Uint16)r->vx | (Uint32)r->vy << 16; w[1] = (Uint32)r->clip_on;
+    w[2] = r->clip_on ? (Uint32)(Uint16)r->clip.x | (Uint32)r->clip.y << 16 : 0;
+    w[3] = r->clip_on ? (Uint32)(Uint16)r->clip.w | (Uint32)r->clip.h << 16 : 0;
+    return 1;
+}
+
 static int window_copy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const SDL_Rect *dr)
 {
     SDL_Rect s = sr ? *sr : (SDL_Rect){ 0, 0, tex->w, tex->h };

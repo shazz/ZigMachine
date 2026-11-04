@@ -9,14 +9,14 @@
 // 8.1) and far below what came before it (a repaint was ~41-46 Mc est). --break cost asks for 1 Mc and must fail.
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
-const CART = "docs/demo-klystrack.wasm";
+const CART = process.env.CART ?? "docs/demo-klystrack.wasm"; // CART=...: another build (a before/after)
 const CEIL = { playMedian: 13, playMax: 26, menuMax: 10 };
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (broke && broke !== "cost") throw new Error("--break cost");
 const scale = broke ? 0 : 1; // --break cost: every ceiling ~0
 
 async function series(calls, warmup) {
-    const args = [CART, "--frames", "60", "--warmup", String(warmup), "--top", "1"];
+    const args = [CART, "--disk", "docs/demo-klystrack.zmd", "--frames", "60", "--warmup", String(warmup), "--top", "1"];
     for (const c of calls) args.push("--call", c);
     const r = await costOf(CART, parseArgs(args));
     return r.mc.series ?? r.series;

@@ -1,4 +1,5 @@
-/* kestrel_defer.c's command list, shared with kestrel_defer_draw.c (which draws and replays it). */
+/* kestrel_defer.c's command list, shared with kestrel_defer_draw.c (which draws and replays it) and
+ * kestrel_defer_group.c. */
 #ifndef KESTREL_DEFER_H
 #define KESTREL_DEFER_H
 #include "kestrel_render_priv.h"
@@ -7,7 +8,7 @@
 #define TH 8
 #define COLS (400 / TW)
 #define ROWS ((280 + TH - 1) / TH)
-enum { C_COPY, C_FILL, C_CLEAR, C_LINE };
+enum { C_COPY, C_FILL, C_CLEAR, C_LINE, C_GROUP, C_KEY, C_OUT };   /* GROUP/KEY/OUT draw nothing */
 
 typedef struct {
     Uint32 kind;                        /* op | blend << 4 | has_clip << 7 | alpha << 8: one word (clang merges
@@ -34,6 +35,18 @@ typedef struct {
 #define R16(d, r) ((d)[0] = P2((r).x, (r).y), (d)[1] = P2((r).w, (r).h))
 #define RECT(a) ((SDL_Rect){ LO((a)[0]), HI((a)[0]), LO((a)[1]), HI((a)[1]) })
 #define CMD_WORDS (__builtin_offsetof(cmd_t, box) / 4)
+
+/* kestrel_defer.c's list, for kestrel_defer_group.c */
+#define KD_ARENA 16384                  /* words of group keys and outputs (kestrel_defer_group.c) */
+typedef struct {
+    cmd_t *list; unsigned n, nlast, cap;   /* this frame's first n entries; last frame's ran to nlast */
+    int deferring, immediate;
+    Uint32 *arena; unsigned na; int stale;   /* group keys and outputs, used to na; stale: none matches */
+} kd_t;
+extern kd_t kd;
+void kd_mark(const cmd_t *k);
+int kd_same(const cmd_t *a, const cmd_t *b);
+void kd_flush(void);
 
 void kestrel_defer_draw(const cmd_t *k, const SDL_Rect *r, Uint8 *fb, int fw, int fh);
 void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Uint8 *fb, int fw, int fh);
