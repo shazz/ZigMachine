@@ -24,3 +24,5 @@ static void inner_write(const Font *font, GfxDomain *dest, const SDL_Rect *r, Ui
 	kestrel_group_end(out, 3);\
 }\
 
+# ...and the label is formatted by kestrel_printf.c (musl's output; the common conversions without its FILE layer).
+s/^\tvsnprintf(formatted, len, text, va);$/\tkestrel_vsnprintf(formatted, len, text, va);/

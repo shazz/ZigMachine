@@ -10,7 +10,7 @@
 struct SDL_Texture {
     int w, h, access; Uint32 *px; Uint8 *idx; Uint32 *pal; Uint8 mr, mg, mb; SDL_BlendMode blend;
     int npal; Uint32 *mpal; Uint8 pmr, pmg, pmb;
-    Uint16 *gmap; Uint32 gkey; unsigned ggen; int gall, gpart;
+    Uint16 *gmap; Uint32 gkey; unsigned ggen; int gall, gpart, g8;   /* g8: gmap's 8-bit twin follows it */
     unsigned serial;                    /* new for each content (kestrel_texture_touched): the defer hash's name */
 };
 

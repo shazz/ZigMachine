@@ -55,10 +55,17 @@ __attribute__((export_name("songTune"))) uint32_t songTune(void) { return 0; }
 static void put32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
 
 /* --- what the machine's player takes --- */
+/* FNV over words where the block is word-aligned (all the big ones: patterns, sequences, instruments,
+ * wavetables), bytes for the rest: a quarter of the multiplies of a byte FNV (song_hash ran ~1 M rv32
+ * instructions every quarter second of song time). Only ever compared with itself (sent_hash). */
+typedef uint32_t __attribute__((may_alias)) u32_alias;
 static uint32_t fnv(uint32_t h, const void *p, size_t n)
 {
     const uint8_t *b = p;
-    for (size_t i = 0; i < n; i++) h = (h ^ b[i]) * 16777619u;
+    size_t i = 0;
+    if (((uintptr_t)b & 3) == 0)
+        for (; i + 4 <= n; i += 4) h = (h ^ *(const u32_alias *)(const void *)(b + i)) * 16777619u;
+    for (; i < n; i++) h = (h ^ b[i]) * 16777619u;
     return h;
 }
 

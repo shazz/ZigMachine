@@ -60,9 +60,10 @@ static const Uint16 *window_map(SDL_Texture *t)
     Uint32 key = (Uint32)t->mr << 16 | (Uint32)t->mg << 8 | t->mb | (Uint32)t->blend << 24;
     if (t->gmap && t->gkey == key && t->ggen == kestrel_pal_gen) return t->gmap;
     const Uint32 *pal = kestrel_mod_palette(t);
-    if (!pal || (!t->gmap && !(t->gmap = malloc(256 * sizeof *t->gmap)))) return NULL;
+    if (!pal || (!t->gmap && !(t->gmap = malloc(256 * sizeof *t->gmap + 256)))) return NULL;
+    Uint8 *map8 = (Uint8 *)(t->gmap + 256);
     do {
-        t->ggen = kestrel_pal_gen; t->gall = 1; t->gpart = 0;
+        t->ggen = kestrel_pal_gen; t->gall = 1; t->gpart = 0; t->g8 = 1;
         for (int i = 0; i < t->npal; i++) {
             Uint32 p = pal[i];
             unsigned a = p >> 24;
@@ -71,7 +72,8 @@ static const Uint16 *window_map(SDL_Texture *t)
             else v = a ? PART : SKIP;
             if (v > 255) t->gall = 0;
             if (v == PART) t->gpart = 1;
-            t->gmap[i] = v;
+            if (v == 255 || v == PART) t->g8 = 0;           /* 255 is the twin's "skip" */
+            t->gmap[i] = v; map8[i] = v < 256 ? (Uint8)v : 255;
         }
     } while (t->ggen != kestrel_pal_gen);           /* a compaction while building: the early entries are stale */
     t->gkey = key;
@@ -85,6 +87,11 @@ static void row8(Uint8 *dp, const Uint8 *ip, int n, Uint32 fx, Uint32 stepx, SDL
     if (stepx == 0x10000u) {
         const Uint8 *sp = ip + (fx >> 16);
         if (t->gall) { for (int x = 0; x < n; x++) dp[x] = (Uint8)map[sp[x]]; return; }
+        if (t->g8) {                                    /* keyed art (glyphs): 255 = transparent */
+            const Uint8 *m8 = (const Uint8 *)(map + 256);
+            for (int x = 0; x < n; x++) { Uint8 v = m8[sp[x]]; if (v != 255) dp[x] = v; }
+            return;
+        }
         for (int x = 0; x < n; x++) {
             Uint16 v = map[sp[x]];
             if (v < 256) dp[x] = (Uint8)v;

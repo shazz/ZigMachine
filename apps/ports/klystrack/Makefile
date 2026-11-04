@@ -39,7 +39,7 @@ OBJS   := $(addprefix $(OUT)/,$(KLY_C:.c=.o) $(APP_C:.c=.o)) $(patsubst %.c,$(OU
 GENALL := $(addprefix $(GEN)/,$(KLY_C) $(APP_C) $(UP_H)) $(GEN)/src/version.h $(GEN)/src/version_number.h $(GEN)/klystron/version.h
 SHIMH  := $(wildcard $(KINC)/*.h $(KINC)/SDL2/* $(KSDL)/opt/*.h)
 
-.PHONY: objs link data clean install names
+.PHONY: objs link data clean install names printf-test
 comma := ,
 .SECONDARY:
 objs: $(OBJS)
@@ -101,6 +101,12 @@ $(OUT)/names/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify
 
 clean:
 	rm -rf $(OUT)
+
+# kestrel_printf.c (the labels' vsnprintf) against the host C library's, natively.
+printf-test:
+	@mkdir -p $(OUT)
+	$(ZIG) cc -O1 -o $(OUT)/printf_test printf_test.c kestrel_printf.c
+	$(OUT)/printf_test
 
 # The floppy's files, committed in data/ so tools/mkdisks.sh (the one recipe for the disk) packs
 # docs/demo-klystrack.zmd without an upstream checkout: the Default theme as one bundle file (mkbundle.py;
