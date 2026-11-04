@@ -348,3 +348,19 @@ Hatari's own screenshots, so compare against Hatari screenshots, not the AVI, fo
   scripts/compare.py shots <dir> out.png <t...>`. Comparison sheets of 3 Nov (rip build):
   `shots/cmp_rip_A.png` (0-51 s), `cmp_rip_B.png` (57-128 s), `cmp_rip_C.png` (133-220 s).
 - The gate: `node apps/falcon_ays_headless.mjs` (+ `--break script`, `--break art`).
+
+## 7. Matt's third board run (4 Nov)
+
+- **Flashes: one path.** Every flash (823 white, 824 white, 81A/81B the grey ramp) now goes through
+  `Show.drawFlash`: the border (BACKGROUND) and the screen in one colour together. On the flames'
+  8-bit plane the flash fills the plane once with one palette entry and recolours that entry each
+  frame, so the plane is not switched mid-part and there is no double-buffer frame between the
+  border and the screen (the board showed some flashes on the border only there: the "fingerprint"
+  halftone flames). 824 now fills the whole 200 lines (its letterbox-only band left a black frame
+  inside a white border). Checked on the full 400x280 raster (`FULL=1 scripts/shots.mjs`) at
+  19.7, 30.85, 127.15-127.7, 132.6-132.75, 136.1-136.7 s. The fade length matches Hatari: the
+  capture's flash at 127.6 s is dark again by 127.8 s; the port's 81A runs 31 timer calls at 100 Hz.
+- **The RG ship "staying"**: in the port and in the capture alike the smeared ship holds until 807
+  (43.96 s) clears it (capture frames 40.6-44.0, port 41-44.0 black). Not reproduced; needs the
+  board time Matt saw it at.
+
