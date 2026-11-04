@@ -48,7 +48,7 @@ void host_io_parse_call(const char* spec) {
 }
 
 /* --disk: the whole image in memory, as the browser's mountDisk holds it. */
-void host_io_mount_disk(const char* path) {
+static host_disk_t read_image(const char* path) {
     FILE* f = fopen(path, "rb");
     long n = f && fseek(f, 0, SEEK_END) == 0 ? ftell(f) : -1;
     uint8_t* buf = n > 0 ? malloc((size_t)n) : NULL;
@@ -57,8 +57,13 @@ void host_io_mount_disk(const char* path) {
         exit(1);
     }
     fclose(f);
-    host_disk = (host_disk_t){.data = buf, .size = (uint32_t)n};
+    return (host_disk_t){.data = buf, .size = (uint32_t)n};
 }
+
+void host_io_mount_disk(const char* path) { host_disk = read_image(path); }
+
+/* --c-image: KOS's C: (env.kosDriveRead, host/disk.h host_kos_drive_read), as the page's C: image. */
+void host_io_mount_c(const char* path) { host_cdisk = read_image(path); }
 
 /* --data-disk: mounted as --disk, and GEM gets what the browser gives it over a data disk. */
 static zmd_dir_t g_dir;

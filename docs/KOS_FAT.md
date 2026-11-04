@@ -137,6 +137,26 @@ read streams at a few MB/s. Read-only, so a mounted read-only partition is safe 
 write path (later) would need glass to own the writes (a file API, not sectors). Timeout: 500 ms,
 then the ROM sees an I/O error and the window says `C: not responding`.
 
+**As built (F5, the plumbing, 4 Nov).** `env.kosDriveRead(unit, sector, count, dst) -> u32` is a
+**cart** import (only the desktop shell will have it), a host entry of the system table
+(`sys_abi` 1.8, `tools/host_bridges.py` KOS_DRIVE), not a ROM import: the ROM's own imports stay
+`memory`, `hwVideoBase` and `hwBlit`. One rule set in every host: the answer is the sectors read,
+0 for any refusal (no C:, a unit other than 2, count 0 or over 64, a run past the end, a `dst` off
+a word or past the memory), all or nothing, never a trap. The page: `kosDriveRead` over the image
+`kosMountC(buf)` mounted (`docs/sealed-loader.js`); the native host: `--c-image X` into
+`host_cdisk` (`host/disk.h host_kos_drive_read`, the default the generated env carries); the board:
+`cycles/bkosdrive.c` (force-included as `bkosdrive.h` into the board images' env only; the sim's
+answer 0) writes the request block at window end - `KOS_DRIVE_FROM_TOP` (0x360, 9 words, between
+the media word and the cart-request block: `map_cart.zig` KOS_DRIVE_*, `cycles/bkosreq.h`) and
+waits up to 500 ms; glass's `src/kos_drive.zig` serves it from a thread polling every 500 us,
+reading `/dev/mmcblk0p1` with `pread`, writing the sectors straight into the window at the
+cart's own `dst` (no bounce buffer: the window is glass's to write), then `KD_DONE` and `KD_ACK`
+last; the firmware drops the block's and `dst`'s D-cache lines. No glass thread (an older glass,
+no partition): every read times out to 0. Proof: `fpga/tests/test_kos_drive.py` (the firmware's
+words = glass's rule, the answer, the block's place, the native rules) and glass's
+`kos_drive.zig` tests (served once, at its offset; every refusal answered 0; a half-written block
+never served). Not yet: a cart that imports it (the desktop's C:), the C: image, the board.
+
 **C: in the browser and the native host**: a FAT16 image built at build time (`mkfs.fat` over a
 folder, `docs/kos-c.img`) served by the page as unit 2; the native host takes `--c-image`. The
 proof that the board serves C: right is the board itself (the request path has no sim of the

@@ -23,7 +23,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import wasm_info  # after the path insert
-from host_bridges import (HOST_DEFAULTS, HOST_ENTRIES, PAULA, STREAM, disk_app_bridge, export_table, input_bridge, mirror_args,
+from host_bridges import (HOST_DEFAULTS, HOST_ENTRIES, KOS_DRIVE, PAULA, STREAM, disk_app_bridge, export_table, input_bridge, mirror_args,
                           song_bridge)
 from host_gen import DRIVE, DRIVE_DEF, HOOK_DEFAULTS, HOOKS, SPAN_HOOKS, decls, forwarder, imports, link_check, resolve
 from sys_abi_c import checked, env_rows
@@ -110,7 +110,7 @@ def cart_import(name: str, ret: str, params: list[str], target: str | None, rows
         return f"{ret} w2c_env_{name}(struct w2c_env* e) {{ (void)e; return {call}; }}\n"
     if name in DRIVE:
         return table_call(f"w2c_env_{name}", ret, ["struct w2c_env*", *params], "ZM_RT_zm_disk_read")
-    if name in STREAM or name in PAULA:  # the system's (table 1.1, 1.6): an older system refuses this cart
+    if name in STREAM or name in PAULA or name in KOS_DRIVE:  # the system's (table 1.1, 1.6, 1.8): an older system refuses this cart
         if rows.get(name) != ("host", ret, params):
             sys.exit(f"host_split: env.{name} ({ret}{params}) is not the system table's host entry")
         return table_call(f"w2c_env_{name}", ret, ["struct w2c_env*", *params], f"ZM_ENV_{name}")

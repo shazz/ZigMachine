@@ -47,4 +47,25 @@ static inline int64_t host_disk_read(host_disk_t* d, uint32_t block, uint32_t ds
     return n;
 }
 
+/* KOS's C: (docs/KOS_FAT.md F5, env.kosDriveRead), the native host's half: `count` sectors of
+ * unit 2 from host_cdisk's image (--c-image) into the cart's memory at `dst`, as docs/sealed-loader.js
+ * serves its C: image. The answer is the sectors read; 0 for any refusal, never a trap (the board's
+ * answer to a timeout is 0 too): no image, another unit, count 0 or over HOST_KOS_MAX_SECTORS, a run
+ * past the image's end, a dst off a word or whose bytes pass the memory's. All or nothing. */
+#define HOST_KOS_UNIT_C 2u
+#define HOST_KOS_MAX_SECTORS 64u
+
+extern host_disk_t host_cdisk;
+
+static inline uint32_t host_kos_drive_read(host_disk_t* d, uint32_t unit, uint32_t sector, uint32_t count, uint32_t dst,
+                                           uint8_t* mem, uint64_t mem_size) {
+    if (!d->data || unit != HOST_KOS_UNIT_C || count == 0 || count > HOST_KOS_MAX_SECTORS || dst % 4) return 0;
+    uint64_t from = (uint64_t)sector * HOST_DISK_BLOCK, n = (uint64_t)count * HOST_DISK_BLOCK;
+    if (from + n > d->size || (uint64_t)dst + n > mem_size) return 0;
+    memcpy(mem + dst, d->data + from, (size_t)n);
+    d->reads++;
+    d->bytes += (uint32_t)n;
+    return count;
+}
+
 #endif

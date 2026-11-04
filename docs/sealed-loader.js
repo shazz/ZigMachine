@@ -118,6 +118,21 @@ function diskReadBlock(block, dstOff) {
     return src.length;
 }
 
+// KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead(unit, sector, count, dst) copies `count`
+// 512-byte sectors of unit 2 from the C: image (kosMountC) into shared memory at dst; the
+// answer is the sectors read, 0 for any refusal (no image, another unit, count 0 or over 64, a
+// run past the image, a dst off a word or past the memory), all or nothing: the rules of the
+// native host (fpga/host/disk.h host_kos_drive_read) and of the board's glass (kos_drive.zig).
+let kosC = null;
+function kosMountC(buf) { kosC = buf; }
+function kosDriveRead(unit, sector, count, dst) {
+    const n = (count >>> 0) * 512, from = (sector >>> 0) * 512;
+    if (!kosC || unit !== 2 || count === 0 || count > 64 || (dst >>> 0) % 4) return 0;
+    if (from + n > kosC.length || (dst >>> 0) + n > memory.buffer.byteLength) return 0;
+    new Uint8Array(memory.buffer, dst >>> 0, n).set(kosC.subarray(from, from + n));
+    return count >>> 0;
+}
+
 
 // Swap the running cartridge: the menu launcher asks to boot a scene's floppy
 // (req 1 + a tag), a scene asks to return to the menu (req -1). We mount the disk
@@ -478,6 +493,7 @@ async function boot() {
             ...rom,
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
+            kosDriveRead: (unit, sector, count, dst) => kosDriveRead(unit, sector, count, dst), // KOS's C:
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
             hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring

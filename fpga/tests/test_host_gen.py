@@ -179,6 +179,16 @@ def test_the_paula_imports_call_their_hooks_and_the_claim_returns_its_answer() -
     assert "#define HOST_PAULA_CLAIM(e, lead) ((void)(e), (void)(lead), 0u)" in host_gen.HOST_DEFAULTS
 
 
+def test_kos_drive_read_calls_its_hook_whose_default_reads_the_c_image() -> None:
+    read = host_gen.forwarder("kosDriveRead", "u32", ["u32", "u32", "u32", "u32"], None, EXPORTS)
+    assert read == ("u32 w2c_env_kosDriveRead(struct w2c_env* e, u32 a0, u32 a1, u32 a2, u32 a3) "
+                    "{ return HOST_KOS_DRIVE_READ(e, a0, a1, a2, a3); }\n")  # fmt: skip
+    assert "host_kos_drive_read(&host_cdisk, (unit), (sector), (count), (dst)" in host_gen.HOST_DEFAULTS
+    assert "host_disk_t host_cdisk;" in host_gen.DRIVE_DEF
+    with pytest.raises(SystemExit, match="C: drive"):
+        host_gen.forwarder("kosDriveRead", "u32", ["u32", "u32"], None, EXPORTS)
+
+
 def test_a_paula_import_with_the_wrong_signature_is_refused() -> None:
     with pytest.raises(SystemExit, match="Paula"):
         host_gen.forwarder("hostPaulaClaim", "void", ["u32"], None, EXPORTS)

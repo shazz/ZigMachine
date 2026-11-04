@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 import wasm_info
-from host_bridges import HOST_DEFAULTS, HOST_ENTRIES, MIRROR, PAULA, disk_app_bridge, export_table, input_bridge, mirror_bind
+from host_bridges import HOST_DEFAULTS, HOST_ENTRIES, KOS_DRIVE, MIRROR, PAULA, disk_app_bridge, export_table, input_bridge, mirror_bind
 from host_bridges import song_bridge
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -96,6 +96,8 @@ HOOK_DEFAULTS = """/* Value hooks: the stub's 0 in the native host. The board fi
 DRIVE = {"diskReadBlock": ("u32", ["u32", "u32"])}
 DRIVE_DEF = """/* The drive's disk (host/disk.h): none until the host or the firmware mounts one. */
 host_disk_t host_disk;
+/* KOS's C: (host/disk.h host_kos_drive_read): none until the native host's --c-image. */
+host_disk_t host_cdisk;
 """
 
 DECL = re.compile(r"^(void|u32|u64|f32|f64) w2c_(env|machine|rom|cart)_(\w+)\(([^)]*)\);$", re.MULTILINE)
@@ -152,7 +154,7 @@ def forwarder(name: str, ret: str, params: list[str], target: str | None, export
     if name in HOST_ENTRIES:  # the stream ring's, the audio mirror's: a hook macro each
         want_ret, want_params, macro = HOST_ENTRIES[name]
         if target is not None or (ret, params) != (want_ret, want_params):
-            who = "audio mirror" if name in MIRROR else "Paula" if name in PAULA else "stream"
+            who = "audio mirror" if name in MIRROR else "Paula" if name in PAULA else "C: drive" if name in KOS_DRIVE else "stream"
             sys.exit(f"host_gen: env.{name} must be the {who}'s {want_ret}{want_params}, not {ret}{params} via {target}")
         ret_kw = "" if ret == "void" else "return "
         return f"{head} {{ {ret_kw}{macro}({', '.join(['e', *(f'a{i}' for i in range(len(params)))])}); }}\n"

@@ -25,7 +25,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 MANIFEST = FPGA / "cycles/sys_abi.txt"
 sys.path.insert(0, str(FPGA / "tools"))
-from host_bridges import DISK_APP_BRIDGE, INPUT_BRIDGE, MIRROR, PAULA, SONG_BRIDGE, STREAM  # after the path insert
+from host_bridges import DISK_APP_BRIDGE, INPUT_BRIDGE, KOS_DRIVE, MIRROR, PAULA, SONG_BRIDGE, STREAM  # after the path insert
 from host_gen import MACHINE_ENV
 from sys_abi_layout import CONSTS, HEADER, RUNTIME, TYPE_SOURCES, TYPES
 from sys_abi_break import run_breaks
@@ -53,6 +53,8 @@ def env_entries(root: Path = ROOT) -> dict[str, str]:
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in MIRROR.items()})
     # A cart's Paula (host/hstream.h HOST_PAULA_*, HW 1.14.0), served by the system image (1.6).
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in PAULA.items()})
+    # KOS's C: (host/disk.h host_cdisk, cycles/bkosdrive.h on the board), served by the system image (1.8).
+    out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in KOS_DRIVE.items()})
     return out
 
 

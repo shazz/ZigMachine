@@ -60,6 +60,28 @@ pub const KOS_POST_FRAMES: u32 = 180; // rom/kos/kos.zig POST_FRAMES: 3 s
 pub const KOS_MEDIA_FROM_TOP: u32 = 0x3D0;
 pub const KOS_MEDIA_TAG: u32 = 0x4D00_0000;
 pub const KOS_MEDIA_COUNT: u32 = 0x00FF_FFFF;
+// KOS's C:, sector by sector (docs/KOS_FAT.md F5, env.kosDriveRead), at window end -
+// KOS_DRIVE_FROM_TOP (CPU 0x41FF_FCA0, between the media word and the request block). The
+// firmware (cycles/bkosreq.h) writes unit, first sector, count (1..KOS_DRIVE_MAX_SECTORS), the
+// window offset the sectors go to (the cart's dst), a sequence number, the check ~(magic ^ seq ^
+// unit ^ sector ^ count ^ offset), the magic last. glass (src/kos_drive.zig, a thread at ~2 kHz)
+// reads the sectors off the SD card's partition into the window there, writes KD_DONE (the count
+// read, 0 refused) and KD_ACK = the sequence, last. The firmware gives up after KOS_DRIVE_TIMEOUT_MS.
+pub const KOS_DRIVE_FROM_TOP: u32 = 0x360;
+pub const KOS_DRIVE_MAGIC: u32 = 0x444B_4D5A; // "ZMKD"
+pub const KOS_DRIVE_WORDS: u32 = 9;
+pub const KD_MAGIC: u32 = 0;
+pub const KD_SEQ: u32 = 1;
+pub const KD_UNIT: u32 = 2;
+pub const KD_SECTOR: u32 = 3;
+pub const KD_COUNT: u32 = 4;
+pub const KD_OFFSET: u32 = 5;
+pub const KD_CHECK: u32 = 6;
+pub const KD_DONE: u32 = 7;
+pub const KD_ACK: u32 = 8;
+pub const KOS_DRIVE_UNIT_C: u32 = 2;
+pub const KOS_DRIVE_MAX_SECTORS: u32 = 64;
+pub const KOS_DRIVE_TIMEOUT_MS: u32 = 500;
 
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk

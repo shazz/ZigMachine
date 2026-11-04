@@ -7,6 +7,7 @@
 /* --call F:name:a,b,c: queue the call; --disk X.zmd: mount X in the drive. */
 void host_io_parse_call(const char* spec);
 void host_io_mount_disk(const char* path);
+void host_io_mount_c(const char* path);
 /* --data-disk X.zmd: mount X, and after each frame do what the browser does for GEM over a
  * data disk (host/disk_app.h); a request is reported on stderr. Exits 2 if X is bootable. */
 void host_io_data_disk(const char* path);

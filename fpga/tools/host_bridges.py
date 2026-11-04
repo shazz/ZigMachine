@@ -94,6 +94,21 @@ PAULA_DEFAULTS = """/* Paula hooks: no Paula for the cart (claim 0). host/hstrea
 """
 
 
+# KOS's C: (docs/KOS_FAT.md F5): kosDriveRead(unit, sector, count, dst) reads `count` 512-byte
+# sectors of drive `unit` (2: C:, the SD card) into the cart's memory at `dst` and answers how many
+# it read, 0 for none (no such drive, a sector past the end, a dst outside memory, a timeout). A
+# cart import (only KOS's desktop shell has it), served by the system: the default reads the image
+# in host_cdisk (host/disk.h: the native host's --c-image, empty elsewhere); the board firmware's
+# cycles/bkosdrive.h (-include) asks glass for the sectors over the window's request block.
+KOS_DRIVE = {"kosDriveRead": ("u32", ["u32", "u32", "u32", "u32"], "HOST_KOS_DRIVE_READ")}
+KOS_DRIVE_DEFAULTS = """/* C: (KOS F5): host_cdisk's image unless cycles/bkosdrive.h (-include, the board) defines it. */
+#ifndef HOST_KOS_DRIVE_READ
+#define HOST_KOS_DRIVE_READ(e, unit, sector, count, dst) \\
+    host_kos_drive_read(&host_cdisk, (unit), (sector), (count), (dst), (e)->memory.data, (e)->memory.size)
+#endif
+"""
+
+
 # The audio-state mirror (cycles/aud_state.h): the cart's ZigOS fields docs/sealed-loader.js
 # writes from the worklet's "audioState" (ym_regs, audio_mode, song_ms), as offsets in its memory,
 # handed to the HOST_AUDIO_MIRROR hook once, after the cart's instantiation. No wasm imports it:
@@ -107,9 +122,9 @@ MIRROR_DEFAULTS = """/* The audio-state hook: a no-op unless cycles/bmirror.h (-
 #endif
 """
 # The system table's host entries (table 1.1: the stream ring; 1.2: the mirror; 1.6: the cart's
-# Paula), and their defaults.
-HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA}
-HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS
+# Paula; 1.8: KOS's C:), and their defaults.
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE}
+HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:

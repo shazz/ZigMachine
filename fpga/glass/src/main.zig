@@ -137,6 +137,7 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), opt.dir);
     defer app.deinit();
     app.opt.fw_opt = fw_opt;
+    @import("kos_drive.zig").startThread(board.ddr().words); // KOS's C: (docs/KOS_FAT.md F5)
     app.opt.idle = devmem.napMs;
     app.opt.wait_boot = opt.wait;
     app.mouse.scale = @max(1, opt.mouse_scale);

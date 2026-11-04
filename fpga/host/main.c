@@ -11,6 +11,7 @@
  * X's executable boot sector in the cart's place (host/bootsec_host.h), the board's interpreter
  * against scene_hash.mjs given the same X.zmd. --kos X.zmd|none [--post-frames N]: KOS's power-on,
  * the ROM's POST then drive A (host/kos_host.h), as scene_hash.mjs --kos.
+ * --c-image X.img: KOS's C: (env.kosDriveRead), as scene_hash.mjs --c-image.
  *
  * <cart-label> is only echoed into the JSON (the cart is linked in).
  *
@@ -152,6 +153,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--call") == 0 && i + 1 < argc) host_io_parse_call(argv[++i]);
         else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc) host_io_mount_disk(argv[++i]);
+        else if (strcmp(argv[i], "--c-image") == 0 && i + 1 < argc) host_io_mount_c(argv[++i]);
         else if (strcmp(argv[i], "--data-disk") == 0 && i + 1 < argc) host_io_data_disk(argv[++i]);
         else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (strcmp(argv[i], "--bootsec") == 0 && i + 1 < argc) g_bootsec = argv[++i];
