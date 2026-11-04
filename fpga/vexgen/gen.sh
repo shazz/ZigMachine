@@ -18,7 +18,7 @@
 # `zmxearly` the same with ZmXPlugin's result bypassed from EXECUTE (the timing comparison);
 # `tcm` adds a tightly coupled data port at 0x9E000000 (ZmTcm.scala, review/BARD_BRAM_STUDY.md);
 # `eb` resolves branches in EXECUTE (one cycle less a mispredict), `shex` gives the shifter's result
-# in EXECUTE, `mulm` bypasses MUL's low word from MEMORY (review/BARD_CPI_STUDY.md).
+# in EXECUTE (review/BARD_CPI_STUDY.md).
 # Writes build/vexgen/VexRiscv_<name>.v for each spec; one sbt session for all.
 set -euo pipefail
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"
@@ -47,7 +47,6 @@ for spec in "$@"; do
             tcm) opts+=" --dTcm" ;;
             eb) opts+=" --earlyBranch" ;;
             shex) opts+=" --shiftEarly" ;;
-            mulm) opts+=" --mulMem" ;;
             *) echo "vexgen: unknown flag $f in $spec" >&2; exit 2 ;;
         esac
     done

@@ -10,18 +10,13 @@ package zm
 // (0 DSP more), signed x signed, summed in MEMORY and WRITEBACK as MUL/MULH are, so
 // the latency is MUL's. Only the writeback select differs. Used instead of MulPlugin
 // when GenZm runs with --zmx; without it the netlist keeps MulPlugin itself.
-//
-// `mulMem` (GenZm --mulMem, vexgen flag `mulm`; review/BARD_CPI_STUDY.md): MUL (funct3 000, the low
-// word) is written from MEMORY, where MUL_LOW is already summed, and bypassed from there, so an
-// instruction using a MUL result waits one cycle less. MULH* and mulsh still finish in WRITEBACK.
-// `zmx = false` drops mulsh's decode: the plain MulPlugin ISA.
 
 import spinal.core._
 import spinal.lib.KeepAttribute
 import vexriscv._
 import vexriscv.plugin._
 
-class ZmMulPlugin(zmx: Boolean = true, mulMem: Boolean = false) extends Plugin[VexRiscv] {
+class ZmMulPlugin extends Plugin[VexRiscv] {
   object MUL_LL extends Stageable(UInt(32 bits))
   object MUL_LH extends Stageable(SInt(34 bits))
   object MUL_HL extends Stageable(SInt(34 bits))
@@ -44,13 +39,7 @@ class ZmMulPlugin(zmx: Boolean = true, mulMem: Boolean = false) extends Plugin[V
     val d = pipeline.service(classOf[DecoderService])
     d.addDefault(IS_MUL, False)
     d.addDefault(IS_MULSH, False)
-    val early = actions.map { case (k, v) => if (k == BYPASSABLE_MEMORY_STAGE) (k, True) else (k, v) }
-    val muls = // MUL alone when it is bypassed from MEMORY, MULH/MULHSU/MULHU as MulPlugin's MULX
-      if (!mulMem) List(MULX -> actions)
-      else List(M"0000001----------000-----0110011" -> early, M"0000001----------001-----0110011" -> actions,
-        M"0000001----------01------0110011" -> actions)
-    val mulsh = if (zmx) List(M"0000001----------00------0001011" -> (actions :+ (IS_MULSH -> True))) else Nil
-    d.add(muls ++ mulsh)
+    d.add(List(MULX -> actions, M"0000001----------00------0001011" -> (actions :+ (IS_MULSH -> True))))
   }
 
   override def build(pipeline: VexRiscv): Unit = {
@@ -85,9 +74,6 @@ class ZmMulPlugin(zmx: Boolean = true, mulMem: Boolean = false) extends Plugin[V
       import memory._
       insert(MUL_LOW) := S(0, MUL_HL.dataType.getWidth + 16 + 2 bit) + (False ## input(MUL_LL)).asSInt +
         (input(MUL_LH) << 16) + (input(MUL_HL) << 16)
-      if (mulMem) when(arbitration.isValid && input(IS_MUL) && !input(IS_MULSH) && input(INSTRUCTION)(13 downto 12) === 0) {
-        output(REGFILE_WRITE_DATA) := output(MUL_LOW)(31 downto 0).asBits
-      }
     }
 
     writeBack plug new Area {
