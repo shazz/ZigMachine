@@ -14,8 +14,11 @@ GEN    := $(OUT)/gen
 KSDL   := ../kestrel_sdl2/src
 KINC   := ../kestrel_sdl2/include
 # upstream's EXTFLAGS minus MIDI (ALSA + a thread); the window is 320x240 at scale 1 (patches/mused.c.sed).
+# USESTATICTEMPSTRINGS (klystron's own option): font_write_va formats into a 2 KB stack buffer instead of a
+# vsnprintf to size it, a malloc, the vsnprintf and a free for every label of every repaint.
 DEFS   := -DNOSDL_MIXER -DUSESDLMUTEXES -DSTEREOOUTPUT -DUSESDL_IMAGE -DUSESDL_RWOPS -DCONFIG_DEFAULT_DISABLE_RENDER_TO_TEXTURE \
-          -DLOWRESWAVETABLE -DRES_PATH= -DCONFIG_PATH=/klystrack.cfg -DKLYSTRON=klystron -D__KESTREL__ -DKESTREL_SDL_IMAGE -DKESTREL_HEAP_ROVER
+          -DLOWRESWAVETABLE -DRES_PATH= -DCONFIG_PATH=/klystrack.cfg -DKLYSTRON=klystron -D__KESTREL__ -DKESTREL_SDL_IMAGE -DKESTREL_HEAP_ROVER \
+          -DUSESTATICTEMPSTRINGS
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I$(KINC) -I$(KINC)/SDL2 \
           -I$(GEN)/src -I$(GEN)/klystron -include kestrel_port.h $(DEFS) \
           -Wno-unused-parameter -Wno-unused-but-set-variable \

@@ -18,32 +18,7 @@
  * once (and the next frame replays everything). */
 #include "kestrel_render_priv.h"
 
-#define TW 16
-#define TH 8
-#define COLS (400 / TW)
-#define ROWS ((280 + TH - 1) / TH)
-enum { C_COPY, C_FILL, C_CLEAR, C_LINE };
-
-typedef struct {
-    Uint32 kind;                        /* op | blend << 4 | has_clip << 7 | alpha << 8: one word (clang merges
-                                           neighbouring narrow stores into misaligned wide ones) */
-    Uint32 mod, serial;                 /* colour mod r | g << 8 | b << 16; the texture's serial */
-    SDL_Texture *tex; Uint32 colour, stepx, stepy;
-    Sint16 c[4], s[4];                  /* x, y, w, h. copy: destination, source; fill: c; line: c = ends, s = clip */
-    Sint16 ox, oy;
-    /* not compared (derived from the above): */
-    Uint32 box;                         /* tiles touched: tx0 | tx1 << 5 | ty0 << 10 | ty1 << 16; NONE; BLENDS */
-} __attribute__((aligned(8))) cmd_t;      /* 56 bytes */
-#define NONE (1u << 22)
-#define BLENDS (1u << 23)
-#define TX0(b) ((b) & 31)
-#define TX1(b) ((b) >> 5 & 31)
-#define TY0(b) ((b) >> 10 & 63)
-#define TY1(b) ((b) >> 16 & 63)
-#define OP(k) ((k)->kind & 15)
-#define R16(d, r) ((d)[0] = (Sint16)(r).x, (d)[1] = (Sint16)(r).y, (d)[2] = (Sint16)(r).w, (d)[3] = (Sint16)(r).h)
-#define RECT(a) ((SDL_Rect){ (a)[0], (a)[1], (a)[2], (a)[3] })
-#define CMD_WORDS (__builtin_offsetof(cmd_t, box) / 4)
+#include "kestrel_defer.h"
 
 static Uint8 *fb; static int fw, fh, cols, rows;
 /* Both lists live in one block allocated once (3,072 commands each, 2 x 168 KB: a repaint makes ~2,300-2,700),
@@ -78,7 +53,8 @@ void kestrel_defer_target(Uint8 *b, int w, int h)
     ncur = nprev = 0; immediate = 0; all_dirty = 1;
 }
 
-static void draw(const cmd_t *k, const SDL_Rect *r);
+/* kestrel_defer_draw.c, on this window */
+static void draw(const cmd_t *k, const SDL_Rect *r) { kestrel_defer_draw(k, r, fb, fw, fh); }
 
 /* Everything recorded so far drawn in full; the rest of the frame draws at once. */
 static void flush(void)
@@ -127,7 +103,7 @@ static Uint32 box_of(int x0, int y0, int x1, int y1)
 static int copy_blends(const cmd_t *k)
 {
     SDL_Rect c = RECT(k->c), s = RECT(k->s);
-    return !kestrel_w8_idempotent(k->tex, &c, &s, k->ox, k->oy, k->stepx, k->stepy);
+    return !kestrel_w8_idempotent(k->tex, &c, &s, LO(k->oxy), HI(k->oxy), k->stepx, k->stepy);
 }
 
 /* k (filled; its box x0..x1, y0..y1 in pixels) joins the frame: compared with last frame's at its position,
@@ -155,7 +131,7 @@ void kestrel_defer_copy(SDL_Texture *t, const SDL_Rect *c, const SDL_Rect *s, in
     cmd_t *k = slot();
     k->kind = C_COPY | (Uint32)t->blend << 4; k->mod = (Uint32)t->mr | (Uint32)t->mg << 8 | (Uint32)t->mb << 16;
     k->serial = t->serial; k->tex = t; k->colour = 0; k->stepx = stepx; k->stepy = stepy; R16(k->c, *c); R16(k->s, *s);
-    k->ox = (Sint16)ox; k->oy = (Sint16)oy;
+    k->oxy = P2(ox, oy);
     commit(k, c->x, c->y, c->x + c->w - 1, c->y + c->h - 1, -1);
 }
 
@@ -181,49 +157,6 @@ void kestrel_defer_line(const SDL_Rect *clip, int x1, int y1, int x2, int y2, Ui
     commit(k, x1 < x2 ? x1 : x2, y1 < y2 ? y1 : y2, x1 < x2 ? x2 : x1, y1 < y2 ? y2 : y1, 0);
 }
 
-/* One command, clipped to r (NULL: everything). The texture's mod and blend are the recorded ones. */
-static void draw(const cmd_t *k, const SDL_Rect *r)
-{
-    SDL_Rect c = RECT(k->c), s = RECT(k->s);
-    SDL_BlendMode m = (SDL_BlendMode)(k->kind >> 4 & 7);
-    if (OP(k) == C_LINE) {
-        SDL_Rect clip = k->kind >> 7 & 1 ? s : (SDL_Rect){ 0, 0, fw, fh };
-        if (r && !kestrel_clip_rect(&clip, NULL, NULL, fw, fh, r)) return;
-        kestrel_w8_line(fb, fw, fh, &clip, c.x, c.y, c.w, c.h, k->colour);
-        return;
-    }
-    int ox = k->ox, oy = k->oy;
-    if (r && !kestrel_clip_rect(&c, &ox, &oy, fw, fh, r)) return;
-    if (OP(k) == C_FILL) { kestrel_w8_fill(fb, fw, &c, k->colour, k->kind >> 8 & 255, m); return; }
-    if (OP(k) == C_CLEAR) { kestrel_w8_fill(fb, fw, &c, k->colour, 255, SDL_BLENDMODE_NONE); return; }
-    SDL_Texture *t = k->tex;
-    Uint8 mr = t->mr, mg = t->mg, mb = t->mb; SDL_BlendMode bl = t->blend;
-    t->mr = (Uint8)k->mod; t->mg = (Uint8)(k->mod >> 8); t->mb = (Uint8)(k->mod >> 16); t->blend = m;
-    kestrel_w8_copy(t, fb, fw, &c, &s, ox, oy, k->stepx, k->stepy);
-    t->mr = mr; t->mg = mg; t->mb = mb; t->blend = bl;
-}
-
-/* Every command replayed into the runs of dirty tiles of the bands it touches. */
-static void replay(void)
-{
-    for (unsigned i = 0; i < ncur; i++) {
-        const cmd_t *k = &cur[i];
-        Uint32 b = k->box;
-        if (b & NONE) continue;
-        Uint32 span = (2u << TX1(b)) - (1u << TX0(b));
-        for (unsigned ty = TY0(b); ty <= TY1(b); ty++) {
-            Uint32 m = dirty[ty] & span;
-            while (m) {
-                int x0 = __builtin_ctz(m), x1 = x0;
-                while (m >> (x1 + 1) & 1) x1++;
-                m &= ~((2u << x1) - (1u << x0));
-                SDL_Rect r = { x0 * TW, ty * TH, (x1 - x0 + 1) * TW, TH };
-                draw(k, &r);
-            }
-        }
-    }
-}
-
 void kestrel_defer_present(void)
 {
     all_drawn = !deferring || immediate;
@@ -236,7 +169,7 @@ void kestrel_defer_present(void)
         dirty[ty] &= cmask;
         band_drawn[ty] = dirty[ty] != 0;
     }
-    if (!immediate) replay();
+    if (!immediate) kestrel_defer_replay(cur, ncur, dirty, fb, fw, fh);
     memset(dirty, 0, sizeof dirty);
     cmd_t *t = prev; prev = cur; cur = t;
     nprev = all_dirty == 2 ? 0 : ncur;
