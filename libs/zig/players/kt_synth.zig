@@ -25,15 +25,21 @@ pub const Synth = struct {
     bus_used: u8 = 0, // buses with an effect on: the others pass their input through
 };
 
+/// What a channel MAY use: a false field is a feature kt_block.zig knows is off for the whole block
+/// (its flag bit only changes at a tick), so its code is left out of that block's loop. The flags
+/// are still tested: `all` is the per-sample path, unchanged.
+pub const Kind = struct { osc: bool = true, fm: bool = true, wave: bool = true, filter: bool = true };
+pub const all: Kind = .{};
+
 /// The oscillators' sum of channel `ch` (cyd_output_channel) plus its
 /// envelope-following wavetable voices.
-inline fn voice(ch: *c.Channel) i32 {
+inline fn voice(ch: *c.Channel, comptime k: Kind) i32 {
     var ovr: i32 = 0;
     ch.sync_bit = 0;
     // No oscillator waveform (a wavetable-only voice): each sub-oscillator would add mid-scale minus
     // mid-scale, 0.
-    if (ch.flags & c.WAVEFORMS & ~c.WAVE == 0) return 0;
-    const mod: u32 = if (ch.flags & c.FM != 0) fm.modulate(&ch.fm) else 0;
+    if (!k.osc or ch.flags & c.WAVEFORMS & ~c.WAVE == 0) return 0;
+    const mod: u32 = if (k.fm and ch.flags & c.FM != 0) fm.modulate(&ch.fm) else 0;
     inline for (&ch.subosc) |*o| {
         if (o.frequency != 0) {
             const acc = (o.accumulator +% mod) % c.ACC_LENGTH;
@@ -44,15 +50,15 @@ inline fn voice(ch: *c.Channel) i32 {
 }
 
 /// A wavetable voice's phase, FM-modulated when the channel has FM.
-inline fn phase(ch: *const c.Channel, e: *const song.WaveEntry, o: *const c.Osc) u32 {
-    return if (ch.flags & c.FM != 0) fm.modulateWave(&ch.fm, e, o.wave.acc) else o.wave.acc;
+inline fn phase(ch: *const c.Channel, e: *const song.WaveEntry, o: *const c.Osc, comptime k: Kind) u32 {
+    return if (k.fm and ch.flags & c.FM != 0) fm.modulateWave(&ch.fm, e, o.wave.acc) else o.wave.acc;
 }
 
 /// The wavetable voices of `ch` (cyd_output's two loops share this).
-inline fn wavetable(ch: *const c.Channel, e: *const song.WaveEntry) i32 {
+inline fn wavetable(ch: *const c.Channel, e: *const song.WaveEntry, comptime k: Kind) i32 {
     var sum: i32 = 0;
     inline for (&ch.subosc) |*o| {
-        if (o.wave.playing and o.wave.frequency != 0) sum +%= wave.sample(&o.wave, e, phase(ch, e, o));
+        if (o.wave.playing and o.wave.frequency != 0) sum +%= wave.sample(&o.wave, e, phase(ch, e, o, k));
     }
     return sum;
 }
@@ -67,22 +73,22 @@ inline fn ringed(sy: *const Synth) u32 {
 }
 
 /// A heard channel's oscillators and wavetable voices, its phases stepped.
-pub inline fn source(ch: *c.Channel) i32 {
-    var s = voice(ch);
+pub inline fn source(ch: *c.Channel, comptime k: Kind) i32 {
+    var s = voice(ch, k);
     osc.advance(ch);
-    if (ch.flags & (c.WAVE | c.WAVE_OVERRIDE_ENV) == c.WAVE) if (ch.wave_entry) |e| {
-        s +%= wavetable(ch, e);
+    if (k.wave and ch.flags & (c.WAVE | c.WAVE_OVERRIDE_ENV) == c.WAVE) if (ch.wave_entry) |e| {
+        s +%= wavetable(ch, e, k);
     };
     return s;
 }
 
 /// A gated channel's envelope, envelope-free wavetable and filter on `input`.
-pub inline fn shaped(ch: *c.Channel, input: i32) i32 {
+pub inline fn shaped(ch: *c.Channel, input: i32, comptime k: Kind) i32 {
     var o = adsr.output(ch.flags, &ch.adsr, input);
-    if (ch.flags & (c.WAVE | c.WAVE_OVERRIDE_ENV) == (c.WAVE | c.WAVE_OVERRIDE_ENV)) if (ch.wave_entry) |e| {
+    if (k.wave and ch.flags & (c.WAVE | c.WAVE_OVERRIDE_ENV) == (c.WAVE | c.WAVE_OVERRIDE_ENV)) if (ch.wave_entry) |e| {
         o +%= wavetableOverride(ch, e);
     };
-    if (ch.flags & c.FILTER != 0) {
+    if (k.filter and ch.flags & c.FILTER != 0) {
         filter.cycle(&ch.flt, o);
         o = filter.output(&ch.flt, ch.flttype);
     }
@@ -90,10 +96,10 @@ pub inline fn shaped(ch: *c.Channel, input: i32) i32 {
 }
 
 /// One channel's envelope, wavetable phases and FM, a sample on.
-pub inline fn cycleOne(rate: u32, ch: *c.Channel) void {
+pub inline fn cycleOne(rate: u32, ch: *c.Channel, comptime k: Kind) void {
     ch.flags = adsr.cycle(rate, ch.flags, ch.ym_env_shape, &ch.adsr);
-    if (ch.flags & c.WAVE != 0) inline for (&ch.subosc) |*o| wave.cycle(&o.wave, ch.wave_entry);
-    if (ch.flags & c.FM != 0) fm.cycle(rate, &ch.fm);
+    if (k.wave and ch.flags & c.WAVE != 0) inline for (&ch.subosc) |*o| wave.cycle(&o.wave, ch.wave_entry);
+    if (k.fm and ch.flags & c.FM != 0) fm.cycle(rate, &ch.fm);
 }
 
 /// cyd_output: this sample's stereo mix (before the /4 and clamp).
@@ -107,7 +113,7 @@ pub fn output(sy: *Synth, left: *i32, right: *i32) void {
             s[i] = 0;
             continue;
         }
-        s[i] = source(ch);
+        s[i] = source(ch, all);
     }
     var l: i32 = 0;
     var r: i32 = 0;
@@ -118,7 +124,7 @@ pub fn output(sy: *Synth, left: *i32, right: *i32) void {
             const m: i32 = if (ch.ring_mod < sy.n) s[ch.ring_mod] else 0;
             input = @divTrunc(input *% (m +% c.WAVE_AMP / 2), c.WAVE_AMP);
         }
-        const o = shaped(ch, input);
+        const o = shaped(ch, input, all);
         const ol = @divTrunc(o *% ch.gain_left, c.STEREO_GAIN);
         const or_ = @divTrunc(o *% ch.gain_right, c.STEREO_GAIN);
         if (ch.flags & c.FX != 0) {
@@ -148,14 +154,14 @@ inline fn wavetableOverride(ch: *const c.Channel, e: *const song.WaveEntry) i32 
     var sum: i32 = 0;
     inline for (&ch.subosc) |*o| {
         if (o.wave.playing and o.wave.frequency != 0)
-            sum +%= @divTrunc(wave.sample(&o.wave, e, phase(ch, e, o)) *% @as(i32, ch.adsr.volume), @as(i32, song.MAX_VOLUME));
+            sum +%= @divTrunc(wave.sample(&o.wave, e, phase(ch, e, o, all)) *% @as(i32, ch.adsr.volume), @as(i32, song.MAX_VOLUME));
     }
     return sum;
 }
 
 /// cyd_cycle: every channel's envelope, wavetable phase and FM, then sync.
 pub fn cycle(sy: *Synth) void {
-    for (sy.chn[0..sy.n]) |*ch| cycleOne(sy.rate, ch);
+    for (sy.chn[0..sy.n]) |*ch| cycleOne(sy.rate, ch, all);
     for (sy.chn[0..sy.n]) |*ch| {
         if (ch.flags & c.SYNC == 0 or ch.sync_source >= sy.n) continue;
         if (sy.chn[ch.sync_source].sync_bit == 0) continue;

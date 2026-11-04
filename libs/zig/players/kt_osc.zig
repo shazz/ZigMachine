@@ -57,22 +57,20 @@ pub inline fn advance(ch: *c.Channel) void {
 }
 
 inline fn step(ch: *c.Channel, o: *c.Osc, comptime first: bool) void {
-    {
-        const prev = o.accumulator;
-        o.accumulator +%= o.frequency;
-        if (first) ch.sync_bit |= o.accumulator & c.ACC_LENGTH;
-        o.accumulator &= c.ACC_LENGTH - 1;
-        if ((prev & (c.ACC_LENGTH / 32)) != (o.accumulator & (c.ACC_LENGTH / 32))) {
-            if (ch.flags & c.METAL != 0) {
-                shift(&o.random, 0xe, 8);
-                o.random &= (1 << (0xe + 1)) - 1;
-            } else {
-                shift(&o.random, 22, 17);
-                o.random &= (1 << (22 + 1)) - 1;
-            }
+    const prev = o.accumulator;
+    o.accumulator +%= o.frequency;
+    if (first) ch.sync_bit |= o.accumulator & c.ACC_LENGTH;
+    o.accumulator &= c.ACC_LENGTH - 1;
+    if ((prev & (c.ACC_LENGTH / 32)) != (o.accumulator & (c.ACC_LENGTH / 32))) {
+        if (ch.flags & c.METAL != 0) {
+            shift(&o.random, 0xe, 8);
+            o.random &= (1 << (0xe + 1)) - 1;
+        } else {
+            shift(&o.random, 22, 17);
+            o.random &= (1 << (22 + 1)) - 1;
         }
-        if (ch.flags & c.LFSR != 0) lfsrStep(ch, o);
     }
+    if (ch.flags & c.LFSR != 0) lfsrStep(ch, o);
 }
 
 inline fn lfsrStep(ch: *c.Channel, o: *c.Osc) void {

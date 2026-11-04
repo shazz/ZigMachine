@@ -29,20 +29,29 @@ pub fn eligible(sy: *const syn.Synth) bool {
     return true;
 }
 
-/// One channel's `n` samples, panned and added into dl/dr (its bus or the dry mix).
-noinline fn channel(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32) void {
+/// One channel's `n` samples, panned and added into dl/dr (its bus or the dry mix): the loop built for
+/// what the channel uses this block (kt_synth.zig Kind), 16 of them.
+fn channel(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32) void {
+    const f = chp.flags;
+    switch (@as(u4, @intFromBool(f & c.WAVEFORMS & ~c.WAVE != 0)) | @as(u4, @intFromBool(f & c.FM != 0)) << 1 |
+        @as(u4, @intFromBool(f & c.WAVE != 0)) << 2 | @as(u4, @intFromBool(f & c.FILTER != 0)) << 3) {
+        inline else => |v| channelK(rate, chp, n, dl, dr, .{ .osc = v & 1 != 0, .fm = v & 2 != 0, .wave = v & 4 != 0, .filter = v & 8 != 0 }),
+    }
+}
+
+noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32, comptime k: syn.Kind) void {
     var ch = chp.*;
     var t: usize = 0;
     while (t < n) : (t += 1) {
         if (ch.flags & c.GATE != 0) {
-            const o = syn.shaped(&ch, syn.source(&ch));
+            const o = syn.shaped(&ch, syn.source(&ch, k), k);
             dl[t] +%= @divTrunc(o *% ch.gain_left, c.STEREO_GAIN);
             dr[t] +%= @divTrunc(o *% ch.gain_right, c.STEREO_GAIN);
         } else {
             ch.sync_bit = 0;
             osc.advance(&ch); // unheard: the phase and noise still move
         }
-        syn.cycleOne(rate, &ch);
+        syn.cycleOne(rate, &ch, k);
     }
     chp.* = ch;
 }
