@@ -1480,3 +1480,45 @@ the glass and its tests look for `BOOT.WSM` on a v2 data disk, so the ports foll
 quits nothing: rebuild the four board firmwares with the carts. pt2's other `askBox` dialogs (CLEAR, the
 sampler's) still hang the cart, as before. The ports harness now also depends on GEM (`docs/demo-gem.wasm`,
 `docs/rom.wasm`).
+
+## 2026-11-03 — True-colour fade: brightness and colour offset in FRESCO's 565 expansion (HW 1.16.0)
+
+**Status:** accepted (feat/tc-fade; Matt, 3 Nov: "I like the hw fade... go for it if it fits!")
+**Context:** On the Falcon a true-colour fade rewrote every pixel, so demos kept to bitplanes. The 1.15.0
+true-colour plane expands each 565 pixel to 888 in FRESCO's painter: that is the place to fade it.
+**Decision:**
+1. *Registers*, the register block's only free bytes: `TC_FADE` u8 x4 at 0x0C (bits 0..4 coefficient, bit 5
+   toward white, 6..7 ignored) and `TC_OFS_R/G/B` i8 x4 at 0x14 / 0x18 / 0x1C, channel-major so each is one
+   aligned u32 word (four planes' bytes) and the RTL stores four words. Reset 0 = the 1.15.0 picture.
+   `ZM_HW_VERSION 0x0001_1000`; no system-table change (no import or export: carts store to registers).
+2. *The rule* (docs/HW_API.md "True-colour fade"), per expanded channel x: `w = c + (c >> 4)` (31 is weight
+   32, full), `y = (x * (32 - w) + 16) >> 5` toward black, the same on the complement toward white
+   (`255 - (((255 - x) * m + 16) >> 5)`: ~x on 8 bits in RTL), then `clamp(y + ofs, 0, 255)`. GBA BLDY's
+   17 levels were the alternative; 32 steps keep a slow fade smooth and cost the same multiplier.
+3. *Per line*: read after the line's handler and copper record (the HSCROLL rule); a copper `REG` may name
+   this plane's four bytes (the value's low byte); another plane's stops the list. The register keeps the
+   value, so the board's firmware copies the four words back with HSCROLL (`vseq_copper_end`).
+4. *RTL*: `zm_video_tcfade.v` (three 8x6 multiplies in DSP48 + the clamp) as a fourth painter stage for every
+   mode; the plane's bytes latched at the paint's start. The register block gets ONE write port for the
+   copper and the snoop (the palette's precedent: the drain rule keeps CPU stores out of a pass): two ports
+   on six words cost +160 LUT.
+5. *The planner* (`cycles/vdrow.h`) carries a true-colour plane's fade in its geometry: a fade moves every
+   pixel and no fetched byte.
+6. *ZigOS*: `fb.setTruecolorFade(coef, .black | .white)`, `fb.setTruecolorOffset(r, g, b)`,
+   `zg.tc.fadeCtl`, `zg.tc.copperReg`. TC TEST key 8 is the example.
+**Bill (OOC synth of `zm_video_comp`, 8 ns, Vivado 2026.1, maxThreads 2):** 2,450 -> **2,589 LUT (+139)**,
+1,961 -> 2,160 FF (+199), 13 -> **16 DSP (+3)**, 15 BRAM, WNS +0.932 -> **+0.908 ns** (the worst path is still
+u_plane's mode -> address, not the fade). Where: u_fade 67 LUT / 3 DSP, the latch and stage +0, u_regs
+386 -> 361 (four more words, one write port), u_cop 637 -> 722 (the REG decode, lanes). Variants measured:
+two write ports 2,776; without the read-back of the four words 2,736; registers only (no copper REG)
+2,575. Board estimate: 15,754 + 139 = 15,893 / 17,600 LUT (90.3 %), DSP 73 / 80.
+**Alternatives considered:** u16 registers per plane (no 16 free contiguous bytes); the fade in the TC
+plane's unused palette entry (free storage and per-line copper PAL already, but palettes left over from
+8-bit modes would fade existing carts); a global fade (copper writes would cross planes, which line-major
+groups on the board order differently from the browser); registers only, no copper REG (measured
+2,575 with the two-port register block; not re-measured with one port).
+**Consequences:** every painter pass is one clock longer (~0.1 % of a line). The board's combo build is
+the real timing check. Tests: `machine/video_tc_fade_test.zig` (every channel x coefficient x direction,
+offsets, the copper REG), `apps/tc_test_check.mjs` key 8 (+3 mutants), vsynth `truecolor` with copper and
+handler fades (coverage `tc_fade`, `tc_fade_per_line`), 11 `tcf_*` RTL mutants, `test_vdirty.py`
+FADE view + `VD_BREAK=FADE`.
