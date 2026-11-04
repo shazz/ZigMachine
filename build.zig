@@ -322,6 +322,15 @@ pub fn build(b: *std.Build) void {
         .target = wasm_target,
         .optimize = optimize,
     });
+    // The klystrack (.kt) core is BARD's heaviest player per sample: its own module, built for
+    // speed where the release build is for size (ReleaseSmall leaves its per-sample helpers as
+    // calls; libs/zig/players/kt_core.zig). The bytes it renders are the same either way.
+    const kt_core_mod = b.createModule(.{
+        .root_source_file = b.path("libs/zig/players/kt_core.zig"),
+        .target = wasm_target,
+        .optimize = if (optimize == .ReleaseSmall) .ReleaseFast else optimize,
+    });
+    if (keep_names) kt_core_mod.strip = false;
     const players_mod = b.createModule(.{
         .root_source_file = b.path("libs/zig/players/players.zig"),
         .target = wasm_target,
@@ -329,6 +338,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "audio_hw", .module = sdk_audio },
             .{ .name = "depackers", .module = depackers_mod },
+            .{ .name = "kt_core", .module = kt_core_mod },
         },
     });
     // The SNDH player needs a 68000, because an SNDH IS 68000 code: Musashi runs

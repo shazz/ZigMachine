@@ -20,8 +20,8 @@
 // a song that does not fit is refused (kt_arena.zig).
 // --------------------------------------------------------------------------
 const audio = @import("audio_hw");
-const core = @import("kt_core.zig");
-const rd = @import("kt_read.zig");
+const core = @import("kt_core"); // its own module, built for speed (build.zig)
+const rd = core.read;
 const ring = @import("xm_ring.zig");
 const chip = @import("xm_chip.zig");
 

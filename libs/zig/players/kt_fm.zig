@@ -38,13 +38,17 @@ inline fn modulator(fm: *const c.Fm) u32 {
         if (length == 0) return 0;
         var acc = fm.wave.acc;
         if (fm.feedback != 0) acc +%= feedback(fm, length);
-        const smp: i64 = wave.sample(&fm.wave, e, modSpan(acc, e));
-        return @truncate(@as(u64, @bitCast(@divTrunc(smp * fm.env_output, 32768) + 65536)));
+        const smp = wave.sample(&fm.wave, e, modSpan(acc, e));
+        // A 16-bit sample times the modulator's envelope (at most 1024 x 255 / 128) fits 32 bits: upstream's
+        // Sint64 product, in the width BARD does in one multiply.
+        if (fm.env_output < 1 << 15) return @bitCast(@divTrunc(smp * @as(i32, @intCast(fm.env_output)), 32768) + 65536);
+        return @truncate(@as(u64, @bitCast(@divTrunc(@as(i64, smp) * fm.env_output, 32768) + 65536)));
     };
     var acc = fm.accumulator;
     if (fm.feedback != 0) acc +%= feedback(fm, c.ACC_LENGTH);
-    const tri: u64 = @as(u32, @bitCast(osc.osc(c.TRIANGLE, acc % c.ACC_LENGTH, 0, 0, 0)));
-    return @truncate(tri * fm.env_output / @as(u32, @intCast(c.WAVE_AMP)) + @as(u32, @intCast(c.WAVE_AMP / 2)));
+    const tri: u32 = @bitCast(osc.osc(c.TRIANGLE, acc % c.ACC_LENGTH, 0, 0, 0)); // < 2^17
+    if (fm.env_output < 1 << 15) return tri * fm.env_output / 65536 + 32768; // < 2^32: upstream's Uint64, in 32
+    return @truncate(@as(u64, tri) * fm.env_output / @as(u32, @intCast(c.WAVE_AMP)) + @as(u32, @intCast(c.WAVE_AMP / 2)));
 }
 
 /// cydfm_cycle: one sample of the modulator.

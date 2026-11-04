@@ -74,17 +74,23 @@ pub fn setCrush(k: *Crush, rate: u32, downsample: i32, bit_drop: i32, dither: i3
 }
 
 inline fn reverb(r: *Reverb, in: i32, l: *i32, rr: *i32) void {
+    // The line and the position in locals: the release build reloads fields it cannot prove unchanged,
+    // and after wasm2c every reload is a load on BARD, each tap and sample.
+    const line = r.line.ptr;
     const size: u32 = @intCast(r.line.len);
-    r.position += 1;
-    if (r.position >= size) r.position = 0;
-    r.line[r.position] = in;
+    var pos = r.position + 1;
+    if (pos >= size) pos = 0;
+    r.position = pos;
+    line[pos] = in;
     var sl: i32 = 0;
     var sr: i32 = 0;
-    for (r.taps[0..r.n_taps]) |t| {
-        const at = if (r.position >= t.delay) r.position - t.delay else r.position + size - t.delay;
-        const v = r.line[at];
-        sl +%= @divTrunc(t.gain_l *% v, 2048);
-        sr +%= @divTrunc(t.gain_r *% v, 2048);
+    for (r.taps[0..r.n_taps]) |*t| {
+        const d = t.delay;
+        const at = if (pos >= d) pos - d else pos + size - d;
+        const v = line[at];
+        const tl = @divTrunc(t.gain_l *% v, 2048);
+        sl +%= tl;
+        sr +%= if (t.gain_r == t.gain_l) tl else @divTrunc(t.gain_r *% v, 2048); // a centred tap: one product
     }
     l.* +%= sl;
     rr.* +%= sr;

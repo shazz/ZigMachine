@@ -7,6 +7,7 @@
 // --------------------------------------------------------------------------
 const s = @import("kt_song.zig");
 const rd = @import("kt_read.zig");
+pub const read = rd; // the refusal codes, for the exports (apps/zig/demo_audio_kt.zig)
 const ld = @import("kt_load.zig");
 const fx = @import("kt_fx.zig");
 const chorus = @import("kt_chorus.zig");

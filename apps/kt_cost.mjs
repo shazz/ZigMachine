@@ -12,6 +12,7 @@ import { readFile } from "node:fs/promises";
 import { instrument } from "./perf/instrument.mjs";
 import { Profile } from "./perf/profile.mjs";
 import { hotRegions } from "./perf/report.mjs";
+import { twinNames } from "./perf/names.mjs";
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const song = process.argv[2];
@@ -40,4 +41,5 @@ for (let f = 0; f < warmup + frames; f++) {
 }
 const avg = series.reduce((x, y) => x + y, 0) / series.length;
 console.log(`${song} row ${row}: est ${(avg / 1e6).toFixed(2)} Mc a frame (${Math.round((100 * avg) / 1.667e6)} % of 1.67), ${frames} frames`);
-for (const h of hotRegions([P], top)) console.log(`  ${h.mc.toFixed(3).padStart(7)} Mc  ${h.func}${h.loop >= 0 ? ` loop@${h.at}` : ""}  x${h.iters}  ${h.cause}`);
+const { src } = twinNames(audioPath, audioPath.replace(/\/[^/]*$/, ""));
+for (const h of hotRegions([P], top)) console.log(`  ${h.mc.toFixed(3).padStart(7)} Mc  ${h.func}${h.loop >= 0 ? ` loop@${h.at}` : ""}  x${h.iters}  ${h.cause}  ${src(parseInt(h.at, 16)) ?? ""}`);
