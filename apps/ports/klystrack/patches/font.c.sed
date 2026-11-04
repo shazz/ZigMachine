@@ -24,5 +24,8 @@ static void inner_write(const Font *font, GfxDomain *dest, const SDL_Rect *r, Ui
 	kestrel_group_end(out, 3);\
 }\
 
+# ...a space (no glyph) keeps a place in the window's list, so a string's draws are as many as its bytes and a
+# change of letters does not move every later draw to another position;
+s/^\t\t\tx += font->space_width;$/\t\t\tx += font->space_width; kestrel_window_nop(dest->renderer);/
 # ...and the label is formatted by kestrel_printf.c (musl's output; the common conversions without its FILE layer).
 s/^\tvsnprintf(formatted, len, text, va);$/\tkestrel_vsnprintf(formatted, len, text, va);/

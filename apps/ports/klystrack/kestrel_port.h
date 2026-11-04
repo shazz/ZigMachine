@@ -11,6 +11,7 @@ void kestrel_log(const char *m);
  * draws when its key (and the renderer's state) did not change (patches/bevel.c.sed, font.c.sed). */
 int kestrel_group_begin(void *renderer, void *texture, const unsigned *key, unsigned n, unsigned *out, unsigned nout);
 void kestrel_group_end(const unsigned *out, unsigned nout);
+void kestrel_window_nop(void *renderer);   /* a space keeps its place (font.c.sed) */
 #include <sys/types.h>
 int kestrel_vsnprintf(char *b, size_t n, const char *fmt, __builtin_va_list va);   /* kestrel_printf.c */
 /* toolutil.c expands "~/" through the password database; the cart has none (no config path uses "~" here). */

@@ -35,6 +35,25 @@ static int last_frames(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
     return i + 1 + len <= kd.nlast ? (int)len : -1;
 }
 
+/* This frame drew fewer commands before this group than last frame did (a string that is gone, a shorter
+ * list): entry i is not a group, but last frame's same group may sit a little further on. Then the entries
+ * between are dropped (their tiles dirty) and last frame's rest moves down to i, so everything after it is
+ * compared with what it really was rather than with whatever now sits at its position. */
+#define RESYNC 256
+static void resync(unsigned i, Uint32 kind, const Uint32 *w, unsigned n)
+{
+    if (i >= kd.nlast || kd.stale || OP(&kd.list[i]) == C_GROUP) return;   /* a group in place: a real change */
+    for (unsigned j = i + 1; j < kd.nlast && j <= i + RESYNC; j++) {
+        const cmd_t *p = &kd.list[j];
+        if (p->kind != kind || p->mod != n || p->colour + n > kd.na || words_differ(kd.arena + p->colour, w, n)) continue;
+        if (j + 1 + LEN(p->box) > kd.nlast) return;
+        for (unsigned q = i; q < j; q++) kd_mark(&kd.list[q]);
+        memmove(&kd.list[i], &kd.list[j], (kd.nlast - j) * sizeof(cmd_t));
+        kd.nlast -= j - i;
+        return;
+    }
+}
+
 int kestrel_defer_group_begin(int can, const Uint32 *w, unsigned n, Uint32 *out, unsigned nout)
 {
     if (depth++ || !can || !kd.deferring || kd.immediate || !kd.list) return 0;
@@ -43,6 +62,7 @@ int kestrel_defer_group_begin(int can, const Uint32 *w, unsigned n, Uint32 *out,
     Uint32 kind = C_GROUP | nout << 16;
     cmd_t *g = &kd.list[i];
     int len = last_frames(i, kind, w, n);
+    if (len < 0) { resync(i, kind, w, n); len = last_frames(i, kind, w, n); }
     if (len >= 0) {                                         /* the same: its commands and key stay as they are */
         const Uint32 *po = kd.arena + g->colour + n;
         for (unsigned j = 0; j < nout; j++) out[j] = po[j];
@@ -52,9 +72,13 @@ int kestrel_defer_group_begin(int can, const Uint32 *w, unsigned n, Uint32 *out,
         depth--;
         return 1;
     }
-    if (a + n + nout > KD_ARENA) return 0;                    /* full: drawn as plain commands */
+    /* The group it replaces leaves its arena room to it when that is big enough (a string with other
+     * letters, a bevel moved): only a longer key is appended, and the arena hardly grows. */
+    if (i < kd.nlast && !kd.stale && OP(g) == C_GROUP && g->mod + (g->kind >> 16) >= n + nout && g->colour + g->mod <= kd.na)
+        a = g->colour;
+    else if (a + n + nout > KD_ARENA) return 0;               /* full: drawn as plain commands */
+    else kd.na = a + n + nout;
     memcpy(kd.arena + a, w, n * 4);
-    kd.na = a + n + nout;
     if (i < kd.nlast) kd_mark(g);                            /* replaced, as any entry */
     memset(g, 0, sizeof *g);
     g->kind = kind; g->mod = n; g->colour = a; g->box = NONE;

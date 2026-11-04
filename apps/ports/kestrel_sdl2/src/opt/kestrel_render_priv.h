@@ -50,6 +50,7 @@ void kestrel_w8_line(Uint8 *fb, int w, int h, const SDL_Rect *clip, int x1, int 
 void kestrel_w8_copy(SDL_Texture *tex, Uint8 *fb, int w, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy,
                      Uint32 stepx, Uint32 stepy);
 
+int kestrel_w8_unscaled(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int sx, int sy, Uint32 mod, SDL_BlendMode m);
 int kestrel_w8_idempotent(SDL_Texture *tex, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy);
 
 /* kestrel_defer.c: the window's drawing recorded, replayed at the present only where it changed. */
@@ -59,7 +60,8 @@ void kestrel_defer_fill(const SDL_Rect *d, Uint32 c, unsigned a, SDL_BlendMode m
 void kestrel_defer_clear(Uint32 c);
 void kestrel_defer_line(const SDL_Rect *clip, int x1, int y1, int x2, int y2, Uint32 c);
 void kestrel_defer_present(void);
-int kestrel_defer_row_changed(int y);
+void kestrel_defer_nop(void);
+Uint32 kestrel_defer_row_cols(int y);
 void kestrel_texture_touched(SDL_Texture *t);   /* before a texture's pixels change or it is freed */
 
 /* kestrel_plane.c */

@@ -8,7 +8,9 @@
 #define TH 8
 #define COLS (400 / TW)
 #define ROWS ((280 + TH - 1) / TH)
-enum { C_COPY, C_FILL, C_CLEAR, C_LINE, C_GROUP, C_KEY, C_OUT };   /* GROUP/KEY/OUT draw nothing */
+/* GROUP and NOP draw nothing. A NOP holds the place of a call that drew nothing (clipped away, a space): every
+ * call keeps one entry, so a frame whose calls are last frame's keeps every entry at its position. */
+enum { C_COPY, C_FILL, C_CLEAR, C_LINE, C_GROUP, C_NOP };
 
 typedef struct {
     Uint32 kind;                        /* op | blend << 4 | has_clip << 7 | alpha << 8: one word (clang merges

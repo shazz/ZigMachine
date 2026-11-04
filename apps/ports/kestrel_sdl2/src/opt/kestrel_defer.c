@@ -32,14 +32,15 @@ static int all_dirty = 1, no_list;
 static int busy;                        /* inside a call that holds pointers into the list */
 static unsigned wait;                   /* presents until the list is (re)allocated; 0: not waiting */
 static int let_go;                      /* the heap took it back: ask for room to spare first */
-static Uint8 band_drawn[ROWS];          /* the last present replayed something in this 8-line band */
+static Uint32 band_drawn[ROWS];         /* the 16-pixel columns the last present replayed in each 8-line band */
 static int all_drawn = 1;               /* ...or drew everything (immediate, not deferring) */
 static unsigned serials;
 static cmd_t scratch;                   /* the command being made */
 #define NEED(n) ((size_t)(n) * sizeof(cmd_t) + KD_ARENA * 4)
 
-/* For kestrel_plane.c: 0 when window row y is certainly what the last present showed. */
-int kestrel_defer_row_changed(int y) { return all_drawn || y / TH >= ROWS || band_drawn[y / TH]; }
+/* For kestrel_plane.c: the 16-pixel columns of window row y that may differ from what the last present showed
+ * (bit x: pixels 16x .. 16x+15). */
+Uint32 kestrel_defer_row_cols(int y) { return all_drawn || y / TH >= ROWS ? ~0u : band_drawn[y / TH]; }
 
 /* The list (4,096, else 3,072 commands) at the END of the largest free block (a pad takes its start for the
  * time of the malloc): let go, it joins the free space the next allocations leave before it, so a song's
@@ -202,6 +203,16 @@ void kestrel_defer_line(const SDL_Rect *clip, int x1, int y1, int x2, int y2, Ui
     busy--;
 }
 
+void kestrel_defer_nop(void)
+{
+    busy++;
+    cmd_t *k = &scratch;
+    memset(k, 0, sizeof *k);
+    k->kind = C_NOP;
+    commit(1, 1, 0, 0, 0);                                  /* an empty box: no tile */
+    busy--;
+}
+
 void kestrel_defer_present(void)
 {
     all_drawn = !kd.deferring || kd.immediate;
@@ -213,7 +224,7 @@ void kestrel_defer_present(void)
         if (all_dirty) dirty[ty] = ~0u;
         if (kd.immediate) dirty[ty] = 0;                              /* already drawn in full */
         dirty[ty] &= cmask;
-        band_drawn[ty] = dirty[ty] != 0;
+        band_drawn[ty] = dirty[ty];
     }
     if (!kd.immediate) kestrel_defer_replay(kd.list, kd.n, dirty, fb, fw, fh);
     memset(dirty, 0, sizeof dirty);

@@ -140,6 +140,31 @@ static void copy_general8(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, c
     }
 }
 
+/* The replay's common case (kestrel_defer_draw.c): an unscaled copy of indexed art whose map has no blending
+ * entry, source (sx, sy) inside the texture, mod (r | g << 8 | b << 16) and blend the recorded ones. The rows
+ * straight through the map, the texture's own mod untouched unless the map must be rebuilt. 0: not this case. */
+int kestrel_w8_unscaled(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int sx, int sy, Uint32 mod, SDL_BlendMode m)
+{
+    if (!t->idx || sx < 0 || sy < 0 || sx + c->w > t->w || sy + c->h > t->h) return 0;
+    Uint32 key = (mod & 255) << 16 | (mod & 0xFF00) | (mod >> 16 & 255) | (Uint32)m << 24;
+    if (!t->gmap || t->gkey != key || t->ggen != kestrel_pal_gen) {
+        Uint8 mr = t->mr, mg = t->mg, mb = t->mb; SDL_BlendMode bl = t->blend;
+        t->mr = (Uint8)mod; t->mg = (Uint8)(mod >> 8); t->mb = (Uint8)(mod >> 16); t->blend = m;
+        const Uint16 *ok = window_map(t);
+        t->mr = mr; t->mg = mg; t->mb = mb; t->blend = bl;
+        if (!ok) return 0;
+    }
+    if (t->gpart || (!t->gall && !t->g8)) return 0;
+    const Uint16 *map = t->gmap;
+    const Uint8 *m8 = (const Uint8 *)(map + 256), *src = t->idx + sy * t->w + sx;
+    Uint8 *dst = fb + c->y * w + c->x;
+    for (int y = 0; y < c->h; y++, src += t->w, dst += w) {
+        if (t->gall) for (int x = 0; x < c->w; x++) dst[x] = (Uint8)map[src[x]];
+        else for (int x = 0; x < c->w; x++) { Uint8 v = m8[src[x]]; if (v != 255) dst[x] = v; }
+    }
+    return 1;
+}
+
 /* 1 when drawing this copy twice leaves what drawing it once does (an indexed texture, the source inside it,
  * no texel that blends): kestrel_defer.c may then skip a tile whose commands did not change. */
 int kestrel_w8_idempotent(SDL_Texture *t, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)

@@ -19,6 +19,7 @@ void kestrel_defer_draw(const cmd_t *k, const SDL_Rect *r, Uint8 *fb, int fw, in
     if (OP(k) == C_FILL) { kestrel_w8_fill(fb, fw, &c, k->colour, k->kind >> 8 & 255, m); return; }
     if (OP(k) == C_CLEAR) { kestrel_w8_fill(fb, fw, &c, k->colour, 255, SDL_BLENDMODE_NONE); return; }
     SDL_Texture *t = k->tex;
+    if (k->stepx == 0x10000u && k->stepy == 0x10000u && kestrel_w8_unscaled(t, fb, fw, &c, s.x + ox, s.y + oy, k->mod, m)) return;
     Uint8 mr = t->mr, mg = t->mg, mb = t->mb; SDL_BlendMode bl = t->blend;
     t->mr = (Uint8)k->mod; t->mg = (Uint8)(k->mod >> 8); t->mb = (Uint8)(k->mod >> 16); t->blend = m;
     kestrel_w8_copy(t, fb, fw, &c, &s, ox, oy, k->stepx, k->stepy);
@@ -33,6 +34,9 @@ void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Ui
         Uint32 b = k->box;
         if (b & NONE) continue;
         Uint32 span = (2u << TX1(b)) - (1u << TX0(b));
+        unsigned whole = 1;                                 /* every tile it touches dirty: drawn once, unclipped */
+        for (unsigned ty = TY0(b); ty <= TY1(b) && whole; ty++) whole = (dirty[ty] & span) == span;
+        if (whole) { kestrel_defer_draw(k, NULL, fb, fw, fh); continue; }
         for (unsigned ty = TY0(b); ty <= TY1(b); ty++) {
             Uint32 m = dirty[ty] & span;
             while (m) {

@@ -120,13 +120,17 @@ static int copy_changed(const Uint8 *from, int w, int h, int all)
 {
     int diff = 0;
     for (int y = 0; y < h; y++) {
-        if (!all && !kestrel_defer_row_changed(y)) continue;    /* nothing was drawn there */
+        Uint32 cols = all ? ~0u : kestrel_defer_row_cols(y);   /* 16-pixel columns drawn there */
+        if (!cols) continue;
         Uint8 *dst = vbase + OFF_VRAM + (oy + y) * pw + ox;
         if (((ox | w) & 3) == 0) {
             const Uint32 *s = (const Uint32 *)(const void *)(from + y * w);
             Uint32 *o = (Uint32 *)(void *)(shown + y * w), *d = (Uint32 *)(void *)dst;
-            for (int x = 0; x < w >> 2; x++)
-                if (all || s[x] != o[x]) { o[x] = s[x]; d[x] = s[x]; diff = 1; }
+            for (int x0 = 0; x0 < w >> 2; x0 += 4) {
+                if (x0 < 128 && !(cols >> (x0 >> 2) & 1)) continue;
+                for (int x = x0; x < x0 + 4 && x < w >> 2; x++)
+                    if (all || s[x] != o[x]) { o[x] = s[x]; d[x] = s[x]; diff = 1; }
+            }
             continue;
         }
         for (int x = 0; x < w; x++)

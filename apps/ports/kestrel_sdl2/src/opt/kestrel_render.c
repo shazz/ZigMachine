@@ -389,7 +389,7 @@ int SDL_RenderFillRect(SDL_Renderer *r, const SDL_Rect *rect)
 {
     tgt_t t = target_of(r);
     SDL_Rect d = rect ? (SDL_Rect){ rect->x + r->vx, rect->y + r->vy, rect->w, rect->h } : (SDL_Rect){ r->vx, r->vy, t.w, t.h };
-    if (!kestrel_clip_rect(&d, NULL, NULL, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
+    if (!kestrel_clip_rect(&d, NULL, NULL, t.w, t.h, r->clip_on ? &r->clip : NULL)) { if (!t.px) kestrel_defer_nop(); return 0; }
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
     if (!t.px) { kestrel_defer_fill(&d, c, r->da, r->draw_blend); return 0; }
     int opaque = r->draw_blend == SDL_BLENDMODE_NONE || (r->draw_blend == SDL_BLENDMODE_BLEND && r->da == 255);
@@ -475,6 +475,13 @@ static int copy_indexed(SDL_Texture *tex, tgt_t t, const SDL_Rect *c, const SDL_
 
 /* The window's case of SDL_RenderCopy below, which klystron makes ~2,500 times a repaint (glyphs, bevel
  * pieces), unscaled almost always: the same rectangles, without the general target and the divides. */
+/* For klystron's patches (kestrel_port.h): a call that draws nothing keeps its place in the window's list. */
+void kestrel_window_nop(void *renderer)
+{
+    SDL_Renderer *r = renderer;
+    if (r && !r->surface && !(r->target && r->target->px)) kestrel_defer_nop();
+}
+
 /* For kestrel_defer_group.c: 1 when r draws into the window, with what its draws depend on (viewport, clip). */
 int kestrel_window_state(SDL_Renderer *r, Uint32 w[4])
 {
@@ -489,11 +496,11 @@ static int window_copy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, co
 {
     SDL_Rect s = sr ? *sr : (SDL_Rect){ 0, 0, tex->w, tex->h };
     SDL_Rect c = dr ? (SDL_Rect){ dr->x + r->vx, dr->y + r->vy, dr->w, dr->h } : (SDL_Rect){ r->vx, r->vy, r->fw, r->fh };
-    if (s.w <= 0 || s.h <= 0 || c.w <= 0 || c.h <= 0) return 0;
+    if (s.w <= 0 || s.h <= 0 || c.w <= 0 || c.h <= 0) { kestrel_defer_nop(); return 0; }
     Uint32 stepx = s.w == c.w ? 0x10000u : ((Uint32)s.w << 16) / (Uint32)c.w;
     Uint32 stepy = s.h == c.h ? 0x10000u : ((Uint32)s.h << 16) / (Uint32)c.h;
     int ox = 0, oy = 0;
-    if (!kestrel_clip_rect(&c, &ox, &oy, r->fw, r->fh, r->clip_on ? &r->clip : NULL)) return 0;
+    if (!kestrel_clip_rect(&c, &ox, &oy, r->fw, r->fh, r->clip_on ? &r->clip : NULL)) { kestrel_defer_nop(); return 0; }
     kestrel_defer_copy(tex, &c, &s, ox, oy, stepx, stepy);
     return 0;
 }
