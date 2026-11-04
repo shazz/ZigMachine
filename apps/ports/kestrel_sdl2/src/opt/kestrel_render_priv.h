@@ -10,7 +10,8 @@
 struct SDL_Texture {
     int w, h, access; Uint32 *px; Uint8 *idx; Uint32 *pal; Uint8 mr, mg, mb; SDL_BlendMode blend;
     int npal; Uint32 *mpal; Uint8 pmr, pmg, pmb;
-    Uint16 *gmap; Uint32 gkey; unsigned ggen; int gall;
+    Uint16 *gmap; Uint32 gkey; unsigned ggen; int gall, gpart;
+    unsigned serial;                    /* new for each content (kestrel_texture_touched): the defer hash's name */
 };
 
 /* The same blend as SDL's software renderer (d = destination, s = source ARGB, a = its alpha). */
@@ -48,6 +49,18 @@ void kestrel_w8_fill(Uint8 *fb, int w, const SDL_Rect *d, Uint32 c, unsigned a, 
 void kestrel_w8_line(Uint8 *fb, int w, int h, const SDL_Rect *clip, int x1, int y1, int x2, int y2, Uint32 c);
 void kestrel_w8_copy(SDL_Texture *tex, Uint8 *fb, int w, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy,
                      Uint32 stepx, Uint32 stepy);
+
+int kestrel_w8_idempotent(SDL_Texture *tex, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy);
+
+/* kestrel_defer.c: the window's drawing recorded, replayed at the present only where it changed. */
+void kestrel_defer_target(Uint8 *fb, int w, int h);
+void kestrel_defer_copy(SDL_Texture *t, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy);
+void kestrel_defer_fill(const SDL_Rect *d, Uint32 c, unsigned a, SDL_BlendMode m);
+void kestrel_defer_clear(Uint32 c);
+void kestrel_defer_line(const SDL_Rect *clip, int x1, int y1, int x2, int y2, Uint32 c);
+void kestrel_defer_present(void);
+int kestrel_defer_row_changed(int y);
+void kestrel_texture_touched(SDL_Texture *t);   /* before a texture's pixels change or it is freed */
 
 /* kestrel_plane.c */
 void kestrel_plane_present8(const Uint8 *src, int w, int h);

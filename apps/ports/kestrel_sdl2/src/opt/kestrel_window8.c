@@ -62,7 +62,7 @@ static const Uint16 *window_map(SDL_Texture *t)
     const Uint32 *pal = kestrel_mod_palette(t);
     if (!pal || (!t->gmap && !(t->gmap = malloc(256 * sizeof *t->gmap)))) return NULL;
     do {
-        t->ggen = kestrel_pal_gen; t->gall = 1;
+        t->ggen = kestrel_pal_gen; t->gall = 1; t->gpart = 0;
         for (int i = 0; i < t->npal; i++) {
             Uint32 p = pal[i];
             unsigned a = p >> 24;
@@ -70,6 +70,7 @@ static const Uint16 *window_map(SDL_Texture *t)
             if (t->blend == SDL_BLENDMODE_NONE || (t->blend == SDL_BLENDMODE_BLEND && a == 255)) v = kestrel_colour_index(p);
             else v = a ? PART : SKIP;
             if (v > 255) t->gall = 0;
+            if (v == PART) t->gpart = 1;
             t->gmap[i] = v;
         }
     } while (t->ggen != kestrel_pal_gen);           /* a compaction while building: the early entries are stale */
@@ -130,6 +131,17 @@ static void copy_general8(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, c
             dp[x] = t->blend == SDL_BLENDMODE_NONE ? index_of(p) : blend8(dp[x], p, a, t->blend);
         }
     }
+}
+
+/* 1 when drawing this copy twice leaves what drawing it once does (an indexed texture, the source inside it,
+ * no texel that blends): kestrel_defer.c may then skip a tile whose commands did not change. */
+int kestrel_w8_idempotent(SDL_Texture *t, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)
+{
+    if (!t->idx) return 0;
+    int tx0 = (int)(((Uint32)ox * stepx) >> 16) + s->x, tx1 = (int)(((Uint32)(ox + c->w - 1) * stepx) >> 16) + s->x;
+    int ty0 = (int)(((Uint32)oy * stepy) >> 16) + s->y, ty1 = (int)(((Uint32)(oy + c->h - 1) * stepy) >> 16) + s->y;
+    if (tx0 < 0 || ty0 < 0 || tx1 >= t->w || ty1 >= t->h) return 0;
+    return window_map(t) && !t->gpart;
 }
 
 void kestrel_w8_copy(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)

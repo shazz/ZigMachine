@@ -120,6 +120,7 @@ static int copy_changed(const Uint8 *from, int w, int h, int all)
 {
     int diff = 0;
     for (int y = 0; y < h; y++) {
+        if (!all && !kestrel_defer_row_changed(y)) continue;    /* nothing was drawn there */
         Uint8 *dst = vbase + OFF_VRAM + (oy + y) * pw + ox;
         if (((ox | w) & 3) == 0) {
             const Uint32 *s = (const Uint32 *)(const void *)(from + y * w);

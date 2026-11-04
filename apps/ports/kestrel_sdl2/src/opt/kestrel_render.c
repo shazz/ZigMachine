@@ -213,6 +213,7 @@ SDL_Texture *SDL_CreateTexture(SDL_Renderer *r, Uint32 format, int access, int w
     t->px = calloc((size_t)w * (size_t)h, 4);
     if (!t->px) { free(t); return NULL; }
     t->w = w; t->h = h; t->access = access; t->mr = t->mg = t->mb = 255; t->blend = SDL_BLENDMODE_NONE;
+    kestrel_texture_touched(t);
     return t;
 }
 
@@ -267,6 +268,7 @@ SDL_Texture *SDL_CreateTextureFromSurface(SDL_Renderer *r, SDL_Surface *s)
     SDL_Texture *t = calloc(1, sizeof *t);
     if (!t) return NULL;
     t->w = s->w; t->h = s->h; t->access = SDL_TEXTUREACCESS_STATIC; t->mr = t->mg = t->mb = 255;
+    kestrel_texture_touched(t);
     t->blend = KS(s)->has_key || KS(s)->blend == SDL_BLENDMODE_BLEND ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE;
     if (make_indexed(t, s)) return t;
     t->px = malloc((size_t)s->w * (size_t)s->h * 4);
@@ -274,12 +276,13 @@ SDL_Texture *SDL_CreateTextureFromSurface(SDL_Renderer *r, SDL_Surface *s)
     for (int y = 0; y < s->h; y++) for (int x = 0; x < s->w; x++) t->px[y * t->w + x] = surf_value(s, x, y);
     return t;
 }
-void SDL_DestroyTexture(SDL_Texture *t) { if (t) { free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t->gmap); free(t); } }
+void SDL_DestroyTexture(SDL_Texture *t) { if (t) { kestrel_texture_touched(t); free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t->gmap); free(t); } }
 int SDL_SetTextureBlendMode(SDL_Texture *t, SDL_BlendMode m) { if (!t) return -1; t->blend = m; return 0; }
 int SDL_SetTextureColorMod(SDL_Texture *t, Uint8 r, Uint8 g, Uint8 b) { if (!t) return -1; t->mr = r; t->mg = g; t->mb = b; return 0; }
 int SDL_SetTextureScaleMode(SDL_Texture *t, SDL_ScaleMode m) { (void)t; (void)m; return 0; }
 int SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *rect, const void *px, int pitch)
 {
+    kestrel_texture_touched(t);
     if (!t->px) {                                   /* an indexed texture being written: back to ARGB first */
         Uint32 *argb = malloc((size_t)t->w * (size_t)t->h * 4);
         if (!argb) return -1;
@@ -322,6 +325,7 @@ SDL_Renderer *SDL_CreateRenderer(SDL_Window *w, int index, Uint32 flags)
     if (!r->fb8) { free(r); return NULL; }
     r->fw = ww; r->fh = hh; r->da = 255;
     kestrel_palette_track(KPAL_WINDOW, r->fb8, (unsigned)(ww * hh));
+    kestrel_defer_target(r->fb8, ww, hh);
     return r;
 }
 SDL_Renderer *SDL_CreateSoftwareRenderer(SDL_Surface *s)
@@ -335,7 +339,7 @@ SDL_Renderer *SDL_CreateSoftwareRenderer(SDL_Surface *s)
 void SDL_DestroyRenderer(SDL_Renderer *r)
 {
     if (!r) return;
-    if (r->fb8) kestrel_palette_track(KPAL_WINDOW, NULL, 0);
+    if (r->fb8) { kestrel_palette_track(KPAL_WINDOW, NULL, 0); kestrel_defer_target(NULL, 0, 0); }
     free(r->fb8);
     free(r);
 }
@@ -350,7 +354,7 @@ int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info)
     info->max_texture_width = info->max_texture_height = 4096;
     return 0;
 }
-int SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { r->target = t; r->clip_on = 0; r->vx = r->vy = 0; return 0; }
+int SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { if (t) kestrel_texture_touched(t); r->target = t; r->clip_on = 0; r->vx = r->vy = 0; return 0; }
 int SDL_RenderSetViewport(SDL_Renderer *r, const SDL_Rect *v) { r->vx = v ? v->x : 0; r->vy = v ? v->y : 0; return 0; }
 int SDL_RenderSetScale(SDL_Renderer *r, float sx, float sy)
 {
@@ -376,7 +380,7 @@ int SDL_RenderClear(SDL_Renderer *r)
 {
     tgt_t t = target_of(r);
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
-    if (!t.px) { kestrel_w8_clear(r->fb8, t.w, t.h, c); return 0; }
+    if (!t.px) { kestrel_defer_clear(c); return 0; }
     for (int y = 0; y < t.h; y++) for (int x = 0; x < t.w; x++) t.px[y * t.pitch + x] = c;
     return 0;
 }
@@ -387,7 +391,7 @@ int SDL_RenderFillRect(SDL_Renderer *r, const SDL_Rect *rect)
     SDL_Rect d = rect ? (SDL_Rect){ rect->x + r->vx, rect->y + r->vy, rect->w, rect->h } : (SDL_Rect){ r->vx, r->vy, t.w, t.h };
     if (!kestrel_clip_rect(&d, NULL, NULL, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
-    if (!t.px) { kestrel_w8_fill(r->fb8, t.w, &d, c, r->da, r->draw_blend); return 0; }
+    if (!t.px) { kestrel_defer_fill(&d, c, r->da, r->draw_blend); return 0; }
     int opaque = r->draw_blend == SDL_BLENDMODE_NONE || (r->draw_blend == SDL_BLENDMODE_BLEND && r->da == 255);
     for (int y = d.y; y < d.y + d.h; y++) {
         Uint32 *p = t.px + y * t.pitch + d.x;
@@ -402,7 +406,7 @@ int SDL_RenderDrawLine(SDL_Renderer *r, int x1, int y1, int x2, int y2)
     tgt_t t = target_of(r);
     Uint32 c = 0xFF000000u | (Uint32)r->dr << 16 | (Uint32)r->dg << 8 | r->db;
     x1 += r->vx; x2 += r->vx; y1 += r->vy; y2 += r->vy;
-    if (!t.px) { kestrel_w8_line(r->fb8, t.w, t.h, r->clip_on ? &r->clip : NULL, x1, y1, x2, y2, c); return 0; }
+    if (!t.px) { kestrel_defer_line(r->clip_on ? &r->clip : NULL, x1, y1, x2, y2, c); return 0; }
     int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1, dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1, err = dx + dy;
     for (;;) {
         int in = x1 >= 0 && y1 >= 0 && x1 < t.w && y1 < t.h;
@@ -482,7 +486,7 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
     SDL_Rect c = d;
     int ox = 0, oy = 0;
     if (!kestrel_clip_rect(&c, &ox, &oy, t.w, t.h, r->clip_on ? &r->clip : NULL)) return 0;
-    if (!t.px) { kestrel_w8_copy(tex, r->fb8, t.w, &c, &s, ox, oy, stepx, stepy); return 0; }
+    if (!t.px) { kestrel_defer_copy(tex, &c, &s, ox, oy, stepx, stepy); return 0; }
     if (tex->idx && copy_indexed(tex, t, &c, &s, ox, oy, stepx, stepy)) return 0;
     int mod = tex->mr != 255 || tex->mg != 255 || tex->mb != 255;
     for (int y = 0; y < c.h; y++) {
@@ -508,6 +512,7 @@ int SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *sr, const 
 void SDL_RenderPresent(SDL_Renderer *r)
 {
     if (r->surface || r->target) return;    /* software / texture targets have nothing to show */
+    kestrel_defer_present();
     kestrel_plane_present8(r->fb8, r->fw, r->fh);
     if (kestrel_present_hook) kestrel_present_hook();
 }
