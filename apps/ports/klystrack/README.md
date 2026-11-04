@@ -231,6 +231,46 @@ From round 1's board reading (a repaint ~0.66x the estimate), a playing repaint 
 ~4.8 Mc on the board: ~20 fps. A row change (~1 in 4 repaints at Starport2's speed) still redraws the pattern
 view's text (~1,500 glyph copies); what is left there is pixels, not calls.
 
+## Round 3 (perf/klystrack-ui-3, 4 Nov 2026)
+
+Round 2 on the board: 5 fps for ~5 s after loading, then 60 idle; 15 fps while playing (and while moving the
+pointer or opening a menu as it plays). What a frame redraws, from `make EXTRA=-DKESTREL_DEFER_STATS`
+(`kestrel_defer.c` logs the last present every 30; off in the shipped cart), STARPRT2 playing:
+
+| a present | entries | stored | groups reused / drawn | commands replayed | px idx / ARGB / fill | dirty tiles (of 600) | plane words stored |
+|---|---|---|---|---|---|---|---|
+| a tick between rows | ~3,200 | 0 | ~540 / 0 | ~90 | ~2,800 / 2,016 / 6,912 | 27 | 0 (the VU unchanged) to a few hundred |
+| a row change | ~3,250 | ~700 | ~190 / ~400 | ~1,100-1,300 | ~37,000 / 2,016 / ~74,000 | ~310 | ~1,800-2,400 |
+
+So neither the whole window nor the pointer is redrawn: between rows the present replays the VU meter
+(2,016 ARGB px, BLEND) and ~90 small commands, and stores almost nothing; the pointer is a save-under
+rectangle. What a repaint still costs is klystron itself: every view handler re-run and every label
+formatted 30 times a second (pattern_view2, printf, the strings' group keys built and compared), ~0.9 M rv32
+instructions over ~51 KB of code (the I$ term is ~60 % of the estimate). A row change redraws the pattern
+view's text: ~400 strings drawn again (~2,500 glyph calls recorded) and ~1,200 commands replayed.
+
+frame_cost est (Mc):
+
+| | round 2 (main 5e44a51b) | round 3 |
+|---|---|---|
+| a repaint while playing, median | 5.92 | **4.86** |
+| a repaint on a row change (worst) | 14.31 | **13.79** |
+| menu open, pointer moving (a repaint a frame) | 3.87 | **3.21** |
+| idle, pointer moving every frame | 0.74 | 0.74 |
+| load: frame 1 (boot) | 191 | 181 |
+| load: frames 2-60 / 61-140 (summed) | 362 / 215 | **124 / 58** |
+
+The load: cyd mixed 2.2 s of exact silence before it could rest (~2.2 Mc a frame for 132 frames, under the 15
+settling repaints); at boot nothing has sounded, so it now starts at rest (`kestrel_sdl.c`; cyd's own LFO/chorus
+phases no longer advance through those 2.2 s, which only a keyjazz note on cyd could hear). The repaints: group
+keys compared where they are, a group's commands skipped whole at the replay when none of its tiles is dirty,
+the VU's ARGB copy without per-pixel tests. The same pixels: the six `HASHES` scenarios equal main's.
+
+30 fps playing is not reached: at the board's speed about every other repaint is a row change, so the mean
+repaint is ~(4.9 + 13.8) / 2 ~ 9 est. Getting there needs klystron-level work: skipping view handlers whose
+inputs did not change (pattern view between rows, instrument and song panes), and the pattern view's scroll
+drawn as a row copy plus one new row rather than ~400 strings again.
+
 ## What's left
 
 - In the browser, Ctrl+O / Ctrl+S are also browser shortcuts; whether the loader swallows them for a cart that

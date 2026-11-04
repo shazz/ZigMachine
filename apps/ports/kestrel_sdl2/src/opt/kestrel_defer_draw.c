@@ -5,6 +5,7 @@
 /* One command, clipped to r (NULL: everything). The texture's mod and blend are the recorded ones. */
 void kestrel_defer_draw(const cmd_t *k, const SDL_Rect *r, Uint8 *fb, int fw, int fh)
 {
+    KD_STAT(draws, 1);
     if (OP(k) >= C_GROUP) return;                           /* a group's GROUP / KEY / OUT: no pixels */
     SDL_Rect c = RECT(k->c), s = RECT(k->s);
     SDL_BlendMode m = (SDL_BlendMode)(k->kind >> 4 & 7);

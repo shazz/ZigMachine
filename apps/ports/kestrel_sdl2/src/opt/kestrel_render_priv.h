@@ -64,6 +64,20 @@ void kestrel_defer_nop(void);
 Uint32 kestrel_defer_row_cols(int y);
 void kestrel_texture_touched(SDL_Texture *t);   /* before a texture's pixels change or it is freed */
 
+/* -DKESTREL_DEFER_STATS: what each present redrew, logged every 30 presents by kestrel_defer.c (off in the
+ * shipped cart). entries: the frame's list; stored: entries that differed from last frame's; ghit/gmiss:
+ * groups reused / drawn; resync: lists realigned; draws: commands replayed (clipped pieces counted);
+ * px_idx/px_argb/px_fill: pixels drawn by indexed copies, ARGB copies, fills; tiles: dirty 16x8 tiles;
+ * words: plane words stored by the present. */
+#ifdef KESTREL_DEFER_STATS
+typedef struct { unsigned entries, stored, ghit, gmiss, resync, draws, px_idx, px_argb, px_fill, tiles, words; } kd_stats_t;
+extern kd_stats_t kd_stats;
+#define KD_STAT(f, v) (kd_stats.f += (unsigned)(v))
+void kestrel_defer_stats_log(void);   /* at the end of a present */
+#else
+#define KD_STAT(f, v) ((void)0)
+#endif
+
 /* kestrel_plane.c */
 void kestrel_plane_present8(const Uint8 *src, int w, int h);
 #endif

@@ -30,6 +30,7 @@ void kestrel_w8_clear(Uint8 *fb, int w, int h, Uint32 c) { memset(fb, index_of(c
 void kestrel_w8_fill(Uint8 *fb, int w, const SDL_Rect *d, Uint32 c, unsigned a, SDL_BlendMode m)
 {
     int opaque = m == SDL_BLENDMODE_NONE || (m == SDL_BLENDMODE_BLEND && a == 255);
+    KD_STAT(px_fill, d->w * d->h);
     Uint8 i = opaque ? index_of(c) : 0;
     for (int y = d->y; y < d->y + d->h; y++) {
         Uint8 *p = fb + y * w + d->x;
@@ -126,6 +127,7 @@ static int copy_argb_plain(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, 
 {
     if (!t->px || t->blend != SDL_BLENDMODE_BLEND || t->mr != 255 || t->mg != 255 || t->mb != 255) return 0;
     if (sx < 0 || sy < 0 || sx + c->w > t->w || sy + c->h > t->h) return 0;
+    KD_STAT(px_argb, c->w * c->h);
     const Uint32 *src = t->px + sy * t->w + sx;
     Uint8 *dp = fb + c->y * w + c->x;
     for (int y = 0; y < c->h; y++, src += t->w, dp += w)
@@ -175,6 +177,7 @@ int kestrel_w8_unscaled(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int
         if (!ok) return 0;
     }
     if (t->gpart || (!t->gall && !t->g8)) return 0;
+    KD_STAT(px_idx, c->w * c->h);
     const Uint16 *map = t->gmap;
     const Uint8 *m8 = (const Uint8 *)(map + 256), *src = t->idx + sy * t->w + sx;
     Uint8 *dst = fb + c->y * w + c->x;

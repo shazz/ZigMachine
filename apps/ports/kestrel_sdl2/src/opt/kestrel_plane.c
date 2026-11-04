@@ -129,7 +129,7 @@ static int copy_changed(const Uint8 *from, int w, int h, int all)
             for (int x0 = 0; x0 < w >> 2; x0 += 4) {
                 if (x0 < 128 && !(cols >> (x0 >> 2) & 1)) continue;
                 for (int x = x0; x < x0 + 4 && x < w >> 2; x++)
-                    if (all || s[x] != o[x]) { o[x] = s[x]; d[x] = s[x]; diff = 1; }
+                    if (all || s[x] != o[x]) { o[x] = s[x]; d[x] = s[x]; diff = 1; KD_STAT(words, 1); }
             }
             continue;
         }
@@ -184,4 +184,7 @@ void kestrel_plane_present8(const Uint8 *src, int w, int h)
     full = 0;
     kestrel_palette_compacted = 0;
     kestrel_palette_presented();
+#ifdef KESTREL_DEFER_STATS
+    kestrel_defer_stats_log();
+#endif
 }

@@ -58,6 +58,7 @@ static void resync(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
         if (j + 1 + LEN(p->box) > kd.nlast) return;
         for (unsigned q = i; q < j; q++) kd_mark(&kd.list[q]);
         memmove(&kd.list[i], &kd.list[j], (kd.nlast - j) * sizeof(cmd_t));
+        KD_STAT(resync, 1);
         kd.nlast -= j - i;
         return;
     }
@@ -73,6 +74,7 @@ static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout)
     cmd_t *g = &kd.list[i];
     int len = last_frames(i, kind, w, n);
     if (len < 0) { resync(i, kind, w, n); len = last_frames(i, kind, w, n); }
+    if (len >= 0) KD_STAT(ghit, 1); else KD_STAT(gmiss, 1);
     if (len >= 0) {                                         /* the same: its commands and key stay as they are */
         const Uint32 *po = kd.arena + g->colour + n;
         for (unsigned j = 0; j < nout; j++) out[j] = po[j];

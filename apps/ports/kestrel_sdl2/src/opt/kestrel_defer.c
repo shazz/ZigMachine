@@ -156,6 +156,7 @@ static void commit(int x0, int y0, int x1, int y1, int blends)
         if (kd.n < kd.nlast) kd_mark(e);
         kd_mark(k);
         *e = *k;
+        KD_STAT(stored, 1);
     }
     kd.n++;
     if (kd.immediate) draw(e, NULL);
@@ -213,8 +214,26 @@ void kestrel_defer_nop(void)
     busy--;
 }
 
+#ifdef KESTREL_DEFER_STATS
+kd_stats_t kd_stats;
+int snprintf(char *, unsigned long, const char *, ...);
+void kestrel_defer_stats_log(void)
+{
+    static unsigned presents;
+    if (++presents % 30 == 0) {
+        char b[200];
+        snprintf(b, sizeof b, "defer: entries %u stored %u groups %u/%u resync %u draws %u px idx %u argb %u fill %u tiles %u words %u",
+                 kd_stats.entries, kd_stats.stored, kd_stats.ghit, kd_stats.gmiss, kd_stats.resync, kd_stats.draws,
+                 kd_stats.px_idx, kd_stats.px_argb, kd_stats.px_fill, kd_stats.tiles, kd_stats.words);
+        kestrel_log(b);
+    }
+    memset(&kd_stats, 0, sizeof kd_stats);
+}
+#endif
+
 void kestrel_defer_present(void)
 {
+    KD_STAT(entries, kd.n);
     all_drawn = !kd.deferring || kd.immediate;
     if (!kd.deferring) { take_list(); return; }
     busy++;
@@ -225,6 +244,7 @@ void kestrel_defer_present(void)
         if (kd.immediate) dirty[ty] = 0;                              /* already drawn in full */
         dirty[ty] &= cmask;
         band_drawn[ty] = dirty[ty];
+        KD_STAT(tiles, __builtin_popcount(dirty[ty]));
     }
     if (!kd.immediate) kestrel_defer_replay(kd.list, kd.n, dirty, fb, fw, fh);
     memset(dirty, 0, sizeof dirty);
