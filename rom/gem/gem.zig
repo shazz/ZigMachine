@@ -18,6 +18,9 @@ const desktop = @import("desktop/desktop.zig");
 pub const Action = desktop.Action;
 pub const Desktop = desktop.Desktop;
 pub const setDrive = @import("desktop/desk_icons.zig").setDrive;
+pub const setDriveC = @import("desktop/desk_icons.zig").setDriveC; // KOS's C: (docs/KOS_FAT.md F5)
+pub const driveOfUnit = @import("desktop/deskdrive.zig").ofUnit;
+pub const DirModel = @import("desktop/dirmodel.zig").DirModel;
 // The FAT record layout the host packs into Desktop.disk_dir. Published
 // because the ROM clamps against it and the host must derive its own cap
 // from it rather than mirroring the number (see deskDirCap).

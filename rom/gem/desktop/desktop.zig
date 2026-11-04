@@ -9,7 +9,7 @@
 //   deskdraw.zig   the scene: desktop, windows, drag ghosts, zoom-box
 //   deskmenu.zig   the menu bar and the dialogs it opens
 //   deskops.zig    the File / Options commands those menus run
-//   desk_icons.zig desktop icons: select / drag / open
+//   desk_icons.zig desktop icons: select / drag / open; deskdrive.zig A: and C: (KOS)
 // --------------------------------------------------------------------------
 const zsrc = @import("zigos");
 const gui = @import("../gui.zig");
@@ -21,6 +21,7 @@ const info_mod = @import("info.zig");
 const icon_mod = @import("icon.zig");
 const deskinf = @import("deskinf.zig");
 const dirmodel = @import("dirmodel.zig");
+const deskdrive = @import("deskdrive.zig");
 const desk_icons = @import("desk_icons.zig");
 const deskwin = @import("deskwin.zig");
 const desksel = @import("desksel.zig");
@@ -43,15 +44,17 @@ pub const Desktop = struct {
     wm: gui.Wm = .{},
     dlg: gui.Dialog = .{},
     next_win: Rect = .{ .x = desk_icons.WIN_X0, .y = desk_icons.WIN_Y0, .w = desk_icons.WIN_W, .h = desk_icons.WIN_H },
-    // No app icon: GEM is generic. A mounted app-disk (e.g. ST Replay) turns the
-    // FLOPPY icon into that app's launcher — see disk_app + desk_icons.openIcon.
-    // Positions are set on the desktop grid in init() — see placeDefaultIcons.
-    items: [2]Icon = .{
+    // No app icon: GEM is generic. A mounted app-disk (e.g. ST Replay) turns the FLOPPY icon into
+    // that app's launcher (disk_app + desk_icons.openIcon); init() places them (placeDefaultIcons).
+    items: [3]Icon = .{
         .{ .x = 0, .y = 0, .bmp = icons.FLOPPY, .label = "FLOPPY DISK", .is_app = false },
         .{ .x = 0, .y = 0, .bmp = icons.TRASH, .label = "TRASH", .is_app = false },
+        .{ .x = 0, .y = 0, .bmp = icons.HARD, .label = "SD CARD", .is_app = false }, // KOS's C:, shown once it mounts
     },
     disk_app: bool = false, // a disk is in drive A (host sets it): its icon shows only then (KOS)
-    dir: dirmodel.DirModel = .{}, // the mounted disk's FAT (host-filled) + in-RAM folders
+    drives: [2]dirmodel.DirModel = .{ .{}, .{} }, // A: (host-filled FAT + in-RAM folders), C: (KOS F5)
+    dir: *dirmodel.DirModel = undefined, // drives[drv.cur], the drive in focus (deskdrive.zig): init() sets it
+    drv: deskdrive.State = .{},
     launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
     // WHICH program. -1 = "the disk's app" (the FLOPPY icon acting as a launcher,
     // which names no file), resolved by launchName() to the first program on the
@@ -115,8 +118,7 @@ pub const Desktop = struct {
         self.sel_files = 0;
         self.sel_folders = 0;
         self.sel_folder = -1;
-        self.dir.n_folders = 0; // the disk's FAT is the host's; folders are ours
-        self.dir.new_seq = 0;
+        deskdrive.reset(self); // the disk's FAT is the host's; folders are ours
         self.win_dir = [_]i16{deskwin.WIN_NONE} ** gui.MAX_WIN;
         desk_icons.placeDefaultIcons(self);
         self.applyBg(); // paint the desktop palette with the configured background
@@ -140,9 +142,9 @@ pub const Desktop = struct {
         var action: Action = .none;
         const modal = self.isModal();
         const menu_open = self.menubar.open >= 0;
-        // Windows sit above icons and take input first; a press the windows (or
-        // an open drop-down menu) consumed never reaches the icons.
+        // Windows take input before icons: a press they (or an open menu) consumed never reaches them.
         const consumed = !modal and self.wm.handle(g);
+        deskdrive.focusTop(self); // the top window's drive (KOS F5): the press may have raised another
         const busy = modal or consumed or menu_open or self.wm.drag != null or self.wm.resize != null or deskwin.overWindow(self);
         // A native double-click (routed via requestOpenAt) opens/launches now.
         if (self.pending_open >= 0) {
@@ -159,10 +161,9 @@ pub const Desktop = struct {
         return action;
     }
 
-    // The program a .launch action refers to. Empty when the disk holds none, so
-    // the caller can report "no program on this disk" instead of booting nothing.
+    // The program a .launch action refers to; empty when the disk holds none (no boot of nothing).
     pub fn launchName(self: *const Desktop) []const u8 {
-        return self.dir.launchName(self.launch_file);
+        return self.drives[0].launchName(self.launch_file); // only drive A launches: C: is data (KOS F5)
     }
 
     pub fn setPointer(self: *Desktop, x: i32, y: i32, buttons: u32) void {

@@ -33,10 +33,15 @@ pub fn showInfo(d: *Desktop) void {
         const f: u8 = @intCast(d.sel_file);
         d.info.openFile(d.dir.name(f), d.dir.size(f), d.dir.date(f), false);
     } else if (d.sel_icon == desk_icons.IC_FLOPPY) {
-        const used = d.dir.usedBytes(); // DISK INFORMATION for drive A: (ref: real TOS)
+        const a = &d.drives[0];
+        const used = a.usedBytes(); // DISK INFORMATION for drive A: (ref: real TOS)
         const cap: u32 = 726528; // a 3.5" DS floppy
-        d.info.openDisk(@intCast(d.dir.folderCount(dirmodel.ROOT)), d.dir.n_disk, used, if (cap > used) cap - used else 0);
+        d.info.openDisk(@intCast(a.folderCount(dirmodel.ROOT)), a.n_disk, used, if (cap > used) cap - used else 0);
         d.info.source = d.items[desk_icons.IC_FLOPPY].label; // KOS: FLOPPY or SD IMAGE
+    } else if (d.sel_icon == desk_icons.IC_HARD) {
+        const c = &d.drives[1]; // KOS's C: (F5): what the model holds of the card, its free space unknown
+        d.info.openDisk(@intCast(c.folderCount(dirmodel.ROOT)), c.n_disk, c.usedBytes(), 0);
+        d.info.source = d.items[desk_icons.IC_HARD].label;
     } else if (d.sel_icon >= 0) {
         d.dlg.alert(d.items[@intCast(d.sel_icon)].label, "Kind: Desktop icon");
     }
@@ -91,7 +96,7 @@ pub fn saveDesktop(d: *Desktop) void {
         .trash = .{ .col = trash.cellCol(), .row = trash.cellRow(), .label = trash.label },
         .wins = open_wins[0..n],
     });
-    if (!d.dir.put(deskinf.NAME, @intCast(text.len)))
+    if (!d.drives[0].put(deskinf.NAME, @intCast(text.len))) // on the boot disk, A:
         d.dlg.alert("Cannot save the desktop.", "The disk directory is full.");
 }
 

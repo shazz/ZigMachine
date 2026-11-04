@@ -11,6 +11,7 @@ const dirview = @import("dirview.zig");
 const deskwin = @import("deskwin.zig");
 const desksel = @import("desksel.zig");
 const desk_icons = @import("desk_icons.zig");
+const deskdrive = @import("deskdrive.zig");
 const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 
@@ -22,11 +23,14 @@ pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
         const drop_hot = i == desk_icons.IC_TRASH and d.file_drag >= 0 and it.hitAt(@intCast(g.px), @intCast(g.py));
         it.draw(g, d.sel_icon == @as(i16, @intCast(i)) or drop_hot);
     }
+    const focus = d.drv.cur;
+    defer deskdrive.use(d, focus); // the drag ghosts and the next frame read the focused drive
     var i: usize = 0;
     while (i < d.wm.n) : (i += 1) {
         const id = d.wm.order[i];
         if (!d.wm.wins[id].open) continue;
         const is_dir = deskwin.isFloppyWin(d, id);
+        if (is_dir) deskdrive.use(d, d.drv.win[id]); // KOS F5: A:'s or C:'s model
         if (is_dir) deskwin.updateChrome(d, id); // info line + scroll state
         const v = if (is_dir) deskwin.viewOf(d, id) else undefined;
         _ = d.wm.drawChrome(g, id, id == d.wm.topOpen());

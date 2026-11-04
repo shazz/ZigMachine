@@ -85,7 +85,7 @@ pub fn openFolderWindow(d: *Desktop, fidx: u8) void {
 pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
     // A directory that has been open before reopens exactly where it was;
     // a new one takes the next cascade slot.
-    const saved = d.win_geom[geomSlot(dir)];
+    const saved = if (d.drv.cur == 0) d.win_geom[geomSlot(dir)] else Rect{ .x = 0, .y = 0, .w = 0, .h = 0 }; // C:'s: no memory (KOS F5)
     const remembered = saved.w > 0;
     var r = if (remembered) saved else d.next_win;
     // The default width is sized for the TOS text columns, which is as wide as
@@ -101,6 +101,7 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
         return;
     };
     d.win_dir[id] = dir;
+    d.drv.win[id] = d.drv.cur; // the drive in focus: the icon opened, or the folder's window's
     d.sel_icon = -1; // the window, not the icon, is now the selection
     // Freeze the icon grid at the width the window OPENS with; resizing then
     // scrolls the same layout instead of re-flowing it.
@@ -127,8 +128,9 @@ pub fn shrinkClosed(d: *Desktop) void {
     const id = d.wm.takeClosed() orelse return;
     const r = d.wm.wins[id].r;
     // Remember where this directory's window was before it goes away.
-    if (isFloppyWin(d, id)) d.win_geom[geomSlot(d.win_dir[id])] = r;
-    const to = if (isFloppyWin(d, id)) d.items[desk_icons.IC_FLOPPY].rect() else Rect{ .x = r.x, .y = r.y, .w = 0, .h = 0 };
+    const c = d.drv.win[id] == 1; // KOS's C: (F5)
+    if (isFloppyWin(d, id) and !c) d.win_geom[geomSlot(d.win_dir[id])] = r;
+    const to = if (isFloppyWin(d, id)) d.items[if (c) desk_icons.IC_HARD else desk_icons.IC_FLOPPY].rect() else Rect{ .x = r.x, .y = r.y, .w = 0, .h = 0 };
     deskdraw.startGrow(d, r, to);
 }
 

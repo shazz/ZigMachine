@@ -11,11 +11,13 @@ const dirmodel = @import("dirmodel.zig");
 const dirview = @import("dirview.zig");
 const deskwin = @import("deskwin.zig");
 const desksel = @import("desksel.zig");
+const deskdrive = @import("deskdrive.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
 pub const IC_FLOPPY = 0;
 pub const IC_TRASH = 1;
+pub const IC_HARD = 2; // KOS's C: (docs/KOS_FAT.md F5), under drive A
 
 // Disk windows: first one here, each further one cascaded right + down.
 pub const WIN_X0: i16 = 24;
@@ -30,6 +32,7 @@ const CASCADE_DY: i16 = 12;
 pub fn placeDefaultIcons(d: *Desktop) void {
     const rows = @divTrunc(d.g.screen_h - icon.GRID_Y0, icon.CELL_H);
     d.items[IC_FLOPPY].place(0, 0, d.g.screen_w, d.g.screen_h);
+    d.items[IC_HARD].place(0, 1, d.g.screen_w, d.g.screen_h);
     d.items[IC_TRASH].place(0, rows - 1, d.g.screen_w, d.g.screen_h);
 }
 
@@ -44,9 +47,20 @@ pub fn setDrive(d: *Desktop, present: u32) void {
     if (!d.disk_app and d.drag == IC_FLOPPY) d.drag = null;
 }
 
-/// An icon on the desktop now: the drive only with a disk in.
+/// KOS's C: (F5): the shell read the SD card (1) or could not (0: no icon, as no disk in A).
+pub fn setDriveC(d: *Desktop, present: u32) void {
+    d.drv.c_mounted = present != 0;
+    if (!d.drv.c_mounted and d.sel_icon == IC_HARD) d.sel_icon = -1;
+    if (!d.drv.c_mounted and d.drag == IC_HARD) d.drag = null;
+}
+
+/// An icon on the desktop now: drive A only with a disk in, C: only once it mounted.
 pub fn shown(d: *const Desktop, i: usize) bool {
-    return i != IC_FLOPPY or d.disk_app;
+    return switch (i) {
+        IC_FLOPPY => d.disk_app,
+        IC_HARD => d.drv.c_mounted,
+        else => true,
+    };
 }
 
 // Keep icons on-screen (called when the resolution/screen width changes).
@@ -106,6 +120,7 @@ pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
 pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     if (d.dlg.active) return;
     d.drag = null; // the double-click's presses armed a drag — a double-click is not a drag
+    deskdrive.focusTop(d); // the top window's drive (KOS F5): its hit-test reads that model
     d.open_src = .{ .x = @as(i16, @intCast(x)) - 16, .y = @as(i16, @intCast(y)) - 12, .w = 32, .h = 24 }; // zoom-box origin
     // Windows sit above the desktop: an item inside the top FLOPPY/folder window
     // opens first. A program launches; a folder opens in its own window.
@@ -131,7 +146,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
         d.sel_icon = @intCast(i);
         // Route FLOPPY through render too, so openIcon can decide launch-vs-window
         // (an app-disk turns FLOPPY into the app launcher).
-        if (it.is_app or i == IC_FLOPPY or i == IC_TRASH) {
+        if (it.is_app or i == IC_FLOPPY or i == IC_TRASH or i == IC_HARD) {
             d.pending_open = @intCast(i); // resolved in render() -> openIcon()
         }
         return;
@@ -144,6 +159,9 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
         action.* = .launch;
     } else if (di == IC_FLOPPY) {
         openFloppy(d); // opens a window listing the disk's FAT (files inside open the app)
+    } else if (di == IC_HARD) {
+        deskdrive.use(d, deskdrive.C); // C:\ and its folders' windows are C:'s
+        deskwin.addFloppyWindow(d, "C:\\", dirmodel.ROOT);
     } else if (di == IC_TRASH) {
         // The trash is a drop target, not a container — TOS says so verbatim.
         d.dlg.alertLines(&.{
@@ -160,6 +178,7 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
 // cascaded right + down from the previous, wrapping back when it would leave
 // the screen. Over the cap, GEM raises the "no more windows" alert.
 pub fn openFloppy(d: *Desktop) void {
+    deskdrive.use(d, deskdrive.A);
     if (deskwin.rootEmpty(d)) { // no disk/cart loaded -> GEM error alert
         d.dlg.alert("Drive A: is empty.", "Insert a disk and try again.");
         return;

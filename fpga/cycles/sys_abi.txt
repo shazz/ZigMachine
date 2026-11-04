@@ -1,7 +1,7 @@
 # fpga/cycles/sys_abi.txt: the KESTREL system table and cart header (decisions.md 2026-10-15).
 # GENERATED and checked by fpga/tools/sys_abi.py (build.sh runs --check): never edit by hand;
 # `python3 fpga/tools/sys_abi.py --update` rewrites it and bumps the version.
-version 1.8
+version 1.9
 const CART_IMG_AT 0x300000
 const CART_HDR_MAGIC 0x41434d5a
 const CART_HDR_VERSION_AT 0x4
@@ -179,6 +179,11 @@ env hostPaulaWrite host void(u32,u32)
 env deskFatFolder rom u32(u32,u32,u32,u32)
 env deskFatReset rom void()
 env kosDriveRead host u32(u32,u32,u32,u32)
+env deskDriveDirPtr rom u32(u32)
+env deskDriveFolder rom u32(u32,u32,u32,u32,u32)
+env deskDriveReset rom void(u32)
+env deskDriveSetFileCount rom void(u32,u32)
+env deskSetDriveC rom void(u32)
 history 1.0 fa4a662ec3dc87d5
 history 1.1 64a7d6a3302c9dbe
 history 1.2 a9e177eac3ffafb8
@@ -188,3 +193,4 @@ history 1.5 d4e2cc791b3ed1b9
 history 1.6 8ae87dad8517ad78
 history 1.7 4ce47a346acfa8b1
 history 1.8 2c751ca4d9c71a84
+history 1.9 4b1c79d4b84fe5a5

@@ -508,11 +508,11 @@ export fn deskSetDiskApp(present: u32) void {
 /// the same shared memory it always wrote to.
 export fn deskDirPtr() u32 {
     if (!desk_ready) return 0;
-    return @intCast(@intFromPtr(&desk.dir.disk_dir));
+    return @intCast(@intFromPtr(&desk.drives[0].disk_dir));
 }
 /// The FAT buffer's size in BYTES, so the host can size its write.
 export fn deskDirCap() u32 {
-    return @intCast(desk.dir.disk_dir.len);
+    return @intCast(desk.drives[0].disk_dir.len);
 }
 /// Its capacity in RECORDS, and the record size — so the host derives its cap and
 /// its struct stride from the ROM instead of mirroring both as literals.
@@ -539,18 +539,10 @@ export fn deskLaunchName(out: u32, out_cap: u32) u32 {
 /// with rom/kos/fat.zig and fills the model itself: first the reset, then each folder (its index
 /// back, or -1 when full), then the files through deskDirPtr / deskSetFileCount.
 export fn deskFatReset() void {
-    if (!desk_ready) return;
-    desk.dir.n_disk = 0;
-    desk.dir.n_folders = 0;
+    deskDriveReset(0);
 }
 export fn deskFatFolder(parent: i32, name: u32, len: u32, cluster: u32) i32 {
-    if (!desk_ready or name == 0 or parent < -1 or parent >= desk.dir.n_folders) return -1;
-    const n = desk.dir.n_folders;
-    const ptr: [*]const u8 = @ptrFromInt(name);
-    desk.dir.addFolder(@intCast(parent), ptr[0..@min(len, 12)]);
-    if (desk.dir.n_folders == n) return -1;
-    desk.dir.folders[n].cluster = cluster;
-    return n;
+    return deskDriveFolder(0, parent, name, len, cluster);
 }
 export fn deskSetFileCount(n: u32) void {
     // Clamp by the RECORD SIZE, not by 17. disk_dir is MAX_FILES * FILE_ENT bytes
@@ -558,7 +550,42 @@ export fn deskSetFileCount(n: u32) void {
     // and diskName() slices it unchecked in ReleaseSmall. Only ever masked because
     // the host happens to cap at 12 with a literal of its own — which is exactly
     // why the cap is published as deskDirCap() for the host to derive.
-    if (desk_ready) desk.dir.n_disk = @intCast(@min(n, gem.MAX_FILES));
+    deskDriveSetFileCount(0, n);
+}
+
+// KOS's C: (docs/KOS_FAT.md F5): the same model calls for a unit (0 drive A, 2 C:), appended so
+// drive A's keep their meaning (sys_abi minor); the shell reads the SD card through its own
+// env.kosDriveRead and fills C:'s model with these, then says whether it mounted.
+fn driveModel(unit: u32) ?*gem.DirModel {
+    if (!desk_ready) return null;
+    return &desk.drives[gem.driveOfUnit(unit) orelse return null];
+}
+export fn deskDriveDirPtr(unit: u32) u32 {
+    const m = driveModel(unit) orelse return 0;
+    return @intCast(@intFromPtr(&m.disk_dir));
+}
+export fn deskDriveSetFileCount(unit: u32, n: u32) void {
+    // Clamp by the RECORD SIZE, not by 17: disk_dir is MAX_FILES records (see deskDirCap).
+    if (driveModel(unit)) |m| m.n_disk = @intCast(@min(n, gem.MAX_FILES));
+}
+export fn deskDriveReset(unit: u32) void {
+    const m = driveModel(unit) orelse return;
+    m.n_disk = 0;
+    m.n_folders = 0;
+}
+export fn deskDriveFolder(unit: u32, parent: i32, name: u32, len: u32, cluster: u32) i32 {
+    const m = driveModel(unit) orelse return -1;
+    if (name == 0 or parent < -1 or parent >= m.n_folders) return -1;
+    const n = m.n_folders;
+    const ptr: [*]const u8 = @ptrFromInt(name);
+    m.addFolder(@intCast(parent), ptr[0..@min(len, 12)]);
+    if (m.n_folders == n) return -1;
+    m.folders[n].cluster = cluster;
+    return n;
+}
+/// C: mounted (1: its icon shows) or not (0).
+export fn deskSetDriveC(present: u32) void {
+    if (desk_ready) gem.setDriveC(&desk, present);
 }
 
 inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {

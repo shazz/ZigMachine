@@ -131,6 +131,12 @@ pub extern fn deskSetFileCount(n: u32) void;
 pub extern fn deskFatReset() void;
 pub extern fn deskFatFolder(parent: i32, name: u32, len: u32, cluster: u32) i32;
 pub extern fn deskLaunchName(out: u32, out_cap: u32) u32;
+// KOS's C: (docs/KOS_FAT.md F5): the model calls for a unit (0 drive A, 2 C:), and C:'s icon.
+pub extern fn deskDriveDirPtr(unit: u32) u32;
+pub extern fn deskDriveSetFileCount(unit: u32, n: u32) void;
+pub extern fn deskDriveReset(unit: u32) void;
+pub extern fn deskDriveFolder(unit: u32, parent: i32, name: u32, len: u32, cluster: u32) i32;
+pub extern fn deskSetDriveC(present: u32) void;
 
 /// The desktop, as a shell cart drives it.
 pub const Desktop = struct {
@@ -177,6 +183,24 @@ pub const Desktop = struct {
     pub fn fatFolder(parent: i32, name: []const u8, cluster: u32) ?u8 {
         const i = deskFatFolder(parent, @intCast(@intFromPtr(name.ptr)), @intCast(name.len), cluster);
         return if (i < 0) null else @intCast(i);
+    }
+    /// The same for a unit's model (KOS F5: 0 drive A, 2 C:): reset, folders, the records, their count.
+    pub fn driveReset(unit: u32) void {
+        deskDriveReset(unit);
+    }
+    pub fn driveFolder(unit: u32, parent: i32, name: []const u8, cluster: u32) ?u8 {
+        const i = deskDriveFolder(unit, parent, @intCast(@intFromPtr(name.ptr)), @intCast(name.len), cluster);
+        return if (i < 0) null else @intCast(i);
+    }
+    pub fn driveDirPtr(unit: u32) [*]u8 {
+        return @ptrFromInt(deskDriveDirPtr(unit));
+    }
+    pub fn driveSetFileCount(unit: u32, n: u32) void {
+        deskDriveSetFileCount(unit, n);
+    }
+    /// C: mounted (its icon shows) or not.
+    pub fn setDriveC(present: bool) void {
+        deskSetDriveC(@intFromBool(present));
     }
     /// Fills `out` with the program a .launch refers to; empty if the disk has none.
     pub fn launchName(out: []u8) []const u8 {

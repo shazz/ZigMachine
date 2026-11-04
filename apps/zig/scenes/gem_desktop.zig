@@ -47,6 +47,7 @@ pub const Demo = struct {
         // re-binds. So the order here is: configure the plane, bind, then set the res.
         rom.Desktop.initPlane(PLANE, 640, 200);
         self.applyDeskRes();
+        _ = @import("gem_fat.zig").loadC(); // KOS's C: (docs/KOS_FAT.md F5): the SD card, if a host serves it
     }
 
     // GEM binds its own keys, so the host must forward rather than interpret.
