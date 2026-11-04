@@ -7,6 +7,7 @@ const zg = @import("zigos");
 const arena = @import("arena.zig");
 const fx = @import("fx.zig");
 const scr = @import("screen.zig");
+const FLASH_INDEX: u8 = 253; // the flames' palettes use 0, their colours from 1, 255 white
 const blobs = @import("blobs.zig");
 const text = @import("text.zig");
 const ship = @import("ship.zig");
@@ -52,6 +53,7 @@ pub const Show = struct {
     frames50: u32 = 0, // the greetings' frame counter (a Falcon frame = a tick)
     smeared: bool = false, // 825 works once (the Falcon's state $16)
     ticked: bool = false, // a 50 Hz tick ran since the last frame (the feedback passes run at the Falcon's rate)
+    on8: bool = false, // the flames' 8-bit plane is the one up: a flash draws there
     clear_frames: u8 = 0, // the ball-oid after a flash: both buffers cleared first (it only clears its box)
 
     pub fn init(os: *zg.ZigOS) Show {
@@ -73,6 +75,11 @@ pub const Show = struct {
         self.painted = 0;
         self.part_was = self.part;
         self.part = e.part;
+        switch (e.part) {
+            .flames => self.on8 = true,
+            .white, .white_band, .grey_flash, .hold => {},
+            else => self.on8 = false,
+        }
         // Parts with their own state word make the next blob command re-init its variant.
         switch (e.part) {
             .blobs, .hold, .grey_flash, .white, .white_band => {},
@@ -161,6 +168,13 @@ pub const Show = struct {
     // On the Falcon the flashes cover the whole raster, border included (the border shows the
     // Videl's colour 0 next to the true-colour picture): here the machine's BACKGROUND register,
     // one store, only when the colour changes.
+    fn rgbaOf(c: u16) u32 {
+        const r: u32 = (c >> 11) * 255 / 31;
+        const g: u32 = ((c >> 5) & 63) * 255 / 63;
+        const b: u32 = (c & 31) * 255 / 31;
+        return 0xFF00_0000 | b << 16 | g << 8 | r;
+    }
+
     fn setBorder(self: *Show, c: u16) void {
         if (c == self.border) return;
         self.border = c;
@@ -170,12 +184,39 @@ pub const Show = struct {
         self.os.setBackgroundColor(.{ .r = r, .g = g, .b = b, .a = 255 });
     }
 
-    pub fn render(self: *Show) void {
-        self.setBorder(switch (self.part) {
+    // The flashes (823 white, 824 white, 81A/81B the grey ramp): the colour this frame, or null.
+    fn flashColour(self: *const Show) ?u16 {
+        return switch (self.part) {
             .white, .white_band => 0xFFFF,
             .grey_flash => accents.grey(self.flash.i),
-            else => 0,
-        });
+            else => null,
+        };
+    }
+
+    // EVERY flash goes through here: the whole raster in one colour, the screen and the border
+    // together (the Falcon's flash covers both: the border shows its colour 0). The screen side
+    // stays on the plane that is up: on the flames' 8-bit plane, one palette entry filled once and
+    // then only recoloured (a store a frame, no double-buffer frame of lag behind the border); on
+    // the true-colour plane, a fill. 824 fills the 200 lines too: its letterbox-only band left a
+    // black frame inside the white border.
+    fn drawFlash(self: *Show, c: u16) void {
+        self.setBorder(c);
+        const first = self.painted == 0;
+        self.painted +|= 1;
+        if (self.on8) {
+            const p8 = self.screen.eightBit(self.planes, true);
+            p8.palette[FLASH_INDEX] = rgbaOf(c);
+            if (first) @memset(p8.fb[0 .. scr.W * scr.H], FLASH_INDEX);
+            return;
+        }
+        _ = self.screen.eightBit(self.planes, false);
+        self.screen.back().fill(c);
+        self.screen.flip();
+    }
+
+    pub fn render(self: *Show) void {
+        if (self.flashColour()) |c| return self.drawFlash(c);
+        self.setBorder(0);
         const p8 = self.screen.eightBit(self.planes, self.part == .flames);
         if (self.part == .flames) return self.flame.draw(p8);
         const fb = self.screen.back();
@@ -193,20 +234,11 @@ pub const Show = struct {
                 if (still) return self.screen.commit();
                 fb.fill(0);
             },
-            .white => {
-                if (still) return self.screen.commit();
-                accents.white(fb, 0, scr.H);
-            },
-            .white_band => {
-                if (still) return self.screen.commit();
-                fb.fill(0); // over the flames' letterbox (they were on the other plane)
-                accents.white(fb, 25, 175);
-            },
+            .white, .white_band, .grey_flash => unreachable, // drawFlash
             .ship => {
                 if (still) return self.screen.commit();
                 ship.paint(fb, self.font);
             },
-            .grey_flash => self.flash.draw(fb),
             .noise => self.noise.draw(fb),
             .blobs => self.blob.draw(fb),
             .blob_fade => self.fade.draw(fb),
