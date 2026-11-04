@@ -1,6 +1,6 @@
 # KOS FAT: real floppies in drive A, the SD card as C:
 
-Status: **F1-F4 built, 31 Oct 2026; F3b (a floppy program's own board image) 4 Nov** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); F5 (C:) to come. As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
+Status: **F1-F4 built, 31 Oct 2026; F3b (a floppy program's own board image) and F5 (C:, the SD card, read-only) 4 Nov; F5 not yet run on the board** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
 KESTREL Operating System (docs/ZIGTOS_BOOT.md).
 
 Today GEM's drive A only knows ZigMachine's own `.zmd` disks: the host parses the disk's flat
@@ -91,6 +91,17 @@ imports the same file.
   drive's label as `FLOPPY DISK` whatever the source.
 - **C:** is always shown (a hard-disk icon, `C`, label `SD CARD`), under drive A, opening the SD
   card's folders.
+  **As built (F5):** shown once the shell MOUNTED C: (the board, the page with `?c=kos-c.img`, the
+  native host and scene_hash.mjs with `--c-image`), not always: a host with no C: shows no icon, as
+  an empty drive A shows none, so no desktop pin moved. C: has its own directory model
+  (`rom/gem/desktop/deskdrive.zig`: `drives[0]` A:, `drives[1]` C:); each window remembers its
+  drive and the model in focus follows the top window. The shell (`apps/zig/scenes/gem_fat.zig`)
+  walks C: once at start, breadth first, through `env.kosDriveRead`, into C:'s model with the ROM's
+  appended unit calls (`deskDriveReset/Folder/DirPtr/SetFileCount`, `deskSetDriveC`; sys_abi 1.9).
+  Limits are A:'s: 32 files and 16 folders over the whole card, so on the real card C: shows its
+  root and the first folders' files, the rest left out (a per-folder read on open is the next
+  step); C:'s files are data (nothing on C: launches yet); edits (rename, delete, new folder) stay
+  in RAM as A:'s do.
 - **Pins that will move:** every GEM reference taken with an empty drive (the floppy icon goes):
   `apps/gem_headless.mjs`'s empty-drive shots, `fpga/tests/test_board_gemdisk.py`'s empty-drive
   hash (`22934ae1...`), `test_kos_boot.py`'s empty-drive desktop, the board-SoC sim's desktop hash
@@ -155,10 +166,17 @@ last; the firmware drops the block's and `dst`'s D-cache lines. No glass thread 
 no partition): every read times out to 0. Proof: `fpga/tests/test_kos_drive.py` (the firmware's
 words = glass's rule, the answer, the block's place, the native rules) and glass's
 `kos_drive.zig` tests (served once, at its offset; every refusal answered 0; a half-written block
-never served). Not yet: a cart that imports it (the desktop's C:), the C: image, the board.
+never served). The board is the one host not yet run.
 
 **C: in the browser and the native host**: a FAT16 image built at build time (`mkfs.fat` over a
-folder, `docs/kos-c.img`) served by the page as unit 2; the native host takes `--c-image`. The
+folder, `docs/kos-c.img`) served by the page as unit 2; the native host takes `--c-image`.
+**As built:** `docs/kos-c.img` is a 200 KB FAT12 image (`tools/kos_c_image.py`, synthetic bytes
+shaped like the card, `--check` in build.sh), mounted by the page with `?c=kos-c.img` (none by
+default, a one-line change in `kosPowerOn`); FAT16 and FAT32 are F1's reader tests against mtools.
+Proof: `apps/kos_boot_check.mjs` (the page's C: icon, then its window = scene_hash.mjs
+`--c-image`, which the bare desktop differs from; `--break c`: a page whose kosDriveRead answers
+nothing is caught), `fpga/tests/test_kos_fat_desktop.py` (the native host's `--c-image` =
+scene_hash.mjs's, icon and window). The
 proof that the board serves C: right is the board itself (the request path has no sim of the
 ARM), plus a firmware-side unit test of the request block (as `test_board_cartreq.py`).
 
@@ -171,7 +189,7 @@ ARM), plus a firmware-side unit test of the request block (as `test_board_cartre
 | F3 | glass: the raw floppy read (`D`), FAT images found by content; firmware accepts them; programs by hash | glass zig tests (a fake block device); one ≤6-frame board-SoC sim of the desktop over a FAT12 image; then the board with a real floppy |
 | F3b | a floppy program's own `NAME.RV` (hash + ABI checked), the card's `progs/by-hash` the fallback; `kos_rv.py` writes `.RV`s and program floppies | glass zig tests (its own `.RV` with no card, over the card's, a stale one refused); `fpga/tests/test_kos_rv.py`; the board with a real floppy |
 | F4 | drive A's icon only with a disk in, the source label, ITEM INFO's source line; the moved pins | PNGs, the pins re-taken, browser = native |
-| F5 | C: `kosDriveRead`, the firmware's request block, glass's sector server thread, FAT32; C: in the browser and the native host from an image | ROM tests (FAT32); the request block's words natively; the board |
+| F5 | C: `kosDriveRead`, the firmware's request block, glass's sector server thread, FAT32; C: in the browser and the native host from an image | ROM tests (FAT32); the request block's words natively; the board. As built: `test_kos_drive.py`, glass's `kos_drive.zig` tests, `kos_boot_check.mjs` (+ `--break c`), `test_kos_fat_desktop.py`; the board not yet |
 
 ## 6. Decided (Matt)
 

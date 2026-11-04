@@ -189,6 +189,8 @@ and reset". Today's "boot the menu cart" becomes "the desktop with the menu disk
 | **v2** | cartridge slot: diagnostic, application and tool cartridges, the debugger first (§4.4); AUTO and COMMAND (§4.5) | a freezer/debugger on a hot key; the board self-tests at power-on; a disk configures the OS |
 | **v3** | resident programs (§4.6); hard disk C: from SD folders (roadmap idea); desk accessories | the ROM is a small real OS |
 
+FAT (docs/KOS_FAT.md, built 31 Oct - 4 Nov, ahead of v2): drive A reads any FAT12 floppy (a real one on the board, an `.ST` on the page), its `.WSM` programs launch (their own `NAME.RV` board image, else the SD card's), and **C:** is the SD card, read-only, through the cart import `env.kosDriveRead` (glass serves the sectors on the board).
+
 ## 9. What v1 changes, and what it doesn't
 
 - **No RTL change.** Everything is firmware, glass and the ROM: ZIGGY already boots the

@@ -270,6 +270,7 @@ fi
 tools/mkdisks.sh
 python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
+python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?c=kos-c.img) is what its generator writes
 python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 python3 tools/gen_tutorial.py --check   # TUTORIAL.html regenerated from TUTORIAL.md
 python3 -m unittest discover -q -s tools/tests -t tools   # the doc generators' own tests
@@ -277,6 +278,7 @@ node apps/disk_check.mjs
 node apps/upload_check.mjs    # an uploaded disk mounts exactly like a URL one; bad uploads refused
 node apps/kos_boot_check.mjs  # KOS's power-on in the page = scene_hash.mjs --kos, every kind of drive A
 node apps/kos_boot_check.mjs --break  # ...and a POST on the wrong planes is caught
+node apps/kos_boot_check.mjs --break c  # ...and a C: drive that answers nothing (the page's kosDriveRead) is caught: KOS's C: (docs/KOS_FAT.md F5), with ?c=kos-c.img, shows its icon and opens = scene_hash.mjs --c-image
 node apps/tutorial_steps_check.mjs   # docs/TUTORIAL.html's per-step carts have not drifted from the finished ones
 
 # --- headless harnesses: each drives the real machine end to end -----------

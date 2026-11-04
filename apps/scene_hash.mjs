@@ -5,7 +5,7 @@
 // a fingerprint before the change, rebuild, take one after, compare.
 //
 //   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd] [--composite] [--song-clock]
-//                            [--data-disk X.zmd [--program]] [--kos X.zmd|none [--post-frames N] [--warm]]
+//                            [--data-disk X.zmd [--program]] [--kos X.zmd|none [--post-frames N] [--warm]] [--c-image X.img]
 //   node apps/scene_hash.mjs --compare a.json b.json
 //
 // Writes JSON to stdout: { cart, frames, every, samples: [{frame, hash}], total }.
@@ -24,6 +24,8 @@
 // `--kos X.zmd|none` boots as KOS powers on (scene_hash_kos.mjs): the ROM's POST for
 // --post-frames frames (default 180, 0 = none), then drive A decides what runs: X's boot
 // sector, X's cart (the cart given must be it) or the desktop (the cart given: demo-gem.wasm).
+// `--c-image X.img` is KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead serves X's sectors by the
+// page's rules (docs/sealed-loader.js kosDriveRead, the page's ?c=X); without it, 0 (no C:).
 // `--composite` hashes only the COMPOSED picture (each enabled plane's physical
 // render, borders included, stacked as the browser's canvases are: stackOver),
 // not each plane: it proves a change that moves pixels between planes (merging
@@ -38,6 +40,18 @@ import { kosBoot } from "./scene_hash_kos.mjs";
 import { writePng } from "./scene_png.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
+let cImage = null; // --c-image: KOS's C:
+
+// The page's kosDriveRead (docs/sealed-loader.js), over `img`.
+function makeCDrive(memory, img) {
+    return (unit, sector, count, dst) => {
+        const n = (count >>> 0) * 512, from = (sector >>> 0) * 512;
+        if (unit !== 2 || count === 0 || count > 64 || (dst >>> 0) % 4) return 0;
+        if (from + n > img.length || (dst >>> 0) + n > memory.buffer.byteLength) return 0;
+        new Uint8Array(memory.buffer, dst >>> 0, n).set(img.subarray(from, from + n));
+        return count >>> 0;
+    };
+}
 
 async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -67,6 +81,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
         hwRomRamFree: machine.hwRomRamFree,
         ...rom,
     };
+    if (cImage) env.kosDriveRead = makeCDrive(memory, cImage);
     // One cart over the shared memory; KOS instantiates the boot sector and then the cart.
     const instantiate = async (bytes) => {
         const e = { ...env };
@@ -122,6 +137,7 @@ async function fingerprint(argv) {
         else if (argv[i] === "--kos") kos = { post: 180, ...kos, drive: argv[++i] };
         else if (argv[i] === "--post-frames") kos = { ...kos, post: Number(argv[++i]) };
         else if (argv[i] === "--warm") kos = { post: 180, ...kos, warm: true };
+        else if (argv[i] === "--c-image") cImage = new Uint8Array(await readFile(argv[++i]));
         else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;

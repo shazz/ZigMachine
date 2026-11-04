@@ -52,3 +52,16 @@ def test_the_desktop_opens_a_fat_floppy_and_its_folder_in_both_hosts(floppy: Pat
 
 def test_a_fat_floppy_as_a_plain_data_disk_too(floppy: Path) -> None:
     both("--data-disk", str(floppy), *CALLS)  # the pre-KOS path (scene_hash_disk.mjs, host_io.c)
+
+
+# KOS's C: (docs/KOS_FAT.md F5): the empty drive's desktop with docs/kos-c.img as C:, its icon in
+# cell (0,1) double-clicked: the native host's --c-image = scene_hash.mjs's, and C: shows.
+OPEN_C = [(5, 40, 70, 0), (10, 40, 70, 1), (11, 40, 70, 0), (20, 40, 70, 2), (21, 40, 70, 0)]
+CALLS_C = [a for f, x, y, b in OPEN_C for a in ("--call", f"{f}:pointer:{x},{y},{b}")]
+
+
+def test_c_drive_shows_and_opens_in_both_hosts() -> None:
+    c = both("--kos", "none", "--post-frames", "0", "--c-image", str(ROOT / "docs/kos-c.img"), *CALLS_C)
+    bare = both("--kos", "none", "--post-frames", "0", *CALLS_C)
+    assert c[0] != bare[0]  # the C: icon
+    assert c[7] != c[2]  # its window, opened by the double-click (frame 40 against frame 15)

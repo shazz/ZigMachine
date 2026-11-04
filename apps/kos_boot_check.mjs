@@ -7,9 +7,14 @@
 // canvases, hashed as scene_hash.mjs hashes the machine's, equal its samples. A media change
 // (kosMedia: window.kosInsert / kosEject) reaches the ROM's system variables. Exits 1 on the first difference.
 //
-// Usage: node apps/kos_boot_check.mjs [--break]
+// KOS's C: (docs/KOS_FAT.md F5): with ?c=kos-c.img the page's C: icon shows and opens over the
+// image's root = scene_hash.mjs --c-image, where the empty drive's desktop has no such icon.
+//
+// Usage: node apps/kos_boot_check.mjs [--break | --break c]
 //   --break: the POST shows planes 0 and 1 in the browser (kos-boot.js mutated in the vm): the
 //   check must catch it on the first frame (exit 0 when caught, 1 when missed).
+//   --break c: the page's kosDriveRead answers 0 (sealed-loader.js mutated in the vm): the C: case
+//   must catch it (exit 0 when caught, 1 when missed).
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -20,7 +25,9 @@ import { join } from "node:path";
 import * as ZMDisk from "../docs/zmdisk.js";
 import * as ZMRam from "../docs/wasm_hiwater.js";
 
-const BREAK = process.argv.includes("--break");
+const BREAK = process.argv.includes("--break") && process.argv[process.argv.indexOf("--break") + 1] !== "c";
+const BREAK_C = process.argv.includes("--break") && process.argv[process.argv.indexOf("--break") + 1] === "c";
+const C_IMG = "docs/kos-c.img"; // tools/kos_c_image.py: KOS's C: for the page and the harnesses
 const POST = 12; // ?post=: short, the POST's own frames are the same code at any length
 const FLOPPY = mkdtempSync(join(tmpdir(), "kos_fat_")) + "/kos.st";
 execFileSync("python3", ["tools/kos_fat_fixture.py", FLOPPY]);
@@ -71,6 +78,7 @@ function page(search) {
     for (const f of ["kos-boot.js", "sealed-loader.js"]) {
         let src = execFileSync("cat", ["docs/" + f], { encoding: "utf8" });
         if (BREAK && f === "kos-boot.js") src = src.replace("isPlaneEnabled: (p) => p === 0,", "isPlaneEnabled: (p) => p <= 1,");
+        if (BREAK_C && f === "sealed-loader.js") src = src.replace("function kosDriveRead(unit, sector, count, dst) {", "$& return 0;");
         vm.runInContext(src, ctx, { filename: f });
     }
     const run = (c) => vm.runInContext(c, ctx);
@@ -92,8 +100,8 @@ function frameHash(p, planes) {
 }
 
 // calls: [frame, x, y, buttons] mouse events, before that frame (scene_hash's --call F:pointer:x,y,b).
-async function browser(disk, frames, calls = []) {
-    const p = page(`?disk=${disk}&post=${POST}`);
+async function browser(disk, frames, calls = [], extra = "") {
+    const p = page(`?disk=${disk}&post=${POST}${extra}`);
     await p.run("boot()"); // frame 1 runs inside it (start() calls the loop once)
     const planes = p.run("machine.hwPlanesNumber()");
     await settle(p);
@@ -107,9 +115,10 @@ async function browser(disk, frames, calls = []) {
     return { p, out };
 }
 
-function node(disk, cart, frames, calls = []) {
+function node(disk, cart, frames, calls = [], cimg = null) {
     const drive = disk === "none" || disk.startsWith("/") ? disk : `docs/${disk}`;
     const args = ["apps/scene_hash.mjs", `docs/${cart}`, String(frames), "1", "--kos", drive, "--post-frames", String(POST)];
+    if (cimg) args.push("--c-image", cimg);
     for (const [at, x, y, b] of calls) args.push("--call", `${at}:pointer:${x},${y},${b}`);
     return JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((s) => s.hash);
 }
@@ -121,7 +130,30 @@ if (BREAK) {
     process.exit(caught ? 0 : 1);
 }
 
+// C: on the empty drive's desktop: the icon in cell (0,1), double-clicked, its window over the image.
+const OPEN_C = [[17, 40, 70, 0], [22, 40, 70, 1], [23, 40, 70, 0], [32, 40, 70, 2], [33, 40, 70, 0]];
+async function cDrive() {
+    const { out } = await browser("none", 40, OPEN_C, "&c=kos-c.img");
+    const ref = node("none", "demo-gem.wasm", 40, OPEN_C, C_IMG);
+    const bare = node("none", "demo-gem.wasm", 40, OPEN_C);
+    const at = out.findIndex((h, i) => h !== ref[i]);
+    if (at >= 0) return `frame ${at + 1} differs from scene_hash.mjs --c-image`;
+    if (out[15] === bare[15]) return "the desktop shows no C: icon"; // frame 16: the desktop, before the clicks
+    if (out[39] === out[30]) return "double-clicking C: opened no window";
+    return null;
+}
+
+if (BREAK_C) {
+    const why = await cDrive();
+    console.log(why ? `kos boot --break c: a dead C: drive is caught (${why}) ✅` : "kos boot --break c: MISSED ❌");
+    process.exitCode = why ? 0 : 1;
+} else {
 let bad = 0;
+{
+    const why = await cDrive();
+    if (why) { console.log(`FAIL  C: (?c=kos-c.img): ${why}`); bad++; }
+    else console.log("ok    C: (?c=kos-c.img): its icon, then its window = scene_hash.mjs --c-image");
+}
 for (const [disk, cart, frames, calls] of CASES) {
     const { out } = await browser(disk, frames, calls);
     const ref = node(disk, cart, frames, calls);
@@ -171,4 +203,5 @@ if (drive !== (1 << 8 | 1) || vars(8) !== (2 << 8) || dev !== 0 || !p.run("mount
 } else console.log("ok    media change: insert then eject counted, the desktop's drive emptied");
 
 console.log(bad === 0 ? "\nkos boot: the browser's power-on = scene_hash.mjs --kos on every drive ✅" : `\nkos boot: ${bad} FAILED ❌`);
-process.exit(bad === 0 ? 0 : 1);
+process.exitCode = bad === 0 ? 0 : 1;
+}

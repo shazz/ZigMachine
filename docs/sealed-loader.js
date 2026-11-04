@@ -579,6 +579,10 @@ let kosDrive = null; // { url, bootable, v2, cart } of the disk in drive A at po
 let kosDesktop = false; // the running cart is KOS's desktop (demo-gem.wasm) over drive A
 
 async function kosPowerOn(url, params) {
+    // ?c=kos-c.img: KOS's C: (docs/KOS_FAT.md F5) from a FAT image, as the board's SD card; none by
+    // default, so the desktop shows no C: icon (its shell finds nothing to mount).
+    const cUrl = params.get("c");
+    if (cUrl && cUrl !== "none") kosMountC(new Uint8Array(await fetch(cUrl + BUST).then((r) => r.arrayBuffer())));
     kosDrive = url ? { url, ...(await mountDisk(url)) } : null;
     if (!url) mountedDisk = null;
     ZMKos.power(rom, machine, kosDrive, mountedDisk, params.get("warm") === "1"); // ?warm=1: the reset button
