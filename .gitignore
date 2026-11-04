@@ -36,3 +36,8 @@ docs/music/local.xm
 apps/ports/upstream/
 apps/ports/*/build/
 apps/ports/*/*/build/
+
+# The KESTREL SDK template run in this checkout (make in sdk/template): its cart copied into docs/.
+docs/.sdk/
+docs/demo-hello.wasm
+docs/demo-hello.zmd

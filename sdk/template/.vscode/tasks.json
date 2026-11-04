@@ -1,0 +1,9 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        { "label": "cart: build", "type": "shell", "command": "make cart", "group": { "kind": "build", "isDefault": true }, "problemMatcher": "$zig" },
+        { "label": "cart: run in the browser", "type": "shell", "command": "make", "isBackground": true, "problemMatcher": [] },
+        { "label": "cart: floppy", "type": "shell", "command": "make floppy", "problemMatcher": "$zig" },
+        { "label": "cart: board + SD folder", "type": "shell", "command": "make board", "problemMatcher": [] }
+    ]
+}

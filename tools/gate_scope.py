@@ -117,6 +117,8 @@ def classify(repo: Repo, status: str, path: str) -> set[str] | None:
         return cart_tags(repo, parts[1]) | tags_using(repo, f"tools/{parts[1]}/")
     if parts[0] == "apps" and len(parts) == 2:
         return apps_file_tags(repo, path)
+    if parts[0] == "sdk":  # the KESTREL SDK: read by its own harness only (build.zig's import of it is built anyway)
+        return tags_using(repo, "sdk/template") or None
     return None
 
 

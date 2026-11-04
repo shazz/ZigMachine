@@ -101,6 +101,7 @@ docs/               the web root, the built wasm, and the API docs
 - `docs/ZIGOS_API.md` — the open library
 - `docs/HARDWARE_SPEC.md` — design and status
 - `docs/FLOPPY_DISK.md` — the disk format
+- `docs/SDK.md` — the KESTREL SDK: write a cart in your own directory, run it in the browser, put it on the board
 - `decisions.md` — architecture decision records
 
 ## Build

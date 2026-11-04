@@ -1522,3 +1522,29 @@ the real timing check. Tests: `machine/video_tc_fade_test.zig` (every channel x 
 offsets, the copper REG), `apps/tc_test_check.mjs` key 8 (+3 mutants), vsynth `truecolor` with copper and
 handler fades (coverage `tc_fade`, `tc_fade_per_line`), 11 `tcf_*` RTL mutants, `test_vdirty.py`
 FADE view + `VD_BREAK=FADE`.
+
+## 2026-11-04 — The KESTREL SDK: an outside cart depends on the repo as a Zig package
+
+**Status:** accepted
+**Context:** Matt (31 Oct): a friend with a Z7-Lite wants to write demos without the SoC, Verilator or
+Vivado. A cart is registered in three places today (cart.zig's index, build.zig's cart matrix, catalog.zig),
+all inside the repo, and the board pipeline (`fpga/` split-cart) reads `docs/demo-<tag>.wasm`.
+**Decision:** a cart outside the repo has its own `build.zig` + `build.zig.zon` with a PATH dependency on the
+repo, and calls `@import("kestrel").addCart(b, dep, .{ .name, .root_source_file })` (`sdk/build_cart.zig`,
+re-exported by `build.zig`). addCart builds that one cart from `apps/zig/demo_main.zig` with the matrix's
+modules and memory layout; it does not rebuild machine-video.wasm or rom.wasm (the card's system.rv32 was
+built from the shipped bytes). The template's Makefile copies the cart into the SDK's `docs/` (marked in
+`docs/.sdk/`, refusing a repo cart's name) for the browser and for `make -C fpga split-cart`, which takes
+the SDK's toolchain through command-line variables (RV_CC, RV_ARCH, WABT, `CART_RTLIB`, CARTS_DIR) and
+`UV_NO_PROJECT=1` (the split-cart scripts are stdlib-only: no LiteX venv). A riscv gcc without an
+rv32imf/ilp32f multilib (Arch, xPack) links Zig's compiler_rt, trimmed to libgcc's helpers
+(`sdk/zrt_cart.sh`), in place of libgcc; the cart links no libc in any case.
+**Alternatives considered:** a "user cart" slot in build.zig fed by `-Dcart=<path>` (one file touched, but
+the coder's directory has no build.zig, so ZLS cannot resolve `@import("zigos")`, and builds run inside the
+SDK tree); vendoring a prebuilt picolibc + libgcc for rv32imf (a binary blob per release, GPL runtime
+exception notices, and still a second gcc's objects); requiring Ubuntu's toolchain (excludes Arch and macOS).
+**Consequences:** sdk/build_cart.zig repeats the handful of module definitions a cart needs; if build.zig
+gives demo_main another import, `gate sdk` (apps/sdk_check.mjs, the template built from a temp dir outside
+the repo) fails until build_cart.zig follows. A compiler_rt-linked cart has not run on the board yet: its
+soft-double helpers are IEEE like libgcc's, and wasm2c range-checks every float-to-int conversion before
+the helper, but one board run should confirm it.

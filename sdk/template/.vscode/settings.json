@@ -1,0 +1,13 @@
+{
+    // ZLS reads build.zig, so @import("zigos") and the SDK's modules resolve in src/.
+    // Point these at zig 0.16.0 and a ZLS 0.16 build if they are not on PATH.
+    "zig.path": "zig",
+    "zig.zls.enabled": "on",
+    "zig.zls.path": "zls",
+    "zig.zls.enableBuildOnSave": true,
+    "zig.zls.buildOnSaveStep": "install",
+    "zig.formattingProvider": "zls",
+    "editor.formatOnSave": true,
+    "files.exclude": { "zig-out": true, ".zig-cache": true },
+    "search.exclude": { "zig-out": true, ".zig-cache": true }
+}

@@ -309,6 +309,10 @@ fi
 always verify node apps/verify.mjs          # the C and Rust carts still talk to the ABI
 always tunein node apps/tunein_check.mjs    # C/Rust channels tune in through Zig's snow, byte for byte, then start as skipBoot
 always tunein node apps/tunein_check.mjs --fail-proof docs/demo-c.wasm docs/demo-rust.wasm   # ...and a cart without tuneIn fails it
+gate sdk node apps/sdk_check.mjs   # KESTREL SDK (docs/SDK.md): sdk/template copied OUT of the repo builds through its own build.zig (the repo as a Zig package) and `make floppy`, then runs strictly linked: plane on, picture moving, real per-line rasters, its song in docs/music/
+gate sdk node apps/sdk_check.mjs --break still    # ...and an update() that moves nothing is caught
+gate sdk node apps/sdk_check.mjs --break raster   # ...and a cart without its copper (one flat background) is caught
+gate sdk node apps/sdk_check.mjs --break song     # ...and a song no file under docs/music/ is caught
 gate gem node apps/gem_headless.mjs "$SHOTS"
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent

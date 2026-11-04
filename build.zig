@@ -1,6 +1,10 @@
 const std = @import("std");
 
 const memmap = @import("machine/sdk/memmap.zig");
+// The KESTREL SDK (docs/SDK.md): a coder's own project depends on this repo as a Zig
+// package and calls `@import("kestrel").addCart(b, dep, .{...})` to build ONE cart.
+pub const addCart = @import("sdk/build_cart.zig").addCart;
+pub const CartOptions = @import("sdk/build_cart.zig").CartOptions;
 
 const page_size = 65536; // in bytes
 

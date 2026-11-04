@@ -28,6 +28,10 @@ CART_BASE    = 0x$(shell printf '%08x' $$(( $(shell awk '/define CART_CPU_BASE/{
 	+ $(shell awk '/define CART_IMG_AT/{print $$3}' gen/glass_cart.h | tr -d u) )))
 CART_LDFLAGS = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -nostdlib -nostartfiles -Wl,--no-warn-rwx-segments \
 	-Wl,--defsym=ZM_CART_BASE=$(CART_BASE) -Tcycles/cart.ld
+# The cart's only library: libgcc's soft-double and 64-bit helpers (no libc: -nostdlib). A gcc with no
+# rv32imf/ilp32f multilib (Arch's riscv64-elf-gcc, xPack) gets Zig's compiler_rt for rv32imf/ilp32f
+# instead: the KESTREL SDK passes CART_RTLIB=<its zrt_cart.o> (sdk/build_cart.zig, docs/SDK.md).
+CART_RTLIB  ?= -lgcc
 CARTS_DIR   := $(SPLIT)/carts$(HSUF)$(if $(ZM_CART_VERSION),_v$(ZM_CART_VERSION))
 SYS_ABI_DEPS := cycles/sys_abi.txt $(wildcard tools/sys_abi*.py) tools/wasm_sig.py tools/host_bridges.py \
 	tools/host_gen.py glass/src/map_cart.zig host/host.h cycles/baudio.h $(ROOT)/docs/rom.wasm \
@@ -51,7 +55,7 @@ $(CARTS_DIR)/%/cart.elf: $(CYC)/src/%/cart.c $(HOST)/%/cart_env.c gen/zm_cart_rt
 	$(RV_CC) $(CART_CFLAGS) -I$(HOST)/$* -c $(CYC)/src/$*/cart.c -o $(@D)/cart.o
 	for s in $(HOST)/$*/cart_env.c gen/zm_cart_rt.c cycles/cart_str.c $(HCYC)/songs/$*.c; do \
 		$(RV_CC) $(CART_CFLAGS) -I$(HOST)/$* -c $$s -o $(@D)/$$(basename $$s .c).o || exit 1; done
-	$(RV_CC) $(CART_LDFLAGS) -o $@ $(@D)/cart.o $(@D)/cart_env.o $(@D)/zm_cart_rt.o $(@D)/cart_str.o $(@D)/$*.o -lgcc
+	$(RV_CC) $(CART_LDFLAGS) -o $@ $(@D)/cart.o $(@D)/cart_env.o $(@D)/zm_cart_rt.o $(@D)/cart_str.o $(@D)/$*.o $(CART_RTLIB)
 $(CARTS_DIR)/%/cart.bin: $(CARTS_DIR)/%/cart.elf
 	$(RV_OBJCOPY) -O binary $< $@
 	truncate -s %8 $@

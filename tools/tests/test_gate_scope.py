@@ -23,6 +23,7 @@ gate union_demo node apps/union_demo_headless.mjs "$SHOTS"
 gate dbug node apps/dbug_headless.mjs "$SHOTS"
 gate tex node apps/tex_headless.mjs "$SHOTS"
 gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS"
+gate sdk node apps/sdk_check.mjs --break still
 """
 HARNESSES = {
     "big_demo_headless.mjs": 'import { m } from "./big_demo_machine.mjs"; load("docs/demo-big_demo.wasm")',
@@ -35,6 +36,7 @@ HARNESSES = {
     "tex_headless.mjs": 'load("docs/demo-tex.wasm")',
     "tex_neoshow_headless.mjs": 'load("docs/demo-tex_neoshow.wasm")',
     "check_fits.mjs": "// a cross-cutting check, in no gate line",
+    "sdk_check.mjs": 'cpSync(path.join(ROOT, "sdk/template"), dir)',
 }
 
 
@@ -99,6 +101,10 @@ class GateScope(unittest.TestCase):
         self.assertEqual(self.scope("A\tdocs/music/new.sndh"), [])
         self.assertIsNone(self.scope("M\tdocs/music/old.sndh"))
         self.assertIsNone(self.scope("D\tdocs/music/old.sndh"))
+
+    def test_the_sdk_selects_only_its_own_harness(self) -> None:
+        self.assertEqual(self.scope("M\tsdk/build_cart.zig", "A\tsdk/template/src/hello.zig"), ["sdk"])
+        self.assertIsNone(self.scope("M\tsdk/build_cart.zig", "M\tbuild.zig"))
 
     def test_an_empty_diff_selects_nothing(self) -> None:
         self.assertEqual(self.scope(), [])
