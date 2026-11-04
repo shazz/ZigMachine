@@ -217,7 +217,7 @@ def test_sd_shelf_takes_board_firmwares_and_skips_one_older_than_the_csr_map(tmp
     rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr, ("tutorial", "gem")))
     assert rows["zigmachine/system/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
     assert rows["zigmachine/tutorials/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
-    assert rows["zigmachine/demos/demo-blitter.zmd"].startswith("STALE")
+    assert rows["zigmachine/tests/demo-blitter.zmd"].startswith("STALE")
     assert not (tmp_path / "sd" / "demos" / "demo-blitter.zmd").exists()
 
 
