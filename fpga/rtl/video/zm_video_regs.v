@@ -50,6 +50,15 @@ module zm_video_regs (
     // BEAM_COUNT is the low half of its word (0x66..0x67 is free).
     localparam integer BCOUNT_LSB = (ZM_REG_BEAM_COUNT % 4) * 8;
 
+    // One write port, the copper's REG or else the snoop, as the palette's (zm_video_comp.v): the
+    // copper writes only between a take and the pass's `painted`, when the sequencer's drain rule
+    // keeps the CPU's stores away. A second port on six words was +160 LUT (OOC, HW 1.16.0): every
+    // stored bit of them a 2:1 mux.
+    wire cop = cop_we && COPW[cop_word];
+    wire w_we = cop || cpu_we;
+    wire [4:0] w_word = cop ? cop_word : cpu_word;
+    wire [3:0] w_be = cop ? cop_be : cpu_be;
+    wire [31:0] w_data = cop ? cop_wdata : cpu_wdata;
     genvar g;
     generate
         for (g = 0; g < 32; g = g + 1) begin : word
@@ -57,12 +66,9 @@ module zm_video_regs (
                 reg [31:0] q = 32'd0;
                 integer b;
                 always @(posedge clk) begin
-                    if (cpu_we && cpu_word == g)
+                    if (w_we && w_word == g)
                         for (b = 0; b < 4; b = b + 1)
-                            if (cpu_be[b]) q[b*8 +: 8] <= cpu_wdata[b*8 +: 8];
-                    if (cop_we && cop_word == g && COPW[g])
-                        for (b = 0; b < 4; b = b + 1)
-                            if (cop_be[b]) q[b*8 +: 8] <= cop_wdata[b*8 +: 8];
+                            if (w_be[b]) q[b*8 +: 8] <= w_data[b*8 +: 8];
                     if (beam_upd && g == W_BG) q <= beam_bg;
                     if (beam_upd && g == W_BDROP) q <= q + beam_drops;
                     if (beam_upd && g == W_BCOUNT) q[BCOUNT_LSB +: 16] <= 16'd0;

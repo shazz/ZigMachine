@@ -623,8 +623,8 @@
   {
     "id": "tcf_regs_cop_dropped",
     "file": "zm_video_regs.v",
-    "old": "if (cop_we && cop_word == g && COPW[g])",
-    "new": "if (cop_we && cop_word == g && (g == ZM_REG_HSCROLL / 4 || g == ZM_REG_HSCROLL / 4 + 1))",
+    "old": "wire cop = cop_we && COPW[cop_word];",
+    "new": "wire cop = cop_we && (cop_word == ZM_REG_HSCROLL / 4 || cop_word == ZM_REG_HSCROLL / 4 + 1);",
     "catch": "s:truecolor"
   },
   {
