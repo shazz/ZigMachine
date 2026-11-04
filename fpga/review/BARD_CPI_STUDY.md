@@ -80,10 +80,11 @@ the whole block (core, decoder, arbiter, posted bridge, registers), xc7z010-1, m
 | SndNdD16 (baseline) | 2,004 | 1,650 | 13 | 7 | +0.673 ns |
 | SndNdD16Dyn8Sx, Dyn8EbSx, Sx, Dyn8, Dyn8EbSxM, DynEbSx | pending | | | | |
 
-The variant rows were not run in this session: the box ran the lead's full Vivado builds (combo14t). The
-queue (`ooc.sh` in the agent's scratchpad) starts them one at a time once Vivado has been idle for six
-minutes; results land in `fpga/build/ooc_cpi_<core>/` (`util.rpt`, `timing.rpt`) of the `study/bard-cpi`
-worktree. Expected cost, from ZIGGY's same predictor (CYCLES.md, Yosys): a 256-entry BTB is one RAMB18
+The variant rows were not run in this session: the box ran the lead's full Vivado builds (combo14t). Each
+takes ~2 minutes, one at a time, on an idle box, from `/home/matt/projects/ZigMachine-cpi/fpga` (the
+netlists are in its `build/vexgen/`):
+`for v in SndNdD16Dyn8Sx SndNdD16Dyn8EbSx SndNdD16Sx SndNdD16Dyn8; do PERIOD=10 IMPL=1 uv run python
+tools/sound_ooc.py --core build/vexgen/VexRiscv_$v.v --out build/ooc_cpi_$v; done`. Expected cost, from ZIGGY's same predictor (CYCLES.md, Yosys): a 256-entry BTB is one RAMB18
 (+0.5 tile) plus ~100-150 LUT of compare/redirect; `shex` moves the shifter's last stage into EXECUTE
 (LUT-neutral, a longer EXECUTE path); `eb` moves the branch compare and target into EXECUTE, which
 CYCLES.md names as the sys critical path, so it is the most likely to cost WNS.
