@@ -62,6 +62,13 @@ static void merge_next(uint8_t *b)
     while (n < heap_hi && !used(n)) { *hdr(b) = bsize(b) + bsize(n); n = b + bsize(b); }
 }
 
+/* KESTREL_HEAP_PRESSURE (opt-in, klystrack): when a malloc fails, the port's kestrel_heap_pressure() may free
+ * memory it can do without (klystrack: the window's draw cache) and the malloc is tried once more; and
+ * kestrel_heap_largest() tells it when that much is free again. Other ports build without it. */
+#ifdef KESTREL_HEAP_PRESSURE
+#define malloc malloc_once
+static
+#endif
 void *malloc(size_t n)
 {
 #ifdef HEAP_TRACE
@@ -86,6 +93,22 @@ void *malloc(size_t n)
     errno = ENOMEM;
     return NULL;
 }
+#ifdef KESTREL_HEAP_PRESSURE
+#undef malloc
+int kestrel_heap_pressure(void);
+void *malloc(size_t n)
+{
+    void *p = malloc_once(n);
+    if (!p && kestrel_heap_pressure()) p = malloc_once(n);
+    return p;
+}
+size_t kestrel_heap_largest(void)
+{
+    size_t big = 0;
+    for (uint8_t *b = heap_lo; b && b < heap_hi; b += bsz_(b)) if (!(*(size_t *)b & 1) && bsz_(b) > big) big = bsz_(b);
+    return big;
+}
+#endif
 
 void free(void *p)
 {
