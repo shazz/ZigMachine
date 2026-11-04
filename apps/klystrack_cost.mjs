@@ -5,12 +5,12 @@
 //             (the pattern view follows play: most redraw the VU meters and timer, ~1 in 3 also scrolls)
 //   menu      the right button held (klystron's menu bar open) and the pointer moving every frame: every
 //             frame repaints (the worst case; a menu open with the pointer still repaints only on events)
-// The ceilings sit ~20 % above perf/klystrack-ui's numbers (3 Nov 2026: playing median 10.7 / max 21.6, menu
-// 8.1) and far below what came before it (a repaint was ~41-46 Mc est). --break cost asks for 1 Mc and must fail.
+// The ceilings sit ~25 % above perf/klystrack-ui-2's numbers (4 Nov 2026: playing median 5.9 / max 14.3, menu 3.9;
+// round 1 was 10.6 / 21.5 / 8.1, and before it a repaint was ~41-46 Mc est). --break cost asks for 0 and must fail.
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
 const CART = process.env.CART ?? "docs/demo-klystrack.wasm"; // CART=...: another build (a before/after)
-const CEIL = { playMedian: 13, playMax: 26, menuMax: 10 };
+const CEIL = { playMedian: 7.5, playMax: 18, menuMax: 5 };
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (broke && broke !== "cost") throw new Error("--break cost");
 const scale = broke ? 0 : 1; // --break cost: every ceiling ~0

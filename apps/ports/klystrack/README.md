@@ -41,6 +41,7 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `kestrel_sdl.c` | what is klystrack-shaped: clock (the frame's real time), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream. **Quiet synth:** no song, every channel's gate off and envelope 0, and 2.2 s of exact silence (longer than the reverb's 2 s line, no feedback): cyd is not called, zeros are fed, until a note or a song starts. **Repaints:** `kestrel_redraw_due` (below) |
 | `kestrel_chorus.c`, `kestrel_sine.h` | klystron's chorus LUT (`cydchr_set`) in integers: a Q30 sine table (generated, 1024 steps, interpolated), the phase stepped exactly, one 32x32->64 multiply. Within +-1/256 sample of upstream's double `sin()`; 7 of 151,404 stream bytes differ by 1 LSB over a 7 s play |
 | `kestrel_stubs.c` | `getpwuid` (no password database) |
+| `kestrel_printf.c`, `printf_test.c` | the labels' vsnprintf: %s %c %d %i %u %x %X %% with - 0 + space, a width, a %s precision; anything else is musl's whole. `make printf-test` checks it against the host C library |
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
 | `patches/*.sed` | see below |
@@ -59,6 +60,8 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `cydrvb.c.sed` (also) | a tap keeps its delay in samples and reads at write position minus delay: the same sample without 16 tap increments a sample |
 | `cydchr.c.sed` (also) | the chorus LUT from `kestrel_chorus.c` instead of a double `sin()` an entry (88,200 entries: ~630 Mc, 6 s on the board, at every load of a song with a chorus) |
 | `cydrvb.c.sed`, `cydchr.c.sed`, `cydfx.c.sed` | the reverb delay line and chorus buffers of the 8 FX buses are allocated when a song first enables them, not at init (8 x 1.4 MB at 44.1 kHz); if the heap is short the effect stays off on that bus and the console says so |
+| `bevel.c.sed` | `bevelex` drawn as one group (`kestrel_group_begin`): an unchanged bevel reuses last frame's tile copies |
+| `font.c.sed` | `inner_write` drawn as one group (its cursor/bounds the outputs); a space keeps a NOP entry; `font_write_va` formats with `kestrel_vsnprintf` |
 | `menu.h.sed` | `struct menu_t {...} menu_t;` defined a variable in every file (needs `-fcommon`, which wasm clang crashes on) |
 | `action.c.sed` | `current_pattern(NULL)` -> `current_pattern()`: wasm-ld turns an arity mismatch into a trap |
 
@@ -81,10 +84,16 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
   - `kestrel_palette.c`: ARGB -> index, one palette kept across presents (index 0 black), compacted (the indices
     still used renumbered in both buffers) when all 256 are taken; a picture of more than 255 colours draws the
     extras as the nearest entry.
-  - `kestrel_defer.c` / `kestrel_defer_draw.c` / `kestrel_defer.h`: the window's copy/fill/clear/line RECORDED,
-    compared with last frame's command at the same position, and replayed at the present only into the 16x8
-    tiles a differing (or blending) command touches. Two lists of 3,072 commands (2 x 168 KB) at the end of the
+  - `kestrel_defer.c` / `kestrel_defer_draw.c` / `kestrel_defer.h`: the window's copy/fill/clear/line RECORDED
+    in one list rewritten in place (command i compared with entry i, last frame's; stored only when it differs;
+    a call that draws nothing keeps a NOP entry), and replayed at the present only into the 16x8 tiles a
+    differing (or blending) command touches. 4,096 entries (224 KB) + a 64 KB group arena at the end of the
     largest free block, let go when a malloc fails (`-DKESTREL_HEAP_PRESSURE`: a song's reverb/chorus wins).
+  - `kestrel_defer_group.c`: GROUPS (`kestrel_group_begin/end`, called by `patches/bevel.c.sed` and
+    `font.c.sed`): a bevel or a string whose key (area/offset/flags, or font/rect/cursor/bounds/bytes, plus the
+    renderer's viewport and clip and the texture's serial/mod/blend) equals last frame's at that entry keeps
+    its entries and outputs, and klystron's loop is not run; a group missing where entries were dropped looks
+    up to 256 entries ahead and moves last frame's rest down to it.
   - `kestrel_render_priv.h`: what these share (the texture struct, the blend, the module calls).
   - `kestrel_plane.c`: the window's indices -> 8-bit plane (normal 320x200 or fullscreen 400x280, centred):
     compared with the last picture shown a word at a time in the bands the replay drew, only differing words
@@ -194,6 +203,33 @@ Memory: the cart 584 -> 436 KB (Asyncify instruments 141 functions, not most); t
 the command lists +346 KB (heap in use at boot 1.95 -> 1.72 MB, 2.06 MB once the lists are taken at the first
 present). Loading DPINTRO, whose chorus no longer fit, makes the lists let go (the window then draws at once)
 and the chorus is allocated as before; they come back when 600 KB are free again. No upstream patch changed.
+
+## Round 2 (perf/klystrack-ui-2, 4 Nov 2026)
+
+Round 1 on the board: playing 11-13 fps (cart 6.3-8.9 Mc), idle 60. A repaint still made ~2,500 draw calls
+(~400 rv32 instructions each to record and compare), though nearly all drew what they drew the frame before.
+`apps/klystrack_cost.mjs` (frame_cost est Mc, same windows as round 1):
+
+| | round 1 | round 2 |
+|---|---|---|
+| a repaint while playing, median | 10.6 | **5.9** |
+| a repaint on a row change (worst) | 21.5 | **14.3** |
+| the repaint after a row change | ~11.8 | ~6 |
+| menu open, pointer moving (a repaint a frame) | 8.1 | **3.9** |
+| playing, average a frame (frame_cost's fixed dt) | 7.4 | 4.4 |
+
+Step by step (playing median / worst / menu): bevels and strings as GROUPS skipped whole when unchanged, one
+list rewritten in place (10.6/21.5/8.1 -> 6.9/20.0/4.1); `kestrel_printf.c` (the labels' vsnprintf for the
+common conversions, anything else to musl; `make printf-test`: 3,834 cases equal to the host C library),
+`song_hash` a word at a time (~1 M -> ~0.27 M instructions every quarter second), keyed glyphs through a byte
+map (-> 6.1/18.9/3.6); NOP entries, the resync after a dropped string, the group arena reusing a replaced
+group's room, whole-command replays, the unscaled replay path, the present comparing only drawn columns (->
+5.9/14.3/3.9). The same pixels: the six `HASHES` scenarios equal round 1's at every step; DPINTRO still loads
+with its chorus (the draw cache lets go of its 293 KB, as in round 1). Cart 436 -> 445 KB.
+
+From round 1's board reading (a repaint ~0.66x the estimate), a playing repaint averaging ~7.3 est should be
+~4.8 Mc on the board: ~20 fps. A row change (~1 in 4 repaints at Starport2's speed) still redraws the pattern
+view's text (~1,500 glyph copies); what is left there is pixels, not calls.
 
 ## What's left
 
