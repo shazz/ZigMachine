@@ -27,7 +27,7 @@ M = 0xFFFF_FFFF
 def kosreq(tmp_path_factory: pytest.TempPathFactory) -> Path:
     exe = tmp_path_factory.mktemp("kosreq") / "kosreq_test"
     inc = [f"-I{FPGA / d}" for d in ("cycles", "gen", "host")]
-    subprocess.run(["cc", "-std=c11", "-Wall", "-Werror", *inc, str(FPGA / "tests/tb/kosreq_test.c"), "-o", str(exe)],
+    subprocess.run(["clang", "-std=c11", "-Wall", "-Werror", *inc, str(FPGA / "tests/tb/kosreq_test.c"), "-o", str(exe)],
                    check=True)  # fmt: skip
     return exe
 
