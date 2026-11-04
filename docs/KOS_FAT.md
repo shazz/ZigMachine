@@ -1,7 +1,7 @@
 # KOS FAT: real floppies in drive A, the SD card as C:
 
-Status: **F1-F4 built, 31 Oct 2026** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); F5 (C:) to come. As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
-KESTREL Operating System (docs/ZIGTOS_BOOT.md). Nothing here is built yet.
+Status: **F1-F4 built, 31 Oct 2026; F3b (a floppy program's own board image) 4 Nov** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); F5 (C:) to come. As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
+KESTREL Operating System (docs/ZIGTOS_BOOT.md).
 
 Today GEM's drive A only knows ZigMachine's own `.zmd` disks: the host parses the disk's flat
 FAT and hands the desktop up to 12 records (name, type, size, date; `docs/sealed-loader.js`,
@@ -149,6 +149,7 @@ ARM), plus a firmware-side unit test of the request block (as `test_board_cartre
 | F1 | `rom/kos/fat.zig`: BPB, FAT12/16/32, dirs, names, file reads, over a read-sector callback | native Zig tests over images made by `mkfs.fat` + `mcopy`: FAT12 1.44 MB, Atari 720 KB (`mkfs.fat -S 512 -s 2 -f 2 -r 112 -h 0`, no `55 AA`), FAT16, FAT32, subfolders, a fragmented file, deleted and long-name entries, a corrupt BPB, a looping chain |
 | F2 | the ROM import `diskReadBlock`; the desktop lists a FAT disk in drive A, opens folders, INFO shows sizes; the browser takes a raw `.ST` | `scene_hash.mjs --kos X.st` = the native host, clicks scripted; kos_boot_check with `?disk=X.st` |
 | F3 | glass: the raw floppy read (`D`), FAT images found by content; firmware accepts them; programs by hash | glass zig tests (a fake block device); one ≤6-frame board-SoC sim of the desktop over a FAT12 image; then the board with a real floppy |
+| F3b | a floppy program's own `NAME.RV` (hash + ABI checked), the card's `progs/by-hash` the fallback; `kos_rv.py` writes `.RV`s and program floppies | glass zig tests (its own `.RV` with no card, over the card's, a stale one refused); `fpga/tests/test_kos_rv.py`; the board with a real floppy |
 | F4 | drive A's icon only with a disk in, the source label, ITEM INFO's source line; the moved pins | PNGs, the pins re-taken, browser = native |
 | F5 | C: `kosDriveRead`, the firmware's request block, glass's sector server thread, FAT32; C: in the browser and the native host from an image | ROM tests (FAT32); the request block's words natively; the board |
 
@@ -163,3 +164,16 @@ ARM), plus a firmware-side unit test of the request block (as `test_board_cartre
    `docs/demo-<cart>.wasm` has that hash, as it finds a data disk's program today). No image:
    `<NAME>: no board image for this program`, the desktop keeps running. The browser runs the
    file's wasm directly (request 3, as for a `.zmd`: `ZMKos.fatFile` reads it off the image).
+3. **The floppy carries its own board image** (F3b; Matt, 31 Oct: the floppy must not need the SD
+   card). `NAME.RV` beside `NAME.WSM`, in the same folder, is the program's board image in a
+   40-byte container (`glass/src/app_floppy_rv.zig`): `ZMRV`, a u32 version (1), the SHA-256 of the
+   program's wasm (unpacked), then the lean cart ZX0-packed, as `progs/by-hash` holds it. glass
+   takes it first: a `.RV` built from another wasm (a stale one beside a rebuilt program) is
+   refused (`RvForAnotherProgram`), never passed over to the card; its ABI is checked as every
+   board image's is (the cart header's table version against the running system, `plan.planOver`).
+   No `.RV`: the card's `progs/by-hash`, as in F3. `fpga/tools/kos_rv.py` writes one (`rv CART
+   OUT.RV`) or a whole program floppy (`floppy OUT.st CART...`: each cart's `.WSM` and `.RV` on an
+   Atari 720 KB image, to `dd` onto a disk), refusing a cart the system would refuse:
+
+       cd fpga && uv run python tools/kos_rv.py --system build/hcycles/split/board_snd/sys.bin \
+           --fw-dir build/hcycles/split/carts floppy progs.st tutorial sysinfo
