@@ -24,7 +24,6 @@ pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
         it.draw(g, d.sel_icon == @as(i16, @intCast(i)) or drop_hot);
     }
     const focus = d.drv.cur;
-    defer deskdrive.use(d, focus); // the drag ghosts and the next frame read the focused drive
     var i: usize = 0;
     while (i < d.wm.n) : (i += 1) {
         const id = d.wm.order[i];
@@ -36,6 +35,7 @@ pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
         _ = d.wm.drawChrome(g, id, id == d.wm.topOpen());
         if (is_dir) dirview.drawDir(d, g, d.win_dir[id], v);
     }
+    deskdrive.use(d, focus); // the drag ghosts, the dialogs and the next frame read the focused drive
     if (d.wm.takeZoom()) |z| startGrow(d, z.from, z.to); // full-box zoom
     deskwin.shrinkClosed(d); // a window just closed -> zoom-box back to its icon
     d.wm.drawGhost(g); // pending window move / resize outline
