@@ -8,6 +8,8 @@
 //               each on the board) or the plain rv32 code they replace. The
 //               two give the SAME pixels (the harness checks it), only the
 //               cost moves
+//   + / -       ROTO: the rotation speed, -8 .. +8 steps (4 = the default turn every ~17 s,
+//               0 = still, negative = the other way)
 //   F           freeze the camera (the same frame again and again: toggle Z or T on it
 //               and the Mc line is a clean A/B)
 //   Esc         back to the menu
@@ -41,6 +43,8 @@ pub const Demo = struct {
     t: u32 = 0,
     cam_h: i32 = 0,
     frozen: bool = false,
+    spin: i8 = 4, // ROTO's rotation speed, in steps of a quarter of the default turn
+    angle: u32 = 0, // ROTO's rotation, turned by `spin` a frame
     wants_quit: bool = false,
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
@@ -95,6 +99,8 @@ pub const Demo = struct {
                 self.hud.reset();
             },
             'f', 'F' => self.frozen = !self.frozen,
+            '+', '=' => self.spin = @min(self.spin + 1, 8),
+            '-', '_' => self.spin = @max(self.spin - 1, -8),
             else => {},
         }
     }
@@ -115,7 +121,9 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = zigos;
         _ = dt;
-        if (!self.frozen) self.t +%= 1;
+        if (self.frozen) return;
+        self.t +%= 1;
+        self.angle +%= @bitCast(@as(i32, self.spin) * 1_050_000);
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
@@ -123,7 +131,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[0];
         self.hud.workStart();
         switch (self.mode) {
-            .roto => roto.draw(fb, maps.texture(self.tex, LOGS[self.size]), LOGS[self.size], self.zmx_on, self.t),
+            .roto => roto.draw(fb, maps.texture(self.tex, LOGS[self.size]), LOGS[self.size], self.zmx_on, self.t, self.angle),
             .voxel => {
                 const cam = voxel.camera(self.t, self.heights, self.cam_h);
                 self.cam_h = cam.h;

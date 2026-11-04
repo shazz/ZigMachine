@@ -17,19 +17,20 @@ const trig = zg.fixtrig;
 pub const ROWS: usize = 184; // rows 0..183; the HUD keeps 184..199
 
 /// One frame at time `t`, for texture side 2^log, ZM-X on or off.
-pub fn draw(fb: *zg.LogicalFB, tex: []const u8, log: u4, use_zmx: bool, t: u32) void {
+/// `angle`: the rotation (the cart turns it at the speed + / - set); `t` drives the zoom and the drift.
+pub fn draw(fb: *zg.LogicalFB, tex: []const u8, log: u4, use_zmx: bool, t: u32, angle: trig.Angle) void {
     switch (log) {
-        6 => if (use_zmx) frame(6, true, fb, tex, t) else frame(6, false, fb, tex, t),
-        7 => if (use_zmx) frame(7, true, fb, tex, t) else frame(7, false, fb, tex, t),
-        else => if (use_zmx) frame(8, true, fb, tex, t) else frame(8, false, fb, tex, t),
+        6 => if (use_zmx) frame(6, true, fb, tex, t, angle) else frame(6, false, fb, tex, t, angle),
+        7 => if (use_zmx) frame(7, true, fb, tex, t, angle) else frame(7, false, fb, tex, t, angle),
+        else => if (use_zmx) frame(8, true, fb, tex, t, angle) else frame(8, false, fb, tex, t, angle),
     }
 }
 
-fn frame(comptime log: u4, comptime use_zmx: bool, fb: *zg.LogicalFB, tex: []const u8, t: u32) void {
+fn frame(comptime log: u4, comptime use_zmx: bool, fb: *zg.LogicalFB, tex: []const u8, t: u32, angle: trig.Angle) void {
     // The camera: a turn every ~17 s, the zoom breathing between ~0.4 and ~2.3
     // texels a pixel, the centre drifting. Q16.16, scaled to the texture side so
     // every size shows the same picture.
-    const a: trig.Angle = t *% 4_200_000;
+    const a: trig.Angle = angle;
     const zoom: i32 = (3 << 15) + (trig.sin(t *% 2_900_000) * 5 >> 3) * 2;
     const side_scale: u5 = 8 - @as(u5, log); // the texture is 2^log, the picture is 256
     const du: i32 = trig.mul(trig.cos(a), zoom) >> side_scale;

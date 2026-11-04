@@ -6,7 +6,8 @@
 //   full      every pixel of the picture area (rows 0..183) is the mode's own: no HUD paper/ink there,
 //             VOXEL's top row is sky and its bottom row ground
 //   moves     consecutive frames differ; the texture size changes the picture's pixels
-//   hud       rows 186..201 carry the HUD's ink, and its text changes with the mode
+//   hud       rows 184..199 carry the HUD's ink (the 8 px font fits the plane), its text follows the mode
+//   spin      + turns ROTO faster: the same frame with + pressed is another picture; - back is the same
 //   escape    Escape asks to leave (pollCartRequest -1)
 //   node apps/ziggy_check.mjs [--break] [--png <dir>]
 //     --break: ZM-X off is compared one frame later, so the four "same" checks must fail (then exit 0)
@@ -58,7 +59,7 @@ async function shot(switches, frames) {
 }
 
 const eq = (a, b, n = W * ROWS) => { for (let i = 0; i < n; i++) if (a[i] !== b[i]) return false; return true; };
-const hud = (p) => p.subarray(186 * W, 200 * W);
+const hud = (p) => p.subarray(184 * W, 200 * W);
 
 console.log("ziggy");
 for (const [name, sw] of [["ROTO 64", [0, 4]], ["ROTO 128", [0, 5]], ["ROTO 256", [0, 6]], ["VOXEL", [1]]]) {
@@ -77,7 +78,14 @@ ok(!eq(r64, r256), "the texture size changes the picture's pixels (64 vs 256)");
 const vox = (await shot([1], 40)).px;
 ok(vox.subarray(0, W).every((v) => v >= SKY0 && v < SKY0 + 48), "VOXEL: the top row is sky");
 ok(vox.subarray((ROWS - 1) * W, ROWS * W).every((v) => v < SKY0), "VOXEL: the bottom row is ground");
-ok(!eq(hud(r64), hud(vox), 14 * W), "the HUD text changes with the mode");
+ok(!eq(hud(r64), hud(vox), 16 * W), "the HUD text changes with the mode");
+{ // spin: + then - is the default speed again, + alone is a different rotation
+    const base = await bootCart(), fast = await bootCart(), back = await bootCart();
+    fast.demo.key(43); back.demo.key(43); back.demo.key(45);
+    for (const c of [base, fast, back]) for (let f = 0; f < 30; f++) c.demo.frame(16.6);
+    ok(!eq(base.plane(), fast.plane()), "ROTO: + turns it faster (frame 30 differs)");
+    ok(eq(base.plane(), back.plane(), W * 200), "ROTO: + then - is the default speed again (frame 30 identical)");
+}
 const q = await bootCart();
 q.demo.key(0xE012);
 ok(q.demo.pollCartRequest() === -1, "Escape asks to leave");

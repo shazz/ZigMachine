@@ -1,5 +1,6 @@
 // --------------------------------------------------------------------------
-// ZIGGY showcase: the two text lines under the picture (rows 186 and 194),
+// ZIGGY showcase: the two text lines under the picture (rows 184 and 192; the 8 px
+// font's last row is 199, the plane's last),
 // redrawn only when their text changes.
 //   line 1   the mode, the texture size, ZM-X on/off, the keys
 //   line 2   FPS, the cart's own time a frame in Mc (cycles at 100 MHz, the
@@ -17,7 +18,7 @@ extern fn hostMicros() u32;
 
 const COLS = 40;
 const Line = [COLS]u8;
-const Y = [2]i16{ 186, 194 };
+const Y = [2]i16{ 184, 192 };
 const PIXELS: u32 = 320 * 184;
 
 pub const Hud = struct {
@@ -59,7 +60,7 @@ pub const Hud = struct {
         var b0: [COLS]u8 = undefined;
         var tb: [8]u8 = undefined;
         const tex = if (size == 0) "    " else std.fmt.bufPrint(&tb, "{d:>3} ", .{size}) catch "";
-        pad(&l[0], std.fmt.bufPrint(&b0, "{s} {s}ZM-X {s}  1/2 T Z F", .{ mode, tex, if (zmx_on) "ON " else "OFF" }) catch "");
+        pad(&l[0], std.fmt.bufPrint(&b0, "{s} {s}ZM-X {s}  1/2 T Z F +-", .{ mode, tex, if (zmx_on) "ON " else "OFF" }) catch "");
         var b1: [COLS]u8 = undefined;
         if (self.fps10 == 0) {
             pad(&l[1], "");

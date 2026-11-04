@@ -45,11 +45,12 @@ _BY_CATEGORY = {
         "replicants",  # REPS OLD: kept to compare with replicants_garfield
         "raytrace_f32", "polkadots_f32", "replicants_emlyn_f32",  # the FPU twins
         "hello", "hello_asm", "bench",  # native carts (cycles/native)
+        # KESTREL's own feature showcases, not converted demos (Matt, 3 Nov)
+        "ziggy", "chisel_v2", "blitter", "mpp_truecolor", "polkadots", "raytrace", "shapes",
     ),
     "demos": (  # the "zigmachine" screens that are shows, not tests
-        "blitter", "scroll", "obj", "ziggy", "fullscreen", "maxi", "medium_overscan", "res_switch", "shapes",
-        "mandelbrot", "mpp_truecolor", "polkadots", "raytrace", "fuji_hobbytronic", "anima",
-        "leonard_spirit", "chisel_v2",
+        "scroll", "obj", "fullscreen", "maxi", "medium_overscan", "res_switch",
+        "mandelbrot", "fuji_hobbytronic", "anima", "leonard_spirit",
     ),
 }  # fmt: skip
 TABLE = {tag: cat for cat, tags in _BY_CATEGORY.items() for tag in tags}
