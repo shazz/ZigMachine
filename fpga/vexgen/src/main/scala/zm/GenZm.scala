@@ -33,6 +33,7 @@ case class ZmArgs(
     dTcm: Boolean = false, // a tightly coupled data port (ZmTcm.scala): the BARD scratchpad study
     earlyBranch: Boolean = false, // branches resolved in EXECUTE, not MEMORY (review/BARD_CPI_STUDY.md)
     shiftEarly: Boolean = false, // the barrel shifter's result in EXECUTE (bypassable at once)
+    mulMem: Boolean = false, // MUL's low word bypassed from MEMORY (ZmMulPlugin)
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -56,6 +57,7 @@ object GenZm {
       opt[Unit]("dTcm").action((_, c) => c.copy(dTcm = true))
       opt[Unit]("earlyBranch").action((_, c) => c.copy(earlyBranch = true))
       opt[Unit]("shiftEarly").action((_, c) => c.copy(shiftEarly = true))
+      opt[Unit]("mulMem").action((_, c) => c.copy(mulMem = true))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -131,7 +133,7 @@ object GenZm {
     ),
     new BranchPlugin(earlyBranch = a.earlyBranch, catchAddressMisaligned = true),
     new CsrPlugin(csr(a)),
-    if (a.zmx) new ZmMulPlugin else new MulPlugin
+    if (a.zmx || a.mulMem) new ZmMulPlugin(a.zmx, a.mulMem) else new MulPlugin
   ) ++ (if (a.zmx) List(new ZmXPlugin(early = a.zmxEarly)) else Nil) ++
     (if (a.noDiv) Nil else List(new DivPlugin)) ++ List(
     new ExternalInterruptArrayPlugin(
