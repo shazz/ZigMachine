@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-11-03 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-11-04 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -1440,7 +1440,7 @@ features it uses; ring modulation or hard sync in effect falls back to a sample 
 <article class="api" id="Desktop.applyBg"><code class="sig"><b class="fn">applyBg</b>(self: *Desktop) <span class="ret">void</span></code><a class="anchor" href="#Desktop.applyBg" aria-label="Link to applyBg">#</a></article>
 <article class="api" id="Desktop.isModal"><code class="sig"><b class="fn">isModal</b>(self: *const Desktop) <span class="ret">bool</span></code><a class="anchor" href="#Desktop.isModal" aria-label="Link to isModal">#</a><p class="doc">An open dialog owns all input: the icons, the windows AND the menu bar. ONE list, read by both render and runDialogs — two copies once drifted and left the menu bar live under the COPY box.</p></article>
 <article class="api" id="Desktop.render"><code class="sig"><b class="fn">render</b>(self: *Desktop) <span class="ret">Action</span></code><a class="anchor" href="#Desktop.render" aria-label="Link to render">#</a><p class="doc">Draw the desktop (res-adaptive) + windows; handle icon drag/click; return action.</p></article>
-<article class="api" id="Desktop.launchName"><code class="sig"><b class="fn">launchName</b>(self: *const Desktop) <span class="ret">[]const u8</span></code><a class="anchor" href="#Desktop.launchName" aria-label="Link to launchName">#</a><p class="doc">The program a .launch action refers to. Empty when the disk holds none, so the caller can report &quot;no program on this disk&quot; instead of booting nothing.</p></article>
+<article class="api" id="Desktop.launchName"><code class="sig"><b class="fn">launchName</b>(self: *const Desktop) <span class="ret">[]const u8</span></code><a class="anchor" href="#Desktop.launchName" aria-label="Link to launchName">#</a><p class="doc">The program a .launch action refers to; empty when the disk holds none (no boot of nothing).</p></article>
 <article class="api" id="Desktop.setPointer"><code class="sig"><b class="fn">setPointer</b>(self: *Desktop, x: i32, y: i32, buttons: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.setPointer" aria-label="Link to setPointer">#</a></article>
 <article class="api" id="Desktop.requestOpenAt"><code class="sig"><b class="fn">requestOpenAt</b>(self: *Desktop, x: i32, y: i32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.requestOpenAt" aria-label="Link to requestOpenAt">#</a></article>
 <article class="api" id="Desktop.beginFrame"><code class="sig"><b class="fn">beginFrame</b>(self: *Desktop) <span class="ret">void</span></code><a class="anchor" href="#Desktop.beginFrame" aria-label="Link to beginFrame">#</a></article>
