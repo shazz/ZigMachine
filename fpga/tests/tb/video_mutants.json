@@ -503,9 +503,9 @@
   },
   {
     "id": "tc_expanded_by_shift",
-    "file": "zm_video_paint.v",
-    "old": "{8'hFF, h2[4:0], h2[4:2], h2[10:5], h2[10:9], h2[15:11], h2[15:13]}",
-    "new": "{8'hFF, h2[4:0], 3'd0, h2[10:5], 2'd0, h2[15:11], 3'd0}",
+    "file": "zm_video_tcfade.v",
+    "old": "wire [7:0] r8 = {px[15:11], px[15:13]}, g8 = {px[10:5], px[10:9]}, b8 = {px[4:0], px[4:2]};",
+    "new": "wire [7:0] r8 = {px[15:11], 3'd0}, g8 = {px[10:5], 2'd0}, b8 = {px[4:0], 3'd0};",
     "catch": "s:truecolor"
   },
   {
@@ -525,8 +525,8 @@
   {
     "id": "tc_through_the_palette",
     "file": "zm_video_paint.v",
-    "old": "lb_data <= tc ? tc_px : pal_rdata;",
-    "new": "lb_data <= pal_rdata;",
+    "old": "lb_data <= tc ? tc_px : pal3;",
+    "new": "lb_data <= pal3;",
     "catch": "s:truecolor"
   },
   {
