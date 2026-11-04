@@ -81,14 +81,14 @@ if [ -z "$FAST$ONLY" ] && sh tools/gate_stamp.sh clean; then STAMPABLE=1; fi
 # gate / gate_timed / always / run_gates: the harness queue (parallel, bounded)
 . tools/gate_lib.sh
 
+# Local-only art, not cleared to publish: TC TEST's pictures (tools/tc_art.py). A cart built
+# with it must not be committed: look, then rebuild without the variable before committing docs/.
+set --
 if [ -n "${ZM_TC_ART:-}" ]; then
-    # TC TEST's local pictures (tools/tc_art.py): docs/demo-tc_test.* then carries pictures not
-    # cleared to publish. Look, then rebuild without ZM_TC_ART before committing docs/.
     echo "ZM_TC_ART=$ZM_TC_ART: docs/demo-tc_test.* carries LOCAL pictures, do not commit it"
-    zig build -Drelease=true -Dwasm -Dtc-art="$ZM_TC_ART"
-else
-    zig build -Drelease=true -Dwasm
+    set -- "$@" -Dtc-art="$ZM_TC_ART"
 fi
+zig build -Drelease=true -Dwasm "$@"
 
 # --fast stops here. The C and Rust carts are NOT rebuilt (slow, and irrelevant
 # to a Zig scene edit), so a --fast build is never a pushable one.
@@ -414,6 +414,9 @@ gate tc_test node apps/tc_test_check.mjs   # TC TEST (cart 113, HW 1.15.0): plan
 gate tc_test node apps/tc_test_check.mjs --break   # ...and mode 5, colours quantised to 3 bits, a pixel written a frame, a frozen list and a tracked cart with local pictures, the fade registers zeroed, a pixel rewritten during the fade and a model without the fade are each caught
 gate ziggy node apps/ziggy_check.mjs   # ZIGGY (cart 115): ZM-X on and off draw the SAME picture (ROTO at 64/128/256 and VOXEL, frame 40), the picture area is the mode's own, frames move, the texture size changes the pixels, VOXEL has sky on top and ground at the bottom, the HUD is drawn and follows the mode, Escape leaves
 gate ziggy node apps/ziggy_check.mjs --break   # ...and ZM-X off compared a frame later is caught
+gate falcon_ays node apps/falcon_ays_headless.mjs   # ARE YOU SITTING COMFORTABLY? (cart 116, Reservoir Gods' Falcon intro): plane 0 alone in FB_MODE 5, falcon_ays.mod asked for on frame 1; the MOD's 8xx script on the frame clock: black before the blobs and in 807's gap, five blob variants at their times each drawn (colours, lines doubled by the copper list, pixel pairs, moving, five different pictures); the original's data drawn: text palette, purple LUT, the ship picture pixel for pixel, the CODE plaque, the flames on plane 1 alone in the fireball's colours; Escape leaves
+gate falcon_ays node apps/falcon_ays_headless.mjs --break script   # ...and the blob checkpoints 3 s early are caught
+gate falcon_ays node apps/falcon_ays_headless.mjs --break art   # ...and the ship compared one pixel off is caught
 gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1-4 pick the object (4: GLENZ NEST, 60/104), + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the other objects), S cycles nine distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels, DOTS one pixel a vertex, TEXTURE the wall texels and ENVMAP Natrium's grey env map through one CHISEL AFFINE op), only last frame's box erased (no stale pixel in any mode, nest included), five sphere and three nest pins under every split, the HUD follows, Escape leaves
 gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never arrive are caught
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught

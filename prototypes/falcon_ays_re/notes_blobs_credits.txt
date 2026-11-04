@@ -1,0 +1,52 @@
+RE notes (agent pass, 3 Nov): BLOBS, CHOSNECK, CREDITS. RGB branch. No DSP in any of these.
+
+BLOBS 80B-811,821. Inner $3BC8: 160x100, 100 rows x 160 longs (pixel doubled), VBL $E74 line-doubles.
+ pixel = LUT[A[i]+B[i]] (two u16 loads, add, move.l LUT[d3*4], store). Row: add d4/d5 bytes to read ptrs.
+ BUG to copy: both read pointers loaded from $215B4C (field-A ptr $215B48 unused) -> every variant sums ONE
+ field at two offsets. Origins = field + 2*path[phase]; path entry = y*320+x.
+ Field DATA $38F2C 320x200 bytes 0..127 -> u16 BSS $1D7342; $1F6742 = reversed (rot 180).
+ Five spotlight/flame shapes, bright elliptical core at bottom, glow up. Peaks: 28@(66,163) +-7; 70@(110,162)+-7;
+ 108@(162,160)+-8; 127clip@(213,157) x196-220 y133-169; 127clip@(265,151) x241-271 y111-166.
+ Paths 512 words, idx byte phase &$3FF, theta=2pi i/512, S(k)=sin(k theta):
+  P0 $4892C x=80+40(S2+S8) y=50+25(S1+S4); P1 $48D2C x=80+40(S1+S4) y=50+25(S2+S8)
+  P2 $4912C x=80+80 S1 y=50+25(S2+S4);     P3 $4952C x=80+40(S1+S2) y=50+50 S4
+ Variants (field / phases A,B / paths A,B / strides d4,d5 / LUT):
+  80B $1F6742 $154,$172 P2,P1 320,320 purple; 80C $1D7342 $2C4,$64 P3,P2 300,320 cyan;
+  80D $1D7342 $1CA,$34C P2,P3 320,320 red;   80E $1F6742 $238,$2A2 P3,P1 318,322 green;
+  80F $1F6742 $22C,$232 P0,P1 312,328 gold;  810 $1D7342 $3C0,$64 P0,P1 312,328 purple.
+  (strides in bytes per row of u16: 320 = straight; 300 = shear 10 px/row; 318/322 +-1; 312/328 +-4)
+  811 ($388C): keeps params, calls $45C4: 6-line tear band at row table[$5AAAC][idx]/320, rows shifted left
+   2,6,14,8,4,2 px in place; tear row y=45+22.5(sin p+sin 4p), 1024 entries; idx +2/tick &$7FF.
+  821: keeps params, inverted LUT.
+ LUTs u16 565: purple $4A12C, cyan $4992C, red $4A52C, gold $49D2C (512 entries); inverted $4A92C, green $4AD2C (448).
+  All black for sums <=128, white from ~255 (gold 223, green 192): metaball threshold.
+  purple: black->$501C98->$E060C0->$E8B0D8->white. red: black->$F84028->$F8C4A8->white.
+  inverted: white <128, pink $F0D0D8->$F08498 128-255, then black.
+ Timer $3C7E: every 3rd tick both phases +2 bytes (one entry). No feedback.
+
+CHOSNECK 808 main $2CC4: $DB24 = 12 frames 320x43 bytes (0-63) rotating 6-point star flare near x=160;
+ $36024 logo map 160x44 bytes (0/127); $37BA4 1024-word x offset 78+26.3(sin t+sin 2t+sin 4t), 19..137;
+ $383B0 LUT (256 used) black <64, brown->gold (127~$E8B048)->white >=160.
+ Band 42 rows x 160 px: idx = starA[k1][x+ofs(p1)] + starB[k2][x+ofs(p2)] + logo[x]; LUT -> doubled long.
+ Band at back+$4880 = 160x100 row 29 (screen lines 58-141). Timer $30A8: k1 up, k2 down every 4 ticks (mod 12),
+ p1 (from 0), p2 (from 300) +1/tick mod 1024. Glow pre-rendered in flare frames.
+ 816 main $4B10 (mode stays 805): FEEDBACK blur: band from previous buffer, (p[i]>>1&$7BEF)+(p[i+1]>>1&$7BEF),
+ 2-tap horizontal at 320 res, 13,440 px/frame; outro smear.
+
+CREDITS 82D-831 identical: pop next entry from list $13FD1E (ptr $13FD4E).
+ 1 71.68 CODE $130B8C (ice_1248168); 2 76.16 GRAPHICS $134578 (ice_1262996); 3 80.64 CODE $132AF6 (ice_1256210);
+ 4 89.60 MUSIC $13623C (file 1,270,360, ice.zig fails); 5 98.56 CODE $12EE32 (ice_1240654).
+ Pictures ICE -> 153,606 B: 6-byte header ($0400,320,240) + RGB565 BE. Depacker $CF2A.
+ Plaques: 'G4' w h raw 565: CODE 113x40 $13A606, GRAPHICS 165x40 $13C95C, MUSIC 131x40 $137D10; $CE88 blits at
+ (320-w,200-h) into 320x240 bg $13FD0E (cleared black, copied to all 3 screens).
+ Spawn grid $CAFE: 4x4 blocks (80x60), bitmap + per-row counts (1090,1018,920,1002 blocks).
+ Particles: pool 256 x $6E at $2D222A, free bitmap $2D220A. 20 spawn tries/frame; $CBB8 random set block (LCG
+ x$10DCD+1, random row, +-1 walk col), clears it, copies its 16 px. Emitter $2E2610, init $C8B8: v in [-200,200)
+ px/unit x,y; a_x [-50,50), a_y [-0.5,9.5); L = 0.22+rand*0.39 units. Motion $CD76: r = L-(now-birth),
+ pos = home + v r + a r^2 (fly-in, lands on home). r<0: stamp into bg, keep 4 frames, free. Timer $D334 +$28F (0.01)
+ per tick: 1 unit = 2 s at 50 Hz, life 0.45-1.24 s; ~300 blocks/s, ~3.5 s a picture.
+ Draw: 3 dirty lists ($2E2684/$2E6684/$2EA684) {offset, 4x4 px}; $C87C erase from bg, $C834 plot.
+ 833 (VBL $69C) jitters HDB/HDE via table $1D3F7E [-1,1,-2,2,-3,3,-3,4,...,-3,8,...,-1,1,0] ~30 frames: shake.
+ 837/838 main $AB0C: 8-frame tiled 16x16 mask wipe to black over 20x13 cells; 837 anim 1 ($11E5B0 growing centred
+ square 2->16, the "holes" at s80), 838 anim 18 ($120772 growing cross).
+ $AE18 tables: 16.16 maths: acos $12362A, cos $128E2A, sin $12CE2A (index rad*256). LCG seed $12EE2A.

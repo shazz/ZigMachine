@@ -1,0 +1,51 @@
+RE notes (agent pass, 3 Nov): FLAMES, 3D, TEXTS, END, DSP. RGB branch.
+NB the capture scales the 200-line screen x1.2 to 240 rows (line 25..174 shows at rows 30..209).
+
+FLAMES 817/818/819/81C/834/835 (timer $527C, VBL $D40, mains $4D6E/$4EAA/$4FE6/$511A/$529A/$5A96)
+ texA DATA $A9C6C: 256x256 RGB565 photo fireball, exactly 255 colours. texB $C9C6C: pre-rendered halftone, 64 greys.
+ Init $4D16 copies each twice (BSS $218968, $258968): 128K-entry linear lookup, no wrap.
+ Maps: mapA $6B46C (smooth warp), mapB $8A86C (warp + turbulence): 320x200 u16 = v<<8|u, only 48000 used (150 rows).
+  ~1.9 texels/px across, 2.2 down: tiles ~2.3x1.3, warped.
+ Inner: d2=(a0)+ ; (a2)+ = (a1+2*d2).w, x40 unrolled, 1200 iters -> 320x150 at back+$3E80 = lines 25..174;
+  letterbox never written (black).
+ Anim: a1 = texture + 2*offtab[$218966/2]; offtab DATA $E9C6C 1024 u16 v<<8|u Lissajous-like, +-1 steps.
+  Timer $527C adds 2 a tick, wraps at $800 (MFP timer A /200 count 246 ~50 Hz): one cycle ~20.5 s.
+ 817 texA+mapA; 818 texA+mapB; 819 texB+mapA; 81C = 819 + text; 834 glitch: texA in 4 bands (15,74,39,19 lines),
+  a white 320-px line between bands, map pointer rewound 8,16,24 rows; 835 same on texB with black lines.
+ Text "are you sitting comfortably?" (81C tail $524C): DATA $EA46C 320x22 bytes coverage; non-zero -> black pixel,
+  lines 89..110.
+ 81A/81B main $628E: FULL-SCREEN FLASH: fill 320x200 with one long from grey ramp DATA $EBFEC (128 doubled greys),
+  index $298968 (mains reset it to $F8 = near white), timer $6378 -8 a tick -> black in 31 ticks (0.6 s); timer also
+  advances flame offset and $215B42/44/46. 81B = same in mode 805. Unused 83D ($AC14/$AD1C): fill down the text ramp
+  $1187D6 from $FC, 4/tick.
+
+3D: EarX's demo system (screen objects, $8254/$825E timers on the 200 Hz $4BA clock, setZoom/stutter/turn = BALLOID.SO
+ at $A570/$A672/$A626). Main $A4CA: clear; morph = (sin[t&$7FF]+$8000)>>7 (0..511, ~10 s period at 200 Hz);
+ moveRout; paint $A6DC. BSS $2A4EF6 = 2048 (sin,cos).
+ Topology ($A7FE): 402 vertices (2 poles + 40 rings x 10 longitudes), 410 faces (10 top tris, 390 quads, 10 bottom
+ tris), type $8800/$8C00 ENVMAPPED; normals = vertex+402 by neighbour cross products ($A938). $A9E8 sends sin/cos of
+ 40 latitudes (step 24/2048) and 10 longitudes (step 204/2048). Radius/wibble formula is DSP code (DATA $1189D6),
+ not decoded (needs a 56k disassembler). Looks: sphere -> ribs -> rings.
+ Per frame CPU -> DSP: morph, 3 (sin,cos) at t*3/4, t*7/4, t*11/8, x, 0, z. DSP does generation, normals, rotation,
+ perspective, culling, sort, env u,v, scan conversion; $8C6C = DSP-driven primitive loop, CPU writes pixels
+ (PIXEL_TEXTURING inferred: move.w (a1),(a0)+ x16 at $9780); DSP returns dirty rects. No Gouraud.
+ Env maps: DATA $11A3AE grey, $11C3C2 orange: 16-byte header ("WordPerPixel", 64, 64) + 64x64 RGB565.
+  grey: white disc, dark ring, white outside, dark corners (64 colours). orange: radial falloff + white spec (85 col).
+ 829 (161.28): focal $100, centre (273,100), z 300; clears x 160..319, y 25..174 WHITE each frame (object right half).
+ 82A (179.2): focal $280, centre (160,100), z 1500 -> 300 (2 per 200 Hz tick); clears box 90..229 x 30..169 black.
+ Texts 839/83A (main $7E3E): DATA $1173D6 two 320x8 byte strips ($A00 each), 0..127 in 17 levels (127 = white bg),
+  through palette DATA $1187D6 (256 565: black->brown->salmon->white) + offset $2A6F18; lines 92..99 full width.
+  Timer $822C holds 300 ticks then +2 bytes a tick up to $100: text fades into white.
+ Greetings ($7C28, by 82A/83B/83C): DATA $112D56 pre-rendered 1000x8 RGB565 strip; each frame 320 px copied in
+  24-px chunks whose rows step down 0,1,2,2,3,3,3,3,3,4,4,5,6,7 (slanted baseline from line 120). Source offset from
+  DATA $116BD6 (1024 byte offsets 4..1356, back and forth), index $2A4EF4 += 2 a frame.
+  83B starts a vertical shake (VBL $6AC..: +-1..+-8 table DATA $1D3FBC on VDB/VDE); 83C stops it.
+ End 83E ($72A0): feedback blur (a>>1&$7BEF)+(b>>1&$7BEF) right neighbour, previous buffer -> back, full 64000 px.
+
+DSP: DATA $D33A 1536 B = loader stub (host port at $234->$278). TEXT $279C 1287 B = byte-identical to Lineout's
+ RSNDEARX.P56 (EarX MOD replay DSP mixer), XBIOS $6D at $143E; timer A ($136A ~50 Hz) runs the 68k sequencer $1480
+ then $246A streams sample data to the DSP ($24xx-$27xx). DATA $1189D6 6612 B (jmp $220) = the 3D engine, a
+ HumanFly/ufly derivative with object generation on the DSP (shares 274/2204 chunks with S_FLY.P56). Only two #$6D
+ XBIOS sites. Clusters $85xx-$99xx, $A0xx-$AAxx = 3D engine.
+KESTREL notes: CHISEL map/affine are 8bpp-indexed only; texA 255 colours, texB 64, env maps <=85 colours: an 8bpp
+ plane + palette is exact for flames and 3D. Blur (816, 83E) needs TC arithmetic (CPU on a TC plane).

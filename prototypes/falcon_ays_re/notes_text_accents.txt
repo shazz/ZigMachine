@@ -1,0 +1,44 @@
+RE notes (agent pass, 3 Nov): TEXT, PRESENTS, FLASH, BEAM, ACCENTS. RGB branch. No DSP (no host-port access here).
+Buffers rotate at $7CC: 690 <- 688 (just drawn): $2EE690 = the frame drawn last (what feedback effects read).
+Never fired by the script: 806 (clears 64000 B), 81F (64-step ramp fill from $EBFEC), 827, 828.
+Video: commands show ~0.3-0.4 s after their sync_timeline time.
+
+807 main $4A76: clear 128000 B (movem); fired 2+ frames to clear all 3 buffers.
+TEXT 81D/81E/82B/82C/832 (timer $656C; mains $6404/$644C/$6494/$64DC/$6524)
+ Font DATA $EC1EC 30208 B: 59 glyphs ' '..'Z', 16x32, 8 bpp (512 B), 0..$72 intensity, grain baked in.
+ Strings 19 chars + 0 at $F38EC "IN AUTUMN 2003.....", $F3900 ".......WE ARE BACK!", $F3914 "      PRESENTS     ",
+  $F3928 "SOME RANDOM STUFF..", $F393C "...FOR CHOSNECK MAG".
+ Sub-entries differ: string; screen offset $C800 (line 80) 81D, $DC00 (line 88) 81E, $D200 (line 84) others;
+  blur start 160 ticks (81D/81E) or 20 (82B/82C/832).
+ Entry: clear 320-wide work buffer BSS $2995EA (13560 B), copy glyphs at row 4, x 8 ($6588), blur once ($691E),
+  zero tick counter $29D1EA (timer +1, cap 1000).
+ Frame: if counter >= threshold blur ($691E) in place p = (UL+UR+DL+DR)>>2 over 10140 bytes from row 1 col 1
+  (in place: smears to one side; truncation darkens to nothing). Display ($6808): 320x40 bytes through 128-entry
+  565 palette $F37EC (black->red->white) to screen words. Rest of screen = what 807/814 left.
+809 grey noise band (timer $32EC, mode 804, main $3172): lines 75-124, 320 wide, fades in.
+ Init $3152: DATA $3892C 768 565 words -> BSS $1D673E doubled longs: 0-257 black, 258-383 and 384-510 grey ramps,
+ 510+ white. Main: PRNG seeded from $468 d0 = rol(d0*d0 ^ d0 + 7, d0); low byte indexes a 256 window; a long to
+ lines y and y+1: 160x25 cells of 2x2. Timer: window start $1D673C +6 a tick up to $200: fade in ~85 ticks.
+814/815 "reservoirgods" halftone strobe (timer $49E6, mode 804, mains $4946/$4968 -> $498A): identical except state
+ id: each command restarts the flash. 320x51 at line 75: pix = LUT[letters[x,y] + field[x+sway, y]].
+ letters DATA $5B2AC 320x65 u8 0..127 halftone-dot "reservoirgods" (rows 8..58 used); field $603EC 42112 B read
+ 640 wide, radial halftone dots; sway $6AC6C 1024 u16 1..318, index $218962 +2/tick &$7FF; LUT $6A86C 512 565:
+ 0-256 black, 257-383 black->red->white, then white. Flash: LUT base starts +125 entries ($218964=$FA bytes), timer
+ -5 entries a tick: letters show (moire) and fade over 25 ticks.
+820 ship (mode 804, main $6B58): DATA $F3950 header ($0400,$0140,$00C8) + 128000 B RGB565 320x200 BE, radial gradient
+ baked in, copied every frame. Entry: shake flag $2EEB34 with table $1D3CD0: VBL adds table to VDB/VDE until 0:
+ 62 VBLs of +-16,+-15..+-1: vertical bounce (half-lines? ~+-8 lines).
+ The "light beam" is not 820: 822 at 33.60 ramps the frozen 80F streak field to white (orange/white beams),
+ 823 at 35.56 fills white, 804 holds, ship cuts in.
+825/826 (mains $71A8/$722A): HDB/HDE shake table $1D3F7E (-1,1,-2,2,-3,3,-3,4..-3,8..-1,1,0 ~30 VBLs).
+ 825 while shaking: $72A0 back = previous frame 2-tap horizontal average ((p>>1)&$7BEF)+((q>>1)&$7BEF), 64000 px,
+ feeds back (smear grows); after: $486C copies last frame (freeze). Second 825 at 41.86 no-op (state $16 set).
+ 826: shake + freeze, no blur.
+823 main $6FE8: fill 320x200 $FFFF (white flash). 824 $70C6: white lines 25..174 only.
+813 main $4790 (RGB $4804): copy last frame (mode 805) = freeze 0.56 s.
+822/836 (mode 805, $6CA6/$6CC8): entry $6CEA snapshots blob index field (160x100 u16, both terms from $215B4C).
+ Frame: 822 idx<=$F8: idx+=6 (to LUT top: white / orange beams for 80F); 836 idx>=6: idx-=6 (to black);
+ draw LUT($215B5C)[idx] doubled.
+812 chosneck smear (mode 805, $3E1C, RGB $4060): out[i] = prev_frame_long[map[i]], map DATA $52DAC 16000 u16,
+ a ~1.25x zoom (x 0->17, 159->144); RGB path scales word index x2: source rows 20..178, reads past the 100-line
+ buffer (quirk, inferred). 0.28 s on screen.

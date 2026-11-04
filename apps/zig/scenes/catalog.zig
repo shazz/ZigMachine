@@ -129,6 +129,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "CHISEL V2", .tag = "chisel_v2" }, // zigmachine — the blitter's HW 1.11.0 ops: AFFINE, MAP, mirror, collision, area fill
     .{ .name = "ZIGGY", .tag = "ziggy" }, // zigmachine — the cart CPU's showcase: CPU rotozoom + voxel landscape, ZM-X on/off, Mc and cycles a pixel
     .{ .name = "TC TEST", .tag = "tc_test" }, // zigmachine — HW 1.15.0's RGB565 true-colour plane: gamut, plasma warp, palette vs 565, gradients
+    .{ .name = "SITTING COMFORTABLY?", .tag = "falcon_ays" }, // atari falcon — Reservoir Gods' 2004 intro (Chosneck #2), ported from the depacked original
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
     .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2
     .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2

@@ -370,6 +370,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "falcon_ays",
+  "title": "SITTING COMFORTABLY?",
+  "type": "atari falcon"
+ },
+ {
   "tag": "skystrike",
   "title": "SKYSTRIKE",
   "type": "atari st"

@@ -583,6 +583,7 @@ pub fn build(b: *std.Build) void {
         "demo-tc_test", // 113 — TC TEST: the RGB565 true-colour plane (HW 1.15.0): the gamut, a plasma warped by copper LBASE + HSCROLL, palette vs 565, banding gradients, local pictures
         "demo-kt_test", // 114 — KT TEST: one text plane, keys 1-4 ask for the klystrack example songs by name, 5 stops; plays once the BARD .kt player lands
         "demo-ziggy", // 115 — ZIGGY: the cart CPU's showcase: rotozoom (64/128/256 textures) and a voxel landscape drawn by the CPU, ZM-X tex2d/mulsh on or off (same pixels), Mc and cycles a pixel on screen
+        "demo-falcon_ays", // 116 — RESERVOIR GODS / ARE YOU SITTING COMFORTABLY? (Falcon 030, 2004): the intro on the true-colour plane, its parts driven by the MOD's 8xx script (the original's data, ripped by tools/falcon_ays_art.py)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -611,6 +612,7 @@ pub fn build(b: *std.Build) void {
             },
         });
         if (std.mem.eql(u8, name, "demo-tc_test")) cart_mod.addImport("tc_art", tcArt(b, tc_art_dir, wasm_target, optimize));
+        if (std.mem.eql(u8, name, "demo-falcon_ays")) cart_mod.addImport("ays_art", b.createModule(.{ .root_source_file = b.path("apps/zig/assets/screens/falcon_ays/ays_art.zig"), .target = wasm_target, .optimize = optimize })); // the tables tools/falcon_ays_art.py ripped
         const exe = b.addExecutable(.{
             .name = name,
             .root_module = b.createModule(.{
