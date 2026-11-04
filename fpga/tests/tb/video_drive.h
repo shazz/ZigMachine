@@ -44,10 +44,10 @@ public:
         if (after_cycle) after_cycle();
     }
 
-    void cpu_write(uint32_t byte_off, uint32_t v) {
+    void cpu_write(uint32_t byte_off, uint32_t v, uint32_t be = 0xF) {
         top.p_cpu__we.set(true);
         top.p_cpu__waddr.template set<uint32_t>(byte_off >> 2);
-        top.p_cpu__be.template set<uint32_t>(0xF);
+        top.p_cpu__be.template set<uint32_t>(be);
         top.p_cpu__wdata.template set<uint32_t>(v);
         top.p_cpu__sel.template set<uint32_t>(region_sel(byte_off));
         cycle();

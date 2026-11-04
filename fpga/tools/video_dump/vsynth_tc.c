@@ -34,7 +34,7 @@ static void list0(void) {
     g_at = LIST0;
     vs_w16(REG2(ZM_REG_FB_COPPER, 0), (LIST0 - ZM_OFF_VRAM) / 16u);
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
-        int fade = y % 3 == 1, ofs = y % 5 == 4, last = y == ZM_RASTER_HEIGHT - 1;
+        int fade = y % 3 == 1, ofs = y % 5 == 4, last = y == ZM_RASTER_HEIGHT - 2;
         uint32_t n = (y % 7 == 3) + (y % 2 == 0) + fade + 3 * ofs + 2 * last;
         if (!n) continue;
         put(0xF0000000u | y << 19 | n);
@@ -42,8 +42,9 @@ static void list0(void) {
         if (y % 2 == 0) put(0x20000000u | REG2(ZM_REG_HSCROLL, 0) << 20 | (vs_rnd() % 300));
         if (fade) put(0x20000000u | ZM_REG_TC_FADE << 20 | (g_fade = vs_rnd() & 0xFFFFu));
         for (uint32_t k = 0; ofs && k < 3; k++) put(0x20000000u | (ZM_REG_TC_OFS_R + 4u * k) << 20 | (vs_rnd() & 0xFFu));
-        /* The last line: plane 0's fade again, unchanged (the machine's word does not move, so the
-         * replay sends nothing over a lane a broken copper wrote), then plane 3's: the list stops. */
+        /* Line 278: plane 0's fade again, unchanged (the machine's word does not move, so the
+         * replay sends nothing over a lane a broken copper wrote), then plane 3's: the list stops, so
+         * line 279's offsets are never applied. */
         if (last) put(0x20000000u | ZM_REG_TC_FADE << 20 | g_fade), put(0x20000000u | (ZM_REG_TC_FADE + 3u) << 20 | 0x0Au);
     }
     put(0xF0000000u | 511u << 19);

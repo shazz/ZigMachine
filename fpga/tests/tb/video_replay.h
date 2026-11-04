@@ -68,7 +68,13 @@ template <typename RigT> struct Replay {
             bool own = false;
             for (int o : kOwnWords) own |= o == w;
             uint32_t want = s[size_t(w)], was = own ? rig.reg_read(w) : reg_sent[w];
-            if (reg_fresh || was != want) rig.cpu_write(uint32_t(w) * 4, want);
+            // The TC fade words are four planes' bytes (HW 1.16.0): the CPU stores the bytes it
+            // changes, so a lane only the copper wrote is never rewritten from here.
+            uint32_t be = 0;
+            for (int b = 0; b < 4; b++) be |= ((want ^ was) >> (8 * b) & 0xFF) ? 1u << b : 0u;
+            bool bytes = w == ZM_REG_TC_FADE / 4 || w == ZM_REG_TC_OFS_R / 4 || w == ZM_REG_TC_OFS_G / 4 ||
+                         w == ZM_REG_TC_OFS_B / 4;
+            if (reg_fresh || was != want) rig.cpu_write(uint32_t(w) * 4, want, reg_fresh || !bytes ? 0xFu : be);
             reg_sent[w] = want;
         }
         reg_fresh = false;
@@ -85,6 +91,15 @@ template <typename RigT> struct Replay {
             uint32_t got = rig.reg_read(w);
             if (got == want[size_t(w)] || ++bad_regs > 10) continue;
             std::printf("FAIL line %d: register word %d = %08x, machine %08x\n", y, w, got, want[size_t(w)]);
+        }
+    }
+    // The TC fade words a copper REG writes (HW 1.16.0): at the frame's end the RTL's read-back must be
+    // what the machine left in memory, as cycles/vseq_group.c copies them back.
+    void check_copyback(const State& want) {
+        for (int w : {ZM_REG_TC_FADE / 4, ZM_REG_TC_OFS_R / 4, ZM_REG_TC_OFS_G / 4, ZM_REG_TC_OFS_B / 4}) {
+            uint32_t got = rig.reg_read(w);
+            if (got == want[size_t(w)] || ++bad_regs > 10) continue;
+            std::printf("FAIL frame end: register word %d = %08x, machine %08x\n", w, got, want[size_t(w)]);
         }
     }
     void compare(int k, int y) {
@@ -207,7 +222,7 @@ template <typename RigT> struct Replay {
             }
         rig.command(4, 0, 0);
         if (last) check_own(*last, LINES - 1);  // the passes after the clear wrote none of them
-        if (last) check_writeback(*last);
+        if (last) check_writeback(*last), check_copyback(*last);
         frame_clocks = rig.cycles - t0;
         for (long c : line_clocks) max_line = c > max_line ? c : max_line;
     }
