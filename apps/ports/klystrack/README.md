@@ -19,6 +19,7 @@ songs. Ours (MIT, as the repo): every `kestrel_*` file, `mkbundle.py`, `patches/
     make -C apps/ports/klystrack link             # build/demo-klystrack.wasm (byte-identical to docs/ at the pin)
     make -C apps/ports/klystrack install          # copy it to docs/, repack docs/demo-klystrack.zmd (tools/mkdisks.sh)
     node apps/ports_headless.mjs klystrack        # the gate's check: boot, UI pin, F5 plays STARPRT2.KT, Esc quits to GEM
+    node apps/klystrack_cost.mjs                  # the gate's repaint-cost ceilings (frame_cost est, playing and menu)
     node apps/ports/klystrack/run.mjs 240         # from the repo root: headless run, PNGs in build/
     KEYS="30,57349" AUDIO=1 node ...run.mjs 240       # F5 (0xE005) at frame 30 = play; writes build/audio.wav
     CLICKS="30,270,87" node ...run.mjs 120            # click PLAY (klystrack 320x240 coordinates)
@@ -34,7 +35,8 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 
 | file | what |
 |---|---|
-| `Makefile` | mirrors klystron (`gfx gui snd util`, not `lib/`) and klystrack (`src`, `src/import`, `src/view`, minus `midi.c`) into `build/gen/` (CRLF dropped, `patches/<file>.sed` applied: a patch must change its file), compiles with `zig cc -target wasm32-wasi`, links, runs binaryen 132's Asyncify (`../upstream/binaryen`, fetched by `../fetch.sh`); `make data` regenerates `data/` |
+| `Makefile` | mirrors klystron (`gfx gui snd util`, not `lib/`) and klystrack (`src`, `src/import`, `src/view`, minus `midi.c`) into `build/gen/` (CRLF dropped, `patches/<file>.sed` applied: a patch must change its file), compiles with `zig cc -target wasm32-wasi`, links (with function names), runs binaryen 132's Asyncify (`../upstream/binaryen`, fetched by `../fetch.sh`) with `asyncify_leaves.py`'s removelist, strips the names; `make data` regenerates `data/` |
+| `asyncify_leaves.py` | lists the functions that can never be on the stack when `kestrel_yield` unwinds (an indirect call resolved by its type) for Asyncify's removelist: 751 of 892 are left uninstrumented (below) |
 | `kestrel_main.c` | the cart's exports. klystrack's `main()` (renamed `klystrack_main` by `patches/main.c.sed`) runs as an Asyncify coroutine, as GrafX2: it yields in `SDL_Delay` and after every `SDL_RenderPresent`. `frame()` = clock + SDL timers, the frame's real time of audio (`kestrel_audio.h`: hostMicros, else dt; at most 2 frames' worth), a queued key/click wakes the repaints, then resume; a frame that presented nothing moves the pointer alone (`kestrel_plane_cursor`). `argv[1]` = `STARPRT2.KT`, opened at boot; when `klystrack_main` returns (Esc), `kestrel_quit()`: back to GEM |
 | `kestrel_sdl.c` | what is klystrack-shaped: clock (the frame's real time), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream. **Quiet synth:** no song, every channel's gate off and envelope 0, and 2.2 s of exact silence (longer than the reverb's 2 s line, no feedback): cyd is not called, zeros are fed, until a note or a song starts. **Repaints:** `kestrel_redraw_due` (below) |
 | `kestrel_chorus.c`, `kestrel_sine.h` | klystron's chorus LUT (`cydchr_set`) in integers: a Q30 sine table (generated, 1024 steps, interpolated), the phase stepped exactly, one 32x32->64 multiply. Within +-1/256 sample of upstream's double `sin()`; 7 of 151,404 stream bytes differ by 1 LSB over a 7 s play |
@@ -42,7 +44,7 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
 | `patches/*.sed` | see below |
-| `run.mjs` | headless runner (from pt2's): boots on `docs/machine-video.wasm` + `docs/rom.wasm` with the floppy, `CLICKS`, `KEYS`, `SNAP`, `AUDIO` |
+| `run.mjs` | headless runner (from pt2's): boots on `docs/machine-video.wasm` + `docs/rom.wasm` with the floppy, `CLICKS` (`frame,x,y[,buttons,hold]`: 4 = right button), `MOVES` (`frame,x,y,buttons`), `KEYS`, `SNAP`, `AUDIO`, `HASHES=file` (sha256 of every frame's picture: `CART=old.wasm HASHES=a.txt` then `HASHES=b.txt`, `cmp`) |
 
 ### Patches (all small; each says why in its header)
 
@@ -73,9 +75,20 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
     have <= 256 colours (all theme art), else ARGB. Colour mod, NONE/BLEND/ADD/MOD, nearest scaling, clip, viewport.
     An indexed texture blits through one palette read a pixel (scaled or not), its colour mod applied once to the
     palette (cached until the mod changes) rather than three divides a pixel.
-    Cursors (`SDL_CreateColorCursor`) kept as ARGB for the presenter.
-  - `kestrel_plane.c`: ARGB picture -> 8-bit plane (normal 320x200 or fullscreen 400x280, centred), four pixels
-    a store with run detection when the rows are word-aligned, palette rebuilt every present (more than 255 colours: extras take the nearest), the SDL cursor drawn at the mouse.
+    Cursors (`SDL_CreateColorCursor`) kept as ARGB for the presenter. The WINDOW target is 8-bit (perf/klystrack-ui):
+  - `kestrel_window8.c`: the window drawn as palette indices; a texture copy maps texture index -> window index
+    (cached per texture and colour mod), blends read the destination's colour from the palette.
+  - `kestrel_palette.c`: ARGB -> index, one palette kept across presents (index 0 black), compacted (the indices
+    still used renumbered in both buffers) when all 256 are taken; a picture of more than 255 colours draws the
+    extras as the nearest entry.
+  - `kestrel_defer.c` / `kestrel_defer_draw.c` / `kestrel_defer.h`: the window's copy/fill/clear/line RECORDED,
+    compared with last frame's command at the same position, and replayed at the present only into the 16x8
+    tiles a differing (or blending) command touches. Two lists of 3,072 commands (2 x 168 KB) at the end of the
+    largest free block, let go when a malloc fails (`-DKESTREL_HEAP_PRESSURE`: a song's reverb/chorus wins).
+  - `kestrel_render_priv.h`: what these share (the texture struct, the blend, the module calls).
+  - `kestrel_plane.c`: the window's indices -> 8-bit plane (normal 320x200 or fullscreen 400x280, centred):
+    compared with the last picture shown a word at a time in the bands the replay drew, only differing words
+    stored, only new palette entries written; the SDL cursor drawn at the mouse, put back from that copy.
   - `kestrel_rwops.c` (stdio over the floppy, memory), `kestrel_timer.c` (timers fired from `frame()`, no-op mutexes),
     `kestrel_image.c` (`IMG_Load_RW` through stb_image; <= 256 colours -> INDEX8 surface), `kestrel_keyname.c`.
 - perf/klystrack-board: `kestrel_plane.c` hashes each presented picture (`kestrel_plane_changed`) and can move the
@@ -132,6 +145,55 @@ enables (cyd here keeps one). Keyjazz while a handed-over song plays is silent.
 `apps/frame_cost.mjs` while playing STARPRT2.KT (est Mc a frame, frames 121-180): 34.1 with cyd ->
 23.8 with the hand-over (cart 9.6 -> 5.3, I$ misses 23.8 -> 17.9): the rest is the UI's 30 Hz repaint
 (SDL_RenderCopy / RenderPresent / colour_index), the next lever.
+
+## The UI repaint (perf/klystrack-ui, 3 Nov 2026)
+
+Matt's board: 5 fps while a song plays, and also with the song stopped while a menu is open: any full repaint.
+klystron redraws its whole UI on every repaint (30 a second while a song plays, every event while a menu is
+open), and on the board once a frame takes longer than 33 ms the 30 Hz tick is due every frame, so the fps is
+~100 / (Mc of one repaint). `apps/frame_cost.mjs`, est Mc (STARPRT2 playing: frames 121-180; menu: the right
+button held, the pointer moving every frame, frames 166-225, every frame a repaint; the worst case):
+
+| | before (main 14dcbbe1) | after |
+|---|---|---|
+| a repaint while playing, median / worst (row scroll) | 41.2 / 46.0 | **10.6 / 21.5** |
+| playing, average a frame (repaint every other frame here: frame_cost's fixed dt) | 23.8 | **7.4** |
+| menu open, pointer moving (a repaint a frame) | 37.2 | **8.1** |
+| idle | 1.21 | 1.19 |
+
+Where a repaint went (before): the renderer drew ARGB, then the presenter turned every pixel back into an index
+(`colour_index`) and rewrote the whole plane and palette; and binaryen's Asyncify had instrumented the pixel
+loops themselves (it assumes any indirect call may unwind, and malloc and printf make one), so they tested the
+unwind state per pixel. ~2,500 draw calls a repaint (glyphs ~1/3, bevel pieces, buttons). The I$ term is ~70 % of
+the estimate (a repaint runs 32-45 KB of code), so instructions are what count. Step by step (playing / menu):
+
+| step | playing | menu |
+|---|---|---|
+| window drawn as 8-bit indices, one palette kept, present stores only changed words | 23.8 -> 21.2 | 37.2 -> 33.4 |
+| Asyncify only where it can unwind (`asyncify_leaves.py`, `-asyncify-ignore-imports`) | -> 14.1 | -> 21.8 |
+| drawing recorded, replayed only in tiles that differ from last frame (`kestrel_defer.c`) | -> 8.1 | -> 9.0 |
+| `USESTATICTEMPSTRINGS` (klystron's own option: one vsnprintf a label, no malloc), packed commands | -> 7.4 | -> 8.1 |
+
+What a repaint costs now (~3 M rv32 instructions): recording ~2,500 calls (~400 instructions each: SDL_RenderCopy
++ the compare), the replay of what changed (most on a row scroll), printf for the labels, klystron's widgets,
+the present. Next levers, in order: fewer calls (a text-run command from a font.c patch: one per string, not per
+glyph; bevels as one command), a vsnprintf subset that hands anything unusual to musl, `song_hash` (kestrel_bard.c,
+~1 M instructions every quarter second of song time) made incremental. The board decides; the model over-charged
+the old pixel loops (41 est for a ~20 Mc board repaint), the remaining code is less loop-shaped.
+
+The same pixels: `run.mjs HASHES=` in six scenarios (idle, playing, menu with the pointer moving, Ctrl+O file
+dialog, quit, File > Open song from the menu) gives the same frame hashes at every step, and the gate's UI pin is
+unchanged. Against main, two differences, both in the old presenter: (a) the picture's row 0 while the menu bar
+is open (and under the dialog opened from it) was black: its run cache started at `~0u`, which is opaque white,
+so white pixels at the start of the picture took index 0 (now white, as drawn); (b) every playing picture holds
+more than 255 colours (the VU meter is a 32x64 ARGB gradient, drawn twice), so both presenters map the extras to
+the nearest entry, in a different order: 5,298 physical pixels of the VU area at frame 60 differ, by at most 47
+a channel.
+
+Memory: the cart 584 -> 436 KB (Asyncify instruments 141 functions, not most); the window buffer 300 -> 77 KB;
+the command lists +346 KB (heap in use at boot 1.95 -> 1.72 MB, 2.06 MB once the lists are taken at the first
+present). Loading DPINTRO, whose chorus no longer fit, makes the lists let go (the window then draws at once)
+and the chorus is allocated as before; they come back when 600 KB are free again. No upstream patch changed.
 
 ## What's left
 
