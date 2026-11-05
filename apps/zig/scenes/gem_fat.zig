@@ -24,14 +24,41 @@ pub const UNIT_C: u32 = 2;
 /// glass), never by the ROM.
 extern fn kosDriveRead(unit: u32, sector: u32, count: u32, dst: u32) u32;
 
+/// KOS's system variables (rom/kos/kos.zig SysVars): drive_a's bits 31:8 count media changes.
+extern fn kosSysVarsPtr() u32;
+const DRIVE_A_WORD = 8; // SysVars.drive_a, the 9th u32
+const DRIVE_CHANGES_SHIFT = 8;
+
+/// Media changes in drive A since power-on: a new count is a new disk, even of the same kind.
+pub fn mediaChanges() u32 {
+    const p = kosSysVarsPtr();
+    if (p == 0) return 0;
+    const words: [*]const u32 = @ptrFromInt(p);
+    return words[DRIVE_A_WORD] >> DRIVE_CHANGES_SHIFT;
+}
+
 fn readA(_: *anyopaque, n: u32, dst: *[fat.SECTOR]u8) bool {
     return zg.readBlock(n, dst) == fat.SECTOR;
 }
 
-var c_sector: [fat.SECTOR]u8 align(4) = undefined;
+// C: answers a request in one round trip to glass (~0.5 ms on the board: its thread polls at
+// 2 kHz) whatever the count, so read RUN sectors at a time and serve the reader's next ones from
+// them (a directory and the FAT are runs): the walk at start costs a few round trips, not one a sector.
+const RUN = 8;
+var c_run: [RUN * fat.SECTOR]u8 align(4) = undefined;
+var c_first: u32 = 0;
+var c_count: u32 = 0; // sectors held from c_first (0: none)
 fn readC(_: *anyopaque, n: u32, dst: *[fat.SECTOR]u8) bool {
-    if (kosDriveRead(UNIT_C, n, 1, @intCast(@intFromPtr(&c_sector))) != 1) return false;
-    dst.* = c_sector;
+    if (n < c_first or n - c_first >= c_count) {
+        c_count = 0;
+        const at: u32 = @intCast(@intFromPtr(&c_run));
+        var got = kosDriveRead(UNIT_C, n, RUN, at); // all or nothing: near the card's end, one at a time
+        if (got != RUN) got = kosDriveRead(UNIT_C, n, 1, at);
+        if (got == 0) return false;
+        c_first = n;
+        c_count = got;
+    }
+    dst.* = c_run[(n - c_first) * fat.SECTOR ..][0..fat.SECTOR].*;
     return true;
 }
 
@@ -45,6 +72,7 @@ pub fn load() bool {
 
 /// Fill C:'s model from the SD card, and show its icon only if it mounted.
 pub fn loadC() bool {
+    c_count = 0; // a fresh walk reads the card afresh
     const ok = loadUnit(UNIT_C, readC);
     rom.Desktop.setDriveC(ok);
     return ok;

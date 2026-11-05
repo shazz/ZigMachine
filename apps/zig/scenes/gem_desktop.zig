@@ -32,10 +32,12 @@ pub const Demo = struct {
     run_name: [16]u8 = [_]u8{0} ** 16,
     run_len: u8 = 0,
     fat_loaded: bool = false, // drive A's FAT disk is in the model (gem_fat.zig)
+    fat_media: u32 = 0, // KOS's media-change count when it was read: a swap re-reads drive A
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         self.desk_medium = false;
         self.fat_loaded = false;
+        self.fat_media = @import("gem_fat.zig").mediaChanges();
         self.run_len = 0;
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
@@ -134,8 +136,11 @@ pub const Demo = struct {
     /// this shell reads it, once per insertion, gem_fat.zig); bit 8 a real floppy (the icon's label).
     pub fn insertDisk(self: *Demo, present: u32) void {
         const kind = present & 0xFF;
-        if (kind == 2 and !self.fat_loaded) _ = @import("gem_fat.zig").load();
+        const fat = @import("gem_fat.zig");
+        const media = fat.mediaChanges(); // the hosts call this every frame: read a disk once, and a new one again
+        if (kind == 2 and (!self.fat_loaded or media != self.fat_media)) _ = fat.load();
         self.fat_loaded = kind == 2;
+        self.fat_media = media;
         rom.Desktop.setDiskApp(present);
     }
     pub fn diskDirPtr(self: *Demo) [*]u8 {
