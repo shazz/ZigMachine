@@ -1,6 +1,6 @@
 # KOS FAT: real floppies in drive A, the SD card as C:
 
-Status: **F1-F4 built, 31 Oct 2026; F3b (a floppy program's own board image) and F5 (C:, the SD card, read-only) 4 Nov; F5 not yet run on the board** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
+Status: **F1-F4 built, 31 Oct 2026; F3b (a floppy program's own board image) and F5 (C:, the SD card, read-only) 4 Nov; F5's first board run 4 Nov: the redraw and drive-A fixes in §4b** (the reader; the desktop over a FAT floppy in every host; the real floppy and its programs on the board; drive A shown only with a disk in, labelled FLOPPY or SD IMAGE); As built, the reader runs in the desktop shell cart, not behind a new ROM import (§2, "As built") (Matt: "go for B", then FAT before the cartridge slot). KOS is the
 KESTREL Operating System (docs/ZIGTOS_BOOT.md).
 
 Today GEM's drive A only knows ZigMachine's own `.zmd` disks: the host parses the disk's flat
@@ -179,6 +179,40 @@ nothing is caught), `fpga/tests/test_kos_fat_desktop.py` (the native host's `--c
 scene_hash.mjs's, icon and window). The
 proof that the board serves C: right is the board itself (the request path has no sim of the
 ARM), plus a firmware-side unit test of the request block (as `test_board_cartreq.py`).
+
+## 4b. The board's first run (4 Nov 2026)
+
+Matt ran F1-F5 on the board (combo16, system table 1.9): D (the USB floppy into drive A), R (the
+desktop over it). Two bugs, fixed on `fix/kos-desktop-board`:
+
+- **25 fps once a drive window opened.** Nothing was reading the card per frame (C: is walked once,
+  at the shell's start; `frame_cost.mjs --c-image` counts 0 reads a frame): the ROM's desktop
+  repainted the whole screen, every icon and every open window with its listing, every frame.
+  `frame_cost.mjs`: the desktop's ROM 0.30 Mc idle, 1.10 Mc with C:\ open (2.06 Mc estimated in all;
+  the board's idle desktop is already 1.65 Mc, so a window pushed it far past the 60 fps band). Now
+  it repaints only when something changed (`rom/gem/desktop/deskdirty.zig`): every input and every
+  host write is a touch (the pointer moving or a button changing, a double-click, a key, drive A's
+  word or C: changing, a drive model written, the screen re-bound; `insertDisk`, which the hosts call
+  every frame, only when its word changes); after one it draws SETTLE (2) frames, and it draws while
+  anything moves (a button held, the zoom-box, an open or a launch pending) and SETTLE frames after.
+  The plane's logical buffer keeps its pixels (hwClear clears the physical picture), so a skipped
+  frame shows exactly what a repaint would have drawn. With C:\ open: 0.70 Mc (FRESCO's alone).
+  C:'s walk now reads 8 sectors a round trip (`gem_fat.zig` readC), not one.
+- **"Drive A shows the SD card".** Not reproduced off the board: with a floppy in A: and a card in
+  C:, the page, scene_hash.mjs and the native host agree and A:\ lists the floppy. Opening A: never
+  spins the drive, by design: glass reads the whole floppy raw once, at D (and again at R), and drive A
+  is that image in DDR. With no disk in drive A there is no A: icon (F4), and C:'s icon (SD CARD) is
+  the only drive on the desktop, so the likeliest story is that the floppy never reached drive A
+  (the board's `ZM DISK` / `ZM GEMDISK` lines after R and the OSD's status after D say which). Fixed
+  on the way: a FAT disk swapped for another FAT disk under the running desktop was never re-read
+  (the shell latched "a FAT disk is loaded"); it now re-reads drive A when KOS's media-change count
+  (`sysvars.drive_a` bits 31:8) moves.
+
+Proof: `apps/kos_desk_check.mjs` (gated): a 180-frame session (A:\ opens, a hover, a click, its
+GAMES folder, a window dragged, the File menu, Close Window's zoom-box) hashed every frame equals
+the pin taken from the every-frame repaint (main ef337055); A:\'s listing with C: mounted equals the
+one without, and differs from C:\'s; C:\ open costs < 1.7 Mc (the old repaint: 2.5, failed) with no
+C: read a frame. `fpga/tests/test_kos_fat_desktop.py`: A: and C: together, native = page.
 
 ## 5. Phases
 
