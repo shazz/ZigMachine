@@ -12,6 +12,7 @@ const dirview = @import("dirview.zig");
 const deskwin = @import("deskwin.zig");
 const desksel = @import("desksel.zig");
 const deskdrive = @import("deskdrive.zig");
+const deskdirty = @import("deskdirty.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
@@ -41,6 +42,8 @@ pub fn placeDefaultIcons(d: *Desktop) void {
 /// from (docs/KOS_FAT.md F4); DESKTOP.INF keeps the drive's cell either way.
 pub const DRIVE_FLOPPY: u32 = 0x100;
 pub fn setDrive(d: *Desktop, present: u32) void {
+    if (present != d.dirty.drive_word) deskdirty.touch(d); // the hosts say it every frame: only a change repaints
+    d.dirty.drive_word = present;
     d.disk_app = present & 0xFF != 0;
     d.items[IC_FLOPPY].label = if (present & DRIVE_FLOPPY != 0) "FLOPPY" else "SD IMAGE";
     if (!d.disk_app and d.sel_icon == IC_FLOPPY) d.sel_icon = -1;
@@ -49,6 +52,7 @@ pub fn setDrive(d: *Desktop, present: u32) void {
 
 /// KOS's C: (F5): the shell read the SD card (1) or could not (0: no icon, as no disk in A).
 pub fn setDriveC(d: *Desktop, present: u32) void {
+    if ((present != 0) != d.drv.c_mounted) deskdirty.touch(d);
     d.drv.c_mounted = present != 0;
     if (!d.drv.c_mounted and d.sel_icon == IC_HARD) d.sel_icon = -1;
     if (!d.drv.c_mounted and d.drag == IC_HARD) d.drag = null;

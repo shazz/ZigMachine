@@ -35,23 +35,12 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
-import { makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
+import { makeCDrive, makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
 import { kosBoot } from "./scene_hash_kos.mjs";
 import { writePng } from "./scene_png.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 let cImage = null; // --c-image: KOS's C:
-
-// The page's kosDriveRead (docs/sealed-loader.js), over `img`.
-function makeCDrive(memory, img) {
-    return (unit, sector, count, dst) => {
-        const n = (count >>> 0) * 512, from = (sector >>> 0) * 512;
-        if (unit !== 2 || count === 0 || count > 64 || (dst >>> 0) % 4) return 0;
-        if (from + n > img.length || (dst >>> 0) + n > memory.buffer.byteLength) return 0;
-        new Uint8Array(memory.buffer, dst >>> 0, n).set(img.subarray(from, from + n));
-        return count >>> 0;
-    };
-}
 
 async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });

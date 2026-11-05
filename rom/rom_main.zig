@@ -558,6 +558,7 @@ export fn deskSetFileCount(n: u32) void {
 // env.kosDriveRead and fills C:'s model with these, then says whether it mounted.
 fn driveModel(unit: u32) ?*gem.DirModel {
     if (!desk_ready) return null;
+    gem.touch(&desk); // every caller writes the model (the host's records too): the next frame shows it
     return &desk.drives[gem.driveOfUnit(unit) orelse return null];
 }
 export fn deskDriveDirPtr(unit: u32) u32 {

@@ -81,6 +81,9 @@ export const COMP_PASS = { narrow: [1327, 1578], wide: [1911, 2583] }; // [first
 export const COMP_BG_PASS = 868;
 export const HBL_CALL = 0;     // per hblDispatch beyond the handler's own instructions (board fit: ~0)
 export const DISK_BLOCK = 0;  // cycles per 512-byte disk block read (the board's firmware copies it out of DDR)
+// One env.kosDriveRead (KOS's C:) on the board: ZIGGY spins until glass's thread, polling every 500 us,
+// answers (cycles/bkosdrive.c, glass/src/kos_drive.zig): ~0.5 ms on average at 100 MHz, whatever the count.
+export const KOS_DRIVE_CALL = 50000;
 // Palette stores past the compositor's 16-entry snoop queue within one HBL handler
 // (soc/zm_video_snoop.py). First fitted at 1,900 to the old stcs alone (1 fps on the
 // board); the 2026-10-18 board table REFUTES that: snyd_90 makes 1,556 such stores a frame

@@ -6,7 +6,7 @@
 // ESTIMATE of Mc/frame with apps/perf/cost_model.mjs (calibrated on board numbers).
 //
 //   node apps/frame_cost.mjs <cart.wasm> [--frames 60] [--warmup 120] [--top 10]
-//        [--call F:export:args]... [--disk X.zmd | --no-disk] [--json] [--no-pal] [--names DIR]
+//        [--call F:export:args]... [--disk X.zmd | --no-disk] [--c-image X.img] [--json] [--no-pal] [--names DIR]
 //        (--call F:set8@ptrExport:bytes pokes bytes at the address ptrExport returns, see scene_hash)
 //        [--paula]        the host lends the Paula channels (a cart that claims them stops mixing itself)
 //        [--machine DIR]  (machine-video.wasm + rom.wasm; default $MACHINE_DIR or docs)
@@ -33,6 +33,8 @@ const OPTIONS = {
     "--call": [true, (o, v) => { o.callSpecs.push(v); }, true],
     "--disk": [true, (o, v) => { o.disk = v; }, true],
     "--no-disk": [false, (o) => { o.disk = null; }, true],
+    // KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead over this image, each call billed a board round trip
+    "--c-image": [true, (o, v) => { o.cImage = v; }, true],
     "--names": [true, (o, v) => { o.namesDir = v; }, true],
     "--machine": [true, (o, v) => { o.machineDir = v; }, true],
     "--no-pal": [false, (o) => { o.pal = false; }, true],

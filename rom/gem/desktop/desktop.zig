@@ -27,6 +27,7 @@ const deskwin = @import("deskwin.zig");
 const desksel = @import("desksel.zig");
 const deskdraw = @import("deskdraw.zig");
 const deskmenu = @import("deskmenu.zig");
+const deskdirty = @import("deskdirty.zig");
 
 const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
@@ -55,6 +56,7 @@ pub const Desktop = struct {
     drives: [2]dirmodel.DirModel = .{ .{}, .{} }, // A: (host-filled FAT + in-RAM folders), C: (KOS F5)
     dir: *dirmodel.DirModel = undefined, // drives[drv.cur], the drive in focus (deskdrive.zig): init() sets it
     drv: deskdrive.State = .{},
+    dirty: deskdirty.State = .{}, // repaint only what changed (deskdirty.zig)
     launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
     // WHICH program. -1 = "the disk's app" (the FLOPPY icon acting as a launcher,
     // which names no file), resolved by launchName() to the first program on the
@@ -138,6 +140,8 @@ pub const Desktop = struct {
 
     // Draw the desktop (res-adaptive) + windows; handle icon drag/click; return action.
     pub fn render(self: *Desktop) Action {
+        if (!deskdirty.mustDraw(self)) return .none; // nothing changed: the plane holds this frame
+        defer deskdirty.drew(self);
         const g = &self.g;
         var action: Action = .none;
         const modal = self.isModal();
@@ -167,9 +171,11 @@ pub const Desktop = struct {
     }
 
     pub fn setPointer(self: *Desktop, x: i32, y: i32, buttons: u32) void {
+        if (x != self.g.px or y != self.g.py or (buttons != 0) != self.g.down) deskdirty.touch(self);
         self.g.setPointer(x, y, buttons);
     }
     pub fn requestOpenAt(self: *Desktop, x: i32, y: i32) void {
+        deskdirty.touch(self);
         desk_icons.requestOpenAt(self, x, y);
     }
     pub fn beginFrame(self: *Desktop) void {
@@ -179,17 +185,20 @@ pub const Desktop = struct {
         self.g.endFrame();
     }
     pub fn clampIcons(self: *Desktop) void {
+        deskdirty.touch(self); // the screen was re-bound (deskSetScreen): every pixel moved
         desk_icons.clampIcons(self);
     }
 
     // Character keyboard: feeds the Show Info rename field while it's open.
     pub fn key(self: *Desktop, cp: u32) void {
+        deskdirty.touch(self);
         if (self.info.active) self.info.key(cp);
     }
     // Directional input from the host (0=up 1=down 2=left 3=right). The desktop
     // only uses left/right, and only to walk the caret in the name field of an
     // open INFORMATION / NEW FOLDER box.
     pub fn input(self: *Desktop, dir: u32) void {
+        deskdirty.touch(self);
         if (!self.info.active) return;
         switch (dir) {
             2 => self.info.moveCaret(-1),

@@ -22,7 +22,7 @@ export function topCause(r) {
 export function printOne(r, out = console.log) {
     out(`${r.cart}: est ${r.mc.avg} Mc/frame (p95 ${r.mc.p95}, max ${r.mc.max}) = ${r.budget}% of a 60 Hz frame at 100 MHz, ~${r.fps} fps`);
     out(`  ESTIMATE from wasm op counts x apps/perf/cost_model.mjs; frames ${r.warmup + 1}..${r.warmup + r.frames}; names: ${r.namesWhy}`);
-    out(`  split Mc: cart ${r.split.cart}, rom ${r.split.rom}, I$ misses ${r.split.icache}, CHISEL wait ${r.split.blit} (${r.blits} blits/frame, units by op ${r.blitUnits.slice(1).join("/")}), HBL entry ${r.split.hbl} (${r.hbls}/frame, ${r.hblStores} stores in them, ${r.snoopOverflow} palette stores past the snoop queue), FRESCO ${r.split.fresco}`);
+    out(`  split Mc: cart ${r.split.cart}, rom ${r.split.rom}, I$ misses ${r.split.icache}, CHISEL wait ${r.split.blit} (${r.blits} blits/frame, units by op ${r.blitUnits.slice(1).join("/")}), HBL entry ${r.split.hbl} (${r.hbls}/frame, ${r.hblStores} stores in them, ${r.snoopOverflow} palette stores past the snoop queue), FRESCO ${r.split.fresco}${r.kosReads ? `, C: reads ${r.kosReads}/frame (disk ${r.split.disk})` : ""}`);
     out(`  code run per frame: ~${r.codeKB} KB of rv32 (I$ 16 KB)`);
     out(`  causes %: ${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(", ")}`);
     out(`  per frame: ${Object.entries(r.classes).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(", ")}`);

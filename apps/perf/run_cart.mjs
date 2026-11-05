@@ -4,7 +4,7 @@
 // runs as-is and only its blitter calls and HBL interrupts are counted.
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
-import { makeDrive } from "../scene_hash_disk.mjs";
+import { makeCDrive, makeDrive } from "../scene_hash_disk.mjs";
 import { instrument } from "./instrument.mjs";
 import { blitCycles, BLIT_CALL, BLIT_UNIT_ORDERED } from "./cost_model.mjs";
 import { BLIT_SITE, STORE_TOTAL, PAL_TOTAL, MIS_LOADS, MIS_STORES } from "./hooks.mjs";
@@ -79,11 +79,12 @@ function hbl(hw, mods, call, by) {
     hw.snoopOverflow += Math.max(0, total(PAL_TOTAL) - pal - SNOOP_QUEUE);
 }
 
-// cartBytes: the cart wasm. opts: { machineDir, disk, pal, names: {cart, rom} (Maps) }.
+// cartBytes: the cart wasm. opts: { machineDir, disk, cImage, pal, names: {cart, rom} (Maps) }.
+// cImage: KOS's C: (scene_hash.mjs --c-image), each kosDriveRead counted (a board round trip).
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
-export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, pal = true, names = {}, paula = false } = {}) {
+export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, cImage = null, pal = true, names = {}, paula = false } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblBy: [0, 0, 0, 0, 0], hblStores: 0, snoopOverflow: 0, diskBlocks: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
+    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblBy: [0, 0, 0, 0, 0], hblStores: 0, snoopOverflow: 0, diskBlocks: 0, kosReads: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];
     let demo, globalId = () => 0;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
@@ -106,6 +107,10 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
     if (disk) { // counted: on the board each 512-byte block is copied out of DDR by the firmware
         const drive = makeDrive(memory, { buf: new Uint8Array(await readFile(disk)) });
         env.diskReadBlock = (block, dst) => { const n = drive(block, dst); if (n) hw.diskBlocks++; return n; };
+    }
+    if (cImage) {
+        const c = makeCDrive(memory, new Uint8Array(await readFile(cImage)));
+        env.kosDriveRead = (...a) => { hw.kosReads++; return c(...a); };
     }
     const noop = () => {};
     if (paula) env.hostPaulaClaim = () => 1; // HW 1.14.0: the channels are lent (frame_cost --paula)

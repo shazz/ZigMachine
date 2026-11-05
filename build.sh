@@ -314,6 +314,7 @@ gate sdk node apps/sdk_check.mjs --break still    # ...and an update() that move
 gate sdk node apps/sdk_check.mjs --break raster   # ...and a cart without its copper (one flat background) is caught
 gate sdk node apps/sdk_check.mjs --break song     # ...and a song no file under docs/music/ is caught
 gate gem node apps/gem_headless.mjs "$SHOTS"
+gate gem node apps/kos_desk_check.mjs   # KOS's desktop on the board (4 Nov): repainting only what changed is pixel-exact (a session hashed every frame = the every-frame repaint's pin) and a C: window costs < 1.7 Mc (the old repaint: 2.5, caught); A:\ with C: mounted lists the floppy, not the card
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent
 gate sndh node apps/ste_dma_check.mjs --break latch    # ...and a tune that never writes its next frame fails the latch check

@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { bootInstrumented, hostFrame } from "./run_cart.mjs";
 import { Profile } from "./profile.mjs";
-import { TRAP_CYCLES, HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_BASE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
+import { TRAP_CYCLES, HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, KOS_DRIVE_CALL, FRESCO_PLANE, FRAME_BASE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
 import { hotRegions, hintRegions, misSites, misSnapshot, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
 import { Waste } from "./waste.mjs";
 import { wasteReport } from "./waste_report.mjs";
@@ -26,7 +26,7 @@ function stepFrame(run, profiles, acc, hw0, songMs) {
     for (let p = 0; p < run.machine.hwPlanesNumber(); p++) planes += run.demo.isPlaneEnabled(p) ? 1 : 0;
     const code = profiles.reduce((a, P) => a + P.last.code, 0);
     const ic = icacheCycles(profiles.reduce((a, P) => a + P.last.fetch, 0), code);
-    const disk = (run.hw.diskBlocks - hw0.diskBlocks) * DISK_BLOCK;
+    const disk = (run.hw.diskBlocks - hw0.diskBlocks) * DISK_BLOCK + (run.hw.kosReads - hw0.kosReads) * KOS_DRIVE_CALL;
     return { parts: [cyc[0], cyc[1], ic, blit, hbl, FRAME_BASE + planes * FRESCO_PLANE, disk], code, planes };
 }
 
@@ -79,7 +79,7 @@ function summarize(cartPath, opts, run, profiles, w) {
         fps: Math.min(60, Math.round((10 * MHZ * 1e6) / Math.max(1, avg)) / 10),
         budget: Math.round((100 * avg) / (FRAME_MC * 1e6)),
         split: Object.fromEntries(Object.entries(w.split).map(([k, v]) => [k, Mc(v / F)])),
-        blits: per(run.hw.blits - w.hw.blits), hbls: per(run.hw.hbls - w.hw.hbls), hblStores: per(run.hw.hblStores - w.hw.hblStores), snoopOverflow: per(run.hw.snoopOverflow - w.hw.snoopOverflow), misaligned: per(run.hw.misaligned - w.hw.misaligned),
+        blits: per(run.hw.blits - w.hw.blits), hbls: per(run.hw.hbls - w.hw.hbls), hblStores: per(run.hw.hblStores - w.hw.hblStores), snoopOverflow: per(run.hw.snoopOverflow - w.hw.snoopOverflow), misaligned: per(run.hw.misaligned - w.hw.misaligned), kosReads: per(run.hw.kosReads - w.hw.kosReads),
         blitUnits: run.hw.cmd.map((u, i) => per(u - w.hw.cmd[i])),
         codeKB: Math.round(w.code / F / 1024),
         causes: Object.fromEntries(Object.entries(causes).map(([k, v]) => [k, Math.round((100 * v) / avg)])),

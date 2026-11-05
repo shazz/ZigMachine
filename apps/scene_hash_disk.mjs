@@ -19,6 +19,17 @@ export function makeDrive(memory, mountedDisk) {
     return diskReadBlock;
 }
 
+// The page's kosDriveRead (docs/sealed-loader.js), over `img`.
+export function makeCDrive(memory, img) {
+    return (unit, sector, count, dst) => {
+        const n = (count >>> 0) * 512, from = (sector >>> 0) * 512;
+        if (unit !== 2 || count === 0 || count > 64 || (dst >>> 0) % 4) return 0;
+        if (from + n > img.length || (dst >>> 0) + n > memory.buffer.byteLength) return 0;
+        new Uint8Array(memory.buffer, dst >>> 0, n).set(img.subarray(from, from + n));
+        return count >>> 0;
+    };
+}
+
 // GEM over a data disk (--data-disk): docs/sealed-loader.js's step after demo.frame(), from
 // its cart-request poll to the end of the FAT listing block, VERBATIM
 // (fpga/tests/test_board_gemdisk.py checks the texts are equal; the native host's and the
