@@ -20,7 +20,8 @@ const App = @import("app.zig").App;
 pub const BY_HASH = "progs/by-hash";
 pub const Error = error{ NoSuchFile, NoBoardImage };
 
-fn read(ctx: *anyopaque, n: u32, dst: *[fat.SECTOR]u8) bool {
+/// KOS's reader over a floppy image in memory (ctx: a *const []const u8).
+pub fn read(ctx: *anyopaque, n: u32, dst: *[fat.SECTOR]u8) bool {
     const img: *const []const u8 = @ptrCast(@alignCast(ctx));
     const at = @as(usize, n) * fat.SECTOR;
     if (at + fat.SECTOR > img.len) return false;

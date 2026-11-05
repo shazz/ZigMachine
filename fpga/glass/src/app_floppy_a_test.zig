@@ -8,6 +8,7 @@ const map = @import("map.zig");
 const plan = @import("plan.zig");
 const keymap = @import("keymap.zig");
 const drive = @import("app_drive.zig");
+const floppy_a = @import("app_floppy_a.zig");
 const rig = @import("test_rig.zig");
 
 const gpa = std.testing.allocator;
@@ -80,4 +81,39 @@ test "no floppy, or a floppy that is no FAT disk, leaves drive A as it was" {
     rig.press(&a, KEY_D);
     try std.testing.expect(std.mem.indexOf(u8, a.menu.status.?, "floppy: NoFloppy") != null and !a.floppy_a);
     _ = plan;
+}
+
+/// An 8-sector FAT12 disk (1 reserved, 1 FAT, a 16-entry root, 5 clusters) whose root holds `name`.
+fn fat12(name: *const [11]u8) [8 * 512]u8 {
+    var img = [_]u8{0} ** (8 * 512);
+    std.mem.writeInt(u16, img[11..13], 512, .little);
+    img[13] = 1; // sectors a cluster
+    std.mem.writeInt(u16, img[14..16], 1, .little); // reserved
+    img[16] = 1; // FATs
+    std.mem.writeInt(u16, img[17..19], 16, .little); // root entries
+    std.mem.writeInt(u16, img[19..21], 8, .little); // sectors
+    std.mem.writeInt(u16, img[22..24], 1, .little); // sectors a FAT
+    @memcpy(img[2 * 512 ..][0..11], name); // the root's first entry, an empty file
+    img[2 * 512 + 11] = 0x20;
+    return img;
+}
+
+test "a cart floppy (.zmd in its root) is counted; any other FAT disk is not" {
+    try std.testing.expectEqual(@as(usize, 1), floppy_a.carts(&fat12("DEMO-A~1ZMD")));
+    try std.testing.expectEqual(@as(usize, 0), floppy_a.carts(&fat12("README  TXT")));
+    try std.testing.expectEqual(@as(usize, 0), floppy_a.carts(&([_]u8{0} ** 4096)));
+}
+
+test "D on a cart floppy says F lists its carts" {
+    const r = try card(true);
+    defer r.deinit();
+    const img = fat12("DEMO-A~1ZMD");
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "dev/sdz", .data = &img });
+    var a = try powered(r);
+    defer gpa.free(a.dev_dir);
+    defer a.deinit();
+    rig.press(&a, keymap.OSD_HOTKEY);
+    rig.press(&a, KEY_D);
+    try std.testing.expect(a.floppy_a);
+    try std.testing.expect(std.mem.indexOf(u8, a.menu.status.?, "A: 1 .zmd carts, F lists them") != null);
 }
