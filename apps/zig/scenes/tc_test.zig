@@ -70,7 +70,7 @@ pub const Demo = struct {
         self.show(PLASMA);
     }
 
-    /// Digits 1-8 from the host (mode = digit - 1).
+    /// Digits 1-7 from the host (mode = digit - 1): the browser and glass forward only 1-7, so 8 comes through key().
     pub fn setShadeMode(self: *Demo, mode: u32) void {
         if (mode < VIEWS) self.show(@intCast(mode));
     }
@@ -80,6 +80,7 @@ pub const Demo = struct {
             K_ESC => self.wants_quit = true,
             'n', 'N', ' ' => self.step(1),
             'p', 'P', 8 => self.step(art.count -| 1),
+            '8' => self.show(FADE), // the hosts map only digits 1-7 to setShadeMode
             else => {},
         }
     }
