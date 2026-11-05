@@ -202,8 +202,11 @@ desktop over it). Two bugs, fixed on `fix/kos-desktop-board`:
   C:, the page, scene_hash.mjs and the native host agree and A:\ lists the floppy. Opening A: never
   spins the drive, by design: glass reads the whole floppy raw once, at D (and again at R), and drive A
   is that image in DDR. With no disk in drive A there is no A: icon (F4), and C:'s icon (SD CARD) is
-  the only drive on the desktop, so the likeliest story is that the floppy never reached drive A
-  (the board's `ZM DISK` / `ZM GEMDISK` lines after R and the OSD's status after D say which). Fixed
+  the only drive on the desktop: Matt's disk was a CART floppy (a PC vfat disk of `.zmd` and
+  `shelf.txt`, meant for F), and what he opened was C:. The lead then wrote a program floppy
+  (`kos_rv.py`: `.WSM` + `.RV`) to it, and with D then R the A: icon showed it and its programs ran:
+  the reader is fine. D now says so on a cart floppy: `A: N .zmd carts, F lists them`
+  (`glass/src/app_floppy_a.zig` carts(), KOS's reader over the root). Fixed
   on the way: a FAT disk swapped for another FAT disk under the running desktop was never re-read
   (the shell latched "a FAT disk is loaded"); it now re-reads drive A when KOS's media-change count
   (`sysvars.drive_a` bits 31:8) moves.
