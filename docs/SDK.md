@@ -15,21 +15,48 @@ one tarball. Your cart lives in your own directory, and three commands take it e
 `kestrel-sdk-<version>.tar.gz` unpacks to:
 
 ```
-kestrel-sdk-v1.1/
+kestrel-sdk-v1.2/
   README.txt     where to start
   RELEASE.txt    the KESTREL release it targets: version, HW version, commit, system table
   zigmachine/    the ZigMachine repository at that commit: ZigOS, the SDK headers, the emulator
   template/      a cart to copy: build.zig, Makefile, src/hello.zig, VS Code settings
-  card/          the SD card of that release: bitstream, boot files, system.rv32, the shelf
+  card/          the whole SD card of that release: a blank Z7-Lite 7010 boots it
   card.md5       the card's checksums
+  INSTALL.md     from a blank board to the first cart: the card, the cables, what you see
+  THIRD_PARTY.md the boot files that are not ours (zeST's BOOT.BIN, Linux, Buildroot), licences/
 ```
 
 The machine itself (`machine-video.wasm`, `rom.wasm`, `machine-audio.wasm`) ships prebuilt in
 `zigmachine/docs/`, and you never rebuild it. The board's `system.rv32` on the card was built from
 those very bytes. That is why a cart from this SDK runs on that card.
 
-The release targets **KESTREL v1.1** (combo14, HW 1.16.0, system table 1.6). A cart is refused by
-a card whose system serves another table, and `make board` says so before you copy anything.
+The release targets **KESTREL v1.2** (combo16, HW 1.16.0, system table 1.9: KOS and its GEM
+desktop). A cart is refused by a card whose system serves another table, and `make board` says so
+before you copy anything.
+
+### The card (since v1.2: complete)
+
+v1.1's card only updated a card that already booted. v1.2's is the whole card, in the layout of
+6 Nov 2026 (docs/FPGA_GLASS.md, "The SD card's layout"); `card/MANIFEST.txt` says where each file
+came from:
+
+| On the card | What | From |
+|---|---|---|
+| `BOOT.BIN` | FSBL + U-Boot: DDR3, clocks, MIO | zeST 20260518's prebuilt `boards/z7lite_7010/boot.bin`, unmodified (GPL-3, `THIRD_PARTY.md`) |
+| `boot.scr` | `fpga/glass/boot/boot.cmd`, compiled: bitstream, AFI widths, Linux | plan A's (`fpga/glass/boot/build_planA.sh`) |
+| `zigmachine.bit` | the KESTREL SoC, combo16 | Vivado, the lead's board build |
+| `zImage`, `zigmachine.dtb` | Linux 6.19.14 and its device tree | Buildroot 2026.02.3 (`build_planA.sh`) |
+| `rootfs.cpio.uboot` | the initramfs: busybox, dropbear, `S99glass`, `/usr/bin/glass` (reads this layout) | the same Buildroot, glass of 6 Nov |
+| `KESTREL/system.rv32` | firmware, machine, ROM, BARD: table 1.9 | `make -C fpga board-split` at the release's commit |
+| `KESTREL/kos/desktop.rv32` | KOS's GEM desktop (the `gem` cart) | `split-cart`, the release's commit |
+| `KESTREL/progs/`, `KESTREL/glass.cfg` | data disks' programs; the console's settings (defaults) | `glass_sd.py`; written by hand |
+| `CARTS/<category>/demo-<tag>.zmd`, `CARTS/shelf.txt` | the shelf: every committed cart, wasm + board image | `split-cart` per cart, `glass_sd.py` |
+| `HD/` | GEM's C: (a `README.TXT`) | |
+
+Our own `BOOT.BIN` (U-Boot SPL, `BOOT.BIN.ours` + `u-boot.img`) is **not** in v1.2: it has not run
+on a board yet, and a bad SPL can only be fixed by taking the card out. zeST's is the one every
+KESTREL board has booted. Plan B (zeST's `uImage` and `rootfs.ub`) is not on the card either: with
+a `zImage` on the card, `boot.scr` never uses it.
 
 ## 1. Install the toolchains
 
@@ -37,7 +64,7 @@ Run the doctor first. It lists every tool with its version and tells you how to 
 missing:
 
 ```sh
-kestrel-sdk-v1.1/zigmachine/tools/sdk_doctor.sh            # add --board to make the board tools required
+kestrel-sdk-v1.2/zigmachine/tools/sdk_doctor.sh            # add --board to make the board tools required
 ```
 
 | Tool | For | Ubuntu / Debian | Arch | macOS |
@@ -77,7 +104,7 @@ two forwarders in `zm_cart_rt.o` moves.
 ## 2. Your first build
 
 ```sh
-tar xzf kestrel-sdk-v1.1.tar.gz && cd kestrel-sdk-v1.1
+tar xzf kestrel-sdk-v1.2.tar.gz && cd kestrel-sdk-v1.2
 cp -R template mydemo && cd mydemo      # a sibling of zigmachine/: build.zig.zon finds it at ../zigmachine
 make NAME=mydemo
 ```
@@ -138,7 +165,7 @@ make board NAME=mydemo TITLE="MY DEMO" GROUP="MY GROUP" CATEGORY=demos
 ```
 
 This runs the repository's own board pipeline on your cart, `make -C zigmachine/fpga split-cart`
-with the flags of the v1.1 card (`ZM_AUDIO=snd ZM_FPU=1 ZM_ZMX=1`):
+with the flags of the v1.2 card (`ZM_AUDIO=snd ZM_FPU=1 ZM_ZMX=1`):
 
 1. wasm2c translates the cart to C;
 2. the cart runs natively once (clang) to find the songs it requests, and they are packed;
@@ -153,12 +180,11 @@ with the flags of the v1.1 card (`ZM_AUDIO=snd ZM_FPU=1 ZM_ZMX=1`):
    before that (everything in `zigmachine/`) still boots; move it with
    `fpga/tools/sd_migrate_layout.sh` on the board before copying `zig-out/sd/` over it.
 
-Copy the contents of `zig-out/sd/` onto the card's first (FAT32) partition, over a card that
-already boots KESTREL. On a card that already holds the release, the two files printed with their
-md5 are all that changed. The release's card carries the bitstream, `KESTREL/system.rv32` and the shelf;
-its `MANIFEST.txt` lists the boot files (zeST's `BOOT.BIN`, the Linux images, the ARM `glass`) it
-does not carry, which a working card already has. Then boot the board and pick your cart in the OSD
-menu. Categories are the OSD's folders: `demos`, `games`, `tools`, `tutorials`, `tests`.
+Copy the contents of `zig-out/sd/` onto the card's first (FAT32) partition. It is the whole
+release card plus your cart, so a freshly formatted card works (the release's `INSTALL.md`). On a
+card that already holds the release, the two files printed with their md5 are all that changed.
+Then boot the board and pick your cart in the OSD menu (F12). Categories are the OSD's folders:
+`demos`, `games`, `tools`, `tutorials`, `tests`.
 
 No Verilator, no Vivado and no SoC file is involved: the board image of a cart needs only the
 toolchains above.
@@ -166,14 +192,25 @@ toolchains above.
 ## 6. The release (for the maintainer)
 
 ```sh
-sdk/release.sh --version v1.1 --hw 1.16.0 --out /tmp/rel --card <a staged card>
+sdk/release.sh --version v1.2 --hw 1.16.0 --rev <sha> --out <dir> --card <a staged card>
 ```
 
 `sdk/release.sh` takes the repository at a commit (`git archive`, so nothing untracked and no
 `prototypes/`), the template pointed at `../zigmachine`, and a card staged by
 `fpga/tools/glass_sd.py --system ...`. It refuses a card whose `system.rv32` serves another system
-table than the commit's carts (`fpga/cycles/sys_abi.txt`), and writes `RELEASE.txt`, `card.md5`
-and the tarball. A new bitstream or system image means a new release.
+table than the commit's carts (`fpga/cycles/sys_abi.txt`), a card missing a boot file, `KESTREL/`'s
+system or desktop, `CARTS/shelf.txt` or `HD/`, and a card holding a file that must never leave the
+maintainer's machine (the TC TEST pictures, `local.xm`, `rollback/`, a `KESTREL/glass` override).
+It writes `RELEASE.txt`, `card.md5`, `INSTALL.md`, `THIRD_PARTY.md` with zeST's licence, and the
+tarball. A new bitstream or system image means a new release.
+
+How v1.2's card was staged (6 Nov 2026): the system and **every committed cart** rebuilt from the
+release's commit in a clean worktree (`make board-split`'s system, `split-cart ZM_ZMX=1` per cart,
+`native-cart` for the three native carts), with the combo16 bitstream's `csr.json`. A clean
+worktree has no `docs/music/local.xm` and no TC TEST pictures, so no cart can carry them. Then
+`glass_sd.py --system ... --fw-dir ... --bit ...` without `--buildroot`, and plan A's `zImage`,
+`zigmachine.dtb` and `boot.scr`, the layout's `rootfs.cpio.uboot` (its glass reads this layout),
+`KESTREL/glass.cfg` (the defaults) and `HD/README.TXT` laid over it; the MANIFEST names each.
 
 In this repository, `make` in `sdk/template` works too (its `build.zig.zon` points at `../..`). It
 copies `demo-hello.*` into `docs/` like any SDK cart: gitignored, but `tools/mkdisks.sh` and
@@ -193,4 +230,6 @@ The gate builds the template exactly this way, from a temporary directory outsid
 that exists, so a change to the repository that breaks outside carts fails the gate.
 
 Not tested yet: macOS (the fpga Makefiles use GNU `truncate` and `stat`: install coreutils and GNU
-make), and a cart linked with Zig's compiler_rt running on the board itself.
+make, and put their gnubin directories first on `PATH`), the release card on a board that never had
+one (every file on it has booted the lead's board, but never this exact set from a blank card), and
+a cart linked with Zig's compiler_rt running on the board itself.

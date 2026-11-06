@@ -9,9 +9,12 @@
 #       zigmachine/     the repository at REV (git archive: nothing untracked, no prototypes/)
 #       template/       sdk/template, its build.zig.zon pointing at ../zigmachine
 #       card/           CARD_DIR (a staged SD card: tools/glass_sd.py --system ...) + card.md5
+#       INSTALL.md      a blank board from this card (sdk/INSTALL.md); THIRD_PARTY.md + licenses/
 #   DIR/kestrel-sdk-<version>.tar.gz
 #
-# The card is the lead's: bitstream, boot files, system.rv32 and the shelf, staged by glass_sd.py.
+# The card is the lead's, COMPLETE since v1.2 (a blank Z7-Lite boots it): the boot files at the root,
+# KESTREL/ (system.rv32, KOS's desktop), CARTS/ (the shelf) and HD/ (fpga/tools/sd_layout.py). The
+# release refuses a card missing one of them, or holding a file that never leaves this box (LOCAL_ONLY).
 # Its system.rv32 serves one system-table version (its MANIFEST.txt says "(table X.Y)"); a cart
 # built from this SDK's fpga/cycles/sys_abi.txt must match it, so the release refuses a card whose
 # table differs from REV's. Without --card the release carries no card, and RELEASE.txt says so.
@@ -39,7 +42,15 @@ git -C "$ROOT" diff --quiet "$REV" -- sdk build.zig fpga/cycles/sys_abi.txt ||
 # The table REV's carts are built for (sys_abi.txt "version X.Y").
 abi_version() { awk '$1 == "version" { split($2, v, "."); printf "0x%x\n", v[1] * 65536 + v[2]; exit }'; }
 TABLE="$(git -C "$ROOT" show "$SHA:fpga/cycles/sys_abi.txt" | abi_version)"
+# A blank board needs every one of these (docs/FPGA_GLASS.md "Boot flow", "The SD card's layout").
+CARD_NEEDS="BOOT.BIN boot.scr zigmachine.bit zImage zigmachine.dtb rootfs.cpio.uboot KESTREL/system.rv32
+    KESTREL/kos/desktop.rv32 CARTS/shelf.txt HD"
+# Never published: the owner's own pictures and song, old card files, an ARM glass override (the rootfs has it).
+LOCAL_ONLY='tc_test_art|local\.xm|aryx|rollback|^KESTREL/glass$'
 if [ -n "$CARD" ]; then
+    for f in $CARD_NEEDS; do [ -e "$CARD/$f" ] || { echo "release: $CARD has no $f: not a complete card"; exit 1; }; done
+    LOCAL="$( (cd "$CARD" && find . | sed 's|^\./||' && cat MANIFEST.txt) | grep -iE "$LOCAL_ONLY" || true)"
+    [ -z "$LOCAL" ] || { echo "release: $CARD holds local-only files: $LOCAL"; exit 1; }
     [ -f "$CARD/KESTREL/system.rv32" ] || { echo "release: $CARD has no KESTREL/system.rv32 (fpga/tools/sd_layout.py)"; exit 1; }
     CARD_TABLE="$(sed -n 's/^KESTREL\/system.rv32 .*(table \([0-9]*\.[0-9]*\)).*/version \1/p' "$CARD/MANIFEST.txt" | abi_version)"
     [ "$CARD_TABLE" = "$TABLE" ] || { echo "release: the card's system serves table $CARD_TABLE, $REV's carts need $TABLE"; exit 1; }
@@ -56,7 +67,11 @@ if [ -n "$CARD" ]; then
     mkdir -p "$DEST/card"
     cp -R "$CARD/." "$DEST/card/"
     (cd "$DEST/card" && find . -type f | sort | xargs md5sum) > "$DEST/card.md5"
-    CARD_NOTE="card/ (from $(basename "$CARD"); md5s in card.md5)"
+    CARD_NOTE="card/ (from $(basename "$CARD"); md5s in card.md5; where each file came from: card/MANIFEST.txt)"
+    cp "$ROOT/sdk/INSTALL.md" "$ROOT/sdk/THIRD_PARTY.md" "$DEST/"
+    ZEST_LICENSE="$ROOT/fpga/boards/microphase_z7_7010/vendor/zest/LICENSE"  # fpga/tools/fetch_board.sh
+    [ -f "$ZEST_LICENSE" ] || { echo "release: no $ZEST_LICENSE (fetch_board.sh): BOOT.BIN is zeST's, GPL-3"; exit 1; }
+    mkdir -p "$DEST/licenses" && cp "$ZEST_LICENSE" "$DEST/licenses/zeST-LICENSE"
 else
     CARD_NOTE="none: get the KESTREL $VERSION card from its release page"
 fi
@@ -71,6 +86,7 @@ EOF
 cat > "$DEST/README.txt" <<EOF
 KESTREL SDK $VERSION (HW $HW): write carts for the ZigMachine and the KESTREL board.
 
+  0. INSTALL.md                          a blank Z7-Lite 7010: format a card, copy card/ onto it, boot
   1. zigmachine/tools/sdk_doctor.sh      what to install (zig 0.16.0, python3; for the board: wabt, clang, uv, riscv gcc)
   2. cd template && make                 your cart in the browser emulator (http://localhost:3333/...)
   3. make floppy / make board            a disk image / the board image + an SD folder (template/zig-out/sd)
