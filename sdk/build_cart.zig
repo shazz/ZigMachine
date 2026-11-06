@@ -37,7 +37,7 @@ pub const Cart = struct {
 };
 
 /// The shared modules a cart links: the HW ABI header, ZigOS, the ROM's flat ABI.
-const Libs = struct { hardware: *Module, zigos: *Module, rom_sdk: *Module, depackers: *Module, boot_rom: *Module, tvnoise: *Module };
+const Libs = struct { hardware: *Module, zigos: *Module, rom_sdk: *Module, depackers: *Module, boot_rom: *Module, tvnoise: *Module, kos_gemdos: *Module };
 
 fn libs(b: *std.Build, dep: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Libs {
     const m = struct {
@@ -52,6 +52,7 @@ fn libs(b: *std.Build, dep: *std.Build.Dependency, target: std.Build.ResolvedTar
         .depackers = m(b, dep, "libs/zig/depackers/depackers.zig", target, optimize),
         .boot_rom = m(b, dep, "machine/boot.zig", target, optimize),
         .tvnoise = m(b, dep, "libs/zig/tvnoise/tvnoise.zig", target, optimize),
+        .kos_gemdos = m(b, dep, "rom/kos/gemdos_cart.zig", target, optimize), // files on A: and C: (docs/KOS_GEMDOS.md)
     };
     l.zigos.addImport("hardware", l.hardware);
     l.rom_sdk.addImport("zigos", l.zigos);
@@ -106,6 +107,7 @@ fn sceneModule(b: *std.Build, opts: CartOptions, l: Libs, target: std.Build.Reso
             .{ .name = "rom_sdk", .module = l.rom_sdk },
             .{ .name = "hardware", .module = l.hardware },
             .{ .name = "depackers", .module = l.depackers },
+            .{ .name = "kos_gemdos", .module = l.kos_gemdos },
         },
     });
 }

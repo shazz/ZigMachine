@@ -78,6 +78,8 @@ pub fn build(b: *std.Build) void {
     // is the machine's job, not a build step's.
     // KOS's FAT reader (rom/kos/fat.zig, docs/KOS_FAT.md): pure Zig, shared by the desktop shell cart.
     const kos_fat_mod = b.createModule(.{ .root_source_file = b.path("rom/kos/fat.zig"), .target = wasm_target, .optimize = optimize });
+    // KOS GEMDOS (docs/KOS_GEMDOS.md): Fopen & co. over A: and C: in the cart; @import("kos_gemdos").dos().
+    const kos_gemdos_mod = b.createModule(.{ .root_source_file = b.path("rom/kos/gemdos_cart.zig"), .target = wasm_target, .optimize = optimize });
     const depackers_mod = b.createModule(.{
         .root_source_file = b.path("libs/zig/depackers/depackers.zig"),
         .target = wasm_target,
@@ -609,6 +611,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "packed_assets", .module = packed_assets_mod },
                 .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
                 .{ .name = "kos_fat", .module = kos_fat_mod }, // KOS's FAT reader (the desktop shell, docs/KOS_FAT.md)
+                .{ .name = "kos_gemdos", .module = kos_gemdos_mod }, // KOS GEMDOS (docs/KOS_GEMDOS.md): no cart pays unless it imports it
             },
         });
         if (std.mem.eql(u8, name, "demo-tc_test")) cart_mod.addImport("tc_art", tcArt(b, tc_art_dir, wasm_target, optimize));

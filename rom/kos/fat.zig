@@ -93,7 +93,7 @@ pub const Volume = struct {
         return bytes <= @as(u64, v.fat_sectors) * SECTOR;
     }
 
-    fn sector(v: *Volume, n: u32) Error!*const [SECTOR]u8 {
+    pub fn sector(v: *Volume, n: u32) Error!*const [SECTOR]u8 {
         if (v.buf_sector != n) {
             v.buf_sector = 0xFFFF_FFFF;
             if (!v.read_fn(v.ctx, n, &v.buf)) return error.Io;
@@ -141,7 +141,7 @@ pub const Volume = struct {
     }
 
     /// The sector holding a directory's `i`-th 512-byte block, null past its end.
-    fn dirSector(v: *Volume, d: Dir, i: u32) Error!?u32 {
+    pub fn dirSector(v: *Volume, d: Dir, i: u32) Error!?u32 {
         if (d.cluster == 0) return if (i < v.root_sectors) v.root_start + i else null;
         var c = d.cluster;
         var k = i / v.spc;
