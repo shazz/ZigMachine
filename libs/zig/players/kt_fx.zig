@@ -10,6 +10,7 @@ const c = @import("kt_cyd.zig");
 const song = @import("kt_song.zig");
 const tab = @import("kt_tables.zig");
 const chorus = @import("kt_chorus.zig");
+const rt = @import("kt_rvbtaps.zig");
 
 pub const RVB_MS = 2000; // CYDRVB_SIZE
 
@@ -20,6 +21,7 @@ pub const Reverb = struct {
     position: u32 = 0,
     taps: [song.RVB_TAPS]Tap = [_]Tap{.{}} ** song.RVB_TAPS,
     n_taps: u8 = 0, // taps with a gain, packed first
+    plan: rt.Plan = .{}, // the taps as the block path reads them (kt_rvbtaps.zig)
 };
 
 pub const Crush = struct {
@@ -63,6 +65,7 @@ pub fn setTaps(r: *Reverb, def: *const song.FxDef, rate: u32) void {
         r.taps[r.n_taps] = tap;
         r.n_taps += 1;
     }
+    rt.plan(&r.plan, r.taps[0..r.n_taps]);
 }
 
 /// cydcrush_set: -1 keeps a field.
