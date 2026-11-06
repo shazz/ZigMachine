@@ -6,14 +6,16 @@
 //   menu      the right button held (klystron's menu bar open), the pointer moving every frame: the views
 //             behind the menu are skipped, only the menu draws
 //   both      playing with the menu open
-// Round 4 (6 Nov 2026), est Mc: playing median 1.4, row change ~8 (worst ~10), mean ~2.0; menu 0.95; both mean
-// ~2.5. Round 3: playing median 4.9 / worst 13.8, menu 3.2. The ceilings sit ~20-30 % above round 4's.
+//   inst      playing with the instrument tab open (F3): round 5 skips its views between events
+// Round 5 (6 Nov 2026), est Mc: playing median 1.44, worst row change 7.8, mean 1.85; menu 0.98; both mean 2.3;
+// instrument tab mean 1.04 / worst 1.47. Round 4: 1.47 / 9.3 / 2.03, 0.95, 2.51, instrument tab 2.0 / 3.2.
+// Round 3: playing median 4.9 / worst 13.8, menu 3.2. The ceilings sit ~20-30 % above round 5's.
 // A palette compaction (~35-80 Mc, when the 256 window colours fill up with VU gradient shades) is left out of
 // the window on purpose: it comes every few hundred frames in both rounds. --break cost asks for 0 and must fail.
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
 const CART = process.env.CART ?? "docs/demo-klystrack.wasm"; // CART=...: another build (a before/after)
-const CEIL = { playMedian: 2, playRow: 13, playMean: 2.8, menuMax: 1.3, bothMean: 3.4 };
+const CEIL = { playMedian: 1.8, playRow: 9.5, playMean: 2.3, menuMax: 1.25, bothMean: 2.9, instMean: 1.35, instMax: 1.9 };
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (broke && broke !== "cost") throw new Error("--break cost");
 const scale = broke ? 0 : 1; // --break cost: every ceiling ~0
@@ -49,6 +51,11 @@ check(Math.max(...menu) <= CEIL.menuMax * scale, `menu: worst repaint ${Math.max
 
 const both = await series([...F5, ...menuMoves()], 165);
 check(mean(both) <= CEIL.bothMean * scale, `playing + menu: mean ${mean(both)} Mc a frame <= ${CEIL.bothMean * scale}`);
+
+const inst = await series([...F5, "60:key:57347", "63:keyUp:57347"], 160);   // F3: the instrument tab
+check(inst.filter((mc) => mc > 1.2).length >= 20, "instrument tab: it repaints while the song plays");
+check(mean(inst) <= CEIL.instMean * scale, `instrument tab, playing: mean ${mean(inst)} Mc a frame <= ${CEIL.instMean * scale}`);
+check(Math.max(...inst) <= CEIL.instMax * scale, `instrument tab, playing: worst ${Math.max(...inst)} Mc <= ${CEIL.instMax * scale}`);
 
 if (broke) {
     console.log(errors.length ? `klystrack_cost: PASS (--break cost was caught)` : "klystrack_cost: FAILED -- --break cost was not caught");
