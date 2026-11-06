@@ -16,7 +16,8 @@
 # mkdir and mv only: nothing is deleted or overwritten (a name already at the target is skipped and
 # said). Run it again and it moves nothing. --back moves it all back (for the old rootfs, whose
 # S99glass runs `glass run /mnt/sd/zigmachine`), then removes the folders it emptied (rmdir: an
-# emptied folder only). /mnt/sd is remounted read-write for the moves and read-only after.
+# emptied folder only); a KESTREL/glass goes to /glass.kestrel, which a later forward run puts in
+# KESTREL/rollback/ like any old glass. /mnt/sd is remounted read-write for the moves and read-only after.
 set -u
 DRY=0 BACK=0 CARD=/mnt/sd
 for a in "$@"; do

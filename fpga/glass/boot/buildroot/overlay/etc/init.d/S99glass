@@ -21,6 +21,7 @@ pick_glass() {
     fi
     mkdir -p /tmp/sd && cp "$OVERRIDE" /tmp/sd/glass && chmod 0755 /tmp/sd/glass || return 0
     # A runnable glass prints its usage and exits 2; anything else (not ARM, truncated) is not used.
+    # (glass with no command must stay side-effect free: no /dev/mem, no control socket.)
     /tmp/sd/glass >/dev/null 2>&1
     if [ $? -ne 2 ]; then
         echo "glass: $OVERRIDE does not run here, keeping $GLASS" >&2
