@@ -1,0 +1,14 @@
+# Plan A's own BOOT.BIN (docs/FPGA_GLASS.md, "Plan A"): xilinx_zynq_virt, the defconfig
+# zeST's U-Boot comes from, narrowed to this board. SPL replays zeST's FSBL PS7 init
+# (ps7_init_gpl.c, external.mk puts it in place), then loads u-boot.img off the SD card.
+CONFIG_DEFAULT_DEVICE_TREE="zynq-z7lite"
+CONFIG_OF_LIST="zynq-z7lite"
+# No falcon mode: virt's SPL would boot a `uImage` straight off the card (zeST's plan B
+# kernel is there) whenever a system.dtb sits beside it, skipping U-Boot and boot.scr.
+# CONFIG_SPL_OS_BOOT is not set
+# zeST's U-Boot waits 0 s; 2 s lets the serial console stop it without a Ctrl-C storm.
+CONFIG_BOOTDELAY=2
+CONFIG_BAUDRATE=921600
+# The prompt fpga/tools/uboot_serial.py waits for.
+CONFIG_SYS_PROMPT="Zynq> "
+CONFIG_IDENT_STRING=" ZigMachine"

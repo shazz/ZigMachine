@@ -8,6 +8,8 @@ __pycache__/
 boards/*/board.xdc
 boards/*/vendor/
 boards/*/ps7_init*
+# U-Boot SPL's PS7 init, read out of zeST's FSBL by tools/ps7_from_bootbin.py (build_planA.sh)
+glass/boot/uboot/ps7_init_gpl.c
 # sbt output of vexgen/ (custom VexRiscv netlists)
 vexgen/target/
 vexgen/project/target/

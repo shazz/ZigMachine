@@ -1,8 +1,8 @@
 # ZigMachine glass on the MicroPhase Z7-Lite (docs/FPGA_GLASS.md, "Boot flow").
 #   make BR2_EXTERNAL=<repo>/fpga/glass/boot/buildroot zigmachine_z7lite_defconfig && make
+# fpga/glass/boot/build_planA.sh runs the whole build (it generates ps7_init_gpl.c first).
 # Outputs used by fpga/tools/glass_sd.py: images/zImage, images/zigmachine-z7lite.dtb,
-# images/rootfs.cpio.uboot. U-Boot and the FSBL are NOT built here: zeST's BOOT.BIN
-# provides both until we generate our own ps7_init.
+# images/rootfs.cpio.uboot; plan A's own BOOT.BIN: images/boot.bin (U-Boot SPL) + u-boot.img.
 BR2_arm=y
 BR2_cortex_a9=y
 BR2_ARM_ENABLE_NEON=y
@@ -21,6 +21,23 @@ BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZIGMACHINE_PATH)/linux.fr
 BR2_LINUX_KERNEL_ZIMAGE=y
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_ZIGMACHINE_PATH)/../zigmachine-z7lite.dts"
+# Our own BOOT.BIN: U-Boot SPL (no Xilinx FSBL, no Vitis) + u-boot.img, from the
+# u-boot-xlnx tag Buildroot's zynq_zed_defconfig uses (patches/uboot/uboot.hash pins it).
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_ZIGMACHINE_PATH)/patches"
+BR2_TARGET_UBOOT=y
+BR2_TARGET_UBOOT_BUILD_SYSTEM_KCONFIG=y
+BR2_TARGET_UBOOT_CUSTOM_TARBALL=y
+BR2_TARGET_UBOOT_CUSTOM_TARBALL_LOCATION="$(call github,Xilinx,u-boot-xlnx,xlnx_rebase_v2025.01_2025.2)/xlnx_rebase_v2025.01_2025.2.tar.gz"
+BR2_TARGET_UBOOT_BOARD_DEFCONFIG="xilinx_zynq_virt"
+BR2_TARGET_UBOOT_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZIGMACHINE_PATH)/uboot.fragment"
+BR2_TARGET_UBOOT_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_ZIGMACHINE_PATH)/../uboot/zynq-z7lite.dts"
+BR2_TARGET_UBOOT_CUSTOM_MAKEOPTS="DEVICE_TREE=zynq-z7lite"
+BR2_TARGET_UBOOT_NEEDS_DTC=y
+BR2_TARGET_UBOOT_NEEDS_OPENSSL=y
+BR2_TARGET_UBOOT_NEEDS_GNUTLS=y
+BR2_TARGET_UBOOT_FORMAT_IMG=y
+BR2_TARGET_UBOOT_SPL=y
+BR2_TARGET_UBOOT_SPL_NAME="spl/boot.bin"
 BR2_TARGET_ROOTFS_CPIO=y
 BR2_TARGET_ROOTFS_CPIO_UIMAGE=y
 # BR2_TARGET_ROOTFS_TAR is not set

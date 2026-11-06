@@ -43,6 +43,7 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Programs off a data disk: ZIGGY asks (request block + `CART_STATE`), ZWINDOW loads the program's prebuilt image over the same disk, and GEM again on request 4 | **built, host-tested** (2026-10-11): no RTL change, no new CSR | firmware block = glass's reader; the glass's swap in its zig tests; the request in the board SoC sim (below, "Programs off a data disk"); the swap itself needs the board |
 | Cart-side input routing (`glass/firmware/glass_input.c`) | **done, linked into every board firmware** (2026-10-10): once a frame, before `cart.frame()`, `cycles/binput.c` drains the key FIFO (32 a frame at most), then the joypad and the mouse, through `host/input_bridge.c` into the cart's exports (`host_input`, generated per cart by `tools/host_gen.py`: NULL where a cart has no such export) | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught. `tests/test_board_input.py`: the native host plays a key-FIFO script (`ZM_GLASS_KEYS`) through the same router, and SPACE on union_beatdis gives the browser's own `key(32)` hashes, a mutant router is caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
+| Plan A, our own boot stack: U-Boot SPL BOOT.BIN + u-boot.img + kernel + rootfs with glass (`glass/boot/build_planA.sh`) | **built 5 Nov, not yet on the board** | below, "Plan A: our own boot stack"; PS7 init read out of zeST's FSBL op for op (`tests/test_ps7_from_bootbin.py`) |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
 
 ## Features at a glance
@@ -340,6 +341,48 @@ below the cart window.
    scans the shelf and powers KOS on: ZIGGY starts at once over what drive A holds
    (`drive_a=` in glass.cfg), the OSD closed (below, "KOS: power-on and drive A").
    If nothing can boot (no desktop on the card, say), the menu opens with why.
+
+## Plan A: our own boot stack (`fpga/glass/boot/build_planA.sh`)
+
+Matt, 4 Nov: "I prefer to use our own image than zest", "better to have our own boot.bin so we
+can customize it". One script builds all of it from source; nothing comes from zeST but the PS7
+register values.
+
+| File on the card | What | Built by |
+|---|---|---|
+| `BOOT.BIN` (staged as `BOOT.BIN.ours`) | U-Boot SPL in a Zynq boot image: no Xilinx FSBL, no Vitis | Buildroot, U-Boot `spl/boot.bin` |
+| `u-boot.img` | U-Boot proper (FIT, with `uboot/zynq-z7lite.dts`); SPL loads it off the FAT | Buildroot |
+| `zImage`, `zigmachine.dtb`, `rootfs.cpio.uboot` | Linux, its tree, the initramfs with `/usr/bin/glass` (post-build.sh) | Buildroot |
+| `boot.scr` | `boot.cmd`, unchanged: it runs plan A whenever a `zImage` is on the card | `glass_sd.script_image` |
+
+- **The PS7 init (DDR3, clocks, MIO).** KESTREL's SoC instantiates the bare PS7 primitive
+  (`soc/zm_board_mem.py`), so no Vivado export has a PS7 configuration to give. The register
+  writes the board runs on are the ones zeST's FSBL makes, so `fpga/tools/ps7_from_bootbin.py`
+  reads Vivado's ps7_init tables back out of zeST's BOOT.BIN (the 3.0 tables are the ones its
+  pointer block names) and writes them as U-Boot's `ps7_init_gpl.c`, op for op. Not committed
+  (fpga/.gitignore); `external.mk` puts it in U-Boot's `board/xilinx/zynq/zynq-z7lite/`, and the
+  build refuses an SPL without it (U-Boot would link a weak `ps7_init()` that does nothing).
+- **One deliberate difference:** zeST's `ps7_post_config` also sets HP0's AFI to 32-bit. The FSBL
+  runs it after loading zeST's bitstream; SPL runs it with the PL empty, where an AFI access hangs
+  the ARM (Lessons, 2026-10-03). Those two writes are dropped; `boot.cmd` sets every AFI width
+  after `fpga loadb`, as before. zeST's FSBL also loads its own bitstream and DTB (at `0x800000`);
+  SPL loads neither, so plan B under our BOOT.BIN needs `zest.dtb` from the card dir.
+- **U-Boot:** Xilinx's u-boot-xlnx `xlnx_rebase_v2025.01_2025.2` (the base of zeST's
+  `2025.01-gdf4ec3c8da27`), `xilinx_zynq_virt_defconfig` + `buildroot/uboot.fragment`: one device
+  tree, no falcon mode (virt's SPL would boot a `uImage` straight off the card), `bootdelay` 2 s
+  (zeST's is 0), 921600 baud, the `Zynq> ` prompt. The environment and `bootcmd` are virt's, as
+  zeST's are: distro boot finds `boot.scr` on mmc 0, `scriptaddr` 0x3000000 (from the DT's
+  `bootscr-address`, as zeST's DT has it).
+- **Build host:** Buildroot runs on `BUILD_HOST` (default the omarchy laptop, `~/br`); the ARM glass
+  and the PS7 file are made here first. `host-tools/wget` stands in for a missing wget; the host
+  needs a `bc` (the laptop's is this box's, in `~/br/tools/bin`). First build 5 Nov: 28 min.
+- **Checked off the board (5 Nov):** the SPL ELF's 18 tables decode to zeST's FSBL tables op for op
+  (post_config minus the two AFI writes), and those bytes are in `boot.bin`; U-Boot `.config` has no
+  SPL_OS_BOOT, bootdelay 2, 921600, `Zynq> `; u-boot.img's FIT carries `zynq-z7lite` with
+  `bootscr-address` 0x3000000; the rootfs has the stripped glass, S99glass, devmem, dropbear, avahi and
+  no `/lib/modules`; the kernel has USB storage, SCSI disks, vfat, XADC, xpad, the HID pads.
+- **Recovery:** a bad SPL cannot be fixed over serial. Put zeST's `BOOT.BIN` back on the card from
+  a PC; `prototypes/card_full_re/planA/RECOVERY.md` has the commands and the renames.
 
 ## The OSD
 
@@ -1448,9 +1491,10 @@ The NICE-TO-HAVE list:
      fragment's driver names against the kernel Buildroot actually builds.
    A touchpad (absolute `ABS_X` + `BTN_TOUCH`) is not a mouse to `glass`. It is
    ignored.
-5. **Plan A:** run Buildroot once (`make BR2_EXTERNAL=… zigmachine_z7lite_defconfig`;
-   it needs network access and about an hour). The DTS and the kernel fragment
-   are unverified until then.
+5. **Plan A:** `fpga/glass/boot/build_planA.sh --stage <dir>` (Buildroot on the laptop, ~30 min
+   the first time; built 5 Nov, card dir `prototypes/card_full_re/planA/`, its RECOVERY.md). On the
+   board, in this order: the kernel, DTB and rootfs under zeST's BOOT.BIN; then our BOOT.BIN, only
+   with someone at the card (a bad SPL is fixed by renaming files on a PC, never over serial).
 6. **Timing:** the measured refill and posted-write costs (`FPGA_STEPS.md`).
 7. **The console page:** that `AUDIO_VOL` reaches the mixer (once the audio
    path is in the SoC), that a settings save can remount `/mnt/sd` read-write
