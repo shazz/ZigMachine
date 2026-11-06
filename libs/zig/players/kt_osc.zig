@@ -57,6 +57,51 @@ pub inline fn advance(ch: *c.Channel, comptime subs: u3) void {
     inline for (&ch.subosc, 0..) |*o, s| if (subs >> s & 1 != 0 and (o.frequency != 0 or lfsr)) step(ch, o, s == 0);
 }
 
+/// `n` samples of advance for a channel nobody hears the oscillators of and with no LFSR: each
+/// sub-oscillator on its own (no LFSR: they share nothing), its phase and noise in locals; the sync
+/// bit left as the last sample's.
+pub fn advanceN(ch: *c.Channel, n: usize, comptime subs: u3) void {
+    const metal = ch.flags & c.METAL != 0;
+    ch.sync_bit = 0;
+    inline for (&ch.subosc, 0..) |*o, s| if (subs >> s & 1 != 0 and o.frequency != 0) {
+        var acc = o.accumulator;
+        var random = o.random;
+        const freq = o.frequency;
+        var sync: u32 = 0;
+        for (0..n) |_| {
+            const prev = acc;
+            acc +%= freq;
+            sync = acc & c.ACC_LENGTH;
+            acc &= c.ACC_LENGTH - 1;
+            if ((prev ^ acc) & (c.ACC_LENGTH / 32) != 0) {
+                if (metal) {
+                    shift(&random, 0xe, 8);
+                    random &= (1 << (0xe + 1)) - 1;
+                } else {
+                    shift(&random, 22, 17);
+                    random &= (1 << (22 + 1)) - 1;
+                }
+            }
+        }
+        o.accumulator = acc;
+        o.random = random;
+        if (s == 0) ch.sync_bit = sync;
+    };
+}
+
+/// The sync bit `ch` leaves after each of its next `n` samples (its first sub-oscillator's wrap), for
+/// a channel whose phase nothing resets meanwhile: out[t] = 1 where sample t wraps.
+pub fn syncBits(ch: *const c.Channel, n: usize, out: [*]u8) void {
+    const o = &ch.subosc[0];
+    if (o.frequency == 0) return @memset(out[0..n], 0); // no step, or a step of 0: never a wrap
+    var acc = o.accumulator;
+    for (0..n) |t| {
+        acc +%= o.frequency;
+        out[t] = @intFromBool(acc & c.ACC_LENGTH != 0);
+        acc &= c.ACC_LENGTH - 1;
+    }
+}
+
 inline fn step(ch: *c.Channel, o: *c.Osc, comptime first: bool) void {
     const prev = o.accumulator;
     o.accumulator +%= o.frequency;

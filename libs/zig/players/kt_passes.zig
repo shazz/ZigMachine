@@ -5,7 +5,8 @@
 // only meet through the modulator's output (a block of them, `mods`) and the
 // oscillators' and voices' sum (`src`): the modulator, the phases and the
 // envelope never read each other, and every stage of sample t reads its
-// state as kt_synth.zig's sample loop has it at t. So the same bytes.
+// state as kt_synth.zig's sample loop has it at t. So the same bytes. The
+// envelope pass is kt_envpass.zig, run once every channel's sums are known.
 // Why: on BARD (wasm2c, rv32 with ~27 free registers) the one-loop form held
 // a whole channel live and spilled most of it to the stack every sample (an
 // FM-on-wavetable voice: ~700 of its ~2,300 instructions touch the stack).
@@ -18,46 +19,57 @@ const syn = @import("kt_synth.zig");
 const osc = @import("kt_osc.zig");
 const wave = @import("kt_wave.zig");
 const fm = @import("kt_fm.zig");
-const adsr = @import("kt_adsr.zig");
-const filter = @import("kt_filter.zig");
 
-pub const BLOCK = 64;
+pub const BLOCK = @import("kt_block.zig").BLOCK;
 
 /// The passes apply: no envelope-overriding wavetable.
 pub fn fits(ch: *const c.Channel) bool {
     return ch.flags & (c.WAVE | c.WAVE_OVERRIDE_ENV) != (c.WAVE | c.WAVE_OVERRIDE_ENV);
 }
 
-/// `n` (<= BLOCK) samples of `chp`, panned and added into dl/dr.
-pub noinline fn channel(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32, comptime k: syn.Kind) void {
+/// The block's first passes for `chp`: its source sum (oscillators and wavetable voices, before the
+/// envelope) into src where `heard` (gated, or the ring source of a gated channel), every phase and
+/// the modulator stepped. kt_envpass.zig does the rest.
+pub noinline fn sources(rate: u32, chp: *c.Channel, src: []i32, heard: bool, comptime k: syn.Kind) void {
     var mods: [BLOCK]u32 = undefined; // the modulator's output before sample t's step: what sample t reads
-    var src: [BLOCK]i32 = undefined;
-    const has_fm = k.fm and chp.flags & c.FM != 0;
+    const n = src.len;
+    const has_fm = chp.flags & c.FM != 0;
     if (has_fm) modulator(rate, &chp.fm, mods[0..n]);
-    const gated = chp.flags & c.GATE != 0;
-    oscillators(chp, src[0..n], &mods, has_fm, gated, k);
-    if (k.wave and chp.flags & c.WAVE != 0) {
+    oscillators(chp, src, &mods, has_fm, heard, k);
+    if (chp.flags & c.WAVE != 0) {
         const e = chp.wave_entry;
-        const heard = gated and e != null; // fits(): a WAVE channel's wavetable is added before the envelope
+        const read = heard and e != null; // fits(): a WAVE channel's wavetable is added before the envelope
         inline for (0..c.SUB_OSCS) |i| if (k.subs >> i & 1 != 0) {
-            if (heard) voice(&chp.subosc[i].wave, e.?, src[0..n], &mods, has_fm) else stepOnly(&chp.subosc[i].wave, e, n);
+            if (read) voiceAny(&chp.subosc[i].wave, e.?, src, &mods, has_fm) else stepOnly(&chp.subosc[i].wave, e, n);
         };
     }
-    envelope(rate, chp, src[0..n], dl, dr, gated, k);
 }
 
-fn modulator(rate: u32, fp: *c.Fm, mods: []u32) void {
+/// The modulator over the block, built for its wave entry's shape (kt_wave.zig Shape).
+pub fn modulator(rate: u32, fp: *c.Fm, mods: []u32) void {
+    const e = fp.wave_entry orelse return modulatorS(rate, fp, mods, null);
+    switch (wave.shapeCode(e)) {
+        inline else => |v| modulatorS(rate, fp, mods, wave.shape(v)),
+    }
+}
+
+fn modulatorS(rate: u32, fp: *c.Fm, mods: []u32, comptime s: ?wave.Shape) void {
     var f = fp.*;
     for (mods) |*m| {
         m.* = f.current_modulation;
-        fm.cycle(rate, &f);
+        fm.cycleS(rate, &f, s);
     }
     fp.* = f;
 }
 
 /// kt_synth.zig voice + osc.advance: the oscillators' sum (heard samples) and the phases' step.
-fn oscillators(chp: *c.Channel, src: []i32, mods: *const [BLOCK]u32, has_fm: bool, gated: bool, comptime k: syn.Kind) void {
-    const sounding = k.osc and gated and chp.flags & c.WAVEFORMS & ~c.WAVE != 0;
+fn oscillators(chp: *c.Channel, src: []i32, mods: *const [BLOCK]u32, has_fm: bool, heard: bool, comptime k: syn.Kind) void {
+    const sounding = k.osc and heard and chp.flags & c.WAVEFORMS & ~c.WAVE != 0;
+    if (!sounding and chp.flags & c.LFSR == 0) { // only the phases move (a wavetable voice)
+        @memset(src, 0);
+        osc.advanceN(chp, src.len, k.subs);
+        return;
+    }
     var ch = chp.*;
     for (src, 0..) |*s, t| {
         ch.sync_bit = 0;
@@ -77,16 +89,23 @@ fn oscillators(chp: *c.Channel, src: []i32, mods: *const [BLOCK]u32, has_fm: boo
     chp.* = ch;
 }
 
-/// A wavetable voice heard over the block: its samples added into src, its phase stepped.
-fn voice(wp: *c.WaveState, ep: *const song.WaveEntry, src: []i32, mods: *const [BLOCK]u32, has_fm: bool) void {
+/// A wavetable voice heard over the block: its samples added into src, its phase stepped; built for
+/// its entry's shape and whether FM moves its phase.
+fn voiceAny(wp: *c.WaveState, ep: *const song.WaveEntry, src: []i32, mods: *const [BLOCK]u32, has_fm: bool) void {
+    switch (@as(u5, wave.shapeCode(ep)) | @as(u5, @intFromBool(has_fm)) << 4) {
+        inline else => |v| voice(wp, ep, src, mods, wave.shape(v & 15), v & 16 != 0),
+    }
+}
+
+fn voice(wp: *c.WaveState, ep: *const song.WaveEntry, src: []i32, mods: *const [BLOCK]u32, comptime s: wave.Shape, comptime has_fm: bool) void {
     var w = wp.*;
     const e = ep.*;
-    for (src, 0..) |*s, t| {
+    for (src, 0..) |*o, t| {
         if (w.playing and w.frequency != 0) {
             const ph = if (has_fm) fm.modulateWave(mods[t], &e, w.acc) else w.acc;
-            s.* +%= wave.sample(&w, &e, ph);
+            o.* +%= wave.sampleS(&w, &e, ph, s);
         }
-        wave.cycle(&w, &e);
+        wave.cycleS(&w, &e, s);
     }
     wp.* = w;
 }
@@ -95,30 +114,4 @@ fn stepOnly(wp: *c.WaveState, e: ?*const song.WaveEntry, n: usize) void {
     var w = wp.*;
     for (0..n) |_| wave.cycle(&w, e);
     wp.* = w;
-}
-
-/// The envelope (and filter) on each heard sample, panned into dl/dr; the envelope stepped.
-fn envelope(rate: u32, chp: *c.Channel, src: []const i32, dl: [*]i32, dr: [*]i32, gated: bool, comptime k: syn.Kind) void {
-    var a = chp.adsr;
-    var flags = chp.flags;
-    var flt = chp.flt;
-    const shape = chp.ym_env_shape;
-    const gl = chp.gain_left;
-    const gr = chp.gain_right;
-    const kind = chp.flttype;
-    for (src, 0..) |s, t| {
-        if (gated and flags & c.GATE != 0) {
-            var o = adsr.output(flags, &a, s);
-            if (k.filter and flags & c.FILTER != 0) {
-                filter.cycle(&flt, o);
-                o = filter.output(&flt, kind);
-            }
-            dl[t] +%= @divTrunc(o *% gl, c.STEREO_GAIN);
-            dr[t] +%= @divTrunc(o *% gr, c.STEREO_GAIN);
-        }
-        flags = adsr.cycle(rate, flags, shape, &a);
-    }
-    chp.adsr = a;
-    chp.flags = flags;
-    chp.flt = flt;
 }

@@ -26,7 +26,7 @@ pub const Chorus = struct {
     pos_r: Pos = .{},
     q_step: u32 = 0,
     r_step: u32 = 0,
-    k: u64 = 0, // 256 * rate / 10000, Q12 (kestrel_chorus_lut's K)
+    k: u32 = 0, // 256 * rate / 10000, Q12 (kestrel_chorus_lut's K): < 2^32 for any rate under 40 MHz, so one 32x32 product
     span: i32 = 0,
     min_delay: i32 = 0,
     max_delay: i32 = 0,
@@ -52,7 +52,7 @@ pub fn set(ch: *Chorus, rate: u32, chr_rate: u8, min_delay: u8, max_delay: u8, s
     const turn: u64 = 1 << 32;
     ch.q_step = @intCast(turn / ch.n);
     ch.r_step = @intCast(turn % ch.n);
-    ch.k = ((@as(u64, 256) * rate) << 32) / (@as(u64, 10000) << 20);
+    ch.k = @intCast(((@as(u64, 256) * rate) << 32) / (@as(u64, 10000) << 20));
 }
 
 /// The phase of entry `i` of an `n`-entry curve, as kestrel_chorus_lut reaches it.

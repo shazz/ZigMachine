@@ -32,13 +32,13 @@ inline fn feedback(fm: *const c.Fm, span: u32) u32 {
     return @truncate(fbsum / 2 * k / MODULATOR_MAX);
 }
 
-inline fn modulator(fm: *const c.Fm) u32 {
+inline fn modulator(fm: *const c.Fm, comptime s: ?wave.Shape) u32 {
     if (fm.flags & c.WAVE != 0) if (fm.wave_entry) |e| {
         const length = e.span;
         if (length == 0) return 0;
         var acc = fm.wave.acc;
         if (fm.feedback != 0) acc +%= feedback(fm, length);
-        const smp = wave.sample(&fm.wave, e, modSpan(acc, e));
+        const smp = wave.sampleS(&fm.wave, e, modSpan(acc, e), s);
         // A 16-bit sample times the modulator's envelope (at most 1024 x 255 / 128) fits 32 bits: upstream's
         // Sint64 product, in the width BARD does in one multiply.
         if (fm.env_output < 1 << 15) return @bitCast(@divTrunc(smp * @as(i32, @intCast(fm.env_output)), 32768) + 65536);
@@ -53,11 +53,16 @@ inline fn modulator(fm: *const c.Fm) u32 {
 
 /// cydfm_cycle: one sample of the modulator.
 pub inline fn cycle(rate: u32, fm: *c.Fm) void {
+    cycleS(rate, fm, null);
+}
+
+/// cycle, for a modulator whose wave entry has shape `s` (null: read its flags each sample).
+pub inline fn cycleS(rate: u32, fm: *c.Fm, comptime s: ?wave.Shape) void {
     _ = adsr.cycle(rate, 0, 0, &fm.adsr);
     fm.env_output = @bitCast(adsr.output(0, &fm.adsr, MODULATOR_MAX));
-    wave.cycle(&fm.wave, fm.wave_entry);
+    if (fm.wave_entry) |e| wave.cycleS(&fm.wave, e, s);
     fm.accumulator = (fm.accumulator +% fm.period) % c.ACC_LENGTH;
-    const m = modulator(fm);
+    const m = modulator(fm, s);
     fm.fb2 = fm.fb1;
     fm.fb1 = m;
     fm.current_modulation = m;

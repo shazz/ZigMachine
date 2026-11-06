@@ -1,14 +1,18 @@
 // --------------------------------------------------------------------------
-// cyd a block at a time: each channel's samples of the block in one loop over
-// a COPY of its state (kt_synth.zig's per-sample stages, inlined), then the FX
-// buses a sample at a time. The same arithmetic in the same order per channel
-// as kt_synth.zig's sample loop, so the same bytes: channels only meet in the
-// sums (wrapping adds, in any order the same) and in ring modulation and hard
-// sync, which read another channel's sample; a block with either in effect
-// runs kt_synth.zig's way instead (eligible).
-// Why: on BARD the player is wasm2c'd demo-audio, where a field the release
-// build re-reads from a channel is a load each sample; one channel's state in
-// locals for a whole block keeps it in rv32 registers and the stack.
+// cyd a block at a time: each channel's block in passes (kt_passes.zig: the
+// modulator, oscillators and wavetable voices into the channel's source sums;
+// then kt_envpass.zig: ring modulation, envelope, filter, panning), then the
+// FX buses. The same arithmetic in the same order per channel as
+// kt_synth.zig's sample loop, so the same bytes: channels only meet in the
+// sums (wrapping adds, in any order the same), in ring modulation (it reads
+// another channel's source sum at the same sample: every sum is written
+// before any envelope pass runs) and in hard sync, which resets a channel's
+// phases after a sample where its source wrapped (kt_syncpass.zig: the
+// source's wraps worked out first). A source that is synced itself, or ring
+// modulation or sync beside an envelope-overriding wavetable (its channel
+// runs the one-loop form below, without the sums), runs kt_synth.zig's way.
+// Why: on BARD the player is wasm2c'd demo-audio (rv32, ~27 free registers);
+// a pass holds a few fields, where a whole channel spilled every sample.
 // --------------------------------------------------------------------------
 const c = @import("kt_cyd.zig");
 const song = @import("kt_song.zig");
@@ -16,43 +20,41 @@ const syn = @import("kt_synth.zig");
 const osc = @import("kt_osc.zig");
 const fxb = @import("kt_fxblock.zig");
 const passes = @import("kt_passes.zig");
+const env = @import("kt_envpass.zig");
+const syncp = @import("kt_syncpass.zig");
 
-pub const BLOCK = 64;
-/// The mix's words: the dry pair, then each bus's pair, BLOCK samples each.
-pub const WORDS = (2 + 2 * song.MAX_FX) * BLOCK;
+pub const BLOCK = 128;
+/// The mix's words: the dry pair, then each bus's pair, BLOCK samples each; then each channel's
+/// source sums.
+pub const MIX_WORDS = (2 + 2 * song.MAX_FX) * BLOCK;
+pub const WORDS = MIX_WORDS + song.MAX_CH * BLOCK;
 
-/// No ring modulation into a gated channel and no hard sync: channels independent for the block.
+/// Ring modulation into a gated channel or hard sync only when every channel runs in passes, and
+/// sync only from a source that is not synced itself (its wraps then follow from its own phase).
 pub fn eligible(sy: *const syn.Synth) bool {
-    for (sy.chn[0..sy.n]) |*ch| {
-        if (ch.flags & c.SYNC != 0) return false;
-        if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) return false;
+    var coupled = false;
+    var all_passes = true;
+    for (sy.chn[0..sy.n], 0..) |*ch, i| {
+        if (synced(sy, ch)) {
+            if (ch.sync_source == i or synced(sy, &sy.chn[ch.sync_source])) return false;
+            coupled = true;
+        }
+        if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) coupled = true;
+        if (!passes.fits(ch)) all_passes = false;
     }
-    return true;
+    return !coupled or all_passes;
 }
 
-/// One channel's `n` samples, panned and added into dl/dr (its bus or the dry mix). Most channels run
-/// in passes (kt_passes.zig), built for whether the channel has oscillators and a filter and whether
-/// sub-oscillators 1 and 2 are idle (a voice playing one note, the common case): 8 of them, the FM
-/// and wavetable stages chosen at run time (a pass each). An envelope-overriding wavetable runs the
-/// one-loop form, built for what the channel uses this block (kt_synth.zig Kind), 16 of them.
-fn channel(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32) void {
-    const f = chp.flags;
-    const has_osc = f & c.WAVEFORMS & ~c.WAVE != 0;
-    const has_filter = f & c.FILTER != 0;
-    if (passes.fits(chp)) {
-        switch (@as(u3, @intFromBool(has_osc)) | @as(u3, @intFromBool(has_filter)) << 1 |
-            @as(u3, @intFromBool(idle(chp, 1) and idle(chp, 2))) << 2) {
-            inline else => |v| passes.channel(rate, chp, n, dl, dr, .{
-                .osc = v & 1 != 0,
-                .filter = v & 2 != 0,
-                .subs = if (v & 4 != 0) 0b001 else 0b111,
-            }),
-        }
-        return;
-    }
-    switch (@as(u4, @intFromBool(has_osc)) | @as(u4, @intFromBool(f & c.FM != 0)) << 1 |
-        @as(u4, @intFromBool(f & c.WAVE != 0)) << 2 | @as(u4, @intFromBool(has_filter)) << 3) {
-        inline else => |v| channelK(rate, chp, n, dl, dr, .{ .osc = v & 1 != 0, .fm = v & 2 != 0, .wave = v & 4 != 0, .filter = v & 8 != 0 }),
+/// cyd_cycle resets `ch`'s phases when its source wraps (a source past the song's channels: never).
+fn synced(sy: *const syn.Synth, ch: *const c.Channel) bool {
+    return ch.flags & c.SYNC != 0 and ch.sync_source < sy.n;
+}
+
+/// A channel's source passes, built for whether it has oscillators and whether sub-oscillators 1
+/// and 2 are idle (a voice playing one note, the common case); FM and wavetable chosen at run time.
+fn sources(rate: u32, chp: *c.Channel, src: []i32, heard: bool) void {
+    switch (@as(u2, @intFromBool(chp.flags & c.WAVEFORMS & ~c.WAVE != 0)) | @as(u2, @intFromBool(idle(chp, 1) and idle(chp, 2))) << 1) {
+        inline else => |v| passes.sources(rate, chp, src, heard, .{ .osc = v & 1 != 0, .subs = if (v & 2 != 0) 0b001 else 0b111 }),
     }
 }
 
@@ -66,6 +68,16 @@ fn idle(ch: *const c.Channel, i: usize) bool {
     const e = ch.wave_entry orelse return true;
     const looped = e.flags & song.WAVE_LOOP != 0 and e.loop_end != e.loop_begin;
     return o.wave.direction == 0 and o.wave.acc / c.WAVETABLE_RESOLUTION < (if (looped) e.loop_end else e.samples);
+}
+
+/// An envelope-overriding wavetable's block in one loop (its voices are added after the envelope),
+/// built for what the channel uses this block (kt_synth.zig Kind), 16 of them.
+fn oneLoop(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32) void {
+    const f = chp.flags;
+    switch (@as(u4, @intFromBool(f & c.WAVEFORMS & ~c.WAVE != 0)) | @as(u4, @intFromBool(f & c.FM != 0)) << 1 |
+        @as(u4, @intFromBool(f & c.WAVE != 0)) << 2 | @as(u4, @intFromBool(f & c.FILTER != 0)) << 3) {
+        inline else => |v| channelK(rate, chp, n, dl, dr, .{ .osc = v & 1 != 0, .fm = v & 2 != 0, .wave = v & 4 != 0, .filter = v & 8 != 0 }),
+    }
 }
 
 noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32, comptime k: syn.Kind) void {
@@ -89,25 +101,53 @@ noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i3
 pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
     const n = out.len / 2;
     const m = mix.ptr;
+    const sums = m + MIX_WORDS;
+    var ring_src: u32 = 0; // the channels a gated channel ring-modulates from: their sums are heard
     for (sy.chn[0..sy.n]) |*ch| {
+        if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) ring_src |= @as(u32, 1) << @intCast(ch.ring_mod & 31);
+    }
+    var wraps: [song.MAX_CH][BLOCK]u8 = undefined; // a sync source's wraps, from its phase before the passes
+    for (sy.chn[0..sy.n]) |*ch| {
+        if (synced(sy, ch)) osc.syncBits(&sy.chn[ch.sync_source], n, &wraps[ch.sync_source]);
+    }
+    for (sy.chn[0..sy.n], 0..) |*ch, i| {
+        const heard = ch.flags & c.GATE != 0 or ring_src >> @intCast(i) & 1 != 0;
+        const src = sums[i * BLOCK ..][0..n];
+        if (!passes.fits(ch)) continue;
+        if (synced(sy, ch)) syncp.sources(sy.rate, ch, src, heard, &wraps[ch.sync_source]) else sources(sy.rate, ch, src, heard);
+    }
+    for (sy.chn[0..sy.n], 0..) |*ch, i| {
         var at: usize = 0; // the dry pair
         if (ch.flags & c.FX != 0 and sy.bus_used >> @intCast(ch.fx_bus) & 1 != 0) at = 2 + 2 * @as(usize, ch.fx_bus);
-        channel(sy.rate, ch, n, m + at * BLOCK, m + (at + 1) * BLOCK);
+        const dl = m + at * BLOCK;
+        const dr = m + (at + 1) * BLOCK;
+        if (!passes.fits(ch)) {
+            oneLoop(sy.rate, ch, n, dl, dr);
+            continue;
+        }
+        const ring: env.Ring = if (ch.flags & c.RING_MODULATION == 0) .none else if (ch.ring_mod < sy.n) .{ .src = sums + @as(usize, ch.ring_mod) * BLOCK } else .zero;
+        const src = sums[i * BLOCK ..][0..n];
+        env.output(sy.rate, ch, src, ring, dl, dr, ch.flags & c.FILTER != 0);
     }
     for (&sy.bus, 0..) |*b, i| {
         if (sy.bus_used >> @intCast(i) & 1 != 0) fxb.output(b, m + (2 + 2 * i) * BLOCK, m + (3 + 2 * i) * BLOCK, n);
     }
+    var used: [song.MAX_FX][*]i32 = undefined; // the buses with an effect: only they are summed
+    var nb: usize = 0;
+    for (0..song.MAX_FX) |i| if (sy.bus_used >> @intCast(i) & 1 != 0) {
+        used[nb] = m + (2 + 2 * i) * BLOCK;
+        nb += 1;
+    };
     for (0..n) |t| {
         var l = m[t];
         var r = m[BLOCK + t];
         m[t] = 0;
         m[BLOCK + t] = 0;
-        for (0..song.MAX_FX) |i| {
-            if (sy.bus_used >> @intCast(i) & 1 == 0) continue;
-            l +%= m[(2 + 2 * i) * BLOCK + t];
-            r +%= m[(3 + 2 * i) * BLOCK + t];
-            m[(2 + 2 * i) * BLOCK + t] = 0;
-            m[(3 + 2 * i) * BLOCK + t] = 0;
+        for (used[0..nb]) |p| {
+            l +%= p[t];
+            r +%= p[BLOCK + t];
+            p[t] = 0;
+            p[BLOCK + t] = 0;
         }
         out[2 * t] = clamp16(@divTrunc(l, 4));
         out[2 * t + 1] = clamp16(@divTrunc(r, 4));
