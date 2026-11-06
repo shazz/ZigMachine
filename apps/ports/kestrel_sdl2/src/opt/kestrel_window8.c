@@ -168,6 +168,11 @@ static void copy_general8(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, c
 int kestrel_w8_unscaled(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int sx, int sy, Uint32 mod, SDL_BlendMode m)
 {
     if (!t->idx || sx < 0 || sy < 0 || sx + c->w > t->w || sy + c->h > t->h) return 0;
+    if (t->raw8) {                                          /* window indices already: the rows as they are */
+        KD_STAT(px_idx, c->w * c->h);
+        for (int y = 0; y < c->h; y++) memcpy(fb + (c->y + y) * w + c->x, t->idx + (sy + y) * t->w + sx, (size_t)c->w);
+        return 1;
+    }
     Uint32 key = (mod & 255) << 16 | (mod & 0xFF00) | (mod >> 16 & 255) | (Uint32)m << 24;
     if (!t->gmap || t->gkey != key || t->ggen != kestrel_pal_gen) {
         Uint8 mr = t->mr, mg = t->mg, mb = t->mb; SDL_BlendMode bl = t->blend;
@@ -193,6 +198,7 @@ int kestrel_w8_unscaled(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int
 int kestrel_w8_idempotent(SDL_Texture *t, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)
 {
     if (!t->idx) return 0;
+    if (t->raw8) return stepx == 0x10000u && stepy == 0x10000u;   /* opaque, unscaled (kestrel_w8_unscaled) */
     int tx0 = (int)(((Uint32)ox * stepx) >> 16) + s->x, tx1 = (int)(((Uint32)(ox + c->w - 1) * stepx) >> 16) + s->x;
     int ty0 = (int)(((Uint32)oy * stepy) >> 16) + s->y, ty1 = (int)(((Uint32)(oy + c->h - 1) * stepy) >> 16) + s->y;
     if (tx0 < 0 || ty0 < 0 || tx1 >= t->w || ty1 >= t->h) return 0;
@@ -201,6 +207,7 @@ int kestrel_w8_idempotent(SDL_Texture *t, const SDL_Rect *c, const SDL_Rect *s, 
 
 void kestrel_w8_copy(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, const SDL_Rect *s, int ox, int oy, Uint32 stepx, Uint32 stepy)
 {
+    if (t->raw8) { kestrel_w8_unscaled(t, fb, w, c, s->x + ox, s->y + oy, 0, SDL_BLENDMODE_NONE); return; }
     if (t->idx) {
         int tx0 = (int)(((Uint32)ox * stepx) >> 16) + s->x, tx1 = (int)(((Uint32)(ox + c->w - 1) * stepx) >> 16) + s->x;
         int ty0 = (int)(((Uint32)oy * stepy) >> 16) + s->y, ty1 = (int)(((Uint32)(oy + c->h - 1) * stepy) >> 16) + s->y;

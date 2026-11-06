@@ -12,6 +12,8 @@ struct SDL_Texture {
     int npal; Uint32 *mpal; Uint8 pmr, pmg, pmb;
     Uint16 *gmap; Uint32 gkey; unsigned ggen; int gall, gpart, g8;   /* g8: gmap's 8-bit twin follows it */
     unsigned serial;                    /* new for each content (kestrel_texture_touched): the defer hash's name */
+    unsigned epoch;                     /* kestrel_texstate.c: logged in this epoch already */
+    int raw8;                           /* idx holds WINDOW indices (a cache of window pixels): copied as they are */
 };
 
 /* The same blend as SDL's software renderer (d = destination, s = source ARGB, a = its alpha). */
@@ -30,6 +32,16 @@ static inline Uint32 kestrel_blend_px(Uint32 d, Uint32 s, unsigned a, SDL_BlendM
     return 0xFF000000u | dr << 16 | dg << 8 | db;
 }
 
+/* kestrel_texstate.c: every texture's colour mod and blend, as one word, and the textures changed since an epoch. */
+#define KESTREL_TEX_LOG 64
+extern Uint32 kestrel_tex_hash;
+extern SDL_Texture *kestrel_tex_log[KESTREL_TEX_LOG];
+extern unsigned kestrel_tex_logged;
+Uint32 kestrel_tex_word(const SDL_Texture *t);
+void kestrel_tex_note(SDL_Texture *t, int on);
+void kestrel_tex_epoch(void);
+void kestrel_tex_gone(SDL_Texture *t);
+
 int kestrel_clip_rect(SDL_Rect *d, int *sx, int *sy, int w, int h, const SDL_Rect *clip);
 const Uint32 *kestrel_mod_palette(SDL_Texture *t);
 
@@ -38,7 +50,7 @@ extern Uint32 kestrel_pal_rgb[256];        /* index -> ARGB (alpha 255) */
 extern unsigned kestrel_pal_n;             /* entries in use */
 extern unsigned kestrel_pal_gen;           /* bumped when a compaction renumbered the indices */
 Uint8 kestrel_colour_index(Uint32 argb);
-enum { KPAL_WINDOW, KPAL_SHOWN };
+enum { KPAL_WINDOW, KPAL_SHOWN, KPAL_CACHE, KPAL_SLOTS = KPAL_CACHE + 16 };   /* KPAL_CACHE + i: a raw8 texture's pixels */
 void kestrel_palette_track(int slot, Uint8 *buf, unsigned n);   /* index buffers a compaction must renumber */
 void kestrel_palette_presented(void);     /* once a present: a full palette may be compacted again */
 extern int kestrel_palette_compacted;      /* set by a compaction: the plane must rewrite everything */
@@ -61,6 +73,7 @@ void kestrel_defer_clear(Uint32 c);
 void kestrel_defer_line(const SDL_Rect *clip, int x1, int y1, int x2, int y2, Uint32 c);
 void kestrel_defer_present(void);
 void kestrel_defer_nop(void);
+void kestrel_defer_redirect(Uint8 *buf, int w, int h, int x, int y);
 Uint32 kestrel_defer_row_cols(int y);
 void kestrel_texture_touched(SDL_Texture *t);   /* before a texture's pixels change or it is freed */
 

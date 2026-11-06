@@ -10,13 +10,16 @@
  * mod = key words, colour = where its key and outputs start in the arena, box = NONE | BLENDS if one of its
  * commands blends | the number of commands after it), then its commands. The arena is written in place like
  * the list: a group that did not change keeps its key where it is (nothing copied), a new one is appended;
- * when it is 3/4 full it starts over and every group draws once (kestrel_defer.c, kd.stale). Groups do not
- * nest: one inside another is drawn as the outer group's commands. */
+ * when it is 3/4 full it starts over and every group draws once (kestrel_defer.c, kd.stale). Groups nest
+ * two deep (a klystrack VIEW around its bevels and strings, kestrel_group_begin_ex): an outer group reused
+ * skips the inner ones with it, an outer group drawn still reuses its inner ones; deeper ones are plain
+ * commands of the groups around them. */
 #include "kestrel_defer.h"
 
 #define LEN(b) ((b) & 0x3FFFFFu)
-static unsigned depth, start;
-static int open_;                       /* the outermost group is being recorded, its GROUP at `start` */
+#define DEPTH 8                         /* begins nested deeper are plain commands */
+static unsigned depth, nopen, start[2], last_hit;
+static Uint8 opened[DEPTH];             /* begin at that depth opened a group (slot nopen - 1) */
 
 static int words_differ(const Uint32 *x, const Uint32 *y, unsigned n)
 {
@@ -64,22 +67,26 @@ static void resync(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
     }
 }
 
-static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout)
+/* miss: drawn even when last frame's group had this key (kestrel_group_begin_ex's caller says it may not be
+ * reused: its commands are compared one by one, as a group with another key). */
+static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout, int miss)
 {
-    unsigned n = w->n;
-    if (depth++ || !can || !kd.deferring || kd.immediate || !kd.list) return 0;
+    unsigned n = w->n, d = depth++;
+    if (d < DEPTH) opened[d] = 0;
+    if (d >= DEPTH || nopen >= 2 || !can || !kd.deferring || kd.immediate || !kd.list || kd.rbuf) return 0;
     unsigned i = kd.n, a = kd.na;
     if (i + 1 > kd.cap) return 0;
     Uint32 kind = C_GROUP | nout << 16;
     cmd_t *g = &kd.list[i];
     int len = last_frames(i, kind, w, n);
     if (len < 0) { resync(i, kind, w, n); len = last_frames(i, kind, w, n); }
-    if (len >= 0) KD_STAT(ghit, 1); else KD_STAT(gmiss, 1);
-    if (len >= 0) {                                         /* the same: its commands and key stay as they are */
+    if (len >= 0 && !miss) KD_STAT(ghit, 1); else KD_STAT(gmiss, 1);
+    if (len >= 0 && !miss) {                                /* the same: its commands and key stay as they are */
         const Uint32 *po = kd.arena + g->colour + n;
         for (unsigned j = 0; j < nout; j++) out[j] = po[j];
         if (g->box & BLENDS)
             for (unsigned j = i + 1; j <= i + (unsigned)len; j++) if (kd.list[j].box & BLENDS) kd_mark(&kd.list[j]);
+        last_hit = i;
         kd.n = i + 1 + (unsigned)len;
         depth--;
         return 1;
@@ -95,20 +102,22 @@ static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout)
     if (i < kd.nlast) kd_mark(g);                            /* replaced, as any entry */
     memset(g, 0, sizeof *g);
     g->kind = kind; g->mod = n; g->colour = a; g->box = NONE;
-    kd.n = i + 1; start = i; open_ = 1;
+    kd.n = i + 1; start[nopen++] = i; opened[d] = 1;
     return 0;
 }
 
 void kestrel_defer_group_end(const Uint32 *out, unsigned nout)
 {
-    if (depth && --depth) return;
-    if (!open_) return;
-    open_ = 0;
-    if (!kd.deferring || !kd.list || start >= kd.n) return;      /* the list was let go meanwhile */
-    cmd_t *g = &kd.list[start];
+    if (!depth) return;
+    unsigned d = --depth;
+    if (d >= DEPTH || !opened[d]) return;
+    opened[d] = 0;
+    unsigned s = start[--nopen];
+    if (!kd.deferring || !kd.list || s >= kd.n) return;          /* the list was let go meanwhile */
+    cmd_t *g = &kd.list[s];
     for (unsigned j = 0; j < nout; j++) kd.arena[g->colour + g->mod + j] = out[j];
     Uint32 blends = 0, x0 = 31, y0 = 63, x1 = 0, y1 = 0;     /* and the tiles its commands touch, together */
-    for (unsigned j = start + 1; j < kd.n; j++) {
+    for (unsigned j = s + 1; j < kd.n; j++) {
         Uint32 b = kd.list[j].box;
         blends |= b & BLENDS;
         if (b & NONE) continue;
@@ -118,7 +127,7 @@ void kestrel_defer_group_end(const Uint32 *out, unsigned nout)
         if (TY1(b) > y1) y1 = TY1(b);
     }
     g->stepx = x0 > x1 ? NONE : x0 | x1 << 5 | y0 << 10 | y1 << 16;
-    g->box = NONE | blends | (kd.n - start - 1);
+    g->box = NONE | blends | (kd.n - s - 1);
 }
 
 /* The API (kestrel_port.h declares it for klystron's patches): the window renderer's state and the group's
@@ -134,6 +143,23 @@ int kestrel_group_begin(void *renderer, void *texture, const unsigned *key, unsi
         st[6] = (Uint32)t->mr | (Uint32)t->mg << 8 | (Uint32)t->mb << 16 | (Uint32)t->blend << 24;
     }
     gkey_t k = { st, key, NS + n };
-    return group_begin(can, &k, out, nout);
+    return group_begin(can, &k, out, nout, 0);
 }
 void kestrel_group_end(const unsigned *out, unsigned nout) { kestrel_defer_group_end(out, nout); }
+
+/* A group with no texture of its own (a klystrack view: kestrel_view.c): the renderer's state and the caller's
+ * key. miss: draw it (and compare its commands one by one) even if last frame's had this key. */
+int kestrel_group_begin_ex(void *renderer, const unsigned *key, unsigned n, unsigned *out, unsigned nout, int miss)
+{
+    Uint32 st[NS] = { 0 };
+    int can = kestrel_window_state(renderer, st);
+    gkey_t k = { st, key, NS + n };
+    return group_begin(can, &k, out, nout, miss);
+}
+
+/* The group just reused (begin answered 1) drawn after all: its entries are compared again as a miss's. */
+int kestrel_group_redo(void *renderer, const unsigned *key, unsigned n, unsigned *out, unsigned nout)
+{
+    kd.n = last_hit;
+    return kestrel_group_begin_ex(renderer, key, n, out, nout, 1);
+}

@@ -4,7 +4,7 @@
  *
  * Colours come and go (klystrack's VU and colour-modded text add a few each repaint: 272 different ones over
  * 300 frames of Starport2), so when all 256 are taken the palette is COMPACTED: the indices still used by the
- * window buffer or the shown picture keep their colours, renumbered in order, everything else is dropped, both
+ * window buffer, the shown picture or a cache of window pixels (KPAL_CACHE..) keep their colours, renumbered in order, everything else is dropped, both
  * buffers are rewritten with the new numbers, and kestrel_pal_gen moves on (index caches are rebuilt). The
  * picture is unchanged. Only a picture that itself holds more than 255 colours draws the extras as the nearest
  * entry (logged once), as the per-present palette before it did. */
@@ -20,8 +20,8 @@ int kestrel_palette_compacted;
 static Uint32 hkey[HSLOTS];
 static Uint8 hval[HSLOTS], hused[HSLOTS];
 static unsigned nkeys;
-static Uint8 *tracked[2];
-static unsigned tracked_n[2];
+static Uint8 *tracked[KPAL_SLOTS];
+static unsigned tracked_n[KPAL_SLOTS];
 static int overflow_logged, stuck;          /* stuck: a compaction freed nothing; no other until the next present */
 
 void kestrel_palette_track(int slot, Uint8 *buf, unsigned n) { tracked[slot] = buf; tracked_n[slot] = n; }
@@ -45,12 +45,12 @@ static void remember(Uint32 c, Uint8 i)
 static void compact(void)
 {
     Uint8 used[256] = { 1 }, map[256];
-    for (int s = 0; s < 2; s++)
+    for (int s = 0; s < KPAL_SLOTS; s++)
         for (unsigned k = 0; tracked[s] && k < tracked_n[s]; k++) used[tracked[s][k]] = 1;
     unsigned n = 0;
     for (unsigned i = 0; i < kestrel_pal_n; i++)
         if (used[i]) { map[i] = (Uint8)n; kestrel_pal_rgb[n++] = kestrel_pal_rgb[i]; }
-    for (int s = 0; s < 2; s++)
+    for (int s = 0; s < KPAL_SLOTS; s++)
         for (unsigned k = 0; tracked[s] && k < tracked_n[s]; k++) tracked[s][k] = map[tracked[s][k]];
     kestrel_pal_n = n;
     stuck = n == 256;

@@ -44,6 +44,7 @@ typedef struct {
     cmd_t *list; unsigned n, nlast, cap;   /* this frame's first n entries; last frame's ran to nlast */
     int deferring, immediate;
     Uint32 *arena; unsigned na; int stale;   /* group keys and outputs, used to na; stale: none matches */
+    Uint8 *rbuf; int rw, rh, rx, ry;       /* kestrel_defer_redirect: draws go there at once, not to the list */
 } kd_t;
 extern kd_t kd;
 void kd_mark(const cmd_t *k);
@@ -51,5 +52,6 @@ int kd_same(const cmd_t *a, const cmd_t *b);
 void kd_flush(void);
 
 void kestrel_defer_draw(const cmd_t *k, const SDL_Rect *r, Uint8 *fb, int fw, int fh);
+void kestrel_defer_draw_at(const cmd_t *k, Uint8 *buf, int w, int h, int x, int y);
 void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Uint8 *fb, int fw, int fh);
 #endif

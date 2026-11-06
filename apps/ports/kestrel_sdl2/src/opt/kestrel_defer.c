@@ -143,6 +143,7 @@ static int copy_blends(const cmd_t *k)
 static void commit(int x0, int y0, int x1, int y1, int blends)
 {
     cmd_t *k = &scratch;
+    if (kd.rbuf) { kestrel_defer_draw_at(k, kd.rbuf, kd.rw, kd.rh, kd.rx, kd.ry); return; }
     if (!kd.deferring) { draw(k, NULL); return; }
     k->box = box_of(x0, y0, x1, y1);
     if (kd.n >= kd.cap) { kd_flush(); draw(k, NULL); all_dirty = 2; return; }   /* not kept: compare nothing next frame */

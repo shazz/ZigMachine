@@ -214,6 +214,7 @@ SDL_Texture *SDL_CreateTexture(SDL_Renderer *r, Uint32 format, int access, int w
     if (!t->px) { free(t); return NULL; }
     t->w = w; t->h = h; t->access = access; t->mr = t->mg = t->mb = 255; t->blend = SDL_BLENDMODE_NONE;
     kestrel_texture_touched(t);
+    kestrel_tex_note(t, 1);
     return t;
 }
 
@@ -270,15 +271,33 @@ SDL_Texture *SDL_CreateTextureFromSurface(SDL_Renderer *r, SDL_Surface *s)
     t->w = s->w; t->h = s->h; t->access = SDL_TEXTUREACCESS_STATIC; t->mr = t->mg = t->mb = 255;
     kestrel_texture_touched(t);
     t->blend = KS(s)->has_key || KS(s)->blend == SDL_BLENDMODE_BLEND ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE;
-    if (make_indexed(t, s)) return t;
+    if (make_indexed(t, s)) { kestrel_tex_note(t, 1); return t; }
     t->px = malloc((size_t)s->w * (size_t)s->h * 4);
     if (!t->px) { free(t); return NULL; }
     for (int y = 0; y < s->h; y++) for (int x = 0; x < s->w; x++) t->px[y * t->w + x] = surf_value(s, x, y);
+    kestrel_tex_note(t, 1);
     return t;
 }
-void SDL_DestroyTexture(SDL_Texture *t) { if (t) { kestrel_texture_touched(t); free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t->gmap); free(t); } }
-int SDL_SetTextureBlendMode(SDL_Texture *t, SDL_BlendMode m) { if (!t) return -1; t->blend = m; return 0; }
-int SDL_SetTextureColorMod(SDL_Texture *t, Uint8 r, Uint8 g, Uint8 b) { if (!t) return -1; t->mr = r; t->mg = g; t->mb = b; return 0; }
+void SDL_DestroyTexture(SDL_Texture *t)
+{
+    if (!t) return;
+    kestrel_texture_touched(t);
+    kestrel_tex_gone(t);
+    free(t->px); free(t->idx); free(t->pal); free(t->mpal); free(t->gmap); free(t);
+}
+/* A state change is noted (kestrel_texstate.c) only when it changes something. */
+int SDL_SetTextureBlendMode(SDL_Texture *t, SDL_BlendMode m)
+{
+    if (!t) return -1;
+    if (t->blend != m) { kestrel_tex_note(t, 0); t->blend = m; kestrel_tex_note(t, 1); }
+    return 0;
+}
+int SDL_SetTextureColorMod(SDL_Texture *t, Uint8 r, Uint8 g, Uint8 b)
+{
+    if (!t) return -1;
+    if (t->mr != r || t->mg != g || t->mb != b) { kestrel_tex_note(t, 0); t->mr = r; t->mg = g; t->mb = b; kestrel_tex_note(t, 1); }
+    return 0;
+}
 int SDL_SetTextureScaleMode(SDL_Texture *t, SDL_ScaleMode m) { (void)t; (void)m; return 0; }
 int SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *rect, const void *px, int pitch)
 {

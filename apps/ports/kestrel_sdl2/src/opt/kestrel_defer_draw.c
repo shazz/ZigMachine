@@ -27,6 +27,29 @@ void kestrel_defer_draw(const cmd_t *k, const SDL_Rect *r, Uint8 *fb, int fw, in
     t->mr = mr; t->mg = mg; t->mb = mb; t->blend = bl;
 }
 
+/* The window's draws go at once into buf, an 8-bit picture of window indices covering the window's rectangle
+ * (x, y, w, h) (a klystrack cache of pattern rows, apps/ports/klystrack/kestrel_rows.c), instead of the list:
+ * no entry is made or compared, and groups draw their commands (kestrel_defer_group.c). buf NULL: back to the
+ * list. */
+void kestrel_defer_redirect(Uint8 *buf, int w, int h, int x, int y)
+{
+    kd.rbuf = buf; kd.rw = w; kd.rh = h; kd.rx = x; kd.ry = y;
+}
+
+/* One command into buf, the window's rectangle (x, y, w, h) as its own 8-bit picture (kestrel_defer_redirect):
+ * the command moved by (-x, -y) and drawn there, clipped to it. */
+void kestrel_defer_draw_at(const cmd_t *k, Uint8 *buf, int w, int h, int x, int y)
+{
+    if (OP(k) >= C_GROUP) return;
+    cmd_t m = *k;
+    SDL_Rect c = RECT(k->c);
+    if (OP(k) == C_LINE) {
+        m.c[0] = P2(c.x - x, c.y - y); m.c[1] = P2(c.w - x, c.h - y);
+        if (k->kind >> 7 & 1) { SDL_Rect s = RECT(k->s); m.s[0] = P2(s.x - x, s.y - y); }
+    } else m.c[0] = P2(c.x - x, c.y - y);
+    kestrel_defer_draw(&m, &(SDL_Rect){ 0, 0, w, h }, buf, w, h);
+}
+
 /* Every command replayed into the runs of dirty tiles of the bands it touches. */
 void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Uint8 *fb, int fw, int fh)
 {
