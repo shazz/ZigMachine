@@ -1,0 +1,17 @@
+#!/bin/sh
+# wget for a Buildroot host that has curl but no wget (build_planA.sh installs it there only
+# then): Buildroot's dependency check wants the program, support/download/wget calls it as
+# `wget [flags] -O <file> <url>`. Takes -O and the URL; wget's other flags are dropped.
+out= url=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -O) out=$2; shift ;;
+        -O*) out=${1#-O} ;;
+        -t|-T|--tries|--timeout|-U|--user-agent) shift ;;
+        -*) ;;
+        *) url=$1 ;;
+    esac
+    shift
+done
+[ -n "$url" ] || { echo "wget (curl shim): no URL" >&2; exit 2; }
+exec curl -fL --retry 3 -o "${out:-$(basename "$url")}" "$url"

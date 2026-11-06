@@ -36,6 +36,12 @@ CONFIG_MMC_SDHCI=y
 CONFIG_MMC_SDHCI_PLTFM=y
 CONFIG_MMC_SDHCI_OF_ARASAN=y
 CONFIG_VFAT_FS=y
+# The USB floppy (KOS's drive A: glass/src/app_source.zig mounts /dev/sdX vfat) and USB
+# sticks. multi_v7 has these =y already; pinned because post-build.sh drops every module.
+CONFIG_SCSI=y
+CONFIG_BLK_DEV_SD=y
+CONFIG_USB_STORAGE=y
+CONFIG_MSDOS_PARTITION=y
 CONFIG_NLS_CODEPAGE_437=y
 CONFIG_NLS_ISO8859_1=y
 # Ethernet: the PS's GEM0 (macb), routed through EMIO to the RTL8201F 10/100 PHY

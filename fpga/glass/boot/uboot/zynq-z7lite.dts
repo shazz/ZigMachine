@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: GPL-2.0+
+// U-Boot's device tree for the MicroPhase Z7-Lite (XC7Z010), plan A's own BOOT.BIN
+// (docs/FPGA_GLASS.md, "Plan A"). Buildroot copies it into U-Boot's arch/arm/dts
+// (BR2_TARGET_UBOOT_CUSTOM_DTS_PATH). U-Boot only needs the console and the SD card:
+// UART0 on MIO 14/15, SD0 on MIO 40..45 without card detect, as zeST's PS7 sets them
+// (ps7_init_gpl.c, read out of zeST's FSBL). Linux has its own tree
+// (../zigmachine-z7lite.dts); this one never reaches it.
+/dts-v1/;
+#include "zynq-7000.dtsi"
+
+/ {
+	model = "ZigMachine on MicroPhase Z7-Lite (XC7Z010)";
+	compatible = "microphase,z7-lite", "xlnx,zynq-7000";
+
+	aliases {
+		serial0 = &uart0;
+		mmc0 = &sdhci0;
+	};
+
+	// zeST's U-Boot loads boot.scr at 0x3000000 (its DT's bootscr-address): keep it,
+	// boot.cmd's addresses (bitstream 0x1000000, zImage 0x2000000) assume it.
+	options {
+		u-boot {
+			compatible = "u-boot,config";
+			bootscr-address = /bits/ 64 <0x3000000>;
+		};
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x20000000>;  // one MT41J256M16: 512 MiB
+	};
+
+	chosen {
+		stdout-path = "serial0:921600n8";
+	};
+};
+
+&clkc {
+	ps-clk-frequency = <33333333>;
+};
+
+&uart0 {
+	bootph-all;
+	status = "okay";
+};
+
+&sdhci0 {
+	bootph-all;
+	status = "okay";
+	broken-cd;
+	disable-wp;
+};
