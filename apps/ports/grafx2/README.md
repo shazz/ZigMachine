@@ -16,7 +16,10 @@ GrafX2 is free software under the GNU General Public License version 2 (`COPYING
 - exactly the patches in this directory, `patches/main.c.sed` and `patches/setup.h.sed`, applied by the
   `Makefile` to a mirror of upstream's `src/` in `build/gen/`;
 - the glue in this directory (`kestrel_main.c`, `kestrel_sdl.c`, `kestrel_stubs.c`, `kestrel_port.h`,
-  `include/zlib.h`) and the shared layer `../kestrel_sdl2/` (its `include/`, `src/*.c`);
+  `include/zlib.h`) and the shared layer `../kestrel_sdl2/` (its `include/`, `src/*.c`, and C:'s
+  `src/opt/kestrel_wasi_c.c`, `kestrel_wasi_cdir.c`, `kestrel_wasi_c.h`);
+- KOS GEMDOS, linked in as one object the `Makefile` builds with `zig build-obj` from this repository's
+  `rom/kos/gemdos*.zig` and `rom/kos/fat*.zig` (docs/KOS_GEMDOS.md);
 - `Makefile` (the build, compiler flags and the binaryen 132 `--asyncify` pass) with Zig 0.16.0's
   `zig cc` and binaryen 132.0.0 (npm), which `../fetch.sh` fetches and checks.
 
@@ -40,13 +43,19 @@ from other people's work are never put on it.
 |---|---|
 | `kestrel_main.c` | the cart's exports. GrafX2 blocks in its own loops (every dialog), so it runs under Asyncify as a coroutine: `SDL_Delay` unwinds to `boot()`/`frame()`, the next `frame(dt)` rewinds it |
 | `kestrel_sdl.c` | the SDL2 calls GrafX2 makes: the screen surface is plane 0's VRAM, the palette is palette 0, `SDL_Delay` yields the frame |
-| `kestrel_stubs.c` | what the cart leaves out: the C64 .PRG loader's 6502 emulator, the mounted-volume list (the floppy is the only drive) |
+| `kestrel_stubs.c` | what the cart leaves out: the C64 .PRG loader's 6502 emulator; the mounted-volume list is `/C` (C:, the card's HD) when C: mounts |
 | `include/zlib.h` | the declarations GrafX2 includes without libpng |
 | `patches/main.c.sed` | `main` -> `grafx2_main`, called and resumed by `kestrel_main.c`; no settings saved at quit (the floppy is read-only: a failed save was `exit()`, a trap instead of the desktop) |
 | `patches/setup.h.sed` | the default skin and font as GIF |
 | `run.mjs` | headless runner for experiments: PNGs of the frame, `CLICKS="frame,x,y;..."` |
 
 Built without TrueType, Lua, recoil, libpng and libtiff (`DEFS` in the Makefile).
+
+## Status (6 Nov 2026)
+
+- C: (KOS GEMDOS, docs/KOS_GEMDOS.md): built with `-DKESTREL_CDRIVE`, the file selector's Select drive lists
+  `/C` when C: mounts (the board's card `HD/`, the page's `?c=gemdos-c.img`, the native host's `--c-image`);
+  its folders open and pictures load from them (`apps/gemdos_grafx2_check.mjs`). Read-only.
 
 ## Status (2 Nov 2026)
 

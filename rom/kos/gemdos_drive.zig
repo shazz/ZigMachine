@@ -85,7 +85,9 @@ pub const Drive = struct {
         d.count[i] = 0;
         var got: u32 = RUN; // all or nothing: near the volume's end, one sector
         if (!d.readRun(n, RUN, &d.cache[i])) {
-            if (!d.readRun(n, 1, &d.cache[i])) return false;
+            // Sector 0 is the mount's probe: no volume is 8 sectors, so a failed run there is no
+            // drive, and a second try would cost a board with no C: server another 500 ms timeout.
+            if (n == 0 or !d.readRun(n, 1, &d.cache[i])) return false;
             got = 1;
         }
         d.first[i] = n;

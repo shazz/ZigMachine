@@ -25,7 +25,7 @@ calls it where its main loop ends:
 | `grafx2/` | `demo-grafx2` | [GrafX2](https://gitlab.com/GrafX2/grafX2) (the GrafX2 team) | `678a0f5` | **GPL-2.0** |
 | `klystrack/` | `demo-klystrack` | [klystrack](https://github.com/kometbomb/klystrack) + klystron (Tero "kometbomb" Lindeman) | `fe6e746` + `1074324` | MIT |
 | `chipnomad/` | `demo-chipnomad` | [ChipNomad](https://github.com/Megus/chipnomad-tracker) (Megus) | `e4b10d5` | MIT |
-| `kestrel_sdl2/` | (shared) | ours: SDL2-shaped headers, heap, WASI over the floppy, input, opt-in renderer/RWops/timers | | MIT (the repo's) |
+| `kestrel_sdl2/` | (shared) | ours: SDL2-shaped headers, heap, WASI over the floppy (and opt-in, C: as `/C` over KOS GEMDOS), input, opt-in renderer/RWops/timers | | MIT (the repo's) |
 
 Upstream is **not** vendored here: each port keeps only our glue (`kestrel_*`), the `patches/*.sed` applied to a
 mirror of upstream in `build/gen/`, its Makefile, a headless runner (`run.mjs`) and its own disk data.

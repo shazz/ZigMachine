@@ -29,6 +29,7 @@ fn setUp() !void {
     if (image.len == 0) image = try std.Io.Dir.cwd().readFileAlloc(t.io, "docs/gemdos-c.img", std.heap.page_allocator, .limited(1 << 20));
     fail = false;
     drive_c.reset();
+    drive_c.trips = 0;
     dos = .{};
     dos.attach(gemdos.DRIVE_C, &drive_c);
 }
@@ -131,6 +132,7 @@ test "a drive that stops answering: no C:, then read faults on what was open" {
     try setUp();
     fail = true;
     try t.expectEqual(@as(i32, 0), dos.Dsetdrv(2)); // no drive mounts
+    try t.expectEqual(@as(u32, 1), drive_c.trips); // one request (one 500 ms timeout on the board), not a retry
     try t.expectEqual(err.EDRIVE, dos.Fopen("C:\\README.TXT", 0));
     try setUp();
     const h = dos.Fopen("C:\\PICTURES\\ZIGWAVES.PI1", 0);

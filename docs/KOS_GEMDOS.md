@@ -178,6 +178,7 @@ Build the GrafX2 board image (`fpga/tools/glass_shelf.py`, the card's `CARTS/` a
 like any rebuilt cart: no new system). Copy the test pictures to the card's `HD/`
 (`HD/PICTURES/ZIGWAVES.PI1`, `HD/PICTURES/PLASMA/ZIGPLASM.PI1`, from `apps/ports/grafx2/ownpics/`, 8.3
 names). In GrafX2: F3, Select drive, `/C`, PICTURES, PLASMA, ZIGPLASM.PI1. Watch for: the drive list
-without `/C` (the card has no `/HD`, or glass's C: thread is not running: every request times out after
-500 ms, so the dialog takes 0.5 s to open and shows no `/C`), and the OSD's fps while the dialog reads
-(a request blocks the frame ~0.5 ms).
+without `/C` (the card has no `/HD`, or glass's C: thread is not running: then the mount's one request
+times out after 500 ms, once, as GrafX2 starts, and C: stays absent: no retry), and the OSD's fps while
+the dialog reads (a request blocks the frame ~0.5 ms). The page was exercised headless (the harness runs
+the loader's own GEM launch); a click-through in a real tab is still to do.
