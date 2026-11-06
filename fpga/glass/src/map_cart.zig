@@ -82,6 +82,39 @@ pub const KD_ACK: u32 = 8;
 pub const KOS_DRIVE_UNIT_C: u32 = 2;
 pub const KOS_DRIVE_MAX_SECTORS: u32 = 64;
 pub const KOS_DRIVE_TIMEOUT_MS: u32 = 500;
+// KOS's C:, its writes (docs/KOS_GEMDOS.md §7, env.kosFileOp, rom/kos/kfs_abi.zig), at window end -
+// KOS_FILE_FROM_TOP (CPU 0x41FF_FC40, 32-byte aligned, between the C: generation word and the sector
+// block). A cart never writes sectors: glass writes whole files under the card's /HD through Linux's FAT
+// (src/kos_file.zig, polled by the C: thread). The firmware (cycles/bkosfile.c) copies the cart's
+// request in: the operation, its flags, slot, attributes and offset, the data's and the paths'
+// window offsets and lengths, a sequence, the check ~(magic ^ every word from KF_SEQ to
+// KF_PATH2_LEN), the magic last. glass copies the paths and data OUT of the window before it checks
+// them, then answers KF_DONE (a TOS code, as a u32) and KF_ACK = the sequence, last; after a write it
+// bumps the generation word (KOS_CGEN_FROM_TOP), which the firmware reads for the `gen` operation.
+// A write remounts the card read-write, fsyncs and remounts it read-only: KOS_FILE_TIMEOUT_MS.
+pub const KOS_FILE_FROM_TOP: u32 = 0x3C0;
+pub const KOS_FILE_MAGIC: u32 = 0x464B_4D5A; // "ZMKF"
+pub const KOS_FILE_WORDS: u32 = 16;
+pub const KF_MAGIC: u32 = 0;
+pub const KF_SEQ: u32 = 1;
+pub const KF_OP: u32 = 2;
+pub const KF_FLAGS: u32 = 3;
+pub const KF_SLOT: u32 = 4;
+pub const KF_ATTR: u32 = 5;
+pub const KF_OFFSET: u32 = 6;
+pub const KF_LEN: u32 = 7;
+pub const KF_DATA: u32 = 8;
+pub const KF_PATH: u32 = 9;
+pub const KF_PATH_LEN: u32 = 10;
+pub const KF_PATH2: u32 = 11;
+pub const KF_PATH2_LEN: u32 = 12;
+pub const KF_CHECK: u32 = 13;
+pub const KF_DONE: u32 = 14;
+pub const KF_ACK: u32 = 15;
+pub const KOS_FILE_DATA_MAX: u32 = 32768; // rom/kos/kfs_abi.zig DATA_MAX
+pub const KOS_FILE_PATH_MAX: u32 = 127; // kfs_abi.zig PATH_MAX
+pub const KOS_FILE_TIMEOUT_MS: u32 = 10000;
+pub const KOS_CGEN_FROM_TOP: u32 = 0x3CC; // CPU 0x41FF_FC34: the C: generation: glass bumps it after each write it made
 
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk

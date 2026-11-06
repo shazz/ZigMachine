@@ -23,6 +23,8 @@ pub fn build(b: *std.Build) void {
     const zx0_pack = b.createModule(.{ .root_source_file = b.path("../../libs/zig/depackers/zx0_pack.zig") });
     // KOS's FAT reader (rom/kos/fat.zig), the desktop's own: glass finds a real floppy's programs with it.
     const kos_fat = b.createModule(.{ .root_source_file = b.path("../../rom/kos/fat.zig") });
+    // KOS GEMDOS's path gate (rom/kos/kfs_path.zig), KFS's own: what a cart may name on C: when it writes.
+    const kfs_path = b.createModule(.{ .root_source_file = b.path("../../rom/kos/kfs_path.zig") });
 
     // The glass program's version and the commit it was built from, for the OSD's debug page.
     const info = b.addOptions();
@@ -36,7 +38,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat } },
+            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat }, .{ .name = "kos_kfs_path", .module = kfs_path } },
         }),
     });
     b.installArtifact(exe);
@@ -59,6 +61,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "memmap", .module = memmap },
                 .{ .name = "build_info", .module = build_info },
                 .{ .name = "kos_fat", .module = kos_fat },
+                .{ .name = "kos_kfs_path", .module = kfs_path },
             },
         }),
     });

@@ -2,7 +2,8 @@
 
 Status: **phase 1 (read-only) built, 6 Nov 2026** on `feat/gemdos`: the library, the C ports' POSIX layer,
 GrafX2 browsing and loading pictures from `C:\`; on the page (`?c=`), in the native host (`--c-image`)
-and in the board images (the board run is the lead's). Phase 2 (writes) is designed here, not built.
+and in the board images (the board run is the lead's). **Phase 2 (writes) built 6 Nov 2026** on
+`feat/gemdos-write`: docs/KOS_GEMDOS_WRITES.md (GrafX2 saves to `C:\`; system table 1.10).
 Matt, 6 Nov: *"start the gemdos like FS to support HD so for example grafx2 can read files from HD/
 substructure"*; C: is the SD card's `/HD` folder, *"on the GEM should be mapped as drive C"*
 (docs/KOS_FAT.md §4c). The ADR is decisions.md, "KOS GEMDOS runs in the cart".
@@ -50,8 +51,8 @@ date 24, length 26, name 30) with its words in the cart's byte order (little-end
 its first 21 bytes hold the search (drive, folder, slot, attributes, pattern), so searches need no table.
 Two non-TOS helpers: `Kgemdos_media_a()` (drive A has a new disk) and `Kgemdos_trips(d)` (round trips).
 
-**Later (phase 2):** `Fcreate`, `Fwrite`, `Fdelete`, `Frename`, `Dcreate`, `Ddelete`, `Fattrib` set,
-`Fdatime`, `Dfree` (§7). Not in v1: the volume label search (`attr` 8), `.`/`..` entries in a listing
+**Phase 2 (built):** `Fcreate`, `Fwrite`, `Fdelete`, `Frename`, `Dcreate`, `Ddelete`, `Fattrib` set
+(docs/KOS_GEMDOS_WRITES.md); not yet `Fdatime`, `Dfree`. Not in v1: the volume label search (`attr` 8), `.`/`..` entries in a listing
 (GEMDOS resolves them by name, §3).
 
 ## 3. Names, paths, drives
@@ -117,7 +118,8 @@ opt-in so the other ports' carts stay byte-identical: built with `-DKESTREL_CDRI
   and becomes `Fopen("C:\PICTURES\X.PI1", 0)`. C:'s files and folders are fds 32..39.
 - `path_open` / `fd_read` / `fd_seek` / `fd_filestat_get` / `path_filestat_get` are Fattrib, Fopen,
   Fread, Fseek; `fd_readdir` is Fsfirst / Fsnext on a DTA of the folder fd's own, a POSIX `..` first.
-  A create, a truncate, a write right or a write: EROFS (phase 1).
+  A create, a truncate or a write right is phase 2's `Fcreate` (`opt/kestrel_wasi_cfile.c`, with
+  `remove` / `rename` / `mkdir` / `rmdir`; docs/KOS_GEMDOS_WRITES.md).
 - wasi-libc's `chdir("..")` appends `/..` and never folds it; `kestrel_getcwd` folds `.` and `..` in place
   (a port maps `getcwd` to it: `grafx2/kestrel_port.h`), so `..` from `/C` leads back to `/`.
 - **GrafX2**: its file selector's drive list (mountlist's `getmntent`, `grafx2/kestrel_stubs.c`) shows
@@ -145,27 +147,13 @@ opt-in so the other ports' carts stay byte-identical: built with `-DKESTREL_CDRI
   frame for frame, through the same session.
 - The board: the lead's run (§8).
 
-## 7. Phase 2: writes (designed, not built)
+## 7. Phase 2: writes
 
-Linux mounts the card's partition read-only, and must: glass, the OSD and the kernel read it while a cart
-runs, and two writers to one FAT corrupt it. So a cart never writes sectors: **glass owns every write,
-at the file level**, on a read-write mount of its own (remount `rw` for the write, `ro` after; or
-`/HD` as its own partition later):
-
-1. A second request block beside the sector one (`map_cart.zig`: a `KOS_FILE_*` block, a sequence and a
-   check, as `bkosreq.h`), carrying an operation (`create`, `write`, `close`, `delete`, `rename`, `mkdir`,
-   `rmdir`, `setattr`), a path under `/HD` (8.3, checked by glass: no `..` out of `/HD`, no device
-   names), a handle, an offset, a length and a buffer offset in the window; glass answers a TOS code.
-2. `Fcreate` / `Fwrite` / `Fclose` / `Fdelete` / `Frename` / `Dcreate` / `Ddelete` / `Fattrib(.., 1, ..)`
-   in the library send those; a write is buffered in the cart (32 KB) and sent whole, so a picture is one
-   request.
-3. **Coherence:** after a write glass bumps a C: generation word; the library drops its sector caches
-   and remounts when it moves (the FAT and folders changed under it). The desktop shell does the same.
-4. The page writes into its image (and offers it for download); the native host into its image file
-   (`--c-image-rw`); new imports (`kosFileOp`) bump the system table to 1.10, so every card update must
-   then carry the new `system.rv32`.
-5. Proof: glass zig tests over a fake block device and a tmpfs; FAT16/32 images written by glass and
-   checked by `fsck.fat` + mtools; a GrafX2 save on the page read back by mtools; `--break` a torn write.
+Built: docs/KOS_GEMDOS_WRITES.md. A cart never writes sectors; the host owns every write at the file
+level through a new import, `env.kosFileOp` (system table 1.10): glass on the board over Linux's FAT
+(remounted read-write for the write only), KFS (`rom/kos/kfs*.zig`, `docs/kos-cfs.wasm`) over the image
+on the page and in the native host. A save goes through a temporary name; paths are checked by
+`rom/kos/kfs_path.zig` on the host's own copy.
 
 ## 8. Try it
 
