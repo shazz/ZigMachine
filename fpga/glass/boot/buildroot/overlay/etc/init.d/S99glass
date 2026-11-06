@@ -3,7 +3,33 @@
 # settings save remounts it read-write, for the write itself, so a power cut
 # cannot corrupt it), install the card's ssh key, and keep `glass` running; if
 # it dies, the menu comes back a second later.
-SHELF=/mnt/sd/zigmachine
+#
+# glass is given the card's root and picks its layout itself (glass/src/layout.zig):
+# KESTREL/ + CARTS/ (since 6 Nov 2026), or an old card's zigmachine/.
+# A glass at KESTREL/glass that differs from this rootfs's /usr/bin/glass is run
+# instead (the SD card overrides for development, docs/FPGA_GLASS.md), copied to
+# /tmp first and only if it runs on this board; the choice is logged.
+CARD=/mnt/sd
+GLASS=/usr/bin/glass
+OVERRIDE=$CARD/KESTREL/glass
+
+pick_glass() {
+    [ -f "$OVERRIDE" ] || return 0
+    if cmp -s "$OVERRIDE" "$GLASS"; then
+        echo "glass: $OVERRIDE is the rootfs's own glass" >&2
+        return 0
+    fi
+    mkdir -p /tmp/sd && cp "$OVERRIDE" /tmp/sd/glass && chmod 0755 /tmp/sd/glass || return 0
+    # A runnable glass prints its usage and exits 2; anything else (not ARM, truncated) is not used.
+    # (glass with no command must stay side-effect free: no /dev/mem, no control socket.)
+    /tmp/sd/glass >/dev/null 2>&1
+    if [ $? -ne 2 ]; then
+        echo "glass: $OVERRIDE does not run here, keeping $GLASS" >&2
+        return 0
+    fi
+    echo "glass: using $OVERRIDE (md5 $(md5sum /tmp/sd/glass | cut -d' ' -f1)) instead of $GLASS" >&2
+    GLASS=/tmp/sd/glass
+}
 
 case "$1" in
 start)
@@ -18,9 +44,10 @@ start)
         cp /mnt/sd/authorized_keys /root/.ssh/authorized_keys
         chmod 0600 /root/.ssh/authorized_keys
     fi
+    pick_glass
     rm -f /tmp/glass.stop
     (while [ ! -e /tmp/glass.stop ]; do
-        /usr/bin/glass run "$SHELF" || echo "glass: exited ($?), restarting" >&2
+        "$GLASS" run "$CARD" || echo "glass: exited ($?), restarting" >&2
         sleep 1
     done) &
     ;;

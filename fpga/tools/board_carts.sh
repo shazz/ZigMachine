@@ -60,7 +60,7 @@ if [ -n "$stage" ] && [ ${#good[@]} -gt 0 ]; then
     for tag in "${good[@]}"; do mkdir -p "$fwdir/$tag" && cp "$FPGA/build/hcycles/$dir/$tag/fw.bin" "$fwdir/$tag/"; done
     (cd "$FPGA" && uv run python tools/glass_sd.py --out "$stage" --fw-dir "$fwdir" --bit "$bit") >"$logs/stage.log" 2>&1 \
         || { echo "stage FAIL ($logs/stage.log)"; exit 1; }
-    (cd "$stage" && find zigmachine -type f | sort | xargs md5sum) >"$stage.md5"
+    (cd "$stage" && find KESTREL CARTS -type f | sort | xargs md5sum) >"$stage.md5"
     echo "staged $stage (md5s: $stage.md5); read $stage/MANIFEST.txt"
 fi
 exit $failed

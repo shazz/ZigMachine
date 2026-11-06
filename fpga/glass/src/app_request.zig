@@ -105,7 +105,7 @@ fn back(app: *App) void {
 /// Program `name` off disk `i` (also the control channel's `load DISK PROGRAM`, app_ctl.zig).
 pub fn runProgram(app: *App, i: usize, name: []const u8) !void {
     if (!validName(name)) return error.BadProgramName;
-    const path = try programPath(app.gpa, app.shelf_dir, app.disks.disks[i].file, name);
+    const path = try programPath(app.gpa, app.sys_dir, app.disks.disks[i].file, name);
     defer app.gpa.free(path);
     const disk = try std.Io.Dir.cwd().readFileAlloc(app.io, path, app.gpa, .limited(shelf.MAX_DISK));
     defer app.gpa.free(disk);

@@ -3,7 +3,7 @@
     uv run python tools/shelf_meta.py [--out DIR] [--check]
 
 One line a disk, tab-separated: FILE, TITLE, GROUP, YEAR, TYPE, DESCRIPTION
-(fpga/glass/src/meta.zig reads it). FILE is the disk's path under zigmachine/,
+(fpga/glass/src/meta.zig reads it). FILE is the disk's path under CARTS/,
 its folder first (tools/shelf_category.py): "demos/demo-stniccc.zmd". Nothing is typed twice; each field comes
 from where the repo already keeps it:
 

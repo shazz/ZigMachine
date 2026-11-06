@@ -110,7 +110,7 @@ pub fn run(app: *App, name: []const u8) !void {
 /// progs/by-hash. A NAME.RV that is not this program's is refused, never passed over.
 fn boardOf(app: *App, wasm: []const u8, own: ?[]const u8) ![]u8 {
     if (own) |c| return app.gpa.dupe(u8, try rv.boardImage(c, wasm));
-    const path = try imagePath(app.gpa, app.shelf_dir, wasm);
+    const path = try imagePath(app.gpa, app.sys_dir, wasm);
     defer app.gpa.free(path);
     return std.Io.Dir.cwd().readFileAlloc(app.io, path, app.gpa, .limited(shelf.MAX_DISK)) catch |err|
         if (err == error.FileNotFound) error.NoBoardImage else err;

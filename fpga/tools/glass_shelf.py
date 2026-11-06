@@ -1,8 +1,9 @@
 """The SD card's shelf (tools/glass_sd.py stages it): a fat disk per cart, the shelf disk the
-browser mounts plus the rv32 board image ZWINDOW loads (tools/zmd_fat.py), and shelf.txt.
+browser mounts plus the rv32 board image ZWINDOW loads (tools/zmd_fat.py), and shelf.txt, in the
+card's CARTS/; the system files (system.rv32, KOS's desktop, the programs) in KESTREL/ (sd_layout.py).
 
 A DATA disk (not bootable: ST Replay's) is what KOS boots its desktop over (docs/ZIGTOS_BOOT.md,
-KOS = ZigTOS), as the browser does: the card carries the desktop ONCE, as zigmachine/kos/desktop.rv32
+KOS = ZigTOS), as the browser does: the card carries the desktop ONCE, as KESTREL/kos/desktop.rv32
 (OS_CART's board image, ZX0-packed), and a data disk is staged as it is, just files: the glass puts
 the desktop and the disk in DDR (glass/src/app_drive.zig), and the desktop's firmware does the rest
 from the disk itself (cycles/bdiskapp.c: docs/FPGA_GLASS.md, "GEM over a data disk"). Nothing else
@@ -11,7 +12,7 @@ marks it: the boot sector says, as in the browser.
 A program on a data disk (a type-0 FAT file: ST Replay's BOOT.WSM) is wasm GEM asks the
 browser to run (request 3); on the board it must be native code built beforehand. Each one
 gets its own fat disk, the SAME data disk plus the program's board image, at
-zigmachine/progs/demo-<tag>/<NAME>.zmd, where ZWINDOW looks for it (glass/src/app_request.zig)
+KESTREL/progs/demo-<tag>/<NAME>.zmd, where ZWINDOW looks for it (glass/src/app_request.zig)
 and the shelf's scan does not. Which board image: the cart whose docs/demo-<cart>.wasm is the
 program's bytes, depacked (tools/mkdisks.sh writes BOOT.WSM from a cart of the matrix).
 """
@@ -26,6 +27,7 @@ from pathlib import Path
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
+import sd_layout
 import shelf_category
 import shelf_meta  # after the path insert
 import split_image
@@ -85,12 +87,13 @@ class Images:
 
 
 def programs(tag: str, img: bytes, images: Images, dest: Path) -> list[tuple[str, str]]:
-    """A fat disk per program on data disk `tag` (`img`): progs/demo-<tag>/<NAME>.zmd."""
+    """A fat disk per program on data disk `tag` (`img`): progs/demo-<tag>/<NAME>.zmd under `dest`
+    (the card's KESTREL/)."""
     rows = []
     for name, start, length, kind in zmd_fat.files(img):
         if kind != 0:
             continue
-        out = f"zigmachine/progs/demo-{tag}/{name}.zmd"
+        out = sd_layout.system(f"progs/demo-{tag}/{name}.zmd")
         cart = program_cart(img[start : start + length], dest)
         why = "MISSING: no docs/demo-*.wasm is this program" if cart is None else images.problem(cart)
         if why:
@@ -113,8 +116,8 @@ def boots(disk: bytes) -> str:
 
 
 def stage_desktop(images: Images, dest: Path) -> tuple[str, str]:
-    """KOS's desktop, once: OS_CART's board image, ZX0-packed, at kos/desktop.rv32."""
-    name = f"zigmachine/{DESKTOP_FILE}"
+    """KOS's desktop, once: OS_CART's board image, ZX0-packed, at kos/desktop.rv32 under `dest` (KESTREL/)."""
+    name = sd_layout.system(DESKTOP_FILE)
     if why := images.problem(OS_CART):
         return (name, why)
     fw = images.path(OS_CART)
@@ -123,9 +126,9 @@ def stage_desktop(images: Images, dest: Path) -> tuple[str, str]:
     return (name, f"{fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw} (KOS's desktop)")
 
 
-def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple[str, str]]:
+def _fat_disk(tag: str, images: Images, csr_map: Path, card: Path) -> list[tuple[str, str]]:
     rel = shelf_category.disk_path(tag)  # <category>/demo-<tag>.zmd: the OSD's folder
-    name, out = f"zigmachine/{rel}", dest / rel
+    name, out, dest = sd_layout.cart(rel), card / sd_layout.CARTS / rel, card / sd_layout.CARTS
     native = images.fw_dir / tag / "disk.zmd"  # a native cart's board-only disk (tools/native_cart.py)
     disk = native if native.exists() else ROOT / "docs" / f"demo-{tag}.zmd"
     if not disk.exists():
@@ -135,7 +138,8 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(img)
         src = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
-        return [(name, f"{src} (a data disk: KOS's desktop boots over it)"), *programs(tag, img, images, dest)]
+        return [(name, f"{src} (a data disk: KOS's desktop boots over it)"),
+                *programs(tag, img, images, card / sd_layout.SYSTEM)]
     cart = tag
     fw = images.path(cart)
     if why := images.problem(cart):
@@ -143,8 +147,8 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple
     if images.system_version is None and csr_map.exists() and fw.stat().st_mtime < csr_map.stat().st_mtime:
         return [(name, f"STALE: {fw} predates the CSR map; make board-fw CART={cart}")]
     packed = dest / f"{tag}.rv32.zx0"
-    subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
     out.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
     out.write_bytes(zmd_fat.fatten(img, packed.read_bytes()))
     packed.unlink()
     src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
@@ -164,14 +168,15 @@ def stage_system(dest: Path, system: Path, csr_map: Path) -> tuple[tuple[str, st
     note = f"{src} (table {split_image.vtext(version)})"
     if csr_map.exists() and system.stat().st_mtime < csr_map.stat().st_mtime:
         note = f"STALE: {src} predates the CSR map; make board-split"
-    return (f"zigmachine/{SYS_FILE}", note), version
+    return (sd_layout.system(SYS_FILE), note), version
 
 
 def build_shelf(
-    dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP, shelf: tuple[str, ...] = SHELF, system: Path | None = None
+    card: Path, fw_dir: Path, csr_map: Path = CSR_MAP, shelf: tuple[str, ...] = SHELF, system: Path | None = None
 ) -> list[tuple[str, str]]:
-    """A fat disk for every shelf cart with a board image in `fw_dir` (one per cart); with a
-    `system` image, the card's system.rv32 and lean carts (Images)."""
+    """A fat disk for every shelf cart with a board image in `fw_dir` (one per cart) in `card`/CARTS;
+    with a `system` image, the card's KESTREL/system.rv32 and lean carts (Images)."""
+    dest, carts = card / sd_layout.SYSTEM, card / sd_layout.CARTS
     dest.mkdir(parents=True, exist_ok=True)
     rows, images = [], Images(fw_dir)
     if system is not None:
@@ -181,12 +186,12 @@ def build_shelf(
     if bad := shelf_category.problems(every):  # no catch-all folder: a cart nobody placed stops the card
         raise SystemExit("glass_shelf: " + "; ".join(bad))
     rows += [stage_desktop(images, dest)]
-    rows += [row for tag in every for row in _fat_disk(tag, images, csr_map, dest)]
+    rows += [row for tag in every for row in _fat_disk(tag, images, csr_map, card)]
     rows += stage_by_hash(every + [OS_CART], images.path, images.problem, dest)  # KOS: a floppy's programs
-    staged = {f"zigmachine/{shelf_category.disk_path(t)}": t for t in every}
+    staged = {sd_layout.cart(shelf_category.disk_path(t)): t for t in every}
     tags = [staged[r[0]] for r in rows if r[0] in staged and not r[1].startswith("MISSING")]
     if not tags:
         return rows
-    shelf_meta.write(dest, tags)
-    rows.append((f"zigmachine/{shelf_meta.FILE}", f"tools/shelf_meta.py ({len(tags)} carts)"))
+    shelf_meta.write(carts, tags)
+    rows.append((sd_layout.cart(shelf_meta.FILE), f"tools/shelf_meta.py ({len(tags)} carts)"))
     return rows

@@ -190,14 +190,14 @@ def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) ->
     assert (out / "zigmachine.dtb").read_bytes() == b"zigmachine-z7lite.dtb"
     assert (out / "boot.scr").read_bytes()[:4] == bytes.fromhex("27051956")
     assert rows["zImage"].endswith("zImage")
-    shelf = {k: v for k, v in rows.items() if k.startswith("zigmachine/")}
+    shelf = {k: v for k, v in rows.items() if k.startswith(("KESTREL/", "CARTS/"))}
     apps = ("chipnomad", "grafx2", "klystrack", "pt2", "st_replay", "sysinfo")  # GEM programs on data disks
-    data = {f"zigmachine/tools/demo-{t}.zmd" for t in apps}  # just files: KOS's desktop boots them
-    carts = {f"zigmachine/{shelf_category.disk_path(t)}" for t in glass_sd.SHELF} - data | {"zigmachine/kos/desktop.rv32"}
+    data = {f"CARTS/tools/demo-{t}.zmd" for t in apps}  # just files: KOS's desktop boots them
+    carts = {f"CARTS/{shelf_category.disk_path(t)}" for t in glass_sd.SHELF} - data | {"KESTREL/kos/desktop.rv32"}
     assert carts | data <= set(shelf)  # every listed cart is named...
     assert all(shelf[k].startswith("MISSING: no ") for k in carts)  # ...as missing its firmware
     assert all(shelf[k].endswith("(a data disk: KOS's desktop boots over it)") for k in data)
-    assert sorted(p.name for p in (out / "zigmachine").glob("*/*.zmd")) == [f"demo-{t}.zmd" for t in apps]
+    assert sorted(p.name for p in (out / "CARTS").glob("*/*.zmd")) == [f"demo-{t}.zmd" for t in apps]
     with pytest.raises(SystemExit, match="device"):
         glass_sd.stage(Path("/dev/null"), None)
 
@@ -215,10 +215,10 @@ def test_sd_shelf_takes_board_firmwares_and_skips_one_older_than_the_csr_map(tmp
     os.utime(fws / "tutorial" / "fw.bin", (200, 200))
     os.utime(fws / "blitter" / "fw.bin", (50, 50))  # built against an older map
     rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr, ("tutorial", "gem")))
-    assert rows["zigmachine/system/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
-    assert rows["zigmachine/tutorials/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
-    assert rows["zigmachine/tests/demo-blitter.zmd"].startswith("STALE")
-    assert not (tmp_path / "sd" / "demos" / "demo-blitter.zmd").exists()
+    assert rows["CARTS/system/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
+    assert rows["CARTS/tutorials/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
+    assert rows["CARTS/tests/demo-blitter.zmd"].startswith("STALE")
+    assert not (tmp_path / "sd" / "CARTS" / "demos" / "demo-blitter.zmd").exists()
 
 
 def _c_test(sources: list[str], test: str, name: str) -> subprocess.CompletedProcess[str]:

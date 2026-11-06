@@ -6,6 +6,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import sd_layout  # fpga/tools, beside this file
+
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 
@@ -53,7 +55,7 @@ def program_cart(packed: bytes, work: Path) -> str | None:
 
 
 def stage_by_hash(carts: list[str], image_path, problem, dest: Path) -> list[tuple[str, str]]:
-    """zigmachine/progs/by-hash/<sha256 of docs/demo-<cart>.wasm>.rv32: each cart's board image,
+    """KESTREL/progs/by-hash/<sha256 of docs/demo-<cart>.wasm>.rv32 (`dest` is KESTREL/): each cart's board image,
     ZX0-packed, named by what its wasm IS, for a program GEM finds on a real floppy (KOS,
     docs/KOS_FAT.md; glass/src/app_floppy_prog.zig hashes the program the same way)."""
     import hashlib
@@ -66,5 +68,5 @@ def stage_by_hash(carts: list[str], image_path, problem, dest: Path) -> list[tup
         name = hashlib.sha256(wasm.read_bytes()).hexdigest() + ".rv32"
         (dest / "progs" / "by-hash").mkdir(parents=True, exist_ok=True)
         subprocess.run([zx0pack(), image_path(cart), dest / "progs" / "by-hash" / name], check=True, capture_output=True)
-        rows.append((f"zigmachine/progs/by-hash/{name}", f"{cart} (a program on a real floppy)"))
+        rows.append((sd_layout.system(f"progs/by-hash/{name}"), f"{cart} (a program on a real floppy)"))
     return rows

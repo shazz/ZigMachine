@@ -8,6 +8,8 @@ desktop differs from the first window on.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -72,3 +74,46 @@ def test_c_drive_shows_and_opens_in_both_hosts() -> None:
 # deskdirty.zig) agrees with itself frame for frame; apps/kos_desk_check.mjs holds what A:\ lists.
 def test_a_and_c_together_in_both_hosts(floppy: Path) -> None:
     both("--kos", str(floppy), "--post-frames", "0", "--c-image", str(ROOT / "docs/kos-c.img"), *CALLS)
+
+
+# C: is the card's /HD, not the card (decisions.md 2026-11-06; apps/zig/scenes/gem_fat.zig): FAT32
+# cards as the board's (mkfs.fat + mtools), the boot files, KESTREL/ and CARTS/ beside HD/. C:\ on the
+# whole card is pixel for pixel C:\ on a card holding only HD/ (so nothing above HD shows), differs from
+# another HD's, and a card with no HD/ has no C: icon at all.
+MTOOLS = all(shutil.which(t) for t in ("mkfs.fat", "mmd", "mcopy"))
+HD_FILES = {"HD/README.TXT": b"the hard disk\r\n" * 9, "HD/GAMES/SAVE.DAT": b"\x01\x02" * 900}
+ABOVE = {"BOOT.BIN": b"\x60" * 9000, "KESTREL/SYSTEM.RV3": b"\x11" * 4000, "KESTREL/KOS/DESKTOP.RV3": b"\x12" * 999,
+         "CARTS/SHELF.TXT": b"demo-x.zmd\r\n", "CARTS/DEMOS/DEMO-X.ZMD": b"\x13" * 5000}  # fmt: skip
+STAMP = 1_793_000_000  # every file's date, on every card
+
+
+def fat32_card(img: Path, files: dict[str, bytes]) -> Path:
+    """A 64 MB FAT32 image holding `files` (in order: each folder lists them in the dict's order)."""
+    env = {**os.environ, "MTOOLS_SKIP_CHECK": "1", "TZ": "UTC"}
+    mkfs = ["mkfs.fat", "-F", "32", "-s", "1", "-n", "SD CARD", "-i", "4B4F5331", "-C", str(img), "65536"]
+    subprocess.run(mkfs, check=True, capture_output=True)
+    made: set[str] = set()
+    for n, (rel, data) in enumerate(files.items()):
+        parts = rel.split("/")
+        for d in ("/".join(parts[:k]) for k in range(1, len(parts))):
+            if d not in made:
+                subprocess.run(["mmd", "-i", str(img), f"::{d}"], check=True, capture_output=True, env=env)
+                made.add(d)
+        src = img.with_suffix(f".{n}")
+        src.write_bytes(data)
+        os.utime(src, (STAMP, STAMP))
+        subprocess.run(["mcopy", "-m", "-i", str(img), str(src), f"::{rel}"], check=True, capture_output=True, env=env)
+    return img
+
+
+@pytest.mark.skipif(not MTOOLS, reason="mkfs.fat / mtools not installed")
+def test_c_is_the_cards_hd_folder_and_nothing_above_it(tmp_path: Path) -> None:
+    def c_frames(name: str, files: dict[str, bytes]) -> list[str]:
+        img = fat32_card(tmp_path / f"{name}.img", files)
+        return both("--kos", "none", "--post-frames", "0", "--c-image", str(img), *CALLS_C)
+
+    card = c_frames("card", {**ABOVE, **HD_FILES})
+    assert card == c_frames("hd_only", HD_FILES)  # its icon, then C:\ = README.TXT and GAMES only
+    assert card[7] != c_frames("other_hd", {"HD/OTHER.TXT": b"x"})[7]  # C:\ does list HD's files
+    bare = both("--kos", "none", "--post-frames", "0", *CALLS_C)
+    assert card[0] != bare[0] and c_frames("no_hd", ABOVE) == bare  # a card with no HD/: no C: icon

@@ -145,13 +145,17 @@ with the flags of the v1.1 card (`ZM_AUDIO=snd ZM_FPU=1 ZM_ZMX=1`):
 3. riscv gcc compiles it for ZIGGY: `zig-out/board/mydemo/cart.bin`, a lean cart for the card's
    `system.rv32`;
 4. `sdk/card.py` writes `zig-out/sd/`: a copy of the release's card, plus your fat disk at
-   `zigmachine/<category>/demo-mydemo.zmd` (your `.zmd` with `cart.bin` in it) and its line in
-   `zigmachine/shelf.txt` (what the OSD shows). It checks the cart against the card's system
-   table first.
+   `CARTS/<category>/demo-mydemo.zmd` (your `.zmd` with `cart.bin` in it) and its line in
+   `CARTS/shelf.txt` (what the OSD shows). It checks the cart against the card's system
+   table first. The card's layout (since 6 Nov 2026, docs/FPGA_GLASS.md "The SD card's layout"):
+   the boot files at the root, the system in `KESTREL/` (`system.rv32`, KOS's desktop,
+   `glass.cfg`), the shelf in `CARTS/`, and `HD/`, which is what GEM shows as C:. A card from
+   before that (everything in `zigmachine/`) still boots; move it with
+   `fpga/tools/sd_migrate_layout.sh` on the board before copying `zig-out/sd/` over it.
 
 Copy the contents of `zig-out/sd/` onto the card's first (FAT32) partition, over a card that
 already boots KESTREL. On a card that already holds the release, the two files printed with their
-md5 are all that changed. The release's card carries the bitstream, `system.rv32` and the shelf;
+md5 are all that changed. The release's card carries the bitstream, `KESTREL/system.rv32` and the shelf;
 its `MANIFEST.txt` lists the boot files (zeST's `BOOT.BIN`, the Linux images, the ARM `glass`) it
 does not carry, which a working card already has. Then boot the board and pick your cart in the OSD
 menu. Categories are the OSD's folders: `demos`, `games`, `tools`, `tutorials`, `tests`.

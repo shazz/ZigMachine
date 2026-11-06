@@ -3,7 +3,7 @@
     uv run python tools/shelf_category.py [--check] [--path TAG]
 
 The glass OSD lists the shelf's folders first and a folder's carts inside it, so every disk
-the card carries sits at zigmachine/<category>/demo-<tag>.zmd (tools/glass_shelf.py). The
+the card carries sits at CARTS/<category>/demo-<tag>.zmd (tools/glass_shelf.py). The
 category comes from where the repo already says it:
 
 - TABLE first: the carts a rule gets wrong or cannot know (a game ported from the ST, a test
@@ -89,7 +89,7 @@ def category(tag: str) -> str:
 
 
 def disk_path(tag: str) -> str:
-    """Where the card carries `tag`'s fat disk, under zigmachine/."""
+    """Where the card carries `tag`'s fat disk, under CARTS/ (sd_layout.py)."""
     return f"{category(tag)}/demo-{tag}.zmd"
 
 
@@ -114,7 +114,7 @@ def every_tag() -> list[str]:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--check", action="store_true", help="exit 1 if any cart has no category")
-    p.add_argument("--path", metavar="TAG", help="print TAG's disk path under zigmachine/ (for upload scripts)")
+    p.add_argument("--path", metavar="TAG", help="print TAG's disk path under CARTS/ (for upload scripts)")
     a = p.parse_args()
     if a.path:
         try:

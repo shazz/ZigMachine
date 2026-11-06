@@ -217,6 +217,28 @@ the pin taken from the every-frame repaint (main ef337055); A:\'s listing with C
 one without, and differs from C:\'s; C:\ open costs < 1.7 Mc (the old repaint: 2.5, failed) with no
 C: read a frame. `fpga/tests/test_kos_fat_desktop.py`: A: and C: together, native = page.
 
+## 4c. C: is /HD (6 Nov 2026)
+
+The card has a layout now (docs/FPGA_GLASS.md, "The SD card's layout"): boot files at the root,
+`KESTREL/` (the system), `CARTS/` (the OSD's shelf) and `HD/`, the future GEMDOS hard disk. **C:\
+is `/HD`**, and nothing above it shows in GEM. Nothing in the hosts moved: glass still serves the
+whole partition's sectors (`kos_drive.zig`), the page and the native host a whole image; the
+desktop shell (`apps/zig/scenes/gem_fat.zig`) mounts the volume, looks up the folder `HD` in its
+root (`C_ROOT`; up to 128 root entries) and walks from that folder's cluster instead of the root,
+so the boot files, `KESTREL/` (whose `progs/by-hash` alone would eat the 32-file limit) and `CARTS/`
+are never read into C:'s model. **A card with no `/HD` has no C:** (no icon, as a host with no C:
+image), not an empty one: an icon that opens on nothing would say the card is empty when it is not
+laid out. `fpga/tools/sd_migrate_layout.sh` makes `/HD`, empty; `glass_sd.py` stages one.
+
+`docs/kos-c.img` (`tools/kos_c_image.py`) is shaped like such a card: `BOOT.BIN`,
+`KESTREL/SYSTEM.RV3`, `CARTS/SHELF.TXT`, and `HD/` with `README.TXT` and the folders `DEMOS`,
+`TOOLS`, `TUTORIAL`, so C:\ on the page lists `HD/`'s four entries. Proof:
+`fpga/tests/test_kos_fat_desktop.py::test_c_is_the_cards_hd_folder_and_nothing_above_it`: FAT32
+cards made by `mkfs.fat` + mtools (the board's file system); C:\ on a card with the boot files,
+`KESTREL/`, `CARTS/` and `HD/` is, frame for frame in both hosts, C:\ on a card holding only that
+`HD/`; it differs from another `HD/`'s; a card with no `HD/` shows the bare desktop.
+`apps/kos_desk_check.mjs` and `kos_boot_check.mjs` (over the new `kos-c.img`) still pass.
+
 ## 5. Phases
 
 | Phase | What | Proof |
@@ -230,11 +252,12 @@ C: read a frame. `fpga/tests/test_kos_fat_desktop.py`: A: and C: together, nativ
 
 ## 6. Decided (Matt)
 
-1. **C: is the whole SD partition**, read-only, raw (the simple v1).
+1. **C: is the whole SD partition**, read-only, raw (the simple v1). **Superseded 6 Nov 2026**
+   (decisions.md, "The SD card's layout"): C: is the card's `/HD` folder (§ 4c).
 2. **`.WSM` programs on a real floppy launch** from GEM, as a data disk's do. The board needs the
    program's native board image: glass reads the file's bytes from the floppy image it already
    holds (with this same reader, `rom/kos/fat.zig`: pure Zig, glass imports it), depacks them if
-   they are ZX0-packed, hashes the wasm (SHA-256), and loads `zigmachine/progs/by-hash/<hash>.rv32`
+   they are ZX0-packed, hashes the wasm (SHA-256), and loads `KESTREL/progs/by-hash/<hash>.rv32`
    (`glass/src/app_floppy_prog.zig`; `tools/glass_shelf.py` writes one per cart it has a board image of, the board image of the cart whose
    `docs/demo-<cart>.wasm` has that hash, as it finds a data disk's program today). No image:
    `<NAME>: no board image for this program`, the desktop keeps running. The browser runs the

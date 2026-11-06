@@ -84,10 +84,11 @@ def test_staging_puts_each_disk_in_its_folder_and_shelf_txt_names_the_path(tmp_p
     csr.write_text("x")
     os.utime(csr, (100, 100))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, csr, ("tutorial", "st_replay")))
-    sd = tmp_path / "sd"
+    assert not list((tmp_path / "sd" / "KESTREL").rglob("demo-*.zmd")) and (tmp_path / "sd" / "CARTS" / "shelf.txt").exists()
+    sd = tmp_path / "sd" / "CARTS"  # tools/sd_layout.py: the shelf and shelf.txt
     assert sorted(str(p.relative_to(sd)) for p in sd.rglob("demo-*.zmd")) == [
         "demos/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]  # fmt: skip
-    assert "zigmachine/progs/demo-st_replay/BOOT.WSM.zmd" in rows  # programs stay in progs/, by the bare name
+    assert "KESTREL/progs/demo-st_replay/BOOT.WSM.zmd" in rows  # programs stay in progs/, by the bare name
     lines = [ln.split("\t")[0] for ln in (sd / "shelf.txt").read_text().splitlines() if not ln.startswith("#")]
     assert sorted(lines) == ["demos/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]
 

@@ -5,7 +5,9 @@
 // fills the ROM's desktop model: the folders and every file with its folder (the records, the
 // folder byte at +25). Once per insertion. C: (F5), the SD card, is read the same way through
 // the cart's own env.kosDriveRead, once at the shell's start, into C:'s model; its files are
-// data (nothing on C: launches in v1).
+// data (nothing on C: launches in v1). C: is the card's HD folder, not the card (decisions.md
+// 2026-11-06): glass serves the whole partition's sectors, and the walk starts at /HD's cluster,
+// so nothing above it (the boot files, KESTREL/, CARTS/) is ever listed. A card with no /HD has no C:.
 //
 // Limits are the desktop's: MAX_FILES files and MAX_FOLDERS folders over the whole disk, read
 // breadth first (the root, then each folder), the rest left out.
@@ -18,6 +20,8 @@ const fat = @import("kos_fat");
 const MAX_FOLDERS = 16; // rom/gem/desktop/dirmodel.zig MAX_FOLDERS
 pub const UNIT_A: u32 = 0;
 pub const UNIT_C: u32 = 2;
+/// The root folder C:\ is (fpga/glass/src/layout.zig HD), as FAT's 8.3 directory holds it.
+pub const C_ROOT = "HD";
 
 /// KOS's C: (docs/KOS_FAT.md F5): `count` sectors of `unit` into memory at `dst` (word-aligned);
 /// the sectors read, 0 for none. Served by every host (sealed-loader.js, host/disk.h, the board's
@@ -67,21 +71,23 @@ var entries: [32]fat.Entry = undefined;
 
 /// Fill drive A's model from its FAT disk; false if it does not mount (an empty disk shows).
 pub fn load() bool {
-    return loadUnit(UNIT_A, readA);
+    return loadUnit(UNIT_A, readA, null);
 }
 
-/// Fill C:'s model from the SD card, and show its icon only if it mounted.
+/// Fill C:'s model from the SD card's /HD, and show its icon only if the card mounted and has one.
 pub fn loadC() bool {
     c_count = 0; // a fresh walk reads the card afresh
-    const ok = loadUnit(UNIT_C, readC);
+    const ok = loadUnit(UNIT_C, readC, C_ROOT);
     rom.Desktop.setDriveC(ok);
     return ok;
 }
 
-fn loadUnit(unit: u32, read: fat.ReadFn) bool {
+/// `root`: the folder of the volume's root that is the drive's root (null: the volume's own); none, no drive.
+fn loadUnit(unit: u32, read: fat.ReadFn, root: ?[]const u8) bool {
     var dummy: u8 = 0;
     rom.Desktop.driveReset(unit);
     vol = fat.Volume.mount(read, &dummy) catch return false;
+    const top: fat.Dir = if (root) |name| folderOf(vol.root(), name) orelse return false else vol.root();
     const ent = rom.deskDirEntryBytes();
     const cap = rom.deskDirMaxFiles();
     const recs = rom.Desktop.driveDirPtr(unit);
@@ -90,7 +96,7 @@ fn loadUnit(unit: u32, read: fat.ReadFn) bool {
     var files: u32 = 0;
     var q: isize = -1; // the directory being read: -1 the root, else a folder index
     while (q < @as(isize, @intCast(n_folders))) : (q += 1) {
-        const dir: fat.Dir = if (q < 0) vol.root() else .{ .cluster = clusters[@intCast(q)] };
+        const dir: fat.Dir = if (q < 0) top else .{ .cluster = clusters[@intCast(q)] };
         const n = vol.list(dir, &entries) catch 0;
         for (entries[0..n]) |*e| {
             if (e.isDir()) {
@@ -105,6 +111,15 @@ fn loadUnit(unit: u32, read: fat.ReadFn) bool {
     }
     rom.Desktop.driveSetFileCount(unit, files);
     return true;
+}
+
+/// The folder `name` in `dir`, or null. Cluster 0 would be FAT12/16's fixed root: refused.
+/// The card's root is wider than a desktop listing (boot files, their .prev copies): its own buffer.
+var top_entries: [128]fat.Entry = undefined;
+fn folderOf(dir: fat.Dir, name: []const u8) ?fat.Dir {
+    const n = vol.list(dir, &top_entries) catch return null;
+    for (top_entries[0..n]) |*e| if (e.isDir() and e.cluster >= 2 and std.mem.eql(u8, e.nameSlice(), name)) return .{ .cluster = e.cluster };
+    return null;
 }
 
 /// One file's record, as dirmodel.zig reads it: name, type (0 a program: .WSM, on drive A only),

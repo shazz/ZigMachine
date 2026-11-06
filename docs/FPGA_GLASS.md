@@ -331,12 +331,13 @@ below the cart window.
      tree where `BOOT.BIN` leaves it (`0x800000`), plus `mem=480M` and
      `init=/bin/sh`.
 3. **Linux.** In plan A, `S99glass` mounts the SD card's FAT partition
-   read-only on `/mnt/sd` and keeps `glass run /mnt/sd/zigmachine` running,
-   restarting it if it dies. That is the rootfs's own `/usr/bin/glass`, put
-   there by `fpga/tools/rootfs_glass.py` when `glass_sd.py` stages the card, so
-   it is the card's `glass` (it must know `afi.zig`: it reads HP1's 0xf00 and
-   runs W64). In plan B, you type that at the shell, from
-   `/mnt/glass`.
+   read-only on `/mnt/sd` and keeps `glass run /mnt/sd` running (glass finds the
+   card's layout itself: "The SD card's layout" below), restarting it if it dies.
+   That is the rootfs's own `/usr/bin/glass`, put there by `fpga/tools/rootfs_glass.py`
+   when `glass_sd.py` stages the card, so it is the card's `glass` (it must know
+   `afi.zig`: it reads HP1's 0xf00 and runs W64), unless `KESTREL/glass` on the card
+   differs from it (the override, below). In plan B, you type
+   `/mnt/KESTREL/glass run /mnt` at the shell.
 4. **`glass`** maps GP0 and the cart window, checks `ID`, sets the OSD colours,
    scans the shelf and powers KOS on: ZIGGY starts at once over what drive A holds
    (`drive_a=` in glass.cfg), the OSD closed (below, "KOS: power-on and drive A").
@@ -383,6 +384,45 @@ register values.
   no `/lib/modules`; the kernel has USB storage, SCSI disks, vfat, XADC, xpad, the HID pads.
 - **Recovery:** a bad SPL cannot be fixed over serial. Put zeST's `BOOT.BIN` back on the card from
   a PC; `prototypes/card_full_re/planA/RECOVERY.md` has the commands and the renames.
+
+## The SD card's layout (decisions.md 2026-11-06)
+
+The card's first partition (FAT32, mounted read-only at `/mnt/sd`) holds four things, each in
+its own place (Matt, 6 Nov: GEM's C: used to show the whole card):
+
+```
+/            boot files only (the BootROM and U-Boot read them here): BOOT.BIN, u-boot.img,
+             boot.scr, zImage, zigmachine.dtb, rootfs.cpio.uboot, zigmachine.bit, uImage,
+             rootfs.ub, zest.dtb, uboot.env, authorized_keys, and their copies (*.prev, NAME.<hash>)
+/KESTREL/    the system: system.rv32, kos/desktop.rv32, glass.cfg, glass (an optional override),
+             progs/ (by-hash/ and demo-<tag>/: programs' board images), rollback/ (old card files)
+/CARTS/      the OSD's shelf: demos/ games/ tools/ tutorials/ tests/ system/ + shelf.txt
+/HD/         KOS's C: (the desktop shell roots C:\ there: docs/KOS_FAT.md); glass never reads it
+```
+
+The names live in one place each side: `fpga/glass/src/layout.zig` (glass) and
+`fpga/tools/sd_layout.py` (the staging: `glass_sd.py`, `glass_shelf.py`, `sdk/card.py`), held equal
+by `fpga/tests/test_sd_layout.py`. **glass runs on both layouts**: `glass run DIR` (S99glass gives
+it `/mnt/sd`) takes `DIR/KESTREL` + `DIR/CARTS` when `DIR/KESTREL` is a folder, else the old
+card's `DIR/zigmachine` for both, else `DIR` itself for both (the old `glass run
+/mnt/sd/zigmachine`, `sim-menu`, a test's shelf). It logs which at start
+(`card /mnt/sd: kestrel layout, system /mnt/sd/KESTREL, carts /mnt/sd/CARTS`).
+
+**The SD glass overrides the rootfs's.** S99glass runs `/usr/bin/glass` unless
+`/mnt/sd/KESTREL/glass` differs from it (`cmp`); then it copies that one to `/tmp/sd/glass`,
+checks it runs here (a glass with no arguments prints its usage and exits 2) and runs it, saying
+so on the console (`glass: using /mnt/sd/KESTREL/glass (md5 ...) instead of /usr/bin/glass`). The
+choice is made once, at boot: a new `KESTREL/glass` takes a reboot. `killall glass` restarts
+whichever runs. An override must know this layout (it is given `/mnt/sd`): a glass older than
+6 Nov 2026 would read `/mnt/sd` as a flat shelf.
+
+**Moving an old card** (`zigmachine/` + `rollback_*` at the root): `fpga/tools/sd_migrate_layout.sh`,
+run on the board (busybox sh: remounts rw, `mkdir` and `mv` only, read-only again at the end).
+`zigmachine/{system.rv32,kos,progs,glass.cfg}` go to `KESTREL/`, the rest of `zigmachine/` to
+`CARTS/`, every root entry that is not a boot file to `KESTREL/rollback/` (an old `glass` too:
+it must not become the override), and `HD/` is made. It prints each `mv`, skips a name already
+at its target, moves nothing when run again, and `--back` moves it all back (for the old rootfs,
+whose S99glass runs `glass run /mnt/sd/zigmachine`); `--dry-run` only prints.
 
 ## The OSD
 
@@ -544,13 +584,13 @@ over a running cart, and R and W are the cold and warm reset.
 
 **Folders** (`shelf_view.zig`, Matt 3 Nov: "reorganize the carts in folders ... and of course
 showing the folders in the OSD"). The card keeps each fat disk in a category folder,
-`zigmachine/<category>/demo-<tag>.zmd` (`demos`, `games`, `tools`, `tutorials`, `tests`,
+`CARTS/<category>/demo-<tag>.zmd` (`demos`, `games`, `tools`, `tutorials`, `tests`,
 `system`: `fpga/tools/shelf_category.py`). The shelf page lists the folders first, `DEMOS/`
 with its cart count, then any disk lying at the top; Enter (or the pad's fire) opens a
 folder, whose first row is `..`; Enter on `..`, ← or Backspace (the pad's left) go back up,
 the cursor on the folder just left. The title bar names the folder (`ZIGMACHINE DEMOS 2/24`),
 and a folder row carries the `A` / `*` mark of a disk in it. The scan goes one level down
-and never into `progs/` or `kos/` (the shelf's own) or a dot-directory. A disk is still known
+and never into `progs/` or `kos/` (an old card's system folders, beside its shelf) or a dot-directory. A disk is still known
 by its bare file name everywhere (glass.cfg's drive A, a cart's REQ_LOAD_CART, `progs/`,
 `glass ctl load`); its folder only says where it is read from. **A flat card** (every disk at
 the top, before 3 Nov) lists exactly as before; a disk at the top that a folder also holds
@@ -782,7 +822,7 @@ page.
 
 ## Settings (`glass.cfg`)
 
-`<SHELF_DIR>/glass.cfg` (`/mnt/sd/zigmachine/glass.cfg`), `config.zig`:
+`<system dir>/glass.cfg` (`/mnt/sd/KESTREL/glass.cfg`; an old card's `zigmachine/glass.cfg`), `config.zig`:
 
 ```
 # glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)
@@ -910,7 +950,7 @@ through the glass like any cart's (it owns the keyboard, so every key goes to
 
 decisions.md 2026-10-15. A monolithic board image repeats ~1.65 MB of firmware, machine,
 ROM and BARD image in every fat disk. The split puts them in one **system image**, on the
-card once as `zigmachine/system.rv32`, and leaves each fat disk a **lean cart image**: the
+card once as `KESTREL/system.rv32`, and leaves each fat disk a **lean cart image**: the
 wasm2c'd cart, its env forwarders and its songs (`make -C fpga board-split ZM_AUDIO=snd`,
 then `tools/glass_sd.py --system build/hcycles/split/board_snd/sys.bin --fw-dir
 build/hcycles/split/carts`). Measured on the 15-cart shelf: 7.66 MB → 3.92 MB; a cart's
@@ -1017,7 +1057,7 @@ cart. The browser boots GEM for it, and after every `demo.frame()` it
 
 **On the shelf** (`tools/glass_shelf.py`). `st_replay` is in `SHELF`. Since KOS
 (2026-10-25) a data disk is staged as it is, just files; GEM's board image is on the
-card once, as `zigmachine/kos/desktop.rv32`, and the glass places it with the disk in
+card once, as `KESTREL/kos/desktop.rv32`, and the glass places it with the disk in
 DDR when drive A holds a data disk ("KOS: power-on and drive A"). Nothing else marks
 it: ZWINDOW places the disk in DDR exactly as for any cart ("The disk in DDR"), and the
 firmware decides from the disk's boot sector, as the browser does. No descriptor flag,
@@ -1208,7 +1248,7 @@ own depacker (`tools/zx0unpack.zig`, `libs/zig/depackers/zx0.zig`) and finds the
 cart whose `docs/demo-<cart>.wasm` has the same bytes (`mkdisks.sh` writes
 `BOOT.WSM` from `demo-st_replay.wasm`: they are identical). That cart's board
 image (`board/st_replay/fw.bin`, which `make board-shelf` builds) goes into a fat
-disk of the **same data disk** at `zigmachine/progs/demo-<tag>/<NAME>.zmd`:
+disk of the **same data disk** at `KESTREL/progs/demo-<tag>/<NAME>.zmd`:
 outside the shelf's scan, so the menu never lists it. A program that is no cart
 of the matrix, or whose firmware is not built, is `MISSING` in the manifest.
 
@@ -1413,7 +1453,7 @@ ssh to the board over its RJ45; no Wi-Fi dongle is needed.
   UART (`ip addr show eth0`).
 - **Cart upload over the network** comes nearly free with it:
   `ssh root@zigmachine.local mount -o remount,rw /mnt/sd`, then `scp
-  demo-x.zmd root@zigmachine.local:/mnt/sd/zigmachine/<category>/` and remount read-only.
+  demo-x.zmd root@zigmachine.local:/mnt/sd/CARTS/<category>/` and remount read-only.
   Then **Shift+F12** in `glass` rescans the shelf over the running cart.
 - Unverified until Buildroot builds the image and the bitstream carries the
   EMIO wiring.
