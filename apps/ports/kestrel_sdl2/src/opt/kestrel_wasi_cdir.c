@@ -2,7 +2,8 @@
  * its GEMDOS path and a DTA: readdir is Fsfirst / Fsnext, its cookie the entries already handed out (a
  * cookie other than the next one restarts the search and skips that many, as a rewinddir or a seekdir
  * asks); the first entry is "..", as a POSIX folder lists it (GrafX2's way up; from C:\ it leads to "/",
- * the floppy, once getcwd below has folded it). C: is read-only in phase 1: a create, a truncate or a write right is refused (EROFS). */
+ * the floppy, once getcwd below has folded it). A create, a truncate or a write right is a write
+ * (kestrel_wasi_cfile.c: Fcreate). */
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,14 +15,14 @@ int32_t __imported_wasi_snapshot_preview1_path_open(int32_t fd, int32_t dirflags
                                                     int64_t rights_base, int64_t rights_inh, int32_t fdflags, int32_t out)
 {
     if (!kcd_is(fd)) return kestrel_floppy_path_open(fd, dirflags, path, len, oflags, rights_base, rights_inh, fdflags, out);
-    if (oflags & (__WASI_OFLAGS_CREAT | __WASI_OFLAGS_TRUNC)) return __WASI_ERRNO_ROFS;
     char p[PATH_MAX_C];
     uint32_t size = 0;
     if (!kcd_path(fd, (const char *)(uintptr_t)path, (uint32_t)len, p)) return __WASI_ERRNO_NAMETOOLONG;
+    if ((oflags & (__WASI_OFLAGS_CREAT | __WASI_OFLAGS_TRUNC)) || ((uint64_t)rights_base & WRITES & ~__WASI_RIGHTS_FD_ALLOCATE))
+        if (!(oflags & __WASI_OFLAGS_DIRECTORY)) return kcd_create(p, oflags, out); /* kestrel_wasi_cfile.c */
     int32_t k = kcd_kind(p, &size);
     if (k < 0) return kcd_errno(k);
     if ((oflags & __WASI_OFLAGS_DIRECTORY) && !k) return __WASI_ERRNO_NOTDIR;
-    if (!k && ((uint64_t)rights_base & WRITES)) return __WASI_ERRNO_ROFS;
     for (int i = 0; i < C_FDS; i++) {
         kcd_t *f = &kcd_fds[i];
         if (f->used) continue;

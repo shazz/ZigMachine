@@ -103,7 +103,9 @@
     <script type="module" src="zmdisk.js?v=6d19bd99"></script>
     <!-- KOS's power-on (the POST, then drive A): ZMKos, used by the loader's boot(). -->
     <script src="kos-boot.js?v=add1866a"></script>
-    <script src="sealed-loader.js?v=ba441da1"></script>
+    <!-- C:'s writes (KOS GEMDOS, docs/KOS_GEMDOS.md §7): ZMKosFile, KFS over the ?c= image. -->
+    <script src="kos-cfile.js?v=943cfd62"></script>
+    <script src="sealed-loader.js?v=af498dab"></script>
     <!-- "Run your own cart": the upload button and drag & drop (after the loader,
          whose state it shares). -->
     <script src="upload-cart.js?v=1aca86b1"></script>

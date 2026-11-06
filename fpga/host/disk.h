@@ -57,6 +57,11 @@ static inline int64_t host_disk_read(host_disk_t* d, uint32_t block, uint32_t ds
 
 extern host_disk_t host_cdisk;
 
+/* C:'s writes (docs/KOS_GEMDOS.md §7, env.kosFileOp): the request at `req` in the cart's memory, a
+ * TOS code back. Null until the native host's --c-image sets it (host/kos_cfile.c: KFS over
+ * host_cdisk); null, a write answers EDRIVE. The board's firmware asks glass instead (cycles/bkosfile.h). */
+extern uint32_t (*host_kos_file_hook)(uint8_t* mem, uint64_t mem_size, uint32_t req);
+
 static inline uint32_t host_kos_drive_read(host_disk_t* d, uint32_t unit, uint32_t sector, uint32_t count, uint32_t dst,
                                            uint8_t* mem, uint64_t mem_size) {
     if (!d->data || unit != HOST_KOS_UNIT_C || count == 0 || count > HOST_KOS_MAX_SECTORS || dst % 4) return 0;

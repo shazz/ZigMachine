@@ -19,6 +19,7 @@ void kestrel_log(const char *m);
 void kestrel_quit(void);
 void kestrel_heap_report(void);
 void kestrel_input_origin(int dx, int dy);
+void SDL_StartTextInput(void);
 
 /* Asyncify's save area: {current, end} then the saved call stack (locals of every suspended frame). */
 static uint8_t unwind_stack[64 * 1024];
@@ -50,6 +51,7 @@ __attribute__((export_name("boot"))) void boot(void)
 {
     kestrel_video_init();
     kestrel_input_origin(0, 0);
+    SDL_StartTextInput(); /* SDL2 on a desktop starts with it on, and Readline (a file name to save) reads only SDL_TEXTINPUT */
     run();
     kestrel_heap_report();
 }

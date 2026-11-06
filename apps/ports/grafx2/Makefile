@@ -27,7 +27,7 @@ UP_OBJS := main init graph sdlscreen misc osdep special buttons palette help ope
   layers oldies tiles colorred unicode gfx2surface gfx2log gfx2mem tifformat
 UP_ALL := $(patsubst $(UP)/%,%,$(wildcard $(UP)/*.[ch]))
 # C: (KOS GEMDOS, docs/KOS_GEMDOS.md): the POSIX layer's "/C" (KESTREL_CDRIVE above) over GEMDOS's object.
-CDRIVE := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o $(OUT)/gemdos.o
+CDRIVE := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o $(OUT)/ksdl/opt/kestrel_wasi_cfile.o $(OUT)/gemdos.o
 OBJS   := $(addprefix $(OUT)/,$(addsuffix .o,$(UP_OBJS) version)) \
           $(patsubst %.c,$(OUT)/%.o,$(wildcard kestrel_*.c)) $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c)) $(CDRIVE)
 GENALL := $(addprefix $(GEN)/,$(UP_ALL)) $(GEN)/version.c

@@ -108,6 +108,19 @@ KOS_DRIVE_DEFAULTS = """/* C: (KOS F5): host_cdisk's image unless cycles/bkosdri
 #endif
 """
 
+# C:'s writes (docs/KOS_GEMDOS.md §7, rom/kos/kfs_abi.zig): kosFileOp(req) hands the host a whole-file
+# request the cart wrote at `req` (12 words: op, flags, slot, attr, offset, len, data, path, path_len,
+# path2, path2_len, gen) and answers a TOS code. A system-table entry since 1.10. The default calls
+# host_kos_file_hook (host/disk.h): the native host sets it to KFS over host_cdisk (host/kos_cfile.c);
+# unset (a sim, a test), C:'s writes answer EDRIVE. The board firmware's cycles/bkosfile.h (-include)
+# asks glass, which writes the card through Linux's FAT (glass/src/kos_file.zig).
+KOS_FILE = {"kosFileOp": ("u32", ["u32"], "HOST_KOS_FILE_OP")}
+KOS_FILE_DEFAULTS = """/* C:'s writes (KOS GEMDOS phase 2): host_kos_file_hook unless cycles/bkosfile.h (-include, the board) defines it. */
+#ifndef HOST_KOS_FILE_OP
+#define HOST_KOS_FILE_OP(e, req) \\
+    (host_kos_file_hook ? host_kos_file_hook((e)->memory.data, (e)->memory.size, (req)) : (uint32_t)-46)
+#endif
+"""
 
 # The audio-state mirror (cycles/aud_state.h): the cart's ZigOS fields docs/sealed-loader.js
 # writes from the worklet's "audioState" (ym_regs, audio_mode, song_ms), as offsets in its memory,
@@ -122,9 +135,9 @@ MIRROR_DEFAULTS = """/* The audio-state hook: a no-op unless cycles/bmirror.h (-
 #endif
 """
 # The system table's host entries (table 1.1: the stream ring; 1.2: the mirror; 1.6: the cart's
-# Paula; 1.8: KOS's C:), and their defaults.
-HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE}
-HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS
+# Paula; 1.8: KOS's C:; 1.10: C:'s writes), and their defaults.
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE}
+HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS + KOS_FILE_DEFAULTS
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:

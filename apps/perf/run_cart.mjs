@@ -4,7 +4,7 @@
 // runs as-is and only its blitter calls and HBL interrupts are counted.
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
-import { makeCDrive, makeDrive } from "../scene_hash_disk.mjs";
+import { makeCDrive, makeCFile, makeDrive } from "../scene_hash_disk.mjs";
 import { instrument } from "./instrument.mjs";
 import { blitCycles, BLIT_CALL, BLIT_UNIT_ORDERED } from "./cost_model.mjs";
 import { BLIT_SITE, STORE_TOTAL, PAL_TOTAL, MIS_LOADS, MIS_STORES } from "./hooks.mjs";
@@ -109,8 +109,11 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
         env.diskReadBlock = (block, dst) => { const n = drive(block, dst); if (n) hw.diskBlocks++; return n; };
     }
     if (cImage) {
-        const c = makeCDrive(memory, new Uint8Array(await readFile(cImage)));
+        const img = new Uint8Array(await readFile(cImage));
+        const c = makeCDrive(memory, img);
         env.kosDriveRead = (...a) => { hw.kosReads++; return c(...a); };
+        const w = makeCFile(memory, img); // C:'s writes (docs/KOS_GEMDOS.md §7), each a round trip too
+        env.kosFileOp = (req) => { hw.kosReads++; return w(req); };
     }
     const noop = () => {};
     if (paula) env.hostPaulaClaim = () => 1; // HW 1.14.0: the channels are lent (frame_cost --paula)

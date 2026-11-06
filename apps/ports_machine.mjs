@@ -59,6 +59,7 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
         // The Paula channels (HW 1.14.0): none here unless extraEnv lends them (claim 0: software mix).
         hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5)
+        kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE, no C: here
         ...extraEnv,
     };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];

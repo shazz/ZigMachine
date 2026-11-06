@@ -1,4 +1,4 @@
-/* KOS GEMDOS for C carts (docs/KOS_GEMDOS.md): TOS's file calls, read-only in phase 1, over A: (a FAT
+/* KOS GEMDOS for C carts (docs/KOS_GEMDOS.md): TOS's file calls over A: (a FAT
  * floppy image in the drive) and C: (the SD card's /HD; the page's ?c= image; the native host's
  * --c-image). Implemented in Zig (rom/kos/gemdos*.zig), linked as one object built from
  * rom/kos/gemdos_c.zig (see apps/ports/grafx2/Makefile). Answers as TOS's: >= 0 a result, < 0 an error.
@@ -26,6 +26,7 @@ _Static_assert(sizeof(KDTA) == 44, "TOS's DTA is 44 bytes");
 #define FA_DIR 0x10
 #define FA_ARCHIVE 0x20
 
+#define GEMDOS_EWRITF (-10)
 #define GEMDOS_EREADF (-11)
 #define GEMDOS_EWRPRO (-13)
 #define GEMDOS_EINVFN (-32)
@@ -35,6 +36,7 @@ _Static_assert(sizeof(KDTA) == 44, "TOS's DTA is 44 bytes");
 #define GEMDOS_EACCDN (-36)
 #define GEMDOS_EIHNDL (-37)
 #define GEMDOS_EDRIVE (-46)
+#define GEMDOS_ENSAME (-48)
 #define GEMDOS_ENMFIL (-49)
 #define GEMDOS_ERANGE (-64)
 
@@ -42,11 +44,18 @@ int32_t Dgetdrv(void);
 int32_t Dsetdrv(int32_t drive);                  /* 0 A: .. 2 C:; the drives that answer, a bit each */
 int32_t Dgetpath(char *buf, int32_t drive);      /* buf: 128 bytes; drive 0 the current, 1 A:, 3 C: */
 int32_t Dsetpath(const char *path);
-int32_t Fopen(const char *path, int32_t mode);   /* mode 0 only (read); a handle, >= 6 */
+int32_t Fopen(const char *path, int32_t mode);   /* mode 0 only (read; Fcreate writes); a handle, >= 6 */
 int32_t Fclose(int32_t handle);
 int32_t Fread(int32_t handle, int32_t count, void *buf);
 int32_t Fseek(int32_t offset, int32_t handle, int32_t mode); /* 0 SET, 1 CUR, 2 END; the new position */
-int32_t Fattrib(const char *path, int32_t wflag, int32_t attr); /* wflag 0: the attributes */
+int32_t Fattrib(const char *path, int32_t wflag, int32_t attr); /* wflag 0: the attributes; 1: set them (C:) */
+/* Writes (phase 2, C: only; A: answers EWRPRO): the host writes whole files (docs/KOS_GEMDOS.md §7). */
+int32_t Fcreate(const char *path, int32_t attr);  /* a handle open for writing; the file is saved at Fclose */
+int32_t Fwrite(int32_t handle, int32_t count, const void *buf); /* buffered (32 KB): the count, or an error */
+int32_t Fdelete(const char *path);
+int32_t Frename(int32_t reserved, const char *oldpath, const char *newpath); /* ENSAME across drives */
+int32_t Dcreate(const char *path);
+int32_t Ddelete(const char *path);               /* an empty folder, not the current one */
 void Fsetdta(KDTA *dta);
 KDTA *Fgetdta(void);
 int32_t Fsfirst(const char *spec, int32_t attr);

@@ -115,6 +115,13 @@ $(HOST)/common/machine.c: $(ROOT)/docs/machine-video.wasm
 $(HOST)/common/rom.c: $(ROOT)/docs/rom.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n rom -o $@
+# KFS, C:'s writer (docs/KOS_GEMDOS.md §7): the page's docs/kos-cfs.wasm, linked into the host (host/kos_cfile.c).
+$(HOST)/common/kfs.c: $(ROOT)/docs/kos-cfs.wasm
+	@mkdir -p $(@D)
+	wasm2c $< -n kfs -o $@
+$(HOST)/common/kfs.h: $(HOST)/common/kfs.c ;
+$(HOST)/common/kos_cfile.o: host/kos_cfile.c host/disk.h $(HOST)/common/kfs.h
+	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/rt.o: $(W2C_RT)/wasm-rt-impl.c
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/rt-mem.o: $(W2C_RT)/wasm-rt-mem-impl.c
@@ -156,9 +163,9 @@ $(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.
 	for s in $(INPUT_SRC); do $(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/in_$$(basename $$s .c).o || exit 1; done
 	for s in $(HOST_BOOTSEC); do $(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/bs_$$(basename $$s .c).o || exit 1; done
 	$(HOST_CC) $(HOST_CFLAGS) $(HOST_WALLCLOCK) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/main.c -o $@
-$(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON)
+$(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o
 	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/host_io.o $(HOST)/$*/in_*.o \
-		$(HOST)/$*/bs_*.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
+		$(HOST)/$*/bs_*.o $(HOST)/$*/cart.o $(HOST_COMMON) $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o -lm -lpthread -o $@
 
 host: $(HOST)/$(CART)/host
 

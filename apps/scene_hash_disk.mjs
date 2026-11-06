@@ -3,6 +3,8 @@
 import { readFile } from "node:fs/promises";
 import { parseDisk } from "../docs/zmdisk.js";
 import "../docs/kos-boot.js"; // globalThis.ZMKos.fatImage: a raw FAT image, as the browser mounts it
+import "../docs/kos-cfile.js"; // globalThis.ZMKosFile: C:'s writes, as the page makes them
+import { readFileSync } from "node:fs";
 
 // The drive over one mounted disk: the function body is docs/sealed-loader.js's
 // diskReadBlock VERBATIM (fpga/tests/test_board_disk.py checks the two texts are
@@ -17,6 +19,11 @@ export function makeDrive(memory, mountedDisk) {
         return src.length;
     }
     return diskReadBlock;
+}
+
+// The page's kosFileOp (docs/sealed-loader.js, docs/kos-cfile.js): C:'s writes, KFS editing `img` in place.
+export function makeCFile(memory, img) {
+    return ZMKosFile.make(() => memory.buffer, img, new WebAssembly.Module(readFileSync("docs/kos-cfs.wasm")));
 }
 
 // The page's kosDriveRead (docs/sealed-loader.js), over `img`.

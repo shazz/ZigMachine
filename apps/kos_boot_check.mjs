@@ -75,7 +75,7 @@ function page(search) {
         },
         ZMDisk: { ...ZMDisk }, ZMRam: { ...ZMRam },
     });
-    for (const f of ["kos-boot.js", "sealed-loader.js"]) {
+    for (const f of ["kos-boot.js", "kos-cfile.js", "sealed-loader.js"]) {
         let src = execFileSync("cat", ["docs/" + f], { encoding: "utf8" });
         if (BREAK && f === "kos-boot.js") src = src.replace("isPlaneEnabled: (p) => p === 0,", "isPlaneEnabled: (p) => p <= 1,");
         if (BREAK_C && f === "sealed-loader.js") src = src.replace("function kosDriveRead(unit, sector, count, dst) {", "$& return 0;");
