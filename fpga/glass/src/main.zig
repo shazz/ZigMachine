@@ -1,18 +1,19 @@
 // glass: the ZigMachine console's ARM-side program (docs/FPGA_GLASS.md).
 //
-//   glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [SHELF_DIR]
+//   glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR]
 //                                   the board: /dev/mem windows, evdev input, the OSD menu;
 //                                   --no-wait: do not wait for the firmware's RUNNING
 //                                   (for a firmware that does not report CART_STATE yet);
 //                                   --mouse-scale: pointer speed, 100 = a pixel a count;
-//                                   --fw-opt: the system's A/B switches (afi.zig) for every cart
+//                                   --fw-opt: the system's A/B switches (afi.zig) for every cart;
+//                                   CARD_DIR (default /mnt/sd): the card, either layout (layout.zig)
 //   glass ctl COMMAND...            the running glass's control channel (ctl.zig, `ctl help`)
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
 //                                   to OUT, the placed disk to OUT.disk and its descriptor
 //                                   to OUT.desc; exit 1 unless
 //                                   the window is image, disk, descriptor and zeros
-//   glass sim-menu SHELF_DIR [PAGE] desktop: the menu the OSD would show, as text;
+//   glass sim-menu CARD_DIR [PAGE]  desktop: the menu the OSD would show, as text;
 //                                   PAGE = shelf (default), console or debug
 const std = @import("std");
 const map = @import("map.zig");
@@ -30,7 +31,7 @@ const ctl_sock = @import("ctl_sock.zig");
 const afi = @import("afi.zig");
 
 const linux = std.os.linux;
-const DEFAULT_SHELF = "/mnt/sd/zigmachine";
+const layout = @import("layout.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     var args = init.minimal.args.iterate();
@@ -75,7 +76,7 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [SHELF_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR [shelf|console|debug]\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu CARD_DIR [shelf|console|debug]\n", .{});
     return 2;
 }
 
@@ -116,7 +117,9 @@ fn simLoad(init: std.process.Init, disk_path: []const u8, out_path: []const u8, 
 fn simMenu(init: std.process.Init, dir: []const u8, page: menu.Page) !u8 {
     var glass = sim.Glass{};
     var words = [_]u32{0} ** 4;
-    var app = try App.init(init.gpa, init.io, glass.regs(), .{ .words = &words }, dir);
+    const dirs = try layout.detect(init.gpa, init.io, dir);
+    defer dirs.deinit(init.gpa);
+    var app = try App.init(init.gpa, init.io, glass.regs(), .{ .words = &words }, dirs);
     defer app.deinit();
     app.menu.page = page;
     app.redraw();
@@ -126,7 +129,7 @@ fn simMenu(init: std.process.Init, dir: []const u8, page: menu.Page) !u8 {
     return 0;
 }
 
-const RunOptions = struct { dir: []const u8 = DEFAULT_SHELF, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE, fw_opt: ?u32 = null };
+const RunOptions = struct { dir: []const u8 = layout.ROOT, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE, fw_opt: ?u32 = null };
 
 fn run(init: std.process.Init, opt: RunOptions) !u8 {
     const board = try devmem.open();
@@ -134,7 +137,10 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
         if (err == error.W64NeedsBoot) std.log.err("--fw-opt W64 needs HP1 64-bit since boot (boot.cmd 0xF00): reboot", .{});
         return err;
     };
-    var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), opt.dir);
+    const dirs = try layout.detect(init.gpa, init.io, opt.dir);
+    defer dirs.deinit(init.gpa);
+    std.log.info("card {s}: {t} layout, system {s}, carts {s}", .{ opt.dir, dirs.kind, dirs.sys, dirs.carts });
+    var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), dirs);
     defer app.deinit();
     app.opt.fw_opt = fw_opt;
     @import("kos_drive.zig").startThread(board.ddr().words); // KOS's C: (docs/KOS_FAT.md F5)
@@ -185,7 +191,7 @@ fn nowMs() i64 {
 
 // The SD card stays mounted read-only (S99glass) so a power cut cannot hurt it;
 // a settings save remounts it read-write for the write and the rename only.
-const SD_MOUNT = "/mnt/sd";
+const SD_MOUNT = layout.ROOT;
 
 fn sdWritable(rw: bool) bool {
     const flags: u32 = if (rw) linux.MS.REMOUNT else linux.MS.REMOUNT | linux.MS.RDONLY;

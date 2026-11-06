@@ -78,7 +78,7 @@ const Rig = struct {
 };
 
 fn started(r: *Rig) !App {
-    var a = try App.init(gpa, io, r.glass.regs(), r.ddr(), r.dir);
+    var a = try App.init(gpa, io, r.glass.regs(), r.ddr(), .flat(r.dir));
     press(&a, keymap.KEY_ENTER); // GEM over the data disk
     try std.testing.expectEqual(@as(?usize, 0), a.current);
     return a;
@@ -194,7 +194,7 @@ test "a cart boots another off the shelf by tag (a Union Demo door), and -1 goes
     defer r.deinit();
     try r.fat("demo-union_demo.zmd", "the street");
     try r.fat("demo-union_tnt1.zmd", "a door's screen");
-    var a = try App.init(gpa, io, r.glass.regs(), r.ddr(), r.dir);
+    var a = try App.init(gpa, io, r.glass.regs(), r.ddr(), .flat(r.dir));
     defer a.deinit();
     const street = index(&a, "demo-union_demo.zmd");
     a.menu.list.cursor = street;

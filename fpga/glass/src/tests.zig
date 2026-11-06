@@ -38,6 +38,7 @@ test {
     _ = @import("page_help_test.zig");
     _ = @import("app_shelf_test.zig");
     _ = @import("app_source_test.zig");
+    _ = @import("layout_test.zig");
     _ = @import("console_test.zig");
     _ = @import("text.zig");
     _ = @import("strip.zig");

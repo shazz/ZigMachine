@@ -51,7 +51,7 @@ pub const Rig = struct {
     }
 
     pub fn app(r: *Rig) !App {
-        return App.init(gpa, io, r.glass.regs(), .{ .words = &r.words }, r.dir);
+        return App.init(gpa, io, r.glass.regs(), .{ .words = &r.words }, .flat(r.dir));
     }
 };
 

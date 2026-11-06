@@ -131,7 +131,7 @@ pub fn planBoot(app: *App, disk: ?[]const u8, opt: loader.Options) !plan.Plan {
         if (z.boardImage()) |_| return loader.planFor(app.gpa, d, app.ddr.bytes(), opt) else |err| if (err != error.NoBoardImage) return err;
         if (z.bootable()) return error.NoBoardImage; // a cart the board has no image of
     }
-    const path = try std.fs.path.join(app.gpa, &.{ app.shelf_dir, DESKTOP });
+    const path = try std.fs.path.join(app.gpa, &.{ app.sys_dir, DESKTOP });
     defer app.gpa.free(path);
     const desk = std.Io.Dir.cwd().readFileAlloc(app.io, path, app.gpa, .limited(shelf.MAX_DISK)) catch |err|
         return if (err == error.FileNotFound) error.NoDesktop else err;

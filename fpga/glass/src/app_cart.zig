@@ -145,7 +145,7 @@ pub fn watch(app: *App) void {
 }
 
 pub fn loadSettings(app: *App) void {
-    const got = config.load(app.io, app.shelf_dir);
+    const got = config.load(app.io, app.sys_dir);
     app.menu.settings = got.settings;
     app.regs.write(map.REG_AUDIO_VOL, got.settings.audioWord());
     if (got.bad_line != 0) {
@@ -167,7 +167,7 @@ fn applySettings(app: *App) void {
 pub fn saveSettings(app: *App) void {
     if (!app.settings_dirty) return;
     if (app.sd_writable) |rw| if (!rw(true)) return app.menu.setStatus("not saved: card read-only", .{});
-    const res = config.save(app.io, app.shelf_dir, app.menu.settings);
+    const res = config.save(app.io, app.sys_dir, app.menu.settings);
     if (app.sd_writable) |rw| _ = rw(false);
     res catch |err| {
         std.log.warn("{s}: {t}", .{ config.FILE, err });
