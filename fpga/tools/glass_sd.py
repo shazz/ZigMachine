@@ -16,7 +16,7 @@ On the card (the layout: tools/sd_layout.py, decisions.md 2026-11-06; the root h
     zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot); the rootfs gets
                              this glass at /usr/bin/glass (S99glass runs it; tools/rootfs_glass.py)
     uImage, rootfs.ub        plan B: zeST's Linux (then `/mnt/KESTREL/glass run /mnt` at its shell)
-    KESTREL/glass            this ARM glass: S99glass runs it instead of the rootfs's when they differ
+    KESTREL/glass            this ARM glass when the staged rootfs does not carry it: S99glass runs it instead
     CARTS/<category>/demo-<tag>.zmd    the shelf: fat disks (wasm cart + rv32 BOARD image,
                              build/hcycles/board/<cart>/fw.bin; a data disk is staged as it is: tools/glass_shelf.py),
                              one folder a category (demos, games, tools, ...: tools/shelf_category.py)
@@ -128,9 +128,13 @@ def stage(
     for src, name in (("zImage", "zImage"), ("zigmachine-z7lite.dtb", "zigmachine.dtb")):
         rows.append(_copy(images / src if images else None, out, name, "plan A needs --buildroot (Buildroot output)"))
     rows.append(_rootfs(buildroot, out, epoch))
+    in_rootfs = "+ glass md5" in rows[-1][1]  # the rootfs carries this glass (stripped): no override
     rows += _zest_linux(out)
     (out / sd_layout.SYSTEM).mkdir(exist_ok=True)
-    rows.append(_copy(GLASS_ARM, out, sd_layout.GLASS, "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
+    if in_rootfs:
+        rows.append((sd_layout.GLASS, "none: this glass is the rootfs's /usr/bin/glass"))
+    else:  # S99glass runs it instead of the rootfs's (they differ); plan B runs it by hand
+        rows.append(_copy(GLASS_ARM, out, sd_layout.GLASS, "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
     (out / sd_layout.HD).mkdir(exist_ok=True)
     rows.append((f"{sd_layout.HD}/", "KOS's C: (an empty folder; files put there show in GEM)"))
     return rows + build_shelf(out, fw_dir, system=system)
