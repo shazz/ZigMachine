@@ -9,10 +9,15 @@ const std = @import("std");
 const fat = @import("fat.zig");
 const dir = @import("fat_dir.zig");
 const gp = @import("gemdos_path.zig");
+const abi = @import("kfs_abi.zig");
 
 /// `count` sectors from `sector` into `dst` (word-aligned): `count` or 0, all or nothing (the
 /// kosDriveRead rule, docs/KOS_FAT.md §4).
 pub const RunFn = *const fn (ctx: *anyopaque, sector: u32, count: u32, dst: [*]align(4) u8) u32;
+
+/// A write request to the host (kfs_abi.zig, env.kosFileOp): its TOS answer. The binding puts the
+/// slices' addresses in `req` (a cart's are wasm offsets); null: a read-only drive.
+pub const OpFn = *const fn (ctx: *anyopaque, req: *abi.Req, path: []const u8, path2: []const u8, data: []const u8) i32;
 
 pub const RUN = 8;
 pub const SLOTS = 4;
@@ -25,6 +30,7 @@ pub const Drive = struct {
     ctx: *anyopaque,
     max_run: u32, // the backend's longest request (1: a sector at a time)
     root_name: ?[]const u8, // the folder of the volume's root that is the drive's root (C: "HD")
+    op_fn: ?OpFn = null, // writes (C:): the host owns them at the file level
     state: State = .unknown,
     vol: fat.Volume = undefined,
     top: fat.Dir = .{},
@@ -47,6 +53,23 @@ pub const Drive = struct {
         d.state = .unknown;
         d.depth = 0;
         d.count = [_]u32{0} ** SLOTS;
+    }
+
+    /// The host changed the disk (a write this drive asked for): the cache and the volume are
+    /// read afresh at the next use; the current folder stays (by name).
+    pub fn forget(d: *Drive) void {
+        d.state = .unknown;
+        d.count = [_]u32{0} ** SLOTS;
+    }
+
+    /// A write request: the host's answer; the drive forgets what it had read, whatever it says
+    /// (a refused request may still have changed the disk half way).
+    pub fn send(d: *Drive, req: *abi.Req, path: []const u8, path2: []const u8, data: []const u8) i32 {
+        const f = d.op_fn orelse return -13; // EWRPRO
+        d.trips += 1;
+        const r = f(d.ctx, req, path, path2, data);
+        d.forget();
+        return r;
     }
 
     fn mount(d: *Drive) bool {

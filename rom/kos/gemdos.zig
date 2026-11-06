@@ -14,6 +14,9 @@ pub const File = @import("gemdos_file.zig").File;
 pub const search = @import("gemdos_search.zig");
 pub const Dta = search.Dta;
 pub const err = @import("gemdos_err.zig");
+const wr = @import("gemdos_write.zig");
+const wops = @import("gemdos_wops.zig");
+const abi = @import("kfs_abi.zig");
 const E = err.Error;
 
 pub const MAX_FILES = 8;
@@ -28,6 +31,9 @@ pub const Dos = struct {
     current: u8 = DRIVE_A,
     dta: ?*Dta = null, // null: own_dta (TOS's default DTA)
     own_dta: Dta = .{},
+    wfiles: [MAX_FILES]wr.WFile = [_]wr.WFile{.{}} ** MAX_FILES,
+    wbuf: [abi.DATA_MAX]u8 align(4) = undefined, // the write buffer: one, owned by the handle that wrote last
+    wowner: i32 = -1,
 
     pub const Fopen = io.Fopen;
     pub const Fclose = io.Fclose;
@@ -37,6 +43,12 @@ pub const Dos = struct {
     pub const Fgetdta = io.Fgetdta;
     pub const Fsfirst = io.Fsfirst;
     pub const Fsnext = io.Fsnext;
+    pub const Fcreate = wr.Fcreate;
+    pub const Fwrite = wr.Fwrite;
+    pub const Fdelete = wops.Fdelete;
+    pub const Frename = wops.Frename;
+    pub const Dcreate = wops.Dcreate;
+    pub const Ddelete = wops.Ddelete;
 
     /// A drive letter's backend (null: none); the drive mounts at its first use.
     pub fn attach(dos: *Dos, letter: u8, d: ?*Drive) void {
@@ -104,12 +116,11 @@ pub const Dos = struct {
         return 0;
     }
 
-    /// A file's or folder's attributes (a drive's root: FA_DIR). Setting them: write-protected.
+    /// A file's or folder's attributes (a drive's root: FA_DIR); wflag 1 sets them (a host write).
     pub fn Fattrib(dos: *Dos, path: []const u8, wflag: i32, attr: i32) i32 {
-        _ = attr;
+        if (wflag != 0) return wops.setattr(dos, path, attr);
         var e: fat.Entry = undefined;
         _ = dos.entryOf(path, &e) catch |x| return err.code(x);
-        if (wflag != 0) return err.EWRPRO;
         return e.attr;
     }
 

@@ -13,6 +13,7 @@ const S = fat.SECTOR;
 
 pub const File = struct {
     used: bool = false,
+    writing: bool = false, // Fcreate's: its state is the Dos's wfiles[] (gemdos_write.zig)
     drive: u8 = 0,
     entry: fat.Entry = .{},
     pos: u32 = 0,

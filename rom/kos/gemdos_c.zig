@@ -39,6 +39,24 @@ export fn Fseek(offset: i32, h: i32, mode: i32) i32 {
 export fn Fattrib(path: [*:0]const u8, wflag: i32, attr: i32) i32 {
     return cart.dos().Fattrib(str(path), wflag, attr);
 }
+export fn Fcreate(path: [*:0]const u8, attr: i32) i32 {
+    return cart.dos().Fcreate(str(path), attr);
+}
+export fn Fwrite(h: i32, count: i32, buf: [*]const u8) i32 {
+    return cart.dos().Fwrite(h, count, buf);
+}
+export fn Fdelete(path: [*:0]const u8) i32 {
+    return cart.dos().Fdelete(str(path));
+}
+export fn Frename(reserved: i32, old: [*:0]const u8, new: [*:0]const u8) i32 {
+    return cart.dos().Frename(reserved, str(old), str(new));
+}
+export fn Dcreate(path: [*:0]const u8) i32 {
+    return cart.dos().Dcreate(str(path));
+}
+export fn Ddelete(path: [*:0]const u8) i32 {
+    return cart.dos().Ddelete(str(path));
+}
 export fn Fsetdta(dta: *cart.Dta) void {
     cart.dos().Fsetdta(dta);
 }

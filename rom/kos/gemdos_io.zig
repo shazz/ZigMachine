@@ -7,6 +7,7 @@ const gp = @import("gemdos_path.zig");
 const search = @import("gemdos_search.zig");
 const err = @import("gemdos_err.zig");
 const fat = @import("fat.zig");
+const wr = @import("gemdos_write.zig");
 const Dos = gemdos.Dos;
 const File = gemdos.File;
 
@@ -23,15 +24,18 @@ pub fn Fopen(dos: *Dos, path: []const u8, mode: i32) i32 {
     return err.ENHNDL;
 }
 
+/// A file written to (Fcreate) is committed here: its answer is the save's.
 pub fn Fclose(dos: *Dos, h: i32) i32 {
     const f = file(dos, h) orelse return err.EIHNDL;
-    f.used = false;
-    return 0;
+    const r = if (f.writing) wr.close(dos, @intCast(h - gemdos.FIRST_HANDLE)) else 0;
+    f.* = .{};
+    return r;
 }
 
 /// Up to `count` bytes into `buf`; the count read (0 at the end).
 pub fn Fread(dos: *Dos, h: i32, count: i32, buf: [*]u8) i32 {
     const f = file(dos, h) orelse return err.EIHNDL;
+    if (f.writing) return err.EACCDN; // Fcreate opens for writing only
     if (count < 0) return err.ERANGE;
     const d = dos.drives[f.drive] orelse return err.EIHNDL;
     const got = f.read(d, buf[0..@intCast(count)]) catch return err.EREADF;
@@ -41,6 +45,7 @@ pub fn Fread(dos: *Dos, h: i32, count: i32, buf: [*]u8) i32 {
 /// Mode 0 from the start, 1 from the position, 2 from the end; the new position.
 pub fn Fseek(dos: *Dos, offset: i32, h: i32, mode: i32) i32 {
     const f = file(dos, h) orelse return err.EIHNDL;
+    if (f.writing) return wr.seek(dos, @intCast(h - gemdos.FIRST_HANDLE), offset, mode);
     const base: i64 = switch (mode) {
         0 => 0,
         1 => f.pos,
