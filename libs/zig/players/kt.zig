@@ -85,10 +85,11 @@ pub const KtPlayer = struct {
         self.core.render(self.pcm[0 .. 2 * fresh]);
         for (0..fresh) |k| {
             const smp = [2]i16{ self.pcm[2 * k], self.pcm[2 * k + 1] };
-            split(bufs, f, smp);
+            const b = bytes(smp); // once for the sample's two frames
+            put(bufs, f, b);
             f += 1;
             if (f < n) {
-                split(bufs, f, smp);
+                put(bufs, f, b);
                 f += 1;
             } else {
                 self.held = smp;
@@ -107,10 +108,21 @@ pub const KtPlayer = struct {
 
 /// Frame `f` of the four channels: each side's high and low byte (s = 256 h + l).
 fn split(bufs: [audio.NUM_CHANNELS][*]i8, f: u32, smp: [2]i16) void {
+    put(bufs, f, bytes(smp));
+}
+
+/// A sample's four channel bytes: hi L, hi R, lo L, lo R.
+inline fn bytes(smp: [2]i16) [audio.NUM_CHANNELS]i8 {
+    var b: [audio.NUM_CHANNELS]i8 = undefined;
     for (0..2) |side| {
         const s: i32 = @min(smp[side], 32639); // 256 * 127 + 127: the top a signed high byte holds
         const h = (s + 128) >> 8;
-        bufs[side][f] = @intCast(h);
-        bufs[2 + side][f] = @intCast(s - (h << 8));
+        b[side] = @intCast(h);
+        b[2 + side] = @intCast(s - (h << 8));
     }
+    return b;
+}
+
+inline fn put(bufs: [audio.NUM_CHANNELS][*]i8, f: u32, b: [audio.NUM_CHANNELS]i8) void {
+    for (0..audio.NUM_CHANNELS) |ch| bufs[ch][f] = b[ch];
 }
