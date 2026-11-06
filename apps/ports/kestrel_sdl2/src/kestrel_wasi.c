@@ -95,6 +95,16 @@ static int find(const char *p, uint32_t len)
 /* --- file descriptors: 0-2 console, 3 the root (preopen), 4.. open files or directory handles --- */
 #define ROOT_FD 3
 #define MAX_FDS 12
+/* KESTREL_CDRIVE (a port linking KOS GEMDOS, docs/KOS_GEMDOS.md): the functions below are the floppy's
+ * half; opt/kestrel_wasi_c.c holds the WASI entry points, which hand fd 4 (C:, the preopen "/C") and
+ * C:'s files to GEMDOS and the rest here. Without it they are the entry points, as before. */
+#ifdef KESTREL_CDRIVE
+#define WASI(name) kestrel_floppy_##name
+#define FIRST_FD (ROOT_FD + 2) /* fd 4 is C:'s preopen */
+#else
+#define WASI(name) __imported_wasi_snapshot_preview1_##name
+#define FIRST_FD (ROOT_FD + 1)
+#endif
 typedef struct { int used, dir, file; uint64_t pos; } fdesc_t;
 static fdesc_t fds[MAX_FDS];
 #ifdef WASI_TRACE
@@ -112,7 +122,7 @@ int32_t __imported_wasi_snapshot_preview1_args_sizes_get(int32_t argc, int32_t s
 int32_t __imported_wasi_snapshot_preview1_environ_get(int32_t env, int32_t buf) { (void)env; (void)buf; return 0; }
 int32_t __imported_wasi_snapshot_preview1_environ_sizes_get(int32_t n, int32_t size) { *(uint32_t *)(uintptr_t)n = 0; *(uint32_t *)(uintptr_t)size = 0; return 0; }
 
-int32_t __imported_wasi_snapshot_preview1_fd_prestat_get(int32_t fd, int32_t out)
+int32_t WASI(fd_prestat_get)(int32_t fd, int32_t out)
 {
     if (fd != ROOT_FD) return __WASI_ERRNO_BADF;
     __wasi_prestat_t *p = (__wasi_prestat_t *)(uintptr_t)out;
@@ -120,14 +130,14 @@ int32_t __imported_wasi_snapshot_preview1_fd_prestat_get(int32_t fd, int32_t out
     p->u.dir.pr_name_len = 1;
     return 0;
 }
-int32_t __imported_wasi_snapshot_preview1_fd_prestat_dir_name(int32_t fd, int32_t path, int32_t len)
+int32_t WASI(fd_prestat_dir_name)(int32_t fd, int32_t path, int32_t len)
 {
     if (fd != ROOT_FD || len < 1) return __WASI_ERRNO_BADF;
     *(char *)(uintptr_t)path = '/';
     return 0;
 }
 
-int32_t __imported_wasi_snapshot_preview1_fd_fdstat_get(int32_t fd, int32_t out)
+int32_t WASI(fd_fdstat_get)(int32_t fd, int32_t out)
 {
     __wasi_fdstat_t *st = (__wasi_fdstat_t *)(uintptr_t)out;
     memset(st, 0, sizeof *st);
@@ -138,9 +148,9 @@ int32_t __imported_wasi_snapshot_preview1_fd_fdstat_get(int32_t fd, int32_t out)
     st->fs_rights_base = st->fs_rights_inheriting = ~(__wasi_rights_t)0;
     return 0;
 }
-int32_t __imported_wasi_snapshot_preview1_fd_fdstat_set_flags(int32_t fd, int32_t f) { (void)f; return (fd >= 0 && fd <= ROOT_FD) || fd_get(fd) ? 0 : __WASI_ERRNO_BADF; }
+int32_t WASI(fd_fdstat_set_flags)(int32_t fd, int32_t f) { (void)f; return (fd >= 0 && fd <= ROOT_FD) || fd_get(fd) ? 0 : __WASI_ERRNO_BADF; }
 
-int32_t __imported_wasi_snapshot_preview1_fd_close(int32_t fd)
+int32_t WASI(fd_close)(int32_t fd)
 {
     fdesc_t *f = fd_get(fd);
     if (f) { f->used = 0; return 0; }
@@ -148,9 +158,15 @@ int32_t __imported_wasi_snapshot_preview1_fd_close(int32_t fd)
 }
 /* Zig 0.16 implements close() in Zig (lib/c/unistd.zig closeWasi), importing fd_close directly past the
  * symbols above; this close() keeps that one out of the link. */
-int close(int fd) { return __imported_wasi_snapshot_preview1_fd_close(fd) ? -1 : 0; }
+#ifdef KESTREL_CDRIVE
+int32_t kestrel_wasi_fd_close(int32_t fd); /* opt/kestrel_wasi_c.c: C:'s or the floppy's */
+#define CLOSE_FD kestrel_wasi_fd_close
+#else
+#define CLOSE_FD __imported_wasi_snapshot_preview1_fd_close
+#endif
+int close(int fd) { return CLOSE_FD(fd) ? -1 : 0; }
 
-int32_t __imported_wasi_snapshot_preview1_fd_read(int32_t fd, int32_t iovs, int32_t n, int32_t got)
+int32_t WASI(fd_read)(int32_t fd, int32_t iovs, int32_t n, int32_t got)
 {
     uint32_t total = 0;
     fdesc_t *f = fd_get(fd);
@@ -176,7 +192,7 @@ int32_t __imported_wasi_snapshot_preview1_fd_read(int32_t fd, int32_t iovs, int3
     return 0;
 }
 
-int32_t __imported_wasi_snapshot_preview1_fd_write(int32_t fd, int32_t iovs, int32_t n, int32_t put)
+int32_t WASI(fd_write)(int32_t fd, int32_t iovs, int32_t n, int32_t put)
 {
     if (fd != 1 && fd != 2) return fd_get(fd) ? __WASI_ERRNO_ROFS : __WASI_ERRNO_BADF;
     const __wasi_ciovec_t *v = (const __wasi_ciovec_t *)(uintptr_t)iovs;
@@ -189,7 +205,7 @@ int32_t __imported_wasi_snapshot_preview1_fd_write(int32_t fd, int32_t iovs, int
     return 0;
 }
 
-int32_t __imported_wasi_snapshot_preview1_fd_seek(int32_t fd, int64_t off, int32_t whence, int32_t out)
+int32_t WASI(fd_seek)(int32_t fd, int64_t off, int32_t whence, int32_t out)
 {
     fdesc_t *f = fd_get(fd);
     if (!f) return fd >= 0 && fd <= 2 ? __WASI_ERRNO_SPIPE : __WASI_ERRNO_BADF;
@@ -208,7 +224,7 @@ static void fill_stat(__wasi_filestat_t *st, int file)
     if (file < 0) { st->filetype = __WASI_FILETYPE_DIRECTORY; st->ino = 1; }
     else { st->filetype = __WASI_FILETYPE_REGULAR_FILE; st->ino = (uint64_t)file + 2; st->size = files[file].len; }
 }
-int32_t __imported_wasi_snapshot_preview1_fd_filestat_get(int32_t fd, int32_t out)
+int32_t WASI(fd_filestat_get)(int32_t fd, int32_t out)
 {
     fdesc_t *f = fd_get(fd);
     if (fd == ROOT_FD || (f && f->dir)) { fill_stat((__wasi_filestat_t *)(uintptr_t)out, -1); return 0; }
@@ -216,7 +232,7 @@ int32_t __imported_wasi_snapshot_preview1_fd_filestat_get(int32_t fd, int32_t ou
     fill_stat((__wasi_filestat_t *)(uintptr_t)out, f->file);
     return 0;
 }
-int32_t __imported_wasi_snapshot_preview1_path_filestat_get(int32_t fd, int32_t flags, int32_t path, int32_t len, int32_t out)
+int32_t WASI(path_filestat_get)(int32_t fd, int32_t flags, int32_t path, int32_t len, int32_t out)
 {
     (void)flags;
     TRACE("filestat fd %d '%.*s'", (int)fd, (int)len, (const char *)(uintptr_t)path);
@@ -229,7 +245,7 @@ int32_t __imported_wasi_snapshot_preview1_path_filestat_get(int32_t fd, int32_t 
     return 0;
 }
 
-int32_t __imported_wasi_snapshot_preview1_path_open(int32_t fd, int32_t dirflags, int32_t path, int32_t len, int32_t oflags,
+int32_t WASI(path_open)(int32_t fd, int32_t dirflags, int32_t path, int32_t len, int32_t oflags,
                                                     int64_t rights_base, int64_t rights_inh, int32_t fdflags, int32_t out)
 {
     (void)dirflags; (void)rights_base; (void)rights_inh; (void)fdflags;
@@ -240,7 +256,7 @@ int32_t __imported_wasi_snapshot_preview1_path_open(int32_t fd, int32_t dirflags
     int dir = is_root(p, (uint32_t)len), file = dir ? -1 : find(p, (uint32_t)len);
     if (!dir && file < 0) return __WASI_ERRNO_NOENT;
     if ((oflags & __WASI_OFLAGS_DIRECTORY) && !dir) return __WASI_ERRNO_NOTDIR;
-    for (int i = ROOT_FD + 1; i < MAX_FDS; i++) {
+    for (int i = FIRST_FD; i < MAX_FDS; i++) {
         if (fds[i].used) continue;
         fds[i] = (fdesc_t){ 1, dir, file, 0 };
         *(int32_t *)(uintptr_t)out = i;
@@ -250,7 +266,7 @@ int32_t __imported_wasi_snapshot_preview1_path_open(int32_t fd, int32_t dirflags
 }
 
 /* Directory entries: one record (24-byte dirent + name) per file; the cookie is the next index. */
-int32_t __imported_wasi_snapshot_preview1_fd_readdir(int32_t fd, int32_t buf, int32_t buf_len, int64_t cookie, int32_t used)
+int32_t WASI(fd_readdir)(int32_t fd, int32_t buf, int32_t buf_len, int64_t cookie, int32_t used)
 {
     TRACE("readdir fd %d cookie %d cap %d", (int)fd, (int)cookie, (int)buf_len);
     if (!is_dir_fd(fd)) return __WASI_ERRNO_NOTDIR;

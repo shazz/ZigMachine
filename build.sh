@@ -221,6 +221,7 @@ NATIVE_TESTS="
     rom/gem/desktop/stamp.zig
     rom/gem/desktop/dirmodel_test.zig
     rom/kos/fat_test.zig
+    rom/kos/gemdos_test.zig
     rom/gem/desktop/deskinf.zig
     rom/gem/gui/grid.zig
     apps/zig/scenes/stniccc/stream.zig
@@ -271,6 +272,7 @@ tools/mkdisks.sh
 python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
 python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?c=kos-c.img) is what its generator writes
+python3 tools/gemdos_c_image.py --check   # docs/gemdos-c.img (KOS GEMDOS's C: with pictures in folders, ?c=gemdos-c.img) is what its generator writes
 python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 python3 tools/gen_tutorial.py --check   # TUTORIAL.html regenerated from TUTORIAL.md
 python3 -m unittest discover -q -s tools/tests -t tools   # the doc generators' own tests
@@ -642,6 +644,9 @@ gate ports_pt2 node apps/pt2_paula_headless.mjs --break owner   # ...and the wor
 gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels; Q + Discard quits back to GEM
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break quit   # ...and no quit is caught
+gate ports_grafx2 node apps/gemdos_grafx2_check.mjs   # KOS GEMDOS (docs/KOS_GEMDOS.md): GrafX2 launched from GEM with docs/gemdos-c.img as C:; its file selector offers "/C", lists C:\, PICTURES, PLASMA (pinned), and ZIGPLASM.PI1 loaded from C:\PICTURES\PLASMA equals, frame hash for hash, the floppy's copy loaded; C: costs <= 16 round trips
+gate ports_grafx2 node apps/gemdos_grafx2_check.mjs --break c   # ...and a C: that answers nothing (kosDriveRead 0) is caught
+gate ports_grafx2 node apps/gemdos_grafx2_check.mjs --break bytes   # ...and one byte of the picture changed on C: is caught (the oracle checks the bytes)
 gate ports_klystrack node apps/ports_headless.mjs klystrack   # KLYSTRACK (C, Asyncify): boots on the Default theme bundle with STARPRT2.KT opened off the floppy, launched from GEM, UI pinned; the pointer moves over the idle UI (no repaint); F5 after cyd went quiet hands the song to the machine's .kt player (a .kt via requestSongBytes kind 5 that the audio modules play, cyd's stream stopped) and the screen follows play; a note typed while it plays re-sends it from the row playing; Esc (and No to "Save song?") quits back to GEM
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break silent   # ...and F5 never pressed (silence) is caught
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break edit   # ...and no edit while it plays (nothing re-sent) is caught
