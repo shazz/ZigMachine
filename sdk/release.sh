@@ -40,8 +40,8 @@ git -C "$ROOT" diff --quiet "$REV" -- sdk build.zig fpga/cycles/sys_abi.txt ||
 abi_version() { awk '$1 == "version" { split($2, v, "."); printf "0x%x\n", v[1] * 65536 + v[2]; exit }'; }
 TABLE="$(git -C "$ROOT" show "$SHA:fpga/cycles/sys_abi.txt" | abi_version)"
 if [ -n "$CARD" ]; then
-    [ -f "$CARD/zigmachine/system.rv32" ] || { echo "release: $CARD has no zigmachine/system.rv32"; exit 1; }
-    CARD_TABLE="$(sed -n 's/^zigmachine\/system.rv32 .*(table \([0-9]*\.[0-9]*\)).*/version \1/p' "$CARD/MANIFEST.txt" | abi_version)"
+    [ -f "$CARD/KESTREL/system.rv32" ] || { echo "release: $CARD has no KESTREL/system.rv32 (fpga/tools/sd_layout.py)"; exit 1; }
+    CARD_TABLE="$(sed -n 's/^KESTREL\/system.rv32 .*(table \([0-9]*\.[0-9]*\)).*/version \1/p' "$CARD/MANIFEST.txt" | abi_version)"
     [ "$CARD_TABLE" = "$TABLE" ] || { echo "release: the card's system serves table $CARD_TABLE, $REV's carts need $TABLE"; exit 1; }
 fi
 

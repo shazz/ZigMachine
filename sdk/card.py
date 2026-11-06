@@ -6,7 +6,8 @@
 The board runs the card's system.rv32 (prebuilt in the SDK release) and, from each fat disk, a
 lean cart image (`make -C fpga split-cart`). This writes ONE fat disk, the cart's .zmd with its
 cart.bin ZX0-packed as one more FAT file (fpga/tools/zmd_fat.py, as glass_shelf.py does for the
-shelf), at <out>/zigmachine/<category>/demo-<tag>.zmd, and its line in <out>/zigmachine/shelf.txt.
+shelf), at <out>/CARTS/<category>/demo-<tag>.zmd, and its line in <out>/CARTS/shelf.txt (the card's
+layout: fpga/tools/sd_layout.py).
 With --card, <out> starts as a copy of the release's card, so it is the whole card to copy over.
 With --release, the cart's system-table version is checked against the release's system image
 (split_image.check_pair): a cart the card's system would refuse is refused here, not on the board.
@@ -27,7 +28,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "fpga/tools"))
 sys.path.insert(0, str(ROOT / "fpga/gen"))
-import shelf_category  # after the path insert
+import sd_layout  # after the path insert
+import shelf_category
 import split_image
 import zmd_fat
 
@@ -55,9 +57,9 @@ def shelf_line(rel: str, a: argparse.Namespace) -> str:
     return "\t".join(ascii_text(f) for f in fields) + "\n"
 
 
-def write_shelf(zm: Path, rel: str, line: str) -> None:
+def write_shelf(carts: Path, rel: str, line: str) -> None:
     """Our line replaces any older one for the same disk; every other line is kept."""
-    path = zm / SHELF
+    path = carts / SHELF
     old = path.read_text().splitlines(keepends=True) if path.exists() else [SHELF_HEAD]
     keep = [ln for ln in old if ln.split("\t", 1)[0] != rel]
     path.write_text("".join(keep) + line)
@@ -74,17 +76,17 @@ def stage(a: argparse.Namespace) -> list[str]:
             raise SystemExit(f"card: {a.cart}: {e}; rebuild against this SDK release") from e
     if a.card:
         shutil.copytree(a.card, a.out, dirs_exist_ok=True)
-    zm = a.out / "zigmachine"
+    carts = a.out / sd_layout.CARTS
     rel = f"{a.category}/demo-{a.tag}.zmd"
     packed = a.out / f"{a.tag}.rv32.zx0"
     a.out.mkdir(parents=True, exist_ok=True)
     subprocess.run([a.zx0pack, a.cart, packed], check=True, capture_output=True)
-    disk = zm / rel
+    disk = carts / rel
     disk.parent.mkdir(parents=True, exist_ok=True)
     disk.write_bytes(zmd_fat.fatten(a.disk.read_bytes(), packed.read_bytes()))
     packed.unlink()
-    write_shelf(zm, rel, shelf_line(rel, a))
-    return [f"zigmachine/{rel}", f"zigmachine/{SHELF}"]
+    write_shelf(carts, rel, shelf_line(rel, a))
+    return [sd_layout.cart(rel), sd_layout.cart(SHELF)]
 
 
 def main() -> None:

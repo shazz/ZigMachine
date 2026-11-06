@@ -313,7 +313,7 @@ uv run python tools/glass_sd.py --out build/glass/sd \
   "THIS DISK RUNS ON KESTREL ONLY" (`cycles/native/browser_stub.c`), titled `HELLO WORLD (C)` /
   `HELLO WORLD (ASM)`. `glass_shelf.py` takes `<fw-dir>/<tag>/disk.zmd` instead of
   `docs/demo-<tag>.zmd` when there is one, so `glass_sd.py` stages the carts as
-  `zigmachine/tests/demo-hello.zmd` and `demo-hello_asm.zmd` (the OSD's TESTS/ folder).
+  `CARTS/tests/demo-hello.zmd` and `demo-hello_asm.zmd` (the OSD's TESTS/ folder).
 - `fpga/tests/test_native_cart.py` builds both, checks the headers and the disk, stages a card, and
   holds the tutorial's listings to the sources.
 

@@ -2966,7 +2966,7 @@ uv run python tools/glass_sd.py --out build/glass/sd \
 `make native-cart` checks the image as the board will (the magic, a table
 version the system serves, the header size, the `.bss` end) and writes a disk
 whose boot cart is the browser stub. `glass_sd.py` then packs the cart into
-`zigmachine/tests/demo-hello.zmd` and `demo-hello_asm.zmd` like any other cart. The
+`CARTS/tests/demo-hello.zmd` and `demo-hello_asm.zmd` like any other cart. The
 C cart is 656 bytes and the assembly one 624: the system image
 holds everything else.
 

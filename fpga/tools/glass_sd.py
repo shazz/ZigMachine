@@ -9,21 +9,23 @@ Nothing is written to a device: copy the directory's contents onto the card's
 first (FAT32) partition yourself. MANIFEST.txt in it lists every file, where it
 came from, and what is still missing.
 
-On the card:
+On the card (the layout: tools/sd_layout.py, decisions.md 2026-11-06; the root holds the boot files only):
     BOOT.BIN                 zeST's (FSBL + U-Boot): DDR, clocks and MIO without Vivado
     boot.scr                 fpga/glass/boot/boot.cmd, compiled
     zigmachine.bit           the board SoC (--bit; default the blitter one, build/board_hp/zm_blit_vivado_100.bit)
     zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot); the rootfs gets
                              this glass at /usr/bin/glass (S99glass runs it; tools/rootfs_glass.py)
-    uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
-    zigmachine/<category>/demo-<tag>.zmd    the shelf: fat disks (wasm cart + rv32 BOARD image,
+    uImage, rootfs.ub        plan B: zeST's Linux (then `/mnt/KESTREL/glass run /mnt` at its shell)
+    KESTREL/glass            this ARM glass: S99glass runs it instead of the rootfs's when they differ
+    CARTS/<category>/demo-<tag>.zmd    the shelf: fat disks (wasm cart + rv32 BOARD image,
                              build/hcycles/board/<cart>/fw.bin; a data disk is staged as it is: tools/glass_shelf.py),
                              one folder a category (demos, games, tools, ...: tools/shelf_category.py)
-    zigmachine/kos/desktop.rv32  KOS's desktop (GEM's board image), booted for a data disk or an empty drive
-    zigmachine/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
-    zigmachine/system.rv32   --system: firmware + machine + ROM + BARD, once; the fat disks then carry lean
+    CARTS/shelf.txt          what the OSD says about each cart (tools/shelf_meta.py)
+    KESTREL/kos/desktop.rv32 KOS's desktop (GEM's board image), booted for a data disk or an empty drive
+    KESTREL/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
+    KESTREL/system.rv32      --system: firmware + machine + ROM + BARD, once; the fat disks then carry lean
                              carts (<fw-dir>/<cart>/cart.bin) that it runs (tools/glass_shelf.py Images)
-    zigmachine/shelf.txt     what the OSD says about each cart (tools/shelf_meta.py)
+    HD/                      KOS's C: (empty here: the desktop shows nothing above it)
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import rootfs_glass  # after the path insert
+import sd_layout
 from glass_shelf import BOARD_FW, OS_CART, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
@@ -126,8 +129,11 @@ def stage(
         rows.append(_copy(images / src if images else None, out, name, "plan A needs --buildroot (Buildroot output)"))
     rows.append(_rootfs(buildroot, out, epoch))
     rows += _zest_linux(out)
-    rows.append(_copy(GLASS_ARM, out, "glass", "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
-    return rows + build_shelf(out / "zigmachine", fw_dir, system=system)
+    (out / sd_layout.SYSTEM).mkdir(exist_ok=True)
+    rows.append(_copy(GLASS_ARM, out, sd_layout.GLASS, "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
+    (out / sd_layout.HD).mkdir(exist_ok=True)
+    rows.append((f"{sd_layout.HD}/", "KOS's C: (an empty folder; files put there show in GEM)"))
+    return rows + build_shelf(out, fw_dir, system=system)
 
 
 def manifest(out: Path, rows: list[tuple[str, str]]) -> str:

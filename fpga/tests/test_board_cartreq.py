@@ -71,12 +71,12 @@ def test_the_shelf_prebuilds_boot_wsm_as_the_st_replay_carts_image(tmp_path: Pat
     _fw(fws, "gem")
     _fw(fws, "st_replay")
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("st_replay",)))
-    assert rows["zigmachine/progs/demo-st_replay/BOOT.WSM.zmd"].endswith("st_replay/fw.bin (BOOT.WSM)")
-    fat = (tmp_path / "sd/progs/demo-st_replay/BOOT.WSM.zmd").read_bytes()
+    assert rows["KESTREL/progs/demo-st_replay/BOOT.WSM.zmd"].endswith("st_replay/fw.bin (BOOT.WSM)")
+    fat = (tmp_path / "sd/KESTREL/progs/demo-st_replay/BOOT.WSM.zmd").read_bytes()
     shelf = ST_REPLAY.read_bytes()
     assert [f[0] for f in zmd_fat.files(fat)] == ["BOOT.WSM", "SAMPLE.RAW", "CART.RV32"]
     assert fat[0x600 : len(shelf)] == shelf[0x600:]  # the same data disk goes back in DDR
-    assert not list((tmp_path / "sd").glob("progs/**/SAMPLE.RAW*"))  # a data file is no program
+    assert not list((tmp_path / "sd").glob("KESTREL/progs/**/SAMPLE.RAW*"))  # a data file is no program
 
 
 def test_sysinfo_is_a_data_disk_whose_boot_wsm_is_the_sysinfo_carts_image(tmp_path: Path) -> None:
@@ -84,12 +84,12 @@ def test_sysinfo_is_a_data_disk_whose_boot_wsm_is_the_sysinfo_carts_image(tmp_pa
     _fw(fws, "gem")
     _fw(fws, "sysinfo")
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("sysinfo",)))
-    assert rows["zigmachine/tools/demo-sysinfo.zmd"].endswith("(a data disk: KOS's desktop boots over it)")  # Q has a GEM to go back to
-    assert rows["zigmachine/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")
-    assert rows["zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd"].endswith("sysinfo/fw.bin (BOOT.WSM)")
-    fat = (tmp_path / "sd/progs/demo-sysinfo/BOOT.WSM.zmd").read_bytes()
+    assert rows["CARTS/tools/demo-sysinfo.zmd"].endswith("(a data disk: KOS's desktop boots over it)")  # Q has a GEM to go back to
+    assert rows["KESTREL/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")
+    assert rows["KESTREL/progs/demo-sysinfo/BOOT.WSM.zmd"].endswith("sysinfo/fw.bin (BOOT.WSM)")
+    fat = (tmp_path / "sd/KESTREL/progs/demo-sysinfo/BOOT.WSM.zmd").read_bytes()
     assert [f[0] for f in zmd_fat.files(fat)] == ["BOOT.WSM", "JINKS.SND", "GAUNTLET.SAP", "SAMPLE.RAW", "KEYGEN.XM", "THALION.HIP", "CART.RV32"]
-    assert not list((tmp_path / "sd").glob("progs/**/JINKS.SND*"))  # the sound files are data, not programs
+    assert not list((tmp_path / "sd").glob("KESTREL/progs/**/JINKS.SND*"))  # the sound files are data, not programs
 
 
 def test_a_program_without_its_carts_firmware_is_missing(tmp_path: Path) -> None:
@@ -97,8 +97,8 @@ def test_a_program_without_its_carts_firmware_is_missing(tmp_path: Path) -> None
     _fw(fws, "gem")
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("st_replay",)))
     want = f"MISSING: no {fws / 'st_replay' / 'fw.bin'}; make -C fpga board-fw CART=st_replay"
-    assert rows["zigmachine/progs/demo-st_replay/BOOT.WSM.zmd"] == want
-    assert rows["zigmachine/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")  # the desktop is still staged
+    assert rows["KESTREL/progs/demo-st_replay/BOOT.WSM.zmd"] == want
+    assert rows["KESTREL/kos/desktop.rv32"].endswith("gem/fw.bin (KOS's desktop)")  # the desktop is still staged
 
 
 def test_a_program_that_is_no_cart_of_the_matrix_is_missing(tmp_path: Path) -> None:
