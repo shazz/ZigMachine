@@ -240,7 +240,7 @@ desktop (≤ 6 frames after boot); then the board.
   exports in all three hosts), so the desktop still runs as its small shell cart, `gem`. What
   moved is where it comes from: the system, not the disk. The browser fetches `demo-gem.wasm`
   as part of the page, and the SD card carries GEM's board image once, as
-  `zigmachine/kos/desktop.rv32`, beside `system.rv32`; data disks are staged as plain files and
+  `KESTREL/kos/desktop.rv32` (once `zigmachine/kos/`), beside `system.rv32`; data disks are staged as plain files and
   `gem` left the shelf. Making the ROM a frame-loop owner (so the desktop runs with no cart) is
   a host contract change for all three hosts, and is not needed for anything v1 shows.
 - **§4.3 "the boot program in `rom/boot/`".** The shared, pixel-making half is `rom/kos/` (the
