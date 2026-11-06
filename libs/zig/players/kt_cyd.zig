@@ -68,7 +68,7 @@ pub const Adsr = struct {
 };
 
 pub const WaveState = struct {
-    direction: u1 = 0, // 0 forward, 1 backward
+    direction: u8 = 0, // 0 forward, 1 backward (a byte: a u1 field kept the struct out of registers)
     playing: bool = false,
     acc: u32 = 0,
     frequency: u32 = 0,

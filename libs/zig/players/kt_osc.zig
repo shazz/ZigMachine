@@ -48,12 +48,13 @@ inline fn runLfsrs(ch: *c.Channel) void {
     }
 }
 
-/// cyd_advance_oscillators: one sample of every sub-oscillator's phase.
-pub inline fn advance(ch: *c.Channel) void {
+/// cyd_advance_oscillators: one sample of every sub-oscillator's phase (of those `subs` names: the
+/// others are idle, kt_block.zig).
+pub inline fn advance(ch: *c.Channel, comptime subs: u3) void {
     const lfsr = ch.flags & c.LFSR != 0;
     // Frequency 0: the phase stays (it is kept below ACC_LENGTH), so no sync bit and no noise step;
     // only the LFSR, when on, still moves.
-    inline for (&ch.subosc, 0..) |*o, s| if (o.frequency != 0 or lfsr) step(ch, o, s == 0);
+    inline for (&ch.subosc, 0..) |*o, s| if (subs >> s & 1 != 0 and (o.frequency != 0 or lfsr)) step(ch, o, s == 0);
 }
 
 inline fn step(ch: *c.Channel, o: *c.Osc, comptime first: bool) void {

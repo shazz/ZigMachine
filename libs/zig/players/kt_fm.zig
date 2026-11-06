@@ -63,17 +63,18 @@ pub inline fn cycle(rate: u32, fm: *c.Fm) void {
     fm.current_modulation = m;
 }
 
-/// cydfm_modulate(cyd, fm, 0): the carrier's phase offset.
-pub inline fn modulate(fm: *const c.Fm) u32 {
-    const m: u32 = @truncate(@as(u64, fm.current_modulation) * c.ACC_LENGTH * 8 / MODULATOR_MAX);
+/// cydfm_modulate(cyd, fm, 0): the carrier's phase offset, for the modulator's output `cur`
+/// (fm.current_modulation; kt_passes.zig keeps a block of them).
+pub inline fn modulate(cur: u32) u32 {
+    const m: u32 = @truncate(@as(u64, cur) * c.ACC_LENGTH * 8 / MODULATOR_MAX);
     return m % c.ACC_LENGTH;
 }
 
-/// cydfm_modulate_wave: a wavetable carrier's phase, offset within its loop.
-pub inline fn modulateWave(fm: *const c.Fm, e: *const song.WaveEntry, acc: u32) u32 {
+/// cydfm_modulate_wave: a wavetable carrier's phase, offset within its loop by the modulator's `cur`.
+pub inline fn modulateWave(cur: u32, e: *const song.WaveEntry, acc: u32) u32 {
     if (e.loop_begin == e.loop_end) return acc;
     const length = e.span;
     if (length == 0) return 0; // upstream divides by 0 here: a loop of 2^21 samples; never in a real song
-    const m: u32 = (fm.current_modulation *% length *% 8) / MODULATOR_MAX;
+    const m: u32 = (cur *% length *% 8) / MODULATOR_MAX;
     return modSpan(m +% acc, e);
 }

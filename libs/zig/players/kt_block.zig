@@ -15,6 +15,7 @@ const song = @import("kt_song.zig");
 const syn = @import("kt_synth.zig");
 const osc = @import("kt_osc.zig");
 const fxb = @import("kt_fxblock.zig");
+const passes = @import("kt_passes.zig");
 
 pub const BLOCK = 64;
 /// The mix's words: the dry pair, then each bus's pair, BLOCK samples each.
@@ -29,14 +30,42 @@ pub fn eligible(sy: *const syn.Synth) bool {
     return true;
 }
 
-/// One channel's `n` samples, panned and added into dl/dr (its bus or the dry mix): the loop built for
-/// what the channel uses this block (kt_synth.zig Kind), 16 of them.
+/// One channel's `n` samples, panned and added into dl/dr (its bus or the dry mix). Most channels run
+/// in passes (kt_passes.zig), built for whether the channel has oscillators and a filter and whether
+/// sub-oscillators 1 and 2 are idle (a voice playing one note, the common case): 8 of them, the FM
+/// and wavetable stages chosen at run time (a pass each). An envelope-overriding wavetable runs the
+/// one-loop form, built for what the channel uses this block (kt_synth.zig Kind), 16 of them.
 fn channel(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32) void {
     const f = chp.flags;
-    switch (@as(u4, @intFromBool(f & c.WAVEFORMS & ~c.WAVE != 0)) | @as(u4, @intFromBool(f & c.FM != 0)) << 1 |
-        @as(u4, @intFromBool(f & c.WAVE != 0)) << 2 | @as(u4, @intFromBool(f & c.FILTER != 0)) << 3) {
+    const has_osc = f & c.WAVEFORMS & ~c.WAVE != 0;
+    const has_filter = f & c.FILTER != 0;
+    if (passes.fits(chp)) {
+        switch (@as(u3, @intFromBool(has_osc)) | @as(u3, @intFromBool(has_filter)) << 1 |
+            @as(u3, @intFromBool(idle(chp, 1) and idle(chp, 2))) << 2) {
+            inline else => |v| passes.channel(rate, chp, n, dl, dr, .{
+                .osc = v & 1 != 0,
+                .filter = v & 2 != 0,
+                .subs = if (v & 4 != 0) 0b001 else 0b111,
+            }),
+        }
+        return;
+    }
+    switch (@as(u4, @intFromBool(has_osc)) | @as(u4, @intFromBool(f & c.FM != 0)) << 1 |
+        @as(u4, @intFromBool(f & c.WAVE != 0)) << 2 | @as(u4, @intFromBool(has_filter)) << 3) {
         inline else => |v| channelK(rate, chp, n, dl, dr, .{ .osc = v & 1 != 0, .fm = v & 2 != 0, .wave = v & 4 != 0, .filter = v & 8 != 0 }),
     }
+}
+
+/// Sub-oscillator `i` does nothing for the block: no phase step (frequency 0, no LFSR), no
+/// wavetable voice (stopped, or at frequency 0 inside its sample, where kt_wave.zig cycle leaves it).
+fn idle(ch: *const c.Channel, i: usize) bool {
+    const o = &ch.subosc[i];
+    if (o.frequency != 0 or ch.flags & c.LFSR != 0) return false;
+    if (ch.flags & c.WAVE == 0 or !o.wave.playing) return true;
+    if (o.wave.frequency != 0) return false;
+    const e = ch.wave_entry orelse return true;
+    const looped = e.flags & song.WAVE_LOOP != 0 and e.loop_end != e.loop_begin;
+    return o.wave.direction == 0 and o.wave.acc / c.WAVETABLE_RESOLUTION < (if (looped) e.loop_end else e.samples);
 }
 
 noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i32, comptime k: syn.Kind) void {
@@ -49,7 +78,7 @@ noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i3
             dr[t] +%= @divTrunc(o *% ch.gain_right, c.STEREO_GAIN);
         } else {
             ch.sync_bit = 0;
-            osc.advance(&ch); // unheard: the phase and noise still move
+            osc.advance(&ch, k.subs); // unheard: the phase and noise still move
         }
         syn.cycleOne(rate, &ch, k);
     }

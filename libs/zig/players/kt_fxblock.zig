@@ -28,13 +28,23 @@ pub fn output(b: *fx.Bus, l: [*]i32, r: [*]i32, n: usize) void {
     }
     if (rv) writeLine(&b.rvb, l, n); // the reverb's input is the bus's left input, before the chorus
     const p0 = b.rvb.position; // the line position of the block's last sample
-    if (b.flags & song.FX_CHORUS != 0) for (0..n) |t| {
-        const in_l = l[t];
-        const in_r = r[t];
-        chorus.output(&b.chr, in_l, in_r, &l[t], &r[t]);
-    };
+    // The chorus and crusher state in locals: the bus's l, r stores could alias the struct's fields
+    // for all the compiler knows, so each field was reloaded every sample.
+    if (b.flags & song.FX_CHORUS != 0) {
+        var chr = b.chr;
+        for (0..n) |t| {
+            const in_l = l[t];
+            const in_r = r[t];
+            chorus.output(&chr, in_l, in_r, &l[t], &r[t]);
+        }
+        b.chr = chr;
+    }
     if (rv) rt.run(&b.rvb.plan, b.rvb.line, l, r, n, p0);
-    if (b.flags & song.FX_CRUSH != 0) for (0..n) |t| fx.crushSample(&b.crush, &l[t], &r[t]);
+    if (b.flags & song.FX_CRUSH != 0) {
+        var k = b.crush;
+        for (0..n) |t| fx.crushSample(&k, &l[t], &r[t]);
+        b.crush = k;
+    }
 }
 
 fn writeLine(rv: *fx.Reverb, l: [*]const i32, n: usize) void {
