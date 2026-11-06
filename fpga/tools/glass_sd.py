@@ -31,11 +31,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import shutil
-import struct
 import sys
 import tarfile
 import time
-import zlib
 from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -43,6 +41,7 @@ ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import rootfs_glass  # after the path insert
 from glass_shelf import BOARD_FW, OS_CART, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
+from uboot_script import script_image, script_text  # after the path insert; re-exported
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
 ZEST_TAR = ZEST / "zeST-20260518.tar.xz"
@@ -50,24 +49,8 @@ ZEST_BOOT = ZEST / "zeST-20260518/boards/z7lite_7010/boot.bin"
 BOOT_CMD = FPGA / "glass/boot/boot.cmd"
 BITSTREAM = FPGA / "build/board_hp/zm_blit_vivado_100.bit"
 GLASS_ARM = FPGA / "glass/zig-out/arm/bin/glass"
-__all__ = ["BOARD_FW", "SHELF", "build_shelf", "zx0pack"]  # the shelf's half lives in glass_shelf.py
-IH_MAGIC, IH_OS_LINUX, IH_ARCH_ARM, IH_TYPE_SCRIPT = 0x27051956, 5, 2, 6
-
-
-def script_image(text: bytes, name: str, epoch: int) -> bytes:
-    """A U-Boot legacy script image, as `mkimage -A arm -O linux -T script -C none` makes."""
-    data = struct.pack(">II", len(text), 0) + text
-    head = struct.pack(">IIIIIIIBBBB32s", IH_MAGIC, 0, epoch, len(data), 0, 0, zlib.crc32(data), IH_OS_LINUX,
-                       IH_ARCH_ARM, IH_TYPE_SCRIPT, 0, name.encode()[:32])  # fmt: skip
-    head = head[:4] + struct.pack(">I", zlib.crc32(head)) + head[8:]
-    return head + data
-
-
-def script_text(cmd: bytes) -> bytes:
-    """boot.cmd without its comments or blank lines: zeST's U-Boot (old hush) read a comment's
-    apostrophe as an open quote, a `syntax error` that skipped the whole script (2026-10-10)."""
-    lines = [ln.strip() for ln in cmd.decode("ascii").splitlines()]
-    return "".join(ln + "\n" for ln in lines if ln and not ln.startswith("#")).encode()
+# Re-exported: the shelf's half lives in glass_shelf.py, boot.scr's in uboot_script.py.
+__all__ = ["BOARD_FW", "SHELF", "build_shelf", "script_image", "script_text", "zx0pack"]
 
 
 def _copy(src: Path | None, out: Path, name: str, why_missing: str) -> tuple[str, str]:
