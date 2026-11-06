@@ -10,7 +10,8 @@ where their sources are:
 | `zigmachine.dtb` | its device tree, from `fpga/glass/boot/zigmachine-z7lite.dts` (in `zigmachine/`) | GPL-2.0 (with the kernel's dtsi) | as above, and `zigmachine/fpga/glass/boot/` |
 | `rootfs.cpio.uboot` | Buildroot 2026.02.3 initramfs: busybox, musl, dropbear, avahi and their libraries, plus ZigMachine's `glass` and `S99glass` | each package its own (busybox GPL-2.0, musl MIT, dropbear MIT, avahi LGPL-2.1, ...) | https://buildroot.org/downloads/buildroot-2026.02.3.tar.xz with `zigmachine/fpga/glass/boot/buildroot` (`make legal-info` lists every package and licence) |
 
-Everything else on the card (`zigmachine.bit`, `boot.scr`, `KESTREL/`, `CARTS/`) is built from the
-`zigmachine/` tree of this release: the bitstream from `zigmachine/fpga/`, the system image and the
-carts from `zigmachine/fpga/cycles` and `zigmachine/docs/`. The demo ports on the shelf credit their
+Everything else on the card is ZigMachine's: `zigmachine.bit` is the KESTREL RTL in
+`zigmachine/fpga/` (the maintainer's combo16 Vivado build), `boot.scr` is
+`zigmachine/fpga/glass/boot/boot.cmd` compiled, and `KESTREL/` and `CARTS/` are built from this
+release's tree (`zigmachine/fpga/cycles`, `zigmachine/docs/`). The demo ports on the shelf credit their
 original authors in their own sources (`zigmachine/apps/`).
