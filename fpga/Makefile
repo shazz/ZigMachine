@@ -107,7 +107,8 @@ HOST_CC  ?= clang
 HOST_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809L -O2 -ffp-contract=off -w -DWASM_RT_USE_MMAP=0 \
 	-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=10000 \
 	-I$(WABT)/include -I$(W2C_RT) -Ihost -I$(HOST)/common
-HOST_COMMON := $(addprefix $(HOST)/common/,machine.o rom.o rt.o rt-mem.o rt-exc.o sha256.o)
+# kfs.a last: KFS (C:'s writes, host/kos_cfile.c) is pulled in only by a main that mounts it (host/main.c).
+HOST_COMMON := $(addprefix $(HOST)/common/,machine.o rom.o rt.o rt-mem.o rt-exc.o sha256.o kfs.a)
 
 $(HOST)/common/machine.c: $(ROOT)/docs/machine-video.wasm
 	@mkdir -p $(@D)
@@ -122,6 +123,8 @@ $(HOST)/common/kfs.c: $(ROOT)/docs/kos-cfs.wasm
 $(HOST)/common/kfs.h: $(HOST)/common/kfs.c ;
 $(HOST)/common/kos_cfile.o: host/kos_cfile.c host/disk.h $(HOST)/common/kfs.h
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
+$(HOST)/common/kfs.a: $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o
+	rm -f $@ && ar rcs $@ $^
 $(HOST)/common/rt.o: $(W2C_RT)/wasm-rt-impl.c
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/rt-mem.o: $(W2C_RT)/wasm-rt-mem-impl.c
@@ -163,9 +166,9 @@ $(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.
 	for s in $(INPUT_SRC); do $(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/in_$$(basename $$s .c).o || exit 1; done
 	for s in $(HOST_BOOTSEC); do $(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/bs_$$(basename $$s .c).o || exit 1; done
 	$(HOST_CC) $(HOST_CFLAGS) $(HOST_WALLCLOCK) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/main.c -o $@
-$(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o
+$(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON)
 	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/host_io.o $(HOST)/$*/in_*.o \
-		$(HOST)/$*/bs_*.o $(HOST)/$*/cart.o $(HOST_COMMON) $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o -lm -lpthread -o $@
+		$(HOST)/$*/bs_*.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
 
 host: $(HOST)/$(CART)/host
 
