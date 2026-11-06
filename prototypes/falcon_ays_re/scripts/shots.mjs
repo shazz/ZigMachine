@@ -5,7 +5,9 @@ import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
 
-const RW = 800, W = 320, H = 200, X0 = 40, Y0 = 40;
+// FULL=1: the whole 400x280 raster, borders included (where the flashes must show too).
+const FULL = process.env.FULL === "1";
+const RW = 800, W = FULL ? 400 : 320, H = FULL ? 280 : 200, X0 = FULL ? 0 : 40, Y0 = FULL ? 0 : 40;
 const [outdir, ...times] = process.argv.slice(2);
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
 let demo;
