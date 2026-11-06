@@ -53,7 +53,10 @@ static void compact(void)
     for (int s = 0; s < KPAL_SLOTS; s++)
         for (unsigned k = 0; tracked[s] && k < tracked_n[s]; k++) tracked[s][k] = map[tracked[s][k]];
     kestrel_pal_n = n;
-    stuck = n == 256;
+    /* Freed (almost) nothing: no other compaction until the next present. Each one scans every tracked buffer
+     * (~200 KB); a picture holding ~250 colours while new blends arrive (klystrack's instrument view opened
+     * again while a song plays) compacted at EVERY new colour, a pixel at a time: minutes a frame. */
+    stuck = n > 256 - 16;
     memset(hused, 0, sizeof hused);
     nkeys = 0;
     for (unsigned i = 1; i < n; i++) remember(kestrel_pal_rgb[i], (Uint8)i);
