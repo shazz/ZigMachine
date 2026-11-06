@@ -66,6 +66,7 @@ void kestrel_defer_target(Uint8 *b, int w, int h)
     kd.deferring = fb && block && cols <= COLS && rows <= ROWS;  /* else everything is drawn at once */
     if (fb && !block && !no_list && !wait) wait = 1;
     kd.n = kd.nlast = kd.na = 0; kd.stale = 1; kd.immediate = 0; all_dirty = 1;
+    kd.nocc[0] = kd.nocc[1] = kd.occ_pp = 0;
 }
 
 /* kestrel_heap.c, when a malloc fails: the song's reverb/chorus buffers matter more than this cache, so the
@@ -75,6 +76,7 @@ int kestrel_heap_pressure(void)
     if (!block || busy) return 0;
     free(block); block = NULL; kd.list = NULL; kd.arena = NULL;
     kd.n = kd.nlast = kd.cap = kd.na = 0; kd.deferring = 0; wait = 120; let_go = 1;
+    kd.nocc[0] = kd.nocc[1] = kd.occ_pp = 0;
     kestrel_log("kestrel_defer: the heap is short, the window's draw cache let go (the window draws at once)");
     return 1;
 }
@@ -130,6 +132,16 @@ static Uint32 box_of(int x0, int y0, int x1, int y1)
     return (Uint32)x0 / TW | (Uint32)x1 / TW << 5 | (Uint32)y0 / TH << 10 | (Uint32)y1 / TH << 16;
 }
 
+/* The window's pixels x0..x1, y0..y1 (inclusive) must be drawn again at the next present although no command
+ * there changed: a texture whose pixels moved under the same serial (kestrel_rows.c's scrolled cache, which
+ * names only the tiles where its picture differs). */
+void kestrel_defer_dirty(int x0, int y0, int x1, int y1)
+{
+    if (!kd.deferring) return;
+    cmd_t t; t.box = box_of(x0, y0, x1, y1);
+    kd_mark(&t);
+}
+
 /* Whether copy k blends (kestrel_w8_idempotent says no). */
 static int copy_blends(const cmd_t *k)
 {
@@ -154,11 +166,15 @@ static void commit(int x0, int y0, int x1, int y1, int blends)
     } else {
         if (blends < 0) blends = copy_blends(k);
         if (blends) k->box |= BLENDS;
+        else if (((k->kind & 0x7F) == C_COPY || OP(k) == C_FILL || OP(k) == C_CLEAR) && !(k->box & NONE)
+                 && TX1(k->box) > TX0(k->box) && TY1(k->box) > TY0(k->box)) k->box |= OCCB;   /* an occluder, maybe */
         if (kd.n < kd.nlast) kd_mark(e);
         kd_mark(k);
         *e = *k;
         KD_STAT(stored, 1);
     }
+    if (kd.gopen) kd_group_note(e->box);
+    if (e->box & OCCB) kd_occ_add(kd.n);
     kd.n++;
     if (kd.immediate) draw(e, NULL);
 }
@@ -252,6 +268,8 @@ void kestrel_defer_present(void)
     kd.nlast = all_dirty == 2 ? 0 : kd.n;
     kd.stale = !kd.nlast || kd.na > KD_ARENA * 3 / 4;                /* a full arena starts over next frame */
     if (kd.stale) kd.na = 0;
+    memcpy(kd.occ[1], kd.occ[0], kd.nocc[0] * sizeof kd.occ[0][0]);         /* this frame's occluders are last frame's */
+    kd.nocc[1] = kd.nlast ? kd.nocc[0] : 0; kd.nocc[0] = kd.occ_pp = 0;
     kd.n = 0; kd.immediate = 0; all_dirty = all_dirty == 2;
     busy--;
 }

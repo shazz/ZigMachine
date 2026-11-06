@@ -501,6 +501,14 @@ void kestrel_window_nop(void *renderer)
     if (r && !r->surface && !(r->target && r->target->px)) kestrel_defer_nop();
 }
 
+/* For klystron's patches: the renderer's rectangle d must be drawn again at the next present (kestrel_defer_dirty). */
+void kestrel_window_dirty(void *renderer, const SDL_Rect *d)
+{
+    SDL_Renderer *r = renderer;
+    if (r && !r->surface && !(r->target && r->target->px) && d->w > 0 && d->h > 0)
+        kestrel_defer_dirty(d->x + r->vx, d->y + r->vy, d->x + r->vx + d->w - 1, d->y + r->vy + d->h - 1);
+}
+
 /* For kestrel_defer_group.c: 1 when r draws into the window, with what its draws depend on (viewport, clip). */
 int kestrel_window_state(SDL_Renderer *r, Uint32 w[4])
 {
