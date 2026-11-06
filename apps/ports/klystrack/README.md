@@ -41,6 +41,9 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `kestrel_sdl.c` | what is klystrack-shaped: clock (the frame's real time), fixed 320x240 window, the legacy `SDL_OpenAudio` device fed to the machine's stream. **Quiet synth:** no song, every channel's gate off and envelope 0, and 2.2 s of exact silence (longer than the reverb's 2 s line, no feedback): cyd is not called, zeros are fed, until a note or a song starts. **Repaints:** `kestrel_redraw_due` (below) |
 | `kestrel_chorus.c`, `kestrel_sine.h` | klystron's chorus LUT (`cydchr_set`) in integers: a Q30 sine table (generated, 1024 steps, interpolated), the phase stepped exactly, one 32x32->64 multiply. Within +-1/256 sample of upstream's double `sin()`; 7 of 151,404 stream bytes differ by 1 LSB over a 7 s play |
 | `kestrel_stubs.c` | `getpwuid` (no password database) |
+| `kestrel_view.c`, `kestrel_view.h`, `kestrel_views.c` | round 4: a view (or a block of one) skipped on an event-free repaint when nothing it reads changed; which views, and what each reads (below) |
+| `kestrel_pattern.c`, `kestrel_rows.c` | round 4: the pattern view's step counter and rows as blocks, its VU meters after them; the rows scrolled in per-channel caches |
+| `hashes.sh`, `vu_proof.mjs` | the "same pixels" proofs: every frame hashed in 11 scenarios for two carts; the VU meters' part (three carts in lockstep) |
 | `kestrel_printf.c`, `printf_test.c` | the labels' vsnprintf: %s %c %d %i %u %x %X %% with - 0 + space, a width, a %s precision; anything else is musl's whole. `make printf-test` (gated) checks it against the host C library (glibc; the board's fallback is musl, which agrees on these conversions) |
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
@@ -64,6 +67,8 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `font.c.sed` | `inner_write` drawn as one group (its cursor/bounds the outputs); a space keeps a NOP entry; `font_write_va` formats with `kestrel_vsnprintf` |
 | `menu.h.sed` | `struct menu_t {...} menu_t;` defined a variable in every file (needs `-fcommon`, which wasm clang crashes on) |
 | `action.c.sed` | `current_pattern(NULL)` -> `current_pattern()`: wasm-ld turns an arity mismatch into a trap |
+| `view.c.sed` | round 4: `my_draw_view` runs each view through `kestrel_views.c` (klystron's own `gui/view.c`, same file name, gets a comment only) |
+| `pattern.c.sed` | round 4: the rows block, the VU meters drawn after it, the rows loop run once a cache pass (`kestrel_rows.c`), the step counter a block |
 
 ## The shared layer (apps/ports/kestrel_sdl2), what this port added
 
@@ -270,6 +275,66 @@ the VU's ARGB copy without per-pixel tests. The same pixels: the six `HASHES` sc
 repaint is ~(4.9 + 13.8) / 2 ~ 9 est. Getting there needs klystron-level work: skipping view handlers whose
 inputs did not change (pattern view between rows, instrument and song panes), and the pattern view's scroll
 drawn as a row copy plus one new row rather than ~400 strings again.
+
+## Round 4 (feat/klystrack-r4, 6 Nov 2026)
+
+Round 3 on the board (Matt, 4 Nov): 30 fps while a song plays, the top menus still slow, F11 ~300 %. That
+percentage is the overlay's frame-budget line (ZIGGY + FRESCO busy against a 60 Hz frame, glass
+`app_budget.zig`), not BARD: it was the repaints. Two levers, both klystron-level:
+
+- **Views skipped when nothing they read changed** (`kestrel_view.c`, `kestrel_views.c`, `patches/view.c.sed`).
+  `my_draw_view` runs each view inside an outer defer GROUP (groups now nest two deep, `kestrel_defer_group.c`:
+  a view around its bevels and strings). Its key: the view (handler, param, area), what it reads that moves
+  without an event (the timer's second, a slider's parameters, the sequence view's selected and play lines,
+  the info line's step), a generation bumped by every event that reaches the views and every SDL timer that
+  fired, mused's UI state (mode/focus/cursor block, flags, selection; the play and edit position only for
+  the views that show it), and the draw state going in: clip, console, cursor and its target, and every
+  texture's colour mod and blend (`kestrel_texstate.c`: one XOR word kept up to date by the renderer). The
+  same key as last frame's group at that point, on a repaint with no event: its commands stay, the handler
+  is not run, and the draw state it LEFT is put back (its outputs: clip, console, cursor, the textures it
+  re-coloured). A view not listed in `kestrel_views.c` always draws (the analyzers, the instrument / FX /
+  wavetable editors). `-DKESTREL_VIEW_CHECK` draws every view anyway and logs any that would have been
+  skipped wrongly: none over `hashes.sh`'s scenarios (the pattern rows block is left out of it: drawn again
+  it may take the other path, caches or upstream's pass, with other commands for the same pixels).
+- **The pattern view split** (`kestrel_pattern.c`, `patches/pattern.c.sed`): the step counter and the
+  channels' rows are blocks of their own; the VU meters (which move on every repaint while playing) are drawn
+  after the rows block, each in its own channel's track. **The rows scroll in caches** (`kestrel_rows.c`): each
+  channel keeps its text area as window pixels (rows in their normal colours over the background); on a row
+  change the cache is memmoved by the rows the view moved and only the new row is drawn into it
+  (`kestrel_defer_redirect`), the cache goes to the window as ONE command (a `raw8` texture: window indices
+  copied as they are, its pixels kept through palette compactions), then the selected-row strip is drawn as
+  upstream draws it there (background, bevel, the rows crossing it) into a strip cache. On an event the rows
+  draw as upstream in one pass (a click reaches them as they draw and may move the view).
+- `song_hash` (the .kt hand-over's edit check, ~0.4 Mc est every quarter second) runs only once an event has
+  reached the views since the last check: an edit only comes that way.
+
+frame_cost est (Mc a frame; the same tool and windows; before = main's round 3 rebuilt on today's main):
+
+| | round 3 | round 4 |
+|---|---|---|
+| idle / idle, pointer moving | 0.72 / 0.74 | 0.72 / 0.75 |
+| menu open, pointer moving (every frame) | 3.21 | **0.95** |
+| playing: a repaint between rows (median) | 4.46 | **1.39** |
+| playing: a row change (mean / worst, frames 161-280) | ~10.5 / 13.8 | **~8.2 / 9.5** |
+| playing, mean a frame over 900 frames (palette compactions included) | 4.76 | **2.37** |
+| playing + menu open (mean / worst) | 5.60 / 16.2 | **2.51 / 9.5** |
+| playing + pointer moving (mean) | 3.99 | **2.17** |
+
+A row change is still ~8 est: what is left there is mostly the replay and the present of the scrolled area
+(~30,000 pixels a channel pair) and the I$ term of the ~60 KB of code a row change runs (the model charges
+every instruction for it). At the board's ~0.66x of the estimate: menus and the repaints between rows fit
+60 fps; a row change takes ~3 frames, so a song at ~8 rows a second should show ~45 fps.
+
+The same pixels, `hashes.sh` (every frame hashed, 11 scenarios: idle, playing, menu, playing + menu, playing +
+pointer, Ctrl+O dialog, keyjazz, edits while playing, clicks while playing, tab changes while playing, quit),
+built from main's sources and this branch's **without the VU meters**: identical in every frame. With them,
+`vu_proof.mjs` runs both and main's no-VU build in lockstep: every pixel that differs is a meter pixel (a
+playing picture has more than 255 colours, so the palette maps the meters' gradient to the nearest entries
+in the order colours arrive; at most 17 a channel), none outside the meters. The gate's UI pin is unchanged.
+
+Memory: a cache is the track's inside, 148 x 104 = 15 KB for each of the classic view's two channels, plus a
+148 x 9 strip, from the heap, and only from room to spare (64 KB over: a failed malloc would make the heap let
+the draw list go); without it the rows draw as upstream. Cart 445 -> 452 KB.
 
 ## What's left
 
