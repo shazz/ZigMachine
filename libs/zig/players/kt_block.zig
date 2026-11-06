@@ -23,11 +23,11 @@ const passes = @import("kt_passes.zig");
 const env = @import("kt_envpass.zig");
 const syncp = @import("kt_syncpass.zig");
 
+// The mix (9 KiB at 128) and kt.zig's render chunk stay inside the 16 KiB of song RAM the klystrack
+// cart counts for them (kestrel_bard.c kt_fits); the source sums live on the stack.
 pub const BLOCK = 128;
-/// The mix's words: the dry pair, then each bus's pair, BLOCK samples each; then each channel's
-/// source sums.
-pub const MIX_WORDS = (2 + 2 * song.MAX_FX) * BLOCK;
-pub const WORDS = MIX_WORDS + song.MAX_CH * BLOCK;
+/// The mix's words: the dry pair, then each bus's pair, BLOCK samples each.
+pub const WORDS = (2 + 2 * song.MAX_FX) * BLOCK;
 
 /// Ring modulation into a gated channel or hard sync only when every channel runs in passes, and
 /// sync only from a source that is not synced itself (its wraps then follow from its own phase).
@@ -100,7 +100,8 @@ noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i3
 /// Ring modulation or sync in effect (eligible: every channel in passes): every channel's sums
 /// first, then the envelope passes, which may read another channel's sums.
 fn renderCoupled(sy: *syn.Synth, m: [*]i32, n: usize, ring_src: u32) void {
-    const sums = m + MIX_WORDS;
+    var sums_buf: [song.MAX_CH * BLOCK]i32 = undefined; // each channel's sums: written whole before read
+    const sums: [*]i32 = &sums_buf;
     var wraps: [song.MAX_CH][BLOCK]u8 = undefined; // a sync source's wraps, from its phase before the passes
     for (sy.chn[0..sy.n]) |*ch| {
         if (synced(sy, ch)) osc.syncBits(&sy.chn[ch.sync_source], n, &wraps[ch.sync_source]);
@@ -128,7 +129,7 @@ fn pair(sy: *const syn.Synth, m: [*]i32, ch: *const c.Channel) [2][*]i32 {
 pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
     const n = out.len / 2;
     const m = mix.ptr;
-    const sums = m + MIX_WORDS;
+    var one: [BLOCK]i32 = undefined; // the sums, written whole by sources before env reads them
     var ring_src: u32 = 0; // the channels a gated channel ring-modulates from: their sums are heard
     var any_sync = false;
     for (sy.chn[0..sy.n]) |*ch| {
@@ -142,8 +143,8 @@ pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
                 oneLoop(sy.rate, ch, n, d[0], d[1]);
                 continue;
             }
-            sources(sy.rate, ch, sums[0..n], ch.flags & c.GATE != 0);
-            env.output(sy.rate, ch, sums[0..n], .none, d[0], d[1], ch.flags & c.FILTER != 0);
+            sources(sy.rate, ch, one[0..n], ch.flags & c.GATE != 0);
+            env.output(sy.rate, ch, one[0..n], .none, d[0], d[1], ch.flags & c.FILTER != 0);
         }
     } else renderCoupled(sy, m, n, ring_src);
     for (&sy.bus, 0..) |*b, i| {

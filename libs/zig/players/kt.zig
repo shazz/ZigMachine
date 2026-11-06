@@ -28,6 +28,10 @@ const chip = @import("xm_chip.zig");
 pub const VOL_HI: f32 = 511.0 / 256.0;
 pub const VOL_LO: f32 = 2.0 / 256.0;
 const PAN = [audio.NUM_CHANNELS]f32{ -1.0, 1.0, -1.0, 1.0 }; // hi L, hi R, lo L, lo R
+/// Core samples rendered at a time: 1 KiB of song RAM for them, where a whole 4096-frame block took
+/// 8 KiB, so the core's 9 KiB mix (kt_block.zig BLOCK 128) and this stay inside the 16 KiB the
+/// klystrack cart counts for them (apps/ports/klystrack/kestrel_bard.c kt_fits).
+const PCM_CHUNK = 256;
 
 pub const KtPlayer = struct {
     core: core.Core = .{},
@@ -50,7 +54,7 @@ pub const KtPlayer = struct {
     /// Start the loaded song at sequence row `position` (0: its start), at the cart's 22050 Hz.
     pub fn start(self: *KtPlayer, position: u16) bool {
         self.core.startAt(core.RATE, position) catch return false;
-        self.pcm = self.core.arena.alloc(i16, audio.MAX_FRAMES + 2) catch return false;
+        self.pcm = self.core.arena.alloc(i16, 2 * PCM_CHUNK) catch return false;
         self.held_pending = false;
         self.ring_pos = 0;
         for (0..audio.NUM_CHANNELS) |ch| {
@@ -82,21 +86,26 @@ pub const KtPlayer = struct {
             f = 1;
         }
         const fresh = (n - f + 1) / 2; // new core samples this block
-        self.core.render(self.pcm[0 .. 2 * fresh]);
-        for (0..fresh) |k| {
-            const smp = [2]i16{ self.pcm[2 * k], self.pcm[2 * k + 1] };
-            const b = bytes(smp); // once for the sample's two frames
-            put(bufs, f, b);
-            f += 1;
-            if (f < n) {
+        self.held_pending = false;
+        var done: usize = 0;
+        while (done < fresh) { // PCM_CHUNK at a time: the core's output does not depend on how it is cut
+            const m: usize = @min(fresh - done, PCM_CHUNK); // typed: @min with a constant narrows (u9 here), and 2 * 256 overflows u9
+            self.core.render(self.pcm[0 .. 2 * m]);
+            for (0..m) |k| {
+                const smp = [2]i16{ self.pcm[2 * k], self.pcm[2 * k + 1] };
+                const b = bytes(smp); // once for the sample's two frames
                 put(bufs, f, b);
                 f += 1;
-            } else {
-                self.held = smp;
-                self.held_pending = true;
-                break;
+                if (f < n) {
+                    put(bufs, f, b);
+                    f += 1;
+                } else { // only the last sample, when the block has an odd number of frames left
+                    self.held = smp;
+                    self.held_pending = true;
+                }
             }
-        } else self.held_pending = false;
+            done += m;
+        }
         for (0..audio.NUM_CHANNELS) |ch| {
             const at = chip.BUF_OFFSET + ch * ring.FRAMES + at0;
             audio.machinePaulaTrigger(@intCast(ch), audio.songAddr(at), n, 0, 0, PAN[ch]);

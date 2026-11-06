@@ -15,7 +15,8 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
-const CORE_RATE = 22050, SECONDS = 45, BLOCK = 2000;
+// BLOCK: at most the player's render chunk (libs/zig/players/kt.zig PCM_CHUNK), which audioKtRenderCore renders into.
+const CORE_RATE = 22050, SECONDS = 45, BLOCK = 256;
 const PINS = { // kt_ref docs/music/<song>.kt 45 --raw out; sha256 out
     "starport2.kt": "fd83a9089664f7b902619bce63c063231f2dc0e6dd15f9237c5854b1ea2d4efe",
     "castlevania.kt": "c6dda9a8abc38ecc3156580a0d778067c7e5d4a8ad4596a301725083fabdb126",
