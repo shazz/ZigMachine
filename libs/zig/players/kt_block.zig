@@ -97,15 +97,10 @@ noinline fn channelK(rate: u32, chp: *c.Channel, n: usize, dl: [*]i32, dr: [*]i3
     chp.* = ch;
 }
 
-/// `out.len / 2` (<= BLOCK) stereo samples, s16, with no sequencer tick inside them.
-pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
-    const n = out.len / 2;
-    const m = mix.ptr;
+/// Ring modulation or sync in effect (eligible: every channel in passes): every channel's sums
+/// first, then the envelope passes, which may read another channel's sums.
+fn renderCoupled(sy: *syn.Synth, m: [*]i32, n: usize, ring_src: u32) void {
     const sums = m + MIX_WORDS;
-    var ring_src: u32 = 0; // the channels a gated channel ring-modulates from: their sums are heard
-    for (sy.chn[0..sy.n]) |*ch| {
-        if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) ring_src |= @as(u32, 1) << @intCast(ch.ring_mod & 31);
-    }
     var wraps: [song.MAX_CH][BLOCK]u8 = undefined; // a sync source's wraps, from its phase before the passes
     for (sy.chn[0..sy.n]) |*ch| {
         if (synced(sy, ch)) osc.syncBits(&sy.chn[ch.sync_source], n, &wraps[ch.sync_source]);
@@ -113,22 +108,44 @@ pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
     for (sy.chn[0..sy.n], 0..) |*ch, i| {
         const heard = ch.flags & c.GATE != 0 or ring_src >> @intCast(i) & 1 != 0;
         const src = sums[i * BLOCK ..][0..n];
-        if (!passes.fits(ch)) continue;
         if (synced(sy, ch)) syncp.sources(sy.rate, ch, src, heard, &wraps[ch.sync_source]) else sources(sy.rate, ch, src, heard);
     }
     for (sy.chn[0..sy.n], 0..) |*ch, i| {
-        var at: usize = 0; // the dry pair
-        if (ch.flags & c.FX != 0 and sy.bus_used >> @intCast(ch.fx_bus) & 1 != 0) at = 2 + 2 * @as(usize, ch.fx_bus);
-        const dl = m + at * BLOCK;
-        const dr = m + (at + 1) * BLOCK;
-        if (!passes.fits(ch)) {
-            oneLoop(sy.rate, ch, n, dl, dr);
-            continue;
-        }
+        const d = pair(sy, m, ch);
         const ring: env.Ring = if (ch.flags & c.RING_MODULATION == 0) .none else if (ch.ring_mod < sy.n) .{ .src = sums + @as(usize, ch.ring_mod) * BLOCK } else .zero;
-        const src = sums[i * BLOCK ..][0..n];
-        env.output(sy.rate, ch, src, ring, dl, dr, ch.flags & c.FILTER != 0);
+        env.output(sy.rate, ch, sums[i * BLOCK ..][0..n], ring, d[0], d[1], ch.flags & c.FILTER != 0);
     }
+}
+
+/// The mix pair `ch` adds into: its FX bus's, or the dry one.
+fn pair(sy: *const syn.Synth, m: [*]i32, ch: *const c.Channel) [2][*]i32 {
+    var at: usize = 0;
+    if (ch.flags & c.FX != 0 and sy.bus_used >> @intCast(ch.fx_bus) & 1 != 0) at = 2 + 2 * @as(usize, ch.fx_bus);
+    return .{ m + at * BLOCK, m + (at + 1) * BLOCK };
+}
+
+/// `out.len / 2` (<= BLOCK) stereo samples, s16, with no sequencer tick inside them.
+pub fn render(sy: *syn.Synth, mix: []i32, out: []i16) void {
+    const n = out.len / 2;
+    const m = mix.ptr;
+    const sums = m + MIX_WORDS;
+    var ring_src: u32 = 0; // the channels a gated channel ring-modulates from: their sums are heard
+    var any_sync = false;
+    for (sy.chn[0..sy.n]) |*ch| {
+        if (ch.flags & (c.GATE | c.RING_MODULATION) == (c.GATE | c.RING_MODULATION)) ring_src |= @as(u32, 1) << @intCast(ch.ring_mod & 31);
+        if (synced(sy, ch)) any_sync = true;
+    }
+    if (ring_src == 0 and !any_sync) { // channels apart: each one's passes back to back, one sums buffer
+        for (sy.chn[0..sy.n]) |*ch| {
+            const d = pair(sy, m, ch);
+            if (!passes.fits(ch)) {
+                oneLoop(sy.rate, ch, n, d[0], d[1]);
+                continue;
+            }
+            sources(sy.rate, ch, sums[0..n], ch.flags & c.GATE != 0);
+            env.output(sy.rate, ch, sums[0..n], .none, d[0], d[1], ch.flags & c.FILTER != 0);
+        }
+    } else renderCoupled(sy, m, n, ring_src);
     for (&sy.bus, 0..) |*b, i| {
         if (sy.bus_used >> @intCast(i) & 1 != 0) fxb.output(b, m + (2 + 2 * i) * BLOCK, m + (3 + 2 * i) * BLOCK, n);
     }
