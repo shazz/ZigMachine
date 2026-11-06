@@ -100,6 +100,19 @@ static void row8(Uint8 *dp, const Uint8 *ip, int n, Uint32 fx, Uint32 stepx, SDL
         }
         return;
     }
+    if (stepx < 0x10000u) {                             /* stretched (a bevel's sides): a texel's run at once */
+        for (int x = 0; x < n;) {
+            Uint32 sx = fx >> 16;
+            Uint32 len = (((sx + 1) << 16) - fx + stepx - 1) / stepx;   /* the pixels on this texel: >= 1 */
+            int r = x + (int)len < n ? x + (int)len : n;
+            fx += len * stepx;
+            Uint16 v = map[ip[sx]];
+            if (v < 256) memset(dp + x, v, (size_t)(r - x));
+            else if (v == PART) for (; x < r; x++) { dp[x] = blend8(dp[x], pal[ip[sx]], pal[ip[sx]] >> 24, t->blend); map = window_map(t); }
+            x = r;
+        }
+        return;
+    }
     for (int x = 0; x < n; x++, fx += stepx) {
         Uint8 ti = ip[fx >> 16];
         Uint16 v = map[ti];
@@ -188,7 +201,17 @@ int kestrel_w8_unscaled(SDL_Texture *t, Uint8 *fb, int w, const SDL_Rect *c, int
     Uint8 *dst = fb + c->y * w + c->x;
     for (int y = 0; y < c->h; y++, src += t->w, dst += w) {
         if (t->gall) for (int x = 0; x < c->w; x++) dst[x] = (Uint8)map[src[x]];
-        else for (int x = 0; x < c->w; x++) { Uint8 v = m8[src[x]]; if (v != 255) dst[x] = v; }
+        else {                                              /* keyed (glyphs, bevel pieces): 4 texels a pass */
+            int x = 0;
+            for (; x + 4 <= c->w; x += 4) {
+                Uint8 a = m8[src[x]], b = m8[src[x + 1]], e = m8[src[x + 2]], f = m8[src[x + 3]];
+                if (a != 255) dst[x] = a;
+                if (b != 255) dst[x + 1] = b;
+                if (e != 255) dst[x + 2] = e;
+                if (f != 255) dst[x + 3] = f;
+            }
+            for (; x < c->w; x++) { Uint8 v = m8[src[x]]; if (v != 255) dst[x] = v; }
+        }
     }
     return 1;
 }
