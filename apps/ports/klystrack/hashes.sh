@@ -14,7 +14,7 @@ run() { # run <name> <frames> [VAR=value...]
     name=$1 frames=$2; shift 2
     for c in a b; do
         cart=$A; [ $c = b ] && cart=$B
-        env "$@" CART="$cart" HASHES="$OUT/$name.$c" node apps/ports/klystrack/run.mjs "$frames" "$OUT/$name.$c." > "$OUT/$name.$c.log" 2>&1
+        timeout 300 env "$@" CART="$cart" HASHES="$OUT/$name.$c" node apps/ports/klystrack/run.mjs "$frames" "$OUT/$name.$c." > "$OUT/$name.$c.log" 2>&1
     done
     if cmp -s "$OUT/$name.a" "$OUT/$name.b"; then echo "  same     $name ($frames frames)"
     else echo "  DIFFERS  $name: first at frame $(diff "$OUT/$name.a" "$OUT/$name.b" | head -1 | sed 's/[^0-9].*//')"; bad=1; fi
@@ -30,5 +30,6 @@ run keyjazz 220 KEYS="40,122;70,120;100,99"
 run play_edit 260 KEYS="30,$F5;60,32;80,122;100,113;120,32"
 run play_click 240 KEYS="30,$F5" CLICKS="120,60,140;160,200,150"
 run play_tabs 300 KEYS="30,$F5;60,$F3;120,$F2;180,$F3"
+run play_inst 260 KEYS="30,$F5;60,$F3" CLICKS="100,71,121;140,71,121;180,175,45;220,170,200"   # round 5: the instrument tab skipped between events
 run quit 120 KEYS="60,$ESC"
 exit $bad
