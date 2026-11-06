@@ -15,4 +15,8 @@ s/^\t\t\t\t\tmidi_event(&e);$/\t\t\t\t\t\/* KESTREL: no MIDI *\//
 # the board). Events and song-position changes still repaint at once.
 s/^\t\tif (active && (got_event || gfx_domain_is_next_frame(domain) || prev_position != mused.stat_song_position))$/\t\tif (active \&\& (got_event || kestrel_redraw_due(gfx_domain_is_next_frame(domain), (mused.flags \& SONG_PLAYING) != 0) || prev_position != mused.stat_song_position)) \/* KESTREL *\//
 /^int klystrack_main(int argc, char \*\*argv)$/i\
-int kestrel_redraw_due(int tick_due, int playing); /* KESTREL: kestrel_sdl.c */
+int kestrel_redraw_due(int tick_due, int playing); /* KESTREL: kestrel_sdl.c */\
+void kestrel_view_event(const SDL_Event *e); /* KESTREL: kestrel_view.c */
+# Round 4: each event polled tells kestrel_view.c that the views must draw (kestrel_view_event: not a bare pointer
+# move, nor a move while the menu owns the pointer).
+s/^\t\twhile (SDL_PollEvent(&e))$/\t\twhile (SDL_PollEvent(\&e) \&\& (kestrel_view_event(\&e), 1)) \/* KESTREL *\//

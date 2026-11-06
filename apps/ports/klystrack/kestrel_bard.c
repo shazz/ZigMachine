@@ -6,7 +6,8 @@
  * effects queue: zg.requestSongBytes's entry (libs/zig/sfx_queue.zig, op 8, kind 5 = .kt) with the sequence row
  * to start at. cyd then stops synthesising: the cart's stream is stopped (kestrel_audio_quiet) and only the
  * sequencer runs, at the song's rate, so the play position, the pattern view and the follow-play cursor move as
- * before. While it plays, the song is hashed every CHECK_SAMPLES of its clock (a quarter second): an edit
+ * before. While it plays, the song is hashed every CHECK_SAMPLES of its clock (a quarter second) once an event
+ * has reached the views since the last hash (an edit only comes that way, kestrel_view_gen): an edit
  * re-sends it from the row playing (a restart of the voices there: the simple first form). The cart's clock
  * runs in real time meanwhile (kestrel_bard_owns: kestrel_main.c lifts cyd's 33 ms cap, as the sequencer
  * alone is cheap), so the row the cart shows and re-sends is the one the machine plays. On Stop the request "none" stops the machine's player
@@ -35,7 +36,8 @@ int kestrel_bard_saving; /* patches/diskop.c.sed: save_song_inner asks nothing w
 static uint8_t *buf;     /* the .kt handed over: read by the host when it drains the frame's queue */
 static uint32_t sent_len, sent_hash;
 static enum { IDLE, HANDED, REFUSED } state;
-static uint32_t samples_since_check;
+static uint32_t samples_since_check, checked_gen;
+uint32_t kestrel_view_gen(void); /* kestrel_view.c */
 
 int kestrel_bard_owns(void) { return state == HANDED; }
 
@@ -127,6 +129,7 @@ static int send(uint16_t row)
     queued = 1;
     sent_len = (uint32_t)len;
     sent_hash = song_hash();
+    checked_gen = kestrel_view_gen();
     return 1;
 }
 
@@ -166,8 +169,11 @@ int kestrel_bard_mix(CydEngine *cyd, int16_t *stereo, int frames)
         state = HANDED;
         samples_since_check = 0;
         kestrel_audio_quiet(1);
-    } else if ((samples_since_check += (uint32_t)frames) >= CHECK_SAMPLES) {
+    } else if ((samples_since_check += (uint32_t)frames) >= CHECK_SAMPLES && kestrel_view_gen() != checked_gen) {
+        /* An edit comes as an event (a key, a click, a drag, a dialog): with none since the last check the song
+         * is the one sent, and song_hash (~0.4 Mc est) is not run. */
         samples_since_check = 0;
+        checked_gen = kestrel_view_gen();
         if (song_hash() != sent_hash && !send(mus->song_position)) {
             state = REFUSED; /* grown past the player: cyd takes the song back where it is */
             stop_asked = 1;
