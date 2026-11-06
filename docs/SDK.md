@@ -141,6 +141,11 @@ the four things a screen usually needs:
 - **music**: `zg.requestSong("sos.sndh")`, a file under `zigmachine/docs/music/`. Put your own SNDH
   there and request it by name. The board build packs every song the cart asks for.
 
+A cart can also read files from the hard disk, C: (the card's `HD/` folder, see "The card"), and
+from a FAT floppy in drive A, with TOS's GEMDOS calls: `const dos = @import("kos_gemdos").dos();`
+then `dos.Fopen("C:\\PICTURES\\X.PI1", 0)`, `Fread`, `Fsfirst` / `Fsnext` (read-only for now;
+`zigmachine/docs/KOS_GEMDOS.md`). On the page, `?c=gemdos-c.img` gives it a C: to read.
+
 Keep per-frame maths in integers or fixed point. The board's CPU has no FPU on every image, and
 there float is soft-float, hundreds of cycles a divide.
 

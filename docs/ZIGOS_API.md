@@ -261,6 +261,29 @@ frame (sfx queue op 8) and loads it as it loads a named one; `zg.stopSong()` sto
 SOUND page, `apps/zig/scenes/sysinfo/sound_play.zig`). The full guide, with formats, rules and the
 headless checks, is `docs/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).
 
+## 8b. Files on C: and A: (KOS GEMDOS)
+
+A cart's own `.zmd` is read with `zg.disk` (flat, by name). Files in folders, on the SD card's `/HD`
+(C:) or on a FAT floppy in drive A, are read with TOS's GEMDOS calls, from the module `kos_gemdos`
+(not part of ZigOS: it is KOS's, `rom/kos/gemdos_cart.zig`; carts and SDK carts may import it):
+
+```zig
+const gemdos = @import("kos_gemdos");
+const dos = gemdos.dos();
+const h = dos.Fopen("C:\\PICTURES\\WAVES.PI1", 0); // a handle >= 6, or a TOS error < 0
+if (h >= 0) {
+    _ = dos.Fread(h, buf.len, &buf); // whole reads of >= 4 KB go straight into buf
+    _ = dos.Fclose(h);
+}
+var dta: gemdos.Dta = .{};
+dos.Fsetdta(&dta);
+var r = dos.Fsfirst("C:\\PICTURES\\*.PI1", 0);
+while (r == 0) : (r = dos.Fsnext()) {} // dta.name, dta.length (little-endian), dta.attrib
+```
+
+Read-only in this phase; never per frame (a request is ~0.5 ms on the board). The calls, names, costs
+and the C binding (`kestrel_gemdos.h`, and `/C/...` for POSIX): `docs/KOS_GEMDOS.md`.
+
 ## 9. Build & run
 
 ```

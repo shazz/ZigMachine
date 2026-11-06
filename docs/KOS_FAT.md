@@ -149,7 +149,8 @@ write path (later) would need glass to own the writes (a file API, not sectors).
 then the ROM sees an I/O error and the window says `C: not responding`.
 
 **As built (F5, the plumbing, 4 Nov).** `env.kosDriveRead(unit, sector, count, dst) -> u32` is a
-**cart** import (only the desktop shell will have it), a host entry of the system table
+**cart** import (the desktop shell's first; since 6 Nov any cart's, through KOS GEMDOS, docs/KOS_GEMDOS.md),
+a host entry of the system table
 (`sys_abi` 1.8, `tools/host_bridges.py` KOS_DRIVE), not a ROM import: the ROM's own imports stay
 `memory`, `hwVideoBase` and `hwBlit`. One rule set in every host: the answer is the sectors read,
 0 for any refusal (no C:, a unit other than 2, count 0 or over 64, a run past the end, a `dst` off
@@ -238,6 +239,14 @@ cards made by `mkfs.fat` + mtools (the board's file system); C:\ on a card with 
 `KESTREL/`, `CARTS/` and `HD/` is, frame for frame in both hosts, C:\ on a card holding only that
 `HD/`; it differs from another `HD/`'s; a card with no `HD/` shows the bare desktop.
 `apps/kos_desk_check.mjs` and `kos_boot_check.mjs` (over the new `kos-c.img`) still pass.
+
+## 4d. Programs read C: (KOS GEMDOS, 6 Nov 2026)
+
+The desktop's walk of C: is the desktop's own. **Any cart** can now open files on C: (and on a FAT disk
+in drive A) with GEMDOS's calls, Fopen / Fread / Fseek / Fsfirst / Dsetpath..., in the cart over the same
+reader and the same `kosDriveRead`, so no host changed and the system table did not move: docs/KOS_GEMDOS.md.
+The C ports get it as POSIX (`fopen("/C/PICTURES/X.PI1")`): GrafX2's file selector lists `/C` and loads
+pictures from its folders. The page takes `?c=gemdos-c.img` for a C: with pictures in folders.
 
 ## 5. Phases
 

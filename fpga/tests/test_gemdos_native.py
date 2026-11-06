@@ -1,5 +1,5 @@
 """KOS GEMDOS in the native host (docs/KOS_GEMDOS.md §6): GrafX2 (wasm2c'd, as the board runs it) with
-docs/gemdos-c.img as C: (--c-image) equals scene_hash.mjs frame for frame through the session
+docs/gemdos-c.img as C: (--c-image) and its floppy in the drive (--disk) equals scene_hash.mjs frame for frame through the session
 apps/gemdos_grafx2_check.mjs drives: F3, Select drive, /C, PICTURES, PLASMA, ZIGPLASM.PI1 loaded. Both
 hosts serve C: by the same rules (fpga/host/disk.h host_kos_drive_read, apps/scene_hash_disk.mjs), and
 the same GEMDOS (rom/kos/gemdos*.zig, linked in the cart) answers in both. The picture loaded off C:
@@ -43,7 +43,7 @@ def hashes(cmd: list[str]) -> list[str]:
 
 def both(*args: str) -> list[str]:
     subprocess.run(["make", "-s", "memmap", "build/host/grafx2/host"], cwd=FPGA, check=True, capture_output=True)
-    common = ["340", "30", "--data-disk", DISK, "--program", *args]
+    common = ["340", "30", "--disk", DISK, *args]  # the program GEM launched, its floppy in the drive
     nat = hashes([str(FPGA / "build/host/grafx2/host"), "grafx2", *common])
     js = hashes(["node", "apps/scene_hash.mjs", "docs/demo-grafx2.wasm", *common])
     assert nat == js
