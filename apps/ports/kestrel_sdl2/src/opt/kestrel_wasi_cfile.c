@@ -3,6 +3,7 @@
  * never the cart), fwrite is Fwrite, remove / rename / mkdir / rmdir are Fdelete / Frename / Dcreate /
  * Ddelete. A file is written whole or not at all: "r+" and "a" (changing a file in place) are refused
  * (ENOTSUP), as is any write on the floppy (EROFS) and a rename between the floppy and C: (EXDEV). */
+#ifdef KESTREL_CDRIVE /* a port without C: (klystrack: its Makefile compiles every opt file) gets an empty object */
 #include <string.h>
 #include "kestrel_wasi_c.h"
 
@@ -68,3 +69,4 @@ int32_t __imported_wasi_snapshot_preview1_path_remove_directory(int32_t fd, int3
     int32_t r = Ddelete(p);
     return r == GEMDOS_EACCDN ? __WASI_ERRNO_NOTEMPTY : r < 0 ? kcd_errno(r) : 0;
 }
+#endif
