@@ -463,6 +463,16 @@ machinePaulaSetActive(ch, on) void
 `data_abs` is an absolute linear-memory address inside song RAM (use
 `sdk/audio.songAddr(offset)`).
 
+**The SID engine** (7 Nov 2026) is not a chip register surface but a renderer the .sid player calls:
+cRSID (Hermit, `libs/c/crsid`), a C64's 6502 + SID, light engine, PSID only. On the page it is in
+`machine-audio.wasm`; on the board BARD answers the same two imports with the same C, natively
+(`fpga/host/audio_sid.c`), and `apps/sid_check.mjs` holds the two to the same samples.
+
+```zig
+machineSidLoad(file_abs, len, subtune) u32  // 0 ok, 1 not a .sid, 2 RSID (not supported), 3 a bad length
+machineSidRender(dst_abs, n) void           // the next n s16 mono samples at 22050 Hz into dst_abs
+```
+
 ### Read-back pointers (for the worklet / scope)
 
 ```zig

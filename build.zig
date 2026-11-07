@@ -473,6 +473,7 @@ pub fn build(b: *std.Build) void {
     machine_audio.stack_size = machine_stack;
     machine_audio.initial_memory = audio_bytes;
     machine_audio.max_memory = audio_bytes;
+    addCrsid(b, machine_audio.root_module);
     installTo(b, machine_audio, sealed_step);
 
     // docs/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
@@ -604,6 +605,7 @@ pub fn build(b: *std.Build) void {
         "demo-ziggy", // 115 — ZIGGY: the cart CPU's showcase: rotozoom (64/128/256 textures) and a voxel landscape drawn by the CPU, ZM-X tex2d/mulsh on or off (same pixels), Mc and cycles a pixel on screen
         "demo-falcon_ays", // 116 — RESERVOIR GODS / ARE YOU SITTING COMFORTABLY? (Falcon 030, 2004): the intro on the true-colour plane, its parts driven by the MOD's 8xx script (the original's data, ripped by tools/falcon_ays_art.py)
         "demo-mp3_player", // 117 — MP3 PLAYER: C:\MUSIC's .MP3 files read through KOS GEMDOS and fed to the sound side's MP3 player (pvmp3 on BARD / the AudioWorklet), on the four Paula channels
+        "demo-sid_test", // 118 — SID TEST: a Commodore 64 PSID (HerMiniSID, Hermit) on the .sid player: cRSID, native on BARD, machine-audio.wasm on the page; keys 1-3 by name, as bytes, an RSID refused; 5 stops
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -774,6 +776,23 @@ fn addMusashi(b: *std.Build, mod: *std.Build.Module) void {
     mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/upstream/m68kcpu.c"), .flags = &flags });
     mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/upstream/softfloat/softfloat.c"), .flags = &flags });
     mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/freestanding/stubs.c"), .flags = &flags });
+}
+
+// cRSID (Hermit, libs/c/crsid/README.md): the SID engine of the .sid player, compiled into
+// machine-audio.wasm as the page's reference for the same C BARD runs natively (fpga/host/audio_sid.c).
+// patch.sh lays upstream/ + patches/ out as the tree to build; zm_sid.c is its one translation unit.
+fn addCrsid(b: *std.Build, mod: *std.Build.Module) void {
+    const run = b.addSystemCommand(&.{"sh"});
+    run.addFileArg(b.path("libs/c/crsid/patch.sh"));
+    const tree = run.addOutputDirectoryArg("crsid");
+    for ([_][]const u8{ "C64_SIDrouting.c.sed", "SID_OscWaves.c.sed", "audio.c.sed", "SID_FilterCurves.h" }) |p|
+        run.addFileInput(b.path(b.fmt("libs/c/crsid/patches/{s}", .{p})));
+    mod.addIncludePath(b.path("libs/c/crsid/freestanding"));
+    mod.addIncludePath(b.path("libs/c/crsid"));
+    mod.addIncludePath(tree);
+    const flags = [_][]const u8{ "-std=gnu99", "-ffreestanding", "-fno-builtin", "-w" };
+    mod.addCSourceFile(.{ .file = b.path("libs/c/crsid/zm_sid.c"), .flags = &flags });
+    mod.addCSourceFile(.{ .file = b.path("libs/c/crsid/freestanding/zm_sid_libc.c"), .flags = &flags });
 }
 
 // TC TEST's `tc_art` module: the pictures tools/tc_art.py converts from `dir`, or none (the

@@ -1589,3 +1589,25 @@ kt.zig's 511/256 high-byte volume (louder, but not exact).
 **Consequences:** no Paula sound effect while an MP3 plays; the output is 6 dB under full scale; the cart owns the
 flow control and must trust the status only a few frames after a start. Carts now import one KOS module
 (`kos_gemdos`, whose `.fat` is the FAT reader): a cart that had both failed to compile.
+
+## 2026-11-07 — SID: cRSID native on BARD, the same C in machine-audio.wasm, PSID only
+
+**Status:** accepted
+**Context:** Matt: "can we build a soft version of the SID chip on BARD?". fpga/review/SID_BARD_STUDY.md measured
+cRSID 1.58 (Hermit, "do what you want, mention me"): its default engine is ~2x BARD; the light engine at 22.05 kHz,
+with three bit-exact divide/state patches and its filter table regenerated, is 48-60 % on PSID tunes built natively
+with `-march=rv32im -mno-div`. Through wasm2c (the MP3 player's path) it would cost ~1.3x that. RSID tunes (real C64
+programs) are ~2x BARD in every configuration. cRSID's state (a C64: 276 KB) does not fit demo-audio's 1 MiB.
+**Decision:** the lead chose: cRSID vendored unmodified (libs/c/crsid/upstream), patched at build time by
+`patch.sh` (sed patches + the regenerated table, beside it). The players call it through two `machine*` imports
+(`machineSidLoad`, `machineSidRender`): on the page machine-audio.wasm answers with the C compiled to wasm; on BARD,
+ZIGGY and the native host `fpga/host/audio_sid.c` answers with the same C built natively (`host/crsid.c`, the only
+object BARD builds with `-mno-div`). `apps/sid_check.mjs` holds the two to the same samples. The player
+(libs/zig/players/sid.zig) puts the 22.05 kHz mono on Paula as MP3 does (hi/lo bytes, x >> 1) after a linear 2x
+upsample. RSID is refused with a status ("RSID not supported"). A load is a fresh C64 (cRSID's globals cleared, its
+dither LFSR reset), so a tune's samples never depend on what played before. Glass names it PLAYER_SID (11).
+**Alternatives considered:** cRSID in demo-audio.wasm (no room; and wasm2c on BARD, 62-78 %); the HQ engine (~2x
+BARD); reSID/reSIDfp (GPL, far heavier); unpatched cRSID at 22.05 kHz (55-82 %: over the bar on a filtered 1x tune).
+**Consequences:** machine-audio.wasm grows by ~400 KB (cRSID's zero-filled C64 is a data segment: the memory is
+imported); snd.bin is 1.99 MB of its 2 MiB limit; the SID mutes Paula sound effects as MP3 does; RSID digi tunes do
+not play.

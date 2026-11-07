@@ -12,8 +12,15 @@
 # memories stay apart (the players' 3 MiB is not the cart's 8 MiB).
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
-AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c
-AUD_HDRS       := host/audio_names.h host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h host/hstream.h
+AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
+	host/audio_sid.c host/crsid.c
+# The SID engine (cRSID): libs/c/crsid laid out with its patches (patch.sh); host/crsid.c includes it.
+CRSID          := $(ROOT)/libs/c/crsid
+CRSID_TREE     := build/crsid
+AUD_HDRS       := host/audio_names.h host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h host/hstream.h \
+	$(CRSID_TREE)/libcRSID.c $(CRSID)/zm_sid.c $(CRSID)/zm_sid.h $(CRSID)/config/zm_crsid.h
+$(CRSID_TREE)/libcRSID.c: $(CRSID)/patch.sh $(wildcard $(CRSID)/patches/*) $(wildcard $(CRSID)/upstream/*.[ch] $(CRSID)/upstream/*/*.[ch])
+	sh $(CRSID)/patch.sh $(CRSID_TREE)
 
 $(HOST)/common/%.aud.wasm: tools/wasm_env_rename.py tools/wasm_info.py
 	@mkdir -p $(@D)

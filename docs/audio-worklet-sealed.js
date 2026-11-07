@@ -108,6 +108,14 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const ok = d.audioLoadKt(len);
                 if (ok) d.audioKtPlay(msg.tune >>> 0);
                 this.port.postMessage({ type: "ktLoaded", ok: !!(ok && d.audioKtActive()), len: len, error: d.audioKtError(), rejected: d.audioKtRejected() });
+            } else if (msg.type === "loadSid") {
+                // A Commodore 64 .sid (libs/zig/players/sid.zig): cRSID in machine-audio.wasm, the
+                // same C as BARD's. PSID only: an RSID is refused (status bits 8-15 = 2). Subtunes from 1.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadSid(len, msg.tune >>> 0);
+                const status = d.audioSidStatus();
+                this.port.postMessage({ type: "sidLoaded", ok: !!ok, len: len, status,
+                                        error: ["", "not a .sid", "RSID not supported", "bad length"][status >> 8 & 0xFF] || "?" });
             } else if (msg.type === "sfxPlay") {
                 // zg.sfxPlay: the PCM into the effect buffer, then onto the MOD's
                 // quiet channel (libs/zig/players/sfx_voice.zig).

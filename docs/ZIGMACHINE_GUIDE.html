@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-11-04 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-11-07 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -886,7 +886,7 @@ tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>s
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
-<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sid-commodore-64">SID (Commodore 64)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -945,6 +945,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 <td>no: <code>tune</code> is the sequence row to start at (0 = the start)</td>
 </tr>
 <tr>
+<td><code>.sid</code></td>
+<td>a Commodore 64 <strong>PSID</strong> (HVSC): its 6502 code and the SID on cRSID (Hermit, <code>libs/c/crsid</code>), 22.05 kHz mono on the four Paula channels (see <a href="#sid-commodore-64">SID</a> below). An RSID is refused: "RSID not supported"</td>
+<td>yes: <code>tune</code> counts from 1, 0 = the file's default</td>
+</tr>
+<tr>
 <td><code>.hip</code></td>
 <td>a Jochen Hippel <strong>Amiga</strong> module as UADE plays it: the module's own 68000 replay on the SNDH player's Musashi, poking an emulated Paula (<code>libs/zig/players/hip_player.zig</code>, <code>paula.zig</code>) on the four sample channels. A file that is not a <code>bra</code> jump table plus a <code>TFMX</code> song is refused</td>
 <td>yes: <code>tune</code> counts from 1, 0 = the first song</td>
@@ -968,7 +973,7 @@ Request once, in <code>init()</code>: each request replaces the tune playing.</p
 <p>A tune that is not a file under <code>docs/music/</code> (one a program read off its own disk through the
 drive, as a GEM program reads its data files) plays from the cart's memory instead:</p>
 <figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> n = zg.disk.<span class="tok-fn">read</span>(entry, buf);                         <span class="tok-cm">// the file, a block at a time</span>
-_ = zg.<span class="tok-fn">requestSongBytes</span>(buf[<span class="tok-num">0</span>..n], .sndh, <span class="tok-num">0</span>);               <span class="tok-cm">// or .sap / .xm / .hip / .kt; copied this frame</span>
+_ = zg.<span class="tok-fn">requestSongBytes</span>(buf[<span class="tok-num">0</span>..n], .sndh, <span class="tok-num">0</span>);               <span class="tok-cm">// or .sap / .xm / .hip / .kt / .sid; copied this frame</span>
 zg.<span class="tok-fn">stopSong</span>();                                              <span class="tok-cm">// stops it, as it stops a named one</span></code></pre></figure>
 <p>It rides the effects queue (<code>libs/zig/sfx_queue.zig</code>, op 8): a <code>requestSong</code> made in the same
 frame is applied first. SysInfo's SOUND page plays the SNDH, the SAP and the PCM on its disk
@@ -1291,6 +1296,34 @@ intro (row 0: five FM-on-wavetable voices at once, 126 %). The synth runs a bloc
 sequencer ticks (<code>kt_block.zig</code>), each channel on a copy of its state in a loop built for the
 features it uses; ring modulation or hard sync in effect falls back to a sample at a time.
 <code>apps/kt_cost.mjs</code> ranks the player's code by function without a sim.</p>
+<h4 id="music-sndh-player-zig-c-rust-sid-commodore-64">SID (Commodore 64)</h4>
+<p><code>zg.requestSong("tune.sid")</code> plays a C64 <strong>PSID</strong> (the HVSC format), in the browser and on BARD:
+cRSID (Mihaly Horvath "Hermit", <code>libs/c/crsid/README.md</code>, credit him) runs the tune's 6502 code and
+the SID in its light engine at 22.05 kHz mono, and <code>libs/zig/players/sid.zig</code> plays it on the four
+Paula channels as MP3 does (a high and a low byte a side), upsampled to 44.1 kHz. BARD runs cRSID as
+native C; the page runs the same C in machine-audio.wasm, and <code>apps/sid_check.mjs</code> holds the two to
+the same samples. <code>zg.requestSongBytes(bytes, .sid, subtune)</code> plays a .sid the cart holds (op 8,
+kind 6): the path a C64 port takes for the tune on its own disk.</p>
+<p><strong>RSID is refused</strong> ("RSID not supported", status 2): an RSID is a real C64 program whose IRQs and
+NMIs cRSID runs on every C64 cycle, ~2x BARD (fpga/review/SID_BARD_STUDY.md). Digi tunes are mostly RSID.
+<strong>Cost on BARD:</strong> 48-60 % of a 60 Hz frame on PSID tunes (1x and 4x, 6581 and 8580, filtered), the
+start ~0.5 Mc once. No Paula sound effect while a SID plays.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What</th>
+<th>md5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hermini.sid</code></td>
+<td>HerMiniSID by Hermit, cRSID's own test tune (379 B, 8580)</td>
+<td><code>537f693740ed05502fc23151381082d9</code></td>
+</tr>
+</tbody>
+</table>
 <h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no

@@ -43,6 +43,12 @@ pub extern fn machinePokeyClock(pal: u32) void; // the POKEY's clock: 1 PAL, 0 N
 pub extern fn machinePaulaClearScopes() void;
 pub extern fn machineAudioReset() void; // silence the chip when a program ends
 
+// The SID engine (cRSID, libs/c/crsid): machine-audio.wasm on the page, BARD's native C on the board
+// (fpga/host/audio_sid.c), the same integer code. Not a chip register surface: it renders 22.05 kHz
+// mono PCM into the caller's buffer, which the .sid player puts on Paula (libs/zig/players/sid.zig).
+pub extern fn machineSidLoad(file_abs: u32, len: u32, subtune: u32) u32; // 0 ok, 1 not a .sid, 2 RSID, 3 bad length
+pub extern fn machineSidRender(dst_abs: u32, n: u32) void; // n s16 samples at 22050 Hz
+
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.
 pub extern fn machinePaulaTrigger(ch: u32, data_abs: u32, data_len: u32, loop_start: u32, loop_len: u32, pan: f32) void;

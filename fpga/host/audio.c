@@ -92,7 +92,7 @@ static void load_sap(const char* name, int32_t len, uint32_t tune) {
                    (unsigned)(st >> 16 & 0xFF), (unsigned)w2c_audio_audioSapStopPc(p));
 }
 
-/* worklet "loadXm" / "loadHip" / "loadKt" on the `len` bytes staged: an XM's tune is its start BPM
+/* worklet "loadXm" / "loadHip" / "loadKt" / "loadSid" on the `len` bytes staged: an XM's tune is its start BPM
  * (0 = the song's own), a Hippel module's its song (its own 68000 replay on Paula; from 1), a
  * klystrack song's nothing (cyd on Paula, libs/zig/players/kt.zig). 0: refused. */
 static int load_paula(const char* name, uint32_t len, uint32_t tune) {
@@ -100,6 +100,7 @@ static int load_paula(const char* name, uint32_t len, uint32_t tune) {
     if (ends_with(name, ".xm") && w2c_audio_audioLoadXm(p, len)) w2c_audio_audioXmPlay(p, tune);
     else if (ends_with(name, ".hip") && w2c_audio_audioLoadHip(p, len)) w2c_audio_audioHipPlay(p, tune);
     else if (ends_with(name, ".kt") && w2c_audio_audioLoadKt(p, len)) w2c_audio_audioKtPlay(p, tune);
+    else if (ends_with(name, ".sid")) return audio_sid_load(name, len, tune); /* host/audio_sid.c */
     else return 0;
     return 1;
 }
@@ -107,9 +108,9 @@ static int load_paula(const char* name, uint32_t len, uint32_t tune) {
 /* zg.requestSongBytes (FX_SONG): the cart's image staged as a fetched file is, then loaded as the
  * worklet's message for its kind. No named image: zg.sndhCall cannot reach it (g_resident ""). */
 static void song_bytes(const audio_fx* fx) {
-    static const char* const NAMES[] = {0, "bytes.sndh", "bytes.sap", "bytes.xm", "bytes.hip", "bytes.kt"}; /* bsndinfo.h */
+    static const char* const NAMES[] = {0, "bytes.sndh", "bytes.sap", "bytes.xm", "bytes.hip", "bytes.kt", "bytes.sid"}; /* bsndinfo.h */
     w2c_audio* p = &g_aud.player;
-    if (fx->a < FX_SONG_SNDH || fx->a > FX_SONG_KT) {
+    if (fx->a < FX_SONG_SNDH || fx->a > FX_SONG_SID) {
         printf("ZM FX requestSongBytes: unknown kind %u\n", (unsigned)fx->a);
         return;
     }

@@ -128,6 +128,7 @@ const scene = switch (opts.index) {
     115 => @import("scenes/ziggy.zig"), // ZIGGY: the cart CPU's showcase: a CPU rotozoom (64/128/256 textures) and a voxel landscape, ZM-X on/off, live Mc and cycles a pixel
     116 => @import("scenes/falcon_ays.zig"), // ARE YOU SITTING COMFORTABLY? (Reservoir Gods, Falcon 030 2004): the 8xx-scripted intro on the true-colour plane
     117 => @import("scenes/mp3_player.zig"), // MP3 PLAYER: a jukebox for C:\MUSIC's .MP3 files (KOS GEMDOS), decoded by the sound side (pvmp3)
+    118 => @import("scenes/sid_test.zig"), // SID TEST: one text plane, keys 1-3 play HerMiniSID by name, as bytes, and as a refused RSID; 5 stops (libs/zig/players/sid.zig)
     else => @compileError("bad cart index"),
 };
 

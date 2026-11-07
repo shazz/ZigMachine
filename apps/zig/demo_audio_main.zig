@@ -21,7 +21,7 @@ pub var sfx: sfx_voice.SfxVoice = .{};
 pub var ym: YmPlayer = .{};
 pub var sndh: SndhPlayer = .{};
 pub var xm: XmPlayer = .{};
-// Active player: 0 none, 1 MOD (and XM, HIP, KT: the same four Paula channels), 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
+// Active player: 0 none, 1 MOD (and XM, HIP, KT, MP3, SID: the same four Paula channels), 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
 pub var current_mode: u8 = 0;
 
 // The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*),
@@ -33,6 +33,7 @@ comptime {
 }
 pub const kt_exports = @import("demo_audio_kt.zig"); // klystrack (.kt): cyd on the four Paula channels
 pub const mp3_exports = @import("demo_audio_mp3.zig"); // MP3 (pvmp3) on the four Paula channels
+pub const sid_exports = @import("demo_audio_sid.zig"); // .sid (cRSID: BARD native, machine-audio.wasm) on the four Paula channels
 pub const sap_exports = @import("demo_audio_sap.zig");
 pub const hip_exports = @import("demo_audio_hip.zig");
 pub const cart_paula = @import("demo_audio_paula.zig"); // the channels lent to a cart (HW 1.14.0)
@@ -47,6 +48,7 @@ pub fn stopAll() void {
     xm.stop();
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     sap_exports.sap.stop();
     hip_exports.hip.abandon(); // the module's code is not run on the way out
 }
@@ -69,6 +71,7 @@ export fn audioInit() void {
     hip_exports.hip.abandon();
     kt_exports.kt.active = false; // not `.{}`: a 10 KB default would be a data segment
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     sfx = .{};
     cart_paula.release();
     current_mode = 0;
@@ -96,6 +99,8 @@ export fn audioRender(frames: u32) void {
         kt_exports.kt.renderStereo(n);
     } else if (mp3_exports.mp3.active) {
         mp3_exports.mp3.renderStereo(n);
+    } else if (sid_exports.sid.active) {
+        sid_exports.sid.renderStereo(n);
     } else {
         // Nothing sequencing: mix any live Paula channels (the raw streamer) —
         // or silence. Mirrors the pre-seal engine.render() Paula path.
@@ -133,6 +138,7 @@ export fn audioLoadYm(len: u32) bool {
     hip_exports.hip.abandon(); // its 68000 image was just overwritten too
     kt_exports.kt.stop(); // and the KT's tables
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     return ym.load(songSlice(len));
 }
 export fn audioYmPlay() void {
@@ -142,6 +148,7 @@ export fn audioYmPlay() void {
     xm.stop();
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     audio.machinePaulaClearScopes();
     ym.start();
     current_mode = 2;
@@ -156,6 +163,7 @@ export fn audioLoadSndh(len: u32) bool {
     hip_exports.hip.abandon(); // the SNDH takes the 68000 and its RAM
     kt_exports.kt.stop(); // the KT's tables are in that RAM
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     return sndh.load(len);
 }
 export fn audioSndhPlay(tune: u8) void {
@@ -165,6 +173,7 @@ export fn audioSndhPlay(tune: u8) void {
     xm.stop();
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
     sndh.start(tune);
@@ -179,6 +188,7 @@ export fn audioSndhPlayRaw(d0: u32) void {
     xm.stop();
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
+    sid_exports.sid.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
     sndh.startRaw(d0);

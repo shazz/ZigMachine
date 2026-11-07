@@ -36,7 +36,12 @@ SND_LDFLAGS := $(RV_ARCH) $(SND_ARCH) -Wl,--defsym=__flash=0x40E00000,--defsym=_
 SND_CFLAGS  = $(HRV_CFLAGS) -Icycles/sound -I$(HOST)/tutorial -DZM_SND
 SND_COMMON := cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
-SND_PLAY   := host/audio.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c cycles/baudio.c cycles/sound/smain.c
+SND_PLAY   := host/audio.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
+	host/audio_sid.c host/crsid.c cycles/baudio.c cycles/sound/smain.c
+# cRSID alone is built for rv32im with no DIV (-mno-div): GCC then turns its constant divides into MULH,
+# where -march=rv32i_zmmul calls the core's 400-cycle __divsi3 even for x / 5 (review/SID_BARD_STUDY.md).
+# The DIV/REM guard below still holds; the link keeps SND_ARCH's rv32i multilib.
+SND_NODIV  := -march=rv32im -mno-div
 SND_DEPS   := $(SND_COMMON) $(SND_PLAY) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h cycles/aud_state.h cycles/bsndinfo.h gen/glass_cart.h \
 	$(AUD_HDRS) cycles/baudio.h $(CYC)/alignedz/common/aplayer.o $(HOST)/common/aplayer.h \
 	$(HCYC)/gen/csr_addr.h $(HOST)/tutorial/cart.h
@@ -46,7 +51,8 @@ define snd_image
 $(SND)/$(1)/snd.elf: $(SND_DEPS) $(2) FORCE
 	@mkdir -p $$(@D)/o
 	for s in $(SND_COMMON) $(SND_PLAY) $(2); do \
-		$(RV_CC) $(SND_CFLAGS) $(SND_ARCH) $(3) -c $$$$s -o $$(@D)/o/$$$$(basename $$$$s).o || exit 1; done
+		$(RV_CC) $(SND_CFLAGS) $(SND_ARCH) $(3) $$$$(case $$$$s in (*/crsid.c) echo "$(SND_NODIV)";; esac) \
+			-c $$$$s -o $$(@D)/o/$$$$(basename $$$$s).o || exit 1; done
 	$(RV_CC) $(SND_LDFLAGS) -o $$@ $$(@D)/o/*.o $(CYC)/alignedz/common/aplayer.o -lm
 	! $(RV_OBJDUMP) -d $$@ | grep -qP '\t(divu?|remu?)\t' || (echo "$$@: a DIV/REM, which the sound core traps"; rm $$@; exit 1)
 $(SND)/$(1)/snd.bin: $(SND)/$(1)/snd.elf

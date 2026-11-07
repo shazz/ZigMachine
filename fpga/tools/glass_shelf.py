@@ -56,6 +56,8 @@ SHELF = (
     "pt2", "grafx2", "klystrack", "chipnomad",
     # The MP3 jukebox (tools): C:\\MUSIC through KOS GEMDOS, decoded on BARD (system table 1.11).
     "mp3_player",
+    # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.
+    "sid_test",
 )  # fmt: skip
 OS_CART = "gem"  # KOS's desktop: what the browser boots for a data disk or an empty drive
 DESKTOP_FILE = "kos/desktop.rv32"  # glass/src/app_drive.zig DESKTOP

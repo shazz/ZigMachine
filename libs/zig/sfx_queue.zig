@@ -21,7 +21,7 @@
 //   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode, 6 sample, 7 sample stop, 8 song
 //   1 a     play, sample: 1 = looped; stop: 1 = only a looped effect; ym: register;
 //           sndh mode: 1 the 68000 on Musashi, 2 native, 3 native with PCM samples;
-//           song: the image's kind (SongKind: 1 SNDH, 2 SAP, 3 XM, 4 HIP)
+//           song: the image's kind (SongKind: 1 SNDH, 2 SAP, 3 XM, 4 HIP, 5 KT, 6 SID)
 //   2 b     ym: the value; song: the subtune (from 1; 0 = the image's default), an XM's start BPM
 //   3 -     0
 //   4 ptr   play, sample: the PCM (signed 8-bit); song: the image; a cart address
@@ -56,7 +56,8 @@ pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5, s
 /// What a song image is (entry.a of a song): the player the host loads it into.
 /// kt (5, 3 Nov 2026): a klystrack song; its tune is the sequence row to start at, carried in `rate`
 /// (32 bits: a C cart writes a row past 255 there, apps/ports/klystrack/kestrel_bard.c).
-pub const SongKind = enum(u8) { sndh = 1, sap = 2, xm = 3, hip = 4, kt = 5 };
+/// sid (6, 7 Nov 2026): a Commodore 64 PSID (libs/zig/players/sid.zig); its tune is the subtune, from 1.
+pub const SongKind = enum(u8) { sndh = 1, sap = 2, xm = 3, hip = 4, kt = 5, sid = 6 };
 /// The largest song image the queue takes (a big SNDH is ~100 KB).
 pub const SONG_MAX: usize = 256 * 1024;
 pub const SNDH_MODES: u8 = 3; // sndh_native.zig Mode: 1..3

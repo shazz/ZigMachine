@@ -29,6 +29,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 | `.kt` | a klystrack song: klystron's cyd synth and music.c sequencer in integer Zig (`libs/zig/players/kt.zig`), bit-exact against upstream, its 16-bit stereo on the four Paula channels (see [KT](#kt-klystrack) below) | no: `tune` is the sequence row to start at (0 = the start) |
+| `.sid` | a Commodore 64 **PSID** (HVSC): its 6502 code and the SID on cRSID (Hermit, `libs/c/crsid`), 22.05 kHz mono on the four Paula channels (see [SID](#sid-commodore-64) below). An RSID is refused: "RSID not supported" | yes: `tune` counts from 1, 0 = the file's default |
 | `.hip` | a Jochen Hippel **Amiga** module as UADE plays it: the module's own 68000 replay on the SNDH player's Musashi, poking an emulated Paula (`libs/zig/players/hip_player.zig`, `paula.zig`) on the four sample channels. A file that is not a `bra` jump table plus a `TFMX` song is refused | yes: `tune` counts from 1, 0 = the first song |
 
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
@@ -56,7 +57,7 @@ drive, as a GEM program reads its data files) plays from the cart's memory inste
 
 ```zig
 const n = zg.disk.read(entry, buf);                         // the file, a block at a time
-_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip / .kt; copied this frame
+_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip / .kt / .sid; copied this frame
 zg.stopSong();                                              // stops it, as it stops a named one
 ```
 
@@ -365,6 +366,25 @@ intro (row 0: five FM-on-wavetable voices at once, 126 %). The synth runs a bloc
 sequencer ticks (`kt_block.zig`), each channel on a copy of its state in a loop built for the
 features it uses; ring modulation or hard sync in effect falls back to a sample at a time.
 `apps/kt_cost.mjs` ranks the player's code by function without a sim.
+
+## SID (Commodore 64)
+
+`zg.requestSong("tune.sid")` plays a C64 **PSID** (the HVSC format), in the browser and on BARD:
+cRSID (Mihaly Horvath "Hermit", `libs/c/crsid/README.md`, credit him) runs the tune's 6502 code and
+the SID in its light engine at 22.05 kHz mono, and `libs/zig/players/sid.zig` plays it on the four
+Paula channels as MP3 does (a high and a low byte a side), upsampled to 44.1 kHz. BARD runs cRSID as
+native C; the page runs the same C in machine-audio.wasm, and `apps/sid_check.mjs` holds the two to
+the same samples. `zg.requestSongBytes(bytes, .sid, subtune)` plays a .sid the cart holds (op 8,
+kind 6): the path a C64 port takes for the tune on its own disk.
+
+**RSID is refused** ("RSID not supported", status 2): an RSID is a real C64 program whose IRQs and
+NMIs cRSID runs on every C64 cycle, ~2x BARD (fpga/review/SID_BARD_STUDY.md). Digi tunes are mostly RSID.
+**Cost on BARD:** 48-60 % of a 60 Hz frame on PSID tunes (1x and 4x, 6581 and 8580, filtered), the
+start ~0.5 Mc once. No Paula sound effect while a SID plays.
+
+| File | What | md5 |
+|---|---|---|
+| `hermini.sid` | HerMiniSID by Hermit, cRSID's own test tune (379 B, 8580) | `537f693740ed05502fc23151381082d9` |
 
 ## Rules and limits
 

@@ -222,7 +222,7 @@ sealed, and it is not guaranteed by the ABI. Prefer the resolution/HBL mechanism
 
 ## 8. Audio players
 
-Players are open ZigOS code that drive the sealed chips. Four ship today:
+Players are open ZigOS code that drive the sealed chips. These ship today (MP3, XM, HIP, KT and SAP are in docs/MUSIC.md):
 
 - **SNDH** — the tune's own 68000 replay code, run on the emulated 68000 driving the
   sealed YM2149 (subtunes: `tune` counts from 1, 0 = default). The preferred format.
@@ -236,6 +236,13 @@ Players are open ZigOS code that drive the sealed chips. Four ship today:
   `zg.requestModVolume(gain)` (0..1, after `requestSong`, same frame) turns the song's own
   channels down under them, never the effect's; each MOD load starts at 1.0 (docs/MUSIC.md,
   "Sound effects over a MOD").
+- **SID** (`SidPlayer`, 7 Nov 2026) — a Commodore 64 **PSID** (`.sid`, from HVSC): the tune's 6502
+  code and the SID on cRSID (Hermit's light engine, `libs/c/crsid`), 22.05 kHz mono, on the four
+  Paula channels (a high and a low byte a side, as MP3). BARD runs cRSID natively; the page runs the
+  same C in machine-audio.wasm. `tune` is the subtune (from 1, 0 = the file's default). An **RSID**
+  (a real C64 program, digi tunes) is refused: "RSID not supported" (it would cost ~2x BARD). By
+  name (`zg.requestSong("x.sid")`) or from the cart's own disk
+  (`zg.requestSongBytes(bytes, .sid, subtune)`, as a C64 port loads its tune). SID TEST shows both.
 - **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers. **Deprecated**: screens use the SNDH player; a dump is the last resort when no SNDH of the tune exists (see docs/MUSIC.md).
 - **raw sample** — streams 8-bit PCM on one Paula channel, the stream ring. Two ways to fill it:
   the cart feeds it itself, paced by its frame's dt (`zg.audioStreamStart(rate)`, `zg.audioFeed(bytes)`,
@@ -256,7 +263,7 @@ silenced, the 68000 RAM cleared); for a game's sound effects `zg.sndhCall(name, 
 the playing SNDH's INIT again with `d0` instead, nothing reloaded, every call of a frame
 in order (`zm_sndh_call` / `sndh_call` in C / Rust). A song the cart holds in its OWN memory (a
 file it read off its disk through the drive, `zg.disk.read`) plays with
-`zg.requestSongBytes(bytes, .sndh | .sap | .xm | .hip, tune)` (an XM's tune is its start BPM): the host copies the image when it drains the
+`zg.requestSongBytes(bytes, .sndh | .sap | .xm | .hip | .kt | .sid, tune)` (an XM's tune is its start BPM): the host copies the image when it drains the
 frame (sfx queue op 8) and loads it as it loads a named one; `zg.stopSong()` stops it (SysInfo's
 SOUND page, `apps/zig/scenes/sysinfo/sound_play.zig`). The full guide, with formats, rules and the
 headless checks, is `docs/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).

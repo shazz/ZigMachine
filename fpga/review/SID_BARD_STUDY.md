@@ -190,14 +190,14 @@ engine and the lower rate cost little against the emulator-family difference.
   - `_ulq22.wav`: the same with the stock table, to hear what the regeneration fixes;
   - `Commando_sidlite.wav`: libsidplayfp's sidlite.
 
-## 5. What a player on BARD would take (step 2, not started)
+## 5. What a player on BARD would take (the step-2 decision; built: section 6)
 
 **The decision, in short.** The bar was "under ~70 % mean on BARD for 1x tunes":
 - (a) a patched cRSID at 22.05 kHz: **48-60 %** on PSID tunes. Go.
 - (b) strictly unmodified (`-mno-div` only): 55-82 %. Over the bar on Cybernoid II, a filtered 1x tune.
 - Either way: native C or wasm2c (x1.3, below), and RSID refused.
 
-Step 2 was not started. The brief's step 2 vendors cRSID unmodified, and only the modified build
+The study stopped here for the lead: the brief's step 2 vendored cRSID unmodified, and only the modified build
 clears the bar.
 
 RSID tunes (digis, most modern demo tunes) would need the 6502/CIA loop made several times cheaper.
@@ -229,6 +229,33 @@ Then, as the MP3 path did:
 - HD/MUSIC/HerMiniSID.sid. HVSC tunes stay Matt's local files.
 
 The board check: the OSD's BARD % on a PSID tune, against the sim's 48-60 %.
+
+## 6. The player as built (feat/sid-bard, 7 Nov): BARD's load with the real loop
+
+The lead chose (a), native C. Built as `docs/ROADMAP.md`'s row says:
+- cRSID 1.58 unmodified in `libs/c/crsid/upstream`; `patch.sh` applies `ZDIV`, `ZRECIP`, the LFSR reset and the
+  22.05 kHz table at build time;
+- BARD answers the players' `machineSidLoad` / `machineSidRender` natively (`fpga/host/audio_sid.c`,
+  `host/crsid.c` built `-march=rv32im -mno-div`); the page runs the same C in machine-audio.wasm;
+- `apps/sid_check.mjs` (gate `sid`): wasm = native, 0.1 s block for block, on hermini.sid and the 11 local
+  study PSIDs; the player's output = the engine upsampled >> 1; RSID refused;
+- SID TEST (cart 118, gate `sid_test`): by name, as bytes (`requestSongBytes(.sid)`), an RSID refused.
+
+`make snd-bench SONG=<tune>.sid` (the player loop on BARD, the audio core's queue, no cart), combo16 core
+`SndNdD16Dyn8Sx`, 8 frames:
+
+| Tune | Engine alone (snd-cbench, section 3) | **The real loop: mean of 8 frames** | Peak tick | Start |
+|---|---|---|---|---|
+| hermini.sid (Hermit, 8580) | 0.86 Mc, 51 % | **1.02 Mc, 61 %** | 1.35 Mc (81 %) | 1.62 Mc |
+| Cybernoid II (6581, filter) | 1.00 Mc, 60 % | **1.17 Mc, 70 %** | 1.57 Mc (94 %) | 1.73 Mc |
+
+- The loop renders in uneven ticks (three heavy, one light: 0.18 Mc), so the mean is the 8 frames' total / 8.
+- **The player around the engine costs ~0.17 Mc** (10 points): the 2x upsample, the hi/lo bytes and the Paula
+  triggers in wasm2c'd Zig, a sample at a time, and the audio core's queue. The lever if BARD needs room: the
+  upsample is exactly 2x, so a pair-at-a-time path (one engine sample -> two output bytes) without `Linear`.
+- `snd.bin` is 1,994,680 bytes of its 2 MiB limit (cRSID: 155 KB of code; its 276 KB C64 is .bss).
+- machine-audio.wasm grows from 82 KB to 498 KB: cRSID's zero-filled C64 is written out as a data segment,
+  because the memory is imported.
 
 ## Reproduce
 

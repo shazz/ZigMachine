@@ -54,9 +54,9 @@ enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5, FX_SA
        FX_SONG = 8 };
 /* FX_SONG (zg.requestSongBytes): a song image in the cart's memory, `pcm` / `len`, loaded as the
  * worklet's loadSndh / loadSap / loadXm / loadHip / loadKt: `a` its kind (1 SNDH, 2 SAP, 3 XM, 4 HIP,
- * 5 KT), `b` its tune (0 = the image's own; an XM's start BPM); a KT's tune is the sequence row to start
+ * 5 KT, 6 SID), `b` its tune (0 = the image's own; an XM's start BPM; a SID's subtune); a KT's tune is the sequence row to start
  * at, the entry's 32-bit `rate`. */
-enum { FX_SONG_SNDH = 1, FX_SONG_SAP = 2, FX_SONG_XM = 3, FX_SONG_HIP = 4, FX_SONG_KT = 5 };
+enum { FX_SONG_SNDH = 1, FX_SONG_SAP = 2, FX_SONG_XM = 3, FX_SONG_HIP = 4, FX_SONG_KT = 5, FX_SONG_SID = 6 };
 /* The stream ring's calls (zg.audioStreamStart / audioFeed / audioStreamStop), carried as effects
  * by this side (audio_bridge.c audio_stream_*): never on the cart's queue, so above its ops.
  * Start's rate is in `rate` (Hz); a feed's bytes are `pcm`, `len`. */
@@ -108,6 +108,9 @@ void audio_mp3_ctl(struct w2c_env* e, uint32_t op, uint32_t arg);
 void audio_mp3_feed(struct w2c_env* e, uint32_t ptr, uint32_t len);
 uint32_t audio_mp3_status(uint32_t which);
 int audio_mp3_effect(const audio_fx* fx);
+/* A .sid staged in song RAM (`len` bytes, subtune `tune`), on the SID engine BARD runs natively
+ * (host/audio_sid.c, libs/c/crsid): 1 when `name` is a .sid (played, or refused and said why). */
+int audio_sid_load(const char* name, uint32_t len, uint32_t tune);
 /* The players are up (host/audio.c: instantiated; cycles/bsound.c: BARD answered). A cart may
  * start its stream in its init, before them: audio_bridge.c holds that start until they are. */
 int audio_live(void);

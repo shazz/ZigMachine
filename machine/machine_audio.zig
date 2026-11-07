@@ -13,6 +13,9 @@ const std = @import("std");
 const engine_mod = @import("audio/engine.zig");
 const Engine = engine_mod.Engine;
 const pokey_mod = @import("audio/pokey.zig");
+comptime {
+    _ = @import("audio/sid.zig"); // machineSidLoad / machineSidRender: cRSID, the .sid player's engine
+}
 
 const FRAC_BITS: u6 = 16; // Paula fixed-point (matches engine.zig)
 

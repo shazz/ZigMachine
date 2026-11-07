@@ -75,6 +75,8 @@ if [ -n "$CARD" ]; then
     # pvmp3 (Apache-2.0) is linked into system.rv32's BARD image: its notice ships with the card (THIRD_PARTY.md)
     cp "$ROOT/libs/c/pvmp3/upstream/NOTICE" "$DEST/licenses/pvmp3-NOTICE"
     cp "$ROOT/libs/c/pvmp3/upstream/patent_disclaimer.txt" "$DEST/licenses/pvmp3-patent_disclaimer.txt"
+    # cRSID (Hermit) is linked into the BARD image too: its licence line and the credit it asks for (THIRD_PARTY.md)
+    cp "$ROOT/libs/c/crsid/cRSID-README.txt" "$DEST/licenses/cRSID-README.txt"
 else
     CARD_NOTE="none: get the KESTREL $VERSION card from its release page"
 fi
