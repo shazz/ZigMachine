@@ -4,7 +4,7 @@
 
 One line a disk, tab-separated: FILE, TITLE, GROUP, YEAR, TYPE, DESCRIPTION
 (fpga/glass/src/meta.zig reads it). FILE is the disk's path under CARTS/,
-its folder first (tools/shelf_category.py): "demos/demo-stniccc.zmd". Nothing is typed twice; each field comes
+its folders first (tools/shelf_category.py): "demos/atari_st/demo-stniccc.zmd". Nothing is typed twice; each field comes
 from where the repo already keeps it:
 
 - TITLE and TYPE: apps/zig/scenes/catalog.zig (tools/channels.py's parser, so
