@@ -1,4 +1,4 @@
-// The shelf's scan (shelf.zig): titles, the sort, and the category folders one level down.
+// The shelf's scan (shelf.zig): titles, the sort, and the folders (nested: demos/atari_st/).
 const std = @import("std");
 const zmd = @import("zmd.zig");
 const meta = @import("meta.zig");
@@ -90,6 +90,37 @@ test "a flat copy of a disk that is also in a folder is dropped: one disk a name
     try std.testing.expectEqualStrings("NEW", s.disks[0].title);
     try std.testing.expectEqualStrings("demos", s.disks[0].folder);
     try std.testing.expectEqualStrings("ONLY FLAT", s.disks[1].title);
+}
+
+test "folders nest: a disk's folder is its path, a half-moved copy above it is dropped, the depth is capped" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDirPath(io, "demos/atari_st/deeper/too_deep");
+    try put(tmp.dir, "demos/atari_st/demo-a.zmd", "NEW");
+    try put(tmp.dir, "demos/demo-a.zmd", "OLD"); // the card before the platform folders, not cleaned up
+    try put(tmp.dir, "demos/atari_st/deeper/demo-b.zmd", "DEEP"); // MAX_DEPTH 3: still read
+    try put(tmp.dir, "demos/atari_st/deeper/too_deep/demo-c.zmd", "LOST"); // a fourth level is not
+    try tmp.dir.writeFile(io, .{ .sub_path = meta.FILE, .data = "demos/atari_st/demo-a.zmd\tATARI A\n" });
+    var s = try scanTmp(tmp);
+    defer s.deinit();
+    try std.testing.expectEqual(@as(usize, 2), s.disks.len);
+    try std.testing.expectEqualStrings("ATARI A", s.disks[0].title); // shelf.txt by the nested path
+    try std.testing.expectEqualStrings("demos/atari_st", s.disks[0].folder);
+    try std.testing.expectEqualStrings("demos/atari_st/deeper", s.disks[1].folder);
+    try std.testing.expectEqualStrings("/sd/CARTS/demos/atari_st/demo-a.zmd", try s.path("/sd/CARTS", 0));
+}
+
+test "a nested disk shelf.txt does not list shows its file name; a flat-era line still names it" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDirPath(io, "demos/amiga");
+    try put(tmp.dir, "demos/amiga/demo-x.zmd", ""); // a descriptor with no title
+    try put(tmp.dir, "demos/amiga/demo-y.zmd", "own title");
+    try tmp.dir.writeFile(io, .{ .sub_path = meta.FILE, .data = "demos/demo-y.zmd\tWHY\n" }); // written before the platforms
+    var s = try scanTmp(tmp);
+    defer s.deinit();
+    try std.testing.expectEqualStrings("demo-x.zmd", s.disks[0].title); // no line, no title: the file, as is
+    try std.testing.expectEqualStrings("WHY", s.disks[1].title); // found by its file name
 }
 
 test "a shelf directory that is missing is an error, not an empty shelf" {

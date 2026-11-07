@@ -37,10 +37,11 @@ pub fn rescan(app: *App) void {
 }
 
 /// The cursor stays on its row's cart or folder (rows are positions too); out of a folder
-/// that is gone (its last disk removed, or the floppy has none), back at the top.
+/// that is gone (its last disk removed, or the floppy has none), up to the nearest folder
+/// still holding a disk, the top at worst.
 fn keepCursor(list: *page_shelf.State, old: []const shelf.Disk, new: []const shelf.Disk) void {
     const was = if (old.len > 0) list.view(old).at(list.cursor) else null;
-    if (list.folder_len > 0 and sv.count(new, list.folder()) == 0) list.folder_len = 0;
+    while (list.folder_len > 0 and sv.count(new, list.folder()) == 0) list.folder_len = sv.parent(list.folder()).len;
     const v = list.view(new);
     const row: ?usize = if (was) |w| switch (w) {
         .disk => |i| if (find(new, old[i].file)) |k| v.rowOfDisk(k) else null,
