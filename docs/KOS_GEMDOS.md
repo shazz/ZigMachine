@@ -76,9 +76,9 @@ Two non-TOS helpers: `Kgemdos_media_a()` (drive A has a new disk) and `Kgemdos_t
 
 **In the cart**, a library over the sector imports every host already serves (decisions.md, "KOS
 GEMDOS runs in the cart"). `env.kosDriveRead` (unit 2, up to 64 sectors a request, all or nothing) has
-been a host entry of the system table since 1.8, so **no system table change and no new
-`system.rv32`**: a cart that uses GEMDOS needs table >= 1.8 (combo16's is 1.9), which `host_split.py`
-already stamps on any cart importing it. No host code: the page, the native host and the board serve
+been a host entry of the system table since 1.8, so phase 1 needed no system table change. Phase 2
+added `env.kosFileOp` (table 1.10), which the library always links: **a cart that uses GEMDOS now
+needs table >= 1.10** and the new `system.rv32` (`host_split.py` stamps it on any cart importing it). No host code: the page, the native host and the board serve
 the same sectors by the same rules (KOS_FAT §4), and the same Zig answers on all three.
 
 **Costs on the board.** A request is one round trip to glass: the firmware writes the request block and
@@ -163,7 +163,8 @@ Select drive, `/C`. In the native host: `--c-image docs/gemdos-c.img`.
 On the board:
 
 Build the GrafX2 board image (`fpga/tools/glass_shelf.py`, the card's `CARTS/` and `KESTREL/progs/by-hash`
-like any rebuilt cart: no new system). Copy the test pictures to the card's `HD/`
+like any rebuilt cart; since phase 2 with the 1.10 `KESTREL/system.rv32` and the new glass,
+docs/KOS_GEMDOS_WRITES.md §7). Copy the test pictures to the card's `HD/`
 (`HD/PICTURES/ZIGWAVES.PI1`, `HD/PICTURES/PLASMA/ZIGPLASM.PI1`, from `apps/ports/grafx2/ownpics/`, 8.3
 names). In GrafX2: F3, Select drive, `/C`, PICTURES, PLASMA, ZIGPLASM.PI1. Watch for: the drive list
 without `/C` (the card has no `/HD`, or glass's C: thread is not running: then the mount's one request

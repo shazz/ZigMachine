@@ -67,9 +67,9 @@ test "every escape from HD is refused, and nothing outside it changes" {
     var c = try Card.init();
     defer c.deinit();
     const escapes = [_][]const u8{
-        "..\\OUT\\SYSTEM.RV3", "..", "\\OUT\\X", "C:\\X", "/etc/passwd", "PICS/../../OUT/X", "PICS\\..\\..\\X",
-        ".\\X", "", "PICS\\", "\\", "x.dat", "A B", "OUT\\..\\..", "LINK\\SYSTEM.RV3", "LINK\\NEW.DAT",
-        "PICS\\\x00X", "%2E%2E\\X",
+        "..\\OUT\\SYSTEM.RV3", "..",            "\\OUT\\X",    "C:\\X",     "/etc/passwd", "PICS/../../OUT/X", "PICS\\..\\..\\X",
+        ".\\X",                "",              "PICS\\",      "\\",        "x.dat",       "A B",              "OUT\\..\\..",
+        "LINK\\SYSTEM.RV3",    "LINK\\NEW.DAT", "PICS\\\x00X", "%2E%2E\\X",
     };
     for (escapes) |p| {
         for ([_]kf.Op{ .write, .delete, .mkdir, .rmdir, .setattr }) |o| {
