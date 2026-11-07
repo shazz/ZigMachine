@@ -11,7 +11,8 @@
  * X's executable boot sector in the cart's place (host/bootsec_host.h), the board's interpreter
  * against scene_hash.mjs given the same X.zmd. --kos X.zmd|none [--post-frames N]: KOS's power-on,
  * the ROM's POST then drive A (host/kos_host.h), as scene_hash.mjs --kos.
- * --c-image X.img: KOS's C: (env.kosDriveRead), as scene_hash.mjs --c-image.
+ * --c-image X.img: KOS's C: (env.kosDriveRead), as scene_hash.mjs --c-image; the cart's writes
+ * (env.kosFileOp, host/kos_cfile.c) go into it in memory. --c-image-rw X.img: into the file too.
  *
  * <cart-label> is only echoed into the JSON (the cart is linked in).
  *
@@ -29,6 +30,7 @@
 
 #include "boot.h"
 #include "bootsec_host.h"
+#include "disk.h" /* host_cdisk: C:, whose writes KFS serves (host/kos_cfile.c) */
 #include "kos_host.h"
 #include "host_io.h"
 #include "sha256.h"
@@ -147,6 +149,9 @@ static void run(const char* cart, long n, long k) {
     free(hashes);
 }
 
+static const char* g_c_rw; /* --c-image-rw: C:'s image file, written through */
+void host_kos_file_mount(const char* rw_path); /* host/kos_cfile.c */
+
 int main(int argc, char** argv) {
     const char* pos[3] = {NULL, "1200", "10"};
     int npos = 0;
@@ -154,6 +159,7 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--call") == 0 && i + 1 < argc) host_io_parse_call(argv[++i]);
         else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc) host_io_mount_disk(argv[++i]);
         else if (strcmp(argv[i], "--c-image") == 0 && i + 1 < argc) host_io_mount_c(argv[++i]);
+        else if (strcmp(argv[i], "--c-image-rw") == 0 && i + 1 < argc) host_io_mount_c(g_c_rw = argv[++i]);
         else if (strcmp(argv[i], "--data-disk") == 0 && i + 1 < argc) host_io_data_disk(argv[++i]);
         else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (strcmp(argv[i], "--bootsec") == 0 && i + 1 < argc) g_bootsec = argv[++i];
@@ -166,6 +172,7 @@ int main(int argc, char** argv) {
     long n = strtol(pos[1], NULL, 10), k = strtol(pos[2], NULL, 10);
     if (k <= 0) { fprintf(stderr, "host: every must be > 0\n"); return 2; }
     wasm_rt_init();
+    if (host_cdisk.data) host_kos_file_mount(g_c_rw); /* C:'s writes (KFS), after the runtime is up */
     wasm_rt_trap_t trap = wasm_rt_impl_try();
     if (trap) { fprintf(stderr, "host: %s: trap: %s\n", pos[0], wasm_rt_strerror(trap)); return 1; }
     if (g_kos) {

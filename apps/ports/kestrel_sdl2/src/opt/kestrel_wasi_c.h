@@ -10,7 +10,7 @@
 #define C_FIRST 32    /* C:'s files and folders: fds C_FIRST .. C_FIRST + C_FDS - 1 */
 #define C_FDS 8
 #define PATH_MAX_C 160
-typedef struct { int used, dir, up; int32_t h; uint32_t size; char path[PATH_MAX_C]; KDTA dta; uint64_t next; } kcd_t;
+typedef struct { int used, dir, up, w; int32_t h; uint32_t size; char path[PATH_MAX_C]; KDTA dta; uint64_t next; } kcd_t;
 extern kcd_t kcd_fds[C_FDS];
 
 int kestrel_c_mounted(void);
@@ -20,6 +20,7 @@ int32_t kcd_errno(int32_t gemdos_error);
 int kcd_path(int32_t fd, const char *rel, uint32_t len, char *out);
 void kcd_stat(__wasi_filestat_t *st, int dir, uint32_t size, uint64_t ino);
 int32_t kcd_kind(const char *path, uint32_t *size);
+int32_t kcd_create(const char *path, int32_t oflags, int32_t out); /* kestrel_wasi_cfile.c */
 
 int32_t kestrel_floppy_fd_prestat_get(int32_t, int32_t);
 int32_t kestrel_floppy_fd_prestat_dir_name(int32_t, int32_t, int32_t);
@@ -33,5 +34,9 @@ int32_t kestrel_floppy_fd_filestat_get(int32_t, int32_t);
 int32_t kestrel_floppy_path_filestat_get(int32_t, int32_t, int32_t, int32_t, int32_t);
 int32_t kestrel_floppy_path_open(int32_t, int32_t, int32_t, int32_t, int32_t, int64_t, int64_t, int32_t, int32_t);
 int32_t kestrel_floppy_fd_readdir(int32_t, int32_t, int32_t, int64_t, int32_t);
+int32_t kestrel_floppy_path_create_directory(int32_t, int32_t, int32_t);
+int32_t kestrel_floppy_path_remove_directory(int32_t, int32_t, int32_t);
+int32_t kestrel_floppy_path_unlink_file(int32_t, int32_t, int32_t);
+int32_t kestrel_floppy_path_rename(int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);
 
 #endif

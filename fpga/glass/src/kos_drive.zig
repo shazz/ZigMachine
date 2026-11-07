@@ -8,6 +8,10 @@
 const std = @import("std");
 const linux = std.os.linux;
 const mc = @import("map_cart.zig");
+const kos_file = @import("kos_file.zig");
+const layout = @import("layout.zig");
+const HD_DIR = layout.ROOT ++ "/" ++ layout.HD; // C:\ for writes: Linux's own view of the card (KESTREL layout)
+const layout_root: [*:0]const u8 = layout.ROOT;
 
 pub const SECTOR = 512;
 pub const PARTITION = "/dev/mmcblk0p1"; // the SD card's FAT32 partition: C:
@@ -73,24 +77,36 @@ pub const Server = struct {
     }
 };
 
-/// The board's server: the partition opened read-only, polled every 500 us for glass's life.
+/// The board's server: the partition opened read-only, polled every 500 us for glass's life, and
+/// C:'s writes (kos_file.zig) polled by the same thread, so a write and a sector read never overlap.
 /// No partition (a card with none, a desk run): no thread, the firmware's requests time out to 0.
 pub fn startThread(words: []volatile u32) void {
     const S = struct {
         var handle: i32 = -1;
         var server: Server = undefined;
+        var files: ?kos_file.Server = null;
         fn loop() void {
             const ts = linux.timespec{ .sec = 0, .nsec = 500_000 };
             while (true) {
                 _ = server.poll();
+                if (files) |*f| _ = f.poll();
                 _ = linux.nanosleep(&ts, null);
             }
+        }
+        // A write went through Linux's FAT: the partition's cached sectors may be stale for raw reads.
+        fn dropCache() void {
+            _ = linux.fadvise(handle, 0, 0, linux.POSIX_FADV.DONTNEED);
         }
     };
     const rc = linux.open(PARTITION, .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
     if (linux.errno(rc) != .SUCCESS) return std.log.warn("C: {s}: {t} (KOS's C: will not answer)", .{ PARTITION, linux.errno(rc) });
     S.handle = @intCast(rc);
     S.server = .{ .words = words, .src = Source.fd(&S.handle) };
+    const hd = linux.open(HD_DIR, .{ .ACCMODE = .RDONLY, .DIRECTORY = true, .NOFOLLOW = true, .CLOEXEC = true }, 0);
+    if (linux.errno(hd) == .SUCCESS)
+        S.files = .{ .words = words, .be = .{ .root = @intCast(hd), .mount_point = layout_root, .after = S.dropCache } }
+    else
+        std.log.warn("C: {s}: {t} (C:'s writes will not answer)", .{ HD_DIR, linux.errno(hd) });
     const t = std.Thread.spawn(.{}, S.loop, .{}) catch |err| return std.log.warn("C: server thread: {t}", .{err});
     t.detach();
 }

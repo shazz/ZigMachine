@@ -125,6 +125,18 @@ function diskReadBlock(block, dstOff) {
 // native host (fpga/host/disk.h host_kos_drive_read) and of the board's glass (kos_drive.zig).
 let kosC = null;
 function kosMountC(buf) { kosC = buf; }
+// C:'s writes (docs/KOS_GEMDOS.md §7): env.kosFileOp(req) hands KFS (docs/kos-cfs.wasm, through
+// docs/kos-cfile.js) a whole-file request; it edits the image above in memory, as glass edits the
+// card on the board. No image: EDRIVE. The page's clock stamps what it writes.
+let kosCOp = null;
+async function kosMountCWrites() {
+    const mod = await WebAssembly.compile(await fetch("kos-cfs.wasm" + BUST).then((r) => r.arrayBuffer()));
+    kosCOp = ZMKosFile.make(() => memory.buffer, kosC, mod);
+    const d = new Date();
+    kosCOp.stamp(d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1,
+        (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate());
+}
+function kosFileOp(req) { return kosCOp ? kosCOp(req) : -46; }
 function kosDriveRead(unit, sector, count, dst) {
     const n = (count >>> 0) * 512, from = (sector >>> 0) * 512;
     if (!kosC || unit !== 2 || count === 0 || count > 64 || (dst >>> 0) % 4) return 0;
@@ -494,6 +506,7 @@ async function boot() {
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
             kosDriveRead: (unit, sector, count, dst) => kosDriveRead(unit, sector, count, dst), // KOS's C:
+            kosFileOp: (req) => kosFileOp(req), // KOS's C: writes (table 1.10)
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
             hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring
@@ -582,7 +595,10 @@ async function kosPowerOn(url, params) {
     // ?c=kos-c.img: KOS's C: (docs/KOS_FAT.md F5) from a FAT image, as the board's SD card; none by
     // default, so the desktop shows no C: icon (its shell finds nothing to mount).
     const cUrl = params.get("c");
-    if (cUrl && cUrl !== "none") kosMountC(new Uint8Array(await fetch(cUrl + BUST).then((r) => r.arrayBuffer())));
+    if (cUrl && cUrl !== "none") {
+        kosMountC(new Uint8Array(await fetch(cUrl + BUST).then((r) => r.arrayBuffer())));
+        await kosMountCWrites();
+    }
     kosDrive = url ? { url, ...(await mountDisk(url)) } : null;
     if (!url) mountedDisk = null;
     ZMKos.power(rom, machine, kosDrive, mountedDisk, params.get("warm") === "1"); // ?warm=1: the reset button

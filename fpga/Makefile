@@ -107,7 +107,8 @@ HOST_CC  ?= clang
 HOST_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809L -O2 -ffp-contract=off -w -DWASM_RT_USE_MMAP=0 \
 	-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=10000 \
 	-I$(WABT)/include -I$(W2C_RT) -Ihost -I$(HOST)/common
-HOST_COMMON := $(addprefix $(HOST)/common/,machine.o rom.o rt.o rt-mem.o rt-exc.o sha256.o)
+# kfs.a last: KFS (C:'s writes, host/kos_cfile.c) is pulled in only by a main that mounts it (host/main.c).
+HOST_COMMON := $(addprefix $(HOST)/common/,machine.o rom.o rt.o rt-mem.o rt-exc.o sha256.o kfs.a)
 
 $(HOST)/common/machine.c: $(ROOT)/docs/machine-video.wasm
 	@mkdir -p $(@D)
@@ -115,6 +116,15 @@ $(HOST)/common/machine.c: $(ROOT)/docs/machine-video.wasm
 $(HOST)/common/rom.c: $(ROOT)/docs/rom.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n rom -o $@
+# KFS, C:'s writer (docs/KOS_GEMDOS.md §7): the page's docs/kos-cfs.wasm, linked into the host (host/kos_cfile.c).
+$(HOST)/common/kfs.c: $(ROOT)/docs/kos-cfs.wasm
+	@mkdir -p $(@D)
+	wasm2c $< -n kfs -o $@
+$(HOST)/common/kfs.h: $(HOST)/common/kfs.c ;
+$(HOST)/common/kos_cfile.o: host/kos_cfile.c host/disk.h $(HOST)/common/kfs.h
+	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
+$(HOST)/common/kfs.a: $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o
+	rm -f $@ && ar rcs $@ $^
 $(HOST)/common/rt.o: $(W2C_RT)/wasm-rt-impl.c
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/rt-mem.o: $(W2C_RT)/wasm-rt-mem-impl.c

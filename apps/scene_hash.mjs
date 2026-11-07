@@ -25,22 +25,24 @@
 // --post-frames frames (default 180, 0 = none), then drive A decides what runs: X's boot
 // sector, X's cart (the cart given must be it) or the desktop (the cart given: demo-gem.wasm).
 // `--c-image X.img` is KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead serves X's sectors by the
-// page's rules (docs/sealed-loader.js kosDriveRead, the page's ?c=X); without it, 0 (no C:).
+// page's rules (docs/sealed-loader.js kosDriveRead, the page's ?c=X); without it, 0 (no C:). The
+// cart's writes go into it (env.kosFileOp, docs/kos-cfile.js); `--c-out Y.img` saves it after the run.
 // `--composite` hashes only the COMPOSED picture (each enabled plane's physical
 // render, borders included, stacked as the browser's canvases are: stackOver),
 // not each plane: it proves a change that moves pixels between planes (merging
 // two into one) shows the same frames.
 // `--song-clock` sets zigos.song_ms (what the host mirrors from the playing tune)
 // to frame * 1000 / 60 before each frame, for carts that sync to the music.
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
-import { makeCDrive, makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
+import { makeCDrive, makeCFile, makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
 import { kosBoot } from "./scene_hash_kos.mjs";
 import { writePng } from "./scene_png.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 let cImage = null; // --c-image: KOS's C:
+let cOut = null; // --c-out: where the C: image goes after the run, with what the cart wrote
 
 async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -71,6 +73,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
         ...rom,
     };
     if (cImage) env.kosDriveRead = makeCDrive(memory, cImage);
+    env.kosFileOp = cImage ? makeCFile(memory, cImage) : () => -46; // C:'s writes (docs/KOS_GEMDOS.md §7), into the image
     // One cart over the shared memory; KOS instantiates the boot sector and then the cart.
     const instantiate = async (bytes) => {
         const e = { ...env };
@@ -127,6 +130,7 @@ async function fingerprint(argv) {
         else if (argv[i] === "--post-frames") kos = { ...kos, post: Number(argv[++i]) };
         else if (argv[i] === "--warm") kos = { post: 180, ...kos, warm: true };
         else if (argv[i] === "--c-image") cImage = new Uint8Array(await readFile(argv[++i]));
+        else if (argv[i] === "--c-out") cOut = argv[++i];
         else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;
@@ -176,6 +180,7 @@ async function fingerprint(argv) {
         samples.push({ frame: f, hash });
     }
     console.log(JSON.stringify({ cart, frames: N, every: K, calls: callSpecs, samples, total: total.digest("hex") }));
+    if (cOut && cImage) await writeFile(cOut, cImage);
     // A cart that takes its buffers from the RAM arena (zg.mem) and was refused
     // one ran on a bad pointer: its fingerprint is not evidence of anything.
     const refused = machine.hwRamAllocFailures();

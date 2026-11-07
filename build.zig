@@ -472,6 +472,20 @@ pub fn build(b: *std.Build) void {
     machine_audio.max_memory = audio_bytes;
     installTo(b, machine_audio, sealed_step);
 
+    // docs/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
+    // native host wasm2c's it). KOS GEMDOS's writes, docs/KOS_GEMDOS.md §7. Memory of its own.
+    const kos_cfs = b.addExecutable(.{
+        .name = "kos-cfs",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("rom/kos/kfs_wasm.zig"),
+            .target = wasm_target,
+            .optimize = .ReleaseSmall,
+        }),
+    });
+    kos_cfs.entry = .disabled;
+    kos_cfs.rdynamic = true;
+    installTo(b, kos_cfs, sealed_step);
+
     // ----------------------------------------------------------------------
     // apps/zig/ — OPEN coder binaries (import zigos / rom / players / audio_hw)
     // ----------------------------------------------------------------------

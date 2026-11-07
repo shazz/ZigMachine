@@ -63,6 +63,7 @@ export async function bootGem() {
             diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
             kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5): none here, so no C: icon
+            kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE
             hostMicros: () => 0, // ST Replay's BOOT.WSM imports it (decisions.md 2026-10-17); 0 = frame time
         },
     };

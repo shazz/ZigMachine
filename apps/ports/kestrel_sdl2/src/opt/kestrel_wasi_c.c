@@ -22,7 +22,11 @@ int32_t kcd_errno(int32_t e)
 {
     if (e == GEMDOS_EFILNF || e == GEMDOS_EPTHNF || e == GEMDOS_EDRIVE) return __WASI_ERRNO_NOENT;
     if (e == GEMDOS_ENHNDL) return __WASI_ERRNO_NFILE;
-    if (e == GEMDOS_EACCDN || e == GEMDOS_EWRPRO) return __WASI_ERRNO_ROFS;
+    if (e == GEMDOS_EWRPRO) return __WASI_ERRNO_ROFS;
+    if (e == GEMDOS_EACCDN) return __WASI_ERRNO_ACCES; /* a read-only file, a name taken, a folder not empty */
+    if (e == GEMDOS_EWRITF) return __WASI_ERRNO_NOSPC;
+    if (e == GEMDOS_ENSAME) return __WASI_ERRNO_XDEV;
+    if (e == GEMDOS_ERANGE) return __WASI_ERRNO_INVAL;
     return __WASI_ERRNO_IO;
 }
 
@@ -93,9 +97,9 @@ int32_t kestrel_wasi_fd_close(int32_t fd) /* close() calls it too (kestrel_wasi.
 {
     kcd_t *f = kcd_get(fd);
     if (!f) return fd == C_FD && kestrel_c_mounted() ? 0 : kestrel_floppy_fd_close(fd);
-    if (!f->dir) Fclose(f->h);
+    int32_t r = f->dir ? 0 : Fclose(f->h); /* a file written: Fclose is its save, and its answer */
     f->used = 0;
-    return 0;
+    return r < 0 ? kcd_errno(r) : 0;
 }
 int32_t __imported_wasi_snapshot_preview1_fd_close(int32_t fd) { return kestrel_wasi_fd_close(fd); }
 int32_t __imported_wasi_snapshot_preview1_fd_read(int32_t fd, int32_t iovs, int32_t n, int32_t got)
@@ -116,7 +120,18 @@ int32_t __imported_wasi_snapshot_preview1_fd_read(int32_t fd, int32_t iovs, int3
 }
 int32_t __imported_wasi_snapshot_preview1_fd_write(int32_t fd, int32_t iovs, int32_t n, int32_t put)
 {
-    return kcd_is(fd) ? __WASI_ERRNO_ROFS : kestrel_floppy_fd_write(fd, iovs, n, put); /* phase 1: read-only */
+    kcd_t *f = kcd_get(fd);
+    if (!f) return kcd_is(fd) ? __WASI_ERRNO_ISDIR : kestrel_floppy_fd_write(fd, iovs, n, put);
+    if (!f->w) return __WASI_ERRNO_BADF; /* opened for reading */
+    const __wasi_ciovec_t *v = (const __wasi_ciovec_t *)(uintptr_t)iovs;
+    uint32_t total = 0;
+    for (int i = 0; i < n; i++) {
+        int32_t r = Fwrite(f->h, (int32_t)v[i].buf_len, v[i].buf);
+        if (r < 0) { *(uint32_t *)(uintptr_t)put = total; return kcd_errno(r); }
+        total += (uint32_t)r;
+    }
+    *(uint32_t *)(uintptr_t)put = total;
+    return 0;
 }
 int32_t __imported_wasi_snapshot_preview1_fd_seek(int32_t fd, int64_t off, int32_t whence, int32_t out)
 {
@@ -133,7 +148,14 @@ int32_t __imported_wasi_snapshot_preview1_fd_filestat_get(int32_t fd, int32_t ou
 {
     if (!kcd_is(fd)) return kestrel_floppy_fd_filestat_get(fd, out);
     kcd_t *f = kcd_get(fd);
-    kcd_stat((__wasi_filestat_t *)(uintptr_t)out, !f || f->dir, f ? f->size : 0, (uint64_t)fd << 32);
+    uint32_t size = f ? f->size : 0;
+    if (f && f->w) { /* a file being written: its size so far, the position kept */
+        int32_t at = Fseek(0, f->h, 1);
+        int32_t end = Fseek(0, f->h, 2);
+        Fseek(at, f->h, 0);
+        size = end < 0 ? 0 : (uint32_t)end;
+    }
+    kcd_stat((__wasi_filestat_t *)(uintptr_t)out, !f || f->dir, size, (uint64_t)fd << 32);
     return 0;
 }
 int32_t __imported_wasi_snapshot_preview1_path_filestat_get(int32_t fd, int32_t flags, int32_t path, int32_t len, int32_t out)

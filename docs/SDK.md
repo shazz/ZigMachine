@@ -143,8 +143,10 @@ the four things a screen usually needs:
 
 A cart can also read files from the hard disk, C: (the card's `HD/` folder, see "The card"), and
 from a FAT floppy in drive A, with TOS's GEMDOS calls: `const dos = @import("kos_gemdos").dos();`
-then `dos.Fopen("C:\\PICTURES\\X.PI1", 0)`, `Fread`, `Fsfirst` / `Fsnext` (read-only for now;
-`zigmachine/docs/KOS_GEMDOS.md`). On the page, `?c=gemdos-c.img` gives it a C: to read.
+then `dos.Fopen("C:\\PICTURES\\X.PI1", 0)`, `Fread`, `Fsfirst` / `Fsnext`, and on C: writes too:
+`Fcreate` / `Fwrite` / `Fclose` (the file is saved whole at `Fclose`), `Fdelete`, `Frename`, `Dcreate`,
+`Ddelete`, `Fattrib(path, 1, attr)` (`zigmachine/docs/KOS_GEMDOS.md`, `KOS_GEMDOS_WRITES.md`; such a cart
+needs system table 1.10). On the page, `?c=gemdos-c.img` gives it a C: (writes stay in the page's memory).
 
 Keep per-frame maths in integers or fixed point. The board's CPU has no FPU on every image, and
 there float is soft-float, hundreds of cycles a divide.

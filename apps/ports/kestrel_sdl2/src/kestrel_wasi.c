@@ -285,11 +285,11 @@ int32_t WASI(fd_readdir)(int32_t fd, int32_t buf, int32_t buf_len, int64_t cooki
     return 0;
 }
 
-/* Writes: the floppy is read-only (for now). */
-int32_t __imported_wasi_snapshot_preview1_path_create_directory(int32_t fd, int32_t p, int32_t l) { (void)fd; (void)p; (void)l; return __WASI_ERRNO_ROFS; }
-int32_t __imported_wasi_snapshot_preview1_path_remove_directory(int32_t fd, int32_t p, int32_t l) { (void)fd; (void)p; (void)l; return __WASI_ERRNO_ROFS; }
-int32_t __imported_wasi_snapshot_preview1_path_unlink_file(int32_t fd, int32_t p, int32_t l) { (void)fd; (void)p; (void)l; return __WASI_ERRNO_ROFS; }
-int32_t __imported_wasi_snapshot_preview1_path_rename(int32_t fd, int32_t p, int32_t l, int32_t fd2, int32_t p2, int32_t l2)
+/* Writes: the floppy is read-only (for now). With KESTREL_CDRIVE these are its half: C:'s are opt/kestrel_wasi_cfile.c's. */
+int32_t WASI(path_create_directory)(int32_t fd, int32_t p, int32_t l) { (void)fd; (void)p; (void)l; return __WASI_ERRNO_ROFS; }
+int32_t WASI(path_remove_directory)(int32_t fd, int32_t p, int32_t l) { (void)fd; (void)p; (void)l; return __WASI_ERRNO_ROFS; }
+int32_t WASI(path_unlink_file)(int32_t fd, int32_t p, int32_t l) { (void)fd; (void)p; (void)l; return __WASI_ERRNO_ROFS; }
+int32_t WASI(path_rename)(int32_t fd, int32_t p, int32_t l, int32_t fd2, int32_t p2, int32_t l2)
 { (void)fd; (void)p; (void)l; (void)fd2; (void)p2; (void)l2; return __WASI_ERRNO_ROFS; }
 int32_t __imported_wasi_snapshot_preview1_path_readlink(int32_t fd, int32_t p, int32_t l, int32_t buf, int32_t len, int32_t used)
 { (void)fd; (void)p; (void)l; (void)buf; (void)len; *(uint32_t *)(uintptr_t)used = 0; return __WASI_ERRNO_INVAL; } /* no links */
