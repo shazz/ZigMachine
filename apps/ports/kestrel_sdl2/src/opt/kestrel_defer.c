@@ -23,8 +23,8 @@ void kestrel_log(const char *m);
 size_t kestrel_heap_largest(void);         /* kestrel_heap.c, KESTREL_HEAP_PRESSURE */
 
 static Uint8 *fb; static int fw, fh, cols, rows;
-/* One block, allocated once: the list (4,096 commands, 224 KB: a repaint makes ~2,300-3,200, groups included),
- * then the group arena (64 KB). */
+/* One block, allocated once: the list (4,608 commands, 252 KB: a repaint makes ~2,300-4,200, groups included),
+ * then the group arena (64 KB), then the layer snapshot (the window size: 77 KB for 320x240). */
 static Uint8 *block;
 kd_t kd;                                /* the list and its state (kestrel_defer.h) */
 static Uint32 dirty[ROWS];
@@ -36,18 +36,22 @@ static Uint32 band_drawn[ROWS];         /* the 16-pixel columns the last present
 static int all_drawn = 1;               /* ...or drew everything (immediate, not deferring) */
 static unsigned serials;
 static cmd_t scratch;                   /* the command being made */
-#define NEED(n) ((size_t)(n) * sizeof(cmd_t) + KD_ARENA * 4)
+#define SNAP_BYTES (((size_t)fw * (size_t)fh + 7) & ~(size_t)7)   /* the layer snapshot (kestrel_defer_layer.c) */
+#define NEED(n) ((size_t)(n) * sizeof(cmd_t) + KD_ARENA * 4 + SNAP_BYTES)
 
 /* For kestrel_plane.c: the 16-pixel columns of window row y that may differ from what the last present showed
  * (bit x: pixels 16x .. 16x+15). */
 Uint32 kestrel_defer_row_cols(int y) { return all_drawn || y / TH >= ROWS ? ~0u : band_drawn[y / TH]; }
 
-/* The list (4,096, else 3,072 commands) at the END of the largest free block (a pad takes its start for the
- * time of the malloc): let go, it joins the free space the next allocations leave before it, so a song's
- * reverb/chorus buffer finds one block big enough. */
+/* The list (4,608 commands, else 3,584 or 2,560) at the END of the largest free block (a pad takes its
+ * start for the time of the malloc): let go, it joins the free space the next allocations leave before it, so a
+ * song's reverb/chorus buffer finds one block big enough. */
 static void alloc_list(void)
 {
-    for (unsigned n = 4096; n >= 3072 && !block; n -= 1024) {
+    /* 4,608 (round 5): klystrack with a SUB-menu open (File > Import) records ~4,100 commands: the 4,096 list
+     * overflowed, and an overflowed frame keeps nothing for the next one, so every frame drew everything (~45 est
+     * Mc, 5 fps on the board). The top menus alone record ~3,800. */
+    for (unsigned n = 4608; n >= 2560 && !block; n -= 1024) {
         size_t need = NEED(n), big = kestrel_heap_largest();
         if (big < need + 64) continue;
         void *pad = big > need + 4096 ? malloc(big - need - 64) : NULL;
@@ -57,6 +61,8 @@ static void alloc_list(void)
     if (!block) { no_list = 1; return; }
     kd.list = (cmd_t *)(void *)block;
     kd.arena = (Uint32 *)(void *)(block + (size_t)kd.cap * sizeof(cmd_t));
+    kd.snap = block + (size_t)kd.cap * sizeof(cmd_t) + KD_ARENA * 4;   /* fw x fh: with the list, not another malloc */
+    kd.snap_w = fw; kd.snap_h = fh;
 }
 
 /* The list is allocated at the first present, after the boot's own allocations. */
@@ -66,7 +72,7 @@ void kestrel_defer_target(Uint8 *b, int w, int h)
     kd.deferring = fb && block && cols <= COLS && rows <= ROWS;  /* else everything is drawn at once */
     if (fb && !block && !no_list && !wait) wait = 1;
     kd.n = kd.nlast = kd.na = 0; kd.stale = 1; kd.immediate = 0; all_dirty = 1;
-    kd.nocc[0] = kd.nocc[1] = kd.occ_pp = 0;
+    kd.nocc[0] = kd.nocc[1] = kd.occ_pp = 0; kd.above = 0; memset(kd.dirty_hi, 0, sizeof kd.dirty_hi); kd_layer_invalidate();
 }
 
 /* kestrel_heap.c, when a malloc fails: the song's reverb/chorus buffers matter more than this cache, so the
@@ -74,9 +80,10 @@ void kestrel_defer_target(Uint8 *b, int w, int h)
 int kestrel_heap_pressure(void)
 {
     if (!block || busy) return 0;
-    free(block); block = NULL; kd.list = NULL; kd.arena = NULL;
+    free(block); block = NULL; kd.list = NULL; kd.arena = NULL; kd.snap = NULL;
+    kestrel_palette_track(KPAL_SLOTS - 1, NULL, 0);
     kd.n = kd.nlast = kd.cap = kd.na = 0; kd.deferring = 0; wait = 120; let_go = 1;
-    kd.nocc[0] = kd.nocc[1] = kd.occ_pp = 0;
+    kd.nocc[0] = kd.nocc[1] = kd.occ_pp = 0; kd.above = 0; memset(kd.dirty_hi, 0, sizeof kd.dirty_hi); kd_layer_invalidate();
     kestrel_log("kestrel_defer: the heap is short, the window's draw cache let go (the window draws at once)");
     return 1;
 }
@@ -112,7 +119,8 @@ void kd_mark(const cmd_t *k)
     Uint32 b = k->box;
     if (b & NONE) return;
     Uint32 span = (2u << TX1(b)) - (1u << TX0(b));
-    for (unsigned ty = TY0(b); ty <= TY1(b); ty++) dirty[ty] |= span;
+    Uint32 *d = kd.above ? kd.dirty_hi : dirty;                     /* above a layer mark: kestrel_defer_layer.c */
+    for (unsigned ty = TY0(b); ty <= TY1(b); ty++) d[ty] |= span;
 }
 
 int kd_same(const cmd_t *a, const cmd_t *b)
@@ -248,8 +256,12 @@ void kestrel_defer_stats_log(void)
 }
 #endif
 
+static unsigned presents;
+unsigned kestrel_defer_presents(void) { return presents; }   /* for klystrack's kestrel_view.c: a repaint's count */
+
 void kestrel_defer_present(void)
 {
+    presents++;
     KD_STAT(entries, kd.n);
     all_drawn = !kd.deferring || kd.immediate;
     if (!kd.deferring) { take_list(); return; }
@@ -260,11 +272,15 @@ void kestrel_defer_present(void)
         if (all_dirty) dirty[ty] = ~0u;
         if (kd.immediate) dirty[ty] = 0;                              /* already drawn in full */
         dirty[ty] &= cmask;
-        band_drawn[ty] = dirty[ty];
-        KD_STAT(tiles, __builtin_popcount(dirty[ty]));
     }
-    if (!kd.immediate) kestrel_defer_replay(kd.list, kd.n, dirty, fb, fw, fh);
+    if (!kd.immediate) kd_layer_replay(dirty, cmask, fb, fw, fh);  /* the layer's tiles join dirty[] */
+    else kd_layer_invalidate();
+    for (int ty = 0; ty < rows; ty++) {
+        band_drawn[ty] = kd.immediate ? 0 : dirty[ty];
+        KD_STAT(tiles, __builtin_popcount(band_drawn[ty]));
+    }
     memset(dirty, 0, sizeof dirty);
+    memset(kd.dirty_hi, 0, sizeof kd.dirty_hi); kd.above = 0;
     kd.nlast = all_dirty == 2 ? 0 : kd.n;
     kd.stale = !kd.nlast || kd.na > KD_ARENA * 3 / 4;                /* a full arena starts over next frame */
     if (kd.stale) kd.na = 0;

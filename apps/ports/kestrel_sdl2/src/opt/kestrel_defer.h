@@ -52,6 +52,10 @@ typedef struct {
      * frame's list), last frame's for that; so the replay never walks the whole list for them (a D$ miss an
      * entry). More than KD_OCC: the rest are not occluders (only fewer tiles hidden). */
     unsigned occ[2][64], nocc[2], occ_pp;  /* [0] this frame, [1] last frame; occ_pp: [1] read up to there */
+    /* kestrel_defer_layer.c: the frame's LAYER mark (a menu drawn over the views): above once it was made, its
+     * entry index, and the tiles changed by entries above it (kd_mark), kept apart from those below. */
+    int above; unsigned layer_at; Uint32 dirty_hi[ROWS];
+    Uint8 *snap; int snap_w, snap_h;       /* the snapshot, in the list's block (kestrel_defer.c alloc_list) */
 } kd_t;
 #define KD_OCC 64
 extern kd_t kd;
@@ -80,5 +84,7 @@ void kd_flush(void);
 
 void kestrel_defer_draw(const cmd_t *k, const SDL_Rect *r, Uint8 *fb, int fw, int fh);
 void kestrel_defer_draw_at(const cmd_t *k, Uint8 *buf, int w, int h, int x, int y);
-void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Uint8 *fb, int fw, int fh);
+void kestrel_defer_replay(const cmd_t *cmds, unsigned lo, unsigned hi, const Uint32 *dirty, Uint8 *fb, int fw, int fh);
+void kd_layer_replay(Uint32 *dirty, Uint32 cmask, Uint8 *fb, int fw, int fh);   /* kestrel_defer_layer.c */
+void kd_layer_invalidate(void);
 #endif

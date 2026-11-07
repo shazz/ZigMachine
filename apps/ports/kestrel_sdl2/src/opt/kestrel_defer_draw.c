@@ -79,7 +79,7 @@ static Uint32 covers(const cmd_t *k, int fw, int fh, int *ty0, int *ty1)
     return (tx1 >= 32 ? ~0u : (1u << tx1) - 1) & ~((1u << tx0) - 1);
 }
 
-static void find_occluders(const cmd_t *cmds, unsigned n, const Uint32 *dirty, int fw, int fh)
+static void find_occluders(const cmd_t *cmds, unsigned lo, unsigned n, const Uint32 *dirty, int fw, int fh)
 {
     unsigned tiles = 0;
     nocc = next_occ = 0;
@@ -87,7 +87,7 @@ static void find_occluders(const cmd_t *cmds, unsigned n, const Uint32 *dirty, i
     if (tiles < OCC_TILES) return;
     for (unsigned c = 0, last = 0; c < kd.nocc[0]; c++) {   /* the candidates kestrel_defer.c kept, in order */
         unsigned i = kd.occ[0][c];
-        if (i >= n || (c && i <= last)) continue;
+        if (i < lo || i >= n || (c && i <= last)) continue;
         last = i;
         const cmd_t *k = &cmds[i];
         int ty0, ty1;
@@ -124,10 +124,10 @@ static void pass_occluders(unsigned i)
 
 /* Every command replayed into the runs of dirty tiles of the bands it touches (less the tiles a later opaque
  * command covers wholly). */
-void kestrel_defer_replay(const cmd_t *cmds, unsigned n, const Uint32 *dirty, Uint8 *fb, int fw, int fh)
+void kestrel_defer_replay(const cmd_t *cmds, unsigned lo, unsigned n, const Uint32 *dirty, Uint8 *fb, int fw, int fh)
 {
-    find_occluders(cmds, n, dirty, fw, fh);
-    for (unsigned i = 0; i < n; i++) {
+    find_occluders(cmds, lo, n, dirty, fw, fh);
+    for (unsigned i = lo; i < n; i++) {
         const cmd_t *k = &cmds[i];
         Uint32 b = k->box;
         if (next_occ < nocc && occ[next_occ].i <= i) pass_occluders(i);
