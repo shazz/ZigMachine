@@ -63,6 +63,65 @@ def events(hits: list) -> bytes:
     return struct.pack("<4H", *ev["4062"], *ev["0832"])
 
 
+ROUTINE_OPS = {0xA0: 2, 0xA9: 2, 0x11: 2, 0x91: 2, 0xC8: 1, 0xE6: 2, 0x60: 1}
+
+
+def routine(m: bytes, a: int) -> bytes:
+    """A dot plot/erase routine ($46DA-$B91C) as stores (page step, Y, value, OR flag): LDY #,
+    LDA #, ORA ($16),Y, STA ($16),Y, INY, INC $17, RTS only. A is 0 on entry (the erase
+    loop's LDA #0); a store before the routine's first LDA stores the A it was called with
+    (flag 4)."""
+    out, y, acc, page, ora, have = bytearray(), 0, 0, 0, False, False
+    while m[a] != 0x60:
+        op = m[a]
+        n = ROUTINE_OPS[op]  # KeyError = an opcode the port does not know
+        if op == 0xA0:
+            y = m[a + 1]
+        elif op == 0xA9:
+            acc, ora, have = m[a + 1], False, True
+        elif op == 0x11:
+            assert m[a + 1] == 0x16
+            ora = True
+        elif op == 0x91:
+            assert m[a + 1] == 0x16
+            out += bytes((page << 3 | (0 if have else 4) | ora, y, acc))
+        elif op == 0xC8:
+            y = (y + 1) & 0xFF
+        elif op == 0xE6:
+            assert m[a + 1] == 0x17
+            page += 1
+        a += n
+    return bytes(out)
+
+
+def routines(m: bytes) -> tuple[bytes, bytes]:
+    """The 6 depth pages $BA-$BF, 64 sub-positions each: plot (offset 0) and erase ($80)
+    routine pointers, as indices into a list of parsed routines."""
+    addrs = sorted({m[p * 256 + 2 * k] | m[p * 256 + 2 * k + 1] << 8 for p in range(0xBA, 0xC0) for k in range(128)})
+    ids = {a: i for i, a in enumerate(addrs)}
+    body, offs = bytearray(), []
+    for a in addrs:
+        offs.append(len(body))
+        r = routine(m, a)
+        body += struct.pack("<H", len(r) // 3) + r
+    table = b"".join(struct.pack("<H", ids[m[p * 256 + 2 * k] | m[p * 256 + 2 * k + 1] << 8])
+                     for p in range(0xBA, 0xC0) for k in range(128))
+    return table + struct.pack(f"<{len(offs)}H", *offs), bytes(body)
+
+
+def part3(m: bytes) -> bytes:
+    """RAM at the $3808 entry: bank 0's charsets ($2000-$3FFF), bank 3 ($C000-$FFFF: tables,
+    shapes, the panel and its charset, the dots' charsets), zero page (the generator never
+    sets $15; the dot lists read past what the init clears), and the parsed dot routines."""
+    index, body = routines(m)
+    sections = [m[0x2000:0x4000], m[0xC000:0x10000], m[0:0x100], index, body]
+    offs, pos = [], 4 * len(sections)
+    for s in sections:
+        offs.append(pos)
+        pos += len(s)
+    return struct.pack(f"<{len(sections)}I", *offs) + b"".join(sections)
+
+
 def part2(d: dict, hits: list) -> bytes:
     m, io = d["ram"], d["io"]
     first, rows = irq_table(hits)

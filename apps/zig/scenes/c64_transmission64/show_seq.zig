@@ -24,7 +24,7 @@ pub fn emit(s: *Show) void {
         .wipe => wipe(s),
         .part2_init => part2Init(s),
         .part2 => part2(s),
-        .part3 => {},
+        .part3 => s.p3.pre(s.frames, &s.q),
     }
 }
 

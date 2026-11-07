@@ -161,4 +161,5 @@ pub const Data = struct {
     part1: Part1,
     wipe: Wipe,
     part2: Part2,
+    part3: @import("data3.zig").Part3,
 };

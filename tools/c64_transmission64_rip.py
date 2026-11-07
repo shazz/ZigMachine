@@ -86,6 +86,9 @@ def run(prg: str) -> dict:
         v.cmd(f"delete {bp}")
         out = {"first": first, "p1_hits": hits}
         out.update(run_part2(v, tmp, base))
+        stop_at(v, "085a")  # the main loop after decrunching part 3
+        stop_at(v, "3808")
+        out["p3"] = dump(v, tmp, "p3")
         v.close()
     return out
 
@@ -185,6 +188,7 @@ def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     for name, data in (("part1.bin", part1(first, r["p1_hits"])), ("wipe.bin", wipe(first["ram"])),
                        ("part2.bin", parts.part2(r["p2"], r["p2_hits"])),
+                       ("part3.bin", parts.part3(r["p3"]["ram"])),
                        ("transmission_64.sid", song)):
         open(os.path.join(OUT, name), "wb").write(data)
         print(name, len(data))

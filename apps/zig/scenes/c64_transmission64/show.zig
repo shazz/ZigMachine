@@ -12,9 +12,11 @@
 // --------------------------------------------------------------------------
 pub const vic = @import("vic.zig");
 pub const data = @import("data.zig");
+pub const dots = @import("part3_dots.zig");
 const Clock = @import("clock.zig").Clock;
 const Part1 = @import("part1.zig").Part1;
 const Part2 = @import("part2.zig").Part2;
+const Part3 = @import("part3.zig").Part3;
 const wipe_mod = @import("wipe.zig");
 const seq = @import("show_seq.zig");
 
@@ -31,6 +33,7 @@ pub const Show = struct {
     frames: u32 = 0, // frames run (VICE's number of the last one)
     p1: Part1 = .{},
     p2: Part2 = .{},
+    p3: Part3 = undefined,
     off_left: u8 = 10, // $09A9
     wipe: wipe_mod.Wipe = .{},
     wipe_skip: bool = false,
@@ -47,6 +50,7 @@ pub const Show = struct {
         self.frames = 0;
         self.p1 = .{};
         self.p2 = Part2.init(d.part2);
+        self.p3 = Part3.init(d.part3);
         self.off_left = 10;
         self.wipe = .{};
         self.wipe_skip = false;
@@ -78,6 +82,7 @@ pub const Show = struct {
         const done = self.vic.frame(&self.q, self.st.items(), self.mem(), out);
         self.st.carry(done, vic.FRAME);
         self.q.carry();
+        if (self.state == .part3) self.p3.post(self.frames, &self.ram, &self.col, self.d.part3);
     }
 };
 

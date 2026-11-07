@@ -20,7 +20,9 @@ pub fn main(init: std.process.Init) !void {
     const p1 = try assets.readFileAlloc(io, "part1.bin", a, lim);
     const wp = try assets.readFileAlloc(io, "wipe.bin", a, lim);
     const p2 = try assets.readFileAlloc(io, "part2.bin", a, lim);
-    const d = data.Data{ .part1 = .{ .b = p1[0..data.PART1_LEN] }, .wipe = .{ .b = wp[0..data.WIPE_LEN] }, .part2 = .{ .b = p2 } };
+    const p3 = try assets.readFileAlloc(io, "part3.bin", a, lim);
+    const d = data.Data{ .part1 = .{ .b = p1[0..data.PART1_LEN] }, .wipe = .{ .b = wp[0..data.WIPE_LEN] }, .part2 = .{ .b = p2 }, .part3 = .{ .b = p3 } };
+    if (init.environ_map.get("T64_ZSPLIT")) |v| @import("show").dots.z_split = try std.fmt.parseInt(usize, v, 10);
     const show = try a.create(show_mod.Show);
     show.init(d);
     const pix = try a.create([vic.Out.ROWS_COLS]u8);

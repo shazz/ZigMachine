@@ -6,4 +6,5 @@ pub const all = data.Data{
     .part1 = .{ .b = @embedFile(DIR ++ "part1.bin") },
     .wipe = .{ .b = @embedFile(DIR ++ "wipe.bin") },
     .part2 = .{ .b = @embedFile(DIR ++ "part2.bin") },
+    .part3 = .{ .b = @embedFile(DIR ++ "part3.bin") },
 };
