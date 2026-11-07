@@ -198,6 +198,17 @@ colodore (VICE's `colodore.vpl`), C64 colour c at index c + 1.
 - **The cart through the machine**: `apps/c64_transmission64_headless.mjs` pins C64 frames from
   every part to VICE's SHA-256; side by side shots in `compare/`.
 
+### Cost on KESTREL
+
+`apps/frame_cost.mjs` (estimates, 60-frame windows): part 1 **1.54 Mc** a frame (p95 1.96),
+part 2 **1.28** (p95 2.15, the colour-copy frames), part 3 dots **1.57**, panel **1.35**: ~60 fps,
+0.7 Mc of each the one plane's FRESCO compositing. What got it there (from 2.1 Mc on parts 1-2):
+the zig-reviewer pass (u32 line rendering instead of 64-bit ops, a fast path in the clock, one
+stable sort of the stores) and **dirty lines** (`vic_dirty.zig`): a window line is drawn again
+only when its registers, its row's latched bytes, the VIC's other memory or a sprite over it
+changed — every frame of the first 5200 byte-identical to drawing them all. The ripped data is
+read a byte at a time (a misaligned wide load traps on the board). Board check wanted.
+
 ### Gaps (documented, not hidden)
 
 - The tune's CPU time, the drive's IRQ-off frame and the generator's progress at a shape change
