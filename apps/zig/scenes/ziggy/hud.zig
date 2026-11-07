@@ -2,7 +2,7 @@
 // ZIGGY showcase: the two text lines under the picture (rows 184 and 192; the 8 px
 // font's last row is 199, the plane's last),
 // redrawn only when their text changes.
-//   line 1   the mode, the texture size, ZM-X on/off, the keys
+//   line 1   the mode, the texture size and name (GEN / PHOTO), ZM-X on/off, the keys
 //   line 2   FPS, the cart's own time a frame in Mc (cycles at 100 MHz, the
 //            board's ZIGGY) and cycles a pixel of the picture area
 // The clock is env.hostMicros (decisions.md 2026-10-10): the browser and the
@@ -20,6 +20,9 @@ const COLS = 40;
 const Line = [COLS]u8;
 const Y = [2]i16{ 184, 192 };
 const PIXELS: u32 = 320 * 184;
+
+/// ROTO's texture as line 1 shows it: side (0 = no texture, VOXEL) and name.
+pub const Tex = struct { size: u32, name: []const u8 };
 
 pub const Hud = struct {
     shown: [2]Line = .{ [_]u8{0} ** COLS, [_]u8{0} ** COLS },
@@ -55,12 +58,12 @@ pub const Hud = struct {
         self.* = .{ .shown = self.shown };
     }
 
-    pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, mode: []const u8, size: u32, zmx_on: bool) void {
+    pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, mode: []const u8, t: Tex, zmx_on: bool) void {
         var l: [2]Line = undefined;
         var b0: [COLS]u8 = undefined;
         var tb: [8]u8 = undefined;
-        const tex = if (size == 0) "    " else std.fmt.bufPrint(&tb, "{d:>3} ", .{size}) catch "";
-        pad(&l[0], std.fmt.bufPrint(&b0, "{s} {s}ZM-X {s}  1/2 T Z F +-", .{ mode, tex, if (zmx_on) "ON " else "OFF" }) catch "");
+        const tex = if (t.size == 0) "    " else std.fmt.bufPrint(&tb, "{d:>3} ", .{t.size}) catch "";
+        pad(&l[0], std.fmt.bufPrint(&b0, "{s}{s}{s} ZM-X {s} 1/2 T P Z F +-", .{ mode, tex, t.name, if (zmx_on) "ON " else "OFF" }) catch "");
         var b1: [COLS]u8 = undefined;
         if (self.fps10 == 0) {
             pad(&l[1], "");
