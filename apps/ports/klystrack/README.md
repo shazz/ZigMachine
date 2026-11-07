@@ -336,6 +336,59 @@ Memory: a cache is the track's inside, 148 x 104 = 15 KB for each of the classic
 148 x 9 strip, from the heap, and only from room to spare (64 KB over: a failed malloc would make the heap let
 the draw list go); without it the rows draw as upstream. Cart 445 -> 452 KB.
 
+## Round 5 (feat/klystrack-r5, 6 Nov 2026)
+
+Round 4 on the board (glass ctl stats, 4 s windows, STARPRT2 via F5): idle 60.3 fps; playing, classic view 51.7
+(33 missed, ZIGGY cart 0.91 Mc mean); instrument tab (F3) 47.6 (49 missed); back to the pattern tab (F2) 43.0
+(67 missed); FRESCO flat. The misses were ZIGGY spikes: the row change and the views not on the skip list.
+
+- **A hang on main**: F5, F3, F2, F3 (hashes.sh's play_tabs) never finished. With the instrument tab open again
+  the picture holds ~250 colours, and every new blended colour compacted the palette (a scan of every tracked
+  buffer, ~200 KB): one compaction a pixel. A compaction that frees fewer than 16 entries now stops them until
+  the next present (`kestrel_palette.c`).
+- **Occluded tiles** (`kestrel_defer_draw.c`): a tile wholly covered by a later opaque command (a clear, an
+  opaque fill, a raw8 cache) leaves every command before it out of that tile. The candidates are marked at
+  commit and kept in list order (a reused group carries last frame's), so the replay never walks the list for
+  them. Under the scrolled caches the clear, the background and the track bevels are no longer drawn again.
+- **The scrolled cache keeps its serial** (`kestrel_rows_diff.c`): its copy is last frame's command, and only
+  the window tiles whose picture changes are named (`kestrel_window_dirty`). Each cache row keeps a hash of its
+  pixels per 16-pixel tile column, taken when it is drawn; a scroll compares row i with row i + dr. Round 4
+  moved the serial on every scroll: both whole tracks (~280 tiles) replayed.
+- **The defer list's bookkeeping**: a group's tiles kept as its entries join it (not a walk over ~1,600 entries
+  at its end; `-DKESTREL_GROUP_CHECK` compares), bands with the same dirty runs drawn as one rectangle.
+- **Pixel loops**: a stretched bevel's texel drawn as a run (one memset, its length from one divide), keyed
+  rows four texels a pass, the present comparing a drawn 16-pixel column 4 words at once.
+- **The instrument tab skipped between events** (`kestrel_views.c`): instrument_view, instrument_view2,
+  instrument_list read the song and the UI state only; program_view adds the program step of each channel
+  playing the instrument (its cursor). The FX and wavetable tabs still draw every repaint (fx_view reads the
+  mouse button held).
+
+frame_cost est (Mc a frame; before = main with the palette fix, the same costs as main where main finishes;
+frames 161-280; `prototypes/klystrack_r5_work/scen.mjs`-style windows, the gate's own windows in brackets):
+
+| | round 4 | round 5 |
+|---|---|---|
+| idle | 0.72 | 0.72 |
+| playing, classic view: mean / row change mean / between rows median | 2.10 / 8.59 / 1.47 | **1.92 / 7.34 / 1.44** |
+| ...the gate's window: worst row change / mean | 9.31 / 2.03 | **7.82 / 1.85** |
+| playing, instrument tab (F3): mean / repaint / worst | 2.02 / 3.04 / 3.24 | **1.04 / 1.32 / 1.47** |
+| playing, back to the pattern tab (F2): mean / row change mean | 2.42 / 10.11 | **2.20 / 8.78** |
+| menu open, pointer moving (worst) / playing + menu (mean) | 0.95 / 2.51 | 0.98 / **2.30** |
+
+At round 4's board ratio (~0.66), the instrument tab's repaints (~0.9 Mc) fit 60 fps; a row change (~4.8 Mc on
+the board, was ~5.7) still spills over two frames. What is left in it (1.3 M rv32 instructions, 65 % of the
+estimate the I$ term over ~63 KB of code): replaying the dirty tiles no cache covers (the track edges, the step
+counter, the bottom scroll bar whose band the last row touches, the sequence view under its moving play line:
+~13,600 keyed and ~14,000 stretched texels, ~660 draws), the present comparing them (D$ misses), the replay's
+walk (~1,350 entries, a D$ miss each) and klystron's views (~0.35 M). Reaching ~2.5 est needs fewer layers
+there (an occluder that is not tile-aligned, a snapshot of a view's static layers) or smaller tiles.
+
+The same pixels: `hashes.sh` (now 12 scenarios with play_inst: F3 while playing, clicks on a parameter, the
+instrument list and the program; each run under a timeout) built without the VU meters, main + the palette fix
+against round 5: identical in every frame; `vu_proof.mjs` with the meters (play 420 frames, play_tabs 300):
+0 frames differ. `-DKESTREL_VIEW_CHECK -DKESTREL_GROUP_CHECK` over all 12 scenarios: no wrong skip, no box that
+differs. Cart 452 -> 458 KB.
+
 ## What's left
 
 - In the browser, Ctrl+O / Ctrl+S are also browser shortcuts; whether the loader swallows them for a cart that
