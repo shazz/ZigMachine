@@ -34,6 +34,8 @@ pub const Demo = struct {
     quit: bool,
     shown: ?view.Shown,
     ok: bool,
+    load_sum: u32, // BARD's load (tenths of %) summed over the frames of the current second
+    load_n: u32,
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         self.list.n = 0;
@@ -44,6 +46,8 @@ pub const Demo = struct {
         self.title_len = 0;
         self.quit = false;
         self.shown = null;
+        self.load_sum = 0;
+        self.load_n = 0;
         self.ok = self.stream.alloc();
         view.palette(os);
         self.list.scan();
@@ -110,11 +114,17 @@ pub const Demo = struct {
         view.draw(os, s, &self.list, self.title_buf[0..self.title_len]);
     }
 
-    // BARD's load in tenths of a percent, re-read only when the play clock moves: Matt could not
-    // read a figure that changed every frame (7 Nov), and it keeps the redraws to one a second.
-    fn loadOncePerSecond(self: *const Demo, secs: u32) u32 {
+    // BARD's load in tenths of a percent, AVERAGED over the second and shown when the play clock
+    // moves. One sample was unreadable (7 Nov): MP3 decodes in bursts, so a tick reads 7 % idle
+    // or 470 % refilling its buffer. The mean of the second's frames is the load that matters.
+    fn loadOncePerSecond(self: *Demo, secs: u32) u32 {
+        self.load_sum +|= zg.mp3Status(.load);
+        self.load_n += 1;
         if (self.shown) |old| if (old.secs == secs) return old.load;
-        return zg.mp3Status(.load);
+        const mean = self.load_sum / self.load_n;
+        self.load_sum = 0;
+        self.load_n = 0;
+        return mean;
     }
 
     fn move(self: *Demo, d: i32) void {

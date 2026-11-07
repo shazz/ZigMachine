@@ -37,11 +37,11 @@ HUB_PREFIX = "union_"  # tools/channels.py UNION_PREFIX: every one a Union Demo 
 
 _BY_CATEGORY = {
     "games": ("north_south", "joust", "rick_dangerous", "skystrike", "kickoff2", "bubblebobble"),
-    "tools": ("st_replay", "sysinfo", "mp3_player"),  # the sampler, the system-information tool, the MP3 jukebox
+    "tools": ("st_replay", "sysinfo"),  # the sampler, the system-information tool
     "system": ("gem",),  # KOS's desktop
     "tutorials": ("tutorial", "tutorial_steps"),
     "tests": (
-        "music", "badflicker", "stream", "scrolllab", "sap_test", "xm_test", "linebase_test", "tc_test", "kt_test", "sid_test",
+        "music", "badflicker", "stream", "scrolllab", "sap_test", "xm_test", "linebase_test", "tc_test", "kt_test", "sid_test", "mp3_player",
         "replicants",  # REPS OLD: kept to compare with replicants_garfield
         "raytrace_f32", "polkadots_f32", "replicants_emlyn_f32",  # the FPU twins
         "hello", "hello_asm", "bench",  # native carts (cycles/native)
