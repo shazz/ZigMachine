@@ -1468,7 +1468,7 @@ ssh to the board over its RJ45; no Wi-Fi dongle is needed.
   UART (`ip addr show eth0`).
 - **Cart upload over the network** comes nearly free with it:
   `ssh root@zigmachine.local mount -o remount,rw /mnt/sd`, then `scp
-  demo-x.zmd root@zigmachine.local:/mnt/sd/CARTS/$(fpga/tools/shelf_category.py --path x | xargs dirname)/`
+  demo-x.zmd root@zigmachine.local:/mnt/sd/CARTS/$(uv run python fpga/tools/shelf_category.py --path x | xargs dirname)/`
   (`games/`, or `demos/<platform>/` for a demo) and remount read-only.
   Then **Shift+F12** in `glass` rescans the shelf over the running cart.
 - Unverified until Buildroot builds the image and the bitstream carries the
