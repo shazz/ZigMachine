@@ -133,6 +133,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "MP3 PLAYER", .tag = "mp3_player" }, // system — a jukebox for C:\MUSIC (KOS GEMDOS), decoded by the sound side
     .{ .name = "SITTING COMFORTABLY?", .tag = "falcon_ays" }, // atari falcon — Reservoir Gods' 2004 intro (Chosneck #2), ported from the depacked original
     .{ .name = "1988", .tag = "c64_1988" }, // c64 — Tristar & Red Sector Inc.'s Only Sprites intro (2021, code Shazz), ported from the depacked original
+    .{ .name = "TRANSMISSION64", .tag = "c64_transmission64" }, // c64 — Padua's invitation to Transmission64 2021 (code Anonym, Dano, Doomed, Hoogo), ported from the depacked original
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
     .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2
     .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2

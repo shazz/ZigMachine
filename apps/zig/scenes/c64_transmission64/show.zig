@@ -38,7 +38,17 @@ pub const Show = struct {
 
     /// The machine as it is at frame 1 (part 1's init has run). `self` must not move after.
     pub fn init(self: *Show, d: data.Data) void {
-        self.* = .{ .d = d, .vic = vic.Vic.init(d.part1.vicRegs(), d.part1.dd00()) };
+        // field by field: a whole-struct assignment would build the 128 KB of buffers twice
+        self.d = d;
+        self.vic = vic.Vic.init(d.part1.vicRegs(), d.part1.dd00());
+        self.q.n = 0;
+        self.st.n = 0;
+        self.state = .part1;
+        self.frames = 0;
+        self.p1 = .{};
+        self.off_left = 10;
+        self.wipe = .{};
+        self.wipe_skip = false;
         @memset(&self.ram, 0);
         @memset(&self.col, 0);
         @memcpy(self.ram[0x0400..0x07E8], d.part1.screen());
