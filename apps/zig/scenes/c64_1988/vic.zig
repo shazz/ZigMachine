@@ -101,14 +101,14 @@ pub const Vic = struct {
         self.c55(line);
         i = self.apply(ws, i, 57, &right_open);
         var li = draw.LineInfo{ .reg = &self.reg, .shown = self.shown, .data = &self.row, .vb = self.vb, .left_open = left_open, .right_open = right_open, .border = border_start, .border_end = 0, .split_cyc = 0 };
-        out.sprites(line, li);
+        if (li.shown != 0) out.sprites(line, &li);
         self.fetchAll(mem);
         _ = self.apply(ws, i, 255, &right_open);
         self.right_open = right_open;
         li.right_open = right_open;
         li.border_end = self.reg[0x20];
         li.split_cyc = self.split_cyc;
-        out.edges(line, li);
+        out.edges(line, &li);
     }
 
     fn apply(self: *Vic, ws: []const Write, from: usize, upto: u8, right_open: *bool) usize {
@@ -142,9 +142,13 @@ pub const Vic = struct {
         if (line == @as(u16, if (rsel) 51 else 55) and self.reg[0x11] & 0x10 != 0) self.vb = false;
     }
 
+    // The loops below visit only the sprites they can change. A sprite with DMA off always
+    // has MC == MCBASE (c58 copies one into the other, and only DMA advances MC), so c16 and
+    // c58 leave it as it is: skipping it changes nothing.
     fn c16(self: *Vic) void {
-        for (0..8) |s| {
-            if (self.ff & bit(s) == 0) continue;
+        var m = self.ff & self.dma;
+        while (m != 0) : (m &= m - 1) {
+            const s: usize = @ctz(m);
             self.mcbase[s] = self.mc[s];
             if (self.mcbase[s] >= 63) self.dma &= ~bit(s);
         }
@@ -152,9 +156,11 @@ pub const Vic = struct {
 
     fn c55(self: *Vic, line: u16) void {
         self.ff ^= self.reg[0x17];
-        for (0..8) |s| {
+        var m = self.reg[0x15] & ~self.dma;
+        while (m != 0) : (m &= m - 1) {
+            const s: usize = @ctz(m);
             const b = bit(s);
-            if (self.reg[0x15] & b == 0 or self.dma & b != 0 or self.reg[1 + 2 * s] != @as(u8, @truncate(line))) continue;
+            if (self.reg[1 + 2 * s] != @as(u8, @truncate(line))) continue;
             self.dma |= b;
             self.mcbase[s] = 0;
             if (self.reg[0x17] & b != 0) self.ff &= ~b;
@@ -163,9 +169,10 @@ pub const Vic = struct {
 
     fn fetchAll(self: *Vic, mem: draw.Mem) void {
         self.shown = self.dma;
-        for (0..8) |s| {
+        var m = self.dma;
+        while (m != 0) : (m &= m - 1) {
+            const s: usize = @ctz(m);
             self.mc[s] = self.mcbase[s];
-            if (self.dma & bit(s) == 0) continue;
             const base = @as(u16, self.ptr[s]) * 64 + self.mc[s];
             for (0..3) |j| self.row[s][j] = mem.byte(self.bank3, base + @as(u16, @intCast(j)), !self.vb);
             self.mc[s] += 3;

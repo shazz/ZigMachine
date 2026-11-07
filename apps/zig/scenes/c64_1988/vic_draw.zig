@@ -10,10 +10,12 @@
 //
 // Pixels are palette indices 1 + C64 colour; 0 is no sprite, where the cart's per-line
 // colour 0 (the border colour, a real raster: c64_1988.zig) shows. Each sprite row is
-// a keyed CPU blit of 24 (48 X-expanded) pixels: at ~800 cycles fixed cost a CHISEL blit
-// per row would cost more than the row itself.
+// a keyed CPU blit of 24 (48 X-expanded) pixels (vic_pixels.zig): at ~800 cycles fixed
+// cost a CHISEL blit per row would cost more than the row itself. Only what moved is
+// touched: each row remembers the columns it drew, and the next frame erases those alone.
 // --------------------------------------------------------------------------
-pub const COLS = 400;
+const px = @import("vic_pixels.zig");
+pub const COLS = px.COLS;
 pub const ROWS = 280;
 pub const FIRST_LINE = 11; // raster line of physical row 0
 const NREG = 0x2F;
@@ -64,19 +66,22 @@ pub const Out = struct {
     split_c: [ROWS]u8 = .{0} ** ROWS,
     sides: [ROWS]bool = .{false} ** ROWS, // a side border open on the row (the machine must flicker)
     vopen: [ROWS]bool = .{false} ** ROWS, // the vertical border open on the row
-    drawn: [ROWS]bool = .{false} ** ROWS, // rows holding sprite pixels (to erase next frame)
+    // Columns [lo, hi) of each row hold sprite pixels (to erase next frame); lo >= hi: none.
+    lo: [ROWS]u16 = .{COLS} ** ROWS,
+    hi: [ROWS]u16 = .{0} ** ROWS,
 
-    /// Erase what the last frame drew: only rows that hold pixels are touched.
+    /// Erase what the last frame drew: only the columns that hold pixels are touched.
     pub fn begin(self: *Out) void {
         for (0..ROWS) |r| {
-            if (!self.drawn[r]) continue;
-            @memset(self.pix[r * COLS ..][0..COLS], 0);
-            self.drawn[r] = false;
+            if (self.lo[r] >= self.hi[r]) continue;
+            @memset(self.pix[r * COLS ..][self.lo[r]..self.hi[r]], 0);
+            self.lo[r] = COLS;
+            self.hi[r] = 0;
         }
     }
 
     /// The line's border colour (and its mid-line split) and border state, at its end.
-    pub fn edges(self: *Out, raster: u16, li: LineInfo) void {
+    pub fn edges(self: *Out, raster: u16, li: *const LineInfo) void {
         if (raster < FIRST_LINE or raster >= FIRST_LINE + ROWS) return;
         const r = raster - FIRST_LINE;
         self.borderRow(r, li);
@@ -85,18 +90,19 @@ pub const Out = struct {
     }
 
     /// The line's sprite rows, drawn at c58 (registers and border state as they are then).
-    pub fn sprites(self: *Out, raster: u16, li: LineInfo) void {
+    pub fn sprites(self: *Out, raster: u16, li: *const LineInfo) void {
         if (raster < FIRST_LINE or raster >= FIRST_LINE + ROWS) return;
         const r = raster - FIRST_LINE;
-        if (li.vb or li.shown == 0) return;
-        var s: usize = 8;
-        while (s > 0) { // sprite 0 drawn last: lower numbers are in front
-            s -= 1;
-            if (li.shown & (@as(u8, 1) << @intCast(s)) != 0) self.sprite(r, s, li);
+        if (li.vb) return;
+        var m = li.shown;
+        while (m != 0) { // highest number first: sprite 0 is drawn last, in front
+            const s: usize = 7 - @clz(m);
+            m &= ~(@as(u8, 1) << @intCast(s));
+            self.sprite(r, s, li);
         }
     }
 
-    fn borderRow(self: *Out, r: usize, li: LineInfo) void {
+    fn borderRow(self: *Out, r: usize, li: *const LineInfo) void {
         self.border[r] = li.border & 15;
         self.split_x[r] = 0;
         if (li.split_cyc == 0) return;
@@ -109,60 +115,37 @@ pub const Out = struct {
         }
     }
 
-    fn sprite(self: *Out, r: usize, s: usize, li: LineInfo) void {
+    fn sprite(self: *Out, r: usize, s: usize, li: *const LineInfo) void {
+        const data = &li.data[s];
+        if (data[0] | data[1] | data[2] == 0) return;
         const reg = li.reg;
         const b = @as(u8, 1) << @intCast(s);
         const x0: u32 = reg[2 * s] | (@as(u32, (reg[0x10] >> @intCast(s)) & 1) << 8);
-        const bits: u32 = (@as(u32, li.data[s][0]) << 16) | (@as(u32, li.data[s][1]) << 8) | li.data[s][2];
-        if (bits == 0) return;
-        const xe: u32 = if (reg[0x1D] & b != 0) 2 else 1;
+        const xe2 = reg[0x1D] & b != 0;
+        const xe: u32 = if (xe2) 2 else 1;
         const colours = [4]u8{ 0, (reg[0x25] & 15) + 1, (reg[0x27 + s] & 15) + 1, (reg[0x26] & 15) + 1 };
         const mcol = reg[0x1C] & b != 0;
         const row = self.pix[r * COLS ..][0..COLS];
         var c: u32 = (x0 + 16) % PAL_X; // one division a row; then the beam steps and wraps
         const w = 8 * xe; // columns a data byte covers
-        for (li.data[s]) |byte| {
+        var lo: u32 = self.lo[r];
+        var hi: u32 = self.hi[r];
+        for (data) |byte| {
             if (byte != 0) {
-                // a byte wholly inside the window needs no clipping: the usual case
-                if (c >= 40 and c + w <= 360) inner(row[c..][0..w], byte, xe, mcol, &colours) else edge(row, c, byte, xe, mcol, &colours, li);
+                if (c >= 40 and c + w <= 360) { // wholly inside the window: no clipping
+                    px.inner(row[c..].ptr, byte, xe2, mcol, &colours);
+                    lo = @min(lo, c);
+                    hi = @max(hi, c + w);
+                } else { // crosses a border or the PAL wrap: the whole row, to be safe
+                    px.edge(row, c, byte, xe, mcol, &colours, li.left_open, li.right_open);
+                    lo = 0;
+                    hi = COLS;
+                }
             }
             c += w;
             if (c >= PAL_X) c -= PAL_X;
         }
-        self.drawn[r] = true;
+        self.lo[r] = @intCast(lo);
+        self.hi[r] = @intCast(hi);
     }
 };
-
-// One data byte's 8 (16) columns: hires bits, or 4 multicolour pairs (01 $D025, 10 the
-// sprite's colour, 11 $D026); 0 bits leave the plane alone.
-fn inner(dst: []u8, byte: u8, xe: u32, mcol: bool, colours: *const [4]u8) void {
-    if (mcol) {
-        for (0..4) |k| {
-            const v = (byte >> @intCast(6 - 2 * k)) & 3;
-            if (v != 0) @memset(dst[2 * xe * k ..][0 .. 2 * xe], colours[v]);
-        }
-    } else {
-        for (0..8) |k| {
-            if ((byte >> @intCast(7 - k)) & 1 != 0) @memset(dst[xe * k ..][0..xe], colours[2]);
-        }
-    }
-}
-
-// The same, column by column, for a byte that crosses a border or the PAL wrap.
-fn edge(row: *[COLS]u8, c0: u32, byte: u8, xe: u32, mcol: bool, colours: *const [4]u8, li: LineInfo) void {
-    var c = c0;
-    for (0..8) |p| {
-        const ink = if (mcol) colours[(byte >> @intCast(6 - (p & ~@as(usize, 1)))) & 3] else if ((byte >> @intCast(7 - p)) & 1 != 0) colours[2] else 0;
-        for (0..xe) |_| {
-            if (ink != 0 and c < COLS and visible(c, li)) row[c] = ink;
-            c += 1;
-            if (c == PAL_X) c = 0;
-        }
-    }
-}
-
-fn visible(c: u32, li: LineInfo) bool {
-    if (c < 40) return li.left_open; // X < 24: the left border
-    if (c >= 360) return li.right_open; // X >= 344: the right border
-    return true;
-}
