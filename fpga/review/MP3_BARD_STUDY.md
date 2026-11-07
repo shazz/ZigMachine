@@ -162,6 +162,26 @@ a status word back (the ring's fill, decode errors, rate and channels) so the ca
 
 BARD's cost for (a) or (b) is a few cycles a sample on top of the decode. That is ~0.5 %.
 
+**Option (b), checked (6 Nov, after Matt chose pvmp3).** `fpga/tests/hilo_probe.py` plays 6000 stereo
+samples, among them the extremes, through the RTL core bench (CXXRTL `zm_audio_core`) and through the
+Zig engine (`tests/audio_ref`, the browser's machine-audio). Each side is a high byte at VOL 256 plus a
+low byte, both channels hard-panned.
+
+| Low byte | out == x (16-bit) | out == floor(x / 2) |
+|---|---|---|
+| VOL 1 (256 hi + lo = x) | 0 / 6000 | 5993 / 6000 (x >= 32640 has no hi byte) |
+| VOL 2 (128 hi + lo = x >> 1) | 0 / 6000 | **6000 / 6000**, on the RTL and the Zig engine alike |
+
+**So (b) is exact, but to 15 bits at -6 dB, not 16.** A Paula channel's gain is
+`0.5 x VOL/256 x pan`: one channel at VOL 256 and hard pan reaches only half of full scale, and
+`to16()` floors the bus at 2^-8 of the units a VOL-1 byte lands on. The best two channels a side can do
+is `x >> 1`: 15 bits, about 90 dB, deterministic. A true 16-bit out needs option (c), a 16-bit CHORUS
+PCM mode (RTL, Matt's go).
+
+**48 kHz files.** CHORUS runs at 44.1 kHz. A 48 kHz MP3, like Matt's test track, needs BARD to resample
+in software (a linear pass is a few cycles a sample). The alternative, a fractional Paula STEP (71331),
+is nearest-sample resampling: it aliases, and it is no longer bit-exact against a host decode.
+
 **Licence.** pvmp3 (Apache-2.0) needs only NOTICE text in the SDK's THIRD_PARTY.md. Helix (RPSL) needs:
 - a source notice;
 - our modifications published for as long as we ship;
