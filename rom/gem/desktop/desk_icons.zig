@@ -10,6 +10,7 @@ const icon = @import("icon.zig");
 const dirmodel = @import("dirmodel.zig");
 const dirview = @import("dirview.zig");
 const deskwin = @import("deskwin.zig");
+const desknav = @import("desknav.zig");
 const desksel = @import("desksel.zig");
 const deskdrive = @import("deskdrive.zig");
 const deskdirty = @import("deskdirty.zig");
@@ -127,7 +128,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     deskdrive.focusTop(d); // the top window's drive (KOS F5): its hit-test reads that model
     d.open_src = .{ .x = @as(i16, @intCast(x)) - 16, .y = @as(i16, @intCast(y)) - 12, .w = 32, .h = 24 }; // zoom-box origin
     // Windows sit above the desktop: an item inside the top FLOPPY/folder window
-    // opens first. A program launches; a folder opens in its own window.
+    // opens first. A program launches; a folder opens in that window (desknav).
     if (deskwin.topFloppy(d)) |w| {
         switch (dirview.dirHitAt(d, w.dir, w.view, @intCast(x), @intCast(y))) {
             .file => |a| {
@@ -138,7 +139,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
                 return;
             },
             .folder => |f| {
-                deskwin.openFolderWindow(d, f);
+                desknav.enterFolder(d, f); // in this same window, as TOS
                 return;
             },
             .none => {},

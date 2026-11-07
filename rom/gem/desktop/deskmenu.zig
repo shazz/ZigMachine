@@ -6,6 +6,7 @@
 const gui = @import("../gui.zig");
 const dt = @import("desktop.zig");
 const deskwin = @import("deskwin.zig");
+const desknav = @import("desknav.zig");
 const deskops = @import("deskops.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
@@ -109,7 +110,8 @@ fn menuPick(d: *Desktop, p: gui.MenuPick, action: *Action) void {
             0 => deskops.openSelection(d, action), // Open
             1 => deskops.showInfo(d), // Show Info...
             3 => deskops.newFolder(d), // New Folder... -> the NEW FOLDER name dialog
-            4, 5 => deskwin.closeTopWindow(d), // Close / Close Window
+            4 => desknav.closeFolder(d), // Close: up one folder (TOS), the window at the root
+            5 => deskwin.closeTopWindow(d), // Close Window
             else => {}, // separators + Format... (disabled)
         },
         MENU_VIEW => switch (p.item) {

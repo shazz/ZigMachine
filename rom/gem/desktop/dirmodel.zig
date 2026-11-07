@@ -44,6 +44,7 @@ pub const DirModel = struct {
     folders: [MAX_FOLDERS]Folder = [_]Folder{.{}} ** MAX_FOLDERS,
     n_folders: u8 = 0,
     new_seq: u8 = 0, // auto-name counter for New Folder
+    letter: u8 = 'A', // the drive's, for its folders' titles (KOS: C:'s model is 'C')
 
     pub fn name(self: *const DirModel, i: usize) []const u8 {
         const s = self.disk_dir[i * FILE_ENT .. i * FILE_ENT + 16];
@@ -209,11 +210,11 @@ pub const DirModel = struct {
         @memcpy(f.name[0..f.nlen], nm[0..f.nlen]);
         self.setTitle(f);
     }
-    // The window title is the folder's full path: A:\ + each parent's title.
+    // The window title is the folder's full path: A:\ (C:\ on C:) + each parent's title.
     fn setTitle(self: *const DirModel, f: *Folder) void {
         const nm = f.name[0..f.nlen];
         const t = if (f.parent == ROOT)
-            std.fmt.bufPrint(&f.title, "A:\\{s}", .{nm}) catch "A:\\"
+            std.fmt.bufPrint(&f.title, "{c}:\\{s}", .{ self.letter, nm }) catch "A:\\"
         else blk: {
             const par = self.folders[@intCast(f.parent)];
             break :blk std.fmt.bufPrint(&f.title, "{s}\\{s}", .{ par.title[0..par.tlen], nm }) catch "A:\\";

@@ -4,7 +4,7 @@
 // functions over *Desktop:
 //   dirmodel.zig   the disk FAT + in-RAM folders (pure, natively tested)
 //   dirview.zig    a directory drawn in a window: icon/text layout, hit-tests
-//   deskwin.zig    directory windows: open/close, remembered geometry, scrolling
+//   deskwin.zig    directory windows: open/close, geometry, scrolling; desknav.zig folders in them
 //   desksel.zig    pointer routing + selection: press, rubber-band, file drag
 //   deskdraw.zig   the scene: desktop, windows, drag ghosts, zoom-box
 //   deskmenu.zig   the menu bar and the dialogs it opens
@@ -24,6 +24,7 @@ const dirmodel = @import("dirmodel.zig");
 const deskdrive = @import("deskdrive.zig");
 const desk_icons = @import("desk_icons.zig");
 const deskwin = @import("deskwin.zig");
+const desknav = @import("desknav.zig");
 const desksel = @import("desksel.zig");
 const deskdraw = @import("deskdraw.zig");
 const deskmenu = @import("deskmenu.zig");
@@ -53,7 +54,7 @@ pub const Desktop = struct {
         .{ .x = 0, .y = 0, .bmp = icons.HARD, .label = "SD CARD", .is_app = false }, // KOS's C:, shown once it mounts
     },
     disk_app: bool = false, // a disk is in drive A (host sets it): its icon shows only then (KOS)
-    drives: [2]dirmodel.DirModel = .{ .{}, .{} }, // A: (host-filled FAT + in-RAM folders), C: (KOS F5)
+    drives: [2]dirmodel.DirModel = .{ .{}, .{ .letter = 'C' } }, // A: (host-filled FAT + in-RAM folders), C: (KOS F5)
     dir: *dirmodel.DirModel = undefined, // drives[drv.cur], the drive in focus (deskdrive.zig): init() sets it
     drv: deskdrive.State = .{},
     dirty: deskdirty.State = .{}, // repaint only what changed (deskdirty.zig)
@@ -148,7 +149,7 @@ pub const Desktop = struct {
         const menu_open = self.menubar.open >= 0;
         // Windows take input before icons: a press they (or an open menu) consumed never reaches them.
         const consumed = !modal and self.wm.handle(g);
-        deskdrive.focusTop(self); // the top window's drive (KOS F5): the press may have raised another
+        desknav.afterWm(self); // a folder window's close box goes up a level (TOS); the top window's drive in focus
         const busy = modal or consumed or menu_open or self.wm.drag != null or self.wm.resize != null or deskwin.overWindow(self);
         // A native double-click (routed via requestOpenAt) opens/launches now.
         if (self.pending_open >= 0) {

@@ -131,3 +131,12 @@ test "renameFolder rebuilds its window title" {
     m.renameFolder(0, "NEW");
     try expectEqualStrings("A:\\NEW", m.folders[0].title[0..m.folders[0].tlen]);
 }
+
+test "a C: model titles its folders C:\\..., parents included (KOS: drive C's windows)" {
+    var m: dm.DirModel = .{ .letter = 'C' };
+    m.addFolder(dm.ROOT, "PICTURES");
+    m.addFolder(0, "PLASMA");
+    try expectEqualStrings("C:\\PICTURES\\PLASMA", m.folders[1].title[0..m.folders[1].tlen]);
+    try expectEqual(@as(i16, 0), m.folders[1].parent); // the close box's way back up (desknav)
+    try expectEqual(dm.ROOT, m.folders[0].parent);
+}

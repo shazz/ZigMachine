@@ -35,6 +35,7 @@ pub fn reset(d: *Desktop) void {
         m.n_folders = 0;
         m.new_seq = 0;
     }
+    d.drives[C].letter = 'C'; // its folders' window titles read C:\...
     d.drv = .{};
     use(d, A);
 }

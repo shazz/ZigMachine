@@ -74,8 +74,8 @@ fn hStep(d: *const Desktop) i16 {
     return if (d.view == .icons) icon_mod.CELL_W else gui.CELL;
 }
 
-// Open a NEW window on a folder (GEM opens each folder in its own window;
-// closing it goes back to the parent).
+// Open a NEW window on a folder: only when no directory window is open to show it
+// in (desknav.enterFolder; TOS opens a folder inside its drive's window).
 pub fn openFolderWindow(d: *Desktop, fidx: u8) void {
     const f = &d.dir.folders[fidx];
     addFloppyWindow(d, f.title[0..f.tlen], @intCast(fidx));
@@ -138,6 +138,7 @@ pub fn closeTopWindow(d: *Desktop) void {
     const id = d.wm.topOpen() orelse return;
     d.wm.close(id);
     d.sel_file = -1;
+    shrinkClosed(d); // now: left for the next frame, desknav.afterWm would take it for a close box
 }
 
 // Refresh a directory window's chrome for THIS frame: the GEM info line, how
