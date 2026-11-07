@@ -9,6 +9,11 @@ mkdir -p "$OUT"
 F5=57349 ESC=57362 CTRL=57364 F3=57347 F2=57346
 # right button held over the menu bar, the pointer moving every frame (as apps/klystrack_cost.mjs)
 menu() { s="$1,150,100,0;$(($1 + 1)),150,100,4"; f=$(($1 + 2)); while [ $f -le $2 ]; do s="$s;$f,$((150 + f % 8 * 2)),$((100 + f % 5)),4"; f=$((f + 1)); done; echo "$s"; }
+# File > Import's submenu: the right button held from the menu bar down to Import, across, then the pointer over the
+# submenu's items (round 5: the menu is a layer, kestrel_defer_layer.c)
+submenu() { s="$1,10,5,0;$(($1 + 1)),10,5,4"; f=$(($1 + 2)); while [ $f -le $(($1 + 20)) ]; do s="$s;$f,20,$((5 + (f - $1 - 2) * 4)),4"; f=$((f + 1)); done
+    while [ $f -le $(($1 + 40)) ]; do s="$s;$f,$((20 + (f - $1 - 20) * 12)),69,4"; f=$((f + 1)); done
+    while [ $f -le $2 ]; do s="$s;$f,$((250 + f % 8 * 4)),$((69 + f % 4 * 9)),4"; f=$((f + 1)); done; echo "$s"; }
 hover() { s=""; f=$1; while [ $f -le $2 ]; do s="$s;$f,$((60 + f % 50 * 4)),$((120 + f % 7 * 9)),0"; f=$((f + 1)); done; echo "${s#;}"; }
 run() { # run <name> <frames> [VAR=value...]
     name=$1 frames=$2; shift 2
@@ -31,5 +36,7 @@ run play_edit 260 KEYS="30,$F5;60,32;80,122;100,113;120,32"
 run play_click 240 KEYS="30,$F5" CLICKS="120,60,140;160,200,150"
 run play_tabs 300 KEYS="30,$F5;60,$F3;120,$F2;180,$F3"
 run play_inst 260 KEYS="30,$F5;60,$F3" CLICKS="100,71,121;140,71,121;180,175,45;220,170,200"   # round 5: the instrument tab skipped between events
+run play_submenu 260 KEYS="30,$F5" MOVES="$(submenu 100 250)"
+run submenu 200 MOVES="$(submenu 60 190)"
 run quit 120 KEYS="60,$ESC"
 exit $bad

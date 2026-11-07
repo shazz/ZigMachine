@@ -7,6 +7,8 @@
 //             behind the menu are skipped, only the menu draws
 //   both      playing with the menu open
 //   inst      playing with the instrument tab open (F3): round 5 skips its views between events
+//   submenu   File > Import's sub-menu, the pointer over one item (idle) and crossing its items while playing:
+//             round 4 overflowed the command list there (41-48 est, board 5 fps); round 5: 1.26 / 6.6
 // Round 5 (6 Nov 2026), est Mc: playing median 1.44, worst row change 7.8, mean 1.85; menu 0.98; both mean 2.3;
 // instrument tab mean 1.04 / worst 1.47. Round 4: 1.47 / 9.3 / 2.03, 0.95, 2.51, instrument tab 2.0 / 3.2.
 // Round 3: playing median 4.9 / worst 13.8, menu 3.2. The ceilings sit ~20-30 % above round 5's.
@@ -15,7 +17,7 @@
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
 const CART = process.env.CART ?? "docs/demo-klystrack.wasm"; // CART=...: another build (a before/after)
-const CEIL = { playMedian: 1.8, playRow: 9.5, playMean: 2.3, menuMax: 1.25, bothMean: 2.9, instMean: 1.35, instMax: 1.9 };
+const CEIL = { playMedian: 1.8, playRow: 9.5, playMean: 2.3, menuMax: 1.25, bothMean: 2.9, instMean: 1.35, instMax: 1.9, subOne: 1.7, subCross: 10 };
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (broke && broke !== "cost") throw new Error("--break cost");
 const scale = broke ? 0 : 1; // --break cost: every ceiling ~0
@@ -51,6 +53,21 @@ check(Math.max(...menu) <= CEIL.menuMax * scale, `menu: worst repaint ${Math.max
 
 const both = await series([...F5, ...menuMoves()], 165);
 check(mean(both) <= CEIL.bothMean * scale, `playing + menu: mean ${mean(both)} Mc a frame <= ${CEIL.bothMean * scale}`);
+
+// File > Import's submenu open, the button held: over one item, and crossing its items every frame. Round 4
+// overflowed the 4,096-command list there (every frame redrawn whole, ~41-48 est, board 5 fps).
+const P = (f, x, y, b) => `${f}:pointer:${x * 2},${y - 20},${b}`;   // klystrack 320x240 coordinates
+const toSub = () => {
+    const c = [P(100, 10, 5, 0), P(101, 10, 5, 4)];
+    for (let f = 102; f <= 120; f++) c.push(P(f, 20, 5 + (f - 102) * 4, 4));
+    for (let f = 121; f <= 140; f++) c.push(P(f, 20 + (f - 120) * 12, 69, 4));
+    return c;
+};
+const sub1 = [...toSub()], subX = [...toSub()];
+for (let f = 141; f <= 230; f++) { sub1.push(P(f, 230 + (f % 16) * 4, 70 + (f % 3), 4)); subX.push(P(f, 250 + (f % 8) * 4, 69 + (f % 4) * 9, 4)); }
+const s1 = await series(sub1, 160), sx = await series([...F5, ...subX], 160);
+check(Math.max(...s1) <= CEIL.subOne * scale, `submenu, the pointer over one item: worst ${Math.max(...s1)} Mc <= ${CEIL.subOne * scale}`);
+check(mean(sx) <= CEIL.subCross * scale, `submenu, playing, a new item every frame: mean ${mean(sx)} Mc <= ${CEIL.subCross * scale}`);
 
 const inst = await series([...F5, "60:key:57347", "63:keyUp:57347"], 160);   // F3: the instrument tab
 check(inst.filter((mc) => mc > 1.2).length >= 20, "instrument tab: it repaints while the song plays");
