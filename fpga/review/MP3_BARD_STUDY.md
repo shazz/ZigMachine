@@ -213,3 +213,27 @@ python3 fpga/tools/mp3_bard_check.py /dev/shm/<run>/uart.txt prototypes/mp3_bard
 ```
 
 Image md5s: pvmp3 (8 frames) b841bcf5. The sim runs' uarts are under `prototypes/mp3_bard_re/build/*/bard_uart.txt`.
+
+## The player as built (feat/mp3-bard, 6 Nov): BARD's load with the real loop
+
+`make snd-bench SONG=<file>.MP3 MUSIC=<dir> SND_MP3=1 ZM_FRAMES=12` (`cycles/sound/smp3bench.c`):
+- the file streamed into the MP3 player as the cart streams it, the feed effects and the render
+  timed together;
+- pvmp3 through wasm2c inside demo-audio.wasm, the hi/lo Paula bytes;
+- the combo16 core `SndNdD16Dyn8Sx`, run on the laptop.
+
+The figures are warm 60 Hz frames 1-11, in Mc of BARD's 1.67.
+
+| Stream | Mean a 60 Hz frame | % of BARD | Peak tick (one MP3 frame decoded) | A tick with no decode |
+|---|---|---|---|---|
+| TONES44.MP3 (CC0, 44.1 kHz stereo 128k) | 0.873 | **52.4 %** | 1.348 (81 %) | 0.14 (8 %) |
+| Matt's track, re-encoded 44.1 kHz stereo 192k (local, a 170 KB excerpt) | 0.874 | **52.4 %** | 1.481 (89 %) | 0.15 (9 %) |
+
+- **wasm2c costs about 1.3x the native build.** A decode is ~1.15-1.35 Mc, against the native study's
+  0.89 Mc.
+- **The first frame is 1.58-1.92 Mc** (95-115 %). That frame holds the stream's start and the first
+  32 KiB feed, copied while BARD runs it. It happens once a track, and the 4-frame lead absorbs it.
+- **Every frame decoded, nothing wrong:** status word 0x121 (playing, 44.1 kHz, stereo, 0 errors, 0
+  underruns).
+- **If BARD ever needs the room:** the lever is a native (non-wasm2c) build of pvmp3 bound to the player
+  through a wrapped import. The native decoder is 34 %.
