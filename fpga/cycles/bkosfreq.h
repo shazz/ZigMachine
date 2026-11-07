@@ -16,6 +16,7 @@ static inline void bkosfreq_write(volatile uint32_t* w, uint32_t seq, const uint
     w[KF_MAGIC] = 0; /* a half-written block is no block */
     w[KF_ACK] = 0;
     w[KF_DONE] = 0;
+    w[KF_TAKEN] = 0;
     w[KF_SEQ] = seq;
     uint32_t check = KOS_FILE_MAGIC ^ seq;
     for (int i = 0; i < KF_FIELDS; i++) {
@@ -26,8 +27,8 @@ static inline void bkosfreq_write(volatile uint32_t* w, uint32_t seq, const uint
     w[KF_MAGIC] = KOS_FILE_MAGIC;
 }
 
-/* glass serves this block (glass/src/kos_file.zig writes KOS_FILE_READY at KOS_FILE_READY_FROM_TOP each poll). */
-static inline int bkosfreq_ready(uint32_t word) { return word == KOS_FILE_READY; }
+/* glass took request `seq` (glass/src/kos_file.zig writes KF_TAKEN once the block is whole and checked). */
+static inline int bkosfreq_taken(const volatile uint32_t* w, uint32_t seq) { return w[KF_TAKEN] == seq; }
 
 /* glass's answer to request `seq` (a TOS code, < 0 an error), or 1 << 31 | 1 while it has not answered. */
 #define BKOSF_WAIT 0x80000001u

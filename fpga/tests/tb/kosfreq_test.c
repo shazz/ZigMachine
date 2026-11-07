@@ -4,7 +4,7 @@
  *
  *   kosfreq_test SEQ F0 .. F10        -> the block's words, hex, one line (F: KF_OP .. KF_PATH2_LEN)
  *   kosfreq_test answer SEQ ACK DONE  -> what bkosfreq_answer makes of them (hex)
- *   kosfreq_test ready WORD           -> 1 if glass's ready word says it serves the block */
+ *   kosfreq_test taken SEQ TAKEN      -> 1 if glass took request SEQ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,8 +22,9 @@ int main(int argc, char** argv) {
         printf("%08x\n", bkosfreq_answer(w, num(argv[2])));
         return 0;
     }
-    if (argc == 3 && strcmp(argv[1], "ready") == 0) {
-        printf("%d\n", bkosfreq_ready(num(argv[2])));
+    if (argc == 4 && strcmp(argv[1], "taken") == 0) {
+        w[KF_TAKEN] = num(argv[3]);
+        printf("%d\n", bkosfreq_taken(w, num(argv[2])));
         return 0;
     }
     if (argc != 2 + KF_FIELDS) {

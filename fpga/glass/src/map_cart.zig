@@ -94,7 +94,7 @@ pub const KOS_DRIVE_TIMEOUT_MS: u32 = 500;
 // A write remounts the card read-write, fsyncs and remounts it read-only: KOS_FILE_TIMEOUT_MS.
 pub const KOS_FILE_FROM_TOP: u32 = 0x3C0;
 pub const KOS_FILE_MAGIC: u32 = 0x464B_4D5A; // "ZMKF"
-pub const KOS_FILE_WORDS: u32 = 16;
+pub const KOS_FILE_WORDS: u32 = 17;
 pub const KF_MAGIC: u32 = 0;
 pub const KF_SEQ: u32 = 1;
 pub const KF_OP: u32 = 2;
@@ -111,15 +111,16 @@ pub const KF_PATH2_LEN: u32 = 12;
 pub const KF_CHECK: u32 = 13;
 pub const KF_DONE: u32 = 14;
 pub const KF_ACK: u32 = 15;
+// glass took the request (KF_TAKEN = its sequence, written as soon as the block is whole and checked,
+// before the write itself): the firmware gives up after KOS_FILE_TAKE_MS without it (EWRPRO: no glass,
+// an older one, or one built for another KOS_FILE_FROM_TOP: the first board run lost a save that way)
+// instead of waiting KOS_FILE_TIMEOUT_MS. glass writes the window only in answer to a request: a word it
+// wrote on every poll made each cart load's read-back fail (loader.zig DdrMismatch).
+pub const KF_TAKEN: u32 = 16;
+pub const KOS_FILE_TAKE_MS: u32 = 250;
 pub const KOS_FILE_DATA_MAX: u32 = 32768; // rom/kos/kfs_abi.zig DATA_MAX
 pub const KOS_FILE_PATH_MAX: u32 = 127; // kfs_abi.zig PATH_MAX
 pub const KOS_FILE_TIMEOUT_MS: u32 = 10000;
-// glass's C: file server is there, and reads the block where this firmware writes it: glass writes
-// KOS_FILE_READY here on every poll (a load zeroes it). The firmware refuses a write at once (EWRPRO)
-// when it is absent, instead of waiting KOS_FILE_TIMEOUT_MS for a glass that never answers (an older
-// glass, or one built with another KOS_FILE_FROM_TOP: the first board run lost a save that way).
-pub const KOS_FILE_READY_FROM_TOP: u32 = 0x3C4; // CPU 0x41FF_FC3C
-pub const KOS_FILE_READY: u32 = 0x524B_4D5A; // "ZMKR"
 pub const KOS_CGEN_FROM_TOP: u32 = 0x3CC; // CPU 0x41FF_FC34: the C: generation: glass bumps it after each write it made
 
 // --- the disk descriptor's other magic -----------------------------------------

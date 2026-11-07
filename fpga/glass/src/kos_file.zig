@@ -52,7 +52,6 @@ pub const Server = struct {
 
     /// One look at the block: a whole request not yet answered is served. True if one was.
     pub fn poll(self: *Server) bool {
-        self.words[self.at(mc.KOS_FILE_READY_FROM_TOP)] = mc.KOS_FILE_READY; // here, at this layout
         const w = self.words[self.at(mc.KOS_FILE_FROM_TOP)..][0..mc.KOS_FILE_WORDS];
         if (w[mc.KF_MAGIC] != mc.KOS_FILE_MAGIC) return false;
         var s: [mc.KOS_FILE_WORDS]u32 = undefined;
@@ -61,6 +60,7 @@ pub const Server = struct {
         var check: u32 = mc.KOS_FILE_MAGIC;
         for (s[mc.KF_SEQ .. mc.KF_PATH2_LEN + 1]) |x| check ^= x;
         if (s[mc.KF_CHECK] != ~check) return false; // half-written
+        w[mc.KF_TAKEN] = s[mc.KF_SEQ]; // the firmware now waits for the write itself
         w[mc.KF_DONE] = @bitCast(self.serve(&s));
         w[mc.KF_ACK] = s[mc.KF_SEQ];
         self.served +%= 1;
