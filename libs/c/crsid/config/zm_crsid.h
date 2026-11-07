@@ -3,10 +3,12 @@
 #ifndef ZM_CRSID_H
 #define ZM_CRSID_H
 
-/* A runtime divide by a divisor fixed for the run (the output attenuation, 13 for one SID; the HQ
+/* A runtime divide by a divisor fixed for the run (the output attenuation: 13, 16, 30, 40 for 1-4 SIDs; the HQ
  * engine's 5 or 6 oversamples) as a constant divide: GCC with -mno-div and every wasm compiler turn a
  * constant divide into a multiply, BARD's __divsi3 costs ~400 cycles. Same result for any divisor. */
-#define ZDIV(x, d) ((d) == 13 ? (x) / 13 : (d) == 5 ? (x) / 5 : (d) == 6 ? (x) / 6 : (x) / (d))
+#define ZDIV(x, d)                                                                                       \
+    ((d) == 13 ? (x) / 13 : (d) == 16 ? (x) / 16 : (d) == 30 ? (x) / 30 : (d) == 40 ? (x) / 40         \
+     : (d) == 5 ? (x) / 5 : (d) == 6 ? (x) / 6 : (x) / (d))
 
 /* The light pulse's PHASEACCU_MAX / PhaseAccuStep, memoised per voice: the step only changes with
  * the voice's frequency registers. Keyed by the SID and the voice's register offset (0, 7, 14). */

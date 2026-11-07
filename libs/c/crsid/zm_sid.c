@@ -29,7 +29,10 @@ uint32_t zm_sid_load(uint8_t *file, uint32_t len, uint32_t subtune) {
     cRSID_SIDheader *h = cRSID_processSIDfileData(file, (int)len);
     if (!h) return ZM_SID_NOT_SID;
     cRSID.HighQualitySID = 0;
-    cRSID_initSIDtune(h, (char)(subtune ? subtune : h->DefaultSubtune));
+    /* cRSID takes the subtune as a plain char, signed on x86 and unsigned on rv32: past 127 the two
+     * would differ, so a subtune is held to 1..127 (HVSC's largest files have fewer). */
+    uint32_t sub = subtune ? subtune : h->DefaultSubtune;
+    cRSID_initSIDtune(h, (char)(sub > 127 ? 127 : sub));
     /* cRSID_generateSound's shadow settings, set once: zm_sid_render calls cRSID_generateSample. */
     cRSID_C64.RealSIDmode = cRSID.RealSIDmode;
     cRSID_C64.AudioThread_SIDchipCount = cRSID_C64.SIDchipCount;
