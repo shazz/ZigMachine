@@ -246,6 +246,9 @@ NATIVE_TESTS="
     apps/zig/scenes/leonard_spirit/ball_test.zig
     apps/zig/scenes/gen4_3615/fate_test.zig
     apps/zig/scenes/mindwind/gen_test.zig
+    apps/zig/scenes/c64_1988/tables_test.zig
+    apps/zig/scenes/c64_1988/vic_test.zig
+    apps/zig/scenes/c64_1988/show_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
@@ -437,6 +440,8 @@ gate ziggy node apps/ziggy_check.mjs --break photo   # ...and no swap asked for 
 gate falcon_ays node apps/falcon_ays_headless.mjs   # ARE YOU SITTING COMFORTABLY? (cart 116, Reservoir Gods' Falcon intro): plane 0 alone in FB_MODE 5, falcon_ays.mod asked for on frame 1; the MOD's 8xx script on the frame clock: black before the blobs and in 807's gap, five blob variants at their times each drawn (colours, lines doubled by the copper list, pixel pairs, moving, five different pictures); the original's data drawn: text palette, purple LUT, the ship picture pixel for pixel, the CODE plaque, the flames on plane 1 alone in the fireball's colours; Escape leaves
 gate falcon_ays node apps/falcon_ays_headless.mjs --break script   # ...and the blob checkpoints 3 s early are caught
 gate falcon_ays node apps/falcon_ays_headless.mjs --break art   # ...and the ship compared one pixel off is caught
+gate c64_1988 node apps/c64_1988_headless.mjs   # 1988 (cart 118, Tristar & RSI's C64 Only Sprites intro): plane 0 alone, overscan; nine C64 frames across the loop (logo + scrollers on texts 1 and 2, the logo fade, the wipe, the grid joining, cubes, the end fade, balls, the green fade) pixel-identical to VICE 3.9 x64sc (pinned SHA-256 of the 384x272 view in colodore indices, tools/c64/pin_frames.py); Escape leaves
+gate c64_1988 node apps/c64_1988_headless.mjs --break pixel   # ...and the view taken one pixel to the right is caught
 gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1-4 pick the object (4: GLENZ NEST, 60/104), + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the other objects), S cycles nine distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels, DOTS one pixel a vertex, TEXTURE the wall texels and ENVMAP Natrium's grey env map through one CHISEL AFFINE op), only last frame's box erased (no stale pixel in any mode, nest included), five sphere and three nest pins under every split, the HUD follows, Escape leaves
 gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never arrive are caught
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught
