@@ -126,10 +126,21 @@ static int copy_changed(const Uint8 *from, int w, int h, int all)
         if (((ox | w) & 3) == 0) {
             const Uint32 *s = (const Uint32 *)(const void *)(from + y * w);
             Uint32 *o = (Uint32 *)(void *)(shown + y * w), *d = (Uint32 *)(void *)dst;
-            for (int x0 = 0; x0 < w >> 2; x0 += 4) {
-                if (x0 < 128 && !(cols >> (x0 >> 2) & 1)) continue;
-                for (int x = x0; x < x0 + 4 && x < w >> 2; x++)
-                    if (all || s[x] != o[x]) { o[x] = s[x]; d[x] = s[x]; diff = 1; KD_STAT(words, 1); }
+            int nw = w >> 2;                            /* <= 100 words: 32 columns cover a row */
+            while (cols) {                              /* each run of drawn 16-pixel columns */
+                int c0 = __builtin_ctz(cols), c1 = c0;
+                while (c1 < 31 && (cols >> (c1 + 1) & 1)) c1++;
+                cols &= c1 == 31 ? 0 : ~0u << (c1 + 1);
+                int x1 = c1 == 31 ? nw : 4 * c1 + 4;
+                if (x1 > nw) x1 = nw;
+                for (int x = 4 * c0; x < x1; x += 4) {  /* a column (4 words) compared at once */
+                    int e = x + 4 < x1 ? x + 4 : x1;
+                    if (!all && e == x + 4 && !((s[x] ^ o[x]) | (s[x + 1] ^ o[x + 1]) | (s[x + 2] ^ o[x + 2]) | (s[x + 3] ^ o[x + 3]))) continue;
+                    for (int i = x; i < e; i++) {
+                        Uint32 v = s[i];
+                        if (all || v != o[i]) { o[i] = v; d[i] = v; diff = 1; KD_STAT(words, 1); }
+                    }
+                }
             }
             continue;
         }

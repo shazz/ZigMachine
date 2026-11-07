@@ -15,6 +15,7 @@
  * skips the inner ones with it, an outer group drawn still reuses its inner ones; deeper ones are plain
  * commands of the groups around them. */
 #include "kestrel_defer.h"
+void kestrel_log(const char *m);
 
 #define LEN(b) ((b) & 0x3FFFFFu)
 #define DEPTH 8                         /* begins nested deeper are plain commands */
@@ -52,6 +53,18 @@ static int last_frames(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
  * between are dropped (their tiles dirty) and last frame's rest moves down to i, so everything after it is
  * compared with what it really was rather than with whatever now sits at its position. */
 #define RESYNC 256
+/* Last frame's entries j.. moved down to i (those between dropped): so did its occluders (kestrel_defer.h). */
+static void occ_shift(unsigned i, unsigned j)
+{
+    unsigned n = 0;
+    for (unsigned k = 0; k < kd.nocc[1]; k++) {
+        unsigned q = kd.occ[1][k];
+        if (q >= j) kd.occ[1][n++] = q - (j - i);
+        else if (q < i) kd.occ[1][n++] = q;
+    }
+    kd.nocc[1] = n;
+    if (kd.occ_pp > n) kd.occ_pp = n;
+}
 static void resync(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
 {
     if (i >= kd.nlast || kd.stale || OP(&kd.list[i]) == C_GROUP) return;   /* a group in place: a real change */
@@ -61,6 +74,7 @@ static void resync(unsigned i, Uint32 kind, const gkey_t *w, unsigned n)
         if (j + 1 + LEN(p->box) > kd.nlast) return;
         for (unsigned q = i; q < j; q++) kd_mark(&kd.list[q]);
         memmove(&kd.list[i], &kd.list[j], (kd.nlast - j) * sizeof(cmd_t));
+        occ_shift(i, j);
         KD_STAT(resync, 1);
         kd.nlast -= j - i;
         return;
@@ -88,6 +102,8 @@ static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout, int
             for (unsigned j = i + 1; j <= i + (unsigned)len; j++) if (kd.list[j].box & BLENDS) kd_mark(&kd.list[j]);
         last_hit = i;
         kd.n = i + 1 + (unsigned)len;
+        if (kd.gopen) { kd_group_note(NONE | (g->box & BLENDS)); kd_group_note(g->stepx); }   /* its tiles join the outer group */
+        kd_occ_carry(i + 1, i + (unsigned)len);              /* and its occluders this frame's */
         depth--;
         return 1;
     }
@@ -102,7 +118,10 @@ static int group_begin(int can, const gkey_t *w, Uint32 *out, unsigned nout, int
     if (i < kd.nlast) kd_mark(g);                            /* replaced, as any entry */
     memset(g, 0, sizeof *g);
     g->kind = kind; g->mod = n; g->colour = a; g->box = NONE;
-    kd.n = i + 1; start[nopen++] = i; opened[d] = 1;
+    if (kd.gopen) kd_group_note(NONE);                        /* its header: an entry of the outer group */
+    kd.n = i + 1; start[nopen] = i; opened[d] = 1;
+    kd.gbl[nopen] = 0; kd.gx0[nopen] = 31; kd.gy0[nopen] = 63; kd.gx1[nopen] = 0; kd.gy1[nopen] = 0;
+    kd.gopen = ++nopen;
     return 0;
 }
 
@@ -116,16 +135,26 @@ void kestrel_defer_group_end(const Uint32 *out, unsigned nout)
     if (!kd.deferring || !kd.list || s >= kd.n) return;          /* the list was let go meanwhile */
     cmd_t *g = &kd.list[s];
     for (unsigned j = 0; j < nout; j++) kd.arena[g->colour + g->mod + j] = out[j];
-    Uint32 blends = 0, x0 = 31, y0 = 63, x1 = 0, y1 = 0;     /* and the tiles its commands touch, together */
-    for (unsigned j = s + 1; j < kd.n; j++) {
-        Uint32 b = kd.list[j].box;
-        blends |= b & BLENDS;
-        if (b & NONE) continue;
-        if (TX0(b) < x0) x0 = TX0(b);
-        if (TY0(b) < y0) y0 = TY0(b);
-        if (TX1(b) > x1) x1 = TX1(b);
-        if (TY1(b) > y1) y1 = TY1(b);
+    /* the tiles its commands touch, together: kept as they joined (kd_group_note), round 5; the loop over the
+     * group's entries this replaces walked ~1,600 of them for the pattern view on every row change */
+    unsigned q = kd.gopen = nopen;
+    Uint32 blends = kd.gbl[q], x0 = kd.gx0[q], y0 = kd.gy0[q], x1 = kd.gx1[q], y1 = kd.gy1[q];
+#ifdef KESTREL_GROUP_CHECK
+    {
+        Uint32 bl = 0, a0 = 31, b0 = 63, a1 = 0, b1 = 0;
+        for (unsigned j = s + 1; j < kd.n; j++) {
+            Uint32 b = kd.list[j].box;
+            bl |= b & BLENDS;
+            if (b & NONE) continue;
+            if (TX0(b) < a0) a0 = TX0(b);
+            if (TY0(b) < b0) b0 = TY0(b);
+            if (TX1(b) > a1) a1 = TX1(b);
+            if (TY1(b) > b1) b1 = TY1(b);
+        }
+        if (bl != blends || (a0 > a1) != (x0 > x1) || (a0 <= a1 && (a0 != x0 || a1 != x1 || b0 != y0 || b1 != y1)))
+            kestrel_log("kestrel_defer_group: the kept box differs from the entries' (KESTREL_GROUP_CHECK)");
     }
+#endif
     g->stepx = x0 > x1 ? NONE : x0 | x1 << 5 | y0 << 10 | y1 << 16;
     g->box = NONE | blends | (kd.n - s - 1);
 }

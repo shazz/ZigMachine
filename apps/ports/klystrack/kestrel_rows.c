@@ -22,12 +22,16 @@
 #include "gui/bevel.h"
 #include "gui/view.h"
 #include "../kestrel_sdl2/src/opt/kestrel_render_priv.h"
+#include "kestrel_rows_diff.h"
 
 size_t kestrel_heap_largest(void);   /* kestrel_sdl2/src/kestrel_heap.c */
 
 enum { CACHES = (KPAL_SLOTS - KPAL_CACHE) / 2, H = 8, MAXROWS = 64 };
-typedef struct { SDL_Texture tex; Uint32 key; int top, valid; } cache_t;
+typedef struct { SDL_Texture tex; Uint32 key; int top, valid, whole; unsigned gen; } cache_t;
+void kestrel_window_dirty(void *renderer, const SDL_Rect *d);   /* kestrel_sdl2's kestrel_render.c */
 static cache_t caches[CACHES], strips[CACHES];
+static rowhash_t hashes[CACHES];                        /* a row cache's row hashes (kestrel_rows_diff.c) */
+#define RH(c) (&hashes[(c) - caches])
 enum { PLAIN, CACHE, STRIP, WINDOW };   /* the pass: upstream's one, into the cache, into the strip, on the window */
 static struct { cache_t *c, *st; SDL_Rect s; int mode, top, selected; Uint64 want; } p;
 
@@ -62,11 +66,14 @@ static Uint64 rows_outside(int v0, int v1, int h)
     return m;
 }
 
-/* The cache moved to `top`: what it holds scrolled with it; returns the rows it does not hold. */
-static Uint64 scroll(cache_t *c, int top, Uint32 key)
+/* The cache moved to `top`: what it holds scrolled with it; returns the rows it does not hold. c->whole: its
+ * picture must go to the window whole (a new serial), else the tiles that change are named here. */
+static Uint64 scroll(GfxDomain *dom, cache_t *c, const SDL_Rect *track, int top, Uint32 key)
 {
     int w = c->tex.w, h = c->tex.h, d = (top - c->top) * H;
-    if (!c->valid || c->key != key || d >= h || -d >= h) return rows_outside(0, 0, h);
+    c->whole = !c->valid || c->key != key || d >= h || -d >= h || c->gen != kestrel_pal_gen || w % 4 || w / 4 > KR_WORDS;
+    if (c->whole) { RH(c)->ok = 0; return rows_outside(0, 0, h); }
+    if (d) kr_changes(dom->renderer, c->tex.idx, w, h, track, d, RH(c));   /* the tiles that change: named */
     if (d > 0) memmove(c->tex.idx, c->tex.idx + d * w, (size_t)((h - d) * w));
     if (d < 0) memmove(c->tex.idx - d * w, c->tex.idx, (size_t)((h + d) * w));
     return d >= 0 ? rows_outside(0, h - d, h) : rows_outside(-d, h, h);
@@ -74,7 +81,7 @@ static Uint64 scroll(cache_t *c, int top, Uint32 key)
 
 static void clip_and_rect(GfxDomain *dom, SDL_Rect *r, Uint32 rgb) { gfx_domain_set_clip(dom, r); gfx_rect(dom, r, rgb); }
 
-/* A cache's picture into the window at r: one command (its serial moved on: not last frame's picture). */
+/* A cache's picture into the window at r: one command (changed: its serial moved on, not last frame's picture). */
 static void put(GfxDomain *dom, cache_t *c, const SDL_Rect *r, int changed)
 {
     kestrel_defer_redirect(NULL, 0, 0, 0, 0);
@@ -86,14 +93,16 @@ static void put(GfxDomain *dom, cache_t *c, const SDL_Rect *r, int changed)
 /* Pass 0: the cache scrolled to `top`, the rows it lacks cleared and wanted (drawn into it, normal colours). */
 static int cache_pass(GfxDomain *dom, int ch, const SDL_Rect *track)
 {
-    p.want = scroll(p.c, p.top, kestrel_view_common(ch, track));
+    p.want = scroll(dom, p.c, track, p.top, kestrel_view_common(ch, track));
     p.mode = CACHE;
     kestrel_defer_redirect(p.c->tex.idx, track->w, track->h, track->x, track->y);
     for (int i = 0; i < MAXROWS; i++)
         if (p.want >> i & 1) {
             SDL_Rect s = { track->x, track->y + i * H, track->w, H };
             clip_rect(&s, track);
-            if (s.h > 0) clip_and_rect(dom, &s, colors[COLOR_BACKGROUND]);
+            if (s.h <= 0) continue;
+            if (!p.c->whole) kestrel_window_dirty(dom->renderer, &s);   /* a new row: drawn again there */
+            clip_and_rect(dom, &s, colors[COLOR_BACKGROUND]);
         }
     return 1;
 }
@@ -103,7 +112,9 @@ static int cache_pass(GfxDomain *dom, int ch, const SDL_Rect *track)
  * itself when a play-position bevel (no follow-play) is drawn over the rows too. */
 static int strip_pass(GfxDomain *dom, int ch, const SDL_Rect *track, const SDL_Rect *row)
 {
-    put(dom, p.c, track, p.want != 0 || p.c->top != p.top || !p.c->valid);
+    kr_hash(p.c->tex.idx, p.c->tex.w, p.c->tex.h, track, p.want, RH(p.c));   /* the rows just drawn */
+    put(dom, p.c, track, p.c->whole);
+    p.c->gen = kestrel_pal_gen;
     p.c->key = kestrel_view_common(ch, track); p.c->top = p.top; p.c->valid = 1;
     p.s = (SDL_Rect){ track->x, row->y, track->w, row->h };   /* the bevel's lines, the whole track wide (text runs past it) */
     clip_rect(&p.s, track);

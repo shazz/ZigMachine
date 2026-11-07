@@ -20,7 +20,21 @@ typedef void (*handler_t)(GfxDomain *, const SDL_Rect *, const SDL_Event *, void
 static const handler_t PLAIN[] = {
     bevel_view, toolbar_view, songinfo1_view, songinfo2_view, songinfo3_view, playstop_view, song_name_view,
     instrument_name_view, instrument_disk_view, fx_name_view, wavetable_name_view,
+    instrument_view, instrument_view2, instrument_list,   /* round 5: the instrument tab (its parameters, the list) */
 };
+/* program_view: the steps each channel playing this instrument's program is at (the cursor it draws there). */
+static unsigned prog_ticks(Uint32 *k)
+{
+    const MusInstrument *inst = &mused.song.instrument[mused.current_instrument];
+    Uint32 h = 2166136261u;
+    for (int c = 0; c < CYD_MAX_CHANNELS; ++c) {
+        int on = mused.channel[c].instrument == inst && (mused.cyd.channel[c].flags & CYD_CHN_ENABLE_GATE)
+                 && (mused.channel[c].flags & MUS_CHN_PROGRAM_RUNNING);
+        h = (h ^ (on ? 256u + mused.channel[c].program_tick : 0u)) * 16777619u;
+    }
+    k[0] = h;
+    return 1;
+}
 /* What of the play / edit position a view shows (most of them none): it moves on every row while a song plays. */
 static unsigned seq_pos(Uint32 *k)                         /* sequence_view_inner: the selected and play lines */
 {
@@ -47,6 +61,7 @@ static unsigned own_key(const View *view, const SDL_Rect *area, Uint32 *k)
     handler_t h = view->handler;
     for (unsigned i = 0; i < sizeof PLAIN / sizeof PLAIN[0]; i++) if (h == PLAIN[i]) return n;
     if (h == info_line) return n + info_pos(k + n);
+    if (h == program_view) return n + prog_ticks(k + n);
     if (h == sequence_view2) return n + seq_pos(k + n);
     if (h == timer_view) {                                  /* the play time, to the second */
         k[n++] = (mused.flags & SONG_PLAYING) ? (Uint32)((mused.play_start_at + mused.time_played) / 1000) : 0;

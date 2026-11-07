@@ -20,3 +20,6 @@ void kestrel_view_event(const SDL_Event *e); /* KESTREL: kestrel_view.c */
 # Round 4: each event polled tells kestrel_view.c that the views must draw (kestrel_view_event: not a bare pointer
 # move, nor a move while the menu owns the pointer).
 s/^\t\twhile (SDL_PollEvent(&e))$/\t\twhile (SDL_PollEvent(\&e) \&\& (kestrel_view_event(\&e), 1)) \/* KESTREL *\//
+# Round 5: the menu is a LAYER over the views (kestrel_sdl2 kestrel_defer_layer.c): moving the pointer over it
+# redraws the menu over a kept picture of the views, not every view under each tile it changes.
+s/^\t\t\t\t\tdraw_menu(domain, &e);$/\t\t\t\t\tkestrel_defer_layer(); \/* KESTREL *\/\n\t\t\t\t\tdraw_menu(domain, \&e);/

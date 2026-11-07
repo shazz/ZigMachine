@@ -74,6 +74,7 @@ void kestrel_defer_line(const SDL_Rect *clip, int x1, int y1, int x2, int y2, Ui
 void kestrel_defer_present(void);
 void kestrel_defer_nop(void);
 void kestrel_defer_redirect(Uint8 *buf, int w, int h, int x, int y);
+void kestrel_defer_dirty(int x0, int y0, int x1, int y1);   /* inclusive window pixels drawn again */
 Uint32 kestrel_defer_row_cols(int y);
 void kestrel_texture_touched(SDL_Texture *t);   /* before a texture's pixels change or it is freed */
 

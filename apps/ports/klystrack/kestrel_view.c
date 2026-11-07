@@ -29,15 +29,19 @@ int snprintf(char *, unsigned long, const char *, ...);
 void kestrel_log(const char *m);
 
 static Uint32 gen;
-static unsigned fired;
+static unsigned fired, ev_present, post_event;
 unsigned kestrel_timers_fired(void);
+unsigned kestrel_defer_presents(void);   /* kestrel_sdl2 kestrel_defer.c */
 
 /* Once a main-loop pass, for each event polled: one the views see (not a bare pointer move, nor a move with a
- * button held while the menu owns the pointer: the views then draw with no event). */
+ * button held while the menu owns the pointer: the views then draw with no event). The repaint AFTER it draws
+ * every view again too (round 5): a widget acts on a click while it draws, after the views before it (and its
+ * own label) were drawn, so what the click changed shows only in the next repaint (a parameter's new value). */
 void kestrel_view_event(const SDL_Event *e)
 {
     if (e->type == SDL_MOUSEMOTION && (!e->motion.state || mused.mode == MENU)) return;
     gen++;
+    post_event = 1; ev_present = kestrel_defer_presents();
 }
 
 /* For kestrel_bard.c: moves when an event reached the views (only then can the song have been edited). */
@@ -67,6 +71,7 @@ static Uint32 ui_state(void)
 {
     unsigned f = kestrel_timers_fired();
     if (f != fired) { fired = f; gen++; }
+    if (post_event && kestrel_defer_presents() != ev_present) { post_event = 0; gen++; }   /* the repaint after an event */
     Uint32 h = mix(2166136261u, gen);
     h = mix(h, mused.flags); h = mix(h, mused.visible_columns);
     int block[(offsetof(Mused, sequence_digit) - offsetof(Mused, octave)) / sizeof(int) + 1];
