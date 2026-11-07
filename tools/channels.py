@@ -60,7 +60,7 @@ def excluded(tag):
 
 # The machines a screen can come from. "unknown" is a deliberate label, not a
 # default: it means the scene's own source does not say and nobody has checked.
-KINDS = ("atari st", "atari falcon", "amiga", "pc", "zigmachine", "system", "unknown")  # pc: a desktop program ported (apps/ports)
+KINDS = ("atari st", "atari falcon", "amiga", "c64", "pc", "zigmachine", "system", "unknown")  # pc: a desktop program ported (apps/ports)
 
 # Display names are shown in three fixed-width-ish places: the menu cart's own
 # 8x8-font list, the VHS name card, and the Select OSD row (docs/css/cart-select.css

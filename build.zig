@@ -606,6 +606,7 @@ pub fn build(b: *std.Build) void {
         "demo-falcon_ays", // 116 — RESERVOIR GODS / ARE YOU SITTING COMFORTABLY? (Falcon 030, 2004): the intro on the true-colour plane, its parts driven by the MOD's 8xx script (the original's data, ripped by tools/falcon_ays_art.py)
         "demo-mp3_player", // 117 — MP3 PLAYER: C:\MUSIC's .MP3 files read through KOS GEMDOS and fed to the sound side's MP3 player (pvmp3 on BARD / the AudioWorklet), on the four Paula channels
         "demo-sid_test", // 118 — SID TEST: a Commodore 64 PSID (HerMiniSID, Hermit) on the .sid player: cRSID, native on BARD, machine-audio.wasm on the page; keys 1-3 by name, as bytes, an RSID refused; 5 stops
+        "demo-c64_1988", // 119 — TRISTAR & RED SECTOR INC. / 1988 (C64, Only Sprites 2021, code Shazz): the eight sprites multiplexed by the original's IRQ chains, replayed on a VIC-II sprite model (data ripped by tools/c64_1988_rip.py)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
