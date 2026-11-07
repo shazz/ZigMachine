@@ -30,6 +30,8 @@ SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap", "hip", "kt", "sid")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
 # Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
 LOCAL_SONGS = frozenset({"local.xm"})
+# host/audio.c's name for a zg.requestSongBytes song ("bytes.sid"...): played from the cart's memory, nothing to pack.
+BYTES = "bytes."
 # Carts whose string literals are not song requests: ported C programs (apps/ports) name their own documents
 # ("untitled.mod", a tracker's module list) and play through the stream ring (hostAudioFeed), never zg.requestSong.
 # Only the songs the log saw them start count.
@@ -45,6 +47,7 @@ def song_names(wasm: bytes, music: Path, log: str = "", literals: bool = True) -
     `music` (a LOCAL_SONGS name that is no file is left out instead)."""
     found = {m.group().decode() for m in NAME.finditer(wasm)} if literals else set()
     found |= {line.split(" ", 3)[3] for line in log.splitlines() if line.startswith("L ") and line.count(" ") >= 3}
+    found = {n for n in found if not n.startswith(BYTES)}  # zg.requestSongBytes: the cart's own image, no file
     absent_local = {n for n in found & LOCAL_SONGS if not (music / n).is_file()}
     if absent_local:
         print(f"song_pack: no local song {', '.join(sorted(absent_local))}: not packed", file=sys.stderr)

@@ -10,7 +10,7 @@ category comes from where the repo already says it:
   cart, a native cart outside the catalog);
 - a Union Demo screen (union_*: reached only through the hub's doors) is a demo;
 - else the catalog's machine type (apps/zig/scenes/catalog.zig, tools/channels.py): "pc" is a
-  program port (tools); "atari st", "amiga", "atari falcon" are demos, cracktros and intros.
+  program port (tools); "atari st", "amiga", "atari falcon", "c64" are demos, cracktros and intros.
 
 A "zigmachine", "system" or "unknown" cart is an original screen, a test or the OS, and no
 rule can tell which: it must be in TABLE. A cart nothing places is an ERROR (UnknownCategory),
@@ -32,7 +32,7 @@ import channels  # after the path insert: the catalog parser
 
 CATEGORIES = ("demos", "games", "tools", "tutorials", "tests", "system")
 NATIVE_MK = FPGA / "cycles/native/native.mk"  # the native carts: NATIVE_TITLE_<name>
-DEMO_KINDS = ("atari st", "amiga", "atari falcon")
+DEMO_KINDS = ("atari st", "amiga", "atari falcon", "c64")
 HUB_PREFIX = "union_"  # tools/channels.py UNION_PREFIX: every one a Union Demo screen
 
 _BY_CATEGORY = {

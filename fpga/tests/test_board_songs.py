@@ -51,6 +51,11 @@ def test_the_packer_refuses_a_started_song_that_is_no_file(tmp_path: Path) -> No
         song_pack.song_names(b"\0asm", tmp_path, "L 0 24 Nowhere.sap\n")
 
 
+def test_a_song_played_from_the_carts_own_bytes_needs_no_file(tmp_path: Path) -> None:
+    # 1988 (C64) starts its tune with zg.requestSongBytes: host/audio.c logs it as "bytes.sid".
+    assert song_pack.song_names(b"\0asm", tmp_path, "L 0 24 bytes.sid\n") == []
+
+
 def test_a_local_song_is_packed_when_present_and_left_out_when_absent(tmp_path: Path) -> None:
     wasm = b"\0asm zm_test.xm\0local.xm\0"
     (tmp_path / "zm_test.xm").write_bytes(b"x")
