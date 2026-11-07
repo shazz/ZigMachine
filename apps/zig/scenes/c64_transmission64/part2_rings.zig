@@ -75,56 +75,41 @@ pub fn paint(col: *const Colours, start: Clock, st: *vic.Stores, prog: []const u
 
 /// $4251 (or $42E3): rows 10..19 of screen and colour RAM from the cycle's 256 colours `m`
 /// through the maps ($7000 / $7200, 400 cells each). Returns the clock after the second loop.
+/// The main loop runs it: the frame's IRQ can come at any instruction (Clock.inst).
 pub fn copy(start: Clock, m: *const [256]u8, maps: []const u8, st: *vic.Stores, variant: u8) Clock {
     // $42AD's second loop branches from page $43 back to $42FC: its BNE takes a cycle more
     const back: u8 = if (variant == 1) 4 else 3;
     var c = start;
-    c.inst();
-    c.rd(2); // LDX #0
+    instr(&c, 2); // LDX #0
     for (0..256) |x| { // LDY $7000,X ; LDA $7800,Y ; STA $0590,X ; LDY $7200,X ; ...
         const cell: u16 = @intCast(x);
-        c.inst();
-        c.rd(4); // LDY
-        c.inst();
-        c.rd(4); // LDA
-        c.inst();
-        c.rd(4);
-        st.put(c.wr(), 0x0590 + cell, m[maps[x]], false);
-        c.inst();
-        c.rd(4); // LDY
-        c.inst();
-        c.rd(4); // LDA
-        c.inst();
-        c.rd(4);
-        st.put(c.wr(), 0xD990 + cell, m[maps[0x200 + x]], true);
-        c.inst();
-        c.rd(2); // INX
-        c.inst();
-        c.rd(if (x == 255) 2 else 3); // BNE
+        st.put(lookupStore(&c, 4), 0x0590 + cell, m[maps[x]], false);
+        st.put(lookupStore(&c, 4), 0xD990 + cell, m[maps[0x200 + x]], true);
+        instr(&c, 2); // INX
+        instr(&c, if (x == 255) 2 else 3); // BNE
     }
-    c.inst();
-    c.rd(2); // LDX #$90
+    instr(&c, 2); // LDX #$90
     var x: usize = 0x90;
     while (x > 0) : (x -= 1) { // LDY $70FF,X crosses a page: 5 cycles
         const cell: u16 = @intCast(0x28F + x);
-        c.inst();
-        c.rd(5); // LDY (page cross)
-        c.inst();
-        c.rd(4); // LDA
-        c.inst();
-        c.rd(4);
-        st.put(c.wr(), 0x0400 + cell, m[maps[0xFF + x]], false);
-        c.inst();
-        c.rd(5); // LDY (page cross)
-        c.inst();
-        c.rd(4); // LDA
-        c.inst();
-        c.rd(4);
-        st.put(c.wr(), 0xD800 + cell, m[maps[0x2FF + x]], true);
-        c.inst();
-        c.rd(2); // DEX
-        c.inst();
-        c.rd(if (x == 1) 2 else back); // BNE
+        st.put(lookupStore(&c, 5), 0x0400 + cell, m[maps[0xFF + x]], false);
+        st.put(lookupStore(&c, 5), 0xD800 + cell, m[maps[0x2FF + x]], true);
+        instr(&c, 2); // DEX
+        instr(&c, if (x == 1) 2 else back); // BNE
     }
     return c;
+}
+
+/// An instruction of `n` read cycles.
+fn instr(c: *Clock, n: u8) void {
+    c.inst();
+    c.rd(n);
+}
+
+/// LDY map,X (`ldy` cycles) ; LDA $7800,Y ; STA abs,X: returns the store's time.
+fn lookupStore(c: *Clock, ldy: u8) u32 {
+    instr(c, ldy);
+    instr(c, 4); // LDA
+    instr(c, 4); // STA abs,X: four cycles, then the write
+    return c.wr();
 }

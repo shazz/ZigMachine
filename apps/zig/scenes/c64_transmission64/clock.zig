@@ -69,6 +69,12 @@ pub const Clock = struct {
 
     /// `n` read cycles.
     pub fn rd(self: *Clock, n: u8) void {
+        // most reads fall on a line where nothing takes the bus and stay in it: one add (the
+        // loop below costs a bad-line and a sprite test per cycle, ~a fifth of a frame on the board)
+        if (@as(u16, self.cyc) + n < vic.CYCLES and !self.bad() and !self.sprite()) {
+            self.cyc += n;
+            return;
+        }
         for (0..n) |_| {
             if (self.cyc >= 12 and self.cyc < 55 and self.bad()) self.cyc = 55;
             if (self.cyc >= SPR_BA and self.cyc < SPR_END and self.sprite()) self.cyc = SPR_END;

@@ -16,6 +16,20 @@ const PAL_X = 504;
 const LEFT = 40; // the window, physical columns
 const RIGHT = 360;
 
+/// Whether an enabled sprite shows a row on `line` (vic_dirty.zig redraws such lines).
+pub fn covers(ctx: Ctx, line: u16) bool {
+    const reg = ctx.reg;
+    if (reg[0x15] == 0) return false;
+    for (0..8) |s| {
+        const b = @as(u8, 1) << @intCast(s);
+        if (reg[0x15] & b == 0) continue;
+        const y: u16 = reg[1 + 2 * s];
+        const h: u16 = if (reg[0x17] & b != 0) 42 else 21;
+        if (line > y and line <= y + h) return true;
+    }
+    return false;
+}
+
 pub fn draw(ctx: Ctx, line: u16, row: *[400]u8) void {
     const reg = ctx.reg;
     if (reg[0x15] == 0) return;

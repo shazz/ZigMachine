@@ -15,17 +15,24 @@ pub fn main(init: std.process.Init) !void {
     const a = init.gpa;
     const dir = std.Io.Dir.cwd();
     const assets = try dir.openDir(io, args.next().?, .{});
+    defer assets.close(io);
     const outdir = try dir.openDir(io, args.next().?, .{});
+    defer outdir.close(io);
     const lim: std.Io.Limit = .limited(1 << 20);
     const p1 = try assets.readFileAlloc(io, "part1.bin", a, lim);
+    defer a.free(p1);
     const wp = try assets.readFileAlloc(io, "wipe.bin", a, lim);
+    defer a.free(wp);
     const p2 = try assets.readFileAlloc(io, "part2.bin", a, lim);
+    defer a.free(p2);
     const p3 = try assets.readFileAlloc(io, "part3.bin", a, lim);
+    defer a.free(p3);
     const d = data.Data{ .part1 = .{ .b = p1[0..data.PART1_LEN] }, .wipe = .{ .b = wp[0..data.WIPE_LEN] }, .part2 = .{ .b = p2 }, .part3 = .{ .b = p3 } };
-    if (init.environ_map.get("T64_ZSPLIT")) |v| @import("show").dots.z_split = try std.fmt.parseInt(usize, v, 10);
     const show = try a.create(show_mod.Show);
+    defer a.destroy(show);
     show.init(d);
     const pix = try a.create([vic.Out.ROWS_COLS]u8);
+    defer a.destroy(pix);
     @memset(pix, 0);
     var out = vic.Out{ .pix = pix };
     while (args.next()) |fs| {
@@ -33,13 +40,13 @@ pub fn main(init: std.process.Init) !void {
         while (show.frames + 1 < f) show.step(&out);
         show.emit();
         var tb = std.ArrayList(u8).empty; // the frame's stores: "line cycle addr value"
+        defer tb.deinit(a);
         for (show.st.items()) |s| {
             var lb: [48]u8 = undefined;
             try tb.appendSlice(a, try std.fmt.bufPrint(&lb, "{d} {d} {x:0>4} {X:0>2}\n", .{ s.t / vic.CYCLES, s.t % vic.CYCLES, s.addr, s.val }));
         }
         var tn: [64]u8 = undefined;
         try outdir.writeFile(io, .{ .sub_path = try std.fmt.bufPrint(&tn, "f{d}.stores", .{f}), .data = tb.items });
-        tb.deinit(a);
         show.run(&out);
         var nb: [64]u8 = undefined;
         try outdir.writeFile(io, .{ .sub_path = try std.fmt.bufPrint(&nb, "f{d}.pix", .{f}), .data = pix });

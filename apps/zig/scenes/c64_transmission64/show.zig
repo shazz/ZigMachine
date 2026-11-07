@@ -12,7 +12,6 @@
 // --------------------------------------------------------------------------
 pub const vic = @import("vic.zig");
 pub const data = @import("data.zig");
-pub const dots = @import("part3_dots.zig");
 const Clock = @import("clock.zig").Clock;
 const Part1 = @import("part1.zig").Part1;
 const Part2 = @import("part2.zig").Part2;
@@ -45,7 +44,7 @@ pub const Show = struct {
         self.d = d;
         self.vic = vic.Vic.init(d.part1.vicRegs(), d.part1.dd00());
         self.q.n = 0;
-        self.st.n = 0;
+        self.st.reset();
         self.state = .part1;
         self.frames = 0;
         self.p1 = .{};
@@ -82,7 +81,10 @@ pub const Show = struct {
         const done = self.vic.frame(&self.q, self.st.items(), self.mem(), out);
         self.st.carry(done, vic.FRAME);
         self.q.carry();
-        if (self.state == .part3) self.p3.post(self.frames, &self.ram, &self.col, self.d.part3);
+        if (self.state == .part3) {
+            self.p3.post(self.frames, &self.ram, &self.col, self.d.part3);
+            self.vic.dirty.touch(); // part 3 draws straight into the RAM copy
+        }
     }
 };
 

@@ -16,10 +16,15 @@ pub fn main(init: std.process.Init) !void {
     const dir = std.Io.Dir.cwd();
     const lim: std.Io.Limit = .limited(1 << 20);
     const chargen = try dir.readFileAlloc(io, args.next().?, a, lim);
+    defer a.free(chargen);
     const cap = try dir.openDir(io, args.next().?, .{});
+    defer cap.close(io);
     const outdir = try dir.openDir(io, args.next().?, .{});
+    defer outdir.close(io);
     const pix = try a.create([vic.Out.ROWS_COLS]u8);
+    defer a.destroy(pix);
     const st = try a.create(vic.Stores);
+    defer a.destroy(st);
     while (args.next()) |f| {
         const name = struct {
             fn n(buf: []u8, frame: []const u8, ext: []const u8) []const u8 {
@@ -28,13 +33,18 @@ pub fn main(init: std.process.Init) !void {
         }.n;
         var nb: [64]u8 = undefined;
         const ram = try cap.readFileAlloc(io, name(&nb, f, "ram"), a, lim);
+        defer a.free(ram);
         const col = try cap.readFileAlloc(io, name(&nb, f, "col"), a, lim);
+        defer a.free(col);
         const regs = try cap.readFileAlloc(io, name(&nb, f, "vic"), a, lim);
+        defer a.free(regs);
         const cia = try cap.readFileAlloc(io, name(&nb, f, "cia"), a, lim);
+        defer a.free(cia);
         const trace = try cap.readFileAlloc(io, name(&nb, f, "trace"), a, lim);
+        defer a.free(trace);
         var v = vic.Vic.init(regs[0..vic.NREG].*, cia[0]);
         var q = vic.Queue{};
-        st.n = 0;
+        st.reset();
         for (col) |*c| c.* &= 15;
         var it = std.mem.splitScalar(u8, trace, '\n');
         var wrapped = false;

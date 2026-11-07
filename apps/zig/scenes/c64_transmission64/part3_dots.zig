@@ -12,7 +12,9 @@
 // --------------------------------------------------------------------------
 const data3 = @import("data3.zig");
 
-pub var z_split: usize = 0;
+/// Where the main loop's generator was in the depth section when an IRQ ran the code: dots
+/// below `k` already new, dot `k`'s first `y` bytes (LDA's operand from 2, ADC's from 5).
+pub const Split = struct { k: u8, y: u8 };
 pub const DOTS = 35; // $41BD computes 35 points
 const SHAPES_END = 0xF0; // 10 shape records of 24 bytes at $C600
 
@@ -53,8 +55,8 @@ pub const Dots = struct {
 
     /// $41BD: x ($25), y ($48) as 9-bit sums halved; depth ($6B) halved with LSR, its carry
     /// chained into the next dot's ADC (one CLC for the whole axis). Then the phases move on.
-    pub fn coords(self: *Dots, d: data3.Part3, z_old: bool) void {
-        const z_old_flag = z_old;
+    /// `split` is set on the one frame the depth code is half generated (null otherwise).
+    pub fn coords(self: *Dots, d: data3.Part3, split: ?Split) void {
         const t = d.bank3();
         const r = self.rec;
         const z = &self.zp;
@@ -73,14 +75,15 @@ pub const Dots = struct {
         const py = z[0x15];
         var c: u16 = 0;
         for (0..DOTS) |i| {
-            const rz = if (z_old_flag and i >= z_split) self.old else self.rec;
-            const a = t[0x400 + @as(usize, rz[20] +% @as(u8, @truncate(i * rz[22]))) + px];
-            const b = t[0x400 + @as(usize, rz[21] +% @as(u8, @truncate(i * rz[23]))) + py];
-            const s: u16 = (a + b + c) & 0xFF;
+            const ra = if (newByte(split, i, 2)) self.rec else self.old;
+            const rb = if (newByte(split, i, 5)) self.rec else self.old;
+            const a = t[0x400 + @as(usize, ra[20] +% @as(u8, @truncate(i * ra[22]))) + px];
+            const b = t[0x400 + @as(usize, rb[21] +% @as(u8, @truncate(i * rb[23]))) + py];
+            const s: u16 = (@as(u16, a) + b + c) & 0xFF; // ADC: 8 bits (u8 a + b would trap)
             c = s & 1;
             z[0x6B + i] = @intCast(s >> 1);
         }
-        const rt = if (z_old_flag) self.old else self.rec;
+        const rt = if (split != null) self.old else self.rec; // the tail is generated last
         z[0x14] = px +% rt[18];
         z[0x15] = py +% rt[19];
     }
@@ -151,6 +154,11 @@ pub const Dots = struct {
 
 const SPR_EN = [16]u8{ 1, 1, 3, 3, 7, 7, 0x0F, 0x0F, 0x1F, 0x1F, 0x3F, 0x3F, 0x7F, 0x7F, 0xFF, 0xFF }; // $39BA
 const SPR_MSB = [16]u8{ 1, 1, 2, 2, 4, 4, 8, 8, 0x10, 0x10, 0x20, 0x20, 0x40, 0x40, 0x80, 0x80 }; // $39CA
+
+fn newByte(split: ?Split, i: usize, byte: u8) bool {
+    const s = split orelse return true;
+    return i < s.k or (i == s.k and s.y >= byte);
+}
 
 /// One parsed routine at `base` (the ($16) pointer): STA ($16),Y of a value or of it ORed in.
 fn run(r: []const u8, ram: *[65536]u8, base: u16) void {

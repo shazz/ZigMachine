@@ -14,8 +14,10 @@
 // --------------------------------------------------------------------------
 const vic = @import("vic.zig");
 const data3 = @import("data3.zig");
-const Dots = @import("part3_dots.zig").Dots;
+const dots_mod = @import("part3_dots.zig");
+const Dots = dots_mod.Dots;
 const panel_mod = @import("part3_panel.zig");
+const init_mod = @import("part3_init.zig");
 
 pub const INIT = 3151; // $09CE releases the main loop: part 3's code and data are in RAM
 pub const REGS = 3152; // its init reaches $3879 on line 234 (the shape generation first)
@@ -34,6 +36,7 @@ pub const Part3 = struct {
     to_flash: bool = false, // L40EB
     nmi: bool = false, // $3D79 set up for this frame
     regen: bool = false, // L386B: the main loop has a shape to generate
+    shapes: u32 = 0, // shapes generated since the first
 
     pub fn init(d: data3.Part3) Part3 {
         var p = Part3{ .dots = Dots.init(d) };
@@ -55,7 +58,7 @@ pub const Part3 = struct {
 
     /// The register writes of frame `n`'s IRQs.
     pub fn pre(self: *Part3, n: u32, q: *vic.Queue) void {
-        if (n == REGS) initRegs(q);
+        if (n == REGS) init_mod.regs(q);
         self.cur = self.irq;
         switch (self.cur) {
             .wait => q.w(263, 21, 0x21, 0x00),
@@ -108,9 +111,8 @@ pub const Part3 = struct {
     /// The rest of frame `n`'s IRQs, after the window: into `ram`/`col` directly.
     pub fn post(self: *Part3, n: u32, ram: *[65536]u8, col: *[1024]u8, d: data3.Part3) void {
         if (n == INIT) {
-            @memcpy(ram[0x2000..0x4000], d.bank0());
-            @memcpy(ram[0xC000..0x10000], d.bank3());
-            self.mainInit(ram, col, d);
+            init_mod.memory(ram, col, d);
+            self.dots.generate(d);
             return;
         }
         switch (self.cur) {
@@ -118,53 +120,49 @@ pub const Part3 = struct {
                 self.irq = .dots;
             },
             .dots => self.postDots(ram, d),
-            .flash => self.postFlash(ram, col),
+            .flash => if (self.panel.flash(ram, col)) {
+                self.irq = .panel_in;
+            },
             .panel_in => if (self.panel.rollIn(ram, col)) {
                 self.irq = .panel_out;
             },
             .panel_out => if (self.panel.rollOut(ram, col)) {
                 self.irq = .back;
             },
-            .back => self.postBack(ram, col, d),
+            .back => if (self.panel.back(ram, col)) {
+                self.irq = .dots;
+            },
         }
-    }
-
-    // $3808..$3866: the shape's code, colours, screens, sprite block, erase lists, tables.
-    fn mainInit(self: *Part3, ram: *[65536]u8, col: *[1024]u8, d: data3.Part3) void {
-        self.dots.generate(d);
-        for (0..512) |i| col[i] = ram[0xDA00 + i] & 15; // $38B9
-        for (0..512) |i| col[512 + i] = ram[0xDC00 + i] & 15; // $38D3
-        @memcpy(ram[0x0800..0x0C00], ram[0xC800..0xCC00]);
-        for (0..8) |i| {
-            ram[0x0BF8 + i] = 0x1C;
-            ram[0xCBF8 + i] = 0x1C;
-        }
-        @memcpy(ram[0x0700..0x073F], ram[0xC700..0xC73F]);
-        for (0..256) |y| ram[0x0600 + y] = @intCast(y & 0xF8);
-    }
-
-    // $3879 and $3927 on line 234 (the shape generation took the frame before): invalid mode,
-    // 40 columns, bank 0, the sprites cleared and white.
-    fn initRegs(q: *vic.Queue) void {
-        for ([_][2]u8{ .{ 0x11, 0x7B }, .{ 0x16, 0xC8 }, .{ 0x18, 0x18 }, .{ vic.BANK, 0xC7 } }, 0..) |w, k| q.w(234, @intCast(30 + 6 * k), w[0], w[1]);
-        var c: u8 = 0;
-        for ([_]u8{ 0x10, 0x15, 0x17, 0x1B, 0x1C, 0x1D }) |r| {
-            q.w(235, c, r, 0);
-            c += 4;
-        }
-        for (0..16) |r| q.w(236, @intCast(3 * r), @intCast(r), 0);
-        for (0..8) |r| q.w(237, @intCast(6 * r), @intCast(0x27 + r), 1);
     }
 
     fn postDots(self: *Part3, ram: *[65536]u8, d: data3.Part3) void {
         // the main loop generates the next shape's code between this IRQ and the last one,
         // and has not reached the depth axis when this one runs it: x and y are the new
         // shape's, the depth still the old one's (VICE's later frames say so)
-        const z_old = self.regen;
+        var split: ?dots_mod.Split = null;
         if (self.regen) {
             self.regen = false;
             self.dots.generate(d);
+            split = d.split(self.shapes);
+            self.shapes += 1;
         }
+        self.zoom();
+        const z = &self.dots.zp;
+        self.dots.clearSprites();
+        self.buf ^= 0xFF;
+        const b: usize = if (self.buf != 0) 0 else 1;
+        self.dots.erase(b, z[0x21 + b], ram, d);
+        if (z[0x23] != 0) {
+            const c = d.bank3()[0x0780 + @as(usize, z[0x24])];
+            z[0x21 + b] = c;
+            z[0x1F + b] = c;
+        }
+        self.dots.coords(d, split);
+        self.dots.plot(b, z[0x1F + b], ram, d);
+    }
+
+    // $23: 0 the shape held ($1E frames to go), below $80 zooming in, else out; $24 the dots shown.
+    fn zoom(self: *Part3) void {
         const z = &self.dots.zp;
         if (z[0x23] == 0) { // hold
             z[0x1E] -%= 1;
@@ -190,53 +188,6 @@ pub const Part3 = struct {
                 self.zoom_out = 0x6E;
                 z[0x23] = 0;
             }
-        }
-        self.dots.clearSprites();
-        self.buf ^= 0xFF;
-        const b: usize = if (self.buf != 0) 0 else 1;
-        self.dots.erase(b, z[0x21 + b], ram, d);
-        if (z[0x23] != 0) {
-            const c = d.bank3()[0x0780 + @as(usize, z[0x24])];
-            z[0x21 + b] = c;
-            z[0x1F + b] = c;
-        }
-        self.dots.coords(d, z_old);
-        self.dots.plot(b, z[0x1F + b], ram, d);
-    }
-
-    fn postFlash(self: *Part3, ram: *[65536]u8, col: *[1024]u8) void {
-        self.panel.flash_x += 1;
-        if (self.panel.flash_x == 12) {
-            self.panel.flash_x = 0;
-            self.irq = .panel_in;
-            return;
-        }
-        @memset(col, 4);
-        self.panel.anim(ram);
-    }
-
-    fn postBack(self: *Part3, ram: *[65536]u8, col: *[1024]u8, d: data3.Part3) void {
-        _ = d;
-        self.panel.back_x += 1;
-        if (self.panel.back_x == 0x0F) {
-            self.panel.back_state += 1;
-            self.panel.back_x = 4;
-        }
-        self.panel.anim(ram);
-        switch (self.panel.back_state) {
-            1 => {
-                for (0..512) |i| col[i] = ram[0xDA00 + i] & 15;
-                self.panel.back_state = 2;
-            },
-            2 => {
-                for (0..512) |i| col[512 + i] = ram[0xDC00 + i] & 15;
-                self.panel.back_state = 3;
-            },
-            4 => {
-                self.panel.back_state = 1;
-                self.irq = .dots;
-            },
-            else => {},
         }
     }
 };

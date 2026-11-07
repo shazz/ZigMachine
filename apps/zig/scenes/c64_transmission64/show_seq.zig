@@ -80,6 +80,7 @@ fn part2Init(s: *Show) void {
         @memcpy(s.ram[0x2000..0x3F40], d.bitmap());
         @memcpy(s.ram[0x0400..0x07E8], d.screen());
         @memcpy(s.col[0..1000], d.colour());
+        s.vic.dirty.touch();
     }
     if (s.frames == P2_ON) {
         s.q.w(45, 10, 0x11, 0x3B);
@@ -97,6 +98,7 @@ fn part2(s: *Show) void {
         for ([_][2]u8{ .{ 0x25, 4 }, .{ 0x26, 4 }, .{ 0x00, 0xB8 }, .{ 0x01, 0x89 }, .{ 0x1C, 1 }, .{ 0x15, 1 } }, 0..) |w, k|
             s.q.at(0, t + 6 * @as(u32, @intCast(k)) + 6, w[0], w[1]);
         s.ram[0x07F8] = 0x80;
+        s.vic.dirty.touch();
     }
     s.p2.mainLoop(n, &s.q, &s.st, d);
     s.p2.irq(n, &s.q, &s.st, d);
@@ -105,5 +107,7 @@ fn part2(s: *Show) void {
         s.q.at(0, @as(u32, ev1[1]) + 9, 0x11, 0x0B);
         s.off_left = 10; // the wipe's code patched itself for the second run (wipe.zig)
         s.state = .off;
+        off(s); // $0986 already runs on this frame's line 251
+
     }
 }

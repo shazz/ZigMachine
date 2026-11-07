@@ -20,6 +20,9 @@
 const line_mod = @import("vic_line.zig");
 const sprite_mod = @import("vic_sprite.zig");
 const store_mod = @import("vic_store.zig");
+const dirty_mod = @import("vic_dirty.zig");
+const border_mod = @import("vic_border.zig");
+pub const splitColumn = border_mod.splitColumn;
 
 pub const COLS = 400;
 pub const ROWS = 280;
@@ -36,7 +39,8 @@ pub const WIN_LINES = 200;
 // first fetch for the window (the c-access of cell 0 on a bad line) is at cycle 15.
 pub const EARLY: u8 = 15;
 
-pub const Write = struct { line: u16, cyc: u8, reg: u8, val: u8 };
+// align(4): 8 bytes, not 6, so a copied Write is never a 4-byte access at 2 mod 4 (one traps on the board)
+pub const Write = struct { line: u16 align(4), cyc: u8, reg: u8, val: u8 };
 pub const Store = store_mod.Store;
 pub const Stores = store_mod.Stores;
 pub const Mem = line_mod.Mem;
@@ -96,6 +100,7 @@ pub const Vic = struct {
     vb: bool = true, // vertical border flip-flop (set = border)
     vm: [40]u8 = .{0} ** 40, // the video matrix line: screen bytes latched on the bad line
     cm: [40]u8 = .{0} ** 40, // and the colour nibbles
+    dirty: dirty_mod.Dirty = .{}, // which window lines to draw again
 
     pub fn init(regs: [NREG]u8, dd00: u8) Vic {
         return .{ .reg = regs, .bank = 3 - (dd00 & 3) };
@@ -111,7 +116,7 @@ pub const Vic = struct {
         for (0..LINES) |l| {
             const line: u16 = @intCast(l);
             const t0: u32 = @as(u32, line) * CYCLES;
-            s = store_mod.applyUntil(st, s, t0 + EARLY, mem);
+            s = store_mod.applyUntil(st, s, t0 + EARLY, mem, self.screenAt(), &self.dirty.epoch);
             const start = self.reg[0x20];
             var split: u8 = 0; // cycle of the line's first border colour change
             var after = start;
@@ -127,12 +132,12 @@ pub const Vic = struct {
             if (line >= FIRST_LINE and line < FIRST_LINE + ROWS) {
                 const r = line - FIRST_LINE;
                 self.drawRow(r, line, mem, out);
-                borderRow(out, r, start, split, after);
+                border_mod.row(out, r, start, split, after);
             }
             while (k < end) : (k += 1) self.write(ws[k]);
         }
         // writes timed past line 311 stay in the queue: the caller carries them (Queue.carry)
-        return store_mod.applyUntil(st, s, FRAME, mem);
+        return store_mod.applyUntil(st, s, FRAME, mem, self.screenAt(), &self.dirty.epoch);
     }
 
     fn drawRow(self: *Vic, r: usize, line: u16, mem: Mem, out: *Out) void {
@@ -144,10 +149,15 @@ pub const Vic = struct {
             out.window[r] = false;
             return;
         }
+        const was = out.window[r];
         out.window[r] = true;
         const wl = line - WIN_TOP;
         const ctx = line_mod.Ctx{ .reg = &self.reg, .bank = self.bank, .mem = mem, .vm = &self.vm, .cm = &self.cm };
-        if (wl % 8 == 0) self.latch(ctx, wl / 8);
+        if (wl % 8 == 0) {
+            self.latch(ctx, wl / 8);
+            self.dirty.latch(wl / 8, &self.vm, &self.cm);
+        }
+        if (!self.dirty.need(wl, &self.reg, self.bank, sprite_mod.covers(ctx, line), was)) return;
         line_mod.draw(ctx, wl, row[WIN_LEFT..][0..320]);
         sprite_mod.draw(ctx, line, row);
     }
@@ -158,6 +168,10 @@ pub const Vic = struct {
             self.vm[c] = ctx.mem.vic(self.bank, scr + @as(u16, @intCast(c)));
             self.cm[c] = ctx.mem.col[cell_row * 40 + c];
         }
+    }
+
+    fn screenAt(self: *const Vic) u32 {
+        return @as(u32, self.bank) * 0x4000 + @as(u32, self.reg[0x18] >> 4) * 0x400;
     }
 
     fn write(self: *Vic, wr: Write) void {
@@ -174,22 +188,3 @@ pub const Vic = struct {
         if (line == @as(u16, if (rsel) 51 else 55) and self.reg[0x11] & 0x10 != 0) self.vb = false;
     }
 };
-
-/// Where a border colour written at `cyc` first shows: 8 pixels a cycle, the first new pixel
-/// at VICE column 8 * cyc - 103 (1988's wipe), so physical column 8 * cyc - 95.
-pub fn splitColumn(cyc: u8) i32 {
-    return 8 * @as(i32, cyc) - 95;
-}
-
-fn borderRow(out: *Out, r: usize, start: u8, split: u8, after: u8) void {
-    out.border[r] = start & 15;
-    out.split_x[r] = 0;
-    if (split == 0) return;
-    const x = splitColumn(split);
-    if (x <= 0) {
-        out.border[r] = after & 15;
-    } else if (x < COLS) {
-        out.split_x[r] = @intCast(x);
-        out.split_c[r] = after & 15;
-    }
-}

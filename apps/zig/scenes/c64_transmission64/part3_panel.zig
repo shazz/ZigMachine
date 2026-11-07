@@ -7,8 +7,6 @@
 // ($D390/$D3B8).
 // The ADCs keep their carry along a row (one CLC per row), as the 6510 did.
 // --------------------------------------------------------------------------
-const data3 = @import("data3.zig");
-
 pub const FLASH = [15]u8{ 0x00, 0x0B, 0x06, 0x04, 0x0E, 0x03, 0x07, 0x01, 0x07, 0x03, 0x0E, 0x04, 0x06, 0x0B, 0x00 }; // $3E43
 const CODES = 0xD600;
 const SCREEN = 0xCC00;
@@ -34,17 +32,8 @@ pub const Panel = struct {
     pub fn rollIn(self: *Panel, ram: *[65536]u8, col: *[1024]u8) bool {
         if (!self.in_done) {
             const o = @as(usize, self.in_row) * 40;
-            var c: u16 = 0;
-            var x: usize = 40;
-            while (x > 0) {
-                x -= 1;
-                col[o + x] = ram[COLOURS + o + x] & 15;
-                const code = ram[CODES + o + x];
-                if (code == 0) continue;
-                const s = @as(u16, code) + self.in_k + c;
-                ram[SCREEN + o + x] = @truncate(s);
-                c = s >> 8;
-            }
+            for (0..40) |x| col[o + x] = ram[COLOURS + o + x] & 15;
+            rowCodes(ram, o, self.in_k);
             self.in_k -%= 1;
             if (self.in_k == 0xFF) {
                 self.in_k = 4;
@@ -72,16 +61,7 @@ pub const Panel = struct {
     /// $3F3D: the row with + 1 .. + 4, then cleared (screen 0, colour purple). True when done.
     pub fn rollOut(self: *Panel, ram: *[65536]u8, col: *[1024]u8) bool {
         const o = @as(usize, self.out_row) * 40;
-        var c: u16 = 0;
-        var x: usize = 40;
-        while (x > 0) {
-            x -= 1;
-            const code = ram[CODES + o + x];
-            if (code == 0) continue;
-            const s = @as(u16, code) + self.out_k + c;
-            ram[SCREEN + o + x] = @truncate(s);
-            c = s >> 8;
-        }
+        rowCodes(ram, o, self.out_k);
         self.out_k += 1;
         if (self.out_k == 5) {
             @memset(ram[SCREEN + o ..][0..40], 0);
@@ -98,6 +78,45 @@ pub const Panel = struct {
             return true;
         }
         self.anim(ram);
+        return false;
+    }
+
+    /// $3DC1, the flash before the panel (colour RAM purple): true on its 12th frame.
+    pub fn flash(self: *Panel, ram: *[65536]u8, col: *[1024]u8) bool {
+        self.flash_x += 1;
+        if (self.flash_x == 12) {
+            self.flash_x = 0;
+            return true;
+        }
+        @memset(col, 4);
+        self.anim(ram);
+        return false;
+    }
+
+    /// $4016, the flash after it: the dots' colours put back, half a screen a frame. True
+    /// when the dots take over again.
+    pub fn back(self: *Panel, ram: *[65536]u8, col: *[1024]u8) bool {
+        self.back_x += 1;
+        if (self.back_x == 0x0F) {
+            self.back_state += 1;
+            self.back_x = 4;
+        }
+        self.anim(ram);
+        switch (self.back_state) {
+            1 => {
+                dotColours(ram, col, 0);
+                self.back_state = 2;
+            },
+            2 => {
+                dotColours(ram, col, 1);
+                self.back_state = 3;
+            },
+            4 => {
+                self.back_state = 1;
+                return true;
+            },
+            else => {},
+        }
         return false;
     }
 
@@ -118,6 +137,22 @@ pub const Panel = struct {
     }
 };
 
-test {
-    _ = data3;
+/// The panel row at screen offset `o`, each non-zero code + `k`, right to left: the ADC's
+/// carry runs on into the next cell (one CLC a row).
+fn rowCodes(ram: *[65536]u8, o: usize, k: u8) void {
+    var c: u16 = 0;
+    var x: usize = 40;
+    while (x > 0) {
+        x -= 1;
+        const code = ram[CODES + o + x];
+        if (code == 0) continue;
+        const s = @as(u16, code) + k + c;
+        ram[SCREEN + o + x] = @truncate(s);
+        c = s >> 8;
+    }
+}
+
+/// Half `h` (0, 1) of the colour RAM from the dots' colours ($DA00 / $DC00, 512 each).
+pub fn dotColours(ram: *const [65536]u8, col: *[1024]u8, h: usize) void {
+    for (0..512) |i| col[512 * h + i] = ram[0xDA00 + 0x200 * h + i] & 15;
 }

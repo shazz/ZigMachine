@@ -11,7 +11,7 @@ pub const Part3 = struct {
 
     fn sec(self: Part3, i: usize) []const u8 {
         const at = std.mem.readInt(u32, self.b[4 * i ..][0..4], .little);
-        const end = if (i + 1 < 5) std.mem.readInt(u32, self.b[4 * (i + 1) ..][0..4], .little) else self.b.len;
+        const end = if (i + 1 < 6) std.mem.readInt(u32, self.b[4 * (i + 1) ..][0..4], .little) else self.b.len;
         return self.b[at..end];
     }
 
@@ -40,5 +40,14 @@ pub const Part3 = struct {
         const body = self.sec(4);
         const n = std.mem.readInt(u16, body[off..][0..2], .little);
         return body[off + 2 ..][0 .. 3 * @as(usize, n)];
+    }
+    /// Shape change `j`: how far the main loop had generated the depth code when the IRQ ran
+    /// it (measured in VICE for the first changes; it follows the tune's CPU time). Past the
+    /// table, the table again.
+    pub fn split(self: Part3, j: u32) @import("part3_dots.zig").Split {
+        const s = self.sec(5);
+        const n = s.len / 2;
+        const e = s[2 * (j % n) ..][0..2];
+        return .{ .k = e[0], .y = e[1] };
     }
 };

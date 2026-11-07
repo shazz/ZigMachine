@@ -7,7 +7,8 @@
 // bytes and colour nibbles (vic.zig: `vm`, `cm`); a store to them later in the row shows only
 // from the next row. This invitation keeps YSCROLL 3 and XSCROLL 0 with 25 rows and 40
 // columns, which is all the model draws.
-// Each line is built in an aligned buffer, eight pixels a store, then copied to the plane.
+// Each line is built in an aligned buffer, four pixels a u32 store (a cell is two: the cart
+// CPU is rv32, where u64 is a pair of registers), then copied to the plane.
 // --------------------------------------------------------------------------
 
 pub const Mem = struct {
@@ -36,34 +37,38 @@ pub const Ctx = struct {
     }
 };
 
-const ONES: u64 = 0x0101_0101_0101_0101;
-
-// EXP[b]: 0xFF in byte k where bit 7-k of b is set (pixel k of the byte, little endian).
+// EXP[n]: 0xFF in byte k where bit 3-k of nibble n is set (pixel k of four, little endian).
 const EXP = blk: {
-    @setEvalBranchQuota(4000);
-    var t: [256]u64 = undefined;
-    for (0..256) |b| {
-        var v: u64 = 0;
-        for (0..8) |k| {
-            if ((b >> (7 - k)) & 1 != 0) v |= @as(u64, 0xFF) << (8 * k);
+    var t: [16]u32 = undefined;
+    for (0..16) |n| {
+        var v: u32 = 0;
+        for (0..4) |k| {
+            if ((n >> (3 - k)) & 1 != 0) v |= @as(u32, 0xFF) << (8 * k);
         }
-        t[b] = v;
+        t[n] = v;
     }
     break :blk t;
 };
 
-// Pair k (0 = leftmost) of a multicolour byte.
-inline fn pair(b: u8, k: u3) u2 {
-    return @intCast((b >> (6 - 2 * @as(u3, k))) & 3);
+/// Four pixels of C64 colour `c` (palette index c + 1).
+fn spread(c: u8) u32 {
+    return @as(u32, (c & 15) + 1) * 0x0101_0101;
 }
 
-fn spread(c: u8) u64 {
-    return @as(u64, (c & 15) + 1) * ONES;
+/// Where `m` is set `a`, else `b`.
+inline fn sel(m: u32, a: u32, b: u32) u32 {
+    return (m & a) | (~m & b);
+}
+
+/// One cell of hires pixels: `ink` where `data`'s bit is set, else `paper`.
+inline fn hires(buf: *[80]u32, c: usize, data: u8, ink: u32, paper: u32) void {
+    buf[2 * c] = sel(EXP[data >> 4], ink, paper);
+    buf[2 * c + 1] = sel(EXP[data & 15], ink, paper);
 }
 
 /// Draw window line `wl` (0..199) into `dst` (320 palette indices).
 pub fn draw(ctx: Ctx, wl: u16, dst: *[320]u8) void {
-    var buf: [40]u64 = undefined;
+    var buf: [80]u32 = undefined;
     const reg = ctx.reg;
     const mode = (reg[0x11] >> 4 & 0x06) | (reg[0x16] >> 4 & 1); // ECM BMM MCM
     const cell_row = wl / 8;
@@ -76,51 +81,48 @@ pub fn draw(ctx: Ctx, wl: u16, dst: *[320]u8) void {
     @memcpy(dst, @as(*const [320]u8, @ptrCast(&buf)));
 }
 
-fn text(ctx: Ctx, mode: u8, rl: u16, buf: *[40]u64) void {
+fn text(ctx: Ctx, mode: u8, rl: u16, buf: *[80]u32) void {
     const reg = ctx.reg;
     const chars = @as(u16, (reg[0x18] >> 1) & 7) * 0x800 + rl;
-    const bgs = [4]u64{ spread(reg[0x21]), spread(reg[0x22]), spread(reg[0x23]), spread(reg[0x24]) };
+    const bgs = [4]u32{ spread(reg[0x21]), spread(reg[0x22]), spread(reg[0x23]), spread(reg[0x24]) };
     for (0..40) |c| {
         const code = ctx.vm[c];
         const colour = ctx.cm[c] & 15;
         if (mode == 0b100) {
-            const bits = EXP[ctx.mem.vic(ctx.bank, chars + @as(u16, code & 63) * 8)];
-            buf[c] = (bits & spread(colour)) | (~bits & bgs[code >> 6]);
+            const data = ctx.mem.vic(ctx.bank, chars + @as(u16, code & 63) * 8);
+            hires(buf, c, data, spread(colour), bgs[code >> 6]);
             continue;
         }
         const data = ctx.mem.vic(ctx.bank, chars + @as(u16, code) * 8);
         if (mode == 0b001 and colour & 8 != 0) {
-            const cs = [4]u8{ reg[0x21], reg[0x22], reg[0x23], colour & 7 };
-            buf[c] = multi(data, &cs);
+            multi(buf, c, data, .{ bgs[0], bgs[1], bgs[2], spread(colour & 7) });
         } else {
-            const bits = EXP[data];
-            buf[c] = (bits & spread(colour)) | (~bits & bgs[0]);
+            hires(buf, c, data, spread(colour), bgs[0]);
         }
     }
 }
 
-fn bitmap(ctx: Ctx, mc: bool, cell_row: u16, rl: u16, buf: *[40]u64) void {
+fn bitmap(ctx: Ctx, mc: bool, cell_row: u16, rl: u16, buf: *[80]u32) void {
     const reg = ctx.reg;
     const bmp = @as(u16, reg[0x18] & 8) * 0x400 + cell_row * 320 + rl;
+    const bg = spread(reg[0x21]);
     for (0..40) |c| {
         const s = ctx.vm[c];
         const data = ctx.mem.vic(ctx.bank, bmp + @as(u16, @intCast(c)) * 8);
         if (mc) {
-            const cs = [4]u8{ reg[0x21], s >> 4, s & 15, ctx.cm[c] };
-            buf[c] = multi(data, &cs);
+            multi(buf, c, data, .{ bg, spread(s >> 4), spread(s & 15), spread(ctx.cm[c]) });
         } else {
-            const bits = EXP[data];
-            buf[c] = (bits & spread(s >> 4)) | (~bits & spread(s & 15));
+            hires(buf, c, data, spread(s >> 4), spread(s & 15));
         }
     }
 }
 
-// Four double-width pixels from the 2-bit pairs of `data`.
-fn multi(data: u8, cs: *const [4]u8) u64 {
-    var v: u64 = 0;
-    inline for (0..4) |k| {
-        const idx: u64 = (cs[pair(data, k)] & 15) + 1;
-        v |= (idx | idx << 8) << (16 * k);
+/// One cell of four double-width pixels: pair value p of `data` shows `cs[p]` (spread colours).
+fn multi(buf: *[80]u32, c: usize, data: u8, cs: [4]u32) void {
+    inline for (0..2) |h| {
+        const nib = (data >> (4 - 4 * h)) & 15; // pairs 2h, 2h+1
+        const hi = EXP[(nib & 0b1010) | ((nib & 0b1010) >> 1)]; // the pair's high bit, both pixels
+        const lo = EXP[(nib & 0b0101) | ((nib & 0b0101) << 1)]; // and its low bit
+        buf[2 * c + h] = sel(hi, sel(lo, cs[3], cs[2]), sel(lo, cs[1], cs[0]));
     }
-    return v;
 }
