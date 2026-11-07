@@ -475,6 +475,11 @@
   "type": "atari st"
  },
  {
+  "tag": "c64_transmission64",
+  "title": "TRANSMISSION64",
+  "type": "c64"
+ },
+ {
   "tag": "trsi_transarctica",
   "title": "TRSI TRANSARCTICA",
   "type": "atari falcon"
