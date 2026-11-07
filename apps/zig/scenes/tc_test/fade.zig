@@ -29,6 +29,14 @@ pub fn at(t: u32) State {
     return .{};
 }
 
+pub const STEP: i8 = 2; // + / - in TC TEST: 16 presses from the picture to full black or white
+
+// The manual fade (+ / -): below 0 toward black, above 0 toward white.
+pub fn manual(level: i8) State {
+    const c: u5 = @intCast(@abs(level));
+    return .{ .coef = c, .dir = if (level < 0) .black else .white };
+}
+
 pub fn apply(plane: *zg.LogicalFB, s: State) void {
     plane.setTruecolorFade(s.coef, s.dir);
     plane.setTruecolorOffset(s.r, s.g, s.b);

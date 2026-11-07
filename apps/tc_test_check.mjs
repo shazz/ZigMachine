@@ -16,14 +16,14 @@
 //             (tools/tc_art.py's marker), whatever the working tree's cart holds
 //   node apps/tc_test_check.mjs [outdir] [cart.wasm]   (outdir: one PPM per view)
 //   node apps/tc_test_check.mjs --break   each mutant (mode, colours, pixels, frozen, marker,
-//                                         fadeoff, softfade, model) must
+//                                         fadeoff, softfade, model, keysoff) must
 //                                         be caught by the checks above
 import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { OFF_VRAM, REG_FB_COPPER } from "./linebase_model.mjs";
-import { fadeChecks } from "./tc_test_fade.mjs";
+import { fadeChecks, manualChecks } from "./tc_test_fade.mjs";
 
 const PAGES = 128, RW = 800, W = 400, H = 280, REG_FB_MODE = 0x54, MARKER = "TC_TEST_LOCAL_ART";
 const CART_PATH = "docs/demo-tc_test.wasm";
@@ -156,6 +156,7 @@ async function run(brk) {
     want(errors, on.join() === "0" && mode === (brk === "mode" ? 5 : 6), `planes ${on.join(",")} enabled, plane 0 mode ${mode} (only plane 0, mode 6, expected)`);
     for (let v = 0; v < NAMES.length; v++) viewChecks(m, errors, v, brk, shots);
     shots.push(fadeChecks(m, errors, brk, shots[4], { frame, pixelHash, dv, want }));
+    manualChecks(m, errors, brk, shots[4], { frame, pixelHash, dv, want });
     want(errors, new Set(shots.map((s) => md5(new Uint8Array(s.buffer)))).size === NAMES.length + 1, "keys: the eight views are not eight pictures");
     if (!brk) pictureChecks(m, errors);
     await gitChecks(errors, brk);
@@ -176,7 +177,7 @@ if (!BROKE) {
     process.exitCode = errors.length ? 1 : 0;
 } else {
     let missed = 0;
-    for (const brk of ["mode", "colours", "pixels", "frozen", "marker", "fadeoff", "softfade", "model"]) {
+    for (const brk of ["mode", "colours", "pixels", "frozen", "marker", "fadeoff", "softfade", "model", "keysoff"]) {
         const { errors } = await run(brk);
         console.log(`  ${errors.length ? "ok  " : "FAIL"} the '${brk}' mutant is caught${errors.length ? `: ${errors[0]}` : ""}`);
         missed += !errors.length;

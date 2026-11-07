@@ -81,3 +81,25 @@ export function fadeChecks(m, errors, brk, hues, t) {
     t.want(errors, same(t.frame(m), hues), "fade: leaving the view does not give back the hues unfaded");
     return first;
 }
+
+// + / - (the manual fade on whatever is shown): sixteen '-' take the hues to full black, '0' gives
+// them back, sixteen '+' take them to full white, which stays when another view is shown; each frame
+// equals the model of the registers over unchanged pixels. Mutant keysoff: the registers zeroed.
+export function manualChecks(m, errors, brk, hues, t) {
+    const hook = (mm) => { if (brk === "keysoff") t.dv(mm).setUint8(mm.video + REG_TC_FADE, 0); };
+    const press = (ch, n) => { for (let i = 0; i < n; i++) m.demo.key(ch.charCodeAt(0)); return t.frame(m, hook); };
+    const fits = (img) => same(img, model(m, t.dv(m), regs(m, t.dv(m)), brk === "model" ? undefined : brk));
+    m.demo.setShadeMode(4);
+    const h0 = bufHash(m, t.dv(m));
+    const dark = press("-", 16);
+    t.want(errors, all(dark, 0) && fits(dark), "keys: sixteen '-' do not fade the picture to full black");
+    t.want(errors, same(press("0", 1), hues), "keys: '0' does not give the picture back unfaded");
+    const light = press("+", 16);
+    t.want(errors, all(light, 0xFFFFFF) && fits(light), "keys: sixteen '+' do not fade the picture to full white");
+    t.want(errors, bufHash(m, t.dv(m)) === h0, "keys: the pixel memory changed (the fade must be the registers alone)");
+    m.demo.setShadeMode(0);
+    const kept = t.frame(m, hook);
+    t.want(errors, all(kept, 0xFFFFFF), "keys: the fade was not kept when another view was shown");
+    press("0", 1);
+    if (!brk) console.log("  keys + / -    sixteen '-' = full black, '0' = the picture, sixteen '+' = full white, kept across views, pixel memory unchanged");
+}
