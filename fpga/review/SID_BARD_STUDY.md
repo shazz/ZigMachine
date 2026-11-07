@@ -63,13 +63,15 @@ README and credit him in the about/credits text.
 | Config | Mean Mc | % of BARD | Soft divides / frame | cpu | wave | filt |
 |---|---|---|---|---|---|---|
 | HQ (default), 44.1 kHz, stock | 3.31 | **199 %** | 2205 | 0.52 | 2.19 | 0.45 |
-| light, 44.1 kHz, stock | 2.10 | 126 % | 1437 | 0.50 | 0.05 | 1.35 |
-| light, 22.05 kHz, stock | 1.28 | 77 % | 718 | 0.47 | 0.03 | 0.68 |
+| light, 44.1 kHz, `rv32i_zmmul` (stock-equivalent: ZDIV built in but still a libcall) | 2.10 | 126 % | 1437 | 0.50 | 0.05 | 1.35 |
+| light, 22.05 kHz, `rv32i_zmmul` (stock-equivalent, as above) | 1.28 | 77 % | 718 | 0.47 | 0.03 | 0.68 |
 | HQ, 44.1 kHz, `-mno-div` + patches | 2.63 | 158 % | 0 | 0.44 | 1.74 | 0.26 |
 | light, 44.1 kHz, `-mno-div` | 1.70 | 102 % | 1437 | 0.43 | 0.01 | 1.09 |
 | light, 44.1 kHz, `-mno-div` + patches | 1.21 | 73 % | 0 | 0.47 | 0.02 | 0.57 |
 | light, 22.05 kHz, `-mno-div` | 1.07 | **64 %** | 718 | 0.40 | 0.01 | 0.55 |
 | **light, 22.05 kHz, `-mno-div` + patches** | **0.83** | **50 %** | **0** | 0.42 | 0.01 | 0.28 |
+
+All rows carry the phase probes (4 counter reads a sample). The unprobed HQ run gave 197 %, the probed one 199 %.
 
 With ADSR split out (the last row, +5 % for the probe): **6502 + CIA + VIC 0.19 Mc, ADSR 0.35 Mc**, SID
 voices + filter 0.26 Mc.
@@ -180,7 +182,7 @@ engine and the lower rate cost little against the emulator-family difference.
   every cutoff doubles: Club Style's 125 Hz band went +6.6 dB against reSIDfp. With the table
   regenerated (cRSID's own `tools/curvegen.c` at 22050, a data-only change), it is +2.0 dB.
 - **Digis play:** Arkanoid (0.86) and Storebror (0.73) correlate as well as the plain tunes.
-- WAVs for Matt, in `prototypes/sid_re/wav/`:
+- WAVs for Matt, in `/home/matt/projects/ZigMachine/prototypes/sid_re/wav/` (the main checkout's, local; the uart logs are in `build/<tag>/bard_uart.txt` beside them):
   - `<tune>_ref.wav` and `_ref22050.wav`: reSIDfp;
   - `_hq44.wav`: cRSID's default;
   - `_lq44.wav`: light at 44.1 kHz;
@@ -190,27 +192,43 @@ engine and the lower rate cost little against the emulator-family difference.
 
 ## 5. What a player on BARD would take (step 2, not started)
 
-The bar was "under ~70 % mean on BARD for 1x tunes". The candidate (light, 22.05 kHz, `-mno-div`,
-patches) is under it on the BARD-native build, for PSID tunes. RSID tunes (digis, most modern demo
-tunes) would need either the 6502/CIA loop made several times cheaper (cRSID's own design: cycle-paced
-devices), or a refusal with a status word ("RSID: not on BARD"). A player should
-check the header's magic and refuse RSID until then.
+**The decision, in short.** The bar was "under ~70 % mean on BARD for 1x tunes":
+- (a) a patched cRSID at 22.05 kHz: **48-60 %** on PSID tunes. Go.
+- (b) strictly unmodified (`-mno-div` only): 55-82 %. Over the bar on Cybernoid II, a filtered 1x tune.
+- Either way: native C or wasm2c (x1.3, below), and RSID refused.
 
-Before a player goes in, it needs Matt's decisions:
-1. **Native C on BARD, not wasm2c.** The MP3 player went into demo-audio.wasm and costs ~1.3x its
-   native build there (MP3 study, "The player as built"). 50-60 % x 1.3 is 65-80 %. That is over the
-   bar beside a cart, so the SID player should be the native-path design the MP3 study sketched: C linked
-   into snd.elf, bound to the player through a wrapped import. The browser needs a wasm build of the same
-   C as its reference, so the hash-parity test is browser wasm against the BARD native build.
-2. **The source is patched** (two bit-exact macros) plus a regenerated table, with Hermit credited.
-   Without the patches, `-mno-div` alone gives 64 % on Commando (section 3).
-3. **22.05 kHz mono output**, upsampled by CHORUS's Paula path (one PCM channel; the MP3 player's
-   hi/lo trick is not needed for SID's dynamic range).
-4. A demo tune: `libcRSID/tests/HerMiniSID.sid` (Hermit's own, 379 bytes, shipped inside the WTF
+Step 2 was not started. The brief's step 2 vendors cRSID unmodified, and only the modified build
+clears the bar.
+
+RSID tunes (digis, most modern demo tunes) would need the 6502/CIA loop made several times cheaper.
+Until then a player checks the header's magic and refuses RSID with a status word ("RSID: not on BARD").
+
+A player needs Matt's decisions on:
+1. **Native C on BARD, not wasm2c.** The MP3 player went into demo-audio.wasm, where it costs ~1.3x its
+   native build (MP3 study, "The player as built"). 48-60 % x 1.3 is 62-78 %: over the bar beside a cart.
+   - So the SID player should take the native-path design the MP3 study sketched: C linked into snd.elf,
+     bound to the player through a wrapped import.
+   - The browser needs a wasm build of the same C as its reference. The hash-parity test is then the
+     browser's wasm against BARD's native build.
+2. **A patched source**: two bit-exact macros plus a regenerated table, with Hermit credited.
+3. **22.05 kHz mono output**, upsampled by CHORUS's Paula path on one PCM channel. The MP3 player's
+   hi/lo trick is not needed for SID's dynamic range.
+4. **A demo tune**: `libcRSID/tests/HerMiniSID.sid` (Hermit's own, 379 bytes, shipped inside the WTF
    library) is the redistributable candidate. No HVSC tune is committed.
-5. Then, as the MP3 path did: a PLAYER_SID id (11, after PLAYER_MP3 = 10), a `requestSong` path for
-   .sid, a harness named in build.sh with a break mutant, and an append-only system-table bump if the
-   player needs a new import.
+
+Then, as the MP3 path did:
+- a PLAYER_SID id (11, after PLAYER_MP3 = 10);
+- a `requestSong` path for .sid;
+- a harness named in build.sh, with a break mutant;
+- an append-only system-table bump, only if the player needs an import that .kt/.mp3 do not.
+
+**A board card** (as `prototypes/mp3_card/`):
+- KESTREL/system.rv32 with the SID player in snd.elf;
+- KESTREL/glass, unchanged unless the OSD names the new kind;
+- CARTS/<a SID TEST cart or sysinfo>.zmd plus its by-hash .rv32;
+- HD/MUSIC/HerMiniSID.sid. HVSC tunes stay Matt's local files.
+
+The board check: the OSD's BARD % on a PSID tune, against the sim's 48-60 %.
 
 ## Reproduce
 
