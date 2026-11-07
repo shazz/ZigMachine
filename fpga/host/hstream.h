@@ -27,4 +27,13 @@ void audio_paula_release(struct w2c_env* e);
 #define HOST_PAULA_WRITE(e, ptr, n) audio_paula_write((e), (ptr), (n))
 #define HOST_PAULA_RELEASE(e) audio_paula_release((e))
 
+/* The MP3 stream (table 1.11): host/audio_bridge.c, host/audio_mp3.c or cycles/bsound.c. */
+void audio_mp3_ctl(struct w2c_env* e, uint32_t op, uint32_t arg);
+void audio_mp3_feed(struct w2c_env* e, uint32_t ptr, uint32_t len);
+uint32_t audio_mp3_status(uint32_t which);
+
+#define HOST_MP3_CTL(e, op, arg) audio_mp3_ctl((e), (op), (arg))
+#define HOST_MP3_FEED(e, ptr, len) audio_mp3_feed((e), (ptr), (len))
+#define HOST_MP3_STATUS(e, which) ((void)(e), audio_mp3_status((which)))
+
 #endif

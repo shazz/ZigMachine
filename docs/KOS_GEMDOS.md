@@ -171,3 +171,12 @@ without `/C` (the card has no `/HD`, or glass's C: thread is not running: then t
 times out after 500 ms, once, as GrafX2 starts, and C: stays absent: no retry), and the OSD's fps while
 the dialog reads (a request blocks the frame ~0.5 ms). The page was exercised headless (the harness runs
 the loader's own GEM launch); a click-through in a real tab is still to do.
+
+## Zig carts and the FAT reader (6 Nov 2026)
+
+The first Zig cart on `kos_gemdos` is the MP3 PLAYER (`apps/zig/scenes/mp3_player.zig`: Fsfirst / Fsnext over
+`C:\MUSIC`, Fopen / Fread 32 KiB at a time). Its arrival showed that a cart could not have both `kos_fat` and
+`kos_gemdos`: GEMDOS reads through `rom/kos/fat.zig`, which was `kos_fat`'s root, and a file in two modules of one
+compilation is an error (every cart parses every scene in `cart.zig`). So carts have ONE KOS module now:
+`@import("kos_gemdos")`, whose `.fat` is the FAT reader (`apps/zig/scenes/gem_fat.zig` reads it there).
+

@@ -71,7 +71,7 @@ def run_driver(src: Path, work: Path) -> dict[str, tuple[int, list[int], list[in
     for line in out.splitlines():
         tag, n, *rest = line.split()
         vals = [int(x) for x in rest]
-        steps[tag] = (int(n), vals[:7], vals[7:])
+        steps[tag] = (int(n), vals[:11], vals[11:])  # AS_WORDS (cycles/aud_state.h): 7 + the MP3 status (table 1.11)
     return steps
 
 
@@ -87,10 +87,11 @@ def check_bank(st: dict) -> None:
     """BARD's side: a boot clears the block under its magic; a publish stores only what changed."""
     assert st["unbooted"][0] == 999, "a bank without the magic (an older sound image) must be ignored"
     _, words, _ = st["boot"]
-    assert words == [0x31534D5A, 0, 0, 0, 0, 0, 0]
+    assert words == [0x31534D5A] + [0] * 10
     n, words, _ = st["publish"]
     assert words[1:3] == [4, 12801] and n == 6
-    assert bytes(b for w in words[3:] for b in w.to_bytes(4, "little")) == bytes(range(0x10, 0x20))
+    assert bytes(b for w in words[3:7] for b in w.to_bytes(4, "little")) == bytes(range(0x10, 0x20))
+    assert words[7:] == [0, 0, 0, 0], "no MP3 stream: its status words stay 0"
     assert st["again"][0] == 0, "an unchanged state must cost BARD no store"
     assert st["tick"][0] == 2, "a tick: the position word and the one YM word that moved"
 

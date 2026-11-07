@@ -480,6 +480,23 @@ machineClear(n)  →  [player writes chip regs via the setters above]
                  →  machineClamp(n)     →  worklet copies left/right to the output
 ```
 
+### MP3 streams (system table 1.11, not a HW version)
+
+Three `env` imports (the host's, like `hostAudioFeed`; `docs/ZIGOS_API.md` 8c has the Zig side):
+
+```c
+void hostMp3Ctl(u32 op, u32 arg);     // 0 start, 1 stop, 2 pause (arg 1) / resume (0), 3 the input has ended
+void hostMp3Feed(u32 ptr, u32 len);   // append len (<= 32 KiB) bytes of the file to the player's 64 KiB ring
+u32  hostMp3Status(u32 which);        // 0 the state word, 1 bytes used (total), 2 frames decoded, 3 BARD's load (per mille)
+```
+
+The decoder (pvmp3, `libs/c/pvmp3`) runs where the players run (demo-audio.wasm: the AudioWorklet, BARD) and plays
+on **the four Paula channels**, a high byte at VOL 256 and a low byte at VOL 2 a side, `128 h + l = x >> 1`: 15 bits,
+bit-exact for 44.1 kHz streams, 6 dB under full scale. While it plays, the channels are its own: no cart Paula
+and no Paula sound effects. 32 and 48 kHz streams are converted to 44.1 on the sound side (linear). A system
+older than 1.11 refuses a cart that imports them; where no player runs (a sim, the plain native host) every status
+is 0.
+
 ### The four Paula channels lent to a cart — since 1.14.0
 
 A cart may drive the four Paula channels itself, as an Amiga program does (pt2-clone does:

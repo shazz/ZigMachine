@@ -23,7 +23,7 @@
 
 /* The S2C words (after S_DONE, cycles/snd_mailbox.h). MAGIC is written last at BARD's boot:
  * a reader that sees it sees a cleared block, and an older sound image (no block) never has it. */
-enum { S_AS = 12, AS_MAGIC_W = 0, AS_MODE_W = 1, AS_MS_W = 2, AS_YM_W = 3, AS_WORDS = 7 };
+enum { S_AS = 12, AS_MAGIC_W = 0, AS_MODE_W = 1, AS_MS_W = 2, AS_YM_W = 3, AS_MP3_W = 7, AS_MP3_WORDS = 4, AS_WORDS = 11 };
 #define AS_MAGIC 0x31534d5au /* 'ZMS1': version 1 of this block */
 #define AS_YM_REGS 14u        /* the worklet posts ymRegs.subarray(0, 14) */
 
@@ -31,6 +31,7 @@ typedef struct aud_state {
     uint32_t mode;   /* demo-audio.wasm audioMode(): 0 none, 1 MOD/XM, 2 YM, 3 sample, 4 SNDH, 5 SAP */
     uint32_t ms;     /* audioSndhPositionMs(): ms into the SNDH, 0 when none plays */
     uint8_t ym[16];  /* the YM registers as last written (host/audio_imports.c zma_ym_regs) */
+    uint32_t mp3[AS_MP3_WORDS]; /* zg.mp3Status(0..3): audioMp3Status(0..2), then the players' load (cycles/baudio.c) */
 } aud_state;
 
 static inline void aud_state_words(const aud_state* s, uint32_t w[AS_WORDS]) {
@@ -38,6 +39,7 @@ static inline void aud_state_words(const aud_state* s, uint32_t w[AS_WORDS]) {
     w[AS_MODE_W] = s->mode;
     w[AS_MS_W] = s->ms;
     memcpy(&w[AS_YM_W], s->ym, 16);
+    memcpy(&w[AS_MP3_W], s->mp3, sizeof s->mp3);
 }
 
 /* BARD's boot: the block cleared, then its magic. */
@@ -68,6 +70,7 @@ static inline int aud_state_read(const volatile uint32_t* s2c, aud_state* s) {
     s->mode = w[AS_MODE_W];
     s->ms = w[AS_MS_W];
     memcpy(s->ym, &w[AS_YM_W], 16);
+    memcpy(s->mp3, &w[AS_MP3_W], sizeof s->mp3);
     return 1;
 }
 

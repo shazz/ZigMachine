@@ -50,12 +50,15 @@ struct baudio baudio;
 static uint32_t g_credits;
 static uint32_t g_native; /* the last audio_backend_native: the debug page's player */
 static void mailbox(void);
+static uint32_t g_load_pm; /* the last render's cost, per mille of this CPU at 44.1 kHz: zg.mp3Status(.load) */
 
 /* The players' state, for the cart's mirror (cycles/aud_state.h): the worklet's audioState. */
 static inline void state_now(aud_state* s) {
     s->mode = w2c_audio_audioMode(&g_aud.player);
     s->ms = w2c_audio_audioSndhPositionMs(&g_aud.player);
     memcpy(s->ym, zma_ym_regs, sizeof s->ym);
+    for (uint32_t i = 0; i < 3; i++) s->mp3[i] = w2c_audio_audioMp3Status(&g_aud.player, i);
+    s->mp3[3] = g_load_pm;
 }
 
 void audio_backend_boot(void) {
@@ -154,7 +157,9 @@ void baudio_pump(uint32_t min) {
     if (want >= (int32_t)min) {
         uint32_t n = (uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER, t0 = render_clock();
         audio_render(n);
-        sndinfo_render(render_clock() - t0, n);
+        uint32_t spent = render_clock() - t0;
+        sndinfo_render(spent, n);
+        g_load_pm = spent / n * 441u / 1000u; /* cycles a sample x 44100 / 100 MHz, in per mille */
 #ifdef ZM_SND /* once a render: the words that changed, to the S2C bank */
         aud_state s;
         state_now(&s);

@@ -148,6 +148,11 @@ then `dos.Fopen("C:\\PICTURES\\X.PI1", 0)`, `Fread`, `Fsfirst` / `Fsnext`, and o
 `Ddelete`, `Fattrib(path, 1, attr)` (`zigmachine/docs/KOS_GEMDOS.md`, `KOS_GEMDOS_WRITES.md`; such a cart
 needs system table 1.10). On the page, `?c=gemdos-c.img` gives it a C: (writes stay in the page's memory).
 
+A cart can play an **MP3** it reads: `zg.mp3Ctl(.start, 0)`, then `zg.mp3Feed(bytes)` 32 KiB at a time while
+`fed - zg.mp3Status(.used)` stays under `zg.MP3_RING`, then `zg.mp3Ctl(.end, 0)`; the sound side (BARD) decodes it
+onto the four Paula channels (`zigmachine/docs/ZIGOS_API.md` 8c; the MP3 PLAYER tools cart is the example). Such a
+cart needs system table 1.11. On the page, `?c=mp3-c.img` gives it a C:\\MUSIC with test files.
+
 Keep per-frame maths in integers or fixed point. The board's CPU has no FPU on every image, and
 there float is soft-float, hundreds of cycles a divide.
 

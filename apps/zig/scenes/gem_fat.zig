@@ -15,7 +15,7 @@
 const std = @import("std");
 const zg = @import("zigos");
 const rom = @import("rom_sdk");
-const fat = @import("kos_fat");
+const fat = @import("kos_gemdos").fat; // KOS's FAT reader (one module with GEMDOS: build.zig)
 
 const MAX_FOLDERS = 16; // rom/gem/desktop/dirmodel.zig MAX_FOLDERS
 pub const UNIT_A: u32 = 0;

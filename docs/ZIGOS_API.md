@@ -284,6 +284,36 @@ while (r == 0) : (r = dos.Fsnext()) {} // dta.name, dta.length (little-endian), 
 Read-only in this phase; never per frame (a request is ~0.5 ms on the board). The calls, names, costs
 and the C binding (`kestrel_gemdos.h`, and `/C/...` for POSIX): `docs/KOS_GEMDOS.md`.
 
+## 8c. MP3 streams (system table 1.11)
+
+A cart plays an `.mp3` by **reading it and feeding its bytes**; the sound side decodes them
+(`libs/zig/players/mp3.zig`: pvmp3, Apache-2.0, integer only: on BARD on the board, in the AudioWorklet on
+the page) onto the four Paula channels, a high and a low byte a side. While an MP3 plays the channels are
+the player's: **no Paula sound effect plays**.
+
+```zig
+zg.mp3Ctl(.start, 0);                       // a fresh stream: feed from the file's first byte (ID3 tag and all)
+zg.mp3Feed(chunk);                          // at most zg.MP3_FEED_MAX (32 KiB) a call
+const free = zg.MP3_RING - (fed -% zg.mp3Status(.used)); // never feed more than this
+zg.mp3Ctl(.end, 0);                         // the file's end: the last frames play out, then the state is 3
+zg.mp3Ctl(.pause, 1);                       // 0 resumes; .stop silences it
+const w = zg.mp3Status(.word);              // bits 0-1 state (0 idle 1 playing 2 paused 3 ended), 4-7 rate
+                                            // (1 32 kHz, 2 44.1, 3 48), 8 stereo, 16-23 errors, 24-31 underruns
+```
+
+- **Flow control is the cart's**: it knows what it fed, `.used` says what the player took; bytes fed past
+  the 64 KiB ring are dropped (and counted). The status answers a frame or two late (the page's worklet,
+  BARD's mailbox): right after a start, assume the player used nothing. `.frames` (x 1152 / rate) is the
+  time played; `.load` is BARD's last render in per mille (0 where nothing measures it).
+- **Output**: 44.1 kHz streams are **bit-exact**: each side is the decoder's sample `>> 1` (two 8-bit Paula
+  channels carry exactly 15 bits: `fpga/tests/hilo_probe.py`), so 6 dB under full scale. 32 and 48 kHz
+  are converted to 44.1 linearly (not bit-exact). A true 16-bit out waits for a CHORUS 16-bit PCM mode.
+- **Cost on the board**: a 128 kbps 44.1 kHz stereo stream is ~35 % of BARD (`fpga/review/MP3_BARD_STUDY.md`);
+  the cart pays one 32 KiB `Fread` (~0.5 ms) every second or two.
+- 0 from every status: no MP3 player on this host (a table older than 1.11 refuses the cart).
+- The worked example is the MP3 PLAYER tools cart (`apps/zig/scenes/mp3_player.zig`): C:\MUSIC through
+  KOS GEMDOS, a 32 KiB chunk at a time.
+
 ## 9. Build & run
 
 ```

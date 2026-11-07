@@ -136,8 +136,24 @@ MIRROR_DEFAULTS = """/* The audio-state hook: a no-op unless cycles/bmirror.h (-
 """
 # The system table's host entries (table 1.1: the stream ring; 1.2: the mirror; 1.6: the cart's
 # Paula; 1.8: KOS's C:; 1.10: C:'s writes), and their defaults.
-HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE}
-HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS + KOS_FILE_DEFAULTS
+# The MP3 stream (zg.mp3Ctl / mp3Feed / mp3Status, libs/zig/players/mp3.zig, table 1.11): a control,
+# a feed of the file's bytes, a status word. Hooks as the stream's: a no-op, and status 0 ("no MP3
+# player": the cart says so), unless host/hstream.h (-include, where the players run) defines them.
+MP3 = {
+    "hostMp3Ctl": ("void", ["u32", "u32"], "HOST_MP3_CTL"),
+    "hostMp3Feed": ("void", ["u32", "u32"], "HOST_MP3_FEED"),
+    "hostMp3Status": ("u32", ["u32"], "HOST_MP3_STATUS"),
+}
+MP3_DEFAULTS = """/* MP3 hooks: no player (status 0). host/hstream.h (-include) defines them where the players run. */
+#ifndef HOST_MP3_CTL
+#define HOST_MP3_CTL(e, op, arg) ((void)(e), (void)(op), (void)(arg))
+#define HOST_MP3_FEED(e, ptr, len) ((void)(e), (void)(ptr), (void)(len))
+#define HOST_MP3_STATUS(e, which) ((void)(e), (void)(which), 0u)
+#endif
+"""
+
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3}
+HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS + KOS_FILE_DEFAULTS + MP3_DEFAULTS
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:

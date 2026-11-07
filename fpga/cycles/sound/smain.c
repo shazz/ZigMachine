@@ -18,6 +18,7 @@
 #include "dflush.h"
 #include "haudio.h"
 #include "snd_mailbox.h"
+#include "smp3bench.h"
 #include "sound.h"
 #include "trap.h"
 #include "wasm-rt-exceptions.h"
@@ -46,7 +47,11 @@ const host_song_bridge host_songs = {0}; /* host.h wants one; nothing polls it h
 static void run(void) {
     #define ZMA_NOW (*(volatile uint32_t*)0x92000008u) /* soc/zm_audio_soc.py AUDIO_WINDOW, word 2 */
     uint32_t t0 = SND_REG(SND_CYCLES);
+#ifdef ZM_SND_MP3 /* make snd-bench SND_MP3=1: the song is an .mp3, streamed (cycles/sound/smp3bench.c) */
+    mp3_bench_start(ZM_SONG);
+#else
     audio_play(ZM_SONG, ZM_TUNE);
+#endif
 #ifdef ZM_SND_MODE /* make snd-bench SND_MODE=3: zg.requestSndhMode before the first frame */
     printf("MODE asked %d got %lu\n", ZM_SND_MODE, (unsigned long)w2c_audio_audioSndhMode(&g_aud.player, ZM_SND_MODE));
 #endif
@@ -55,9 +60,15 @@ static void run(void) {
         while ((int32_t)(zma_ts() - ZMA_NOW) > (int32_t)(2940u - FRAME)) {
         }
         uint32_t c0 = SND_REG(SND_CYCLES), i0 = SND_REG(SND_IBUS_WAIT), d0 = SND_REG(SND_DBUS_WAIT);
+#ifdef ZM_SND_MP3
+        mp3_bench_feed(); /* timed with the render: a cart's feeds cost BARD their copy */
+#endif
         audio_render(FRAME);
         printf("F %d %lu\nFW %d %lu %lu\n", f, (unsigned long)(SND_REG(SND_CYCLES) - c0), f,
                (unsigned long)(SND_REG(SND_IBUS_WAIT) - i0), (unsigned long)(SND_REG(SND_DBUS_WAIT) - d0));
+#ifdef ZM_SND_MP3
+        mp3_bench_report(f);
+#endif
     }
     baudio_report();
     sound_finish(0);

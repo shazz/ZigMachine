@@ -54,6 +54,8 @@ SHELF = (
     "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker",
     # The C program ports (apps/ports, prebuilt docs/demo-<tag>.wasm): pt2-clone, GrafX2, klystrack, ChipNomad.
     "pt2", "grafx2", "klystrack", "chipnomad",
+    # The MP3 jukebox (tools): C:\\MUSIC through KOS GEMDOS, decoded on BARD (system table 1.11).
+    "mp3_player",
 )  # fmt: skip
 OS_CART = "gem"  # KOS's desktop: what the browser boots for a data disk or an empty drive
 DESKTOP_FILE = "kos/desktop.rv32"  # glass/src/app_drive.zig DESKTOP

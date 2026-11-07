@@ -179,6 +179,20 @@ def test_the_paula_imports_call_their_hooks_and_the_claim_returns_its_answer() -
     assert "#define HOST_PAULA_CLAIM(e, lead) ((void)(e), (void)(lead), 0u)" in host_gen.HOST_DEFAULTS
 
 
+def test_the_mp3_imports_call_their_hooks_and_the_status_defaults_to_no_player() -> None:
+    ctl = host_gen.forwarder("hostMp3Ctl", "void", ["u32", "u32"], None, EXPORTS)
+    assert ctl == "void w2c_env_hostMp3Ctl(struct w2c_env* e, u32 a0, u32 a1) { HOST_MP3_CTL(e, a0, a1); }\n"
+    status = host_gen.forwarder("hostMp3Status", "u32", ["u32"], None, EXPORTS)
+    assert status == "u32 w2c_env_hostMp3Status(struct w2c_env* e, u32 a0) { return HOST_MP3_STATUS(e, a0); }\n"
+    # Where no player runs (a sim, the plain native host), status 0: the cart says "no MP3 player".
+    assert "#define HOST_MP3_STATUS(e, which) ((void)(e), (void)(which), 0u)" in host_gen.HOST_DEFAULTS
+
+
+def test_an_mp3_import_with_the_wrong_signature_is_refused() -> None:
+    with pytest.raises(SystemExit, match="MP3 stream"):
+        host_gen.forwarder("hostMp3Feed", "void", ["u32"], None, EXPORTS)
+
+
 def test_kos_drive_read_calls_its_hook_whose_default_reads_the_c_image() -> None:
     read = host_gen.forwarder("kosDriveRead", "u32", ["u32", "u32", "u32", "u32"], None, EXPORTS)
     assert read == ("u32 w2c_env_kosDriveRead(struct w2c_env* e, u32 a0, u32 a1, u32 a2, u32 a3) "

@@ -60,7 +60,9 @@ const ALLOW = {
     // +16 B (2026-11-03): the klystrack player's refusal count and reason (demo_audio_kt.zig) join
     // the run; the player's state is a struct with non-zero fields, and its song tables, FX delay
     // lines and render block live in song RAM (kt.zig), not here.
-    "demo-audio.wasm": 591387,
+    // +4 B (2026-11-06): the MP3 player (mp3.zig) joins the run with a word of zeros; its state is a
+    // struct with non-zero fields, and its input ring, frame, PCM and pvmp3's 28 KB state live in song RAM.
+    "demo-audio.wasm": 591391,
 };
 
 function uleb(b, p) {

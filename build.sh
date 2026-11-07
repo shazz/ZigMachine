@@ -228,6 +228,10 @@ NATIVE_TESTS="
     rom/gem/gui/grid.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
+    apps/zig/scenes/mp3_player/id3_test.zig
+    libs/zig/players/mp3_frame_test.zig
+    libs/zig/players/mp3_in_test.zig
+    libs/zig/players/mp3_resample_test.zig
     apps/zig/scenes/stniccc/span.zig
     apps/zig/scenes/stniccc/player_test.zig
     apps/zig/scenes/union/wab_table_test.zig
@@ -275,6 +279,7 @@ python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
 python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?c=kos-c.img) is what its generator writes
 python3 tools/gemdos_c_image.py --check   # docs/gemdos-c.img (KOS GEMDOS's C: with pictures in folders, ?c=gemdos-c.img) is what its generator writes
+python3 tools/mp3_c_image.py --check   # docs/mp3-c.img (the MP3 PLAYER's C:, C:\MUSIC's CC0 test files, ?c=mp3-c.img) is what its generator writes
 python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 python3 tools/gen_tutorial.py --check   # TUTORIAL.html regenerated from TUTORIAL.md
 python3 -m unittest discover -q -s tools/tests -t tools   # the doc generators' own tests
@@ -358,6 +363,13 @@ gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) a
 gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
 gate kt_test node apps/kt_test_check.mjs   # KT TEST: keys 1..5 (setShadeMode) ask for starport2.kt / castlevania.kt / oceanloader3.kt / dpintro.kt / "none" by name; the bundled songs are upstream klystrack's examples byte for byte (md5); each loads and plays in the audio modules (mode 1, not silent)
 gate kt_test node apps/kt_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
+gate mp3 node apps/mp3_check.mjs   # MP3 player (libs/zig/players/mp3.zig, pvmp3) fed as a cart feeds it: 44.1 kHz stereo and mono out = the reference decode >> 1 sample for sample (the 15-bit Paula path), no underrun, nothing dropped, ended then silence; 32 / 48 kHz converted to 44.1 (rate code, length, output pinned); half a file then end = the reference's first frames; fed at half speed: underruns counted, every frame decoded, ended
+gate mp3 node apps/mp3_check.mjs --break lowbyte   # ...and the low-byte channels silenced fail the exact check
+gate mp3 node apps/mp3_check.mjs --break overfeed   # ...and feeding past the ring (no flow control) fails (bytes dropped)
+gate mp3 node apps/mp3_check.mjs --break noend   # ...and never telling the player the input ended fails (it never ends)
+gate mp3_player node apps/mp3_player_check.mjs   # MP3 PLAYER cart over the machine + ROM, C: = docs/mp3-c.img through KOS GEMDOS: Down Down Return plays TONES44.MP3; the bytes it fed are the file's in order, never past the ring, the end told; the audio out = the reference >> 1; the next file starts at the end, N past the last stops, Esc again asks for request 4
+gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
+gate mp3_player uv run --project fpga python -m pytest -q fpga/tests/test_mp3_native.py   # ...and on the native host (host_audio, --c-image docs/mp3-c.img, the glass's key router): Down Down Return plays TONES44.MP3, the machine's 16-bit out = the reference >> 1; no key, no sound
 gate kt node apps/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted
 gate kt node apps/kt_check.mjs --break pin   # ...and a wrong pin fails
 gate kt node apps/kt_check.mjs --break lowbyte   # ...and the low-byte channels silenced (8-bit sides) fail the Paula check
