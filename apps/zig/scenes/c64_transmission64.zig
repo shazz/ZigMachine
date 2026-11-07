@@ -69,7 +69,7 @@ fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
 }
 
 pub const Demo = struct {
-    show: show_mod.Show = undefined,
+    show: *show_mod.Show = undefined, // 140 KB (the C64's RAM, the stores): on zg.mem, not in the data
     out: vic.Out = undefined,
     frames: u32 = 0, // machine frames (60 Hz)
     wants_quit: bool = false,
@@ -82,6 +82,7 @@ pub const Demo = struct {
         for (0..16) |c| fb.setPaletteEntry(@intCast(c + 1), zg.Color.fromRGBA(rgba(@intCast(c))));
         @memset(fb.fb[0..vic.Out.ROWS_COLS], 0);
         self.out = .{ .pix = fb.fb[0..vic.Out.ROWS_COLS] };
+        self.show = &zg.mem.mustAlloc(show_mod.Show, 1)[0]; // init runs once per cart load
         self.show.init(assets.all);
         self.frames = 0;
         self.wants_quit = false;
