@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
         perror("mp3_bard_host");
         return 2;
     }
-    static uint8_t buf[1 << 22];
+    static uint8_t buf[1 << 24]; /* 16 MiB: a whole track (4 MiB cut a 6 MB one short) */
     uint32_t left = (uint32_t)fread(buf, 1, sizeof buf, fi);
     const uint8_t *p = buf;
     if (left >= 10 && buf[0] == 'I' && buf[1] == 'D' && buf[2] == '3') { /* an ID3v2 tag: skipped whole */
