@@ -52,6 +52,7 @@ pub const Server = struct {
 
     /// One look at the block: a whole request not yet answered is served. True if one was.
     pub fn poll(self: *Server) bool {
+        self.words[self.at(mc.KOS_FILE_READY_FROM_TOP)] = mc.KOS_FILE_READY; // here, at this layout
         const w = self.words[self.at(mc.KOS_FILE_FROM_TOP)..][0..mc.KOS_FILE_WORDS];
         if (w[mc.KF_MAGIC] != mc.KOS_FILE_MAGIC) return false;
         var s: [mc.KOS_FILE_WORDS]u32 = undefined;

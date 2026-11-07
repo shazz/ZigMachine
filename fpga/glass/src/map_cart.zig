@@ -114,6 +114,12 @@ pub const KF_ACK: u32 = 15;
 pub const KOS_FILE_DATA_MAX: u32 = 32768; // rom/kos/kfs_abi.zig DATA_MAX
 pub const KOS_FILE_PATH_MAX: u32 = 127; // kfs_abi.zig PATH_MAX
 pub const KOS_FILE_TIMEOUT_MS: u32 = 10000;
+// glass's C: file server is there, and reads the block where this firmware writes it: glass writes
+// KOS_FILE_READY here on every poll (a load zeroes it). The firmware refuses a write at once (EWRPRO)
+// when it is absent, instead of waiting KOS_FILE_TIMEOUT_MS for a glass that never answers (an older
+// glass, or one built with another KOS_FILE_FROM_TOP: the first board run lost a save that way).
+pub const KOS_FILE_READY_FROM_TOP: u32 = 0x3C4; // CPU 0x41FF_FC3C
+pub const KOS_FILE_READY: u32 = 0x524B_4D5A; // "ZMKR"
 pub const KOS_CGEN_FROM_TOP: u32 = 0x3CC; // CPU 0x41FF_FC34: the C: generation: glass bumps it after each write it made
 
 // --- the disk descriptor's other magic -----------------------------------------

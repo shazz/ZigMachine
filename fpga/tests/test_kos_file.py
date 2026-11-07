@@ -52,11 +52,17 @@ def test_the_firmware_takes_only_the_answer_to_its_own_request(kosfreq: Path) ->
     assert run(kosfreq, "answer", 5, 4, 0) == "80000001"  # still the last request's answer: wait
 
 
+def test_the_firmware_writes_only_to_a_glass_that_serves_the_block(kosfreq: Path) -> None:
+    assert run(kosfreq, "ready", gc.KOS_FILE_READY) == "1"
+    assert run(kosfreq, "ready", 0) == "0"  # no glass, an older glass, or a load just zeroed the window
+
+
 def test_the_block_sits_between_the_generation_word_and_the_sector_block() -> None:
     top = glass_map.DDR_CART_BYTES
     start, end = top - gc.KOS_FILE_FROM_TOP, top - gc.KOS_FILE_FROM_TOP + 4 * gc.KOS_FILE_WORDS
     assert top - gc.KOS_MEDIA_FROM_TOP + 4 <= top - gc.KOS_CGEN_FROM_TOP
-    assert top - gc.KOS_CGEN_FROM_TOP + 4 <= start
+    assert top - gc.KOS_CGEN_FROM_TOP + 4 <= top - gc.KOS_FILE_READY_FROM_TOP
+    assert top - gc.KOS_FILE_READY_FROM_TOP + 4 <= start
     assert end <= top - gc.KOS_DRIVE_FROM_TOP
     assert start % 32 == 0  # KF_DONE and KF_ACK on one D$ line, which the firmware drops each poll
     assert (start + 4 * gc.KF_DONE) // 32 == (start + 4 * gc.KF_ACK) // 32
