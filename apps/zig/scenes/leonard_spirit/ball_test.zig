@@ -118,3 +118,29 @@ test "the sine table is Q15 and the degree table a u32 turn" {
     try std.testing.expectEqual(@as(i16, -32767), path.SIN[768]);
     try std.testing.expectEqual(@as(u32, 1 << 31), path.DEG[180]);
 }
+
+test "drawRows paints exactly the chosen rows of the keyed blit; fadeRows adds one row a level" {
+    const B = ball.Sprite(16, 16, IMG, 7);
+    var prev: u32 = 0;
+    for (1..show.FADE_LEVELS + 1) |n| {
+        const rows = show.fadeRows(@intCast(n));
+        try std.testing.expectEqual(@as(u32, @intCast(n)), @popCount(rows));
+        try std.testing.expectEqual(prev, rows & prev); // a level keeps the rows of the one before
+        prev = rows;
+        var a: [W * H]u8 align(4) = undefined;
+        for (&a, 0..) |*p, i| p.* = @truncate(i *% 2654435761 >> 24);
+        var b = a;
+        for (0..4) |s| {
+            const x: u32 = @intCast(21 * s + 4); // x mod 4 = s: every shift
+            const y: u32 = @intCast(20 * s + 1);
+            B.drawRows(&a, W, x, y, rows);
+            for (0..16) |r| for (0..16) |c| {
+                const v = IMG[r * 16 + c];
+                if (v != 0 and rows >> @intCast(r) & 1 != 0) b[(y + r) * W + x + c] = v + 7;
+            };
+        }
+        try std.testing.expectEqualSlices(u8, &b, &a);
+    }
+    try std.testing.expectEqual(@as(u32, 0xFFFF), show.fadeRows(show.FADE_LEVELS));
+    try std.testing.expectEqual(@as(u32, 0), show.fadeRows(0));
+}

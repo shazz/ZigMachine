@@ -9,7 +9,7 @@
 //   OPEN_END ..  the hardware scroll starts slowly and eases in to cruise
 //   CRUISE ..    cruise for good: the picture loops every 360 frames
 // Until the scroll starts only Leonard's 312 balls fly (one snake); then
-// the other snakes fade in from black (fadeLevel), under the record's.
+// the other snakes fade in under the record's (fadeLevel, fadeRows).
 //
 // A closed frame is a real closed border: the plane's HBL does not flicker
 // the resolution on that line (scene: borderHbl). The balls fly the whole
@@ -39,10 +39,30 @@ pub const EASE_START = OPEN_END + GAP;
 pub const EASE_LEN = 240; // frames from still to cruise
 pub const CRUISE = EASE_START + EASE_LEN;
 /// The record's 312 balls alone until the scroll starts; then the other
-/// snakes fade in from black, FADE_LEVELS steps FADE_STEP frames apart.
+/// snakes fade in, FADE_LEVELS steps FADE_STEP frames apart (~2 s at 60 fps).
+/// Matt, 6 Nov: from BLACK (the first cut) they did not fade, they popped:
+/// 1,872 near-black balls over a bright picture show at once. A palette
+/// can't blend a ball into the four picture colours under it, so the fade
+/// is the ST's other one, a DISSOLVE: level n draws n of the ball's 16 rows
+/// (fadeRows, the picture shows through the others), and their colours run
+/// from the picture's main blue to the ball's (the scene's setFade).
 pub const FADE_START = EASE_START;
-pub const FADE_STEP = 4;
+pub const FADE_STEP = 8;
 pub const FADE_LEVELS = 16;
+/// The order the rows come in: bit-reversed, so each level adds one row
+/// spread as evenly as the ones before allow.
+pub const ROW_ORDER = [16]u4{ 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
+
+/// The rows a fading ball draws at `level` (bit r = row r): the first
+/// `level` of ROW_ORDER.
+pub fn fadeRows(level: u32) u32 {
+    return ROWS_AT[@min(level, FADE_LEVELS)];
+}
+const ROWS_AT = blk: {
+    var t = [_]u32{0} ** (FADE_LEVELS + 1);
+    for (1..FADE_LEVELS + 1) |n| t[n] = t[n - 1] | @as(u32, 1) << ROW_ORDER[n - 1];
+    break :blk t;
+};
 
 /// The extra snakes' brightness on frame t, 0 (not drawn) .. FADE_LEVELS.
 pub fn fadeLevel(t: u32) u32 {

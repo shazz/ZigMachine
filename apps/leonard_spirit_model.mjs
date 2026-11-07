@@ -26,9 +26,13 @@ const SHAKE_LEN = SHAKE.reduce((a, b) => a + b), GAP = 30, STATIC_END = 180;
 export const stageStart = (s) => STATIC_END + s * (SHAKE_LEN + GAP); // 0 sides, 1 bottom, 2 top
 export const OPEN_END = stageStart(2) + SHAKE_LEN, EASE_START = OPEN_END + GAP, EASE_LEN = 240;
 export const CRUISE = EASE_START + EASE_LEN;
-// ---- only the record's snake until the scroll starts, then snakes 1..6 fade in from black, under it
-export const FADE_START = EASE_START;
-export const fadeLevel = (t) => (t < FADE_START ? 0 : Math.min(16, Math.floor((t - FADE_START) / 4) + 1));
+// ---- only the record's snake until the scroll starts, then snakes 1..6 fade in under it (Matt,
+// 6 Nov: a dissolve, not from black): level n (one every 8 frames) draws n of each ball's 16 rows,
+// bit-reversed order, in colours from the picture's blue (entry 1) to the ball's
+export const FADE_START = EASE_START, FADE_STEP = 8, FADE_END = FADE_START + 15 * FADE_STEP; // level 16 from FADE_END
+export const fadeLevel = (t) => (t < FADE_START ? 0 : Math.min(16, Math.floor((t - FADE_START) / FADE_STEP) + 1));
+const ROW_ORDER = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15];
+export const fadeRows = (level) => ROW_ORDER.slice(0, level).reduce((m, r) => m | (1 << r), 0);
 // ---- the scrolltext's fall (scene: leonard_spirit/fall.zig): once the bottom stays open it drops
 // from row 234 to 274 (the same 0-pixel gap to the open bottom) and bounces, Q8 integer steps
 export const FALL_START = stageStart(1) + SHAKE_LEN, FALL_LOW = WIN_H - 6 - 6; // the letters' 6 rows, then a 6-pixel margin (Matt, 2026-11-01)
@@ -90,14 +94,14 @@ export function windowPixels(out, f, [sx, sy], t, text, extra = 0, row = SCROLL_
         for (let x = 0; x < WIN_W; x++) out[y * WIN_W + x] = back[ty * 320 + ((sx + x + 640 - OX) % 320)];
     }
     const pos = positions(f, extra), n = pos.length / 2;
-    const draw = (i, ink) => {
+    const draw = (i, ink, rows = 0xffff) => {
         const x = pos[2 * i], y = pos[2 * i + 1];
-        for (let r = 0; r < 16; r++) for (let c = 0; c < 16; c++) {
+        for (let r = 0; r < 16; r++) if ((rows >> r) & 1) for (let c = 0; c < 16; c++) {
             const v = ball[r * 16 + c];
             if (v) out[(y + r) * WIN_W + x + c] = v + ink;
         }
     };
-    if (level > 0) for (let i = SNAKE_LEN; i < n; i++) draw(i, 7); // the fading snakes, under
+    if (level > 0) for (let i = SNAKE_LEN; i < n; i++) draw(i, 7, fadeRows(level)); // the fading snakes, under
     for (let i = 0; i < SNAKE_LEN; i++) draw(i, 3); // Leonard's 312 on top
     const s = t * 2, lap = text.length * 6;
     for (let x = 0; x < WIN_W; x++) {
@@ -113,11 +117,12 @@ export function mergedPalette() {
     return [0, 1, 2, 3].map((i) => word("back_pal.dat", i))
         .concat([1, 2, 3].map((i) => word("ball_pal.dat", i)), [word("font_pal.dat", 1)]);
 }
-/** The merged palette on a fade level: 8-10 the ball's shades times level/16 (alpha kept). */
+/** The merged palette on a fade level: 8-10 from the picture's entry 1 to the ball's shades,
+ *  (from * (16 - level) + to * level) >> 4 per channel (the ball's alpha kept). */
 export function fadedPalette(base, level) {
-    const p = base.slice();
+    const p = base.slice(), from = base[1];
     for (let i = 0; i < 3; i++) {
-        const c = base[4 + i], ch = (sh) => ((((c >>> sh) & 255) * level) >> 4) << sh;
+        const c = base[4 + i], ch = (sh) => ((((from >>> sh) & 255) * (16 - level) + ((c >>> sh) & 255) * level) >> 4) << sh;
         p[8 + i] = ((c & 0xff000000) | ch(16) | ch(8) | ch(0)) >>> 0;
     }
     return p;

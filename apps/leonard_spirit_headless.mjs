@@ -17,8 +17,12 @@
 //            border colour, never noise; the picture area always the plane
 //   planes   only plane 0 is enabled (one overscan scroll plane)
 //   music    sos.sndh requested at start
+//   fade     from the machine's own frames, not the model: the extra snakes come in
+//            over 2 s (Matt, 6 Nov: they popped in at once): their first frame
+//            shows few of their pixels, in colours near the picture's blue, and
+//            the fade passes through many colours on the way
 //
-//   node apps/leonard_spirit_headless.mjs [--break pixels|count|music|palette|border|scroll] [--ppm F]
+//   node apps/leonard_spirit_headless.mjs [--break pixels|count|music|palette|border|scroll|fall|fade] [--ppm F [--at T]]
 //     each --break must be caught (the model or the machine is wrong on purpose)
 import { readFileSync, writeFileSync } from "node:fs";
 import { cartRam } from "../docs/wasm_hiwater.js";
@@ -27,7 +31,7 @@ import * as M from "./leonard_spirit_model.mjs";
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const argv = process.argv.slice(2);
 const opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv[i + 1]; };
-const BREAKS = ["pixels", "count", "music", "palette", "border", "scroll", "fall"];
+const BREAKS = ["pixels", "count", "music", "palette", "border", "scroll", "fall", "fade"];
 const brk = opt("--break");
 if (brk && !BREAKS.includes(brk)) throw new Error(`--break ${BREAKS.join("|")}`);
 const ppm = opt("--ppm");
@@ -39,7 +43,7 @@ const hbl = (id, p, l, x) => (brk === "border" && l === 137 ? undefined : demo.h
 const machine = (await WebAssembly.instantiate(readFileSync("docs/machine-video.wasm"), { env: { memory, hblDispatch: hbl } })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
 const rom = (await WebAssembly.instantiate(readFileSync("docs/rom.wasm"), { env: romEnv })).instance.exports;
-const cartBytes = readFileSync("docs/demo-leonard_spirit.wasm");
+const cartBytes = readFileSync(process.env.LS_CART ?? "docs/demo-leonard_spirit.wasm"); // LS_CART: another build (e.g. an older cart)
 const env = { ...romEnv, ...rom };
 for (const k of Object.keys(machine)) if (/^hw(Rom)?Ram/.test(k)) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
@@ -73,6 +77,7 @@ const FRAMES = Math.max(M.CRUISE + 720, st(4) + 400);
 const want = new Uint8Array(M.WIN_W * M.WIN_H), fails = {};
 const fail = (what, msg) => { fails[what] ??= { n: 0, first: msg }; fails[what].n++; };
 let phase = 0, closedWord = null;
+const FADE = { cover: new Map(), colours: new Set(), nearBlue: true };
 const FALL = M.fallRows(brk !== "fall");
 for (let t = 0; t < FRAMES; t++) {
     const f = st(1), tick = st(2), p = phase >> 16, pan = M.pan(p);
@@ -81,8 +86,9 @@ for (let t = 0; t < FRAMES; t++) {
     demo.frame(16.6);
     const mask = st(7);
     if (mask !== M.openMask(t)) fail("show", `t ${t}: borders open ${mask}, model ${M.openMask(t)}`);
-    M.windowPixels(want, f, pan, tick, M.TEXT, brk === "count" ? 1 : 0, M.scrollRow(t, FALL), M.fadeLevel(t));
-    MERGED = M.fadedPalette(BASE, M.fadeLevel(t));
+    const level = brk === "fade" && t >= M.FADE_START ? 16 : M.fadeLevel(t); // --break fade: they pop in
+    M.windowPixels(want, f, pan, tick, M.TEXT, brk === "count" ? 1 : 0, M.scrollRow(t, FALL), level);
+    MERGED = M.fadedPalette(BASE, level);
     if (brk === "pixels" && t === 777) want[60000] ^= 1;
     const buf = new Uint8Array(memory.buffer, demo.lsPlane(), M.BUF_W * 448);
     pixels: for (let y = 0; y < M.WIN_H; y++) for (let x = 0; x < M.WIN_W; x++) {
@@ -90,10 +96,17 @@ for (let t = 0; t < FRAMES; t++) {
         if (v !== want[y * M.WIN_W + x]) { fail("pixels", `t ${t} (ball frame ${f}, pan ${pan}): x ${x} y ${y} cart ${v} model ${want[y * M.WIN_W + x]}`); break pixels; }
     }
     closedWord = checkComposite(t, buf, pan, M.openMask(t), closedWord);
-    if (ppm && t === M.CRUISE + 100) writePpm(ppm, buf, pan);
+    if (t === M.FADE_START || t === M.FADE_END || (t > M.FADE_START && t < M.FADE_END)) fadeSeen(t, buf, pan);
+    if (ppm && t === (opt("--at") === null ? M.CRUISE + 100 : +opt("--at"))) writePpm(ppm, buf, pan);
     if (t === 1) ok([0, 1, 2, 3].every((p) => !!demo.isPlaneEnabled(p) === (p === 0)), "planes: only plane 0 is enabled");
     phase += M.speed(t, brk === "scroll");
     if (phase >= 360 << 16) phase -= 360 << 16;
+}
+{
+    const [first, full] = [FADE.cover.get(M.FADE_START), FADE.cover.get(M.FADE_END)];
+    ok(full > 0 && first * 5 <= full, `fade: the extra snakes show ${first} pixels on their first frame, ${full} once in (at most 1/5 at first: one row of 16 each, and a row hides less of the balls under it)`);
+    ok(FADE.nearBlue, `fade: their first frame's colours are within 1/8 of the way from the picture's blue`);
+    ok(FADE.colours.size >= 30, `fade: ${FADE.colours.size} colours on the way in (at least 30)`);
 }
 for (const w of ["show", "pixels", "borders"])
     ok(!fails[w], `${w}: ${FRAMES - (fails[w]?.n ?? 0)}/${FRAMES} frames${fails[w] ? `; first: ${fails[w].first}` : ""}`);
@@ -116,6 +129,23 @@ function checkComposite(t, buf, [sx, sy], open, closed) {
         }
     }
     return closed;
+}
+
+// The fading snakes' pixels (plane indices 8..10) as the machine composed them (the snap of
+// checkComposite): how many, which colours, and on the first frame how far from the blue.
+function fadeSeen(t, buf, [sx, sy]) {
+    const snap = new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), 800 * 280);
+    const blue = BASE[1], ch = (c, s) => (c >>> s) & 255;
+    let n = 0;
+    for (let y = 0; y < M.WIN_H; y++) for (let x = 0; x < M.WIN_W; x++) {
+        const v = buf[(sy + y) * M.BUF_W + sx + x];
+        if (v < 8 || v > 10) continue;
+        const got = snap[y * 800 + 2 * x] >>> 0, to = BASE[v - 4];
+        n++, FADE.colours.add(got);
+        if (t === M.FADE_START) for (const s of [0, 8, 16])
+            if (Math.abs(ch(got, s) - ch(blue, s)) > Math.abs(ch(to, s) - ch(blue, s)) / 8 + 1) FADE.nearBlue = false;
+    }
+    FADE.cover.set(t, n);
 }
 
 function writePpm(file, buf, [sx, sy]) {
