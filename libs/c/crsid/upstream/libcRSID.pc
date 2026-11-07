@@ -1,0 +1,12 @@
+# libcRSID pkg-config source file
+
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: cRSID
+Description: libcRSID is the SID-playback engine of cRSID
+Version: 1.5
+Requires:
+Conflicts:
