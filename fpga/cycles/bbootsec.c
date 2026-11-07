@@ -49,6 +49,11 @@ static void sector_call(void* ctx, const char* name, int arg) {
     if (!strcmp(name, "key")) bootsec_key(ctx, (uint32_t)arg);
 }
 
+/* What is left once the sector is over goes nowhere: the cart never saw those presses. */
+static void drop_keys(void) {
+    for (int n = 0; n < 64 && (CSR(KEY_VALID) & 1u); n++) CSR(KEY_POP) = 1u;
+}
+
 static void sector_keys(bootsec_t* b) {
     for (int n = 0; n < 64 && (CSR(KEY_VALID) & 1u); n++) {
         uint32_t ev = CSR(KEY_DATA);
@@ -90,7 +95,7 @@ uint32_t bbootsec_run(struct w2c_env* e, uint32_t beat) {
     printf("ZM BOOTSEC start %s %lu\n", bootsec_status(st), (unsigned long)b.w.steps);
     int rc = st || hbl_set(e, planes) ? -1 : 0;
     while (rc == 0) rc = frame(e, &b, planes), board_beat(++beat); /* a sector is no hang */
-    sector_keys(b);
+    drop_keys();
     printf("ZM BOOTSEC end %lu %s %lu\n", (unsigned long)b.frames, bootsec_status(b.st), (unsigned long)b.w.steps);
     return beat;
 }
