@@ -87,6 +87,14 @@ pub fn Sprite(comptime w: u32, comptime h: u32, comptime img: [w * h]u8, comptim
             routines[x & 3](base, stride);
         }
 
+        /// As `draw`, but only the rows whose bit is set in `rows` (bit r =
+        /// row r): the fading snakes' dissolve (show.fadeRows). The same
+        /// stores, a subset of them, behind one branch a row.
+        pub inline fn drawRows(dst: [*]align(4) u8, stride: u32, x: u32, y: u32, rows: u32) void {
+            const base: [*]align(4) u8 = @alignCast(dst + (y * stride + (x & ~@as(u32, 3))));
+            masked[x & 3](base, stride, rows);
+        }
+
         // One routine per shift, called through a TABLE so that nothing
         // inlines it into the caller's ball loop (the board's GCC inlines a
         // function called once, `noinline` or not: it is gone by wasm2c).
@@ -95,10 +103,15 @@ pub fn Sprite(comptime w: u32, comptime h: u32, comptime img: [w * h]u8, comptim
         // stores. Alone, a routine is straight-line code with nothing to hoist.
         const Routine = *const fn ([*]align(4) u8, u32) void;
         const routines = [4]Routine{ Shift(0).run, Shift(1).run, Shift(2).run, Shift(3).run };
+        const Masked = *const fn ([*]align(4) u8, u32, u32) void;
+        const masked = [4]Masked{ Shift(0).rows, Shift(1).rows, Shift(2).rows, Shift(3).rows };
         fn Shift(comptime s: u32) type {
             return struct {
                 fn run(base: [*]align(4) u8, stride: u32) void {
                     stores(comptime program(s), base, stride);
+                }
+                fn rows(base: [*]align(4) u8, stride: u32, mask: u32) void {
+                    rowStores(comptime program(s), base, stride, mask);
                 }
             };
         }
@@ -110,13 +123,30 @@ pub fn Sprite(comptime w: u32, comptime h: u32, comptime img: [w * h]u8, comptim
             comptime var at: u32 = 0; // the row `row` points at
             inline for (list) |st| {
                 inline while (at < st.row) : (at += 1) row = @alignCast(row + stride);
-                const p = row + st.x;
-                switch (st.width) {
-                    8 => @as(*align(4) volatile u64, @ptrCast(@alignCast(p))).* = st.val,
-                    4 => @as(*volatile u32, @ptrCast(@alignCast(p))).* = @intCast(st.val),
-                    2 => @as(*volatile u16, @ptrCast(@alignCast(p))).* = @intCast(st.val),
-                    else => @as(*volatile u8, @ptrCast(p)).* = @intCast(st.val),
+                put(row, st);
+            }
+        }
+
+        // The rows of `list` whose bit is set in `mask`, row by row.
+        inline fn rowStores(comptime list: []const Store, base: [*]align(4) u8, stride: u32, mask: u32) void {
+            var row: [*]align(4) u8 = base;
+            inline for (0..h) |r| {
+                if (mask >> r & 1 != 0) {
+                    inline for (list) |st| {
+                        if (comptime st.row == r) put(row, st);
+                    }
                 }
+                row = @alignCast(row + stride);
+            }
+        }
+
+        inline fn put(row: [*]align(4) u8, comptime st: Store) void {
+            const p = row + st.x;
+            switch (st.width) {
+                8 => @as(*align(4) volatile u64, @ptrCast(@alignCast(p))).* = st.val,
+                4 => @as(*volatile u32, @ptrCast(@alignCast(p))).* = @intCast(st.val),
+                2 => @as(*volatile u16, @ptrCast(@alignCast(p))).* = @intCast(st.val),
+                else => @as(*volatile u8, @ptrCast(p)).* = @intCast(st.val),
             }
         }
     };

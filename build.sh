@@ -521,6 +521,7 @@ gate leonard_spirit node apps/leonard_spirit_headless.mjs --break palette   # ..
 gate leonard_spirit node apps/leonard_spirit_headless.mjs --break border   # ...and one visible line whose flicker never happens is caught
 gate leonard_spirit node apps/leonard_spirit_headless.mjs --break scroll   # ...and a linear ease-in instead of the square one is caught
 gate leonard_spirit node apps/leonard_spirit_headless.mjs --break fall   # ...and a scrolltext that lands without bouncing is caught
+gate leonard_spirit node apps/leonard_spirit_headless.mjs --break fade   # ...and extra snakes that pop in whole at full colour (no dissolve, no colour ramp) are caught
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs   # JOCHEN HIPPEL MUSIC DEMO (cart 109, Amiga musicdisk): planes 0+1 as composed = a model of the original's copper list on all 400x280 for 600 frames (two COLOR00 bars, top one rotation behind; the 32-column COLOR01 rainbow scrolled a line a 50 Hz frame, 1 px lead; the $888 dual-playfield shadow); 5 steps in 6 frames; rings_of_medusa.hip song 1 at start, keys a..j/A..J the original's module + song, every .hip on the one RoM replay with enough songs; Escape leaves
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break pixels   # ...and one wrong bar pixel is caught
 gate hippel_musicdisk node apps/hippel_musicdisk_headless.mjs --break lead   # ...and copper columns without the 1-px lead are caught

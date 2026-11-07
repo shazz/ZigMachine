@@ -38,6 +38,7 @@ const restore = @import("leonard_spirit/restore.zig");
 const lay = @import("leonard_spirit/layout.zig");
 const text = @import("leonard_spirit/text.zig");
 const fall = @import("leonard_spirit/fall.zig");
+const fade_mod = @import("leonard_spirit/fade.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -67,7 +68,8 @@ const font_b = @embedFile(A ++ "font.raw");
 // merged palette: picture 0-3, ball 1-3 -> 4-6, font ink 1 -> 7
 pub const BALL_INK = 3;
 pub const FONT_INK = 7;
-pub const FADE_INK = 7; // the fading snakes' ball: 8-10, a copy of 4-6 faded (show.fadeLevel)
+pub const FADE_INK = 7; // the fading snakes' ball: 8-10, from the picture's blue to 4-6 (setFade)
+const FADE_FROM = 1; // the picture's main colour (45 % of back.raw): where the fade starts
 const palette: [256]Color = blk: {
     const back = zg.convertU8ArraytoColors(@embedFile(A ++ "back_pal.dat"));
     const ball = zg.convertU8ArraytoColors(@embedFile(A ++ "ball_pal.dat"));
@@ -76,7 +78,7 @@ const palette: [256]Color = blk: {
     for (0..4) |i| p[i] = back[i];
     for (1..4) |i| p[BALL_INK + i] = ball[i];
     p[FONT_INK] = font[1];
-    for (1..4) |i| p[FADE_INK + i] = .{ .r = 0, .g = 0, .b = 0, .a = ball[i].a };
+    for (1..4) |i| p[FADE_INK + i] = .{ .r = back[FADE_FROM].r, .g = back[FADE_FROM].g, .b = back[FADE_FROM].b, .a = ball[i].a };
     break :blk p;
 };
 
@@ -142,7 +144,7 @@ pub const Demo = struct {
         if (level != fade) setFade(fb, level);
         fb.setScroll(s.x, s.y);
         restore.window(&self.blitter, fb, back_b, s.x, s.y, OX, OY);
-        drawBalls(frame, s, fb.stride, fade != 0); // = lay.BUF_W, but a run-time value: see ball.zig
+        drawBalls(frame, s, fb.stride, fade); // = lay.BUF_W, but a run-time value: see ball.zig
         var band = restore.rowView(fb, s.y + fall.row(t)); // drops and bounces once the bottom opens (fall.zig)
         self.blitter.blitImage(&band, @intCast(s.x), 0, &Strip.pixels, Strip.W, Strip.windowX(tick), 0, lay.WIN_W, scroll.CW, 0);
         phase = show.stepPhase(phase, t);
@@ -153,10 +155,14 @@ pub const Demo = struct {
 };
 
 // The fading snakes first, under the record's: Leonard's 312 stay on top.
-fn drawBalls(f: u32, s: path.Pan, stride: u32, extra: bool) void {
-    if (extra) {
+// While they fade in, each of their balls draws show.fadeRows(level) only.
+fn drawBalls(f: u32, s: path.Pan, stride: u32, level: u32) void {
+    if (level != 0) {
+        const rows = show.fadeRows(level);
         var k: u32 = 1;
-        while (k < path.SNAKES) : (k += 1) drawSnake(FadeBall, f, k, s, stride);
+        while (k < path.SNAKES) : (k += 1) {
+            if (level == show.FADE_LEVELS) drawSnake(FadeBall, f, k, s, stride) else drawFading(f, k, s, stride, rows);
+        }
     }
     drawSnake(Ball, f, 0, s, stride);
 }
@@ -170,18 +176,18 @@ fn drawSnake(comptime B: type, f: u32, k: u32, s: path.Pan, stride: u32) void {
     }
 }
 
-// The fading ball's three shades: the record's, times level / FADE_LEVELS.
+fn drawFading(f: u32, k: u32, s: path.Pan, stride: u32, rows: u32) void {
+    var c = path.Chain.start(f, k);
+    var i: u32 = 0;
+    while (i < path.SNAKE_LEN) : (i += 1) {
+        FadeBall.drawRows(plane, stride, c.x() + s.x, c.y() + s.y, rows);
+        c.next();
+    }
+}
+
 fn setFade(fb: *LogicalFB, level: u32) void {
     fade = level;
-    for (1..4) |i| {
-        const c = palette[BALL_INK + i];
-        fb.setPaletteEntry(@intCast(FADE_INK + i), .{
-            .r = @intCast(c.r * level / show.FADE_LEVELS),
-            .g = @intCast(c.g * level / show.FADE_LEVELS),
-            .b = @intCast(c.b * level / show.FADE_LEVELS),
-            .a = c.a,
-        });
-    }
+    fade_mod.shades(fb, palette[FADE_FROM], palette[BALL_INK + 1 ..][0..3], FADE_INK + 1, level);
 }
 
 // The harness's exports exist only when this scene IS the registered cart.
