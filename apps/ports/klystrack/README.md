@@ -43,7 +43,8 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `kestrel_stubs.c` | `getpwuid` (no password database) |
 | `kestrel_view.c`, `kestrel_view.h`, `kestrel_views.c` | round 4: a view (or a block of one) skipped on an event-free repaint when nothing it reads changed; which views, and what each reads (below) |
 | `kestrel_pattern.c`, `kestrel_rows.c` | round 4: the pattern view's step counter and rows as blocks, its VU meters after them; the rows scrolled in per-channel caches |
-| `hashes.sh`, `vu_proof.mjs` | the "same pixels" proofs: every frame hashed in 11 scenarios for two carts; the VU meters' part (three carts in lockstep) |
+| `kestrel_bevel.c` | round 6: a bevel's uniform parts (centre, each side) drawn as one stretched copy each, not cell by cell (`patches/bevel.c.sed`) |
+| `hashes.sh`, `vu_proof.mjs` | the "same pixels" proofs: every frame hashed in 16 scenarios for two carts; the VU meters' part (three carts in lockstep) |
 | `kestrel_printf.c`, `printf_test.c` | the labels' vsnprintf: %s %c %d %i %u %x %X %% with - 0 + space, a width, a %s precision; anything else is musl's whole. `make printf-test` (gated) checks it against the host C library (glibc; the board's fallback is musl, which agrees on these conversions) |
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
@@ -406,6 +407,39 @@ every frame; `vu_proof.mjs` with the meters (play 420 frames, play_tabs 300): 0 
 `-DKESTREL_VIEW_CHECK -DKESTREL_GROUP_CHECK` over all 14 scenarios: no wrong skip, no box that differs. (The
 check missed the click lag before: main's 4,096 list overflowed on the click frame, which disables every skip.)
 Cart 452 -> 458 KB.
+
+## Round 6 (perf/klystrack-menu6, 7 Nov 2026)
+
+Matt on the board after round 5: most menus 46-60 fps, but the one with Clone / Expand 2X / Expand 3X (Edit >
+Pattern) 5 fps while open. The command list again: Edit > Pattern records ~4,550 of the 4,608 entries over the
+pattern tab, and with the instrument tab (F3) or the next one (F4) behind it, it ran over: every frame drew
+everything (est 39.6 Mc over one item, 40.1 crossing items while playing). ~1,350 of the menu's ~2,000 entries
+were bevel CELLS: upstream's bevelex draws a bevel's centre in 8x8 copies and its sides in 8x4 / 4x8 strips, and
+the Edit dropdown has 19 items, 5 separators (each a bevel 300 pixels wide) and the highlight.
+
+`kestrel_bevel.c` (called by `patches/bevel.c.sed` for every bevel that does not STRETCH): where the bevel's art
+makes the cells identical, one stretched copy draws the same pixels: a centre of one colour, a top or bottom strip
+whose rows are each one colour, a left or right strip whose columns are each one colour. That is read from the
+texture's own pixels, cached per texture serial and bevel offset; a part that is not uniform keeps upstream's
+cells (the Default theme: all but the slider background are uniform). Each pixel gets the same copies in the same
+order as upstream (a merged left/top side before the other side's cells, a merged right/bottom after), so the
+picture is the same whatever the blend. Edit > Pattern over the instrument tab: 4,591 -> 3,019 entries; every view
+records fewer too (its bevels).
+
+frame_cost est (Mc a frame, frames 161-220):
+
+| | round 5 | round 6 |
+|---|---|---|
+| Edit > Pattern over the instrument tab, one item / crossing items while playing (mean) | 39.62 / 40.13 | **1.25 / 3.06** |
+| Edit > Pattern over the pattern tab, one item / crossing items while playing (mean) | 1.44 / 7.33 | 1.43 / **4.38** |
+| File > Import over the instrument tab (control), one item / crossing while playing | 1.11 / 5.27 | 1.10 / **2.56** |
+| File > Import over the pattern tab (control), one item / crossing while playing | 1.26 / 6.64 | 1.26 / **3.70** |
+| playing: median / worst row change / mean; menu worst; playing + menu mean | 1.44 / 7.8 / 1.85; 0.98; 2.3 | 1.45 / 7.34 / 1.82; 0.99; 2.32 |
+
+The same pixels: `hashes.sh` (16 scenarios, now with editpat and inst_editpat, Edit > Pattern's items crossed
+over the pattern and the instrument tabs) round 5 against round 6: identical in every frame. The gate
+(`apps/klystrack_cost.mjs`) checks Edit > Pattern over the instrument tab: one item <= 1.6, crossing items while
+playing mean <= 4.5.
 
 ## What's left
 
