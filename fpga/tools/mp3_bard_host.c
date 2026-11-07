@@ -20,6 +20,13 @@ int main(int argc, char **argv) {
     static uint8_t buf[1 << 22];
     uint32_t left = (uint32_t)fread(buf, 1, sizeof buf, fi);
     const uint8_t *p = buf;
+    if (left >= 10 && buf[0] == 'I' && buf[1] == 'D' && buf[2] == '3') { /* an ID3v2 tag: skipped whole */
+        uint32_t tag = 10u + ((buf[6] & 0x7Fu) << 21 | (buf[7] & 0x7Fu) << 14 | (buf[8] & 0x7Fu) << 7 | (buf[9] & 0x7Fu)) +
+                       (buf[5] & 0x10u ? 10u : 0u);
+        if (tag > left) tag = left;
+        p += tag;
+        left -= tag;
+    }
     static int16_t pcm[MP3_MAX_PCM];
     void *d = mp3a_open();
     int n, nch = 0, rate = 0, frames = 0;

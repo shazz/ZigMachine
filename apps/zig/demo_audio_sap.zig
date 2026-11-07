@@ -22,6 +22,7 @@ export fn audioLoadSap(len: u32) bool {
     }
     m.hip_exports.hip.abandon();
     m.kt_exports.kt.stop(); // its tables were in the song RAM just staged over
+    m.mp3_exports.mp3.stop();
     return sap.load(len);
 }
 

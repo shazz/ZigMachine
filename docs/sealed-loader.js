@@ -421,6 +421,8 @@ async function instantiateCart(bytes, what) {
         // message rather than a call.
         if (audioNode) audioNode.port.postMessage({ type: "reset" });
         paulaCart = null; // the reset gives the Paula channels back to the machine
+        mp3Pending.length = 0; // ...and the outgoing cart's MP3 stream ends with it (the worklet's reset stopped it)
+        mp3State = [0, 0, 0];
         sndhResident = null; // ...and the new cart's first zg.sndhCall loads its image
         cartTrapped = false; // a fresh cart runs again
         return mod;
@@ -510,6 +512,10 @@ async function boot() {
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
             hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring
+            // The MP3 stream (table 1.11, libs/zig/players/mp3.zig): control, bytes, status.
+            hostMp3Ctl: (op, arg) => hostMp3Ctl(op, arg),
+            hostMp3Feed: (ptr, len) => hostMp3Feed(ptr, len),
+            hostMp3Status: (which) => hostMp3Status(which),
             // The four Paula channels lent to the cart (HW 1.14.0): claim, chip RAM uploads,
             // timed register writes, release (apps/zig/demo_audio_paula.zig, docs/HW_API.md 5).
             hostPaulaClaim: (lead) => hostPaulaClaim(lead),
@@ -1230,6 +1236,7 @@ function startAudio() {
                     if (demo && demo.getAudioModePointer) {
                         new Uint8Array(memory.buffer, demo.getAudioModePointer(), 1)[0] = msg.mode;
                     }
+                    if (msg.mp3 && !mp3Pending.length) mp3State = msg.mp3;
                     if (demo && demo.getSongMsPointer) {
                         new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = msg.songMs | 0;
                     }
@@ -1248,6 +1255,7 @@ function startAudio() {
         audioNode.connect(audioCtx.destination);
         await audioCtx.resume();
         flushPendingStream(); // a scene may have requested streaming before audio was enabled
+        flushMp3(); // ...or started an MP3 stream and fed it
         flushPaulaClaim(); // ...or claimed the Paula channels (its uploads are in paulaCart.chip)
     })();
     return audioReady;
@@ -1498,6 +1506,32 @@ function hostAudioFeed(ptr, len) {
     if (!audioNode || !streamStarted) return; // audio not live / stream not started yet
     const bytes = src.slice().buffer; // transferable copy
     audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);
+}
+// The MP3 stream (zg.mp3Ctl / mp3Feed / mp3Status). Until sound is on, the cart's controls and
+// bytes wait here, in order (a start empties the queue: the stream begins again), so a cart that
+// started before the gesture plays from its first byte; the cart sees "used" 0 meanwhile and
+// stops feeding at a full ring, so the queue holds at most the ring (64 KiB) and one feed.
+const mp3Pending = [];
+let mp3State = [0, 0, 0]; // the worklet's audioMp3Status(0..2), from its last audioState
+function hostMp3Ctl(op, arg) {
+    if (op === 0) mp3Pending.length = 0;
+    mp3Post({ type: "mp3Ctl", op: op >>> 0, arg: arg >>> 0 });
+}
+function hostMp3Feed(ptr, len) {
+    if (len <= 0) return;
+    const bytes = new Uint8Array(memory.buffer, ptr, Math.min(len, 32768)).slice().buffer;
+    mp3Post({ type: "mp3Feed", bytes }, [bytes]);
+}
+function hostMp3Status(which) {
+    return (mp3State[which] ?? 0) >>> 0;
+}
+function mp3Post(msg, transfer) {
+    if (audioNode && !mp3Pending.length) audioNode.port.postMessage(msg, transfer || []);
+    else mp3Pending.push([msg, transfer || []]);
+}
+function flushMp3() {
+    if (!audioNode) return;
+    for (const [msg, transfer] of mp3Pending.splice(0)) audioNode.port.postMessage(msg, transfer);
 }
 // A cart's Paula (HW 1.14.0). The claim is the loader's until sound is on, so it keeps a copy of
 // chip RAM: uploads made before the worklet exists are posted with the claim. Writes before then

@@ -12,7 +12,7 @@
 # memories stay apart (the players' 3 MiB is not the cart's 8 MiB).
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
-AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c
+AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c
 AUD_HDRS       := host/audio_names.h host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h host/hstream.h
 
 $(HOST)/common/%.aud.wasm: tools/wasm_env_rename.py tools/wasm_info.py

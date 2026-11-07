@@ -76,9 +76,10 @@ pub fn build(b: *std.Build) void {
     });
     // Runtime depackers (Pack-Ice &c). ST files arrive crunched, and opening one
     // is the machine's job, not a build step's.
-    // KOS's FAT reader (rom/kos/fat.zig, docs/KOS_FAT.md): pure Zig, shared by the desktop shell cart.
-    const kos_fat_mod = b.createModule(.{ .root_source_file = b.path("rom/kos/fat.zig"), .target = wasm_target, .optimize = optimize });
     // KOS GEMDOS (docs/KOS_GEMDOS.md): Fopen & co. over A: and C: in the cart; @import("kos_gemdos").dos().
+    // KOS's FAT reader (rom/kos/fat.zig, docs/KOS_FAT.md) is its `.fat`: ONE module, since GEMDOS reads
+    // through fat.zig too, and a file in two modules of a compilation is an error (every cart parses
+    // every scene: the desktop shell's kos_fat and the MP3 player's kos_gemdos met there).
     const kos_gemdos_mod = b.createModule(.{ .root_source_file = b.path("rom/kos/gemdos_cart.zig"), .target = wasm_target, .optimize = optimize });
     const depackers_mod = b.createModule(.{
         .root_source_file = b.path("libs/zig/depackers/depackers.zig"),
@@ -354,6 +355,8 @@ pub fn build(b: *std.Build) void {
     // YM chip. Musashi's opcode table is machine-generated, so m68kmake is built
     // for the HOST and run here rather than checking 800 KB of C into the repo.
     addMusashi(b, players_mod);
+    // The MP3 player's decoder: pvmp3 (Apache-2.0, libs/c/pvmp3/README.md), integer C++.
+    addPvmp3(b, players_mod);
     // rom/ — reference system software (GEM). Linked into rom.wasm (rom_chip
     // below), NOT into carts: a cart gets rom_sdk, the flat ABI header.
     const rom_mod = b.createModule(.{
@@ -600,6 +603,7 @@ pub fn build(b: *std.Build) void {
         "demo-kt_test", // 114 — KT TEST: one text plane, keys 1-4 ask for the klystrack example songs by name, 5 stops; plays once the BARD .kt player lands
         "demo-ziggy", // 115 — ZIGGY: the cart CPU's showcase: rotozoom (64/128/256 textures) and a voxel landscape drawn by the CPU, ZM-X tex2d/mulsh on or off (same pixels), Mc and cycles a pixel on screen
         "demo-falcon_ays", // 116 — RESERVOIR GODS / ARE YOU SITTING COMFORTABLY? (Falcon 030, 2004): the intro on the true-colour plane, its parts driven by the MOD's 8xx script (the original's data, ripped by tools/falcon_ays_art.py)
+        "demo-mp3_player", // 117 — MP3 PLAYER: C:\MUSIC's .MP3 files read through KOS GEMDOS and fed to the sound side's MP3 player (pvmp3 on BARD / the AudioWorklet), on the four Paula channels
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -624,7 +628,6 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "depackers", .module = depackers_mod },
                 .{ .name = "packed_assets", .module = packed_assets_mod },
                 .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
-                .{ .name = "kos_fat", .module = kos_fat_mod }, // KOS's FAT reader (the desktop shell, docs/KOS_FAT.md)
                 .{ .name = "kos_gemdos", .module = kos_gemdos_mod }, // KOS GEMDOS (docs/KOS_GEMDOS.md): no cart pays unless it imports it
             },
         });
@@ -708,6 +711,31 @@ pub fn build(b: *std.Build) void {
     demo_audio.global_base = audio_demo_base;
     if (keep_names) demo_audio.root_module.strip = false; // apps/kt_cost.mjs ranks the players by function
     installTo(b, demo_audio, sealed_step);
+}
+
+// pvmp3 (PacketVideo, Apache-2.0: libs/c/pvmp3/README.md) and its door zm_mp3.cpp, compiled into a
+// module for the MP3 player (libs/zig/players/mp3.zig). C++ in name only: no exceptions, no RTTI, no
+// libc++; freestanding/ gives it the three <string.h> functions compiler_rt defines.
+fn addPvmp3(b: *std.Build, mod: *std.Build.Module) void {
+    mod.addIncludePath(b.path("libs/c/pvmp3/freestanding"));
+    mod.addIncludePath(b.path("libs/c/pvmp3/upstream/include"));
+    mod.addIncludePath(b.path("libs/c/pvmp3/upstream/src"));
+    const config_h = b.pathJoin(&.{ b.build_root.path.?, "libs/c/pvmp3/config/zm_pvmp3.h" });
+    const flags = [_][]const u8{ "-ffreestanding", "-fno-builtin", "-fno-exceptions", "-fno-rtti", "-nostdinc++", "-w", "-include", config_h };
+    mod.addCSourceFile(.{ .file = b.path("libs/c/pvmp3/zm_mp3.cpp"), .flags = &flags });
+    const srcs = [_][]const u8{
+        "normalize",              "alias_reduction",        "crc",                    "decode_header",
+        "decode_huff_cw",         "getbits",                "dequantize_sample",      "framedecoder",
+        "get_main_data_size",     "get_side_info",          "get_scale_factors",      "mpeg2_get_scale_data",
+        "mpeg2_get_scale_factors", "mpeg2_stereo_proc",     "huffman_decoding",       "huffman_parsing",
+        "tables",                 "imdct_synth",            "mdct_6",                 "dct_6",
+        "poly_phase_synthesis",   "equalizer",              "seek_synch",             "stereo_proc",
+        "reorder",                "polyphase_filter_window", "mdct_18",               "dct_9",
+        "dct_16",
+    };
+    for (srcs) |s| {
+        mod.addCSourceFile(.{ .file = b.path(b.fmt("libs/c/pvmp3/upstream/src/pvmp3_{s}.cpp", .{s})), .flags = &flags });
+    }
 }
 
 // Musashi (kstenerud, MIT — see libs/c/musashi/README.md) compiled into a module

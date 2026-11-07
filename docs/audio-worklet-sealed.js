@@ -200,6 +200,19 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                     ring[this.ringWrite] = src[i];
                     this.ringWrite = (this.ringWrite + 1) % RING;
                 }
+            } else if (msg.type === "mp3Ctl") {
+                // zg.mp3Ctl (libs/zig/players/mp3.zig): start / stop / pause / end
+                if (d.audioMp3Ctl) d.audioMp3Ctl(msg.op >>> 0, msg.arg >>> 0);
+            } else if (msg.type === "mp3Feed") {
+                // zg.mp3Feed: the bytes into the player's staging, then appended to its ring
+                if (d.audioMp3Feed) {
+                    const src = new Uint8Array(msg.bytes), max = d.audioMp3FeedMax();
+                    for (let at = 0; at < src.length; at += max) {
+                        const part = src.subarray(at, Math.min(src.length, at + max));
+                        new Uint8Array(mem.buffer, d.audioMp3FeedPtr(), part.length).set(part);
+                        d.audioMp3Feed(part.length);
+                    }
+                }
             } else if (msg.type === "modStop") {
                 d.audioModStop();
             } else if (msg.type === "ymStop") {
@@ -258,6 +271,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 regs: Array.from(this.ymRegs.subarray(0, 14)),
                 songMs: this.demo.audioSndhPositionMs ? this.demo.audioSndhPositionMs() : 0,
                 scopes: this.scopes.map((s) => Array.from(s)),
+                mp3: this.demo.audioMp3Status ? [0, 1, 2].map((w) => this.demo.audioMp3Status(w) >>> 0) : null,
             });
         }
         return true;

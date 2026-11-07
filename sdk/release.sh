@@ -72,6 +72,9 @@ if [ -n "$CARD" ]; then
     ZEST_LICENSE="$ROOT/fpga/boards/microphase_z7_7010/vendor/zest/LICENSE"  # fpga/tools/fetch_board.sh
     [ -f "$ZEST_LICENSE" ] || { echo "release: no $ZEST_LICENSE (fetch_board.sh): BOOT.BIN is zeST's, GPL-3"; exit 1; }
     mkdir -p "$DEST/licenses" && cp "$ZEST_LICENSE" "$DEST/licenses/zeST-LICENSE"
+    # pvmp3 (Apache-2.0) is linked into system.rv32's BARD image: its notice ships with the card (THIRD_PARTY.md)
+    cp "$ROOT/libs/c/pvmp3/upstream/NOTICE" "$DEST/licenses/pvmp3-NOTICE"
+    cp "$ROOT/libs/c/pvmp3/upstream/patent_disclaimer.txt" "$DEST/licenses/pvmp3-patent_disclaimer.txt"
 else
     CARD_NOTE="none: get the KESTREL $VERSION card from its release page"
 fi

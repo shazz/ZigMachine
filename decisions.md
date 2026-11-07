@@ -1565,3 +1565,27 @@ the helper, but one board run should confirm it.
 **Alternatives considered:** GEMDOS in glass at the file level for reads too (a round trip on every call, Fsnext included, and a file API written three times: the firmware's, the native host's, the page's); in rom.wasm behind new ROM exports (every host and ~100 harnesses instantiate rom.wasm with a fixed env: why KOS_FAT F2 kept the reader in the shell cart); `zg.gemdos` in `libs/zig` (the layering is machine < libs < ROM < apps and the reader is KOS's, so the module `kos_gemdos` sits beside `kos_fat`; moving fat.zig into libs is a separate refactor if wanted); a C reimplementation for the C ports (two FAT readers to keep equal).
 **Consequences:** a cart using GEMDOS carries ~10 KB of code and 16 KB of cache a drive; long file names show as their 8.3 aliases (name files on `/HD` in 8.3); A: does not mount over a `.zmd` (those keep their own reader). wasi-libc never folds `..` in its working folder, so the C layer offers `kestrel_getcwd` (a port maps `getcwd` to it) to fold it. Phase 2 bumps the system table (new imports) and needs glass to remount the card read-write for each write, with the desktop and every cart dropping their sector caches when glass bumps C:'s generation.
 **Phase 2 (6 Nov, built as designed, with these choices):** one import, `env.kosFileOp(req)` (table 1.10, appended: 1.9 carts still run), a 12-word request in the cart's memory (rom/kos/kfs_abi.zig). Where C: is an image (the page, the native host) the host half is KFS, a FAT12/16/32 writer in Zig (rom/kos/kfs*.zig) shipped as `docs/kos-cfs.wasm` and wasm2c'd into the native host, so the image writer exists once; on the board glass uses Linux's own vfat, remounted read-write per request, and never writes sectors itself (the kernel caches the FAT it mounted). The path gate (rom/kos/kfs_path.zig: plain 8.3 names under C:\, nothing else) is shared by both and runs on the host's own copy of the request. A save is written to `~KOS<slot>.TMP` and renamed at the last write; Fwrite buffers 32 KB so a picture is one request. The generation reaches the cart in each write's answer (wasm cannot read a window word), and the library drops its caches after each of its own requests instead of asking the generation on every call (a round trip each); the desktop re-reads C: at every start. Alternatives: glass writing raw sectors with KFS under the read-only mount (one writer for all hosts, but the kernel's cached FAT goes stale and any later rw mount would clobber it); a FAT writer in JS and in C (three writers); no temp name (a crash mid-save loses the old file).
+
+## 2026-11-06 — MP3: pvmp3 in demo-audio, a fed byte stream, and a 15-bit output on the Paula channels
+
+**Status:** accepted
+**Context:** Matt wants a jukebox for MP3 files on C:. BARD (rv32 Zmmul, no divider, no FPU) has to decode
+them (fpga/review/MP3_BARD_STUDY.md: Helix and pvmp3 both ~35 % of BARD at 44.1 kHz stereo). Two files on the
+SD card hold minutes of music, far past song RAM, and CHORUS's PCM channels are 8-bit.
+**Decision:** pvmp3 (Apache-2.0, libs/c/pvmp3, vendored unmodified at an AOSP commit) is compiled INTO
+demo-audio.wasm like Musashi, so the page's AudioWorklet, the native host and BARD (wasm2c) run the same integer
+code and agree bit for bit. The cart streams: system table 1.11 appends `hostMp3Ctl` / `hostMp3Feed` /
+`hostMp3Status`; the cart reads the file (KOS GEMDOS) and feeds bytes into the player's 64 KiB ring, keeping
+fed - used under it; the status (state, rate, errors, underruns, bytes used, frames, BARD's load) comes back
+through the worklet's audioState on the page and BARD's S2C bank on the board. The output is two Paula channels
+a side, a high byte at VOL 256 and a low byte at VOL 2, which carries exactly `x >> 1` (15 bits, -6 dB):
+fpga/tests/hilo_probe.py proved 6000/6000 samples on the RTL and the engine, and 0/6000 for a full `x`. Matt:
+"go with b, will be good enough, keep c in the roadmap". 32 and 48 kHz files are converted on BARD (linear,
+exact rate, not bit-exact).
+**Alternatives considered:** Helix (RPSL: source-publication terms for a downloadable image); pvmp3 native on
+BARD with a separate wasm for the page (two builds to keep equal); the whole file in song RAM (1 MiB: a few
+minutes at most); a 16-bit CHORUS PCM mode (option c: RTL, a HW bump; a ROADMAP row for the next bitstream);
+kt.zig's 511/256 high-byte volume (louder, but not exact).
+**Consequences:** no Paula sound effect while an MP3 plays; the output is 6 dB under full scale; the cart owns the
+flow control and must trust the status only a few frames after a start. Carts now import one KOS module
+(`kos_gemdos`, whose `.fat` is the FAT reader): a cart that had both failed to compile.

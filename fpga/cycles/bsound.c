@@ -118,7 +118,8 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
             w[1] = (uint32_t)f->pcm;
             w[2] = f->len;
             w[3] = f->rate;
-            plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED || f->op == FX_SONG || f->op == FX_PAULA_WRITE;
+            plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED || f->op == FX_SONG || f->op == FX_PAULA_WRITE ||
+                     f->op == FX_MP3_FEED;
         }
         SND_REG(SND_C2S + C_OP) = OP_EFFECTS;
         SND_REG(SND_C2S + C_ARG) = k;
@@ -138,6 +139,14 @@ void baudio_frame(struct w2c_env* e) {
 }
 
 void baudio_pump(uint32_t min) { (void)min; } /* the sound CPU paces itself */
+
+/* zg.mp3Status: BARD's published words (cycles/aud_state.h AS_MP3_W), read past the D-cache; 0 (no
+ * player) until BARD publishes the block. */
+uint32_t audio_mp3_status(uint32_t which) {
+    const volatile uint32_t* s2c = &SND_REG(SND_S2C);
+    if (!baudio.on || which >= AS_MP3_WORDS || s2c[S_AS + AS_MAGIC_W] != AS_MAGIC) return 0;
+    return s2c[S_AS + AS_MP3_W + which];
+}
 
 void baudio_report(void) {
     if (!baudio.on) return;

@@ -30,6 +30,7 @@ export fn audioLoadMod(len: u32) bool {
     m.hip_exports.hip.abandon(); // and an Amiga module's 68000 image
     m.xm.stop(); // the MOD's image is in the song RAM an XM would be playing from
     m.kt_exports.kt.stop();
+    m.mp3_exports.mp3.stop();
     m.mod.load(m.songSlice(len)) catch |e| {
         mod_rejected +%= 1;
         mod_error = players.mod_format.code(e);
@@ -51,6 +52,7 @@ export fn audioModPlay() void {
     m.sap_exports.sap.stop();
     m.xm.stop();
     m.kt_exports.kt.stop();
+    m.mp3_exports.mp3.stop();
     audio.machinePaulaClearScopes();
     m.mod.start();
     m.current_mode = 1;
@@ -66,6 +68,7 @@ export fn audioModPlayBpm(bpm: u32) void {
     audio.machinePaulaClearScopes();
     m.xm.stop();
     m.kt_exports.kt.stop();
+    m.mp3_exports.mp3.stop();
     m.mod.startAtBpm(@intCast(bpm));
     m.current_mode = 1;
 }

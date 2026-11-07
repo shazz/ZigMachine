@@ -14,6 +14,8 @@ pub const Dos = gemdos.Dos;
 pub const Dta = gemdos.Dta;
 pub const err = gemdos.err;
 pub const search = gemdos.search;
+/// KOS's FAT reader (docs/KOS_FAT.md), for a cart that mounts a volume itself (the desktop shell, gem_fat.zig).
+pub const fat = @import("fat.zig");
 
 extern "env" fn diskReadBlock(block: u32, dst_off: u32) i32;
 extern "env" fn kosDriveRead(unit: u32, sector: u32, count: u32, dst: u32) u32;

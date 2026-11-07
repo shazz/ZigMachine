@@ -225,6 +225,11 @@
   "type": "atari st"
  },
  {
+  "tag": "mp3_player",
+  "title": "MP3 PLAYER",
+  "type": "system"
+ },
+ {
   "tag": "mpp_truecolor",
   "title": "MPP TRUECOLOR",
   "type": "zigmachine"

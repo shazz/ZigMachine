@@ -65,6 +65,9 @@ enum { FX_STREAM_START = 0x81, FX_STREAM_FEED = 0x82, FX_STREAM_STOP = 0x83 };
  * claim's lead in `rate` (samples); an upload's bytes `pcm`, `len`, its chip RAM offset in `rate`;
  * a write batch's 16-byte entries `pcm`, their count `len` (apps/zig/demo_audio_paula.zig). */
 enum { FX_PAULA_CLAIM = 0x84, FX_PAULA_UPLOAD = 0x85, FX_PAULA_WRITE = 0x86, FX_PAULA_RELEASE = 0x87 };
+/* The MP3 stream (env.hostMp3Ctl / hostMp3Feed, table 1.11, host/audio_mp3.c): a control's op in `a`
+ * (libs/zig/players/mp3.zig Op), its arg in `rate`; a feed's bytes `pcm`, `len`. */
+enum { FX_MP3_CTL = 0x88, FX_MP3_FEED = 0x89 };
 typedef struct {
     uint8_t op, a, b; /* sfx_queue.zig: op; a (loop / loop only / register / mode); b (the YM value) */
     uintptr_t pcm;    /* play: the bytes */
@@ -98,6 +101,13 @@ void audio_paula_write(struct w2c_env* e, uint32_t ptr, uint32_t n);
 void audio_paula_release(struct w2c_env* e);
 int audio_paula_effect(const audio_fx* fx);
 int audio_paula_holds(void);
+/* The cart's MP3 imports (env.hostMp3Ctl / Feed / Status, host/hstream.h): host/audio_bridge.c carries
+ * the first two as FX_MP3_* effects, which audio_mp3_effect applies where the players are (0: not
+ * one); audio_mp3_status answers zg.mp3Status (host/audio_mp3.c, or BARD's words: cycles/bsound.c). */
+void audio_mp3_ctl(struct w2c_env* e, uint32_t op, uint32_t arg);
+void audio_mp3_feed(struct w2c_env* e, uint32_t ptr, uint32_t len);
+uint32_t audio_mp3_status(uint32_t which);
+int audio_mp3_effect(const audio_fx* fx);
 /* The players are up (host/audio.c: instantiated; cycles/bsound.c: BARD answered). A cart may
  * start its stream in its init, before them: audio_bridge.c holds that start until they are. */
 int audio_live(void);

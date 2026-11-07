@@ -120,6 +120,27 @@ void audio_stream_stop(struct w2c_env* e) {
     audio_effects(&f, 1);
 }
 
+/* env.hostMp3Ctl / hostMp3Feed (table 1.11, host/hstream.h): as the loader's, carried to the players
+ * as effects. A feed's bytes are copied while the effect runs (the board waits for BARD: bsound.c),
+ * so the cart may reuse its buffer. Before the players are up both are dropped, and zg.mp3Status
+ * answers 0 (no player): the cart waits, as the browser's does until its sound is on. */
+void audio_mp3_ctl(struct w2c_env* e, uint32_t op, uint32_t arg) {
+    (void)e;
+    if (!audio_live() || g_paula) return;
+    audio_fx f = {.op = FX_MP3_CTL, .a = (uint8_t)op, .rate = arg};
+    audio_effects(&f, 1);
+}
+
+void audio_mp3_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) {
+    if (!len || !audio_live() || g_paula) return;
+    if ((uint64_t)ptr + len > e->memory.size) {
+        printf("ZM FX mp3Feed out of the cart's memory\n");
+        return;
+    }
+    audio_fx f = {.op = FX_MP3_FEED, .pcm = (uintptr_t)(e->memory.data + ptr), .len = len};
+    audio_effects(&f, 1);
+}
+
 /* env.hostPaulaClaim / Upload / Write / Release (HW 1.14.0, host/hstream.h): as the loader's, carried
  * to the players as effects (on the board BARD reads the bytes in the cart's memory; a write batch is
  * waited for, cycles/bsound.c). The claim answers 0 while no player runs (a host with no audio side,

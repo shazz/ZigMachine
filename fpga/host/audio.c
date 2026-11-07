@@ -202,6 +202,8 @@ static void effect(const audio_fx* fx) {
     } else if (paula_refuses("an effect")) {
     } else if (audio_pcm_effect(fx)) {
         /* the stream ring: host/audio_pcm.c */
+    } else if (audio_mp3_effect(fx)) {
+        /* the MP3 stream: host/audio_mp3.c */
     } else if (fx->op == FX_PLAY) {
         if (!sfx_play(fx)) missed = "sfxPlay";
     } else if (fx->op == FX_STOP) {

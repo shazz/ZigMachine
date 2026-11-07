@@ -444,6 +444,37 @@ pub fn audioStreamStop() void {
     hostAudioStreamStop();
 }
 
+// --- MP3 stream (system table 1.11, libs/zig/players/mp3.zig, docs/ZIGOS_API.md) -------------
+// The cart reads the file (KOS GEMDOS, a disk) and feeds its bytes; the sound side (BARD on the
+// board, the AudioWorklet on the page) decodes them onto the four Paula channels. Flow control: the
+// cart knows what it fed, mp3Status(.used) what the player took; keep fed - used <= MP3_RING.
+extern fn hostMp3Ctl(op: u32, arg: u32) void;
+extern fn hostMp3Feed(ptr: u32, len: u32) void;
+extern fn hostMp3Status(which: u32) u32;
+
+pub const MP3_RING: u32 = 64 * 1024; // the player's input ring (mp3.zig IN_RING)
+pub const MP3_FEED_MAX: u32 = 32 * 1024; // one feed's most (mp3.zig STAGE)
+pub const Mp3Op = enum(u32) { start = 0, stop = 1, pause = 2, end = 3 };
+pub const Mp3Stat = enum(u32) { word = 0, used = 1, frames = 2, load = 3 };
+
+/// start (a fresh stream: send its bytes from the file's start, ID3 tag and all), stop, pause
+/// (arg 1 / 0 resumes), end (no more bytes: the last frames play out, then the state says ended).
+pub fn mp3Ctl(op: Mp3Op, arg: u32) void {
+    hostMp3Ctl(@intFromEnum(op), arg);
+}
+/// Append bytes (at most MP3_FEED_MAX a call; past a full ring they are dropped and counted).
+pub fn mp3Feed(bytes: []const u8) void {
+    hostMp3Feed(@intCast(@intFromPtr(bytes.ptr)), @intCast(@min(bytes.len, MP3_FEED_MAX)));
+}
+/// .word: bits 0-1 state (0 idle, 1 playing, 2 paused, 3 ended), bit 2 input ended, bits 4-7 rate
+/// (1 32 kHz, 2 44.1, 3 48, 4 other), bit 8 stereo, 16-23 decode errors, 24-31 underruns;
+/// .used: bytes the player took (total, wraps); .frames: frames decoded (1152 samples each);
+/// .load: the sound CPU's last render, per mille of it (the board's BARD; 0 where none is measured).
+/// 0 everywhere: no MP3 player on this host. The page and the board answer a frame or two late.
+pub fn mp3Status(which: Mp3Stat) u32 {
+    return hostMp3Status(@intFromEnum(which));
+}
+
 // --------------------------------------------------------------------------
 // Structs
 // --------------------------------------------------------------------------
