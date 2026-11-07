@@ -21,6 +21,7 @@ Writes apps/zig/assets/screens/c64_transmission64/ (layouts in scenes/c64_transm
 """
 import hashlib
 import os
+import pickle
 import re
 import struct
 import sys
@@ -28,7 +29,10 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools", "c64"))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
 from vicemon import Vice  # noqa: E402
+
+import c64_transmission64_parts as parts  # noqa: E402
 
 OUT = os.path.join(ROOT, "apps/zig/assets/screens/c64_transmission64")
 PRG = os.path.join(ROOT, "prototypes/transmission64_re/orig/transmission64-2021.prg")
@@ -55,26 +59,57 @@ def dump(v: Vice, tmp: str, tag: str) -> dict[str, bytes]:
     return out
 
 
-def run(prg: str, n_starts: int) -> tuple[dict[str, bytes], list[tuple[int, str, int, int]]]:
-    """RAM/IO at frame 1's IRQ, and (frame, pc, line, cycle) of each start breakpoint hit."""
+def stop_at(v: Vice, addr: str) -> None:
+    bp = re.search(r"BREAK: (\d+)", v.cmd(f"break {addr}")).group(1)
+    v.cmd("x")
+    v.cmd(f"delete {bp}")
+
+
+def run(prg: str) -> dict:
+    """One VICE run: RAM/IO at frame 1's IRQ; part 1's $2C80 starts; part 2's dumps and
+    timeline (parts.P2_PCS hits as (frame, pc, line, cycle, $0C1E, $0C22))."""
     with tempfile.TemporaryDirectory() as tmp:
         v = Vice(prg, 0x2800)
+        v.cmd("delete")  # the -initbreak checkpoint
         entry = dump(v, tmp, "entry")
-        bp = re.search(r"BREAK: (\d+)", v.cmd(f"break {FIRST_IRQ:04x}")).group(1)
-        v.cmd("x")
-        v.cmd(f"delete {bp}")
+        stop_at(v, f"{FIRST_IRQ:04x}")
         first = dump(v, tmp, "first")
         first["entry"] = entry["ram"]
         _, l0, c0, k0 = regs(v)
         base = k0 - ((l0 - 288) % 312) * 63 - c0  # clock of line 288 before frame 1
-        v.cmd("break 2c80")
+        bp = re.search(r"BREAK: (\d+)", v.cmd("break 2c80")).group(1)
         hits = []
-        for _ in range(n_starts):
+        for _ in range(PART1_FRAMES):
             v.cmd("x")
             pc, line, cyc, clk = regs(v)
             hits.append(((clk - base) // 19656 + 1, pc, line, cyc))
+        v.cmd(f"delete {bp}")
+        out = {"first": first, "p1_hits": hits}
+        out.update(run_part2(v, tmp, base))
         v.close()
-    return first, hits
+    return out
+
+
+def run_part2(v: Vice, tmp: str, base: int) -> dict:
+    stop_at(v, "082a")  # the main loop after decrunching part 2 (its code overlays part 1's)
+    stop_at(v, "4000")
+    for a in parts.P2_PCS:
+        v.cmd(f"break {a}")
+    hits, done = [], None
+    while True:
+        v.cmd("x")
+        pc, line, cyc, clk = regs(v)
+        mus = (0, 0)
+        if pc == "41fd":
+            m = v.mem(0x0C1E, 0x0C22)
+            mus = (m[0], m[4])
+        if pc == "4062":
+            done = dump(v, tmp, "p2")
+        hits.append(((clk - base) // 19656 + 1, pc, line, cyc, clk - base) + mus)
+        if pc == "0832":
+            break
+    v.cmd("delete")
+    return {"p2_hits": hits, "p2": done}  # clocks relative to line 288 before frame 1
 
 
 def rings(m: bytes) -> list[list[int]]:
@@ -131,16 +166,25 @@ def wipe(m: bytes) -> bytes:
 
 
 def main() -> None:
-    prg = sys.argv[1] if len(sys.argv) > 1 else PRG
-    sid = sys.argv[2] if len(sys.argv) > 2 else SID
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    prg = args[0] if args else PRG
+    sid = args[1] if len(args) > 1 else SID
     assert hashlib.md5(open(prg, "rb").read()).hexdigest() == PRG_MD5, "not CSDb 200255's PRG"
     song = open(sid, "rb").read()
     assert hashlib.md5(song).hexdigest() == SID_MD5
-    first, hits = run(prg, PART1_FRAMES)
+    # the VICE run takes minutes: kept (our own file) so a layout change needs no new run
+    cache = os.path.join(ROOT, "prototypes/transmission64_re/scratch/rip_run.pickle")
+    if "--fresh" not in sys.argv and os.path.exists(cache):
+        r = pickle.load(open(cache, "rb"))  # noqa: S301 -- written by this script, below
+    else:
+        r = run(prg)
+        pickle.dump(r, open(cache, "wb"))
+    first = r["first"]
     body = song[0x7C + 2:]
     assert first["entry"][0x0C00:0x0C00 + len(body)] == body, "the tune is HVSC's, byte for byte"
     os.makedirs(OUT, exist_ok=True)
-    for name, data in (("part1.bin", part1(first, hits)), ("wipe.bin", wipe(first["ram"])),
+    for name, data in (("part1.bin", part1(first, r["p1_hits"])), ("wipe.bin", wipe(first["ram"])),
+                       ("part2.bin", parts.part2(r["p2"], r["p2_hits"])),
                        ("transmission_64.sid", song)):
         open(os.path.join(OUT, name), "wb").write(data)
         print(name, len(data))

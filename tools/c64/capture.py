@@ -45,6 +45,7 @@ def store_value(nxt: str) -> str:
 class Capture:
     def __init__(self, prg: str, out: str) -> None:
         self.v = Vice(prg, ENTRY)
+        self.v.cmd("delete")  # -initbreak leaves its checkpoint: an IRQ entry would stop every frame
         self.out = out
         self.frames = 0
         self.end_bp = self._bp("break 0000 ffff if rl == $120")

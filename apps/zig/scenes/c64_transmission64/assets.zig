@@ -5,4 +5,5 @@ const DIR = "../../assets/screens/c64_transmission64/";
 pub const all = data.Data{
     .part1 = .{ .b = @embedFile(DIR ++ "part1.bin") },
     .wipe = .{ .b = @embedFile(DIR ++ "wipe.bin") },
+    .part2 = .{ .b = @embedFile(DIR ++ "part2.bin") },
 };
