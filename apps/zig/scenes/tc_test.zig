@@ -13,6 +13,8 @@
 //   8  FADE      the hues faded to black, to white and flashed by the fade registers alone
 //                (HW 1.16.0, tc_test/fade.zig): no pixel written a frame
 //   N / Space / Right   the next local picture,  P / Backspace / Left   the previous one
+//   + / -               fade what is shown toward white / black by the fade registers (0 resets);
+//                       kept across pictures and views, FADE (8) runs its own cycle
 //   Escape              back to the menu
 //
 // The still views are painted once at init into cart RAM (tc_test/paint.zig) and copied into
@@ -57,6 +59,7 @@ pub const Demo = struct {
     picture: ?usize = null, // a local picture shown instead of view
     fc: u32 = 0,
     wants_quit: bool = false,
+    level: i8 = 0, // + / -: the manual fade, -31 (black) .. +31 (white)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         for (&zigos.lfbs) |*p| p.is_enabled = false;
@@ -81,6 +84,9 @@ pub const Demo = struct {
             'n', 'N', ' ' => self.step(1),
             'p', 'P', 8 => self.step(art.count -| 1),
             '8' => self.show(FADE), // the hosts map only digits 1-7 to setShadeMode
+            '+', '=' => self.nudge(fade.STEP),
+            '-', '_' => self.nudge(-fade.STEP),
+            '0' => self.nudge(-self.level),
             else => {},
         }
     }
@@ -113,7 +119,7 @@ pub const Demo = struct {
         if (art.count == 0) return;
         const i = if (self.picture) |p| (p + by) % art.count else 0;
         self.picture = i;
-        fade.apply(&self.os.lfbs[0], .{});
+        fade.apply(&self.os.lfbs[0], fade.manual(self.level));
         art.show(self.fb, i);
         self.still();
     }
@@ -123,13 +129,19 @@ pub const Demo = struct {
         self.picture = null;
         self.shown_at = self.fc;
         const plane = &self.os.lfbs[0];
-        fade.apply(plane, .{}); // every other view unfaded; FADE starts on its next render
+        fade.apply(plane, fade.manual(self.level)); // the manual fade; FADE starts its cycle on its next render
         // FADE shows the plane's buffer with no list at all (FB_BASE): only the fade registers move
         // it, so the board's dirty-line planner sees lines that never change but for the fade.
         if (v == FADE) plane.clearCopperList() else if (self.list) |l| _ = plane.copperList(l.len);
         if (v == PLASMA) return;
         if (stills[v]) |s| copy(self.fb, s) else _ = paintInto(v, self.fb, self.os.system_font);
         self.still();
+    }
+
+    // + / -: the fade registers only, no pixel written; FADE's own cycle wins while it is shown.
+    fn nudge(self: *Demo, by: i8) void {
+        self.level = @max(-31, @min(31, self.level +| by));
+        if (self.picture != null or self.view != FADE) fade.apply(&self.os.lfbs[0], fade.manual(self.level));
     }
 
     // A list showing the plane's own buffer straight: one LBASE on line 0, the counter runs on.
