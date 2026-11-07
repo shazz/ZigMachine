@@ -1,12 +1,16 @@
 """capture.py <prg> <outdir> <frame> [<frame> ...]
 
 The clock is the raster: frame N = the Nth time the beam reaches line 288 (the first line
-after the 384x272 capture window, rows = lines 16..287) after the intro's start at $1E00.
+after the 384x272 capture window, rows = lines 16..287) after the intro's start (C64_ENTRY,
+default $1E00: 1988).
 For each requested N:
-  <outdir>/f<N>.png      VICE screenshot at line 288 of frame N (the window is complete),
-  <outdir>/f<N>.ram      64 KB RAM at line 288 of frame N-1 (window start),
+  <outdir>/f<N>.png      VICE screenshot of frame N, taken at line 300 (at 288 VICE's canvas
+                         still shows the previous frame's lines 248-250),
+  <outdir>/f<N>.ram      64 KB RAM at line 288 of frame N-1 (window start; line 300 when N-1
+                         was captured too: nothing the VIC shows changes in between),
   <outdir>/f<N>.vic      $D000-$D02E at the window start,
   <outdir>/f<N>.cia      $DD00 (VIC bank) at the window start,
+  <outdir>/f<N>.col      colour RAM ($D800-$DBFF) at the window start,
   <outdir>/f<N>.trace    every VIC + sprite-pointer store inside the window:
                          "line cycle addr value".
 Frames must be ascending.
@@ -18,7 +22,10 @@ import sys
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from vicemon import Vice  # noqa: E402
 
-TRACE = ("d000 d02e", "07f8 07ff", "f3f8 f3ff")
+# C64_ENTRY (hex, default 1E00: 1988) is the first break; C64_TRACE adds store ranges ("a b,a b").
+TRACE = ("d000 d02e", "07f8 07ff", "f3f8 f3ff") + tuple(
+    r for r in os.environ.get("C64_TRACE", "").split(",") if r)
+ENTRY = int(os.environ.get("C64_ENTRY", "1E00"), 16)
 STOP = re.compile(r"#(\d+) \(Stop on\s+exec ([0-9a-f]{4})\)\s+(\d+)/")
 TRC = re.compile(r"#\d+ \(Trace\s+store ([0-9a-f]{4})\)\s+(\d+)/\$[0-9a-f]+,\s+(\d+)/")
 REG = re.compile(r"A:([0-9A-F]{2}) X:([0-9A-F]{2}) Y:([0-9A-F]{2})")
@@ -37,7 +44,7 @@ def store_value(nxt: str) -> str:
 
 class Capture:
     def __init__(self, prg: str, out: str) -> None:
-        self.v = Vice(prg, 0x1E00)
+        self.v = Vice(prg, ENTRY)
         self.out = out
         self.frames = 0
         self.end_bp = self._bp("break 0000 ffff if rl == $120")
@@ -70,6 +77,7 @@ class Capture:
         self.v.cmd("bank io")
         self.v.cmd(f'bsave "{path}.vic" 0 d000 d02e')
         self.v.cmd(f'bsave "{path}.cia" 0 dd00 dd00')
+        self.v.cmd(f'bsave "{path}.col" 0 d800 dbff')
         self.v.cmd("bank cpu")
 
     def frame(self, n: int) -> None:
@@ -82,6 +90,13 @@ class Capture:
         out = self.to_frame(n)
         for i in ids:
             self.v.cmd(f"delete {i}")
+        # VICE's canvas still holds the last frame's lines 248-250 at line 288 (seen on
+        # Transmission64's part 1): shoot at line 300, where every visible line is this frame's
+        self.v.cmd(f"disable {self.end_bp}")
+        late = self._bp("break 0000 ffff if rl == $12c")
+        self.v.cmd("x")
+        self.v.cmd(f"delete {late}")
+        self.v.cmd(f"enable {self.end_bp}")
         self.v.cmd(f'screenshot "{base}.png" 2')
         lines = out.splitlines()
         with open(base + ".trace", "w") as t:
