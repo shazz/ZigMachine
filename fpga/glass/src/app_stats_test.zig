@@ -174,6 +174,10 @@ test "the BARD line's text" {
     try std.testing.expectEqualStrings("BARD idle", overlay.bardText(&.{}, &buf)); // no cart
     var i = snd_info.Info{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_NONE };
     try std.testing.expectEqualStrings("BARD idle", overlay.bardText(&i, &buf)); // nothing asked
+    i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_MP3, .started = true, .cycles = 870_000, .samples = 735 };
+    try std.testing.expectEqualStrings("BARD MP3 52%", overlay.bardText(&i, &buf)); // the MP3 PLAYER cart
+    i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_NONE, .cycles = 1_333_334, .samples = 735 };
+    try std.testing.expectEqualStrings("BARD idle (80%)", overlay.bardText(&i, &buf)); // no player id, but a load: bracketed
     i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_SNDH, .started = true, .cycles = 5_133_334, .samples = 735, .peak_cycles = 5_216_667, .peak_samples = 735 };
     try std.testing.expectEqualStrings("BARD SNDH 68k 308%", overlay.bardText(&i, &buf)); // overloaded
     i = .{ .state = .ok, .route = mc.ROUTE_ZIGGY, .player = mc.PLAYER_MOD, .started = true, .cycles = 500_000, .samples = 2205 };

@@ -87,6 +87,17 @@ static inline void sndinfo_paula(uint32_t route, int held) {
     sndinfo_close();
 }
 
+/* A cart's MP3 stream started (held) or stopped (env.hostMp3Ctl, host/audio_mp3.c): no file name
+ * reaches BARD, so the song is "mp3". Stopped: back to no player. */
+static inline void sndinfo_mp3(uint32_t route, int on) {
+    sndinfo_song(route, on ? "mp3" : "none", 0);
+    if (!on) return;
+    sndinfo_open();
+    sndinfo_head(route, PLAYER_MP3, 0);
+    ZM_SND_INFO[SI_FLAGS] = SIF_STARTED;
+    sndinfo_close();
+}
+
 /* A zg.requestSndhMode took effect: `mode` (1-3) is the mode now in force (map_cart.zig SIF_MODE_*). */
 static inline void sndinfo_mode(uint32_t mode) {
     uint32_t flags = ZM_SND_INFO[SI_FLAGS] & ~(SIF_MODE_MASK << SIF_MODE_SHIFT);

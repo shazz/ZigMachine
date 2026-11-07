@@ -113,13 +113,24 @@ pub fn okLoad(w: *std.Io.Writer, i: *const Info, peak: bool) void {
         mc.ROUTE_BARD => w.writeAll("BARD ") catch {},
         else => w.print("route#{d} ", .{i.route}) catch {},
     }
-    if (i.player == mc.PLAYER_NONE) return w.writeAll("idle") catch {};
+    if (i.player == mc.PLAYER_NONE) return idle(w, i, peak);
     player(w, i);
     if (!i.started) return w.writeAll(" waiting") catch {}; // not started: short enough for 30 columns
     const cur = loadPct(i.cycles, i.samples) orelse return;
     w.print(" {d}%", .{cur}) catch {};
     if (!peak) return;
     if (loadPct(i.peak_cycles, i.peak_samples)) |pk| w.print("/{d}%", .{pk}) catch {};
+}
+
+/// No player named: "idle", and a render load still published is bracketed ("idle (80%)"),
+/// never run on after the word.
+fn idle(w: *std.Io.Writer, i: *const Info, peak: bool) void {
+    w.writeAll("idle") catch {};
+    const cur = loadPct(i.cycles, i.samples) orelse return;
+    if (cur == 0) return;
+    w.print(" ({d}%", .{cur}) catch {};
+    if (peak) if (loadPct(i.peak_cycles, i.peak_samples)) |pk| w.print("/{d}%", .{pk}) catch {};
+    w.writeAll(")") catch {};
 }
 
 /// The player's name, as the debug page shows it (the control channel's ZMSTAT too).
@@ -134,6 +145,7 @@ pub fn player(w: *std.Io.Writer, i: *const Info) void {
         mc.PLAYER_HIP => "HIP 68k", // ZMSTAT: BARD:HIP_68k
         mc.PLAYER_PAULA => "Paula (cart)", // ZMSTAT: BARD:Paula_(cart)
         mc.PLAYER_KT => "KT", // ZMSTAT: BARD:KT
+        mc.PLAYER_MP3 => "MP3", // ZMSTAT: BARD:MP3
         mc.PLAYER_UNKNOWN => "unknown",
         else => return w.print("player#{d}", .{i.player}) catch {},
     };

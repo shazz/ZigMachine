@@ -42,6 +42,8 @@ int main(void) {
     sndinfo_paula(ROUTE_BARD, 1); dump();
     sndinfo_paula(ROUTE_BARD, 0); dump();
     sndinfo_song(ROUTE_BARD, "dpintro.kt", 0); dump();
+    sndinfo_mp3(ROUTE_BARD, 1); dump();
+    sndinfo_mp3(ROUTE_BARD, 0); dump();
     return 0;
 }
 """
@@ -132,3 +134,10 @@ def test_a_cart_holding_paula_is_named_and_its_release_is_idle(steps: list[list[
 def test_a_klystrack_song_is_the_kt_player(steps: list[list[int]]) -> None:
     kt = steps[15]  # kt_test's songs: OSD/ZMSTAT "BARD:KT", not "unknown"
     assert head(kt)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_KT) and name(kt) == "dpintro.kt"
+
+
+def test_a_cart_mp3_stream_is_named_and_its_stop_is_idle(steps: list[list[int]]) -> None:
+    on, off = steps[16], steps[17]  # the MP3 PLAYER cart: F11 "BARD MP3 52%", not "BARD idle"
+    assert head(on)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_MP3) and on[mc.SI_FLAGS] & mc.SIF_STARTED
+    assert name(on) == "mp3" and on[mc.SI_SEQ] % 2 == 0
+    assert head(off)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and off[mc.SI_FLAGS] == 0

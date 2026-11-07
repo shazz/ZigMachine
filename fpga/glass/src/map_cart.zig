@@ -205,6 +205,7 @@ pub const PLAYER_PCM: u32 = 6; // .raw
 pub const PLAYER_HIP: u32 = 7; // a Hippel Amiga module's own 68000 replay on Musashi + Paula
 pub const PLAYER_PAULA: u32 = 8; // no player: the cart drives the Paula channels itself (env.hostPaulaClaim, HW 1.14)
 pub const PLAYER_KT: u32 = 9; // a klystrack song: cyd on the Paula channels (libs/zig/players/kt.zig)
+pub const PLAYER_MP3: u32 = 10; // a cart's MP3 stream decoded on BARD (env.hostMp3Ctl/Feed, libs/zig/players/mp3.zig)
 pub const PLAYER_UNKNOWN: u32 = 0xFF; // an extension no player takes
 // SI_HEAD's native (PLAYER_SNDH only): demo-audio's audioSndhNative() (players/digi.zig Status).
 pub const NATIVE_MUSASHI: u32 = 0;

@@ -7,10 +7,15 @@
 
 #include "haudio.h"
 
+void audio_backend_mp3(int on); /* cycles/baudio.c: the debug page's music block; audio_soft.c: nothing */
+enum { MP3_OP_START = 0, MP3_OP_STOP = 1 }; /* libs/zig/players/mp3.zig Op */
+
 int audio_mp3_effect(const audio_fx* fx) {
     w2c_audio* p = &g_aud.player;
     if (fx->op == FX_MP3_CTL) {
         w2c_audio_audioMp3Ctl(p, fx->a, fx->rate);
+        if (fx->a == MP3_OP_START) audio_backend_mp3(1);
+        if (fx->a == MP3_OP_STOP) audio_backend_mp3(0);
         return 1;
     }
     if (fx->op != FX_MP3_FEED) return 0;
