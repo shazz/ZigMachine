@@ -56,7 +56,7 @@ pub fn draw(os: *ZigOS, s: Shown, list: *const List, title: []const u8) void {
 
 fn status(buf: []u8, s: Shown) []const u8 {
     if (s.playing == null) return "STOPPED";
-    if (s.word == 0) return "NO MP3 PLAYER ON THIS HOST";
+    if (s.word == 0) return "NO MP3 PLAYER HERE (SOUND OFF?)";
     const st = [_][]const u8{ "IDLE", "PLAYING", "PAUSED", "ENDED" };
     const rate = [_][]const u8{ "--", "32", "44.1", "48", "?" };
     var lb: [16]u8 = undefined;
