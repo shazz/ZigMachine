@@ -28,7 +28,13 @@ pub const Dirty = struct {
     /// The row's latch, compared with the last one.
     pub fn latch(self: *Dirty, row: usize, vm: *const [40]u8, cm: *const [40]u8) void {
         const old = &self.latched[row];
-        const same = std.mem.eql(u8, old[0..40], vm) and std.mem.eql(u8, old[40..80], cm);
+        var same = true; // byte by byte: std.mem.eql's wide loads would be misaligned here
+        for (0..40) |c| {
+            if (old[c] != vm[c] or old[40 + c] != cm[c]) {
+                same = false;
+                break;
+            }
+        }
         self.row_new[row] = !same;
         if (same) return;
         @memcpy(old[0..40], vm);
@@ -50,5 +56,3 @@ pub const Dirty = struct {
         return true;
     }
 };
-
-const std = @import("std");

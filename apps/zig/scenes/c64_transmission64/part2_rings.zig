@@ -2,7 +2,7 @@
 // Part 2's screen writers: the radio rings ($4700, from the IRQ) and the arc's colour copy
 // ($4251 / $42E3, from the main loop), each store timed on the 6510's clock.
 // --------------------------------------------------------------------------
-const std = @import("std");
+const le = @import("data.zig");
 const vic = @import("vic.zig");
 const Clock = @import("clock.zig").Clock;
 
@@ -52,7 +52,7 @@ fn fade(c: u8) u8 {
 /// ripped (opcode, lo, hi) list.
 pub fn paint(col: *const Colours, start: Clock, st: *vic.Stores, prog: []const u8) void {
     var c = start;
-    const n = std.mem.readInt(u16, prog[0..2], .little);
+    const n = le.le16(prog);
     var a: u8 = 0;
     var x: u8 = 0;
     for (0..n) |i| {

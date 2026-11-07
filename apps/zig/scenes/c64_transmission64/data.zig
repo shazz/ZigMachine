@@ -3,7 +3,6 @@
 // apps/zig/assets/screens/c64_transmission64/. No @embedFile here, so the native tools and
 // tests can hand in the same files read from disk; assets.zig embeds them for the cart.
 // --------------------------------------------------------------------------
-const std = @import("std");
 
 pub const PART1_FRAMES = 726;
 pub const PART1_LEN = 1000 + 1000 + 2048 + 242 + 48 + 2000 + 2 * PART1_FRAMES + 0x30;
@@ -41,13 +40,13 @@ pub const Part1 = struct {
     }
 
     fn count(self: Part1, k: usize) u16 {
-        return std.mem.readInt(u16, self.b[4290 + 2 * k ..][0..2], .little);
+        return le16(self.b[4290 + 2 * k ..]);
     }
 
     /// Frame n (1-based): beam time where $2C80 starts, cycles after line 248 (the IRQ). It
     /// follows the SID player's call, whose CPU time varies with the tune: measured in VICE.
     pub fn start(self: Part1, n: usize) u16 {
-        return std.mem.readInt(u16, self.b[6338 + 2 * (n - 1) ..][0..2], .little);
+        return le16(self.b[6338 + 2 * (n - 1) ..]);
     }
 
     /// $D000-$D02E at frame 1, and $DD00.
@@ -84,8 +83,8 @@ pub const Part2 = struct {
 
     fn sec(self: Part2, s: Sec) []const u8 {
         const i = @intFromEnum(s);
-        const at = std.mem.readInt(u32, self.b[4 * i ..][0..4], .little);
-        const end = if (i + 1 < 11) std.mem.readInt(u32, self.b[4 * (i + 1) ..][0..4], .little) else self.b.len;
+        const at = le32(self.b[4 * i ..]);
+        const end = if (i + 1 < 11) le32(self.b[4 * (i + 1) ..]) else self.b.len;
         return self.b[at..end];
     }
 
@@ -121,23 +120,23 @@ pub const Part2 = struct {
     /// $0C1E is $B2 or $A0, bit 1: $0C22 is $11). Null: no IRQ that frame.
     pub fn irq(self: Part2, n: u32) ?Irq {
         const s = self.sec(.irq);
-        const first = std.mem.readInt(u16, s[0..2], .little);
-        const count = std.mem.readInt(u16, s[2..4], .little);
+        const first = le16(s);
+        const count = le16(s[2..]);
         if (n < first or n >= first + count) return null;
         const r = s[4 + 7 * (n - first) ..][0..7];
-        const entry = std.mem.readInt(u16, r[0..2], .little);
+        const entry = le16(r);
         if (entry == 0xFFFF) return null;
-        return .{ .entry = entry, .prog = std.mem.readInt(u16, r[2..4], .little), .rti = std.mem.readInt(u16, r[4..6], .little), .flags = r[6] };
+        return .{ .entry = entry, .prog = le16(r[2..]), .rti = le16(r[4..]), .flags = r[6] };
     }
     pub fn firstIrq(self: Part2) u16 {
-        return std.mem.readInt(u16, self.sec(.irq)[0..2], .little);
+        return le16(self.sec(.irq));
     }
     /// Colour cycle k: the frame and time its copy loops start, and the variant ($421B / $42AD).
     pub fn cycle(self: Part2, k: usize) ?Cycle {
         const s = self.sec(.cycles);
-        if (k >= std.mem.readInt(u16, s[0..2], .little)) return null;
+        if (k >= le16(s)) return null;
         const r = s[2 + 5 * k ..][0..5];
-        return .{ .frame = std.mem.readInt(u16, r[0..2], .little), .start = std.mem.readInt(u16, r[2..4], .little), .variant = r[4] };
+        return .{ .frame = le16(r), .start = le16(r[2..]), .variant = r[4] };
     }
     pub fn vicRegs(self: Part2) [0x2F]u8 {
         return self.sec(.regs)[0..0x2F].*;
@@ -145,16 +144,26 @@ pub const Part2 = struct {
     /// (frame, time) of the logo's overlay done ($4062) and of the return to the main loop.
     pub fn event(self: Part2, k: usize) [2]u16 {
         const s = self.sec(.events);
-        return .{ std.mem.readInt(u16, s[4 * k ..][0..2], .little), std.mem.readInt(u16, s[4 * k + 2 ..][0..2], .little) };
+        return .{ le16(s[4 * k ..]), le16(s[4 * k + 2 ..]) };
     }
 };
 
 pub const Irq = struct { entry: u16, prog: u16, rti: u16, flags: u8 };
 pub const Cycle = struct { frame: u16, start: u16, variant: u8 };
 
+/// Little-endian reads a byte at a time: the ripped data sits at any offset, and a misaligned
+/// wide load traps on the board (~210 cycles).
+pub fn le16(b: []const u8) u16 {
+    return @as(u16, b[0]) | @as(u16, b[1]) << 8;
+}
+
+pub fn le32(b: []const u8) u32 {
+    return @as(u32, le16(b)) | @as(u32, le16(b[2..])) << 16;
+}
+
 /// Cells are u16 LE in a ring's byte slice.
 pub fn cell(cells: []const u8, i: usize) u16 {
-    return std.mem.readInt(u16, cells[2 * i ..][0..2], .little);
+    return le16(cells[2 * i ..]);
 }
 
 pub const Data = struct {

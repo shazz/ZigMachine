@@ -4,14 +4,14 @@
 // the dot routines' index and their stores (3 bytes each: page step << 3 | 4 if the value is
 // the A the routine was called with | 1 if ORed into memory; Y; the value).
 // --------------------------------------------------------------------------
-const std = @import("std");
+const le = @import("data.zig");
 
 pub const Part3 = struct {
     b: []const u8,
 
     fn sec(self: Part3, i: usize) []const u8 {
-        const at = std.mem.readInt(u32, self.b[4 * i ..][0..4], .little);
-        const end = if (i + 1 < 6) std.mem.readInt(u32, self.b[4 * (i + 1) ..][0..4], .little) else self.b.len;
+        const at = le.le32(self.b[4 * i ..]);
+        const end = if (i + 1 < 6) le.le32(self.b[4 * (i + 1) ..]) else self.b.len;
         return self.b[at..end];
     }
 
@@ -35,10 +35,10 @@ pub const Part3 = struct {
     /// erase ($80 into the page).
     pub fn routine(self: Part3, p: usize, k: usize, erase: bool) []const u8 {
         const idx = self.sec(3);
-        const id = std.mem.readInt(u16, idx[2 * (128 * p + k + @as(usize, if (erase) 64 else 0)) ..][0..2], .little);
-        const off = std.mem.readInt(u16, idx[2 * 768 + 2 * @as(usize, id) ..][0..2], .little);
+        const id = le.le16(idx[2 * (128 * p + k + @as(usize, if (erase) 64 else 0)) ..]);
+        const off = le.le16(idx[2 * 768 + 2 * @as(usize, id) ..]);
         const body = self.sec(4);
-        const n = std.mem.readInt(u16, body[off..][0..2], .little);
+        const n = le.le16(body[off..]);
         return body[off + 2 ..][0 .. 3 * @as(usize, n)];
     }
     /// Shape change `j`: how far the main loop had generated the depth code when the IRQ ran
