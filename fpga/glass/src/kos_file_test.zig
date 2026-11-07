@@ -7,6 +7,7 @@ const linux = std.os.linux;
 const mc = @import("map_cart.zig");
 const kf = @import("kos_file.zig");
 const fs = @import("kos_fs.zig");
+const bus = @import("bus.zig");
 const t = std.testing;
 
 const Card = struct {
@@ -147,11 +148,11 @@ test "the block: served once from a copy, the paths and data inside the window, 
     @memcpy(std.mem.sliceAsBytes(win[0..4]), "X.DAThello world");
     var s = kf.Server{ .words = &win, .be = .{ .root = c.hd } };
     try t.expect(!s.poll()); // no block
-    try t.expectEqual(mc.KOS_FILE_READY, win[(win.len * 4 - mc.KOS_FILE_READY_FROM_TOP) / 4]); // but here
     // write FIRST|LAST, slot 0, attr 0, offset 0, len 11 at 5, path "X.DAT" at 0
     ask(&win, 1, .{ 1, 3, 0, 0, 0, 11, 5, 0, 5, 0, 0 });
     try t.expect(s.poll());
     try t.expectEqual([2]u32{ 0, 1 }, answer(&win));
+    try t.expectEqual(@as(u32, 1), win[(win.len * 4 - mc.KOS_FILE_FROM_TOP) / 4 + mc.KF_TAKEN]); // taken, then done
     try t.expect(!s.poll()); // answered: never served twice
     var buf: [64]u8 = undefined;
     try t.expectEqualStrings("hello world", try get(c.hd, "X.DAT", &buf));
@@ -171,4 +172,21 @@ test "the block: served once from a copy, the paths and data inside the window, 
     try t.expect(!s.poll());
     try t.expectError(error.FileNotFound, get(c.hd, "Y.DAT", &buf));
     try t.expectEqualStrings("hello world", try get(c.hd, "X.DAT", &buf));
+}
+
+test "a cart load with the C: thread polling: the window reads back as placed (no DdrMismatch)" {
+    // glass's loader places a cart, then reads the WHOLE window back (loader.zig: DdrMismatch); the
+    // C: thread polls all the while. A word it wrote on every poll (the first ready-word fix) failed
+    // every load on the board. An idle block must cost the window nothing.
+    var c = try Card.init();
+    defer c.deinit();
+    var win = [_]u32{0xDEAD_BEEF} ** 4096;
+    const ddr = bus.Ddr{ .words = &win };
+    var s = kf.Server{ .words = &win, .be = .{ .root = c.hd } };
+    const parts = [_]bus.Part{ .{ .at = 0, .bytes = "a cart image" }, .{ .at = 0x2000, .bytes = "a disk" } };
+    for (0..3) |_| {
+        ddr.placeParts(&parts);
+        for (0..4) |_| try t.expect(!s.poll());
+        try t.expectEqual(@as(?usize, null), ddr.verifyParts(&parts));
+    }
 }

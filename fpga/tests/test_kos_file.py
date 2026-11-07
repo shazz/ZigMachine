@@ -41,9 +41,9 @@ def test_the_firmwares_block_is_the_one_glass_reads(kosfreq: Path, fields: list[
     check = gc.KOS_FILE_MAGIC ^ seq
     for f in fields:
         check ^= f
-    want = [gc.KOS_FILE_MAGIC, seq, *fields, ~check & M, 0, 0, 0xA5A5_A5A5]
+    want = [gc.KOS_FILE_MAGIC, seq, *fields, ~check & M, 0, 0, 0, 0xA5A5_A5A5]
     assert words == want
-    assert (gc.KF_OP, gc.KF_PATH2_LEN, gc.KF_CHECK, gc.KF_DONE, gc.KF_ACK) == (2, 12, 13, 14, 15)
+    assert (gc.KF_OP, gc.KF_PATH2_LEN, gc.KF_CHECK, gc.KF_DONE, gc.KF_ACK, gc.KF_TAKEN) == (2, 12, 13, 14, 15, 16)
 
 
 def test_the_firmware_takes_only_the_answer_to_its_own_request(kosfreq: Path) -> None:
@@ -52,17 +52,17 @@ def test_the_firmware_takes_only_the_answer_to_its_own_request(kosfreq: Path) ->
     assert run(kosfreq, "answer", 5, 4, 0) == "80000001"  # still the last request's answer: wait
 
 
-def test_the_firmware_writes_only_to_a_glass_that_serves_the_block(kosfreq: Path) -> None:
-    assert run(kosfreq, "ready", gc.KOS_FILE_READY) == "1"
-    assert run(kosfreq, "ready", 0) == "0"  # no glass, an older glass, or a load just zeroed the window
+def test_the_firmware_knows_whether_glass_took_its_request(kosfreq: Path) -> None:
+    assert run(kosfreq, "taken", 7, 7) == "1"
+    assert run(kosfreq, "taken", 7, 6) == "0"  # the last request's: no glass has this one (yet)
+    assert run(kosfreq, "taken", 7, 0) == "0"  # nobody: the firmware stops waiting after KOS_FILE_TAKE_MS
 
 
 def test_the_block_sits_between_the_generation_word_and_the_sector_block() -> None:
     top = glass_map.DDR_CART_BYTES
     start, end = top - gc.KOS_FILE_FROM_TOP, top - gc.KOS_FILE_FROM_TOP + 4 * gc.KOS_FILE_WORDS
     assert top - gc.KOS_MEDIA_FROM_TOP + 4 <= top - gc.KOS_CGEN_FROM_TOP
-    assert top - gc.KOS_CGEN_FROM_TOP + 4 <= top - gc.KOS_FILE_READY_FROM_TOP
-    assert top - gc.KOS_FILE_READY_FROM_TOP + 4 <= start
+    assert top - gc.KOS_CGEN_FROM_TOP + 4 <= start
     assert end <= top - gc.KOS_DRIVE_FROM_TOP
     assert start % 32 == 0  # KF_DONE and KF_ACK on one D$ line, which the firmware drops each poll
     assert (start + 4 * gc.KF_DONE) // 32 == (start + 4 * gc.KF_ACK) // 32
