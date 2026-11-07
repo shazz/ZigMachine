@@ -49,7 +49,8 @@ pub fn draw(os: *ZigOS, s: Shown, list: *const List, title: []const u8) void {
         os.printText(fb, line, 8, 22 + @as(i16, @intCast(r)) * 10, col, BG);
     }
     os.printText(fb, if (title.len > 0) title[0..@min(title.len, 38)] else "", 8, 158, SEL, BG);
-    os.printText(fb, status(&buf, s), 8, 170, INK, BG);
+    var sb: [48]u8 = undefined; // padded to the line's width: a shorter status leaves no stale glyphs
+    os.printText(fb, fmt(&sb, "{s:<38}", .{status(&buf, s)}), 8, 170, INK, BG);
     os.printText(fb, "UP/DN RET PLAY  P PAUSE  N/B NEXT/PREV", 8, 182, DIM, BG);
     os.printText(fb, "ESC STOP, AGAIN TO QUIT   NO PAULA SFX", 8, 191, DIM, BG);
 }
@@ -60,7 +61,7 @@ fn status(buf: []u8, s: Shown) []const u8 {
     const st = [_][]const u8{ "IDLE", "PLAYING", "PAUSED", "ENDED" };
     const rate = [_][]const u8{ "--", "32", "44.1", "48", "?" };
     var lb: [16]u8 = undefined;
-    const ls = if (s.load == 0) "LOAD --" else std.fmt.bufPrint(&lb, "BARD {d}.{d}%", .{ s.load / 10, s.load % 10 }) catch "?";
+    const ls = if (s.load == 0) "BARD   --%" else std.fmt.bufPrint(&lb, "BARD {d:>3}.{d}%", .{ s.load / 10, s.load % 10 }) catch "?";
     return fmt(buf, "{s} {d:0>2}:{d:0>2} {s}K {s} {s}", .{
         st[s.word & 3],     s.secs / 60, s.secs % 60, rate[@min((s.word >> 4) & 15, 4)],
         if (s.word & 0x100 != 0) "ST" else "MONO", ls,

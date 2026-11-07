@@ -4,6 +4,7 @@
 #include "bbootsec.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "bboard.h"
 #include "bdisk.h"
@@ -13,6 +14,7 @@
 #include "csr_addr.h"
 #include "disk.h"
 #include "glass_cart.h"
+#include "glass_input.h"
 #include "glass_map.h"
 #include "vseq.h"
 #include "zm_memmap.h"
@@ -41,9 +43,18 @@ static int hbl_set(struct w2c_env* e, unsigned planes) {
     return any;
 }
 
-/* Keys typed over the sector go nowhere, as in the browser (the sector has no key export). */
-static void drop_keys(void) {
-    for (int n = 0; n < 64 && (CSR(KEY_VALID) & 1u); n++) CSR(KEY_POP) = 1u;
+/* Keys typed over the sector reach its key() export as in the browser (glass_dispatch's routing,
+ * the sector owning no keyboard); the rest of the routes (input, shading) have no export there. */
+static void sector_call(void* ctx, const char* name, int arg) {
+    if (!strcmp(name, "key")) bootsec_key(ctx, (uint32_t)arg);
+}
+
+static void sector_keys(bootsec_t* b) {
+    for (int n = 0; n < 64 && (CSR(KEY_VALID) & 1u); n++) {
+        uint32_t ev = CSR(KEY_DATA);
+        CSR(KEY_POP) = 1u;
+        glass_dispatch(ev, 0, sector_call, b);
+    }
 }
 
 /* bmain.c's frame() for the sector: the clear, frame(dt) and pollCartRequest, then every plane
@@ -52,7 +63,7 @@ static void drop_keys(void) {
  * set a handler or hit the cap. That frame still closes as every frame does (the CLEAR is
  * issued: the clear alone is shown, no plane of a sector that failed). */
 static int frame(struct w2c_env* e, bootsec_t* b, unsigned planes) {
-    drop_keys();
+    sector_keys(b);
     vseq_clear(e);
     int rc = bootsec_frame(b, 16.6f);
     unsigned on = 0;
@@ -79,7 +90,7 @@ uint32_t bbootsec_run(struct w2c_env* e, uint32_t beat) {
     printf("ZM BOOTSEC start %s %lu\n", bootsec_status(st), (unsigned long)b.w.steps);
     int rc = st || hbl_set(e, planes) ? -1 : 0;
     while (rc == 0) rc = frame(e, &b, planes), board_beat(++beat); /* a sector is no hang */
-    drop_keys();
+    sector_keys(b);
     printf("ZM BOOTSEC end %lu %s %lu\n", (unsigned long)b.frames, bootsec_status(b.st), (unsigned long)b.w.steps);
     return beat;
 }

@@ -159,3 +159,15 @@ def test_break_each_mutant_is_caught(ops: Path, name: str, file: str, old: str, 
     caught = native(mut, "calls", ops, stdin=calls) != node("calls", ops, stdin=calls)
     caught = caught or sector_lines(mut, SYSINFO, 130) != node("sector", SYSINFO, "130")
     assert caught, f"mutant {name} survived"
+
+
+SDL = ROOT / "docs/boot-sdl.wasm"
+
+
+@NEEDS
+@pytest.mark.parametrize(("code", "chain"), [(32, "2"), (0xE012, "2"), (65, "0")])
+def test_space_or_escape_on_the_sdl_sector_goes_on_to_gem_at_once(exe: Path, code: int, chain: str) -> None:
+    # Matt, 7 Nov: Space or Escape over the C ports' SDL screen skips its 5 s wait; another key does not.
+    lines = "pollCartRequest\nkey %d\npollCartRequest\n" % code
+    ours = native(exe, "calls", SDL, stdin=lines)
+    assert ours == ["ok 0", "ok 0", f"ok {chain}"]

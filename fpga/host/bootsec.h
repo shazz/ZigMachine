@@ -32,7 +32,7 @@
 
 typedef struct {
     wint w;
-    int f_boot, f_frame, f_plane, f_poll;
+    int f_boot, f_frame, f_plane, f_poll, f_key; /* f_poll, f_key: optional (-1) */
     uint32_t video_base; /* hwVideoBase()'s answer */
     void (*beep)(void);  /* the sector's `beep`: NULL = silent */
     uint32_t frames;     /* frames run */
@@ -50,6 +50,10 @@ wint_status bootsec_start(bootsec_t* b, const uint8_t* disk, uint8_t* mem, uint3
 /* One frame: frame(dt) then pollCartRequest(). 1 = the sector asked to chainload (render
  * this frame, then stop), 0 = go on, -1 = stop now (it trapped, or the frame cap). */
 int bootsec_frame(bootsec_t* b, float dt);
+
+/* key(code), the browser's demo.key, for a sector that exports it (sdl.zig: Space/Escape skip);
+ * a sector without the export ignores keys. A trap ends the phase as in bootsec_frame. */
+void bootsec_key(bootsec_t* b, uint32_t code);
 
 /* isPlaneEnabled(p); a trap reads as off and ends the phase after this frame. */
 int bootsec_plane_on(bootsec_t* b, uint32_t p);

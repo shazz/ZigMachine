@@ -17,7 +17,7 @@
 // pokes the sealed video ABI directly and must fit the 1 KB sector (mkdisk.py
 // takes at most 1015 B of wasm). Integer maths only. The host runs it through the
 // render loop and boots GEM (a data disk names no cart) when pollCartRequest()
-// returns 2.
+// returns 2: after HOLD_FRAMES, or at once on Space or Escape (key(), Matt 7 Nov).
 // --------------------------------------------------------------------------
 const hw = @import("hardware"); // sealed video ABI header (offsets only, no code)
 
@@ -113,6 +113,12 @@ export fn frame(dt: f32) void {
 
 export fn isPlaneEnabled(plane: i32) i32 {
     return @intFromBool(plane == 0);
+}
+
+// Space or Escape (demo_main.zig's 0xE012) skips the wait: the browser calls key() on the
+// sector as on any cart, the board's bbootsec.c routes the glass's keys to it.
+export fn key(cp: u32) void {
+    if (cp == ' ' or cp == 0xE012) t = HOLD_FRAMES;
 }
 
 export fn pollCartRequest() i32 {

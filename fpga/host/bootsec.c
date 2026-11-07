@@ -37,6 +37,7 @@ static wint_status exports(bootsec_t* b) {
     b->f_frame = wint_export_func(&b->w, "frame");
     b->f_plane = wint_export_func(&b->w, "isPlaneEnabled");
     b->f_poll = wint_export_func(&b->w, "pollCartRequest");
+    b->f_key = wint_export_func(&b->w, "key");
     if (b->f_boot < 0 || b->f_frame < 0 || b->f_plane < 0) {
         b->w.why = "no boot/frame/isPlaneEnabled export";
         return WINT_E_LINK;
@@ -65,6 +66,11 @@ int bootsec_frame(bootsec_t* b, float dt) {
     if (!b->st && b->f_poll >= 0) b->st = wint_call(&b->w, b->f_poll, NULL, 0, &r, BOOTSEC_FUEL_FRAME);
     if (b->st) return -1;
     return (uint32_t)r == BOOTSEC_CHAINLOAD && b->f_poll >= 0;
+}
+
+void bootsec_key(bootsec_t* b, uint32_t code) {
+    uint64_t r = 0, arg = code;
+    if (!b->st && b->f_key >= 0) b->st = wint_call(&b->w, b->f_key, &arg, 1, &r, BOOTSEC_FUEL_FRAME);
 }
 
 int bootsec_plane_on(bootsec_t* b, uint32_t p) {

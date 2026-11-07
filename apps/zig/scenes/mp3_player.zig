@@ -95,18 +95,26 @@ pub const Demo = struct {
         _ = dt;
         const word = if (self.playing != null) self.stream.state() else 0;
         const rate = RATES[@min((word >> 4) & 15, 4)];
+        const secs: u32 = if (rate == 0) 0 else @intCast(@as(u64, zg.mp3Status(.frames)) * 1152 / rate);
         const s = view.Shown{
             .sel = self.sel,
             .top = self.top,
             .playing = self.playing,
             .word = word & 0x1FF, // not the counters: an underrun is not a redraw
-            .secs = if (rate == 0) 0 else @intCast(@as(u64, zg.mp3Status(.frames)) * 1152 / rate),
-            .load = zg.mp3Status(.load) / 10 * 10, // to 1 %: a redraw a second at most
+            .secs = secs,
+            .load = self.loadOncePerSecond(secs), // x.y %, sampled when the clock ticks: a redraw a second at most
             .n = self.list.n,
         };
         if (self.shown) |old| if (std.meta.eql(old, s)) return;
         self.shown = s;
         view.draw(os, s, &self.list, self.title_buf[0..self.title_len]);
+    }
+
+    // BARD's load in tenths of a percent, re-read only when the play clock moves: Matt could not
+    // read a figure that changed every frame (7 Nov), and it keeps the redraws to one a second.
+    fn loadOncePerSecond(self: *const Demo, secs: u32) u32 {
+        if (self.shown) |old| if (old.secs == secs) return old.load;
+        return zg.mp3Status(.load);
     }
 
     fn move(self: *Demo, d: i32) void {
