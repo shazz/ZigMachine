@@ -147,6 +147,7 @@ test "the block: served once from a copy, the paths and data inside the window, 
     @memcpy(std.mem.sliceAsBytes(win[0..4]), "X.DAThello world");
     var s = kf.Server{ .words = &win, .be = .{ .root = c.hd } };
     try t.expect(!s.poll()); // no block
+    try t.expectEqual(mc.KOS_FILE_READY, win[(win.len * 4 - mc.KOS_FILE_READY_FROM_TOP) / 4]); // but here
     // write FIRST|LAST, slot 0, attr 0, offset 0, len 11 at 5, path "X.DAT" at 0
     ask(&win, 1, .{ 1, 3, 0, 0, 0, 11, 5, 0, 5, 0, 0 });
     try t.expect(s.poll());

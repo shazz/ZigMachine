@@ -15,12 +15,16 @@
 
 #define KOS_FILE_ADDR (CART_CPU_BASE + DDR_CART_BYTES - KOS_FILE_FROM_TOP)
 #define KOS_CGEN_ADDR (CART_CPU_BASE + DDR_CART_BYTES - KOS_CGEN_FROM_TOP)
+#define KOS_READY_ADDR (CART_CPU_BASE + DDR_CART_BYTES - KOS_FILE_READY_FROM_TOP)
 _Static_assert(KOS_FILE_FROM_TOP - KOS_FILE_WORDS * 4 >= KOS_DRIVE_FROM_TOP, "the block is over the sector block");
 _Static_assert(KOS_FILE_FROM_TOP <= KOS_CGEN_FROM_TOP - 4, "the block is over the generation word");
 _Static_assert(KOS_CGEN_FROM_TOP <= KOS_MEDIA_FROM_TOP - 4, "the generation word is over the media word");
+_Static_assert(KOS_FILE_READY_FROM_TOP <= KOS_CGEN_FROM_TOP - 4 && KOS_FILE_FROM_TOP <= KOS_FILE_READY_FROM_TOP - 4,
+               "the ready word is between the generation word and the block");
 
 #define ERANGE_TOS ((uint32_t)-64)
 #define EWRITF_TOS ((uint32_t)-10)
+#define EWRPRO_TOS ((uint32_t)-13)
 
 static uint32_t g_seq;
 
@@ -51,6 +55,8 @@ uint32_t board_kos_file_op(uint8_t* mem, uint64_t mem_size, uint32_t req) {
     uint32_t path = window_off(mem, mem_size, r[7], r[8]);
     uint32_t path2 = window_off(mem, mem_size, r[9], r[10]);
     if (data == 0xFFFFFFFFu || path == 0xFFFFFFFFu || path2 == 0xFFFFFFFFu) return ERANGE_TOS;
+    bdi_inval_line(KOS_READY_ADDR);
+    if (!bkosfreq_ready(*(volatile uint32_t*)(uintptr_t)KOS_READY_ADDR)) return EWRPRO_TOS; /* no glass serving this block */
     const uint32_t f[KF_FIELDS] = {r[0], r[1], r[2], r[3], r[4], r[5], data, path, r[8], path2, r[10]};
     volatile uint32_t* w = (volatile uint32_t*)(uintptr_t)KOS_FILE_ADDR;
     uint32_t seq = ++g_seq ? g_seq : ++g_seq; /* never 0: a zeroed KF_ACK answers nothing */

@@ -26,6 +26,9 @@ static inline void bkosfreq_write(volatile uint32_t* w, uint32_t seq, const uint
     w[KF_MAGIC] = KOS_FILE_MAGIC;
 }
 
+/* glass serves this block (glass/src/kos_file.zig writes KOS_FILE_READY at KOS_FILE_READY_FROM_TOP each poll). */
+static inline int bkosfreq_ready(uint32_t word) { return word == KOS_FILE_READY; }
+
 /* glass's answer to request `seq` (a TOS code, < 0 an error), or 1 << 31 | 1 while it has not answered. */
 #define BKOSF_WAIT 0x80000001u
 static inline uint32_t bkosfreq_answer(const volatile uint32_t* w, uint32_t seq) {

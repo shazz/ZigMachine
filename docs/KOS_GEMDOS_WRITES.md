@@ -84,6 +84,11 @@ never followed.
   and glass logs it), then `POSIX_FADV_DONTNEED` on the raw partition fd so the next sector reads see
   what Linux wrote, then the generation word. The firmware waits `KOS_FILE_TIMEOUT_MS` (10 s): a remount
   and a sync on an SD card take far more than a sector read's 0.5 ms, and the cart's frame waits.
+  glass writes a ready word (`KOS_FILE_READY` at `KOS_FILE_READY_FROM_TOP`) on every poll; the firmware
+  answers EWRPRO at once when it is absent (no glass, an older one, or one built for another block
+  place) instead of waiting the 10 s. The first board run lost a save that way: the staged glass was
+  built before the block moved from 0x3C8 to 0x3C0, so it polled 8 bytes off, the firmware timed out
+  (EWRITF) and GrafX2, which ignores `fclose`'s answer, said done.
 
 ## 5. Crashes
 
