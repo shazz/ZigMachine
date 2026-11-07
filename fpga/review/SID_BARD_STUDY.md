@@ -253,7 +253,7 @@ The lead chose (a), native C. Built as `docs/ROADMAP.md`'s row says:
 - **The player around the engine costs ~0.17 Mc** (10 points): the 2x upsample, the hi/lo bytes and the Paula
   triggers in wasm2c'd Zig, a sample at a time, and the audio core's queue. The lever if BARD needs room: the
   upsample is exactly 2x, so a pair-at-a-time path (one engine sample -> two output bytes) without `Linear`.
-- `snd.bin` is 1,994,680 bytes of its 2 MiB limit (cRSID: 155 KB of code; its 276 KB C64 is .bss).
+- `snd.bin` is 1,998,040 bytes of its 2 MiB limit (cRSID: 155 KB of code; its 276 KB C64 is .bss): 99 KB left.
 - machine-audio.wasm grows from 82 KB to 498 KB: cRSID's zero-filled C64 is written out as a data segment,
   because the memory is imported.
 
