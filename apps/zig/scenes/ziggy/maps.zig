@@ -14,19 +14,26 @@ pub const INK: u8 = 255;
 pub const SKY0: u8 = 200; // the voxel sky ramp: 200..247
 pub const TEX_BYTES: usize = 64 * 64 + 128 * 128 + 256 * 256;
 
-/// The texture of side 2^log inside `all` (64, then 128, then 256).
-pub fn texture(all: []u8, log: u4) []u8 {
+/// The texture of side 2^log inside `all` (64, then 128, then 256): the generated
+/// textures and the photo (photo.zig) share this layout.
+pub fn texture(all: []const u8, log: u4) []const u8 {
+    const lo, const hi = bounds(log);
+    return all[lo..hi];
+}
+
+fn bounds(log: u4) [2]usize {
     return switch (log) {
-        6 => all[0 .. 64 * 64],
-        7 => all[64 * 64 .. 64 * 64 + 128 * 128],
-        else => all[64 * 64 + 128 * 128 ..],
+        6 => .{ 0, 64 * 64 },
+        7 => .{ 64 * 64, 64 * 64 + 128 * 128 },
+        else => .{ 64 * 64 + 128 * 128, TEX_BYTES },
     };
 }
 
 /// One picture at three sizes: a XOR weave under concentric rings, in 0..247.
 pub fn buildTextures(all: []u8) void {
     for ([_]u4{ 6, 7, 8 }) |log| {
-        const t = texture(all, log);
+        const lo, const hi = bounds(log);
+        const t = all[lo..hi];
         const n: u32 = @as(u32, 1) << log;
         for (0..n) |y| for (0..n) |x| {
             // Coordinates on a 256 grid whatever the size: the same picture.
@@ -127,7 +134,7 @@ pub fn voxelPalette(fb: *zg.LogicalFB) void {
     hud(fb);
 }
 
-fn hud(fb: *zg.LogicalFB) void {
+pub fn hud(fb: *zg.LogicalFB) void {
     fb.setPaletteEntry(PAPER, .{ .r = 0, .g = 0, .b = 0, .a = 255 });
     fb.setPaletteEntry(INK, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
 }

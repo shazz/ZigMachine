@@ -3,6 +3,9 @@
 // 100 MHz, drawn by the CPU alone, every pixel of the picture a frame:
 //   1   ROTO    a rotozoom; T cycles the texture 64 / 128 / 256 (4 / 16 /
 //               64 KB: what ZIGGY's 16 KB D-cache holds, and what it doesn't)
+//   P           ROTO: the texture, generated (GEN) or a real photo (PHOTO, a scarlet
+//               macaw, public domain: assets/screens/parrot/) at the same three sizes and
+//               the same cost; its own 192-colour palette while it is shown
 //   2   VOXEL   a Comanche-style landscape over a 256x256 height map
 //   Z           ZM-X on / off: the custom ops (tex2d, mulsh16: one instruction
 //               each on the board) or the plain rv32 code they replace. The
@@ -17,12 +20,14 @@
 // cycles a pixel (fpga/review/KESTREL_NEXT_ISA.md's roto128 and voxel256
 // loops, now on the hardware they asked for). The CHISEL V2 cart does the
 // rotozoom with the blitter instead; this one is the CPU's.
-// Everything is generated at init (ziggy/maps.zig); integers per frame.
+// Everything is generated at init (ziggy/maps.zig), but the photo, converted at
+// build time (tools/parrot_tex.py); integers per frame.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const maps = @import("ziggy/maps.zig");
 const roto = @import("ziggy/roto.zig");
 const voxel = @import("ziggy/voxel.zig");
+const parrot = @import("../assets/screens/parrot/parrot.zig");
 const Hud = @import("ziggy/hud.zig").Hud;
 
 const K_ESC: u32 = 0xE012;
@@ -40,6 +45,7 @@ pub const Demo = struct {
     mode: Mode = .roto,
     size: u8 = 1, // index in LOGS: 128 by default
     zmx_on: bool = true,
+    photo: bool = false, // ROTO's texture: the photo instead of the generated one
     t: u32 = 0,
     cam_h: i32 = 0,
     frozen: bool = false,
@@ -71,7 +77,7 @@ pub const Demo = struct {
         self.mode = m;
         const fb = &self.os.lfbs[0];
         switch (m) {
-            .roto => maps.rotoPalette(fb),
+            .roto => if (self.photo) photoPalette(fb) else maps.rotoPalette(fb),
             .voxel => maps.voxelPalette(fb),
         }
         self.hud.reset();
@@ -98,6 +104,7 @@ pub const Demo = struct {
                 self.zmx_on = !self.zmx_on;
                 self.hud.reset();
             },
+            'p', 'P' => self.setPhoto(!self.photo),
             'f', 'F' => self.frozen = !self.frozen,
             '+', '=' => self.spin = @min(self.spin + 1, 8),
             '-', '_' => self.spin = @max(self.spin - 1, -8),
@@ -105,14 +112,21 @@ pub const Demo = struct {
         }
     }
 
+    /// ROTO's texture: the photo or the generated one (its palette goes in at once in ROTO).
+    fn setPhoto(self: *Demo, on: bool) void {
+        self.photo = on;
+        if (self.mode == .roto) self.select(.roto);
+    }
+
     /// The host's digit switch (loader, glass, harnesses): 0 ROTO, 1 VOXEL,
-    /// 2 ZM-X off, 3 ZM-X on, 4..6 texture 64 / 128 / 256.
+    /// 2 ZM-X off, 3 ZM-X on, 4..6 texture 64 / 128 / 256, 7 generated texture, 8 photo.
     pub fn setShadeMode(self: *Demo, m: u32) void {
         switch (m) {
             0 => self.select(.roto),
             1 => self.select(.voxel),
             2, 3 => self.zmx_on = m == 3,
             4...6 => self.size = @intCast(m - 4),
+            7, 8 => self.setPhoto(m == 8),
             else => {},
         }
         self.hud.reset();
@@ -131,7 +145,10 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[0];
         self.hud.workStart();
         switch (self.mode) {
-            .roto => roto.draw(fb, maps.texture(self.tex, LOGS[self.size]), LOGS[self.size], self.zmx_on, self.t, self.angle),
+            .roto => {
+                const all: []const u8 = if (self.photo) parrot.all else self.tex;
+                roto.draw(fb, maps.texture(all, LOGS[self.size]), LOGS[self.size], self.zmx_on, self.t, self.angle);
+            },
             .voxel => {
                 const cam = voxel.camera(self.t, self.heights, self.cam_h);
                 self.cam_h = cam.h;
@@ -140,6 +157,14 @@ pub const Demo = struct {
         }
         self.hud.workEnd();
         const size: u32 = if (self.mode == .roto) @as(u32, 1) << LOGS[self.size] else 0;
-        self.hud.draw(zigos, fb, if (self.mode == .roto) "ROTO " else "VOXEL", size, self.zmx_on);
+        const name = if (self.mode == .voxel) "     " else if (self.photo) "PHOTO" else "GEN  ";
+        self.hud.draw(zigos, fb, if (self.mode == .roto) "ROTO " else "VOXEL", .{ .size = size, .name = name }, self.zmx_on);
     }
 };
+
+/// ROTO's palette while the photo is shown: its 192 colours at 56..247 and the HUD's
+/// 254/255 (the photo's indices never reach 248..253, nor 0..55).
+fn photoPalette(fb: *zg.LogicalFB) void {
+    parrot.install(fb);
+    maps.hud(fb);
+}
