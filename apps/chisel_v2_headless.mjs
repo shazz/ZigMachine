@@ -3,8 +3,11 @@
 // from docs/BLITTER_HW_SPEC.md §4.5-4.7 (not from machine/blitter_tex.zig):
 //
 //  ROTOZOOM, MODE 7  every AFFINE pixel equals the texel its span names (the list and the
-//                    texture read back from cart RAM), outside the mode's label
-//  TUNNEL            every MAP pixel equals the texel its map entry + offsets name
+//                    texture read back from cart RAM), outside the mode's two label lines
+//  PHOTO             the same three checks with the parrot photo (P) at 128, 256, 64 (T):
+//                    its stride and masks are the size's (apps/chisel_v2_play_check.mjs
+//                    proves the keys move the picture)
+//  TUNNEL           every MAP pixel equals the texel its map entry + offsets name
 //  SPRITES           four bobs a frame, all four mirror combinations, COLL_EN on; the
 //                    collision bit both set and clear over the run, as the bobs meet
 //  FILL              an in-place IFE BLIT; every row of the box equals the model's
@@ -19,7 +22,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128, OFF_PAL = 0x100, REG_FB_BASE = 0x44, OFF_BLIT = 0x80;
 const W = 320, H = 200, FRAMES = 20;
 const NAMES = ["ROTOZOOM", "MODE 7", "TUNNEL", "SPRITES", "FILL"];
-const LABEL = { x1: 10 + 8 * 8, y1: 16 }; // printText at (10, 8): skip the label's box
+const LABEL = { x1: W, y1: 24 }; // printText at (10, 8) and (10, 16): skip the label's rows
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : "";
 const failures = [];
 function check(name, ok, detail = "") {
@@ -157,6 +160,22 @@ for (let mode = 0; mode < NAMES.length; mode++) {
         check("FILL: every row is the model's per-bit carry fill of the edges", fillBad === 0, `${fillBad} px differ`);
         check("FILL: the star is filled (more than its edges)", filled > FRAMES * 3000, `${filled} px`);
         check("FILL: odd-even leaves the centre hollow", hollow);
+    }
+}
+demo.key(112); // P: the photo, at 128; T then goes to 256, then 64
+for (const [presses, side] of [[0, 128], [1, 256], [1, 64]]) {
+    for (let i = 0; i < presses; i++) demo.key(116);
+    for (let mode = 0; mode <= 2; mode++) {
+        demo.setShadeMode(mode);
+        let bad = 0, sized = true;
+        for (let f = 0; f < 5; f++) {
+            ops.length = 0;
+            demo.frame(16.6);
+            const a = ops.map((o) => R(o.block)).filter((r) => r.cmd === (mode <= 1 ? 6 : 7));
+            sized &&= a.length === 1 && a[0].astride === side && a[0].umask === side - 1 && a[0].vmask === side - 1;
+            if (a.length) bad += (mode <= 1 ? affineBad : mapBad)(a[0], plane());
+        }
+        check(`${NAMES[mode]} PHOTO ${side}: every pixel is its texel, the texture ${side}x${side}`, bad === 0 && sized, `${bad} px differ`);
     }
 }
 if (broke) {
