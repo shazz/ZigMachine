@@ -26,6 +26,15 @@ const PINS = {
     101: "22193542e3d57c4f9bc98590a13166227dfe6555c326a3a63df297cfd8b6582c", // rings over the boot screen
     602: "6fec527ec4815be8f6138fe479fca32da04314d85936b5cffc677ceff8c17a39", // the rings late in part 1
     800: "03c487704461e181f143ccf88f28df56bc40c19a60de82a52569ca52c3c45225", // the first wipe's bars
+    1500: "6954dc092d67905e61cc0ac08fe8a28bbad4bc4687f29803b6e2c83595dd625f", // the logo, arc coloured, radio rings
+    2500: "a6f88978edff6cede669f9e2d4f66cf1aa3784f5c666d7e3c19289a74174f34b", // the logo later (music flashes)
+    3006: "94e95b0122a7de8132ac020063cf4cbe05651a450be023d1fd38afc78471aa2a", // the arc fading out
+    3060: "47177c15d6ea2a79a007d90b72fd7bc933877e5c612f8ffe3c2f56885e283901", // the second wipe's bars
+    3500: "cbc853420473c5ecd22ca58f39c6962ca2ce17992975076d833e011c54dae442", // the dots, first shape
+    3800: "28e3c7697cceb7540841cde1e5d3692c0f8d73811e425a9ff3943f7505aa5097", // the info panel rolling in
+    4050: "0c0b4e044775eb0941326d3d5aba4ba82e67c7eb3d235ed6004ad4646eb62801", // the panel rolling out
+    4200: "00c6052c26498a57afc5a298ebbece09a8fc635d6e0f48be3cb9996c4c6400cd", // the dots, second shape
+    5000: "3975eba1f594ac096cc046ecf37a432245c46f96a1538ee0f5c03c5cfe13d50d", // the panel, second time
 };
 
 async function boot() {

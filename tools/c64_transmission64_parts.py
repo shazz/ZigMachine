@@ -109,12 +109,26 @@ def routines(m: bytes) -> tuple[bytes, bytes]:
     return table + struct.pack(f"<{len(offs)}H", *offs), bytes(body)
 
 
-def part3(m: bytes) -> bytes:
+FIRST_CHANGE, CYCLE, GEN_CHANGES = 3628, 969, 20  # part 3's first shape change, its period
+Z_CODE = 0x449E  # the depth section's first dot block in the generated code ($41BD..)
+
+
+def splits(gen: list) -> bytes:
+    """Per shape change: (dots of the depth code generated, bytes of the next one)."""
+    out = bytearray()
+    for j, (f, ptr, y) in enumerate(gen):
+        assert f == FIRST_CHANGE + CYCLE * j, "the cycle is not 969 frames"
+        assert Z_CODE <= ptr < Z_CODE + 35 * 9 and y <= 9, "the IRQ caught the generator in the depth code"
+        out += bytes(((ptr - Z_CODE) // 9, y))
+    return bytes(out)
+
+
+def part3(m: bytes, gen: list) -> bytes:
     """RAM at the $3808 entry: bank 0's charsets ($2000-$3FFF), bank 3 ($C000-$FFFF: tables,
     shapes, the panel and its charset, the dots' charsets), zero page (the generator never
     sets $15; the dot lists read past what the init clears), and the parsed dot routines."""
     index, body = routines(m)
-    sections = [m[0x2000:0x4000], m[0xC000:0x10000], m[0:0x100], index, body]
+    sections = [m[0x2000:0x4000], m[0xC000:0x10000], m[0:0x100], index, body, splits(gen)]
     offs, pos = [], 4 * len(sections)
     for s in sections:
         offs.append(pos)

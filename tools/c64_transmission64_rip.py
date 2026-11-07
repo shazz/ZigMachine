@@ -89,7 +89,25 @@ def run(prg: str) -> dict:
         stop_at(v, "085a")  # the main loop after decrunching part 3
         stop_at(v, "3808")
         out["p3"] = dump(v, tmp, "p3")
+        out["p3_gen"] = run_part3_gen(v, base)
         v.close()
+    return out
+
+
+def run_part3_gen(v: Vice, base: int) -> list[tuple[int, int, int]]:
+    """At each shape change (every 969 frames from 3628), $40AA's entry: the generator's write
+    pointer ($18/$19) and Y (bytes of the block in progress)."""
+    out = []
+    for j in range(parts.GEN_CHANGES):
+        f = parts.FIRST_CHANGE + parts.CYCLE * j
+        target = base + (f - 1) * 19656 + (24 + 200) * 63
+        clk = 0
+        while clk < target:
+            stop_at(v, "40aa")
+            _, line, cyc, clk = regs(v)
+        m = v.mem(0x18, 0x19)
+        y = int(v.cmd("r").strip().splitlines()[-2].split()[3], 16)
+        out.append(((clk - base) // 19656 + 1, m[0] | m[1] << 8, y))
     return out
 
 
@@ -188,7 +206,7 @@ def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     for name, data in (("part1.bin", part1(first, r["p1_hits"])), ("wipe.bin", wipe(first["ram"])),
                        ("part2.bin", parts.part2(r["p2"], r["p2_hits"])),
-                       ("part3.bin", parts.part3(r["p3"]["ram"])),
+                       ("part3.bin", parts.part3(r["p3"]["ram"], r["p3_gen"])),
                        ("transmission_64.sid", song)):
         open(os.path.join(OUT, name), "wb").write(data)
         print(name, len(data))
