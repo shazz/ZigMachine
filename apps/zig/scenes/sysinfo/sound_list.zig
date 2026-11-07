@@ -11,6 +11,7 @@
 //   *.XM             a FastTracker 2 module ("Extended Module: " at 0), mixed onto Paula
 //   *.HIP            a Jochen Hippel Amiga module: its own 68000 replay (bra, bra at 0)
 //                    and a "TFMX" song, on Paula
+//   *.KT             a klystrack song ("cyd!song" at 0): the .kt player (klystron's cyd) on Paula
 //
 // An SNDH, XM or HIP may be stored ZX0-packed (the "ZX0!" container): the header is
 // checked on the bytes it depacks to (sysinfo/sound_play.zig).
@@ -19,7 +20,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const Kind = enum(u8) { sndh, sap, pcm, xm, hip };
+pub const Kind = enum(u8) { sndh, sap, pcm, xm, hip, kt };
 pub const MAX: usize = 6; // the page's rows for files
 
 pub const Entry = struct { name: [16]u8, len: u32, kind: Kind };
@@ -36,6 +37,7 @@ pub fn kindOf(name: []const u8) ?Kind {
     if (eqlUpper(ext, "RAW")) return .pcm;
     if (eqlUpper(ext, "XM")) return .xm;
     if (eqlUpper(ext, "HIP")) return .hip;
+    if (eqlUpper(ext, "KT")) return .kt;
     return null;
 }
 
@@ -55,6 +57,7 @@ pub fn imageOk(kind: Kind, bytes: []const u8) bool {
         .xm => std.mem.startsWith(u8, bytes, "Extended Module: "),
         .hip => bytes.len >= 4 and bytes[0] == 0x60 and bytes[2] == 0x60 and
             std.mem.indexOf(u8, bytes[0..@min(bytes.len, HIP_TFMX_WITHIN)], "TFMX") != null,
+        .kt => std.mem.startsWith(u8, bytes, "cyd!song"), // players/kt_load.zig's own test
     };
 }
 
@@ -137,6 +140,14 @@ test "a name without a sound extension is not a sound; case does not matter" {
     try std.testing.expectEqual(@as(?Kind, .sndh), kindOf("x.sndh"));
     try std.testing.expectEqual(@as(?Kind, .xm), kindOf("KEYGEN.XM"));
     try std.testing.expectEqual(@as(?Kind, .hip), kindOf("thalion.hip"));
+    try std.testing.expectEqual(@as(?Kind, .kt), kindOf("STARPORT.KT"));
+    try std.testing.expectEqual(@as(?Kind, null), kindOf("STARPORT.KTX"));
+}
+
+test "a KT must start with cyd!song (an instrument file is not a song)" {
+    try std.testing.expect(imageOk(.kt, "cyd!song\x1b\x09"));
+    try std.testing.expect(!imageOk(.kt, "cyd!inst\x1b"));
+    try std.testing.expect(!imageOk(.kt, "cyd!"));
 }
 
 test "an XM must say Extended Module, a HIP carry a bra pair and a TFMX song" {

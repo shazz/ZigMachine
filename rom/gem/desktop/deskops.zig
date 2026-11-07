@@ -7,6 +7,7 @@ const gui = @import("../gui.zig");
 const dt = @import("desktop.zig");
 const dirmodel = @import("dirmodel.zig");
 const deskwin = @import("deskwin.zig");
+const desknav = @import("desknav.zig");
 const deskinf = @import("deskinf.zig");
 const desk_icons = @import("desk_icons.zig");
 const Desktop = dt.Desktop;
@@ -16,7 +17,7 @@ const Action = dt.Action;
 // window/app, a program file launches (GEM: no-op with nothing selected).
 pub fn openSelection(d: *Desktop, action: *Action) void {
     if (d.sel_folder >= 0) {
-        deskwin.openFolderWindow(d, @intCast(d.sel_folder));
+        desknav.enterFolder(d, @intCast(d.sel_folder));
     } else if (d.sel_icon >= 0) {
         desk_icons.openIcon(d, @intCast(d.sel_icon), action);
     } else if (d.sel_file >= 0 and d.dir.kind(@intCast(d.sel_file)) == 0) {

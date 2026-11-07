@@ -1,15 +1,15 @@
 // SYSINFO's SOUND page, for apps/sysinfo_check.mjs: the sound files on its disk, selected and
 // played off the disk. Run over a booted SysInfo (apps/sysinfo_machine.mjs):
-//   list     page 3 lists the disk's five sound files (JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW,
-//            KEYGEN.XM, THALION.HIP) with their FAT sizes and kinds; the selected one is in
+//   list     page 3 lists the disk's six sound files (JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW,
+//            KEYGEN.XM, THALION.HIP, STARPORT.KT) with their FAT sizes and kinds; the selected one is in
 //            inverse, Down moves it
 //   drive    P reads the selection through the drive into the cart's RAM: the bytes the host is
 //            handed (the sfx queue's pointer) are the FAT file's, byte for byte; the SNDH, the
 //            XM and the HIP are stored ZX0-packed, and theirs are the repo's file depacked
-//   bridge   an SNDH / SAP / XM / HIP is zg.requestSongBytes (sfx op 8, kind 1..4);
+//   bridge   an SNDH / SAP / XM / HIP / KT is zg.requestSongBytes (sfx op 8, kind 1..5);
 //            docs/sealed-loader.js's own postSfx turns it into loadSndh / loadSap / loadXm /
-//            loadHip, and the audio module those messages reach plays it in mode 4 (SNDH on the
-//            68000) / 5 (SAP on the POKEY) / 1 (XM, HIP on Paula), with a sound; the PCM is
+//            loadHip / loadKt, and the audio module those messages reach plays it in mode 4 (SNDH
+//            on the 68000) / 5 (SAP on the POKEY) / 1 (XM, HIP, KT on Paula), with a sound; the PCM is
 //            zg.samplePlay (op 6) at 12500 Hz
 //   stop     S stops: a song with the song bridge's "none", the PCM with sampleStop (op 7)
 import { readFile } from "node:fs/promises";
@@ -22,6 +22,8 @@ const FILES = [
     { name: "SAMPLE.RAW", kind: "PCM 12500 HZ", op: 6, rate: 12500 },
     { name: "KEYGEN.XM", kind: "XM (TRACKER + PAULA)", op: 8, a: 3, msg: "loadXm", mode: 1, src: "docs/music/keygen_9000.xm" },
     { name: "THALION.HIP", kind: "HIP (68000 + PAULA)", op: 8, a: 4, msg: "loadHip", mode: 1, src: "docs/music/hippel/thalion_intro.hip" },
+    // The .kt player on BARD (KT TEST's path, kind 5): stored unpacked, so its bytes are the FAT file's.
+    { name: "STARPORT.KT", kind: "KT (KLYSTRACK + PAULA)", op: 8, a: 5, msg: "loadKt", mode: 1 },
 ];
 const FILES_ROW = 15; // page_av.zig FILES_ROW + 1
 
@@ -63,12 +65,13 @@ async function audioModule() {
     const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), 1024);
     return {
         d,
-        load(msg) { // the worklet's loadSndh / loadSap / loadXm / loadHip: writeSong, load, play the tune
+        load(msg) { // the worklet's loadSndh / loadSap / loadXm / loadHip / loadKt: writeSong, load, play the tune
             const cap = d.audioSongCapacity(), src = new Uint8Array(msg.bytes), len = Math.min(src.length, cap);
             new Uint8Array(memory.buffer, d.audioSongPtr(), cap).set(src.subarray(0, len));
             if (msg.type === "loadSndh") return d.audioLoadSndh(len) && (d.audioSndhPlay(msg.tune || 0), true);
             if (msg.type === "loadXm") return d.audioLoadXm(len) && (d.audioXmPlay(msg.bpm || 0), true);
             if (msg.type === "loadHip") return d.audioLoadHip(len) && (d.audioHipPlay(msg.tune || 0), true);
+            if (msg.type === "loadKt") return d.audioLoadKt(len) && (d.audioKtPlay(msg.tune || 0), true);
             return d.audioLoadSap(len) && (d.audioSapPlay(msg.tune || 0), true);
         },
         peak() { let p = 0; for (let b = 0; b < 43; b++) { d.audioRender(1024); for (const v of left) p = Math.max(p, Math.abs(v)); } return p; },

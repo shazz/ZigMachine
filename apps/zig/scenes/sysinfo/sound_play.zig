@@ -3,7 +3,7 @@
 // drive into the cart's own RAM (zg.disk, a block at a time, as ST Replay
 // loads its SAMPLE.RAW), checked, then handed to the audio side:
 //
-//   SNDH / SAP / XM / HIP   zg.requestSongBytes: the host copies the image when it
+//   SNDH / SAP / XM / HIP / KT   zg.requestSongBytes: the host copies the image when it
 //                drains the frame and loads it as it loads a song it fetched by name
 //   PCM          zg.samplePlay at PCM_HZ: the audio side plays it on its own,
 //                reading the buffer WHILE it plays (so it is stopped first
@@ -60,6 +60,7 @@ pub const Player = struct {
             .sap => zg.requestSongBytes(bytes, .sap, 0),
             .xm => zg.requestSongBytes(bytes, .xm, 0),
             .hip => zg.requestSongBytes(bytes, .hip, 0),
+            .kt => zg.requestSongBytes(bytes, .kt, 0), // 0: from the song's first sequence row
             .pcm => zg.samplePlay(bytes, PCM_HZ, false),
         };
         return if (ok) .playing else .refused;
@@ -79,7 +80,7 @@ pub const Player = struct {
         const i = self.files.playing orelse return;
         switch (self.files.items[i].kind) {
             .pcm => _ = zg.sampleStop(),
-            .sndh, .sap, .xm, .hip => zg.stopSong(),
+            .sndh, .sap, .xm, .hip, .kt => zg.stopSong(),
         }
         self.files.playing = null;
         self.files.status = .stopped;
