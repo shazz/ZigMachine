@@ -30,6 +30,7 @@ void audio_bard_frame(struct w2c_env* e) {
     b[BQ_TAIL_W] = bq_pump(b, b[BQ_TAIL_W], b[BQ_HEAD_W]);
     bq_state s;
     bq_read(&s);
+    if (!s.active) return; /* closed (a song took over): nothing more comes back, as on the page */
     b[BQ_POS_W] = s.pos;
     b[BQ_ANCHORED_W] = s.anchored;
     if (s.ev_count - g_ev > 64u) g_ev = s.ev_count - 64u; /* sid_live.zig EV_CAP: lapped, the newest */

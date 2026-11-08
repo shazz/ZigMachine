@@ -326,6 +326,8 @@ ZigAudioSealedProcessor.prototype.bardQueue = function (msg) {
         this.bardEv = 0;
     } else if (msg.type === "bardClose") {
         d.audioBardClose();
+    } else if (msg.type === "bardCmds" && !d.audioBardActive()) {
+        d.audioBardQueue(msg.words.byteLength >> 4); // counted, not staged: song RAM is someone else's
     } else if (msg.type === "bardCmds") {
         const src = new Uint8Array(msg.words), cap = d.audioBardStageCap() * 16;
         for (let at = 0; at + 16 <= src.length; at += cap) {

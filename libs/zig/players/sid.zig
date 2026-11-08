@@ -18,7 +18,7 @@ const sid_live = @import("sid_live.zig");
 
 pub const RATE: u32 = 22050;
 pub const FILE_MAX: u32 = 0x10000 + 0x7C + 2; // a C64's 64 KiB, its load address and the v2 header
-const CHUNK_OFF: u32 = 0x10200; // after the file, 2-aligned
+pub const CHUNK_OFF: u32 = 0x10200; // after the file, 2-aligned
 pub const CHUNK: u32 = 512; // engine samples a call
 pub const LIVE_CHUNK: u32 = 128; // SID live: the most rendered ahead between two writes
 comptime {

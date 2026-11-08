@@ -28,6 +28,10 @@ uint32_t bq_pump(const volatile uint32_t* b, uint32_t tail, uint32_t head) {
     uint32_t cap = b[BQ_CAP_W], stage_cap = w2c_audio_audioBardStageCap(p), n = 0;
     uint32_t* stage = (uint32_t*)(void*)(g_aud.memory.data + w2c_audio_audioBardStagePtr(p));
     if (head - tail > cap) return tail; /* not a head this ring can have: take nothing */
+    if (!w2c_audio_audioBardActive(p)) { /* counted, not staged: song RAM is someone else's (the worklet's rule) */
+        w2c_audio_audioBardQueue(p, head - tail);
+        return head;
+    }
     for (; tail != head; tail++) {
         const volatile uint32_t* c = bq_cmd(b, tail);
         if (c[3] != tail) break; /* not whole yet (the board: a store still on its way to DDR) */
@@ -50,6 +54,7 @@ void bq_read(bq_state* s) {
     s->pos = w2c_audio_audioBardPosition(p);
     s->anchored = w2c_audio_audioBardAnchored(p);
     s->ev_count = w2c_audio_audioBardEventCount(p);
+    s->active = w2c_audio_audioBardActive(p);
 }
 
 void bq_event(uint32_t i, uint32_t ev[3]) {

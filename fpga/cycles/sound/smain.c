@@ -80,6 +80,11 @@ static void run(void) {
         mp3_bench_report(f);
 #endif
     }
+#ifdef ZM_SND_BARDQ
+    printf("BQ applied %lu pending %lu refused %lu resyncs %lu\n", (unsigned long)w2c_audio_audioBardApplied(&g_aud.player),
+           (unsigned long)w2c_audio_audioBardPending(&g_aud.player), (unsigned long)w2c_audio_audioBardRefused(&g_aud.player),
+           (unsigned long)w2c_audio_audioBardResyncs(&g_aud.player));
+#endif
     baudio_report();
     sound_finish(0);
 }

@@ -11,7 +11,7 @@ extern const uint32_t zm_bardq_log_words;
 
 #define CAP 1024u
 #define EV_CAP 16u
-#define LEAD 6144u /* apps/zig/scenes/bard_sid.zig LEAD */
+#define LEAD 735u /* one frame (the cart uses 6144, bard_sid.zig LEAD): the tune is heard from the 2nd frame of 8 */
 #define FRAME 735u
 
 static uint32_t g_block[BQ_HEAD_WORDS + 4u * (CAP + EV_CAP)];

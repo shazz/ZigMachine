@@ -62,7 +62,9 @@ const ALLOW = {
     // lines and render block live in song RAM (kt.zig), not here.
     // +4 B (2026-11-06): the MP3 player (mp3.zig) joins the run with a word of zeros; its state is a
     // struct with non-zero fields, and its input ring, frame, PCM and pvmp3's 28 KB state live in song RAM.
-    "demo-audio.wasm": 591391,
+    // +8 B (2026-11-07): the BARD queue's closed-drop counter and the SID player's live pointer
+    // (demo_audio_sidlive.zig, sid.zig); the queue itself (21 KB: its ring, stage, events) lives in song RAM.
+    "demo-audio.wasm": 591399,
 };
 
 function uleb(b, p) {

@@ -61,7 +61,7 @@ static inline void bq_cart_event(volatile uint32_t* b, uint32_t t, uint32_t kind
 
 /* The players' side (host/bardq_pump.c). */
 typedef struct bq_state {
-    uint32_t pos, anchored, ev_count;
+    uint32_t pos, anchored, ev_count, active; /* active 0: the queue closed, every other field 0 */
 } bq_state;
 void bq_open(uint32_t lead);
 void bq_close(void);

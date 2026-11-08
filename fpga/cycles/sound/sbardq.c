@@ -42,6 +42,7 @@ void sbardq_publish(void) {
     volatile uint32_t* s2c = &SND_REG(SND_S2C);
     bq_state s;
     bq_read(&s);
+    if (!s.active) return; /* closed (a song took over): nothing more comes back */
     if (s.ev_count - g_ev > 64u) g_ev = s.ev_count - 64u; /* sid_live.zig EV_CAP: lapped, the newest */
     for (; g_ev != s.ev_count; g_ev++) {
         uint32_t ev[3];
