@@ -608,6 +608,9 @@ pub fn build(b: *std.Build) void {
         "demo-sid_test", // 118 — SID TEST: a Commodore 64 PSID (HerMiniSID, Hermit) on the .sid player: cRSID, native on BARD, machine-audio.wasm on the page; keys 1-3 by name, as bytes, an RSID refused; 5 stops
         "demo-c64_1988", // 119 — TRISTAR & RED SECTOR INC. / 1988 (C64, Only Sprites 2021, code Shazz): the eight sprites multiplexed by the original's IRQ chains, replayed on a VIC-II sprite model (data ripped by tools/c64_1988_rip.py)
         "demo-c64_transmission64", // 120 — PADUA / TRANSMISSION64 INVITATION (C64, 2021): rings over the boot screen, the radio logo, the dots and the info panel, on a VIC-II model fed the original's IRQ chains (data ripped by tools/c64_transmission64_rip.py)
+        "", // 121: reserved (taken by unmerged branches, lead 8 Nov)
+        "", // 122: reserved (taken by unmerged branches, lead 8 Nov)
+        "demo-erfurt_menu", // 123 — ATARI SCENE COLLECTIVE / THE ERFURT MEGADEMO menu (ST/STE 2026): the drum menu, real colour-0 rainbows, from the original disks
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
