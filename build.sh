@@ -205,6 +205,7 @@ NATIVE_TESTS="
     machine/copper_lbase_test.zig
     machine/video_tc_test.zig
     machine/video_tc_fade_test.zig
+    machine/video_desk_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig

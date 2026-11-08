@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -43,7 +43,7 @@
   <main>
     <section class="hero" id="top">
       <h1>Programmer's guide</h1>
-      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>26</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>113</b>library methods</a></li><li><a href="#geometry-resolution"><b>116</b>constants / registers</a></li></ul>
+      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>27</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>113</b>library methods</a></li><li><a href="#geometry-resolution"><b>117</b>constants / registers</a></li></ul>
       <div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-11-07 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-11-08 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -148,7 +148,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>STRIDE_NORMAL</code></td><td><code>WIDTH</code></td><td class="meaning">320</td></tr>
 <tr><td><code>STRIDE_FULLSCREEN</code></td><td><code>PHYSICAL_WIDTH</code></td><td class="meaning">400</td></tr>
 </tbody></table></section>
-<section class="ref" id="resolution-plane-modes"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Plane modes<small>FB_MODE_* and RES_*</small></h2><span class="count">10 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section class="ref" id="resolution-plane-modes"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Plane modes<small>FB_MODE_* and RES_*</small></h2><span class="count">11 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>FB_MODE_NORMAL</code></td><td><code>0</code></td><td class="meaning">320x200 low-res plane (pixel-doubled into the raster)</td></tr>
 <tr><td><code>FB_MODE_FULLSCREEN</code></td><td><code>1</code></td><td class="meaning">400x280 low-res overscan plane (Option B, doubled)</td></tr>
 <tr><td><code>FB_MODE_SCROLL</code></td><td><code>2</code></td><td class="meaning">window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL</td></tr>
@@ -159,6 +159,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>RES_PLANES</code></td><td><code>0</code></td><td class="meaning"></td></tr>
 <tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td class="meaning"></td></tr>
 <tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td class="meaning">640x200, 2 planes, no border (ST-medium style)</td></tr>
+<tr><td><code>RES_DESK</code></td><td><code>3</code></td><td class="meaning">HW 1.17.0: plane 0 only, 640x480 at 1:1 (DESK_*, docs/HW_API.md &quot;Desk mode&quot;)</td></tr>
 </tbody></table></section>
 <section class="ref" id="video-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Video registers<small>the sealed video block</small></h2><span class="count">25 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td><span class="type">u8</span></td><td class="meaning">0 = planes, 1 = truecolor (border-open)</td></tr>
@@ -252,7 +253,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>MT_CLEAR</code></td><td><code>0x00</code></td><td class="meaning"></td></tr>
 <tr><td><code>MT_SET</code></td><td><code>0xFF</code></td><td class="meaning"></td></tr>
 </tbody></table></section>
-<section class="ref" id="hw-abi-machine-exports"><header class="sec-h"><span class="eyebrow">Machine</span><h2>HW ABI<small>what machine-*.wasm exports</small></h2><span class="count">26 exports</span></header><article class="api" id="hwVideoBase"><code class="sig"><b class="fn">hwVideoBase</b>() <span class="ret">i32</span></code><a class="anchor" href="#hwVideoBase" aria-label="Link to hwVideoBase">#</a><p class="doc">base of the video hardware region</p></article>
+<section class="ref" id="hw-abi-machine-exports"><header class="sec-h"><span class="eyebrow">Machine</span><h2>HW ABI<small>what machine-*.wasm exports</small></h2><span class="count">27 exports</span></header><article class="api" id="hwVideoBase"><code class="sig"><b class="fn">hwVideoBase</b>() <span class="ret">i32</span></code><a class="anchor" href="#hwVideoBase" aria-label="Link to hwVideoBase">#</a><p class="doc">base of the video hardware region</p></article>
 <article class="api" id="hwInit"><code class="sig"><b class="fn">hwInit</b>() <span class="ret">void</span></code><a class="anchor" href="#hwInit" aria-label="Link to hwInit">#</a><p class="doc">reset registers/planes</p></article>
 <article class="api" id="hwClear"><code class="sig"><b class="fn">hwClear</b>() <span class="ret">void</span></code><a class="anchor" href="#hwClear" aria-label="Link to hwClear">#</a><p class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</p></article>
 <article class="api" id="hwRenderPlane"><code class="sig"><b class="fn">hwRenderPlane</b>(plane: u32) <span class="ret">void</span></code><a class="anchor" href="#hwRenderPlane" aria-label="Link to hwRenderPlane">#</a><p class="doc">composite one enabled LFB -&gt; PFB</p></article>
@@ -264,6 +265,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <article class="api" id="hwPhysWidth"><code class="sig"><b class="fn">hwPhysWidth</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwPhysWidth" aria-label="Link to hwPhysWidth">#</a></article>
 <article class="api" id="hwPhysHeight"><code class="sig"><b class="fn">hwPhysHeight</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwPhysHeight" aria-label="Link to hwPhysHeight">#</a></article>
 <article class="api" id="hwVersion"><code class="sig"><b class="fn">hwVersion</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwVersion" aria-label="Link to hwVersion">#</a><p class="doc">ZM_HW_VERSION</p></article>
+<article class="api" id="hwDeskAvailable"><code class="sig"><b class="fn">hwDeskAvailable</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwDeskAvailable" aria-label="Link to hwDeskAvailable">#</a><p class="doc">1.17.0: 1 where RES_DESK shows (0 on an older board bitstream)</p></article>
 <article class="api" id="hwRamBase"><code class="sig"><b class="fn">hwRamBase</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamBase" aria-label="Link to hwRamBase">#</a><p class="doc">first byte of the cart&#x27;s window (0x100000)</p></article>
 <article class="api" id="hwRamTop"><code class="sig"><b class="fn">hwRamTop</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamTop" aria-label="Link to hwRamTop">#</a><p class="doc">first byte ABOVE it (= the video region)</p></article>
 <article class="api" id="hwRamSize"><code class="sig"><b class="fn">hwRamSize</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamSize" aria-label="Link to hwRamSize">#</a><p class="doc">the whole window, in bytes (3 MiB since HW 1.13.0)</p></article>
@@ -1483,5 +1485,5 @@ start ~0.5 Mc once. No Paula sound effect while a SID plays.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>

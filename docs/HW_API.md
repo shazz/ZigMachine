@@ -58,7 +58,7 @@ memory.
 
 | Offset | Name | Type | Meaning |
 |---|---|---|---|
-| `0x00` | `RESOLUTION` | u8 | `0` = planes, `1` = truecolor (border-open state) |
+| `0x00` | `RESOLUTION` | u8 | `0` = planes, `1` = truecolor (border-open state), `2` = medium, **1.17.0** `3` = desk (plane 0 alone at 640x480, see "Desk mode") |
 | `0x01` | `NB_PLANES` | u8 (ro) | `4` |
 | `0x04` | `BACKGROUND` | u32 | border/background RGBA (settable per scanline in the global HBL) |
 | `0x08` | `PLANE_ENABLE[4]` | u8×4 | informational in v1 (the host gates blits via `isPlaneEnabled`) |
@@ -192,6 +192,32 @@ every channel value, coefficient and direction against the formula.
 - Cost on KESTREL: none per pixel for the CPU; FRESCO's painter takes one more clock a pass.
   The board's dirty-line planner counts a fade change as a change to every line of the plane.
 
+### Desk mode — since 1.17.0
+
+`RESOLUTION = 3` (`RES_DESK`) is a screen mode for GEM and tools (Devpac, a text UI), not for demos:
+**plane 0 alone, 640x480 palette indices, shown 1:1** in the middle of the 800x600 output (80-pixel
+sides, 60-line bars, black). Nothing is composited.
+
+- Plane 0's bytes start at `FB_BASE[0] & ~7` (the board fetches 8-byte beats), stride 640 (`FB_STRIDE`
+  is ignored), 307,200 bytes from the VRAM pool (`DESK_FB_BYTES`). Each byte looks up palette 0;
+  alpha is ignored (the picture is opaque).
+- Ignored in desk mode: every other plane and `PLANE_ENABLE` above plane 0, `FB_MODE`, `FB_STRIDE`,
+  `HSCROLL`, every HBL id (global and per plane), `FB_COPPER`, the BEAM table, `BACKGROUND`,
+  `RES_FLICKER`, the true-colour registers. `FRAME` still counts (`hwClear` does only that).
+- The mode is sampled once a frame, at the VBL: a write mid-frame takes effect from the next frame,
+  in both directions. `hwInit` writes `RES_PLANES`, so every boot, chainload and swap leaves it.
+- **Ask first:** `hwDeskAvailable()` is 1 where the mode exists (the browser, the native host, a
+  board bitstream with it); 0 on an older bitstream, where a desk cart would show garbage.
+- **Single buffer, as the ST:** the board's scanout reads plane 0 live while the cart draws, so a
+  redraw can show half-done for one frame (the browser shows the plane as `frame()` left it). A cart
+  that wants no tearing keeps two buffers and flips `FB_BASE[0]`, which the board takes at the VBL.
+  A palette write mid-frame shows from the line being scanned on the board, from the next frame in
+  the browser. No hash can see either difference.
+- The host shows the picture through `hwRenderDesk(0)` and `hwRenderDesk(1)` (§4): the top and
+  bottom 640x240 halves as RGBA in the PFB (a whole 640x480 picture does not fit in it). A desk
+  frame's hash (scene_hash, hp_sim) is `"desk"` then the two halves in order.
+- The design, the RTL and its LUT bill: `docs/GEM_DESK_MODE.md`, `decisions.md` 2026-11-08 "GEM desk mode".
+
 ### Opening the borders (overscan) — the ST timing trick
 
 Overscan is not a flag — you **earn** it, the way real ST demos do, by abusing the
@@ -237,7 +263,11 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0B00 (1.11.0)
+hwVersion() u32          // 0x0001_1100 (1.17.0)
+hwDeskActive() u32       // 1.17.0: RESOLUTION is RES_DESK (the host shows the desk picture)
+hwRenderDesk(half) void  // 1.17.0: desk rows 240 half .. 240 half + 239 as 640x240 RGBA in the PFB
+hwDeskAvailable() u32    // 1.17.0: 1 where the desk mode exists (see "Desk mode")
+hwSetDeskAvailable(v) void // 1.17.0: the board's firmware declares its bitstream's capability
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):

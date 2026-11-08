@@ -21,6 +21,7 @@ const arena = @import("arena.zig");
 const copper = @import("copper.zig");
 const tc = @import("video_tc.zig");
 const tc_fade = @import("video_tc_fade.zig");
+const desk = @import("video_desk.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
@@ -211,6 +212,7 @@ pub fn reset() void {
 // scanline (so a per-line handler paints the border/background rasters). A line
 // the HBL queued BEAM writes on is painted in spans instead (beam.zig).
 pub fn clear() void {
+    if (deskActive()) return w32(memmap.REG_FRAME, r32(memmap.REG_FRAME) +% 1); // desk: nothing to clear
     const gid = r16(memmap.REG_GLOBAL_HBL_ID);
     const out64: [*]u64 = @ptrCast(@alignCast(pfb()));
     var y: usize = 0;
@@ -481,6 +483,7 @@ fn lineStart(fb_id: usize, hid: u16, hline: usize, hpos: u16, py: usize) bool {
 }
 
 pub fn renderPlane(fb_id: usize) void {
+    if (deskActive()) return; // desk mode composites nothing: renderDesk() makes the picture
     cop = copper.begin(region()[0..memmap.OFF_PFB], r16(memmap.REG_FB_COPPER + fb_id * 2));
     lb = .{ .off = fbBase(fb_id) };
     switch (fbMode(fb_id)) {
@@ -495,4 +498,13 @@ pub fn renderPlane(fb_id: usize) void {
     // Back-compat: fullscreen was once detected purely by stride == 400.
     if (fbStride(fb_id) == memmap.STRIDE_FULLSCREEN) return renderPlaneFullscreen(fb_id);
     renderPlaneNormal(fb_id);
+}
+
+// --- the desk mode (HW 1.17.0, video_desk.zig) ---
+pub fn deskActive() bool {
+    return desk.active(r8(memmap.REG_RESOLUTION));
+}
+// Half `half` of the 640x480 desk picture into the PFB (rows 240 half .. 240 half + 239).
+pub fn renderDesk(half: u32) void {
+    desk.renderHalf(pfb(), region(), fbBase(0), pal(0), half);
 }

@@ -21,6 +21,24 @@ export fn hwClear() void {
 export fn hwRenderPlane(plane: u32) void {
     video.renderPlane(@intCast(plane));
 }
+// The desk mode (HW 1.17.0, video_desk.zig): while RESOLUTION = RES_DESK the host shows
+// hwRenderDesk(0) and hwRenderDesk(1), each 640x240 RGBA in the PFB, instead of the raster.
+export fn hwDeskActive() u32 {
+    return @intFromBool(video.deskActive());
+}
+export fn hwRenderDesk(half: u32) void {
+    video.renderDesk(half);
+}
+// Whether this machine shows the desk mode: yes in the browser and the native host; on the
+// board the firmware declares its bitstream's capability bit at boot (fpga/cycles/bmain.c), so a
+// cart asks before it switches. A hardware property: hwInit() leaves it alone.
+var desk_available: u32 = 1;
+export fn hwDeskAvailable() u32 {
+    return desk_available;
+}
+export fn hwSetDeskAvailable(available: u32) void {
+    desk_available = @intFromBool(available != 0);
+}
 export fn hwBlit() void {
     blitter.execute();
 }

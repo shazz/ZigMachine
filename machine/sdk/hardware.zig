@@ -87,6 +87,10 @@ pub const RASTER_VIS_WIDTH = memmap.RASTER_VIS_WIDTH;
 pub const RASTER_VIS_HEIGHT = memmap.RASTER_VIS_HEIGHT;
 pub const RES_PLANES = memmap.RES_PLANES;
 pub const RES_TRUECOLOR = memmap.RES_TRUECOLOR;
+pub const RES_DESK = memmap.RES_DESK; // 1.17.0 the desk mode (docs/HW_API.md "Desk mode")
+pub const DESK_WIDTH = memmap.DESK_WIDTH;
+pub const DESK_HEIGHT = memmap.DESK_HEIGHT;
+pub const DESK_FB_BYTES = memmap.DESK_FB_BYTES;
 pub const HBL_GLOBAL_ID = memmap.HBL_GLOBAL_ID;
 pub const STRIDE_NORMAL = memmap.STRIDE_NORMAL;
 pub const STRIDE_FULLSCREEN = memmap.STRIDE_FULLSCREEN;
@@ -183,6 +187,7 @@ pub extern fn hwPlanesNumber() u8;
 pub extern fn hwPhysWidth() u32;
 pub extern fn hwPhysHeight() u32;
 pub extern fn hwVersion() u32; // ZM_HW_VERSION
+pub extern fn hwDeskAvailable() u32; // 1.17.0: 1 where RES_DESK shows (0 on an older board bitstream)
 
 // --- RAM instructions ---
 // How much of the cart's RAM window [CART_RAM_BASE, CART_RAM_TOP) is left. The

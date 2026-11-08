@@ -48,6 +48,11 @@ pub const TRUECOLOR_STRIDE: u16 = 2 * WIDTH; // 640
 pub const TRUECOLOR_FULL_STRIDE: u16 = 2 * PHYSICAL_WIDTH; // 800
 pub const TRUECOLOR_FB_BYTES: usize = 2 * NORMAL_FB_BYTES; // 128000
 pub const TRUECOLOR_FULL_FB_BYTES: usize = 2 * FULLSCREEN_FB_BYTES; // 224000
+// The desk mode (RESOLUTION = RES_DESK, HW 1.17.0, docs/GEM_DESK_MODE.md): plane 0 alone, 640x480
+// bytes at stride 640 through palette 0, shown 1:1 in the middle of the 800x600 output (black bars).
+pub const DESK_WIDTH: u16 = 640;
+pub const DESK_HEIGHT: u16 = 480;
+pub const DESK_FB_BYTES: usize = @as(usize, DESK_WIDTH) * @as(usize, DESK_HEIGHT); // 307200
 
 // --- the physical RASTER (actual PFB the host blits) ---
 // Low-res doubles horizontally (not vertically — low & medium are both 200 lines).
@@ -169,6 +174,7 @@ pub const FB_MODE_TRUECOLOR_FULL: u8 = 6; // 400x280 RGB565 plane over the whole
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
 pub const RES_MEDIUM: u8 = 2; // 640x200, 2 planes, no border (ST-medium style)
+pub const RES_DESK: u8 = 3; // HW 1.17.0: plane 0 only, 640x480 at 1:1 (DESK_*, docs/HW_API.md "Desk mode")
 
 // --- overscan / border-opening trick (authentic ST timing exploit) ---
 // A FB_MODE_OVERSCAN plane draws only its visible 320x200 window until the scene
@@ -401,7 +407,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // rebuild the C/Rust carts; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 128;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_1000; // 1.16.0 — the true-colour fade: REG_TC_FADE + REG_TC_OFS_R/G/B per plane, also copper REG targets (decisions.md 2026-11-03 "True-colour fade"); 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (decisions.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
+pub const ZM_HW_VERSION: u32 = 0x0001_1100; // 1.17.0 — the desk mode: RESOLUTION = RES_DESK, plane 0 alone at 640x480 1:1, hwRenderDesk/hwDeskActive/hwDeskAvailable (decisions.md 2026-11-08 "GEM desk mode"); 1.16.0 — the true-colour fade: REG_TC_FADE + REG_TC_OFS_R/G/B per plane, also copper REG targets (decisions.md 2026-11-03 "True-colour fade"); 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (decisions.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.
