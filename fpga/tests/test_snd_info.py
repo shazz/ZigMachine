@@ -22,6 +22,7 @@ DRIVER = r"""
 static uint32_t g_block[SND_INFO_WORDS];
 #define ZM_SND_INFO ((volatile uint32_t*)g_block)
 #include "bsndinfo.h"
+static sndinfo_window g_w;
 static void dump(void) {
     for (unsigned i = 0; i < SND_INFO_WORDS; i++) printf("%u%c", (unsigned)g_block[i], i + 1 < SND_INFO_WORDS ? ' ' : '\n');
 }
@@ -29,8 +30,8 @@ int main(void) {
     sndinfo_boot(ROUTE_BARD); dump();
     sndinfo_song(ROUTE_BARD, "auf_weidersehen_monty_digi.sndh", 3); dump();
     sndinfo_started(NATIVE_BEAT_DIS); dump();
-    sndinfo_render(3000000, 735); sndinfo_render(1000000, 735); sndinfo_render(5000000, 1470); dump();
-    sndinfo_render(4000000, 735); dump();
+    sndinfo_render(&g_w, 3000000, 735); sndinfo_render(&g_w, 1000000, 735); sndinfo_render(&g_w, 5000000, 1470); dump();
+    sndinfo_render(&g_w, 4000000, 735); dump();
     sndinfo_song(ROUTE_ZIGGY, "x.xm", 0); dump();
     sndinfo_song(ROUTE_BARD, "none", 0); dump();
     sndinfo_song(ROUTE_BARD, "odd.xyz", 0); dump();
@@ -44,6 +45,14 @@ int main(void) {
     sndinfo_song(ROUTE_BARD, "dpintro.kt", 0); dump();
     sndinfo_mp3(ROUTE_BARD, 1); dump();
     sndinfo_mp3(ROUTE_BARD, 0); dump();
+    /* The SID's beat: a chunk (1.6 Mc) on three renders in four, none (0.2 Mc) on the fourth. */
+    g_w = (sndinfo_window){0};
+    sndinfo_song(ROUTE_BARD, "hermini.sid", 0);
+    for (unsigned i = 0; i < 59; i++) sndinfo_render(&g_w, i % 4 == 3 ? 200000u : 1600000u, 735);
+    dump();
+    sndinfo_render(&g_w, 1600000, 735); dump(); /* the 60th: 44100 samples, a whole window */
+    sndinfo_render(&g_w, 200000, 735); dump();  /* the next window fills: the load stays */
+    printf("%u\n", (unsigned)g_w.load_pm);
     return 0;
 }
 """
@@ -60,7 +69,8 @@ def steps(tmp_path_factory: pytest.TempPathFactory) -> list[list[int]]:
     subprocess.run([cc, "-std=c11", "-Wall", "-Werror", "-include", str(FPGA / "gen/glass_cart.h"),
                     "-I", str(FPGA / "cycles"), "-I", str(FPGA / "gen"), "-o", str(exe), str(d / "drv.c")], check=True)
     out = subprocess.run([str(exe)], check=True, capture_output=True, text=True).stdout
-    return [[int(x) for x in line.split()] for line in out.splitlines()]
+    rows = [[int(x) for x in line.split()] for line in out.splitlines()]
+    return [r for r in rows if len(r) == mc.SND_INFO_WORDS] + [r for r in rows if len(r) == 1]  # last: load_pm
 
 
 def head(w: list[int]) -> tuple[int, int, int, int]:
@@ -86,12 +96,12 @@ def test_a_song_then_its_start(steps: list[list[int]]) -> None:
     assert req[mc.SI_TUNE] == 3 and name(req) == "auf_weidersehen_monty_digi.sndh"
     assert req[mc.SI_FLAGS] & mc.SIF_STARTED == 0
     assert started[mc.SI_FLAGS] & mc.SIF_STARTED and head(started)[3] == mc.NATIVE_BEAT_DIS
-    assert all(s[mc.SI_SEQ] % 2 == 0 for s in steps) and steps[2][mc.SI_SEQ] > steps[1][mc.SI_SEQ]
+    assert all(s[mc.SI_SEQ] % 2 == 0 for s in steps[:-1]) and steps[2][mc.SI_SEQ] > steps[1][mc.SI_SEQ]
 
 
 def test_the_peak_is_the_dearest_render_per_sample(steps: list[list[int]]) -> None:
     w = steps[3]
-    assert (w[mc.SI_CYCLES], w[mc.SI_SAMPLES]) == (5000000, 1470)  # the last render
+    assert (w[mc.SI_CYCLES], w[mc.SI_SAMPLES]) == (0, 0)  # 2940 samples: no whole window yet
     # 3 Mc / 735 = 4082 a sample stays the peak over 1360 and 3401, though 5 Mc is the most cycles
     assert (w[mc.SI_PEAK_CYCLES], w[mc.SI_PEAK_SAMPLES]) == (3000000, 735)
     w = steps[4]  # 5442 a sample: the new peak
@@ -116,7 +126,7 @@ def test_a_mode_switch_is_published_and_a_new_song_clears_it(steps: list[list[in
     assert mode(hq) == 3 and hq[mc.SI_FLAGS] & mc.SIF_STARTED  # the started bit kept
     assert mode(st) == 1 and st[mc.SI_FLAGS] & mc.SIF_STARTED and st[mc.SI_SEQ] > hq[mc.SI_SEQ]
     assert mode(fresh) == 0 and fresh[mc.SI_FLAGS] == 0  # the reader derives it from native again
-    assert all(s[mc.SI_SEQ] % 2 == 0 for s in steps)
+    assert all(s[mc.SI_SEQ] % 2 == 0 for s in steps[:-1])
 
 
 def test_a_hippel_module_is_the_hip_player(steps: list[list[int]]) -> None:
@@ -141,3 +151,15 @@ def test_a_cart_mp3_stream_is_named_and_its_stop_is_idle(steps: list[list[int]])
     assert head(on)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_MP3) and on[mc.SI_FLAGS] & mc.SIF_STARTED
     assert name(on) == "mp3" and on[mc.SI_SEQ] % 2 == 0
     assert head(off)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and off[mc.SI_FLAGS] == 0
+
+
+def test_the_load_now_is_a_whole_windows_mean_not_one_render(steps: list[list[int]]) -> None:
+    # A render's cost beats against a reader sampling once a second (F11: 10 % for ten seconds, then
+    # 80 %): the load now is a second's sums, published once the window fills, held until the next.
+    filling, whole, after, pm = steps[18], steps[19], steps[20], steps[21][0]
+    assert (filling[mc.SI_CYCLES], filling[mc.SI_SAMPLES]) == (0, 0)
+    cycles = 46 * 1600000 + 14 * 200000
+    assert (whole[mc.SI_CYCLES], whole[mc.SI_SAMPLES]) == (cycles, 44100)
+    assert (after[mc.SI_CYCLES], after[mc.SI_SAMPLES]) == (cycles, 44100)
+    assert whole[mc.SI_PEAK_CYCLES] == 1600000  # the peak is still one render's
+    assert pm == cycles // 44100 * 441 // 1000  # zg.mp3Status(.load): the same window

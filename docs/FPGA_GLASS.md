@@ -490,8 +490,8 @@ picture. It is the same OSD, put in another mode rather than a second block:
   the debug page's music row without its `music ` and its peak: `FPS 38.2  BARD SNDH
   nat 43%` (who plays it, the player and its mode, the load now), `BARD idle` with no
   music or no cart, `BARD ?` from a firmware without the music block. The debug page
-  keeps the peak. It is read once a second (`BARD_TICKS`): the load
-  is the last render's, and a faster line flickers between renders.
+  keeps the peak. It is read once a second (`BARD_TICKS`): the load is the
+  mean of the last second of renders (`cycles/bsndinfo.h` `sndinfo_window`): one render of a chunked player (SID, MP3) costs 10 % or 80 %, and sampled once a second that beat showed as 10 % for seconds, then 80 %.
 - **Row 1 is the frame budget** (Matt, 2026-10-23), from the firmware's video probe
   (`budget.zig`, the same block as ZMSTAT's `frame_c`..`swap`), averaged over the last
   second: `cart 0.69 FR 0.41 1.0p 66% m0/60` = the cart's Mc a frame, FRESCO's (the
@@ -666,8 +666,8 @@ Nothing new in the PL: the glass already maps the window. The layout is
 | 2 | block version (7:0, now 1) \| route (15:8) \| player (23:16) \| native driver (31:24) |
 | 3 | the request's tune (an SNDH subtune, a MOD's start BPM) |
 | 4 | bit 0: the player started (clear: no such file, or the player refused it); bits 9:8: the SNDH mode after the song's last `zg.requestSndhMode` (1 Musashi, 2 native, 3 native + samples on PCM), 0 = none since the load |
-| 5, 6 | the last render: its cycles, and how many 44.1 kHz samples it made |
-| 7, 8 | the dearest render per sample since the song started: cycles, samples |
+| 5, 6 | the load now: the cycles of the last whole second of renders, and how many 44.1 kHz samples they made |
+| 7, 8 | the dearest single render per sample since the song started: cycles, samples |
 | 9..23 | the song's name, NUL-padded (59 bytes at most) |
 
 - **Route**: 1 ZIGGY, 2 BARD, 3 BARD never answered (no music). 0, or no block, = none.
