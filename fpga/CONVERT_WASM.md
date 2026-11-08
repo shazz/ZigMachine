@@ -28,7 +28,7 @@ log goes to `build/board_carts/<tag>.log`. With `--stage`, it also writes:
 - `/dev/shm/sd/`: the SD card tree, with the carts in `zigmachine/`. Read `MANIFEST.txt` in it.
 - `/dev/shm/sd.md5`: the md5 of every file under `zigmachine/`, for whoever uploads the card.
 
-It stages **only the carts you named that built OK**. Copy `zigmachine/<category>/demo-<tag>.zmd` (its OSD folder:
+It stages **only the carts you named that built OK**. Copy `zigmachine/<category>/demo-<tag>.zmd` (a demo: `<category>` is `demos/<platform>`; its OSD folder:
 `fpga/tools/shelf_category.py`), and
 `zigmachine/progs/` when there is one, onto the card. Copy `shelf.txt` only if you want the OSD
 to forget the other carts' titles: the staged one lists only these carts.

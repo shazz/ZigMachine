@@ -3,7 +3,7 @@
 //
 //   row 0       title bar: page name (or the folder), cursor/count, '>' to the console page
 //   rows 1..9   the rows (shelf_view.zig): the folders, then the carts by title; in a
-//               folder, ".." then its carts. The cursor's row inverse; 'A'/'*' = loaded
+//               folder, ".." then its folders, then its carts. The cursor's row inverse; 'A'/'*' = loaded
 //               (rows 1..14 sit right of the section strip: osd.BODY_COL, 30 wide)
 //   row 10      a rule
 //   row 11      group, year and machine of the selected cart
@@ -37,7 +37,7 @@ pub const State = struct {
     cursor: usize = 0, // a ROW of the view (shelf_view.zig), not a disk index
     top: usize = 0,
     phase: usize = 0, // the marquee's step, advanced by the app's tick
-    folder_buf: [shelf.MAX_FOLDER]u8 = undefined,
+    folder_buf: [shelf.MAX_PATH]u8 = undefined, // a path: "demos/atari_st"
     folder_len: usize = 0, // 0: the top of the shelf
 
     pub fn folder(self: *const State) []const u8 {
@@ -48,20 +48,20 @@ pub const State = struct {
         return .{ .disks = disks, .folder = self.folder() };
     }
 
-    /// Into folder `name`, the cursor on its first cart (row 1; row 0 is "..").
+    /// Into folder `name` (its full path), the cursor on its first row after "..".
     pub fn enter(self: *State, name: []const u8, disks: []const shelf.Disk) void {
         self.folder_len = @min(name.len, self.folder_buf.len);
         @memcpy(self.folder_buf[0..self.folder_len], name[0..self.folder_len]);
         self.show(@min(1, self.view(disks).len() -| 1));
     }
 
-    /// Back to the top, the cursor on the folder just left. False at the top already.
+    /// Up ONE folder, the cursor on the folder just left. False at the top already.
     pub fn leave(self: *State, disks: []const shelf.Disk) bool {
         if (self.folder_len == 0) return false;
-        var name: [shelf.MAX_FOLDER]u8 = undefined;
+        var name: [shelf.MAX_PATH]u8 = undefined;
         const was = name[0..self.folder_len];
         @memcpy(was, self.folder());
-        self.folder_len = 0;
+        self.folder_len = sv.parent(was).len;
         self.show(self.view(disks).rowOfFolder(was) orelse 0);
         return true;
     }
@@ -120,13 +120,13 @@ pub const State = struct {
 
     fn drawTitle(self: *const State, o: *osd.Osd, n: usize, marks: Marks, fps_x10: ?u32) void {
         var bar: [osd.COLS]u8 = undefined;
-        var up: [shelf.MAX_FOLDER]u8 = undefined;
+        var up: [9]u8 = undefined;
         const at = if (n == 0) 0 else self.cursor + 1;
         const where = if (marks.floppy) "FLOPPY" else "SHELF ";
         const title = if (fps_x10) |f|
             std.fmt.bufPrint(&bar, " ZIGMACHINE {d:>3}.{d} FPS {d:>3}/{d:<3}>", .{ f / 10, f % 10, at, n })
         else if (self.folder_len > 0)
-            std.fmt.bufPrint(&bar, " ZIGMACHINE {s:<9} {d:>3}/{d:<3} >", .{ std.ascii.upperString(&up, self.folder()[0..@min(self.folder_len, 9)]), at, n })
+            std.fmt.bufPrint(&bar, " ZIGMACHINE {s:<9} {d:>3}/{d:<3} >", .{ sv.label(&up, self.folder(), up.len), at, n })
         else
             std.fmt.bufPrint(&bar, " ZIGMACHINE  {s}  {d:>3}/{d:<3} >", .{ where, at, n });
         o.line(0, title catch "", true);
@@ -147,11 +147,10 @@ pub const State = struct {
     }
 };
 
-/// "DEMOS/" and its cart count, the count right-aligned.
-fn folderLabel(buf: *[osd.COLS]u8, name: []const u8, n: usize) []const u8 {
+/// "ATARI ST/" (the path's last part) and its cart count, the count right-aligned.
+fn folderLabel(buf: *[osd.COLS]u8, path: []const u8, n: usize) []const u8 {
     @memset(buf[0..NAME_W], ' ');
-    const shown = @min(name.len, NAME_W - 6);
-    _ = std.ascii.upperString(buf[0..shown], name[0..shown]);
+    const shown = sv.label(buf[0 .. NAME_W - 6], path, NAME_W - 6).len;
     buf[shown] = '/';
     var num: [8]u8 = undefined;
     const digits = std.fmt.bufPrint(&num, "{d}", .{n}) catch "";
@@ -170,8 +169,8 @@ fn mark(disks: []const shelf.Disk, what: sv.Row, marks: Marks) u8 {
 fn details(o: *osd.Osd, disks: []const shelf.Disk, what: sv.Row) void {
     var line: [osd.COLS]u8 = undefined;
     switch (what) {
-        .up => return o.body(DETAIL, "back to the shelf's folders", false),
-        .folder => |f| return o.body(DETAIL, std.fmt.bufPrint(&line, "folder {s}: {d} carts", .{ f, sv.count(disks, f) }) catch "", false),
+        .up => return o.body(DETAIL, "back up one folder", false),
+        .folder => |f| return o.body(DETAIL, std.fmt.bufPrint(&line, "folder {s}: {d} carts", .{ sv.leaf(f), sv.count(disks, f) }) catch "", false),
         .disk => |i| cartDetails(o, disks[i]),
     }
 }

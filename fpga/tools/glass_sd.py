@@ -19,7 +19,8 @@ On the card (the layout: tools/sd_layout.py, decisions.md 2026-11-06; the root h
     KESTREL/glass            this ARM glass when the staged rootfs does not carry it: S99glass runs it instead
     CARTS/<category>/demo-<tag>.zmd    the shelf: fat disks (wasm cart + rv32 BOARD image,
                              build/hcycles/board/<cart>/fw.bin; a data disk is staged as it is: tools/glass_shelf.py),
-                             one folder a category (demos, games, tools, ...: tools/shelf_category.py)
+                             one folder a category (demos, games, tools, ...: tools/shelf_category.py),
+                             a demo one more down by its platform: CARTS/demos/atari_st/demo-<tag>.zmd
     CARTS/shelf.txt          what the OSD says about each cart (tools/shelf_meta.py)
     KESTREL/kos/desktop.rv32 KOS's desktop (GEM's board image), booted for a data disk or an empty drive
     KESTREL/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)

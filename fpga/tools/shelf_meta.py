@@ -4,7 +4,7 @@
 
 One line a disk, tab-separated: FILE, TITLE, GROUP, YEAR, TYPE, DESCRIPTION
 (fpga/glass/src/meta.zig reads it). FILE is the disk's path under CARTS/,
-its folder first (tools/shelf_category.py): "demos/demo-stniccc.zmd". Nothing is typed twice; each field comes
+its folders first (tools/shelf_category.py): "demos/atari_st/demo-stniccc.zmd". Nothing is typed twice; each field comes
 from where the repo already keeps it:
 
 - TITLE and TYPE: apps/zig/scenes/catalog.zig (tools/channels.py's parser, so
@@ -146,7 +146,7 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
         title, group, year = (
             o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (name, group, year), strict=True)
         )
-        out.append((shelf_category.disk_path(tag), ascii_text(title), group, year, kind, desc))
+        out.append((shelf_category.disk_path(tag), zig_title(ascii_text(title), tag), group, year, kind, desc))
     kinds = {tag: kind for _, tag, kind in channels.entries()}
     for tag in [t for t in cart_tags() if t not in kinds and (tags is None or t in tags)]:
         hub = next((h for p, h in HUBS.items() if tag.startswith(p)), "")
@@ -155,8 +155,27 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
             title, group, year = (
                 o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (hub_title(desc), group, year))
             )
-            out.append((shelf_category.disk_path(tag), ascii_text(title), group, year, kinds[hub], desc))
+            out.append((shelf_category.disk_path(tag), zig_title(ascii_text(title), tag), group, year, kinds[hub], desc))
     return out
+
+
+ZIG_MARK = " (Z)"
+ZIG_MODE = re.compile(r"ZIG MODE", re.IGNORECASE)
+
+
+def has_zig_mode(tag: str) -> bool:
+    """A cart whose Z key switches to its KESTREL showcase ("ZIG mode", as grodan_kvack and rno_natrium):
+    its scene file, its <tag>_zig.zig or a file in its own directory says so."""
+    base = SCENES / "scenes"
+    files = [base / f"{tag}.zig", base / f"{tag}_zig.zig", *sorted((base / tag).glob("*.zig"))]
+    return any(f.is_file() and ZIG_MODE.search(f.read_text(errors="replace")) for f in files)
+
+
+def zig_title(title: str, tag: str) -> str:
+    """The OSD title, marked " (Z)" for a cart with a ZIG mode (Matt, 7 Nov), cut to fit the OSD's width."""
+    if not has_zig_mode(tag):
+        return title
+    return title[: channels.MAX_NAME_LEN - len(ZIG_MARK)].rstrip() + ZIG_MARK
 
 
 def hub_title(desc: str) -> str:
