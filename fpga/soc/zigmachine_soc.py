@@ -33,6 +33,9 @@ from soc.zm_video_snoop import ZMVideoSnoop, attach_snoop, drained
 
 FPGA = Path(__file__).resolve().parent.parent
 SYS_CLK_SIM = int(1e6)
+# The UART's CSR location in the glass SoCs (the sim's console, soc/hp_sim.py): the board has no UART
+# but keeps the location taken, so its map is the sim's (tools/cycles_csr.py --hp-check).
+UART_LOC = 1
 PIX_CLK = int(40e6)  # VESA 800x600 @ 60 Hz, see rtl/video/zm_vtiming.v
 VIDEO_WINDOW = (
     0x90000000  # in the uncached IO region: the video registers, palettes and BEAM table (soc/zm_video_pipe.py)
@@ -95,8 +98,8 @@ class ZigMachineSoC(SoCCore):
             # sim's csr.json, so both maps move together, tools/cycles_csr.py --hp-check).
             kwargs.setdefault("with_timer", False)
             kwargs.setdefault("with_ctrl", False)
-            # The UART's FIFOs: the board's is a stub nothing drains (LUTRAM and pointers for nothing),
-            # the sim's console drains a byte a clock; 2 deep keeps the CSRs and the behaviour.
+            # The UART's FIFOs: the sim's console (soc/hp_sim.py) drains a byte a clock, so 2 deep keeps
+            # the CSRs and the behaviour; the board has no UART at all (soc/zm_z7.py with_uart=False).
             kwargs.setdefault("uart_fifo_depth", 2)
             kwargs.setdefault("integrated_sram_size", 0)
         SoCCore.__init__(
@@ -110,6 +113,8 @@ class ZigMachineSoC(SoCCore):
             integrated_main_ram_size=main_ram_size,
             **kwargs,
         )
+        if not kwargs.get("with_uart", True):
+            self.csr.add("uart", n=UART_LOC)  # no bank: video and zm_cycles keep the sim's addresses
         if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI (not in soc/hp_sim.py)
             self._add_video_pipe(platform, glass, video_hp, hdmi, audio, hp_probe)
         else:

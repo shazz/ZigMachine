@@ -149,10 +149,12 @@ def _board_soc(
         return ZigMachineSoC(platform, sys_hz, "pipe", uart_name="jtag_uart")
     hp0, hp1 = hp_interface(), hp_interface()
     hp3 = hp_interface() if audio else None
-    # The console is a stub: with the glass nothing reads the JTAG UART (cycles/bboard.c prints
-    # nothing under ZM_BOARD), and its PHY and FIFOs cost LUTs. Same CSRs, so the same map as the sim.
+    # No console: with the glass nothing reads a UART (cycles/bboard.c prints nothing under ZM_BOARD,
+    # the ARM's console is the PS's own UART on MIO), so the board has none (2026-11-08: the stub's
+    # FIFOs, event manager and CSR bank were ~50 LUT for nothing). ZigMachineSoC keeps its CSR
+    # location, so every other register sits where the sim's map puts it (cycles_csr.py --hp-check).
     soc = ZigMachineSoC(
-        platform, sys_hz, "pipe", glass=True, video_hp=hp1, uart_name="stub",
+        platform, sys_hz, "pipe", glass=True, video_hp=hp1, with_uart=False,
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3, "sound": sound, "sound_core": Path(sound_core) if sound_core else None},
         hp_probe=hp_probe,
     )  # fmt: skip
