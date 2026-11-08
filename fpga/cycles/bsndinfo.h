@@ -118,14 +118,35 @@ static inline void sndinfo_mode(uint32_t mode) {
     sndinfo_close();
 }
 
-/* One render: `cycles` for `samples`; the peak is the dearest per sample (cross-multiplied). */
-static inline void sndinfo_render(uint32_t cycles, uint32_t samples) {
+/* The load now is a window's mean, not one render's cost. A player that works in chunks costs
+ * ~80 % on a render that runs a chunk and ~10 % on one that does not (the SID's 1024 samples a
+ * chunk against BARD's 735-sample renders; MP3's 1152-sample frames gave 7 % / 470 %), and a
+ * reader that samples one render a second (the glass's F11 line) sees the beat between the two:
+ * 10 % for ten seconds, then 80 % (Matt, SID TEST, 7 Nov). The window is a second of renders;
+ * the ZIGGY and BARD writers (cycles/baudio.c) keep one each. */
+#define SND_LOAD_WINDOW 44100u
+typedef struct {
+    uint32_t cycles, samples; /* the window filling */
+    uint32_t load_pm;         /* the last whole window: per mille of a 100 MHz CPU at 44.1 kHz */
+} sndinfo_window;
+
+/* One render: `cycles` for `samples`. The peak is the dearest render per sample (cross-multiplied);
+ * SI_CYCLES / SI_SAMPLES are the last whole window's sums, published when it fills. */
+static inline void sndinfo_render(sndinfo_window* w, uint32_t cycles, uint32_t samples) {
     if (!samples) return;
     uint32_t pc = ZM_SND_INFO[SI_PEAK_CYCLES], ps = ZM_SND_INFO[SI_PEAK_SAMPLES];
+    w->cycles += cycles;
+    w->samples += samples;
+    int full = w->samples >= SND_LOAD_WINDOW, peak = !ps || (uint64_t)cycles * ps > (uint64_t)pc * samples;
+    if (!full && !peak) return;
     sndinfo_open();
-    ZM_SND_INFO[SI_CYCLES] = cycles;
-    ZM_SND_INFO[SI_SAMPLES] = samples;
-    if (!ps || (uint64_t)cycles * ps > (uint64_t)pc * samples) {
+    if (full) {
+        ZM_SND_INFO[SI_CYCLES] = w->cycles;
+        ZM_SND_INFO[SI_SAMPLES] = w->samples;
+        w->load_pm = w->cycles / w->samples * 441u / 1000u; /* cycles a sample x 44100 / 100 MHz */
+        w->cycles = w->samples = 0;
+    }
+    if (peak) {
         ZM_SND_INFO[SI_PEAK_CYCLES] = cycles;
         ZM_SND_INFO[SI_PEAK_SAMPLES] = samples;
     }

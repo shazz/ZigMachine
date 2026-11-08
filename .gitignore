@@ -31,6 +31,11 @@ HANDOFF.md
 # A song the owner keeps on their own machine only (music_debug key 6, fpga/tools/song_pack.py
 # LOCAL_SONGS): for a tune whose licence does not allow bundling it. Never commit one.
 docs/music/local.xm
+# SID TEST's HVSC tunes (keys 1-4): PSIDs from the High Voltage SID Collection, the owner's card only.
+docs/music/cybernoid_ii.sid
+docs/music/wizball.sid
+docs/music/commando.sid
+docs/music/club_style.sid
 
 # The C program ports (apps/ports): upstream sources fetched at their pins by apps/ports/fetch.sh, and build output.
 apps/ports/upstream/

@@ -470,7 +470,7 @@ pub fn mp3Feed(bytes: []const u8) void {
 /// .word: bits 0-1 state (0 idle, 1 playing, 2 paused, 3 ended), bit 2 input ended, bits 4-7 rate
 /// (1 32 kHz, 2 44.1, 3 48, 4 other), bit 8 stereo, 16-23 decode errors, 24-31 underruns;
 /// .used: bytes the player took (total, wraps); .frames: frames decoded (1152 samples each);
-/// .load: the sound CPU's last render, per mille of it (the board's BARD; 0 where none is measured).
+/// .load: the sound CPU's load over the last second of renders, per mille of it (the board's BARD; 0 where none is measured).
 /// 0 everywhere: no MP3 player on this host. The page and the board answer a frame or two late.
 pub fn mp3Status(which: Mp3Stat) u32 {
     return hostMp3Status(@intFromEnum(which));

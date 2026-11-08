@@ -1,5 +1,5 @@
 // The BARD queue (zg.bard, system table 1.12) and its first device, SID live, on two hosts:
-//   page     BARD SID (cart 121) writes its tune into its ring; the loader's bardFrame takes the frame's
+//   page     BARD SID (cart 124) writes its tune into its ring; the loader's bardFrame takes the frame's
 //            commands, the worklet's bardQueue queues them on demo-audio.wasm, raw cRSID (machine-audio.wasm)
 //            plays each at its sample; the worklet's bardState comes back through the loader's bardPublish
 //            (apps/bard_queue_lib.mjs, the real loader and worklet code)

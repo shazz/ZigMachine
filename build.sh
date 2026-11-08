@@ -251,6 +251,8 @@ NATIVE_TESTS="
     apps/zig/scenes/c64_1988/tables_test.zig
     apps/zig/scenes/c64_1988/vic_test.zig
     apps/zig/scenes/c64_1988/show_test.zig
+    apps/zig/scenes/c64_transmission64/vic_test.zig
+    apps/zig/scenes/c64_transmission64/show_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
@@ -378,8 +380,8 @@ gate mp3_player uv run --project fpga python -m pytest -q fpga/tests/test_mp3_na
 gate sid node apps/sid_check.mjs   # .sid player (libs/zig/players/sid.zig, cRSID libs/c/crsid): the engine in machine-audio.wasm renders hermini.sid's first 10 s to the same samples, 0.1 s block for block, as the same C built natively by the host's cc (fpga/tools/sid_render.c on patch.sh's tree: what BARD runs, host/crsid.c), local study tunes too when present; the player's 44.1 kHz output a side = the engine upsampled (midpoints) >> 1, mode 1, heard; an RSID refused (status 2) and garbage (1), silent
 gate sid node apps/sid_check.mjs --break seed   # ...and the native build's dither seed one off fails parity
 gate sid node apps/sid_check.mjs --break rsid   # ...and an RSID let through as a PSID fails the refusal check
-gate sid_test node apps/sid_test_check.mjs   # SID TEST: key 1 asks for hermini.sid by name, 5 for "none"; key 2 is requestSongBytes kind 6 of the tune's bytes, key 3 of the same as an RSID; the loader's postSfx makes loadSid of each; the audio modules play the PSID (mode 1, heard) and refuse the RSID (status 2, silent); both tune files are cRSID's HerMiniSID (md5)
-gate sid_test node apps/sid_test_check.mjs --break name   # ...and key 1 expected to ask for another file fails
+gate sid_test node apps/sid_test_check.mjs   # SID TEST: keys 1-4 ask for the local HVSC tunes by name (gitignored, never fetched, none tracked), key 6 for hermini.sid, 5 for "none"; key 7 is requestSongBytes kind 6 of the tune's bytes, mode 7 (no key) of the same as an RSID; the loader's postSfx makes loadSid of each; the audio modules play the PSID (mode 1, heard) and refuse the RSID (status 2, silent); both tune files are cRSID's HerMiniSID (md5)
+gate sid_test node apps/sid_test_check.mjs --break name   # ...and key 6 expected to ask for another file fails
 gate bard_sid node apps/bard_queue_check.mjs   # BARD queue (zg.bard, table 1.12): BARD SID writes its tune into its ring; the loader's bardFrame + the worklet's bardQueue on the audio modules (raw cRSID) = host_audio (the cart and players through wasm2c, cRSID native, host/bardq_pump.c: BARD's pump), the same samples from the first heard one over 420 frames; every command applied, none refused, dropped or re-anchored, the beat marks back; key 2 resets an 8580 mid-tune (its event back, the output parts after the key); bardDrain stops at an entry not whole
 gate bard_sid node apps/bard_queue_check.mjs --break stamp   # ...and the loader delaying every SID write two samples (one engine sample) fails parity
 gate bard_sid node apps/bard_queue_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
@@ -453,6 +455,10 @@ gate falcon_ays node apps/falcon_ays_headless.mjs --break script   # ...and the 
 gate falcon_ays node apps/falcon_ays_headless.mjs --break art   # ...and the ship compared one pixel off is caught
 gate c64_1988 node apps/c64_1988_headless.mjs   # 1988 (cart 118, Tristar & RSI's C64 Only Sprites intro): plane 0 alone, overscan; nine C64 frames across the loop (logo + scrollers on texts 1 and 2, the logo fade, the wipe, the grid joining, cubes, the end fade, balls, the green fade) pixel-identical to VICE 3.9 x64sc (pinned SHA-256 of the 384x272 view in colodore indices, tools/c64/pin_frames.py); Escape leaves
 gate c64_1988 node apps/c64_1988_headless.mjs --break pixel   # ...and the view taken one pixel to the right is caught
+gate c64_transmission64 node apps/c64_transmission64_headless.mjs   # TRANSMISSION64 (cart 120, Padua's C64 invitation 2021): plane 0 alone; C64 frames across the show (the boot screen, the rings, the wipe, the logo's colours, the dots, the panel) pixel-identical to VICE 3.9 x64sc (pinned SHA-256 of the 384x272 view in colodore indices, tools/c64/pin_frames.py); Escape leaves
+gate c64_transmission64 node apps/c64_transmission64_headless.mjs --break pixel   # ...and the view taken one pixel to the right is caught
+gate c64_1988 node apps/c64_1988_zig.mjs   # 1988 ZIG mode (Z): plane 0 alone on a copper list, the C64 frames interpolated to 60 Hz (a new picture every machine frame in part 1), REF's picture exactly on every frame that falls on a C64 frame, <= 160 CHISEL ops a frame, Z back = REF pixel for pixel (three round trips)
+gate c64_1988 node apps/c64_1988_zig.mjs --break   # ...and REF one frame ahead during the round trips is caught
 gate obj node apps/obj_headless.mjs "$SHOTS/obj"   # OBJ DEMO: the icosahedron and gem in FLAT/GLENZ/WIRE/SOFT draw the pre-fixed-point cart's exact pixels for 240 frames; 1-4 pick the object (4: GLENZ NEST, 60/104), + / - walk the sphere's 13 levels (V/F 20/36 .. 1986/3968, stops at both ends, nothing on the other objects), S cycles nine distinct modes (GLENZ ORs, GOURAUD > 12 levels, WIRE/HIDDEN wire ink, HIDDEN fewer pixels, DOTS one pixel a vertex, TEXTURE the wall texels and ENVMAP Natrium's grey env map through one CHISEL AFFINE op), only last frame's box erased (no stale pixel in any mode, nest included), five sphere and three nest pins under every split, the HUD follows, Escape leaves
 gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never arrive are caught
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught

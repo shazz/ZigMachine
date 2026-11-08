@@ -5,6 +5,7 @@ nothing places stops the staging instead of landing in a catch-all folder."""
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -42,7 +43,43 @@ def test_every_cart_a_card_can_carry_has_a_category() -> None:
 )
 def test_a_cart_goes_in_its_category(tag: str, category: str) -> None:
     assert shelf_category.category(tag) == category
-    assert shelf_category.disk_path(tag) == f"{category}/demo-{tag}.zmd"
+    assert shelf_category.disk_path(tag).startswith(f"{category}/")
+
+
+@pytest.mark.parametrize(
+    ("tag", "path"),
+    [
+        ("stniccc", "demos/atari_st/demo-stniccc.zmd"),  # catalog type "atari st": no space on the card
+        ("tsl_hybridglenz", "demos/amiga/demo-tsl_hybridglenz.zmd"),
+        ("trsi_transarctica", "demos/atari_falcon/demo-trsi_transarctica.zmd"),
+        ("c64_1988", "demos/c64/demo-c64_1988.zmd"),
+        ("union_tnt3", "demos/atari_st/demo-union_tnt3.zmd"),  # in no catalog line: the Union Demo's machine
+        ("fuji_hobbytronic", "demos/kestrel/demo-fuji_hobbytronic.zmd"),  # written for the machine, an XL tune
+        ("anima", "demos/kestrel/demo-anima.zmd"),
+        ("joust", "games/demo-joust.zmd"),  # only demos/ is split by platform
+        ("pt2", "tools/demo-pt2.zmd"),
+    ],
+)
+def test_a_demo_goes_in_its_platform_folder(tag: str, path: str) -> None:
+    assert shelf_category.disk_path(tag) == path
+
+
+def test_every_platform_folder_is_one_fat_name_glass_takes() -> None:
+    names = set(shelf_category.PLATFORMS.values())
+    assert {"atari_st", "amiga", "atari_falcon", "atari_xl", "c64", "kestrel"} == names
+    assert all(re.fullmatch(r"[a-z0-9_]{1,24}", n) for n in names)  # no space (ctl load), shelf.zig MAX_FOLDER
+    demos = [t for t in shelf_category.every_tag() if shelf_category.category(t) == "demos"]
+    assert {shelf_category.platform(t) for t in demos} == names - {"atari_xl"}  # no XL production yet
+
+
+def test_a_demo_with_no_platform_is_an_error_not_a_catch_all(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(shelf_category.TABLE, "stniccc", "demos")  # a demo by the table, of a machine
+    monkeypatch.setitem(shelf_category.kinds(), "stniccc", "spectrum")  # no folder is for
+    with pytest.raises(shelf_category.UnknownCategory, match="stniccc: a demo with no platform .*'spectrum'"):
+        shelf_category.disk_path("stniccc")
+    assert shelf_category.problems(["stniccc"]) != []
+    monkeypatch.setitem(shelf_category.PLATFORM_TABLE, "stniccc", "atari st")  # the override wins
+    assert shelf_category.disk_path("stniccc") == "demos/atari_st/demo-stniccc.zmd"
 
 
 def test_a_cart_nothing_places_is_an_error_not_a_catch_all() -> None:
@@ -87,10 +124,10 @@ def test_staging_puts_each_disk_in_its_folder_and_shelf_txt_names_the_path(tmp_p
     assert not list((tmp_path / "sd" / "KESTREL").rglob("demo-*.zmd")) and (tmp_path / "sd" / "CARTS" / "shelf.txt").exists()
     sd = tmp_path / "sd" / "CARTS"  # tools/sd_layout.py: the shelf and shelf.txt
     assert sorted(str(p.relative_to(sd)) for p in sd.rglob("demo-*.zmd")) == [
-        "demos/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]  # fmt: skip
+        "demos/atari_st/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]  # fmt: skip
     assert "KESTREL/progs/demo-st_replay/BOOT.WSM.zmd" in rows  # programs stay in progs/, by the bare name
     lines = [ln.split("\t")[0] for ln in (sd / "shelf.txt").read_text().splitlines() if not ln.startswith("#")]
-    assert sorted(lines) == ["demos/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]
+    assert sorted(lines) == ["demos/atari_st/demo-stniccc.zmd", "tools/demo-st_replay.zmd", "tutorials/demo-tutorial.zmd"]
 
 
 def test_path_prints_where_an_upload_script_finds_the_disk() -> None:

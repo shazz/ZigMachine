@@ -607,8 +607,11 @@ pub fn build(b: *std.Build) void {
         "demo-mp3_player", // 117 — MP3 PLAYER: C:\MUSIC's .MP3 files read through KOS GEMDOS and fed to the sound side's MP3 player (pvmp3 on BARD / the AudioWorklet), on the four Paula channels
         "demo-sid_test", // 118 — SID TEST: a Commodore 64 PSID (HerMiniSID, Hermit) on the .sid player: cRSID, native on BARD, machine-audio.wasm on the page; keys 1-3 by name, as bytes, an RSID refused; 5 stops
         "demo-c64_1988", // 119 — TRISTAR & RED SECTOR INC. / 1988 (C64, Only Sprites 2021, code Shazz): the eight sprites multiplexed by the original's IRQ chains, replayed on a VIC-II sprite model (data ripped by tools/c64_1988_rip.py)
-        "", // 120 — held for demo-c64_transmission64 (port/c64-transmission64, not on main yet)
-        "demo-bard_sid", // 121 — BARD SID: the BARD queue's test cart (zg.bard, table 1.12): the cart writes the SID's registers tick by tick, stamped on its sample clock; raw cRSID plays each at its sample (BARD native, machine-audio.wasm); a mark back each beat flashes the background
+        "demo-c64_transmission64", // 120 — PADUA / TRANSMISSION64 INVITATION (C64, 2021): rings over the boot screen, the radio logo, the dots and the info panel, on a VIC-II model fed the original's IRQ chains (data ripped by tools/c64_transmission64_rip.py)
+        "", // 121 — held for an unmerged branch (lead, 8 Nov)
+        "", // 122 — held for an unmerged branch (lead, 8 Nov)
+        "", // 123 — held for an unmerged branch (lead, 8 Nov)
+        "demo-bard_sid", // 124 — BARD SID: the BARD queue's test cart (zg.bard, table 1.12): the cart writes the SID's registers tick by tick, stamped on its sample clock; raw cRSID plays each at its sample (BARD native, machine-audio.wasm); a mark back each beat flashes the background
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

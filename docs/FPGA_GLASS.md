@@ -396,7 +396,8 @@ its own place (Matt, 6 Nov: GEM's C: used to show the whole card):
              rootfs.ub, zest.dtb, uboot.env, authorized_keys, and their copies (*.prev, NAME.<hash>)
 /KESTREL/    the system: system.rv32, kos/desktop.rv32, glass.cfg, glass (an optional override),
              progs/ (by-hash/ and demo-<tag>/: programs' board images), rollback/ (old card files)
-/CARTS/      the OSD's shelf: demos/ games/ tools/ tutorials/ tests/ system/ + shelf.txt
+/CARTS/      the OSD's shelf: demos/ games/ tools/ tutorials/ tests/ system/ + shelf.txt;
+             demos/ split by platform: amiga/ atari_falcon/ atari_st/ atari_xl/ c64/ kestrel/
 /HD/         KOS's C: (the desktop shell roots C:\ there: docs/KOS_FAT.md); glass never reads it
 ```
 
@@ -490,8 +491,8 @@ picture. It is the same OSD, put in another mode rather than a second block:
   the debug page's music row without its `music ` and its peak: `FPS 38.2  BARD SNDH
   nat 43%` (who plays it, the player and its mode, the load now), `BARD idle` with no
   music or no cart, `BARD ?` from a firmware without the music block. The debug page
-  keeps the peak. It is read once a second (`BARD_TICKS`): the load
-  is the last render's, and a faster line flickers between renders.
+  keeps the peak. It is read once a second (`BARD_TICKS`): the load is the
+  mean of the last second of renders (`cycles/bsndinfo.h` `sndinfo_window`): one render of a chunked player (SID, MP3) costs 10 % or 80 %, and sampled once a second that beat showed as 10 % for seconds, then 80 %.
 - **Row 1 is the frame budget** (Matt, 2026-10-23), from the firmware's video probe
   (`budget.zig`, the same block as ZMSTAT's `frame_c`..`swap`), averaged over the last
   second: `cart 0.69 FR 0.41 1.0p 66% m0/60` = the cart's Mc a frame, FRESCO's (the
@@ -585,16 +586,25 @@ over a running cart, and R and W are the cold and warm reset.
 **Folders** (`shelf_view.zig`, Matt 3 Nov: "reorganize the carts in folders ... and of course
 showing the folders in the OSD"). The card keeps each fat disk in a category folder,
 `CARTS/<category>/demo-<tag>.zmd` (`demos`, `games`, `tools`, `tutorials`, `tests`,
-`system`: `fpga/tools/shelf_category.py`). The shelf page lists the folders first, `DEMOS/`
-with its cart count, then any disk lying at the top; Enter (or the pad's fire) opens a
-folder, whose first row is `..`; Enter on `..`, ← or Backspace (the pad's left) go back up,
-the cursor on the folder just left. The title bar names the folder (`ZIGMACHINE DEMOS 2/24`),
-and a folder row carries the `A` / `*` mark of a disk in it. The scan goes one level down
-and never into `progs/` or `kos/` (an old card's system folders, beside its shelf) or a dot-directory. A disk is still known
+`system`: `fpga/tools/shelf_category.py`), and **folders nest** (Matt 7 Nov: "in carts/demos/
+can you create sub folders: amiga, atari st, atari xl, c64..."): a demo sits one more level
+down, by the machine it comes from, `CARTS/demos/<platform>/demo-<tag>.zmd` (`amiga`,
+`atari_falcon`, `atari_st`, `atari_xl`, `c64`, and `zigmachine` for the machine's own screens).
+The names on the card have no space (`glass ctl load` splits its line on whitespace, and the
+upload recipes are shell lines); the OSD shows `_` as a space, `ATARI ST/`. Every level lists
+`..` (not at the top), then its folders with their cart count (every cart under them, `DEMOS/ 87`),
+then its own disks by title; Enter (or the pad's fire) opens a folder; Enter on `..`, ← or
+Backspace (the pad's left) go up ONE level, the cursor on the folder just left. The title bar
+names the folder by its last part (`ZIGMACHINE ATARI ST 2/70`: `..` and 69 carts), and a folder row carries the
+`A` / `*` mark of a disk anywhere under it. The scan goes three levels down (`shelf.zig`
+MAX_DEPTH) and never into `progs/` or `kos/` (an old card's system folders, beside its shelf) or a dot-directory. A disk is still known
 by its bare file name everywhere (glass.cfg's drive A, a cart's REQ_LOAD_CART, `progs/`,
 `glass ctl load`); its folder only says where it is read from. **A flat card** (every disk at
-the top, before 3 Nov) lists exactly as before; a disk at the top that a folder also holds
-(an old copy nobody deleted) is ignored, with a warning in the log. A title longer
+the top, before 3 Nov) lists exactly as before; a disk in a folder ABOVE another copy of it
+(an old flat copy, or `demos/x.zmd` left beside `demos/atari_st/x.zmd` on a half-moved card)
+is ignored, with a warning in the log. A rescan (Shift+F12) that empties the open folder goes
+up to the nearest folder still holding a disk. `fpga/tools/sd_nest_demos.py` prints the shell
+lines that move a 3 Nov card's `CARTS/demos/demo-<tag>.zmd` into the platform folders. A title longer
 than its 31 columns is cut with `~` in the list and **scrolls** (a marquee,
 holding at each end) while it is the selected one. A disk that `shelf.txt` does
 not list shows `no shelf.txt entry` and its file name in the details.
@@ -666,8 +676,8 @@ Nothing new in the PL: the glass already maps the window. The layout is
 | 2 | block version (7:0, now 1) \| route (15:8) \| player (23:16) \| native driver (31:24) |
 | 3 | the request's tune (an SNDH subtune, a MOD's start BPM) |
 | 4 | bit 0: the player started (clear: no such file, or the player refused it); bits 9:8: the SNDH mode after the song's last `zg.requestSndhMode` (1 Musashi, 2 native, 3 native + samples on PCM), 0 = none since the load |
-| 5, 6 | the last render: its cycles, and how many 44.1 kHz samples it made |
-| 7, 8 | the dearest render per sample since the song started: cycles, samples |
+| 5, 6 | the load now: the cycles of the last whole second of renders, and how many 44.1 kHz samples they made |
+| 7, 8 | the dearest single render per sample since the song started: cycles, samples |
 | 9..23 | the song's name, NUL-padded (59 bytes at most) |
 
 - **Route**: 1 ZIGGY, 2 BARD, 3 BARD never answered (no music). 0, or no block, = none.
@@ -699,13 +709,13 @@ The glass serves it from its main loop, between two input events, as it would a 
 
 | Command | Does |
 |---|---|
-| `load <file.zmd> [PROGRAM]` | the OSD's load, by the shelf's file name or its folder path (`demo-joust.zmd`, `games/demo-joust.zmd`; a path also finds the file flat on an older card; case ignored; the shelf is re-read once if it is not there); with PROGRAM, that program off the disk as GEM would ask for it (`progs/`, "Programs off a data disk") |
+| `load <file.zmd> [PROGRAM]` | the OSD's load, by the shelf's file name or a path ending in it (`demo-joust.zmd`, `games/demo-joust.zmd`, `demos/atari_st/demo-x.zmd` or `atari_st/demo-x.zmd`, but not `demos/demo-x.zmd`: it is not there; a path also finds the file flat on an older card; case ignored; the shelf is re-read once if it is not there); with PROGRAM, that program off the disk as GEM would ask for it (`progs/`, "Programs off a data disk") |
 | `key <key> [down\|up\|tap]` | a key as the keyboard sends it: the menu's while it is open, else the cart's. `1`, `a`, `A` (one character is itself), `space`, `enter`, `esc`, `up`..`right`, `f1`..`f10`, `shift`, `alt`, ..., or a raw code `0xE012`. `tap` (default) holds it 100 ms |
 | `joy <bits>` | the joypad bits held now: `0x20`, `up+fire`, `0` |
 | `stats [N]` | one `ZMSTAT` line over the last N seconds (default 5, up to 50) |
 | `osd open\|close` | F12 |
 | `quit-cart` | the cart CPU held in reset, the menu up |
-| `list`, `help` | the shelf (`file<TAB>title<TAB>folder` a line, the folder empty for a disk at the top), the commands |
+| `list`, `help` | the shelf (`file<TAB>title<TAB>folder` a line, the folder a path, `demos/atari_st`, empty for a disk at the top), the commands |
 
 The `stats` line, one `key=value` a field, never a space in a value (`_` stands in), `-` for
 "none" or "not measured", `song` last:
@@ -856,18 +866,23 @@ machine and a one-line description. They come from `<SHELF_DIR>/shelf.txt`, one
 line a disk, tab-separated:
 
 ```
-FILE                    TITLE                 GROUP    YEAR  TYPE      DESCRIPTION
-demos/demo-stniccc.zmd  OXYGENE STNICCC 2000  Oxygene  2000  atari st  Oxygene / STNICCC 2000, the polygon flight ...
+FILE                             TITLE                 GROUP    YEAR  TYPE      DESCRIPTION
+demos/atari_st/demo-stniccc.zmd  OXYGENE STNICCC 2000  Oxygene  2000  atari st  Oxygene / STNICCC 2000, the polygon flight ...
 ```
 
-FILE is the disk's path under the shelf, its folder first (`shelf_category.py`). The glass
-matches a disk by that path, then by its file name alone, so an older flat `shelf.txt` still
-describes a foldered card and this one a flat card.
+FILE is the disk's path under the shelf, its folders first (`shelf_category.py`). The glass
+matches a disk by that path, then by its file name alone, so an older `shelf.txt` (flat, or
+from before the platform folders) still describes a nested card and this one a flat card. A
+disk no line names shows its descriptor's title, else its file name as it is.
 
 **The folder** (`fpga/tools/shelf_category.py`): its `TABLE` first (the games among the
 ST ports, the test carts, the native carts, the "zigmachine" screens); a Union Demo screen
 (`union_*`) is a demo; else the catalog's type: `pc` is `tools`, `atari st` / `amiga` /
-`atari falcon` are `demos`. A "zigmachine", "system" or "unknown" cart must be in the table.
+`atari falcon` / `c64` are `demos`. A "zigmachine", "system" or "unknown" cart must be in the table.
+A demo's platform folder is its catalog type through `PLATFORMS` (a Union screen takes the Union
+Demo's, `atari st`), else `PLATFORM_TABLE`; a demo of a machine with no folder is an error too.
+`fuji_hobbytronic` is in `zigmachine/`: a screen written for the machine, whose tune is an
+Atari XL SAP (no XL production is ported yet, so `atari_xl/` stays off the card for now).
 There is no catch-all: a cart nothing places stops `glass_sd.py` before it stages anything,
 and `shelf_category.py --check` (also `shelf_meta.py`) exits 1, naming it.
 
@@ -1453,7 +1468,8 @@ ssh to the board over its RJ45; no Wi-Fi dongle is needed.
   UART (`ip addr show eth0`).
 - **Cart upload over the network** comes nearly free with it:
   `ssh root@zigmachine.local mount -o remount,rw /mnt/sd`, then `scp
-  demo-x.zmd root@zigmachine.local:/mnt/sd/CARTS/<category>/` and remount read-only.
+  demo-x.zmd root@zigmachine.local:/mnt/sd/CARTS/$(uv run python fpga/tools/shelf_category.py --path x | xargs dirname)/`
+  (`games/`, or `demos/<platform>/` for a demo) and remount read-only.
   Then **Shift+F12** in `glass` rescans the shelf over the running cart.
 - Unverified until Buildroot builds the image and the bitstream carries the
   EMIO wiring.

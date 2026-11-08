@@ -13,8 +13,8 @@ error, not a skip: the cart asks for it and the board would play nothing. A
 song neither finds is missing on the board: the sound CPU's console says
 "ZM SONG MISSING <name>" and the old song stops.
 
-One name is optional: LOCAL_SONGS (a song the owner keeps on their own machine
-only, never in git: docs/music/local.xm is gitignored). It is packed when the
+Some names are optional: LOCAL_SONGS (songs the owner keeps on their own machine
+only, never in git: docs/music/local.xm and SID TEST's HVSC tunes are gitignored). It is packed when the
 file is there and left out, with a note, when it is not, so a clean checkout
 builds and a personal one plays it.
 """
@@ -29,7 +29,8 @@ FPGA = Path(__file__).resolve().parent.parent
 SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap", "hip", "kt", "sid")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
 # Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
-LOCAL_SONGS = frozenset({"local.xm"})
+# SID TEST's keys 1-4 (apps/zig/scenes/sid_test.zig): High Voltage SID Collection PSIDs, not ours to ship.
+LOCAL_SONGS = frozenset({"local.xm", "cybernoid_ii.sid", "wizball.sid", "commando.sid", "club_style.sid"})
 # host/audio.c's name for a zg.requestSongBytes song ("bytes.sid"...): played from the cart's memory, nothing to pack.
 BYTES = "bytes."
 # Carts whose string literals are not song requests: ported C programs (apps/ports) name their own documents

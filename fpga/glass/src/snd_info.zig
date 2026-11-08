@@ -77,7 +77,8 @@ pub fn decode(w: *const [mc.SND_INFO_WORDS]u32) Info {
     return info;
 }
 
-/// A render's share of real time, in percent: 100 = the CPU did nothing else.
+/// The players' share of real time, in percent (100 = the CPU did nothing else): of a second of
+/// renders for SI_CYCLES (the firmware's window), of one render for the peak.
 pub fn loadPct(cycles: u32, samples: u32) ?u64 {
     if (samples == 0) return null;
     return @as(u64, cycles) * mc.SND_RATE_HZ * 100 / (@as(u64, samples) * mc.SND_CLOCK_HZ);

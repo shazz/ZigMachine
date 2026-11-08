@@ -217,7 +217,7 @@
  {
   "tag": "maxi",
   "title": "MAXI",
-  "type": "zigmachine"
+  "type": "atari st"
  },
  {
   "tag": "medium_overscan",
@@ -478,6 +478,11 @@
   "tag": "tlb_spoon",
   "title": "TLB TWIDDLE DEMO",
   "type": "atari st"
+ },
+ {
+  "tag": "c64_transmission64",
+  "title": "TRANSMISSION64",
+  "type": "c64"
  },
  {
   "tag": "trsi_transarctica",

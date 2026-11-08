@@ -11,12 +11,11 @@
 //   escape   Escape asks to leave (pollCartRequest -1)
 //   node apps/c64_1988_headless.mjs [outdir]       (outdir: a PPM per checkpoint)
 //   node apps/c64_1988_headless.mjs --break pixel  the view taken one pixel to the right must fail
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { boot } from "./c64_1988_boot.mjs";
 
-const PAGES = 128, RW = 800, W = 384, H = 272, X0 = 8, Y0 = 5, REG_FB_MODE = 0x54;
-const CART = "docs/demo-c64_1988.wasm";
+const RW = 800, W = 384, H = 272, X0 = 8, Y0 = 5, REG_FB_MODE = 0x54;
 const BRK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const outdir = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--break");
 const COLODORE = [0x000000, 0xFFFFFF, 0x96282E, 0x5BD6CE, 0x9F2DAD, 0x41B936, 0x2724C4, 0xEFF347,
@@ -33,30 +32,6 @@ const PINS = {
     4234: "940c2b5872b5b9102c743827b258952f5fe10d26d39cb7c2f97542df2085a9dc", // balls
     4326: "f0326cd0da29f9657da8d83221749a5936dfadb868572d38a29018f13c8acf5c", // the balls' green fade
 };
-
-async function boot() {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, {
-        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
-    })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile(CART);
-    const env = { memory, ...rom };
-    for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
-    for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
-        if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
-    demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    return { memory, machine, demo, video: machine.hwVideoBase(), frame: 0 };
-}
 
 // Run to C64 frame n (machine frame ceil(6n/5)), composite, return VICE's view as C64 indices.
 function at(m, n) {

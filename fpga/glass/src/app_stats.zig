@@ -19,8 +19,8 @@ const snd_info = @import("snd_info.zig");
 /// Where the window goes: 16 pixels in from the corner, clear of a TV's overscan.
 pub const CORNER: u32 = 16 << map.OSD_POS_X_SHIFT | 16 << map.OSD_POS_Y_SHIFT;
 pub const TEXT_MAX = 12;
-/// The BARD line is read again once a second (ticks are 100 ms, main.zig): the load is
-/// per render, so a faster line flickers between renders, and the rate changes no faster.
+/// The BARD line is read again once a second (ticks are 100 ms, main.zig), as often as the
+/// firmware publishes the load: a second's mean of renders (cycles/bsndinfo.h sndinfo_window).
 pub const BARD_TICKS = 10;
 
 /// The BARD line as last read: the overlay redraws every tick, from this.

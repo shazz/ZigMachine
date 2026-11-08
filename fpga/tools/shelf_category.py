@@ -3,8 +3,10 @@
     uv run python tools/shelf_category.py [--check] [--path TAG]
 
 The glass OSD lists the shelf's folders first and a folder's carts inside it, so every disk
-the card carries sits at CARTS/<category>/demo-<tag>.zmd (tools/glass_shelf.py). The
-category comes from where the repo already says it:
+the card carries sits at CARTS/<category>/demo-<tag>.zmd (tools/glass_shelf.py), and a demo one
+level further down, by the machine it comes from: CARTS/demos/<platform>/demo-<tag>.zmd
+(PLATFORMS: atari_st, amiga, atari_falcon, atari_xl, c64, kestrel). The category comes from
+where the repo already says it:
 
 - TABLE first: the carts a rule gets wrong or cannot know (a game ported from the ST, a test
   cart, a native cart outside the catalog);
@@ -13,7 +15,8 @@ category comes from where the repo already says it:
   program port (tools); "atari st", "amiga", "atari falcon", "c64" are demos, cracktros and intros.
 
 A "zigmachine", "system" or "unknown" cart is an original screen, a test or the OS, and no
-rule can tell which: it must be in TABLE. A cart nothing places is an ERROR (UnknownCategory),
+rule can tell which: it must be in TABLE. A demo's platform is its catalog type (a Union screen:
+the Union Demo's), else PLATFORM_TABLE. A cart nothing places is an ERROR (UnknownCategory),
 never a catch-all folder: staging refuses the card and --check exits 1, naming the carts.
 """
 
@@ -37,11 +40,11 @@ HUB_PREFIX = "union_"  # tools/channels.py UNION_PREFIX: every one a Union Demo 
 
 _BY_CATEGORY = {
     "games": ("north_south", "joust", "rick_dangerous", "skystrike", "kickoff2", "bubblebobble"),
-    "tools": ("st_replay", "sysinfo", "mp3_player"),  # the sampler, the system-information tool, the MP3 jukebox
+    "tools": ("st_replay", "sysinfo"),  # the sampler, the system-information tool
     "system": ("gem",),  # KOS's desktop
     "tutorials": ("tutorial", "tutorial_steps"),
     "tests": (
-        "music", "badflicker", "stream", "scrolllab", "sap_test", "xm_test", "linebase_test", "tc_test", "kt_test", "sid_test", "bard_sid",
+        "music", "badflicker", "stream", "scrolllab", "sap_test", "xm_test", "linebase_test", "tc_test", "kt_test", "sid_test", "mp3_player", "bard_sid",
         "replicants",  # REPS OLD: kept to compare with replicants_garfield
         "raytrace_f32", "polkadots_f32", "replicants_emlyn_f32",  # the FPU twins
         "hello", "hello_asm", "bench",  # native carts (cycles/native)
@@ -53,6 +56,18 @@ _BY_CATEGORY = {
         "mandelbrot", "fuji_hobbytronic", "anima", "leonard_spirit",
     ),
 }  # fmt: skip
+# demos/ is split by the machine a demo comes from (Matt, 7 Nov: "in carts/demos/ can you create
+# sub folders: amiga, atari st, atari xl, c64..."): catalog type -> folder. No spaces on the card:
+# `glass ctl load` splits its line on whitespace and the upload recipes are shell lines; the OSD
+# shows '_' as a space ("ATARI ST/", fpga/glass/src/shelf_view.zig label()).
+PLATFORMS = {
+    "atari st": "atari_st", "amiga": "amiga", "atari falcon": "atari_falcon", "atari xl": "atari_xl",
+    "c64": "c64", "zigmachine": "kestrel",  # the machine's own screens, written for it (Matt: "call it kestrel")
+}  # fmt: skip
+# A demo whose platform its catalog type does not give. fuji_hobbytronic stays in kestrel/: a
+# screen written for the machine whose TUNE is an Atari XL SAP, not a port of an XL production.
+PLATFORM_TABLE: dict[str, str] = {}
+HUB = "union_demo"  # tools/shelf_meta.py HUBS: a Union screen is the Union Demo's machine's
 TABLE = {tag: cat for cat, tags in _BY_CATEGORY.items() for tag in tags}
 assert len(TABLE) == sum(map(len, _BY_CATEGORY.values())), "a tag is in two categories"
 assert set(_BY_CATEGORY) <= set(CATEGORIES)
@@ -88,9 +103,23 @@ def category(tag: str) -> str:
     raise UnknownCategory(f"{tag}: no category ({why}): add it to fpga/tools/shelf_category.py TABLE")
 
 
+def platform(tag: str) -> str:
+    """The demos/ subfolder of demo `tag`: the machine it comes from, or UnknownCategory."""
+    kind = PLATFORM_TABLE.get(tag) or kinds().get(HUB if tag.startswith(HUB_PREFIX) else tag)
+    if kind in PLATFORMS:
+        return PLATFORMS[kind]
+    raise UnknownCategory(f"{tag}: a demo with no platform (catalog type {kind!r}): add it to PLATFORMS or PLATFORM_TABLE")
+
+
+def folder(tag: str) -> str:
+    """The folder `tag`'s disk goes in under CARTS/: its category, and for a demo its platform."""
+    cat = category(tag)
+    return f"{cat}/{platform(tag)}" if cat == "demos" else cat
+
+
 def disk_path(tag: str) -> str:
     """Where the card carries `tag`'s fat disk, under CARTS/ (sd_layout.py)."""
-    return f"{category(tag)}/demo-{tag}.zmd"
+    return f"{folder(tag)}/demo-{tag}.zmd"
 
 
 def problems(tags: list[str]) -> list[str]:
@@ -98,7 +127,7 @@ def problems(tags: list[str]) -> list[str]:
     out = []
     for tag in tags:
         try:
-            category(tag)
+            folder(tag)
         except UnknownCategory as e:
             out.append(str(e))
     return out
@@ -126,7 +155,7 @@ def main() -> int:
     bad = problems(tags)
     if not a.check:
         for tag in tags:
-            print(f"{tag:28} {'?' if any(b.startswith(tag + ':') for b in bad) else category(tag)}")
+            print(f"{tag:28} {'?' if any(b.startswith(tag + ':') for b in bad) else folder(tag)}")
     print("\n".join(bad + [f"shelf_category: {len(tags)} carts, {len(bad)} without a category"]))
     return 1 if bad else 0
 

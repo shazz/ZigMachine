@@ -64,6 +64,15 @@ def test_a_local_song_is_packed_when_present_and_left_out_when_absent(tmp_path: 
     assert song_pack.song_names(wasm, tmp_path) == ["local.xm", "zm_test.xm"]
 
 
+def test_sid_tests_hvsc_tunes_are_local_songs(tmp_path: Path) -> None:
+    # SID TEST names four HVSC tunes: a clean checkout has none of them and still packs its own tune.
+    wasm = b"\0asm hermini.sid\0cybernoid_ii.sid\0wizball.sid\0commando.sid\0club_style.sid\0"
+    (tmp_path / "hermini.sid").write_bytes(b"x")
+    assert song_pack.song_names(wasm, tmp_path) == ["hermini.sid"]
+    (tmp_path / "wizball.sid").write_bytes(b"y")
+    assert song_pack.song_names(wasm, tmp_path) == ["hermini.sid", "wizball.sid"]
+
+
 def test_only_the_local_name_is_optional(tmp_path: Path) -> None:
     with pytest.raises(song_pack.MissingSong, match="other.xm"):
         song_pack.song_names(b"\0asm other.xm\0local.xm\0", tmp_path)
