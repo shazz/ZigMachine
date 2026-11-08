@@ -17,6 +17,7 @@
 const px = @import("vic_pixels.zig");
 const runs_mod = @import("vic_runs.zig");
 const paint = @import("vic_paint.zig");
+pub const groups_mod = @import("groups.zig");
 pub const cache = @import("vic_cache.zig");
 pub const Blit = paint.Blit;
 pub const COLS = px.COLS;
@@ -87,6 +88,7 @@ pub const Out = struct {
     sides: [ROWS]bool = .{false} ** ROWS, // a side border open on the row (the machine must flicker)
     vopen: [ROWS]bool = .{false} ** ROWS, // the vertical border open on the row
     spans: paint.Spans = .{}, // what the last frame drew, to erase
+    groups: groups_mod.Groups = .{}, // the colour groups it drew with (the cart sets their entries)
     runs: runs_mod.Runs = .{},
     cache: ?*cache.Cache = null, // null: each run expands its block on the stack (tests)
     blit: ?Blit = null, // CHISEL (the cart); null: every run is a CPU copy
@@ -94,7 +96,7 @@ pub const Out = struct {
     paint: bool = true, // false: the frame's runs are gathered, the plane is left alone (ZIG mode)
 
     pub fn pen(self: *Out, mem: Mem) paint.Pen {
-        return .{ .pix = self.pix, .spans = &self.spans, .cache = self.cache, .blit = self.blit, .mem = mem };
+        return .{ .pix = self.pix, .spans = &self.spans, .groups = &self.groups, .cache = self.cache, .blit = self.blit, .mem = mem };
     }
 
     /// Erase what the last frame drew: only the columns that hold pixels are touched.
@@ -105,7 +107,10 @@ pub const Out = struct {
 
     /// Draw the frame's runs, sprite 7's first, so that sprite 0 ends up in front.
     pub fn end(self: *Out, mem: Mem) void {
-        self.blits = if (self.paint) paint.all(self.pen(mem), self.runs.buf[0..self.runs.n]) else 0;
+        self.blits = 0;
+        if (!self.paint) return;
+        self.groups.reset();
+        self.blits = paint.all(self.pen(mem), self.runs.buf[0..self.runs.n]);
     }
 
     /// The line's border colour (and its mid-line split) and border state, at its end.

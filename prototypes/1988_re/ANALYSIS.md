@@ -179,15 +179,23 @@ and the open borders come out of the rules. No float per frame (the tables are c
 
 On the machine:
 - one 400x280 overscan plane: physical row = raster line - 11, column = sprite X + 16, so the
-  C64's 320x200 window is the machine's. Each sprite row is a keyed CPU blit of 24 (48)
-  pixels (CHISEL's ~800-cycle fixed cost is more than a row); only rows drawn last frame are
-  erased;
-- the machine's borders open where the C64's are: the plane's HBL flickers the band rows when
-  the C64's vertical border is open and the visible rows whose side border is open; pixels
-  the C64's border covers are not drawn, so a line with only its left border open is exact;
+  C64's 320x200 window is the machine's. The model still decides line by line which row each
+  sprite shows, but the rows are gathered into RUNS (`vic_runs.zig`: one sprite, consecutive
+  rows of one block, same X, colours and border state) and painted at the frame's end, sprite
+  7's first so sprite 0 stays in front (a sprite shows one row a line, so its own runs never
+  overlap: the order is exact). A run is a rectangle of the block expanded once to chunky
+  (`vic_cache.zig`): a CHISEL keyed blit from cart RAM when it has 128+ pixels, a keyed CPU
+  copy below. ~120 runs a frame instead of ~1,400 decoded rows. The expanded pixels are colour
+  GROUP entries, not colours (`groups.zig`: index 32 + 4 x group + code, the group's entries
+  set to the frame's colours), so a fade step is three palette writes, not the logo expanded
+  again. Only the columns drawn last frame are erased;
+- the machine's borders open where the C64's are: the plane's copper list (`raster.zig`)
+  FLICKs the band rows when the C64's vertical border is open and the visible rows whose side
+  border is open; pixels the C64's border covers are not drawn, so a line with only its left
+  border open is exact;
 - the border colour is a real raster, like colour 0 on an ST: per line BACKGROUND (global HBL,
-  the closed borders) and the plane's colour 0 (plane HBL, the window and the open borders),
-  plus BEAM for part 2's mid-line switch to black;
+  the closed borders) and the plane's colour 0 (a PAL op on the copper list, the window and the
+  open borders, written only where it changes), plus BEAM for part 2's mid-line switch to black;
 - 50 Hz on the 60 Hz machine: C64 frame n on machine frame ceil(6n/5).
 
 Palette: **colodore** (VICE's `colodore.vpl`), the 16 entries exactly; VICE captured with the
@@ -212,18 +220,45 @@ neutral colour pipeline (gamma 1000 etc.) so its pixels are those entries.
 
 ### Cost on KESTREL
 
-`apps/frame_cost.mjs`: est. **1.88 Mc a frame** in part 1 and part 3 alike (cart 1.18, FRESCO 0.7
-for the one plane), ~53 fps; the C64's 50 Hz means one machine frame in six steps nothing.
-What made it: a sprite row drawn a data byte at a time (empty bytes skipped, no clipping inside
-the window), no per-frame copy or sort of the write list (the parts emit in line order; the
-unit panics on a write out of order rather than drop it). Board check wanted.
+The first port drew each sprite row a data byte at a time with the CPU: est. 1.93 Mc a frame
+(p95 2.19 on the 5 frames in 6 that run a C64 frame: cart ~1.48, FRESCO 0.7 for the one
+plane), 50 fps on the board (Matt, 7 Nov). Now (`apps/frame_cost.mjs`, p95 of the frames that
+step): **1.59 Mc** in part 1, **1.54** through the logo's fade, **1.66** in part 3, so 60 fps
+with room under the 1.75 knee. What cut it:
+- the 2- and 4-byte memsets of sprite pixels at odd columns: 539 misaligned stores a frame,
+  each a ~210-cycle trap on the board (-0.11 Mc); `Write` 4-aligned in the queue;
+- runs + expanded blocks + CHISEL instead of ~1,400 decoded rows (above), and a row's
+  continuity tested as one u32 key (the first version built a struct per row: 0.31 Mc);
+- the sprite loops of c16/c55/c58 visit only the sprites they can change (DMA on / enabled);
+- colour groups: before them each step of the logo's fade expanded the 72 logo blocks again,
+  a 2.4 Mc frame every 7;
+- the plane's HBL (280 calls a frame) replaced by the copper list.
+The composed picture is the first port's, frame for frame: `scene_hash --composite` over 5400
+frames (two loops) identical, and the 9 VICE pins hold.
 
-### What KESTREL could lift
+### The ZIG mode (Z)
 
-The C64 needed the per-line loop to keep the side borders open and to stretch the sprites;
-the port pays nothing for either (a flag per row, a row index per line). A ZIG mode could keep
-the look and add what the VIC could not: more than 8 objects a line without multiplexing, the
-logo's rows without the pointer-switch lines, 60 Hz motion.
+Matt, 7 Nov: every C64 port gets a Z-key mode showing the same intro on KESTREL's own features,
+the faithful port staying the default. `c64_1988/zig_mode.zig`:
+- **60 Hz motion.** The C64 runs at 50 Hz; the default shows C64 frame floor(5m/6) on machine
+  frame m, so one frame in six repeats and the motion judders. ZIG runs the VIC model one C64
+  frame ahead and draws every machine frame: each run of frame n+1 is moved back toward where
+  the same sprite showed the same block in frame n, by (6 - k)/6 of the way (k = 5m mod 6).
+  On k = 0 the picture IS C64 frame n, the default's pixels.
+- **Copper only.** Colour 0 is the border colour on every line and every line FLICKs: all the
+  borders are open, no HBL handler runs at all. The cost: part 2's mid-line switch to black
+  (the default's BEAM write: a border line or two in 11 of its frames) starts at the line's start.
+- **CHISEL** for every run of 128+ pixels (the default does the same).
+- Z again hands back at the next C64 frame boundary; the model ran all along, so from there
+  the picture is the default's, pixel for pixel.
+`apps/c64_1988_zig.mjs` checks it from outside (REF never sees Z): plane 0 alone, REF's picture
+exactly on every k = 0 frame (156 of them, the wipe's split lines excepted), a new picture
+every machine frame in part 1 (REF repeats 1 in 6), <= 160 CHISEL ops a frame, and three round
+trips back to REF pixel for pixel (`--break` runs REF one frame ahead and is caught).
+Cost: p95 1.66 / 1.59 / 1.68 Mc (part 1, fade, part 3), 60 fps.
+
+Not done (ideas): more than 8 objects a line without multiplexing, the logo's rows without
+the pointer-switch lines, ZM-X.
 
 ## Files
 

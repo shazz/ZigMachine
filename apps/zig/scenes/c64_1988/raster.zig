@@ -20,13 +20,15 @@ const FLICK: u32 = 0x3000_0000;
 const PAL0: u32 = 0x1000_0000 | 1 << 12; // entry 0, one word
 
 /// Rebuild `list` from `out` (one C64 frame's border state). `rgba` maps a C64 colour to the
-/// palette word. Rows that neither flicker nor change colour get no record.
-pub fn build(list: []u32, out: *const vic.Out, comptime rgba: fn (u8) u32) void {
+/// palette word. Rows that neither flicker nor change colour get no record. `all_open` (ZIG
+/// mode) opens every border on every line: colour 0 then paints the border too.
+pub fn build(list: []u32, out: *const vic.Out, comptime rgba: fn (u8) u32, all_open: bool) void {
+    if (list.len == 0) return; // no VRAM for it: the plane's HBL plays the raster
     var w: usize = 0;
     var last: u32 = 0;
     for (0..ROWS) |r| {
         const band = r < zg.VERTICAL_BORDERS_HEIGHT or r >= zg.VERTICAL_BORDERS_HEIGHT + zg.HEIGHT;
-        const flick = if (band) out.vopen[r] else out.sides[r];
+        const flick = all_open or (if (band) out.vopen[r] else out.sides[r]);
         const c = rgba(out.border[r]);
         const pal = r == 0 or c != last;
         last = c;

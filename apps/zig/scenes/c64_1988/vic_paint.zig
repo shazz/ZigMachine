@@ -11,6 +11,7 @@ const draw = @import("vic_draw.zig");
 const cache = @import("vic_cache.zig");
 const runs_mod = @import("vic_runs.zig");
 const px = @import("vic_pixels.zig");
+const groups_mod = @import("groups.zig");
 
 const COLS = px.COLS;
 const ROWS = draw.ROWS;
@@ -43,6 +44,7 @@ pub const Spans = struct {
 pub const Pen = struct {
     pix: *[ROWS * COLS]u8,
     spans: *Spans,
+    groups: *groups_mod.Groups, // the frame's colour groups (reset by the caller)
     cache: ?*cache.Cache, // null: each run expands its block on the stack (tests)
     blit: ?Blit, // null: every run is a CPU copy
     mem: draw.Mem,
@@ -64,7 +66,7 @@ pub fn all(pen: Pen, runs: []const runs_mod.Run) u32 {
 /// One run, `dr` rows down and `dc` columns right of where it is.
 pub fn one(pen: Pen, run: *const runs_mod.Run, dr: i32, dc: i32) u32 {
     const slot = cache.slot(run.bit(25), run.block()) orelse return 0; // reads as 0: nothing
-    const look = run.look();
+    const look = cache.Look{ .mcol = run.bit(21), .xe2 = run.bit(22), .group = pen.groups.assign(run.bit(21), run.bit(22), run.colours()) };
     var local: [cache.IMAGE]u8 = undefined;
     const img: []const u8 = if (pen.cache) |c| c.image(slot, look, pen.mem.block(slot)) else blk: {
         cache.expand(&local, look, pen.mem.block(slot));

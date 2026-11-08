@@ -4,20 +4,25 @@
 // Ported from the depacked original (prototypes/1988_re/ANALYSIS.md says how it works).
 //
 // Only sprites, so only sprites here too: one empty 400x280 overscan plane, and the eight
-// hardware sprites drawn into it a row per raster line by c64_1988/vic.zig, a model of the
-// VIC-II's sprite unit, replaying the register writes the original's IRQ chains make
-// (c64_1988/logo.zig, wipe.zig, grid.zig, sequenced by show.zig) at their raster lines and
-// cycles. The multiplexing, the vertical stretch of part 3 and the open borders are the
-// C64's own rules, not effects drawn to look like them; the plane holds exactly the C64's
-// picture (VICE x64sc, colodore palette: tools/c64/vicmodel.py and the harness compare).
+// hardware sprites drawn into it by c64_1988/vic.zig, a model of the VIC-II's sprite unit,
+// replaying the register writes the original's IRQ chains make (c64_1988/logo.zig, wipe.zig,
+// grid.zig, sequenced by show.zig) at their raster lines and cycles. The multiplexing, the
+// vertical stretch of part 3 and the open borders are the C64's own rules, not effects drawn
+// to look like them; the plane holds exactly the C64's picture (VICE x64sc, colodore palette:
+// tools/c64/vicmodel.py and the harness compare). The model decides line by line which row
+// each sprite shows; the rows are painted as rectangles at the frame's end (vic_runs.zig,
+// vic_paint.zig: CHISEL blits of blocks expanded once).
 //
 // The C64's borders are the machine's: physical row r = raster line r + 11, column c = sprite
 // X c - 16, so the C64's 320x200 window is the machine's. Where the C64 opens a border, the
-// plane's HBL opens the machine's with the flicker trick on the same rows. The border colour
+// plane's copper list opens the machine's with a FLICK on the same rows. The border colour
 // is a real raster, as colour 0 is on an ST: per line, BACKGROUND (the closed borders, from
 // the global HBL, with BEAM for part 2's mid-line switches) and the plane's colour 0 (the
-// window and the opened borders, from the plane's HBL). The C64 runs at 50 Hz: a C64 frame
-// every 6/5 machine frames.
+// window and the opened borders, from the copper list: c64_1988/raster.zig). The C64 runs at
+// 50 Hz: a C64 frame every 6/5 machine frames.
+//
+// Z toggles the ZIG mode (c64_1988/zig_mode.zig): the same frames at 60 Hz, interpolated,
+// on a copper list alone. Escape leaves (the cart owns its keys).
 //
 // Music: Ultimate Intro 12 by Barney Gumble (PSID, init $1000, play $1003, 8580), the intro's
 // own tune, played from the cart's memory by the .sid player (cRSID: BARD native, page wasm).
@@ -27,25 +32,16 @@ const show_mod = @import("c64_1988/show.zig");
 const vic = show_mod.vic;
 const assets = @import("c64_1988/assets.zig");
 const raster = @import("c64_1988/raster.zig");
+const col = @import("c64_1988/colours.zig");
+pub const zig_mode = @import("c64_1988/zig_mode.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
+const rgba = col.rgba;
 
 pub const MUSIC_SID = true;
 pub const SONG = @embedFile("../assets/screens/c64_1988/ultimate_intro_12.sid");
 const K_ESC: u32 = 0xE012; // demo_main.zig's code for Escape
-
-// colodore (VICE's colodore.vpl), C64 colour i at palette index i + 1; index 0 is the
-// background, rewritten every line with the line's border colour.
-pub const PALETTE = [16]u32{
-    0x000000, 0xFFFFFF, 0x96282E, 0x5BD6CE, 0x9F2DAD, 0x41B936, 0x2724C4, 0xEFF347,
-    0x9F4815, 0x5E3500, 0xDA5F66, 0x474747, 0x787878, 0x91FF84, 0x6864FF, 0xAEAEAE,
-};
-
-fn rgba(c: u8) u32 { // 0xRRGGBB -> the machine's A,B,G,R word
-    const v = PALETTE[c & 15];
-    return 0xFF00_0000 | ((v & 0xFF) << 16) | (v & 0xFF00) | (v >> 16);
-}
 
 var g_out: ?*const vic.Out = null; // HBL handlers take no user pointer
 
@@ -62,10 +58,8 @@ fn borderHbl(zigos: *ZigOS, line: u16) void {
     }
 }
 
-// The plane's line: colour 0 is the line's border colour (where no sprite is, the C64 shows
-// its border/background colour, and the two are one here), and the plane's borders open
-// where the C64's are: the top/bottom bands when its vertical border is open, a visible
-// row's sides when a side border is open on that line. Pure: own palette and flicker only.
+// Without VRAM for the copper list, the plane's line from its HBL: colour 0 is the line's
+// border colour, and the borders open where the C64's are (raster.zig says the same).
 fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     const out = g_out orelse return;
     if (line >= vic.ROWS) return;
@@ -83,19 +77,20 @@ fn blit(ctx: *anyopaque, x: u16, y: u16, src: []const u8, src_w: u16, sx: u16, s
 pub const Demo = struct {
     show: show_mod.Show = undefined,
     out: vic.Out = undefined,
+    zig: zig_mode.Zig = undefined,
     frames: u32 = 0, // machine frames (60 Hz)
     list: []u32 = &.{}, // the plane's copper list (raster.zig); empty: the plane HBL plays it
     blitter: zg.Blitter = .{},
     fb: *LogicalFB = undefined,
     blocks: vic.cache.Cache = undefined, // the sprite blocks, expanded (vic_cache.zig)
     wants_quit: bool = false,
+    z_pressed: bool = false,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setOverscanBuffer();
-        fb.setPaletteEntry(0, zg.Color.fromRGBA(rgba(0)));
-        for (0..16) |c| fb.setPaletteEntry(@intCast(c + 1), zg.Color.fromRGBA(rgba(@intCast(c))));
+        col.install(fb);
         self.fb = fb;
         self.blitter.init();
         // ~290 KB of expanded blocks, from the RAM arena (zeroed; no bytes in the cart)
@@ -103,8 +98,11 @@ pub const Demo = struct {
         self.blocks = .{ .images = images[0..vic.cache.SLOTS] };
         self.out = .{ .pix = fb.fb[0..vic.Out.ROWS_COLS], .cache = &self.blocks, .blit = .{ .ctx = self, .f = blit } };
         self.show = show_mod.Show.init(assets.all);
+        self.zig.reset(); // field by field: `.{}` of a 16 KB struct would be a 16 KB data segment
+        zig_mode.current = &self.zig;
         self.frames = 0;
         self.wants_quit = false;
+        self.z_pressed = false;
         g_out = &self.out;
         fb.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, planeHbl);
         // The copper list takes over the handler's job (its FLICK fires at the position the
@@ -122,17 +120,64 @@ pub const Demo = struct {
 
     pub fn key(self: *Demo, cp: u32) void {
         if (cp == K_ESC) self.wants_quit = true;
+        if (cp == 'z' or cp == 'Z') self.z_pressed = true;
     }
 
     /// C64 frame n is due on machine frame ceil(6n/5): the 50 Hz picture on a 60 Hz machine.
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
         _ = dt;
         self.frames += 1;
+        if (self.z_pressed) {
+            self.z_pressed = false;
+            if (!self.zig.on) self.enterZig(zigos) else self.zig.leaving = true;
+        }
         const due = self.frames * 5 / 6;
+        if (self.zig.on) {
+            if (!self.zig.leaving or self.show.frames != due) return self.updateZig(due);
+            self.leaveZig(zigos); // at a C64 frame boundary: the default's picture, as it is
+            return;
+        }
         if (self.show.frames >= due) return;
         while (self.show.frames < due) self.show.step(&self.out);
-        if (self.list.len != 0) raster.build(self.list, &self.out, rgba);
+        raster.build(self.list, &self.out, rgba, false);
+        col.setGroups(self.fb, &self.out.groups);
+    }
+
+    // ZIG: the model one C64 frame ahead, a picture every machine frame (zig_mode.zig).
+    fn updateZig(self: *Demo, due: u32) void {
+        const k: u8 = @intCast(self.frames * 5 % 6);
+        const target = if (k == 0) due else due + 1;
+        var stepped = false;
+        while (self.show.frames < target) {
+            self.show.step(&self.out);
+            self.zig.stepped(&self.out);
+            stepped = true;
+        }
+        if (stepped) raster.build(self.list, &self.out, rgba, true);
+        self.zig.draw(self.out.pen(self.show.mem()), k, self.show.frames == due);
+        col.setGroups(self.fb, &self.zig.groups);
+    }
+
+    fn enterZig(self: *Demo, zigos: *ZigOS) void {
+        if (self.list.len == 0) return; // no copper list: no ZIG mode
+        self.out.spans.erase(self.out.pix);
+        self.out.paint = false;
+        self.zig.on = true;
+        self.zig.leaving = false;
+        self.zig.b.take(&self.out.runs);
+        self.zig.a = self.zig.b;
+        zigos.removeHBLHandler();
+        raster.build(self.list, &self.out, rgba, true);
+    }
+
+    fn leaveZig(self: *Demo, zigos: *ZigOS) void {
+        self.zig.spans.erase(self.out.pix);
+        self.zig.on = false;
+        self.out.paint = true;
+        self.out.end(self.show.mem()); // the runs of C64 frame `due`, as the default drew them
+        raster.build(self.list, &self.out, rgba, false);
+        col.setGroups(self.fb, &self.out.groups);
+        zigos.setHBLHandler(borderHbl);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -141,3 +186,10 @@ pub const Demo = struct {
         _ = dt;
     }
 };
+
+// The harness's exports exist only when this scene IS the cart (rno_natrium's pattern).
+comptime {
+    if (@import("../cart.zig").Cart == Demo) {
+        _ = @import("c64_1988/zig_api.zig");
+    }
+}

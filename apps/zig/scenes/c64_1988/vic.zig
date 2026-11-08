@@ -25,6 +25,7 @@ pub const LINES = 312; // PAL
 pub const Out = draw.Out;
 pub const Mem = draw.Mem;
 pub const cache = draw.cache;
+pub const groups = draw.groups_mod;
 pub const ROWS = draw.ROWS; // physical rows (raster lines 11..290)
 pub const PTR0: u8 = 0x30; // a write to PTR0 + i is sprite i's pointer (screen + $3F8 + i)
 pub const BANK: u8 = 0x38; // a write here is $DD00: bits 0-1 select the VIC bank (3 - value)

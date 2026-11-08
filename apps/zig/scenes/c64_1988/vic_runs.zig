@@ -44,14 +44,13 @@ pub const Run = struct {
     pub fn bit(self: Run, comptime b: u5) bool {
         return (self.key >> b) & 1 != 0;
     }
-    pub fn look(self: Run) Look {
+    /// The C64 colours of codes 1 ($D025), 2 (the sprite's) and 3 ($D026).
+    pub fn colours(self: Run) [3]u8 {
         const k = self.key;
-        return .{ .mcol = self.bit(21), .xe2 = self.bit(22), .colours = .{
-            0,
-            @as(u8, @intCast((k >> 9) & 15)) + 1,
-            @as(u8, @intCast((k >> 13) & 15)) + 1,
-            @as(u8, @intCast((k >> 17) & 15)) + 1,
-        } };
+        return .{ @intCast((k >> 9) & 15), @intCast((k >> 13) & 15), @intCast((k >> 17) & 15) };
+    }
+    pub fn width(self: Run) u16 {
+        return if (self.bit(22)) 48 else 24;
     }
     pub fn block(self: Run) u16 {
         return (self.addr - 3 * (self.n - 1)) / 64;
