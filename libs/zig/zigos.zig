@@ -401,6 +401,7 @@ pub const DISK_BLOCK: usize = 512;
 
 // The machine-side disk reader (FAT lookup + file streaming) built on readBlock.
 pub const disk = @import("disk.zig");
+pub const bard = @import("bard.zig"); // the BARD queue (table 1.12): timed commands to the sound side, events back
 
 // --- Cart RAM arena (HW 1.7.0): zg.mem ---------------------------------------
 // malloc for a scene: zeroed buffers above the cart's high-water that cost

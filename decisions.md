@@ -1611,3 +1611,47 @@ BARD); reSID/reSIDfp (GPL, far heavier); unpatched cRSID at 22.05 kHz (55-82 %: 
 **Consequences:** machine-audio.wasm grows by ~400 KB (cRSID's zero-filled C64 is a data segment: the memory is
 imported); snd.bin is 1.99 MB of its 2 MiB limit; the SID mutes Paula sound effects as MP3 does; RSID digi tunes do
 not play.
+
+## 2026-11-07 — The BARD queue: a ring in the cart's memory, the Paula queue's timing, SID live first
+
+**Status:** accepted
+**Context:** ROADMAP (Matt, 31 Oct, "could be funny"; 7 Nov, "run it now"): commands ZIGGY → BARD and events back
+with neither CPU waiting on the mailbox. Every cart → sound path so far is a per-frame call the board forwards as a
+mailbox command, and anything with bytes (a Paula write batch, a feed) makes ZIGGY wait for BARD's ACK. The first
+user is a GoatTracker 2 port whose replay writes SID registers each tick: BARD's cRSID must play those writes live.
+**Decision:**
+- **The ring is in the cart's own memory** (`libs/zig/bard.zig`, `zg.bard`): a 64-byte header, 256 commands and 16
+  events of 16 bytes. Each header word has one writer (cart or host); single producer, single consumer. A command
+  is the Paula queue's entry `{t, addr, value, seq}`; `seq` = its ring index, written last, so a reader takes an
+  entry only once it is whole. A full ring refuses the command (counted in the header); the cart never blocks.
+- **One system-table entry** (1.12, appended): `hostBardAttach(block, lead) u32` hands the ring over once (0:
+  no queue here). After that there is no call: the host takes the commands after each cart frame and writes back
+  what it took, the sound side's position and the events.
+- **Time is the Paula queue's** (HW_API 5): `t` on the cart's 44.1 kHz clock; the first batch anchors a `lead`
+  ahead, a late or runaway batch re-anchors (an event says so). `cart_paula_queue.zig` became `QueueOf(cap,
+  stage)`, and SID live (`libs/zig/players/sid_live.zig`) is a second instance, so both devices share one
+  mechanism. `zg.bard.due(t)` paces a replay on the sound side's clock, whatever the cart's frame rate.
+- **SID live = file mode with no file**: `zm_sid_raw(model)` loads a static 2-byte PSID (init = play = RTS, PAL,
+  the model in its flags) through the same `zm_sid_load`, so every field a tune's load sets is set the same way;
+  a write is the 6502's store into cRSID's `IObankWR[$D400 + reg]`. Upstream stays unmodified. The .sid player
+  renders up to the next due write (at most 128 engine samples ahead), and a write lands at the first 22.05 kHz
+  engine sample at or after its stamp.
+- **Three hosts, one semantics**: the page (`sealed-loader.js` bardDrain / bardPublish, the worklet's bardQueue /
+  bardState), the native host and ZIGGY with the players (`host/audio_bardq.c` + `host/bardq_pump.c`) and the
+  board, where **BARD reads the ring in DDR itself** (`cycles/sound/sbardq.c`): ZIGGY writes the head in C2S word
+  5 after the frame, BARD drops its D-cache and takes the whole entries when the head moved; its answer is S2C
+  words 23-31 (commands taken, position, event count, three event slots), copied into the cart's block by ZIGGY
+  (`cycles/bardq_s2c.h`). The open is one mailbox command (ACK once); nothing else waits.
+- **Events back**: a mark when the sound side reaches a stamp the cart asked for (a beat, a row), each reset, each
+  re-anchor and each drop, with the stamp. Arguments are 24 bits on every host (the board packs kind and arg in a
+  word). More than three events in one ZIGGY frame on the board, or a full cart event ring, are counted lost.
+**Alternatives considered:** the effects queue / a `hostPaulaWrite`-style batch per frame (ZIGGY waits for the
+ACK of a batch with bytes on the board; the ACK is microseconds, but it is a wait, and a per-frame call); a
+separate DDR ring that ZIGGY copies into (a copy for nothing: the cart's memory is already DDR); BARD writing the
+answer into the cart's memory (ZIGGY's D-cache would hold stale lines); events in DDR (ZIGGY would drop its whole
+D-cache each frame); a sed patch into cRSID's memory writes to log a real tune's writes (upstream untouched
+instead; the test tune is a Zig tracker).
+**Consequences:** a cart that opens the queue owns the SID player (any song request ends it, the machine's reset
+too). The board's event bandwidth is three a ZIGGY frame. BARD drops its 4 KiB D-cache whenever the cart's head
+moved (once a frame for a playing tune). Paula writes could move onto the same ring later (the entry format is
+the same; `addr` routes), and GoatTracker 2 is the next row.

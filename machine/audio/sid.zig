@@ -18,3 +18,17 @@ export fn machineSidLoad(file_abs: u32, len: u32, subtune: u32) u32 {
 export fn machineSidRender(dst_abs: u32, n: u32) void {
     zm_sid_render(@ptrFromInt(dst_abs), n);
 }
+
+extern fn zm_sid_raw(model: u32) u32;
+extern fn zm_sid_write(reg: u32, value: u32) void;
+
+/// Raw SID (the BARD queue, libs/zig/players/sid_live.zig): a fresh C64 with no tune, its SID written register by
+/// register through machineSidWrite. `model` 6581 or 8580, PAL. 0 ok.
+export fn machineSidRaw(model: u32) u32 {
+    return zm_sid_raw(model);
+}
+
+/// One SID register ($D400 + reg, 0..0x18), taking hold from the next sample rendered.
+export fn machineSidWrite(reg: u32, value: u32) void {
+    zm_sid_write(reg, value);
+}

@@ -37,7 +37,7 @@ SND_CFLAGS  = $(HRV_CFLAGS) -Icycles/sound -I$(HOST)/tutorial -DZM_SND
 SND_COMMON := cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
 SND_PLAY   := host/audio.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
-	host/audio_sid.c host/crsid.c cycles/baudio.c cycles/sound/smain.c
+	host/audio_sid.c host/crsid.c host/bardq_pump.c cycles/baudio.c cycles/sound/smain.c cycles/sound/sbardq.c
 # cRSID alone is built for rv32im with no DIV (-mno-div): GCC then turns its constant divides into MULH,
 # where -march=rv32i_zmmul calls the core's 400-cycle __divsi3 even for x / 5 (review/SID_BARD_STUDY.md).
 # The DIV/REM guard below still holds; the link keeps SND_ARCH's rv32i multilib.
@@ -73,13 +73,20 @@ $(SND)/bench/songs.c: tools/song_pack.py FORCE
 	printf 'L 0 0 %s\n' '$(SONG)' >$(@D)/song.w
 	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
 $(eval $(call snd_image,play,))
-$(eval $(call snd_image,bench,cycles/bsongs.c $(SND)/bench/songs.c $(if $(SND_MP3),cycles/sound/smp3bench.c),-DZM_SND_BENCH '-DZM_SONG="$(SONG)"' \
+# SND_BARDQ=1: SID live through the BARD queue (cycles/sound/sbardq_bench.c), BARDQ_LOG the commands
+# (node apps/bard_queue_check.mjs --dump <file>: BARD SID's tune as the page's loader posted it).
+BARDQ_LOG ?= $(CURDIR)/build/bardq/commands.bin
+$(SND)/bench/bardq_log.c: $(BARDQ_LOG)
+	@mkdir -p $(@D)
+	{ echo "#include <stdint.h>"; echo "const uint32_t zm_bardq_log[] = {"; od -An -v -tx4 -w4 $< | awk '{printf "0x%s,\n", $$1}'; \
+	  echo "0};"; echo "const uint32_t zm_bardq_log_words = sizeof zm_bardq_log / 4 - 1;"; } >$@
+$(eval $(call snd_image,bench,cycles/bsongs.c $(SND)/bench/songs.c $(if $(SND_MP3),cycles/sound/smp3bench.c) $(if $(SND_BARDQ),cycles/sound/sbardq_bench.c $(SND)/bench/bardq_log.c),-DZM_SND_BENCH $(if $(SND_BARDQ),-DZM_SND_BARDQ) '-DZM_SONG="$(SONG)"' \
 	-DZM_TUNE=$(TUNE) -DZM_FRAMES=$(ZM_FRAMES) $(if $(SND_MODE),-DZM_SND_MODE=$(SND_MODE)) $(if $(SND_MP3),-DZM_SND_MP3)))
 
 # The bench's cart side (cycles/sound/sbench_cart.c): start the bench image, print its console, end.
-$(SND)/bench/fw.elf: $(SND)/bench/snd_img.o cycles/sound/sbench_cart.c cycles/bsound.c host/audio_bridge.c \
+$(SND)/bench/fw.elf: $(SND)/bench/snd_img.o cycles/sound/sbench_cart.c cycles/bsound.c cycles/bsound_bardq.c host/audio_bridge.c \
 		$(HCYC)/sim/common/fw.a FORCE
-	for s in cycles/sound/sbench_cart.c cycles/bsound.c host/audio_bridge.c; do \
+	for s in cycles/sound/sbench_cart.c cycles/bsound.c cycles/bsound_bardq.c host/audio_bridge.c; do \
 		$(RV_CC) $(SND_CFLAGS) -c $$s -o $(@D)/c_$$(basename $$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_LDFLAGS_snd) -o $@ $(@D)/c_*.o $< $(HCYC)/sim/common/fw.a -lm
 $(SND)/bench/zm_ddr.init: $(SND)/bench/fw.elf
@@ -111,10 +118,10 @@ $(CB)/snd.bin: $(CB)/snd.elf
 $(CB)/snd_img.o: $(CB)/snd.bin
 	cd $(@D) && $(RV_OBJCOPY) -I binary -O elf32-littleriscv -B riscv \
 		--rename-section .data=.rodata,alloc,load,readonly,data,contents snd.bin snd_img.o
-$(CB)/fw.elf: $(CB)/snd_img.o cycles/sound/sbench_cart.c cycles/bsound.c host/audio_bridge.c \
+$(CB)/fw.elf: $(CB)/snd_img.o cycles/sound/sbench_cart.c cycles/bsound.c cycles/bsound_bardq.c host/audio_bridge.c \
 		$(HCYC)/sim/common/fw.a $(HOST)/common/machine.c $(HOST)/common/rom.c $(HOST)/common/aplayer.c \
 		$(HOST)/tutorial/cart.h FORCE
-	for s in cycles/sound/sbench_cart.c cycles/bsound.c host/audio_bridge.c; do \
+	for s in cycles/sound/sbench_cart.c cycles/bsound.c cycles/bsound_bardq.c host/audio_bridge.c; do \
 		$(RV_CC) $(SND_CFLAGS) -c $$s -o $(@D)/c_$$(basename $$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_LDFLAGS_snd) -o $@ $(@D)/c_*.o $< $(HCYC)/sim/common/fw.a -lm
 $(CB)/zm_ddr.init: $(CB)/fw.elf
@@ -126,7 +133,7 @@ $(CB)/zm_ddr.init: $(CB)/fw.elf
 FX_AT   ?= 6
 FX_MODE ?= 3
 FXD     := $(SND)/fx$(if $(FX_DROP),_drop)
-FX_SRC  := cycles/sound/sfx_cart.c cycles/bsound.c host/audio_bridge.c
+FX_SRC  := cycles/sound/sfx_cart.c cycles/bsound.c cycles/bsound_bardq.c host/audio_bridge.c
 $(FXD)/songs.c: tools/song_pack.py FORCE
 	@mkdir -p $(@D)
 	printf 'L 0 0 %s\n' '$(SONG)' >$(@D)/song.w

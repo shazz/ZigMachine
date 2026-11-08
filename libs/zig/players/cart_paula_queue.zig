@@ -43,85 +43,94 @@ pub const LEAD_MAX: u32 = 16384; // 371 ms
 /// A batch whose first stamp is further ahead than this many leads re-anchors.
 const AHEAD_LEADS: u32 = 4;
 
-pub const Queue = struct {
-    ring: [CAP]Entry = undefined,
-    // Here rather than a static of its own: an all-zero static joins demo-audio.wasm's big zero
-    // run in its data section (apps/zero_segments.mjs counts it).
-    stage: [STAGE]Entry = undefined,
-    head: u32 = 0,
-    len: u32 = 0,
-    offset: u32 = 0,
-    anchored: bool = false,
-    lead: u32 = 2048,
-    /// Samples rendered since the claim: the audio side's clock.
-    now: u32 = 0,
-    resyncs: u32 = 0,
-    dropped: u32 = 0,
+/// The cart's Paula queue. The BARD queue (sid_live.zig) is the same mechanism, smaller.
+pub const Queue = QueueOf(CAP, STAGE);
 
-    /// The `n` entries the host staged, queued (push).
-    pub fn pushStaged(self: *Queue, n: u32) u32 {
-        return self.push(self.stage[0..@min(n, STAGE)]);
-    }
+/// A timed-write queue holding `cap` writes, its host staging `stage` at a time.
+pub fn QueueOf(comptime cap: u32, comptime stage_n: u32) type {
+    return struct {
+        const Self = @This();
+        pub const CAP_N = cap;
+        pub const STAGE_N = stage_n;
+        ring: [cap]Entry = undefined,
+        // Here rather than a static of its own: an all-zero static joins demo-audio.wasm's big zero
+        // run in its data section (apps/zero_segments.mjs counts it).
+        stage: [stage_n]Entry = undefined,
+        head: u32 = 0,
+        len: u32 = 0,
+        offset: u32 = 0,
+        anchored: bool = false,
+        lead: u32 = 2048,
+        /// Samples rendered since the claim: the audio side's clock.
+        now: u32 = 0,
+        resyncs: u32 = 0,
+        dropped: u32 = 0,
 
-    pub fn reset(self: *Queue, lead: u32) void {
-        // Field by field: `self.* = .{}` would put a second copy of the struct in the data section.
-        self.head = 0;
-        self.len = 0;
-        self.offset = 0;
-        self.anchored = false;
-        self.now = 0;
-        self.resyncs = 0;
-        self.dropped = 0;
-        self.lead = @max(LEAD_MIN, @min(lead, LEAD_MAX));
-    }
-
-    fn ahead(self: *const Queue, t: u32) i32 {
-        return @bitCast(t +% self.offset -% self.now);
-    }
-
-    /// Append a batch (in the cart's order); anchor on its first write. Returns the
-    /// writes taken: a full queue drops the rest (counted).
-    pub fn push(self: *Queue, batch: []const Entry) u32 {
-        if (batch.len == 0) return 0;
-        const d = self.ahead(batch[0].t);
-        const far: i64 = @as(i64, self.lead) * AHEAD_LEADS;
-        if (!self.anchored or d < 0 or d > far) {
-            if (self.anchored) self.resyncs +%= 1;
-            self.offset = self.now +% self.lead -% batch[0].t;
-            self.anchored = true;
+        /// The `n` entries the host staged, queued (push).
+        pub fn pushStaged(self: *Self, n: u32) u32 {
+            return self.push(self.stage[0..@min(n, stage_n)]);
         }
-        var taken: u32 = 0;
-        for (batch) |e| {
-            if (self.len == CAP) {
-                self.dropped +%= @intCast(batch.len - taken);
-                break;
+
+        pub fn reset(self: *Self, lead: u32) void {
+            // Field by field: `self.* = .{}` would put a second copy of the struct in the data section.
+            self.head = 0;
+            self.len = 0;
+            self.offset = 0;
+            self.anchored = false;
+            self.now = 0;
+            self.resyncs = 0;
+            self.dropped = 0;
+            self.lead = @max(LEAD_MIN, @min(lead, LEAD_MAX));
+        }
+
+        fn ahead(self: *const Self, t: u32) i32 {
+            return @bitCast(t +% self.offset -% self.now);
+        }
+
+        /// Append a batch (in the cart's order); anchor on its first write. Returns the
+        /// writes taken: a full queue drops the rest (counted).
+        pub fn push(self: *Self, batch: []const Entry) u32 {
+            if (batch.len == 0) return 0;
+            const d = self.ahead(batch[0].t);
+            const far: i64 = @as(i64, self.lead) * AHEAD_LEADS;
+            if (!self.anchored or d < 0 or d > far) {
+                if (self.anchored) self.resyncs +%= 1;
+                self.offset = self.now +% self.lead -% batch[0].t;
+                self.anchored = true;
             }
-            self.ring[(self.head + self.len) % CAP] = e;
-            self.len += 1;
-            taken += 1;
+            var taken: u32 = 0;
+            for (batch) |e| {
+                if (self.len == cap) {
+                    self.dropped +%= @intCast(batch.len - taken);
+                    break;
+                }
+                self.ring[(self.head + self.len) % cap] = e;
+                self.len += 1;
+                taken += 1;
+            }
+            return taken;
         }
-        return taken;
-    }
 
-    /// The first write, once its sample has come (stamp <= now), taken off the queue.
-    pub fn due(self: *Queue) ?Entry {
-        if (self.len == 0) return null;
-        const e = self.ring[self.head];
-        if (self.ahead(e.t) > 0) return null;
-        self.head = (self.head + 1) % CAP;
-        self.len -= 1;
-        return e;
-    }
+        /// The first write, once its sample has come (stamp <= now), taken off the queue.
+        pub fn due(self: *Self) ?Entry {
+            if (self.len == 0) return null;
+            const e = self.ring[self.head];
+            if (self.ahead(e.t) > 0) return null;
+            self.head = (self.head + 1) % cap;
+            self.len -= 1;
+            return e;
+        }
 
-    /// Samples until the next write's stamp, at most `max` (all of it when none waits).
-    pub fn untilNext(self: *const Queue, max: u32) u32 {
-        if (self.len == 0) return max;
-        const d = self.ahead(self.ring[self.head].t);
-        if (d <= 0) return 0;
-        return @min(max, @as(u32, @intCast(d)));
-    }
+        /// Samples until the next write's stamp, at most `max` (all of it when none waits).
+        pub fn untilNext(self: *const Self, max: u32) u32 {
+            if (self.len == 0) return max;
+            const d = self.ahead(self.ring[self.head].t);
+            if (d <= 0) return 0;
+            return @min(max, @as(u32, @intCast(d)));
+        }
 
-    pub fn advance(self: *Queue, n: u32) void {
-        self.now +%= n;
-    }
-};
+        pub fn advance(self: *Self, n: u32) void {
+            self.now +%= n;
+        }
+    };
+}

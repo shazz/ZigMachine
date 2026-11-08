@@ -35,7 +35,7 @@ renders the same samples with or without them (the SID study's six tunes, host a
 
 | File | What |
 |---|---|
-| `zm_sid.c`, `zm_sid.h` | the door: `zm_sid_load` (PSID only: an RSID answers 2), `zm_sid_render` (s16 mono at 22050) |
+| `zm_sid.c`, `zm_sid.h` | the door: `zm_sid_load` (PSID only: an RSID answers 2), `zm_sid_render` (s16 mono at 22050); raw SID for the BARD queue: `zm_sid_raw(model)` (a load of a static 2-byte PSID whose init and play are an RTS) and `zm_sid_write(reg, value)` (the 6502's store into the I/O page) |
 | `config/zm_crsid.h` | `ZDIV`, `ZRECIP`, the LFSR's name, included before cRSID |
 | `freestanding/` | the libc cRSID's non-PC build needs on wasm32-freestanding (`abs`, string functions for the song-length parser it never reaches, two unreached formatters) |
 | `patch.sh`, `patches/` | above |

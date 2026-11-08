@@ -46,3 +46,24 @@ uint32_t zm_sid_load(uint8_t *file, uint32_t len, uint32_t subtune) {
 void zm_sid_render(int16_t *dst, uint32_t n) {
     for (uint32_t i = 0; i < n; i++) dst[i] = zm_sid_loaded ? (int16_t)cRSID_generateSample().L : 0;
 }
+
+/* zm_sid_raw's tune: a PSID v2 header (big-endian fields, HVSC SID_file_format.txt) and two RTS at
+ * $1000. Static: cRSID keeps a pointer to the header while it plays. */
+static uint8_t zm_sid_raw_file[0x7C + 2];
+
+uint32_t zm_sid_raw(uint32_t model) {
+    uint8_t *f = zm_sid_raw_file;
+    memset(f, 0, sizeof zm_sid_raw_file);
+    memcpy(f, "PSID", 4);
+    f[5] = 2;                    /* version 2 */
+    f[7] = 0x7C;                 /* the data's offset */
+    f[8] = f[10] = f[12] = 0x10; /* load, init and play at $1000 */
+    f[15] = f[17] = 1;           /* one song, the first */
+    f[0x77] = 0x04 | (model == 8580 ? 0x20 : 0x10); /* PAL; the SID model */
+    f[0x7C] = f[0x7D] = 0x60;                       /* RTS, RTS */
+    return zm_sid_load(f, sizeof zm_sid_raw_file, 1);
+}
+
+void zm_sid_write(uint32_t reg, uint32_t value) {
+    if (zm_sid_loaded && reg <= 0x18) cRSID_C64.IObankWR[0xD400 + reg] = (uint8_t)value;
+}

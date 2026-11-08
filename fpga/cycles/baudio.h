@@ -33,5 +33,8 @@ void baudio_frame(struct w2c_env* e);    /* after the cart's frame: songs, then 
 void baudio_pump(uint32_t min);          /* render up to the lead, if `min` samples are due */
 void baudio_report(void);                /* the sim's "ZM AUD" line */
 void baudio_report_log(void);            /* the sound CPU's console so far (cycles/bsound.c only) */
+/* One bare mailbox command (no song), waited for to its ACK: the BARD queue's open and close
+ * (cycles/bsound_bardq.c). cycles/bsound.c only. */
+void bsound_command(uint32_t op, uint32_t arg, uint32_t ptr);
 
 #endif

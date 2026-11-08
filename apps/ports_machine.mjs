@@ -58,6 +58,7 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
         hostAudioStreamStop: () => { audio.stops = (audio.stops || 0) + 1; },
         // The Paula channels (HW 1.14.0): none here unless extraEnv lends them (claim 0: software mix).
         hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
+        hostBardAttach: () => 0, // table 1.12: no BARD queue here
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5)
         kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE, no C: here
         ...extraEnv,

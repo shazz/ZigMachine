@@ -193,6 +193,18 @@ def test_an_mp3_import_with_the_wrong_signature_is_refused() -> None:
         host_gen.forwarder("hostMp3Feed", "void", ["u32"], None, EXPORTS)
 
 
+def test_the_bard_queue_attach_calls_its_hook_and_defaults_to_no_queue() -> None:
+    attach = host_gen.forwarder("hostBardAttach", "u32", ["u32", "u32"], None, EXPORTS)
+    assert attach == "u32 w2c_env_hostBardAttach(struct w2c_env* e, u32 a0, u32 a1) { return HOST_BARD_ATTACH(e, a0, a1); }\n"
+    # Where no player runs (a sim, the plain native host), 0: the cart says "no BARD queue here".
+    assert "#define HOST_BARD_ATTACH(e, block, lead) ((void)(e), (void)(block), (void)(lead), 0u)" in host_gen.HOST_DEFAULTS
+
+
+def test_a_bard_attach_with_the_wrong_signature_is_refused() -> None:
+    with pytest.raises(SystemExit, match="BARD queue"):
+        host_gen.forwarder("hostBardAttach", "u32", ["u32"], None, EXPORTS)
+
+
 def test_kos_drive_read_calls_its_hook_whose_default_reads_the_c_image() -> None:
     read = host_gen.forwarder("kosDriveRead", "u32", ["u32", "u32", "u32", "u32"], None, EXPORTS)
     assert read == ("u32 w2c_env_kosDriveRead(struct w2c_env* e, u32 a0, u32 a1, u32 a2, u32 a3) "

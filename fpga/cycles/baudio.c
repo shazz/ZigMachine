@@ -82,6 +82,7 @@ void audio_backend_paula(int held) { sndinfo_paula(SND_ROUTE, held); }
 
 /* The cart started or stopped its MP3 stream (host/audio_mp3.c). */
 void audio_backend_mp3(int on) { sndinfo_mp3(SND_ROUTE, on); }
+void audio_backend_bard(int on) { sndinfo_bard(SND_ROUTE, on); }
 
 /* A zg.requestSndhMode took effect: the debug page's and the F11 overlay's mode. */
 void audio_backend_mode(uint32_t mode) { sndinfo_mode(mode); }

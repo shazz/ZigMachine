@@ -36,4 +36,9 @@ uint32_t audio_mp3_status(uint32_t which);
 #define HOST_MP3_FEED(e, ptr, len) audio_mp3_feed((e), (ptr), (len))
 #define HOST_MP3_STATUS(e, which) ((void)(e), audio_mp3_status((which)))
 
+/* The BARD queue (table 1.12): host/audio_bardq.c or cycles/bsound_bardq.c (host/bardq.h). */
+uint32_t audio_bard_attach(struct w2c_env* e, uint32_t block, uint32_t lead);
+
+#define HOST_BARD_ATTACH(e, block, lead) audio_bard_attach((e), (block), (lead))
+
 #endif

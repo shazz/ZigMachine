@@ -26,6 +26,17 @@ void w2c_aud_machineSidRender(struct w2c_aud* a, u32 dst_abs, u32 n) {
     zm_sid_render((int16_t*)(void*)(g_aud.memory.data + dst_abs), n);
 }
 
+/* Raw SID (the BARD queue, libs/zig/players/sid_live.zig): the same C64, no tune, written live. */
+u32 w2c_aud_machineSidRaw(struct w2c_aud* a, u32 model) {
+    (void)a;
+    return zm_sid_raw(model);
+}
+
+void w2c_aud_machineSidWrite(struct w2c_aud* a, u32 reg, u32 value) {
+    (void)a;
+    zm_sid_write(reg, value);
+}
+
 /* load_paula's .sid (host/audio.c): play it, or say why not (PSID only, as the page says it). */
 int audio_sid_load(const char* name, uint32_t len, uint32_t tune) {
     static const char* const WHY[] = {"", "not a .sid", "RSID not supported", "bad length"};

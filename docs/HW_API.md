@@ -471,7 +471,23 @@ cRSID (Hermit, `libs/c/crsid`), a C64's 6502 + SID, light engine, PSID only. On 
 ```zig
 machineSidLoad(file_abs, len, subtune) u32  // 0 ok, 1 not a .sid, 2 RSID (not supported), 3 a bad length
 machineSidRender(dst_abs, n) void           // the next n s16 mono samples at 22050 Hz into dst_abs
+machineSidRaw(model) u32                    // raw SID: a C64 with no tune (6581 / 8580, PAL); 0 ok
+machineSidWrite(reg, value) void            // one SID register, $D400 + reg (0..0x18), from the next sample
 ```
+
+Raw SID is a load like any other: a static 2-byte PSID whose init and play are an RTS, so the engine is set up
+exactly as for a tune; a write is the 6502's store into cRSID's I/O page. The BARD queue's SID live player uses it.
+
+### The BARD queue (system table 1.12)
+
+One `env` import, the host's: `u32 hostBardAttach(u32 block, u32 lead)` (0 closes; answers 0 where no queue
+runs). `block` (16-aligned, in the cart's memory) is `libs/zig/bard.zig`'s: 16 header words (magic `ZMBQ`, the two
+ring sizes, the lead; head, dropped and the event tail written by the cart; tail, position, anchored, the event
+head and the events lost written by the host), then the commands `{t, addr, value, seq}` and the events
+`{t, kind, arg, seq}`, 16 bytes each, `seq` the entry's index. No call after the attach: after each cart frame the
+host takes the whole commands (`seq` matches) and writes back. `addr` 0xD400..0xD418 is a SID write, 1 a SID
+reset (value = model), 2 a mark (an event back at `t`). On the board BARD reads the ring in DDR: ZIGGY puts the
+head in C2S word 5, BARD answers in S2C words 23-31 (`fpga/cycles/snd_mailbox.h`, `bardq_s2c.h`).
 
 ### Read-back pointers (for the worklet / scope)
 

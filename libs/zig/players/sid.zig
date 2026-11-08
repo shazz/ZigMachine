@@ -14,11 +14,13 @@ const ring = @import("xm_ring.zig");
 const chip = @import("xm_chip.zig");
 const rs = @import("mp3_resample.zig");
 const out = @import("mp3_out.zig");
+const sid_live = @import("sid_live.zig");
 
 pub const RATE: u32 = 22050;
 pub const FILE_MAX: u32 = 0x10000 + 0x7C + 2; // a C64's 64 KiB, its load address and the v2 header
 const CHUNK_OFF: u32 = 0x10200; // after the file, 2-aligned
 pub const CHUNK: u32 = 512; // engine samples a call
+pub const LIVE_CHUNK: u32 = 128; // SID live: the most rendered ahead between two writes
 comptime {
     if (CHUNK_OFF + 2 * CHUNK > chip.BUF_OFFSET) @compileError("the SID player's song RAM overlaps the Paula rings");
 }
@@ -33,6 +35,8 @@ pub const SidPlayer = struct {
     chunk_n: u32 = 0,
     chunk_at: u32 = 0,
     ring_pos: u32 = 0,
+    /// SID live (the BARD queue): no file, the cart's timed register writes (sid_live.zig).
+    live: ?*sid_live.Live = null,
 
     /// Load the `len` bytes staged at SONG_BASE and start `tune` (1-based, 0 = the file's default).
     pub fn load(self: *SidPlayer, len: u32, tune: u32) bool {
@@ -43,6 +47,15 @@ pub const SidPlayer = struct {
         out.setup();
         self.active = true;
         return true;
+    }
+
+    /// SID live: play the cart's register writes from `l` (silent until its first reset).
+    pub fn startLive(self: *SidPlayer, l: *sid_live.Live) void {
+        self.stop();
+        self.* = .{};
+        out.setup();
+        self.live = l;
+        self.active = true;
     }
 
     pub fn stop(self: *SidPlayer) void {
@@ -86,8 +99,12 @@ pub const SidPlayer = struct {
     fn source(self: *SidPlayer) [2]i16 {
         const p: [*]const i16 = @ptrFromInt(audio.SONG_BASE + CHUNK_OFF);
         if (self.chunk_at >= self.chunk_n) {
-            audio.machineSidRender(audio.songAddr(CHUNK_OFF), CHUNK);
-            self.chunk_n = CHUNK;
+            if (self.live) |l| {
+                self.chunk_n = liveChunk(l);
+            } else {
+                audio.machineSidRender(audio.songAddr(CHUNK_OFF), CHUNK);
+                self.chunk_n = CHUNK;
+            }
             self.chunk_at = 0;
         }
         const v = p[self.chunk_at];
@@ -95,3 +112,21 @@ pub const SidPlayer = struct {
         return .{ v, v };
     }
 };
+
+/// SID live: the writes now due applied, then the engine rendered up to the next one.
+fn liveChunk(l: *sid_live.Live) u32 {
+    while (l.take()) |e| switch (l.classify(e)) {
+        .sid => audio.machineSidWrite(e.addr - sid_live.SID_BASE, e.value),
+        .reset => _ = audio.machineSidRaw(e.value),
+        .none => {},
+    };
+    const n = l.chunk(LIVE_CHUNK);
+    if (l.engine_on) {
+        audio.machineSidRender(audio.songAddr(CHUNK_OFF), n);
+    } else {
+        const p: [*]i16 = @ptrFromInt(audio.SONG_BASE + CHUNK_OFF);
+        @memset(p[0..n], 0);
+    }
+    l.advance(n);
+    return n;
+}
