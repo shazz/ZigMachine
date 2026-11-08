@@ -131,6 +131,7 @@ not matter here.
 | A small sandboxed wasm interpreter exists on the board: integer MVP, 1 KB modules, no `call_indirect`, a fuel budget | `fpga/host/wint.h:1-30` (777 lines of C), `fpga/host/bootsec.h` | A seed for running wasm on the board. Far from a general engine, and it lives in the firmware, not in a cart |
 | A 68000 core (Musashi) is in the tree, built for wasm and for BARD, with an instruction hook | `libs/c/musashi/`, `config/zm_musashi.h:27` (`M68K_INSTRUCTION_HOOK`), `libs/zig/players/sndh_player.zig:237` | A complete, tested CPU we can link into a cart. Single-step and breakpoints are already plumbed |
 | ZM-X custom instructions have a C twin with the same integer results | `fpga/cycles/zmx_twin.h` | An rv32 emulator could run ZM-X too |
+| Today's GEM-launched programs (GrafX2, klystrack, pt2, MP3 PLAYER) are full-screen carts: the C ports draw through `kestrel_sdl2`, and none uses a ZigGEM window. The only `rom_sdk` users (sysinfo, ST Replay) draw with primitives | `apps/zig/scenes/sysinfo/menu.zig`, `st_replay_ui.zig:16`, docs/KOS_GEMDOS.md §1 | No cart uses GEM windows because none can (§4, the ROM ABI row) |
 | ZIGGY traps misaligned and illegal instructions to a C handler | `fpga/cycles/trap.c` | A native debugger hook exists in principle, but only for system code, not for a cart's sandbox |
 
 ### The options
