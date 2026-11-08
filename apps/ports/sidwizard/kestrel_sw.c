@@ -31,6 +31,9 @@ void kestrel_quit(void);
 int kestrel_c_mounted(void);
 
 #include "libcRSID/libcRSID.c"     /* cRSID, cRSID_C64: the C64 and its SID (includes SIDwizard.h via VIC.h) */
+#if SW_SID_ON_BARD
+#include "kestrel_sw_bard.c"
+#endif
 
 /* SIDwizard.c's globals that host/file.c and host/keyboard.c use */
 static char DriverTypePos = TUNE_DRIVERTYPE_POS_1SID, TuningTypePos = TUNE_TUNINGTYPE_POS_1SID;
@@ -58,6 +61,7 @@ static int sw_exit_dialog, sw_startup_menu = 1;
 static void sw_reset_editor(void);
 #include "kestrel_sw_keys.c"
 #include "kestrel_sw_keysim.c"
+#include "kestrel_sw_pace.c"
 
 #define SW_RATE 22050
 #define SW_TICK 110                            /* samples in upstream's 5 ms main-loop pass (KEYSCAN_PERIOD) */
@@ -81,6 +85,30 @@ static void sw_tick(void)
     handleDiskIO();
 }
 
+#if SW_SID_ON_BARD
+/* The C64 clocked by the frame's real time: `us` worth of 22.05 kHz "C64 samples" (libcRSID's step: 714/16
+ * cycles of CPU, CIAs, VIC, then its disk byte traps), with upstream's 5 ms main-loop pass every 110 of them.
+ * Nothing is rendered: the SID's writes went on the BARD queue as they happened (kestrel_sw_bard.c).
+ * kestrel_sw_pace.c decides how much of it the main program gets when ZIGGY cannot run it all. */
+static uint64_t sw_owed;
+static void sw_run_c64(uint32_t us)
+{
+    sw_owed += (uint64_t)us * SW_RATE;
+    uint32_t n = (uint32_t)(sw_owed / 1000000u);
+    sw_owed %= 1000000u;
+    sw_pace_begin(n);
+    for (uint32_t i = 0; i < n; i++) {
+        if (!cRSID.Paused) { sw_pace_step(i); cRSID_emulateC64(); }
+#ifdef SW_PROFILE_IRQ
+        { static unsigned irq, all; all++; if (cRSID_C64.CPU.ST & 4) irq++;
+          if (all == 22050 * 15) { char b[64]; snprintf(b, sizeof b, "irq share %u of %u samples", irq, all); kestrel_log(b); } }
+#endif
+        sw_samples++;
+        if (++sw_tick_count >= SW_TICK) { sw_tick_count = 0; sw_tick(); }
+    }
+    sw_bq_frame(sw_cycle + sw_io_cycles);
+}
+#else
 static void sw_mix(void *ctx, int16_t *stereo, int frames)
 {
     (void)ctx;
@@ -91,6 +119,7 @@ static void sw_mix(void *ctx, int16_t *stereo, int frames)
         if (++sw_tick_count >= SW_TICK) { sw_tick_count = 0; sw_tick(); }
     }
 }
+#endif
 
 /* main()'s set-up: a PAL C64 with one 8580, the native program in RAM, the CPU at its start. */
 static void sw_start_c64(void)
@@ -122,12 +151,17 @@ __attribute__((export_name("boot"))) void boot(void)
     kestrel_log("sidwizard: booted");
 }
 
-/* Real time, at most 20 ms (a PAL frame): the C64 costs ~3.5x real time on the board (README.md, "Cost"), so
- * it runs slow there whatever the cap; a short cap keeps the editor answering (more frames, each shorter). */
+/* The frame's real time. With the SID on BARD the C64 keeps it (kestrel_sw_pace.c: its timers, raster IRQs and
+ * so the music's ticks, whatever ZIGGY's frame rate), up to 100 ms (a stall is not caught up). Without, at most
+ * 20 ms of it: the light engine on ZIGGY costs ~3.5x real time, so a short cap keeps the editor answering. */
 __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
+#if SW_SID_ON_BARD
+    sw_run_c64(kestrel_frame_us(elapsed_ms, 100));
+#else
     uint32_t us = kestrel_frame_us(elapsed_ms, 20);
     kestrel_audio_pump(us, SW_RATE, 100, sw_mix, 0);
+#endif
     sw_video_frame();
 }
 

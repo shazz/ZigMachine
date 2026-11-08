@@ -38,6 +38,7 @@ import { readFile, mkdir } from "node:fs/promises";
 import { machine, step, picture, colours, sha, rows, png, DT } from "./ports_machine.mjs";
 import { launchFromGem, serviceQuit } from "./ports_gem.mjs";
 import { drainSongs, playKt } from "./ports_kt.mjs";
+import { pageSound } from "./bard_queue_lib.mjs";
 
 const QUIT_FRAMES = 120; // after the port's own frames: its quit, and GEM coming back
 
@@ -107,7 +108,7 @@ const SPECS = {
     },
     sidwizard: {
         cart: "docs/demo-sidwizard.wasm", disk: "docs/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "edit", "quit"],
-        pinAt: 300, pin: "3b0adaafb2e79749fc3c2d444db85061df9636a9d932fd340ba69d7e5c28d8d9", bindsOwnerKeys: true,
+        pinAt: 300, pin: "f7174fd2133c57dcac2b361dbe63d08f6d51fb6e0f76810826726bac73831ac0", bindsOwnerKeys: true, bard: true,
         // FLASHBAK.SWM opens off the floppy at start (the cart's key simulator, as upstream's command line: ~frame
         // 250); Tab (an owner-only code: C64 CONTROL) steps the cursor to track 2; Down, Space (editing mode), W
         // types a D on its row 1; F1 plays
@@ -115,7 +116,7 @@ const SPECS = {
             ...(brk === "tab" ? [] : tap(262, key(0xe019), keyUp(0xe019))),
             ...(brk === "edit" ? [] : [...tap(272, (d) => d.input(DOWN), (d) => d.inputRelease(DOWN)), ...tap(278, key(32), keyUp(32)),
                 ...tap(286, key(0x77), keyUp(0x77))]),
-            [309, (d, m) => { m.audio.peak = 0; }], // what is heard after F1 (the start-up menu clicks before)
+            [309, (d, m) => { m.f1At = m.sound.left().length; }], // what is heard after F1 (the start-up menu clicks before)
             ...(brk === "silent" ? [] : tap(310, key(0xe001), keyUp(0xe001))),
         ],
         // Shift+F8: SIDwizard.c's exit dialog, Y
@@ -173,11 +174,16 @@ async function run() {
     let trap = "", m = { demo: { isPlaneEnabled: () => 0 }, audio, songs: [] }, gem = null, plane0 = 0, last = "";
     try {
         m = await machine(await readFile(spec.disk), clockUs);
+        if (spec.bard) { // the cart's SID plays on the sound side: the page's (apps/bard_queue_lib.mjs pageSound)
+            m.sound = await pageSound(m.memory, { frames: spec.frames + QUIT_FRAMES + 8 });
+            m.env.hostBardAttach = m.sound.hostBardAttach;
+        }
         m.songs = [];
         gem = await launchFromGem(m, spec.cart, broke === "disk"); // --break disk: the drive pulled as it starts
         for (let f = 1; f <= frames; f++) {
             if (!m.backs) for (const [ef, fn] of events) if (ef === f) fn(m.demo, m); // the program's events, until it quits
             step(m);
+            if (m.sound) m.sound.frame();
             drainSongs(m, f);
             if (f === spec.frames) plane0 = m.demo.isPlaneEnabled(0);
             serviceQuit(m);
@@ -283,7 +289,9 @@ function useSidwizard(r) {
     check("sidwizard Tab (an owner-only key code) steps the cursor to track 2", a && b && row0(a) !== row0(b), "the cursor sprite is over track 2, row 0");
     const c = r.shots.get(300), row1 = (p) => sha(rect(p, 240, 44, 399, 51));
     check("sidwizard Space (editing mode) and W type a note on track 2, row 1", a && c && row1(a) !== row1(c), "track 2's row 1 is no longer empty");
-    check("sidwizard F1 plays the song", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak} after F1, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
+    const after = r.m.sound ? r.m.sound.left().subarray(r.m.f1At || 0) : [], peak = after.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    check("sidwizard F1 plays the song on the sound side (SID live, the BARD queue)", peak > 1000,
+        `peak ${peak} (s16) after F1, ${after.length} samples; ${JSON.stringify(r.m.sound?.stats())}`);
 }
 SPECS.sidwizard.keep = (f) => [258, 270, 300].includes(f);
 

@@ -84,6 +84,10 @@ static unsigned sw_adsr_step(cRSID_SIDinstance *sid)
 
 static void sw_emulate_adsrs(void)
 {
+#if SW_SID_ON_BARD
+    sw_adsr_cycles = 0;                        /* the envelopes are the sound side's (kestrel_sw_sid.h) */
+    return;
+#endif
     cRSID_SIDinstance *sid = &cRSID_C64.SID[1];
     unsigned c = sw_adsr_cycles, step = sw_adsr_step(sid);
     sw_adsr_cycles = 0;

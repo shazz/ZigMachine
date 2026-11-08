@@ -8,3 +8,5 @@ s|^   cRSID_C64.IRQ \|= cRSID_emulateCIA( \&cRSID_C64.CIA\[1\], InstructionCycle
 /^   cRSID_C64.IRQ |= cRSID_emulateVIC( InstructionCycles );/d
 s|^  cRSID_emulateADSRs( \&cRSID_C64.SID\[1\], InstructionCycles );|  sw_adsr_cycles += InstructionCycles; /* kestrel: kestrel_sw_clock.c */|
 s|^ cRSID_C64.SampleCycleCnt -= cRSID_C64.SampleClockRatio;|&\n sw_emulate_adsrs(); /* kestrel */|
+# The SID on the sound side (kestrel_sw_sid.h SW_SID_ON_BARD): no light-engine render here.
+s|^ else Output = cRSID_emulateLightSIDs();| else if (!SW_SID_ON_BARD) Output = cRSID_emulateLightSIDs(); /* kestrel: kestrel_sw_sid.h */|
