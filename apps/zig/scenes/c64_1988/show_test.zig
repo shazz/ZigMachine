@@ -4,6 +4,7 @@
 const std = @import("std");
 const S = @import("show.zig");
 
+const RUNS_CEILING = 160; // the loop's worst frame makes 125; vic_runs.MAX is 640
 const DIR = "apps/zig/assets/screens/c64_1988/";
 
 fn load(a: std.mem.Allocator, name: []const u8) ![]u8 {
@@ -33,14 +34,18 @@ test "parts begin and end on VICE's frames; bank 0 off its sprite blocks is neve
         .{ 1716, .grid }, .{ 2182, .grid_over }, .{ 2183, .logo_a }, .{ 2184, .logo_b }, .{ 2185, .logo },
     };
     var k: usize = 0;
+    var most: usize = 0; // sprite runs in a frame (vic_runs.zig): the rectangles drawn
     while (show.frames < 2186) {
         show.step(&out);
+        most = @max(most, out.runs.n);
         if (k < marks.len and show.frames == marks[k][0]) {
             try std.testing.expectEqual(marks[k][1], show.state);
             k += 1;
         }
     }
     try std.testing.expectEqual(marks.len, k);
+    std.debug.print("most runs a frame: {d}\n", .{most});
+    try std.testing.expect(most <= RUNS_CEILING);
     try std.testing.expectEqual(@as(u32, 0), show.foreign);
     try std.testing.expectEqual(@as(u8, 1), show.logo.text_idx); // the second text is next
 }

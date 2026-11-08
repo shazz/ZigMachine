@@ -7,8 +7,10 @@
 // gives a disk its catalog title, group, year and description when it lists it.
 //
 // Folders (docs/FPGA_GLASS.md, "The menu"): a disk sits at the shelf's top (a flat,
-// older card) or one level down, in a category folder (demos/, games/, ...:
-// fpga/tools/shelf_category.py). The menu shows the folders first (shelf_view.zig).
+// older card) or in a folder, up to MAX_DEPTH deep: a category (demos/, games/, ...) and,
+// for the demos, the platform they come from (demos/atari_st/, demos/amiga/, ...:
+// fpga/tools/shelf_category.py). Disk.folder is the PATH, "demos/atari_st". The menu shows
+// a folder's folders first (shelf_view.zig).
 // A disk is still known by its bare FILE name everywhere (the control channel,
 // glass.cfg's drive A, a cart's REQ_LOAD_CART, progs/demo-<tag>/): its folder only
 // says where it is read from. progs/ and kos/ are the shelf's own, never folders.
@@ -18,7 +20,9 @@ const meta = @import("meta.zig");
 
 pub const MAX_DISK = 16 << 20; // the host's disk cap (docs/FLOPPY_DISK.md)
 const HEADER = 0xC00; // v2's boot sector + descriptor + FAT; v1 needs less
-pub const MAX_FOLDER = 24; // a longer directory name is not a category folder
+pub const MAX_FOLDER = 24; // a longer directory name is not a shelf folder
+pub const MAX_DEPTH = 3; // CARTS/demos/atari_st/ is 2: one level to spare, and no runaway walk
+pub const MAX_PATH = MAX_DEPTH * (MAX_FOLDER + 1); // a folder path, its '/'s included
 const NOT_FOLDERS = [_][]const u8{ "progs", "kos" }; // a data disk's programs, KOS's desktop
 
 pub const Disk = struct { file: []const u8, title: []const u8, folder: []const u8 = "", meta: ?meta.Meta = null };
@@ -71,26 +75,29 @@ fn isDisk(e: std.Io.Dir.Entry) bool {
     return e.kind == .file and std.ascii.endsWithIgnoreCase(e.name, ".zmd");
 }
 
-/// Every disk directly in `dir`, listed as in `folder`; with `sub`, every folder's too.
-fn collect(a: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, folder: []const u8, sub: bool, list: *std.ArrayList(Disk)) !void {
+/// Every disk in `dir`, listed as in `folder` (its path), and every folder's under it while
+/// `depth` folders more may nest.
+fn collect(a: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, folder: []const u8, depth: usize, list: *std.ArrayList(Disk)) !void {
     var it = dir.iterate();
     while (try it.next(io)) |e| {
         if (isDisk(e)) {
             const name = try a.dupe(u8, e.name);
             try list.append(a, .{ .file = name, .title = try titleOf(a, io, dir, name), .folder = folder });
-        } else if (sub and isFolder(e)) {
+        } else if (depth > 0 and isFolder(e)) {
             var child = dir.openDir(io, e.name, .{ .iterate = true }) catch |err| {
                 std.log.warn("shelf: folder {s}: {t}", .{ e.name, err });
                 continue;
             };
             defer child.close(io);
-            try collect(a, io, child, try a.dupe(u8, e.name), false, list);
+            const sub = if (folder.len == 0) try a.dupe(u8, e.name) else try std.mem.concat(a, u8, &.{ folder, "/", e.name });
+            try collect(a, io, child, sub, depth - 1, list);
         }
     }
 }
 
-/// A disk left at the top of a card that also carries it in a folder (an old flat copy
-/// nobody deleted) is dropped: the bare name must name ONE disk.
+/// A disk left at the top of a card, or in a folder ABOVE another copy of it (an old flat
+/// copy, or demos/x.zmd left beside demos/atari_st/x.zmd: a half-moved card), is dropped:
+/// the bare name must name ONE disk, and the deeper copy is where the card meant it to be.
 fn dropFlatCopies(list: *std.ArrayList(Disk)) void {
     var i: usize = 0;
     while (i < list.items.len) {
@@ -99,15 +106,15 @@ fn dropFlatCopies(list: *std.ArrayList(Disk)) void {
             i += 1;
             continue;
         };
-        std.log.warn("shelf: {s} is in {s}/ too: the flat copy is ignored", .{ d.file, folder });
+        std.log.warn("shelf: {s} is in {s}/ too: the copy in /{s} is ignored", .{ d.file, folder, d.folder });
         _ = list.orderedRemove(i);
     }
 }
 
-/// The folder that also holds flat disk `d`, if any.
+/// The folder under `d`'s own that also holds disk `d`'s file, if any.
 fn foldered(disks: []const Disk, d: Disk) ?[]const u8 {
-    if (d.folder.len > 0) return null;
-    for (disks) |o| if (o.folder.len > 0 and std.mem.eql(u8, o.file, d.file)) return o.folder;
+    for (disks) |o| if (o.folder.len > d.folder.len and std.mem.eql(u8, o.file, d.file) and
+        std.mem.startsWith(u8, o.folder, d.folder) and (d.folder.len == 0 or o.folder[d.folder.len] == '/')) return o.folder;
     return null;
 }
 
@@ -118,7 +125,7 @@ pub fn scan(gpa: std.mem.Allocator, io: std.Io, dir_path: []const u8) !Shelf {
     var dir = try std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true });
     defer dir.close(io);
     var list: std.ArrayList(Disk) = .empty;
-    try collect(a, io, dir, "", true, &list);
+    try collect(a, io, dir, "", MAX_DEPTH, &list);
     dropFlatCopies(&list);
     shelf.table = meta.load(a, io, dir) catch |err| blk: {
         std.log.warn("{s}: {t}", .{ meta.FILE, err });

@@ -44,7 +44,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "BAD FLICKER", .tag = "badflicker" }, // zigmachine
     .{ .name = "ICS BUMPY'S", .tag = "ics" }, // atari st
     .{ .name = "OXYGENE 312 SPRITES", .tag = "leonard" }, // atari st
-    .{ .name = "MAXI", .tag = "maxi" }, // zigmachine
+    .{ .name = "MAXI", .tag = "maxi" }, // atari st
     .{ .name = "MED OVERSCAN", .tag = "medium_overscan" }, // zigmachine
     .{ .name = "RES SWITCH", .tag = "res_switch" }, // zigmachine
     .{ .name = "SHAPES", .tag = "shapes" }, // zigmachine
@@ -133,6 +133,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "MP3 PLAYER", .tag = "mp3_player" }, // system — a jukebox for C:\MUSIC (KOS GEMDOS), decoded by the sound side
     .{ .name = "SITTING COMFORTABLY?", .tag = "falcon_ays" }, // atari falcon — Reservoir Gods' 2004 intro (Chosneck #2), ported from the depacked original
     .{ .name = "1988", .tag = "c64_1988" }, // c64 — Tristar & Red Sector Inc.'s Only Sprites intro (2021, code Shazz), ported from the depacked original
+    .{ .name = "TRANSMISSION64", .tag = "c64_transmission64" }, // c64 — Padua's invitation to Transmission64 2021 (code Anonym, Dano, Doomed, Hoogo), ported from the depacked original
     .{ .name = "ERFURT MEGADEMO", .tag = "erfurt_menu" }, // atari st — the Atari Scene Collective megademo's menu (2026), ported from the original (protected) disks
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
     .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2

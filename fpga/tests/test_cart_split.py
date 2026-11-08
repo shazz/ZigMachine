@@ -148,5 +148,5 @@ def test_a_card_never_carries_a_cart_its_system_refuses_or_lacks(tmp_path: Path)
                                         ("tutorial", "stniccc"), system=sysbin))  # fmt: skip
     assert rows["CARTS/tutorials/demo-tutorial.zmd"].startswith("REFUSED:") and "needs system table 1.1" in rows[
         "CARTS/tutorials/demo-tutorial.zmd"]  # fmt: skip
-    assert rows["CARTS/demos/demo-stniccc.zmd"].endswith("make -C fpga split-cart CART=stniccc")
+    assert rows["CARTS/demos/atari_st/demo-stniccc.zmd"].endswith("make -C fpga split-cart CART=stniccc")
     assert not (tmp_path / "sd" / "CARTS" / "tutorials" / "demo-tutorial.zmd").exists()
