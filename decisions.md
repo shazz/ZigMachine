@@ -1611,3 +1611,41 @@ BARD); reSID/reSIDfp (GPL, far heavier); unpatched cRSID at 22.05 kHz (55-82 %: 
 **Consequences:** machine-audio.wasm grows by ~400 KB (cRSID's zero-filled C64 is a data segment: the memory is
 imported); snd.bin is 1.99 MB of its 2 MiB limit; the SID mutes Paula sound effects as MP3 does; RSID digi tunes do
 not play.
+
+## 2026-11-08 — GEM desk mode: plane 0 shown 640x480 1:1 by the scanout, the compositor bypassed (HW 1.17.0)
+
+**Status:** accepted (phase 1: RTL, machine model, firmware, tests; not yet on a bitstream)
+**Context:** Matt, 7 Nov: "the minimal GEM only 640x480 ... to show tools like Devpac or any GEM application".
+docs/GEM_DESK_MODE.md (branch `study/gem-640x480`) costed three ways to show it and recommended a bypass. The
+lead decided for Matt on 8 Nov, following the study: go; 640x480, plane 0 only, 1:1, centred in 800x600 with
+black bars; tearing accepted (one buffer, as the ST); no hardware pointer in this phase (GEM keeps its own); the
+payer is the CHISEL triangle edge walk (`perf/chisel-tri-edgewalk`, ~70 LUT), combined by the lead.
+**Decision:** `RESOLUTION = RES_DESK` (3). The scanout fetch reads plane 0's bytes straight from the VRAM pool (80
+beats a line, 480 lines, from `vbase + FB_BASE[0] & ~7`, stride 640) into the display buffers (now 64 bits wide:
+a beat is one write), and the scanout looks each byte up in a mirror of palette 0 (a 256 x 24 BRAM with byte
+lanes, written from the CPU's palette stores, read in the pixel clock: the crossing the display buffers already
+make). `zm_video_comp`'s sources are untouched; the sequencer issues no pass in desk mode, only FRAME + 1, and
+waits for the swap before PRESENT so the frame stays paced at the VBL (cycles/bdesk.c). The desk registers
+(RES_DESK requested, FB_BASE[0]) are a snoop copy beside the compositor (rtl/video/zm_video_desk.v). The machine
+renders the same picture as two 640x240 halves into the PFB (`hwRenderDesk`, machine/video_desk.zig), the oracle
+the RTL testbench compares the wire with. A capability: STATUS.DESK = 1 on a bitstream with the mode, which the
+firmware declares to the machine (`hwSetDeskAvailable`), so `hwDeskAvailable()` is 0 on an older one.
+Two departures from the study, both found by the testbench: the VBL stays at output line 580 in both modes (a
+mode taken at the desk's line 540 would make lines 540..579 normal raster lines, an underrun), and the geometry
+takes the new mode at line 0 (`desk_g`) while the fetch reads the VBL's (`desk_q`). The scanout adds one stage,
+not two (the mirror read is the extra clock; RGB and syncs are 3 clocks behind the timing in both modes).
+**Measured (Vivado OOC, zm_video_out, place + route, comp 8 ns / pix 25 ns, xc7z010):** origin/main 2,646 LUT,
+2,407 FF, 16.5 BRAM tiles, WNS +0.486 ns; desk mode 2,788 LUT (+142), 2,494 FF (+87), 17.5 tiles (+1), WNS
++0.438 ns. The study estimated 150-230 LUT and 2 RAMB18. `u_comp` 2,397 -> 2,393 LUT (placement noise: its
+sources are byte-identical). The scanout fetch's line address became a running sum (one 32-bit adder instead of
+`fbase + y * 3200`), and zm_vtiming counts the raster line instead of subtracting.
+**Alternatives considered:** a taller composited picture (doubles FRESCO's work for a mode that composites
+nothing); the painter at scanout (puts the compositor on the beam's deadline, refused 2026-10-24); the palette
+lookup in the compositor's clock (a serialiser and a second port on u_comp's palette); a hardware pointer
+(+60-100 LUT, deferred: Matt's payer decision).
+**Consequences:** the board shows plane 0 live (a redraw can tear for a frame; no hash sees it). A desk line has
+one line time for 80 beats (the picture has two for 400): the testbench holds a fetch starved to a beat every 16
+clocks (the picture underruns there) and underruns at 32. The frame that switches into or out of desk mode is not
+hash-stable (the browser's PFB keeps the other mode's pixels); the hash rule is "desk" + the two halves. Phase 2:
+ZigOS `setDeskPlane` + the `vramAlloc` guard, the page / scene_hash / native host branch, `desk_check.mjs` and a
+test cart, ZigGEM's five abstractions, glass's mouse mapping, board bring-up.
