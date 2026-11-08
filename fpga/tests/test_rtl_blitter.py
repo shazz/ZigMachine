@@ -26,6 +26,8 @@ from blitter_queue import make_queue_script
 from blitter_random import make_script
 from blitter_speed import H, W, speed_script
 from blitter_tex import make_tex_script
+from blitter_tri import make_tri_script
+from blitter_trispeed import trispeed_script
 
 BUILD = FPGA / "build" / "tests" / "blitter"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
@@ -38,15 +40,27 @@ SCRIPTS = {
     "speed": lambda: speed_script()[0],
     "tex1": lambda: make_tex_script(3, 320),
     "queue1": lambda: make_queue_script(3, 40),
+    "tri1": lambda: make_tri_script(5, 3000),
+    "trispeed": lambda: trispeed_script()[0],
 }
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [
     ("minterm_index_swapped", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], cen && h_c[i]}]", "mt[{cen && h_c[i], bval[i], h_a[i]}]"),
     ("clip_bottom_off_by_one", "zm_blit_clip.v", "ry < dh ? ry : dh", "ry < dh ? ry + 18'sd1 : dh"),
     ("bresenham_tie_break", "zm_blit_line.v", "mx = e2 >= dy", "mx = e2 > dy"),
-    ("triangle_bottom_edge_closed", "zm_blit_tri.v", "y >= by;", "y > by;"),
-    ("triangle_top_edge_open", "zm_blit_tri.v", "y < ay ||", "y <= ay ||"),
-    ("triangle_floor_is_truncation", "zm_blit_tri.v", "neg ? -up[17:0] : q[17:0]", "neg ? -q[17:0] : q[17:0]"),
+    # TRIANGLE's edge walk (zm_blit_tri, _twalk): the model's per-line floor divide, bit for bit
+    ("triangle_bottom_edge_closed", "zm_blit_tri.v", "if (ys >= lb ||", "if (ys > lb ||"),
+    ("triangle_carry_on_remainder_above_dy", "zm_blit_twalk.v", "(neg ? e[17] : !eadd[17])",
+     "(neg ? e[17] : !eadd[17] && eadd != 18'sd0)"),
+    # a negative slope rounding toward zero (the truncation) instead of down (the floor)
+    ("triangle_negative_slope_truncates", "zm_blit_twalk.v", "(neg ? e[17] :", "(neg ? e[17] || e == 18'sd0 :"),
+    ("triangle_negative_slope_walks_right", "zm_blit_twalk.v", "neg ? 16'hFFFF : 16'h0001", "neg ? 16'h0001 : 16'h0001"),
+    ("triangle_clipped_top_not_walked", "zm_blit_tri.v", "t <= {6'd0, y} - ay;", "t <= 16'd0;"),
+    ("triangle_clipped_top_one_step_a_row", "zm_blit_tri.v", "PREB: if (!cy_l && !cy_s)", "PREB: if (1'b1)"),
+    ("triangle_row_ends_while_an_edge_steps", "zm_blit_tri.v", "default: if (!cy_l && !cy_s)", "default: if (!cy_l)"),
+    ("triangle_short_edge_never_switches", "zm_blit_tri.v", "sid == 2'd1 && ys >= sb", "1'b0 && ys >= sb"),
+    # a flat (dy = 0) short edge is never walked: its remainder could never come back into [0, dy)
+    ("triangle_flat_edge_walked", "zm_blit_tri.v", "dead <= ys >= $signed({by[15], by});", "dead <= 1'b0;"),
     ("desc_ignored", "zm_blit_core.v", ".desc(f_con[6])", ".desc(1'b0)"),
     ("key_compare_inverted", "zm_blit_pxq.v", "bv_next == key", "bv_next != key"),
     # the key test made as the head loads: it must be the loading pixel's B, not the one in H
@@ -245,6 +259,19 @@ def test_in_plane_copies_run_unordered_where_no_read_can_alias(oracle: dict[str,
         per_px = (clk - OP_CLOCKS) / (W * (1 if "one row" in name else H))
         print(f"{name}: {per_px:.2f} clocks a pixel")
         assert (per_px < 1.6) if fast else (per_px > 2.5), f"{name}: {per_px:.2f} clocks a pixel"
+
+
+def test_a_triangle_row_costs_a_few_clocks_not_a_divide(oracle: dict[str, Path], tb: Path) -> None:
+    """The edge walk: a few clocks a visible row plus its pixels (the edges' x steps overlap the
+    span), two a row an edge above the plane, and a short setup; v1 divided three times a row
+    (~111 clocks), which this bound refuses (small: 960 > 426)."""
+    r = _run([str(tb), "trispeed.txt", str(oracle["trispeed"]), "fast", "11", "trispeed.out"])
+    assert r.returncode == 0, r.stdout
+    clocks = [int(line.split()[6]) for line in (BUILD / "trispeed.out").read_text().splitlines()]
+    pixels = [int(row[2]) for row in _trace(oracle["trispeed"])]
+    for (name, rows, hidden), clk, px in zip(trispeed_script()[1], clocks, pixels, strict=True):
+        print(f"{name}: {px} px, {clk} clocks")
+        assert clk <= 1.1 * px + 6 * rows + 4.5 * hidden + 300, f"{name}: {clk} clocks for {px} px over {rows} rows"
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

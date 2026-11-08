@@ -133,6 +133,7 @@ const scene = switch (opts.index) {
     120 => @import("scenes/c64_transmission64.zig"), // TRANSMISSION64 (Padua, C64 2021 invitation): a VIC-II model fed the original's IRQ chains, its stores timed against the beam
     123 => @import("scenes/erfurt_menu.zig"), // THE ERFURT MEGADEMO menu (Atari Scene Collective, ST/STE 2026): the drum, real rainbows
     124 => @import("scenes/bard_sid.zig"), // BARD SID: the BARD queue (zg.bard): the cart writes the SID live, tick by tick, raw cRSID plays it at its samples
+    125 => @import("scenes/tri_test.zig"), // TRI TEST: CHISEL TRIANGLE against the model, edge cases + stress, an on-screen hash with the golden one
     126 => @import("scenes/desk_test.zig"), // DESK TEST: the desk mode (HW 1.17.0), plane 0 at 640x480 1:1: a known picture, key 1 desk, key 2 low res
     else => @compileError("bad cart index"),
 };

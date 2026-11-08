@@ -414,7 +414,7 @@ via `zm_blit_hp.py`, the start through an M-only window from the firmware's
 | `zm_blit_regs.v` | the register block of §3 in two banks: the **tap bank** (a LUT RAM) takes every store the way the CPU writes the region (word index, byte enables), also while `BUSY`, so it always equals memory's block; the **op bank** (flops) is what the engine reads, loaded only by `zm_blit_q`. `COMMAND` written non-zero is a kick (its upper bits carry a QUEUE's range); `CYCLES` restarts at each kick and adds every op's cost; `STATUS` and `CYCLES` are the only reads. The op bank's `HALFTONE` lives in LUTRAM (four 8-deep byte lanes) with a flag a byte ("last loaded non-zero"), which is both its reset and the pre-1.5.0 sniff |
 | `zm_blit_q.v` | the sequencer: at every kick the tap bank copied into the op bank (24 clocks; `BLIT_WINDOW` holds a read until it is over, the firmware's barrier after GO), then the op, or a QUEUE's descriptors one after the other from the ring (a 512-word block RAM fed by the CPU's stores to `OFF_BLIT_QUEUE`), each op run to its end before the next header |
 | `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0". A short serial walk: the box one vertex a clock, then ONE source check unit for A, then B (windows, span, the overlap test of §10.2) |
-| `zm_blit_blit.v`, `_line.v`, `_tri.v` | the sequencers: geometry in, pixels out (x, y); the core picks the B colour (COLOR, or the halftone's bit at the pixel), the minterm and the channel flags once for all. One box walker serves BLIT and FILL (FILL: no source, no `DESC`). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
+| `zm_blit_blit.v`, `_line.v`, `_tri.v` | the sequencers: geometry in, pixels out (x, y); the core picks the B colour (COLOR, or the halftone's bit at the pixel), the minterm and the channel flags once for all. One box walker serves BLIT and FILL (FILL: no source, no `DESC`). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` bit for bit, its two live edges walked by `_twalk.v` (a Bresenham walk on the floor, no divider: 10.4) |
 | `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted. Pipelined: its issue stage requests a pixel's reads and moves on, each read tagged (slot, channel, byte lane) |
 | `zm_blit_pxq.v` | the back of the pixel unit: up to 32 pixels whose reads are in flight (LUTRAM slots, answers land by tag), the head combined and written **in order**, through a one-word write buffer that sends consecutive bytes of a word as one strobed write |
 | `zm_blit_core.v` | decode, the op FSM (`IDLE, CHK, RUN, DRAIN, FIN`), the one destination address generator `dlin + y*stride + x`, the `CYCLES` model |
@@ -570,7 +570,26 @@ Where the added LUTs went (the placed hierarchy, approximate where logic merged)
 | mirror, collision, area fill | the row walks' flips, the head's carry and collision test, C forced | ~100 |
 
 Cuts not taken yet: the list/map FIFO at 16 words, the texel pipe's DSP for a power-of-two
-stride shift, TRIANGLE's per-scanline divide (an incremental edge walk is faster too).
+stride shift.
+
+**TRIANGLE edge walk (2026-11-08).** v1 divided each live edge on each scanline (a 32-clock
+sequential divider, ~111 clocks a row). Now the vertices are ranked by y once, two Bresenham
+walkers (`zm_blit_twalk`) follow the long edge and the short one, each keeping
+e = dx * t mod dy with the floor's sign rule, and the divider and its DSP are gone. Same flow
+(OOC, placed and routed), the whole block:
+
+| | LUT | FF | DSP | WNS 100 MHz | WNS 125 MHz |
+|---|---:|---:|---:|---:|---:|
+| before (main 82fe2ac0) | 4,180 | 2,831 | 25 | +1.07 | +0.41 (4,194 LUT) |
+| one divide pair an edge, then a remainder walk (not kept) | 4,158 | 2,912 | 25 | +0.75 | +0.24 |
+| Bresenham walk (kept) | **4,111** | 2,885 | **24** | +0.70 | +0.20 (4,122 LUT) |
+
+-69 LUT at 100 MHz, -72 at 125, one DSP (the roadmap's estimate was ~-100). Clocks a
+triangle in CXXRTL (`fast` memory, `tests/blitter_trispeed.py`), v1 -> now: 10 rows (60 px)
+960 -> 163, 50 rows 5,945 -> 1,949, 180 rows (20,890 px) 36,070 -> 21,674, a 150-row sliver
+13,001 -> 1,003. The trade: an edge whose top is above the first visible row is walked down
+to it, two clocks a hidden row: a vertex 3,000 rows up costs 26,540 -> 30,845; at -32,768
+about 130,000 clocks (v1: the visible rows only, ~22,000).
 
 ### 10.5 Throughput
 
@@ -584,13 +603,13 @@ flush, about 400 clocks a call), before (v1, one pixel in flight) -> after (2026
 | keyed BLIT, 74x60 tiles x 80 (TILE), per candidate pixel | 23.7 | **0.89** |
 | keyed BLIT, 320x1 rows x 200 (RUBBER), per candidate pixel | 30.0 | **2.2** (half of it per-call cost) |
 | keyed BLIT, 26x20 x 121 (DELAY), per candidate pixel | 30.4 | **1.8** (idem) |
-| TRIANGLE `MT_OR_BC` (blitter GLENZ), per pixel | 36.0 | **4.6** (the divider: 35 clocks per edge per scanline) |
+| TRIANGLE `MT_OR_BC` (blitter GLENZ), per pixel | 36.0 | **4.6** (v1's divider, 35 clocks per edge per scanline; the edge walk since 2026-11-08, 10.4) |
 | TRIANGLE `MT_OR_BC` + halftone (tsl_hybridglenz, 39.5 K units) | 21.5 | **6.1** |
 | BLIT, tsl_hybridglenz (66 small bobs) | 1.41 Mc a frame | **0.073 Mc** |
 
 **In CXXRTL** (`blitter_tb deep`: reads 16-31 clocks late, ready 3 clocks in 4), clocks
 per `CYCLES` unit: FILL 1.08, FILL_MT XOR 1.12 (v1 28.2), BLIT copy 1.12 (28.2), keyed 1.28
-(31.9), cookie-cut A+B+C 1.76 (34.4), TRIANGLE `MT_OR_BC` 1.92 (28.7), `MT_B` 1.81 (the
+(31.9), cookie-cut A+B+C 1.76 (34.4), TRIANGLE `MT_OR_BC` 1.92 (28.7), `MT_B` 1.81 (v1's
 divider). An `ordered` BLIT (a smear over its own destination) stays at the v1 rate,
 29.1 (28.2): one pixel's read waits for the previous pixel's write.
 

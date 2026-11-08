@@ -1,18 +1,19 @@
 // TRIANGLE sequencer: deterministic odd-even scanline fill, the arithmetic of
-// machine/blitter.zig doTriangle/crossSpan. For each scanline y (clipped) and each of the
-// three edges (low end first, half-open [ay, by)), x = ax + floor((bx-ax) * (y-ay) / (by-ay))
-// with the floor division done by a shared sequential divider; xl/xr are the min/max, and
-// the span, cut to the clip, is issued as pixels (the core picks COLOR or the halftone bit
-// and combines it with the destination through MINTERM).
-// v1 divides per scanline per edge (~35 clocks each); an incremental edge walk (one divide
-// per edge per triangle) would make a small triangle several times faster.
-// The edge setup is pipelined over four clocks (PICK: pick + order the vertices; EDGE:
-// subtract; MUL: |dxe| * t; GO: start the divide) so that no path runs vertex mux ->
-// compare -> subtract -> multiply -> divider in one clock: in one, it missed 100 MHz by
-// 4 ns on the board (Vivado, 2026-10-10); with the pick and the subtract in one clock the
-// full SoC still missed by 1.0 ns, register -> vertex mux -> compare -> subtract -> the
-// DSP's input register (2026-10-11), hence PICK. Likewise the edge's x is registered (MINMAX)
-// before the min/max. CYCLES counts pixels, not clocks: unchanged.
+// machine/blitter_ops.zig doTriangle/crossSpan. The model, for each scanline y, takes each edge
+// with ay < by and ay <= y < by (half-open) at x = ax + floor((bx-ax) * (y-ay) / (by-ay)) and
+// fills from the least such x to the greatest, cut to the clip.
+// Here the vertices are ranked by y once (top, mid, bot): on any line exactly two edges are live,
+// the long one (top, bot) and a short one, (top, mid) above mid and (mid, bot) from mid down,
+// and a horizontal edge never is. Each live edge is a Bresenham walker on the floor itself
+// (zm_blit_twalk): no divider, no multiplier. A visible row costs a few clocks plus its pixels
+// (the edges' x steps run during the span), where v1 divided three times a row (~111 clocks).
+// The trade: an edge whose top is above the first visible row is walked down to it, two clocks
+// a hidden row (a vertex 3000 rows up: ~12,000 clocks; at -32768: ~130,000, v1 ~22,000).
+// Edge setup (2026-11-08): PICK registers the edge's vertices (vertex mux -> subtract in one
+// clock missed 100 MHz on the board in v1), EDGE dx, dy, the hidden rows t and `dead` (a short
+// edge that ends above the row: (mid, bot) takes over; a flat one is never walked), INI loads
+// the walker, PREA/PREB walk the t hidden rows.
+// CYCLES counts pixels, not clocks: unchanged.
 `default_nettype none
 
 module zm_blit_tri (
@@ -25,94 +26,101 @@ module zm_blit_tri (
     input  wire               px_ready,
     output reg                done
 );
-    localparam [3:0] IDLE = 0, EDGE = 1, DIV = 2, NEXT = 3, SPAN = 4, PIX = 5, NEXTY = 6, MUL = 7, GO = 8, MINMAX = 9,
-                     PICK = 10;
+    localparam [3:0] IDLE = 0, PICK = 1, EDGE = 2, INI = 3, PREA = 4, PREB = 5, LINE = 6, MINMAX = 7, SPAN = 8,
+                     PIX = 9, NEXTY = 10;
     reg [3:0] st;
-    reg [1:0] e;
-    reg signed [17:0] y, ymax, xl, xr, x, xend;
+    reg [1:0] sid;                  // the edge being set up: 0 long (top, bot), 1 (top, mid), 2 (mid, bot)
+    reg [9:0] y;                    // the scanline: inside the check's box, 0..279
+    reg signed [17:0] x, xend;
+    reg signed [15:0] xl, xr;
 
-    // the edge e is v[e] -> v[e+1], ordered so that ay < by
-    wire [1:0] eb = e == 2'd2 ? 2'd0 : e + 2'd1;
-    wire signed [17:0] pax = e == 0 ? x0 : e == 1 ? x1 : x2, pay = e == 0 ? y0 : e == 1 ? y1 : y2;
-    wire signed [17:0] pbx = eb == 0 ? x0 : eb == 1 ? x1 : x2, pby = eb == 0 ? y0 : eb == 1 ? y1 : y2;
-    wire swap = pay > pby;
-    // PICK registers the ordered edge; EDGE subtracts from those registers
-    reg signed [17:0] ax, ay, bx, by;
-    wire skip = ay == by || y < ay || y >= by;
-    wire signed [17:0] dye = by - ay;
-    wire signed [17:0] dxe = bx - ax, t = y - ay;   // |dxe| < 2^16, 0 <= t < 2^16: one DSP48
-    wire neg = dxe[17];
-    wire [16:0] adx = neg ? -dxe[16:0] : dxe[16:0];
-    // EDGE registers the ordered edge, MUL the product, GO starts the divider from registers
-    reg signed [17:0] e_ax;
-    reg [16:0] e_adx, e_t, e_dye;
-    reg e_neg, e_skip;
-    reg [33:0] anum;   // |dxe| * t: the numerator's magnitude, 17 x 17 unsigned
-    wire div_go = st == GO;
-    wire div_done;
-    wire [31:0] q;
-    wire [16:0] r;
-    zm_blit_div dv (.clk(clk), .rst(rst), .go(div_go), .num(anum[31:0]), .den(e_dye), .done(div_done), .q(q), .r(r));
-    wire [31:0] up = q + (r != 17'd0);
-    wire signed [17:0] xe = e_ax + (e_neg ? -up[17:0] : q[17:0]);
-    reg signed [17:0] xe_q;
+    // rank the vertices by y once (ties in any order: a horizontal edge is never live)
+    wire caa = $signed(y1[15:0]) < $signed(y0[15:0]), cb = $signed(y2[15:0]) < $signed(y0[15:0]),
+         cc = $signed(y2[15:0]) < $signed(y1[15:0]);
+    wire [1:0] rk0 = {1'b0, caa} + {1'b0, cb}, rk1 = {1'b0, !caa} + {1'b0, cc};
+    function [1:0] who(input [1:0] k, input [1:0] r0, input [1:0] r1);
+        who = r0 == k ? 2'd0 : r1 == k ? 2'd1 : 2'd2;
+    endfunction
+    reg [1:0] i_top, i_mid, i_bot;
+    wire [1:0] ia = sid == 2'd2 ? i_mid : i_top, ib = sid == 2'd1 ? i_mid : i_bot;
+    function [15:0] pickv(input [1:0] i, input [15:0] a, input [15:0] b, input [15:0] c);
+        pickv = i == 2'd0 ? a : i == 2'd1 ? b : c;
+    endfunction
 
-    // the scanlines: the vertices' y range cut to the clip, which is the check's box (ey0, ey1)
-    wire signed [17:0] lo = ey0, hi = ey1 - 18'sd1;
+    // edge setup: PICK registers the vertices, EDGE the differences, INI loads the walker, PREA/PREB
+    // walk it from its top row down to the first visible one (t rows)
+    reg signed [15:0] ax, ay, bx, by, l_by, s_by;
+    reg [15:0] dy, t;
+    reg signed [16:0] e_dx;
+    reg dead;
+    wire signed [16:0] dx = {bx[15], bx} - {ax[15], ax};
+    wire signed [16:0] ys = {7'd0, y}, lb = {l_by[15], l_by}, sb = {s_by[15], s_by};
+
+    wire to_s = sid != 2'd0;
+    wire w_clr = st == PICK, w_ini = st == INI, w_sa = st == SPAN || st == PREA && !dead && t != 16'd0;
+    wire w_sb = st == PREB || st == PIX || st == NEXTY;
+    wire cy_l, cy_s;                    // a walker moved its x this clock
+    wire signed [15:0] xa, xb;          // the long edge's x, the short edge's
+    zm_blit_twalk wl (.clk(clk), .clr(w_clr && !to_s), .ini(w_ini && !to_s), .kax(ax), .kdx(e_dx), .kdy(dy),
+        .sa(w_sa && (st == SPAN || !to_s)), .sb(w_sb && (st != PREB || !to_s)), .carry(cy_l), .x(xa));
+    zm_blit_twalk ws (.clk(clk), .clr(w_clr && to_s), .ini(w_ini && to_s), .kax(ax), .kdx(e_dx), .kdy(dy),
+        .sa(w_sa && (st == SPAN || to_s)), .sb(w_sb && (st != PREB || to_s)), .carry(cy_s), .x(xb));
 
     assign px_valid = st == PIX && x <= xend;
     assign px_x = x;
-    assign px_y = y;
+    assign px_y = {8'd0, y};
 
     always @(posedge clk) begin
         done <= 1'b0;
         if (rst) st <= IDLE;
         else case (st)
             IDLE: if (go) begin
-                y <= lo; ymax <= hi; e <= 2'd0; xl <= 18'sh1FFFF; xr <= 18'sh20000;
-                if (lo > hi) done <= 1'b1;
+                y <= ey0[9:0]; sid <= 2'd0;
+                i_top <= who(2'd0, rk0, rk1); i_mid <= who(2'd1, rk0, rk1); i_bot <= who(2'd2, rk0, rk1);
+                if (ey0 >= ey1) done <= 1'b1;
                 else st <= PICK;
             end
             PICK: begin
-                ax <= swap ? pbx : pax; ay <= swap ? pby : pay;
-                bx <= swap ? pax : pbx; by <= swap ? pay : pby;
+                ax <= pickv(ia, x0[15:0], x1[15:0], x2[15:0]); ay <= pickv(ia, y0[15:0], y1[15:0], y2[15:0]);
+                bx <= pickv(ib, x0[15:0], x1[15:0], x2[15:0]); by <= pickv(ib, y0[15:0], y1[15:0], y2[15:0]);
                 st <= EDGE;
             end
             EDGE: begin
-                e_ax <= ax; e_adx <= adx; e_t <= t[16:0]; e_dye <= dye[16:0]; e_neg <= neg; e_skip <= skip;
-                st <= MUL;
+                e_dx <= dx; dy <= by - ay;
+                t <= {6'd0, y} - ay;                  // rows above the first visible one
+                dead <= ys >= $signed({by[15], by}); // the edge ends above it (the short one: go to (mid, bot))
+                if (to_s) s_by <= by; else l_by <= by;
+                st <= INI;
             end
-            MUL: begin
-                anum <= e_adx * e_t;
-                st <= e_skip ? NEXT : GO;
-            end
-            GO: st <= DIV;
-            DIV: if (div_done) begin
-                xe_q <= xe;
-                st <= MINMAX;
+            INI: st <= PREA;
+            PREA: if (dead || t == 16'd0) begin
+                    if (sid == 2'd0) begin sid <= 2'd1; st <= PICK; end
+                    else if (dead && sid == 2'd1) begin sid <= 2'd2; st <= PICK; end
+                    else st <= LINE;
+                end else begin t <= t - 16'd1; st <= PREB; end
+            PREB: if (!cy_l && !cy_s) st <= PREA;
+            LINE: begin
+                if (ys >= lb || y == ey1[9:0]) begin st <= IDLE; done <= 1'b1; end
+                else if (sid == 2'd1 && ys >= sb) begin sid <= 2'd2; st <= PICK; end
+                else st <= MINMAX;
             end
             MINMAX: begin
-                if (xe_q < xl) xl <= xe_q;
-                if (xe_q > xr) xr <= xe_q;
-                st <= NEXT;
-            end
-            NEXT: begin
-                e <= e + 2'd1;
-                st <= e == 2'd2 ? SPAN : PICK;
+                xl <= xa < xb ? xa : xb;
+                xr <= xa < xb ? xb : xa;
+                st <= SPAN;
             end
             SPAN: begin
                 x <= xl > cx0 ? xl : cx0;
                 xend <= xr < cx1 - 18'sd1 ? xr : cx1 - 18'sd1;
-                st <= xr < xl ? NEXTY : PIX;
+                st <= PIX;
             end
             PIX: begin
                 if (x > xend || (px_ready && x == xend)) st <= NEXTY;
                 if (px_ready) x <= x + 18'sd1;
             end
-            default: begin  // NEXTY
-                y <= y + 18'sd1; e <= 2'd0; xl <= 18'sh1FFFF; xr <= 18'sh20000;
-                if (y == ymax) begin st <= IDLE; done <= 1'b1; end
-                else st <= PICK;
+            default: if (!cy_l && !cy_s) begin   // NEXTY: the walkers reach the next row (they step during PIX)
+                y <= y + 10'd1;
+                st <= LINE;
             end
         endcase
     end

@@ -389,6 +389,8 @@ gate bard_sid node apps/bard_queue_check.mjs   # BARD queue (zg.bard, table 1.12
 gate bard_sid node apps/bard_queue_check.mjs --break stamp   # ...and the loader delaying every SID write two samples (one engine sample) fails parity
 gate bard_sid node apps/bard_queue_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
 gate bard_sid uv run --project fpga python -m pytest -q fpga/tests/test_bard_queue.py   # ...and the board's answer across S2C (cycles/bardq_s2c.h) lands in the cart's block as the page writes it: no tail past the head, no position before the anchor, events unpacked, lapped or full counted lost
+gate tri_test node apps/tri_test_check.mjs   # TRI TEST (cart 125): every TRIANGLE of set A (edge cases + 160 seeded) and of set B (48 a frame, 300 frames) equals a rasteriser written in the harness from the spec; the cart's on-screen hashes are the GOLDEN_A / GOLDEN_B the board compares against
+gate tri_test node apps/tri_test_check.mjs --break floor   # ...and a rasteriser that truncates instead of flooring is caught
 gate kt node apps/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted
 gate kt node apps/kt_check.mjs --break pin   # ...and a wrong pin fails
 gate kt node apps/kt_check.mjs --break lowbyte   # ...and the low-byte channels silenced (8-bit sides) fail the Paula check

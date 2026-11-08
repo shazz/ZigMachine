@@ -500,6 +500,11 @@
   "type": "c64"
  },
  {
+  "tag": "tri_test",
+  "title": "TRI TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "trsi_transarctica",
   "title": "TRSI TRANSARCTICA",
   "type": "atari falcon"

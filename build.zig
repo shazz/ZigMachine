@@ -612,7 +612,7 @@ pub fn build(b: *std.Build) void {
         "", // 122: reserved (taken by unmerged branches, lead 8 Nov)
         "demo-erfurt_menu", // 123 — ATARI SCENE COLLECTIVE / THE ERFURT MEGADEMO menu (ST/STE 2026): the drum menu, real colour-0 rainbows, from the original disks
         "demo-bard_sid", // 124 — BARD SID: the BARD queue's test cart (zg.bard, table 1.12): the cart writes the SID's registers tick by tick, stamped on its sample clock; raw cRSID plays each at its sample (BARD native, machine-audio.wasm); a mark back each beat flashes the background
-        "", // 125: reserved (tri_test on fit/desk-edgewalk)
+        "demo-tri_test", // 125 — TRI TEST: CHISEL TRIANGLE edge cases and a 300-frame stress run, the drawing area hashed on screen against the browser model's (OK / BAD), to compare bitstreams
         "demo-desk_test", // 126 — DESK TEST: the desk mode (HW 1.17.0): plane 0 alone at 640x480 1:1, 256 cells of palette 0, a 1-px checker and frame, text; key 1 desk, key 2 low res
     };
     for (cart_names, 0..) |name, idx| {

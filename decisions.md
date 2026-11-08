@@ -1722,3 +1722,25 @@ clocks (the picture underruns there) and underruns at 32. The frame that switche
 hash-stable (the browser's PFB keeps the other mode's pixels); the hash rule is "desk" + the two halves. Phase 2:
 ZigOS `setDeskPlane` + the `vramAlloc` guard, the page / scene_hash / native host branch, `desk_check.mjs` and a
 test cart, ZigGEM's five abstractions, glass's mouse mapping, board bring-up.
+## 2026-11-08 — CHISEL TRIANGLE: a Bresenham edge walk, no divider
+
+**Status:** accepted (bitstream and board A/B pending, the lead's; TRI TEST, cart 121, compares them)
+**Context:** The first payer for the GEM 640x480 desk mode (study/gem-640x480): CHISEL v2's cut (4),
+"an incremental edge walk instead of the per-scanline divide (~-100 LUT, faster too)". v1 divided
+each live edge on each row with a 32-clock sequential divider and a DSP.
+**Decision:** rank the vertices by y once; two walkers (`zm_blit_twalk`) follow the long edge and
+the short one ((top, mid), then (mid, bot)), each keeping e = dx * t mod dy with the floor's own
+sign rule (dx >= 0: e >= dy steps x right; dx < 0: e < 0 steps x left), one adder each, so the
+pixels are crossSpan's bit for bit. An edge whose top is above the first visible row is walked
+down to it (two clocks a hidden row). A flat short edge is never walked (it could never step).
+**Alternatives considered:** one divide pair an edge (floor-divmod of dx and of dx * t0 by a
+17-clock divider, the numerator offset by dy * 2^16 so an unsigned divide floors), then a
+remainder walk: built and proven, faster for clipped tops, but LUT-neutral (4,180 -> 4,158 LUT,
+the divider and DSP stay). A magnitude divide with sign fix-ups: +28 LUT.
+**Consequences:** zm_blit 4,180 -> 4,111 LUT at 100 MHz (-69; 4,194 -> 4,122 at 125), 25 -> 24
+DSP, +54 FF; WNS +1.07 -> +0.70 (100), +0.41 -> +0.20 (125). Visible rows cost a few clocks plus
+their pixels (a 10-row triangle 960 -> 163 clocks), but a vertex far above the plane costs two
+clocks a hidden row: 3,000 rows up 26,540 -> 30,845 clocks, at -32,768 ~130,000 (v1 ~22,000).
+The carts that draw TRIANGLE (anima glenz/knot, blitter demo, fuji logo, obj, rno_natrium envmap,
+tsl_hybridglenz) project objects onto the plane, not far above it; a cart that throws huge
+polygons at CHISEL should clip them first.
