@@ -2,7 +2,7 @@
 # native C64 program on its own libcRSID C64), with a host of ours (kestrel_sw*.c) for the machine. README.md.
 # Upstream's files are vendored in upstream/ (unchanged; README.md "Provenance"): every one is mirrored into
 # build/gen/ and patched there by patches/<path with / as __>.sed when one exists (a patch must change its file).
-#   make link | make names | make install | make clean
+#   make link | make names | make install | make clean | make cputest OUT=build/cputest (apps/sidwizard_cpu_check.mjs)
 ZIG    ?= $(HOME)/.local/zig/0.16.0/zig
 WABT   ?= ../../../fpga/.tools/wabt/bin
 OUT    := build
@@ -30,7 +30,7 @@ CDRIVE   := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o
 KSDL_O   := $(addprefix $(OUT)/ksdl/,kestrel_wasi.o kestrel_heap.o kestrel_quit.o kestrel_audio.o)
 OBJS     := $(OUT)/kestrel_sw.o $(OUT)/kestrel_sw_host.o $(KSDL_O) $(CDRIVE)
 
-.PHONY: link names install clean data
+.PHONY: link names install clean data cputest
 .SECONDARY:
 link: $(OUT)/demo-sidwizard.wasm
 
@@ -60,7 +60,7 @@ $(GEN)/resources/chargen.h: $(UP)/resources/chargen tools/bin2h.py
 	@mkdir -p $(dir $@)
 	python3 tools/bin2h.py $< $@ chargen --nul
 
-$(OUT)/kestrel_sw.o: kestrel_sw.c $(wildcard kestrel_sw*.c include/*.h) $(GENALL)
+$(OUT)/kestrel_sw.o: kestrel_sw.c $(wildcard kestrel_sw*.c kestrel_sw*.h include/*.h) $(GENALL)
 	@mkdir -p $(OUT)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
 $(OUT)/kestrel_sw_host.o: kestrel_sw_host.c
@@ -87,6 +87,10 @@ $(OUT)/names/demo-sidwizard.wasm: $(OBJS)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) $(filter-out -Wl$(comma)--strip-debug,$(LDFLAGS)) $^ -o $@
 comma := ,
+# The cart whose boot first runs kestrel_sw_cpu_test.c (the fast 6502 against libcRSID's): apps/sidwizard_cpu_check.mjs.
+# Give it its own OUT; CPUTEST_EXTRA=-DSW_CPU_BREAK plants the check's --break.
+cputest:
+	$(MAKE) link EXTRA="-DSW_CPU_TEST $(CPUTEST_EXTRA)"
 
 # The floppy's files (data/, committed, packed by tools/mkdisks.sh): Hermit's example song, renamed to 8.3.
 data:

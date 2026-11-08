@@ -1685,3 +1685,65 @@ inside at ~30 % speed (songs play slow) until the SID moves to BARD (`kestrel_sw
 feat/bard-queue) and/or a smaller 6502 core (ROADMAP). Every cart that owns the keyboard may now receive
 0xE019..0xE01D: the ports and GEM ignore them (ports_headless presses them before each port's pin; gem_headless
 "owner-keys-ignored").
+
+## 2026-11-08 — SID-Wizard's SID on BARD: stamped writes on the BARD queue, the C64 clocked by the frame's time
+
+**Status:** accepted
+**Context:** On the board SID-Wizard ran at ~20 fps with the SID (cRSID's light engine) on ZIGGY, where the audio
+clocked the C64: ZIGGY could emulate only ~30 % of real time, so songs played slow and broken. The BARD queue
+(decisions.md 2026-11-07) is on main: a cart can write SID registers stamped on its 44.1 kHz clock and SID live
+plays them on BARD. Matt: "start the move to BARD using the queue".
+**Decision:**
+- **Every SID write goes on the queue** (`apps/ports/sidwizard/kestrel_sw_bard.c`, a C copy of `libs/zig/bard.zig`'s
+  ring): captured in libcRSID's I/O write path, handed over after the instruction that made it, stamped
+  `t = C64 cycle x 32 / SampleClockRatio` (2 output samples a 22.05 kHz "C64 sample": exactly the cart's clock;
+  985248 cycles a second would drift 0.1 % against it). A reset and the 25 registers as the C64 has them open the
+  queue, at t 0. The cart renders no SID (`SW_SID_ON_BARD`, default 1; 0 keeps the old way to measure against).
+- **The C64 is clocked by the frame's real time** (`kestrel_frame_us`, capped at 100 ms), no longer by the audio.
+  Its CIAs, raster lines and so the IRQs that run the player follow the clock; the stamps follow the C64. So the
+  song's tempo is the C64's, whatever ZIGGY's frame rate (a 60 ms frame makes the same writes with the same stamps
+  as three 20 ms ones: `apps/sidwizard_bard_check.mjs` tempo).
+- **When ZIGGY cannot run all of that 6502** (the editor's main loop never idles; the C64 costs ~3.9 Mc a 60th
+  estimated, ~2.3x real time), the main program yields (`kestrel_sw_pace.c`): each frame the emulation may take
+  85 % of the real time it covers (hostMicros); past that, except in the frame's first tenth, the 6502 runs only
+  inside IRQ handlers (I flag set) and the main program waits in libcRSID's idle state until the next frame. The
+  IRQs (player, raster splits; ~40 % of the C64's time) come on time and run whole: the song keeps its tempo, the
+  editor answers slower. With no host clock (every harness) nothing waits, so page and native host stay equal.
+**Alternatives considered:** keep the audio as the clock and render on BARD (the C64 would still run at ZIGGY's
+speed: wrong tempo); clock the C64 by frame time and let it fall behind (the cap, then slow music again); skip
+whole frames of C64 time (IRQs lost: the player skips ticks); detect the editor's idle loops (it has none: no PC
+takes more than 3 % of the time); a faster 6502 core (the right long-term lever, ROADMAP).
+**Consequences:** the main program's speed on the board depends on how much the IRQs leave (estimate ~10-60 % of
+a C64's), so key handling and redraws lag there; the music does not. The cart's oscilloscope and main-volume keys
+no longer act on the sound (the samples are BARD's). A write is heard a lead (6,144 samples, ~139 ms) after the C64
+made it, as BARD SID's.
+
+## 2026-11-08 — SID-Wizard's C64 in real time on ZIGGY: libcRSID's 6502 with its registers in locals
+
+**Status:** accepted
+**Context:** With the SID on BARD (the ADR above), the board played Flash It Back ~25 % slow and the editor ran at
+7 fps. The C64 cost ~1.8x real time on ZIGGY with its main program running (frame_cost; the board ~1.15x the model):
+libcRSID's 6502 kept its registers in the `cRSID_C64.CPU` struct and was a call per instruction, ~215 rv32
+instructions per 6502 instruction, with ~19 KB of code a frame against the 16 KB I$ (1.4 Mc of misses). The pace
+guard held the main program after 85 % of each frame, so a frame was ~7x the picture's time, ~140 ms, past the
+100 ms cap: the C64 got ~70 % of real time.
+**Decision:** `kestrel_sw_cpu.c` fuses libcRSID's `cRSID_emulateC64` loop (RealSID mode, as kestrel-patched) and
+`cRSID_emulateCPU` into one function with the 6502's registers in locals for a whole C64 sample, memory read
+straight from the PLA's bank table unless the page is I/O, written straight to RAM outside `$D000-$DFFF`, and
+upstream's own `rd`/`wr`/`wr2` for the rest. It is a transcription, not a new core: the same bit-group decoding,
+types, cycle counts and quirks, so the machine is the same byte for byte, which `apps/sidwizard_cpu_check.mjs`
+proves on random C64s (every opcode, and whole samples of random code, the 275 KB machine compared). Two more cuts
+with the same machine: the editor's idle loop (it polls flags only its IRQ sets) waits in libcRSID's idle state,
+the wait stepping to the next CIA/VIC event; and reads of CIA1's ports and the VIC's raster registers skip the
+CIAs/VIC hand-over, since they cannot change before the next event. Est. 3.84 -> 1.72 Mc playing (I$ misses gone),
+the C64 ~55-60 % of ZIGGY. The pace guard stays, at 60 %, and the cap's losses are counted and shown
+(`kestrel_sw_rt.c`, a line in the bottom border), never silent.
+**Alternatives considered:** a new table-driven 6502 (faster dispatch, but a different machine to validate, and a
+256-case core is larger than the I$ budget); hot/cold code placement by section attributes (the wasm -> rv32 path
+keeps one code section, and the I$ model counts executed bytes, not their order: only a smaller working set
+helps); a generic raster-wait/idle-loop detector (SID-Wizard's one loop, checked byte for byte, is enough and
+cannot misfire on other code); raising the cap (a frame that cannot keep up only grows).
+**Consequences:** the 6502 exists twice (upstream's still runs the init calls and, with `SW_CPU_UPSTREAM`, the
+whole cart), so an upstream fix to CPU.c must be carried to `kestrel_sw_cpu_step.h`; the CPU check catches any
+divergence. The idle-loop wait moves IRQ entries by a few cycles: the song's 9,126 SID writes are the same, 580 of
+their stamps one 44.1 kHz sample apart. The bottom border carries a status line (`C64 100% HELD 0% OWED 0.0S`).

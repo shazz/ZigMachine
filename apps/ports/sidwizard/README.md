@@ -22,7 +22,7 @@ zero page `$F6..`, `host/file.c` serves them with stdio). The cart does the same
 | upstream (PC) | here |
 |---|---|
 | `SIDwizard.c` `main()`: set-up, the 5 ms main loop (SDL events, `getKeyStates`, the command-line file's key simulator, `handleDiskIO`), `displayScreen` every 20 ms | `kestrel_sw.c` (set-up, `boot`/`frame`, the main-loop pass `sw_tick` every 110 samples = 5 ms), `kestrel_sw_keysim.c` (the key simulator, ported as it is: it opens `FLASHBAK.SWM` at start) |
-| SDL audio callback: `cRSID_generateSample()` per sample (the C64 is clocked by the audio) | `kestrel_audio_pump()` at 22,050 Hz: real time's worth of samples a frame, each one `cRSID_generateSample()` |
+| SDL audio callback: `cRSID_generateSample()` per sample (the C64 is clocked by the audio) | the frame's real time worth of 22,050 Hz C64 steps (`cRSID_emulateC64()`), the SID's writes on the BARD queue ("The SID on BARD"); with `SW_SID_ON_BARD 0`, `kestrel_audio_pump()` as upstream |
 | `host/video*.c`: 32-bit SDL surfaces, zoom, scanline fade, blur | `kestrel_sw_video.c` + `kestrel_sw_draw.c`: the **C64-UI mode at zoom 1** as palette indices straight into the 400x280 plane, only what changed (cells, sprite bytes, raster-bar rows); upstream's "lofiborder" (no sprite blur) |
 | `host/keyboard.c`, `keyboard.h`, `mouse.c` | **unchanged**, over `include/SDL.h` (SDL 1.2 key symbols + `SDL_GetKeyState()`), which `kestrel_sw_keys.c` fills from the cart's `key`/`keyUp`/`input`/`pointer` exports |
 | `host/file.c` over the PC's file system | **unchanged** but for `patches/host__file.c.sed`, over wasi-libc: the floppy (read-only) and C: as `/C` (KOS GEMDOS) |
@@ -37,8 +37,8 @@ keyboard/mouse/disk code unchanged, a small host for the picture, sound and keys
 The C64 picture is 340x254 at (30,13) of the plane: a 10-pixel left border (black: upstream's zoom / SID model /
 MIDI buttons are not here), the header sprites (7, x-expanded) on top, 26 text rows (row 26 is SID-Wizard's VIC
 trick: another screen bank from raster line `$F7`), the orderlist sprites below, and on the right the raster
-bars (every raster line's border colour), the main-volume bar and the disk light. The oscilloscope is drawn in
-the header on the editor screen, as upstream. 16 text colours (pepto x the zoom-1 fade x 1.5) and 16 sprite
+bars (every raster line's border colour), the main-volume bar and the disk light. The oscilloscope (upstream draws it
+in the header on the editor screen) is drawn only with the SID here (`SW_SID_ON_BARD 0`). 16 text colours (pepto x the zoom-1 fade x 1.5) and 16 sprite
 colours (pepto x 1.5).
 
 ### Keys
@@ -64,40 +64,85 @@ byte for byte.
 
 ## Cost (`apps/frame_cost.mjs`, est. on ZIGGY at 100 MHz)
 
-| build | idle editor | playing Flash It Back |
-|---|---|---|
-| upstream as it is (always-inline, -O2, every part clocked every 6502 instruction) | — | 11.6 Mc/frame |
-| envelopes once a sample (exact steps) | — | 10.0 |
-| `-Os` | — | 8.7 |
-| inlining not forced (91 KB emulate function -> 16 KB) | — | 7.7 |
-| CIAs + VIC clocked at their next event or an I/O access | — | 6.3 |
-| envelopes holding at sustain set no step limit | **5.2** | **5.9** |
+| build | idle editor | playing Flash It Back | file browser |
+|---|---|---|---|
+| upstream as it is (always-inline, -O2, every part clocked every 6502 instruction) | — | 11.6 Mc/frame | — |
+| envelopes once a sample, `-Os`, inlining not forced, CIAs + VIC at their events (port/sidwizard) | 5.2 | 5.9 | — |
+| the SID on BARD (feat/sidwizard-bard): no SID render, no envelopes here | 3.7 | 3.7 | — |
+| and the picture stores only what changed (VRAM 9 KB -> 1.9 KB a frame, same pixels frame for frame) | 3.89 | 3.84 | 4.24 |
+| and the 6502 in registers, the idle loop waited out, the clock-free I/O reads (below) | **1.69** | **1.72** | **1.70** |
 
-So the C64 costs about **3.5x real time** on the board: the cart runs (~16-19 fps), but the C64 inside runs at
-about 30 % speed: the audio ring gets about a third of real time's samples (`kestrel_audio.h`: it replays stale
-bytes in between, as klystrack's did before BARD), and the song plays slow and broken (the frame is capped at 20
-ms of C64 time: a slow board frame is not caught up, so the editor keeps answering). 50/60 fps does not hold.
-In the browser it runs at full speed. The clock batching was checked by its results (the screens, the song
-heard, the save byte-identical), not A/B'd sample for sample against upstream's per-instruction clocking. Where the rest goes: the
-6502 core (`cRSID_emulateCPU`, ~0.84 Mc, ~165 cycles an instruction, ~5,100 instructions a frame: SID-Wizard's
-main loop never idles), the instruction loop (0.34), the SID (light engine + envelopes ~0.5) and the I$ (2.7 Mc:
-~21 KB of code a frame against a 16 KB cache). The two levers left: **the SID on BARD** (below: the SID render
-and its code leave ZIGGY), and a smaller, faster 6502 core (docs/ROADMAP.md). No float runs a frame (upstream's
-float is the PC display code, not built).
+(FRESCO is 0.7 Mc of each; the cart's own part went 3.1 -> 1.0 Mc playing: the 6502 2.8 -> 0.6 with the I$, whose
+working set fell from ~19 KB to ~16 KB a frame, so its 1.4 Mc of misses are gone. The file browser's IRQ waits for a
+raster line reading `$D012` ~1,750 times a frame, each read a 400-cycle hand-over before.)
+
+(The last row is the same within the estimate's noise: the stores are cheap since posted stores; it is FRESCO's
+dirty-line planner that gains, 20 of 280 lines changing a frame. The board's "296 %" was the whole frame, cart +
+FRESCO, against a 60th: `budget.zig percent`, not FRESCO alone.)
+
+### The C64 in real time on ZIGGY
+
+The 3e1c3729 card on the board: the song ~25 % slow, the editor 7 fps. The C64 then cost ~1.8x real time with its
+main program running (the model; the board measured ~1.15x the model), so `kestrel_sw_pace.c` held the main
+program after 85 % of each frame: frames of ~140 ms, past the 100 ms cap, so the C64 got ~70 % of real time.
+
+- **The 6502 in registers** (`kestrel_sw_cpu.c`, `kestrel_sw_cpu_step.h`): libcRSID's `cRSID_emulateC64` loop and
+  `cRSID_emulateCPU` fused, instruction for instruction and quirk for quirk (the same bit-group decoding, types,
+  timings, illegal opcodes), but the registers are locals for a whole C64 sample and memory goes straight to the
+  bank the PLA maps unless the page is I/O (then upstream's own `rd`/`wr`/`wr2`). Upstream's took ~215 rv32
+  instructions a 6502 instruction with its loop (every register a load or store through the `cRSID_C64.CPU`
+  struct, a call per instruction); this ~135, and 9.8 KB of code for the two.
+  `apps/sidwizard_cpu_check.mjs` runs both on random C64s: every opcode on 48 machines, one instruction, and 4,000
+  samples of random code; the whole 275 KB machine must be the same after each (`--break`: a wrong ADC carry).
+  `SW_CPU_UPSTREAM` builds the cart on libcRSID's 6502: the pictures of 1,200 frames (browse, load, play) are the
+  same.
+- **The idle loop waited out** (`kestrel_sw_idle.c`): the editor's main loop ($082D) polls two flags its IRQ sets
+  and a quit flag; when the 6502 is in it with all three clear it waits in libcRSID's idle state for the next
+  interrupt (the loop's code is checked byte for byte first), and the wait steps to the next CIA/VIC event at once.
+  A quarter of the main program's time was that loop (the `SW_PROFILE_PC` build's PC profile).
+- **Clock-free I/O reads** (`kestrel_sw_clock.c sw_io_clockless`): CIA1's ports and the VIC's `$D011/$D012/$D019`
+  are read without the CIAs/VIC hand-over, since what they hold cannot change before the next event. The same
+  pictures and the same SID writes as with the hand-over (`SW_IO_TOUCH_ALL`).
+- Against 3e1c3729 the song makes the same 9,126 SID writes with the same values; 580 stamps are a sample (44.1 kHz)
+  apart: an IRQ entered from the wait instead of from the idle loop's own instructions starts a few cycles apart.
+
+Now the whole C64, its editor included, is ~0.9 Mc a 60th of a second: ~55 % of ZIGGY by the model (~60 % with the
+board's 1.15x), so it keeps real time without holding anything, and a frame is the picture's ~9 ms plus that.
+`kestrel_sw_pace.c` stays as the guard, now at 60 % (so a frame stays under ~2.5x the picture's time whatever the
+editor does), and `kestrel_sw_rt.c` counts what the cap takes:
+
+- **The real-time line** in the bottom border, once a second: `C64 100% HELD 0% OWED 0.0S`: the C64 time run over
+  the wall time passed (100 % = the song's tempo), the share of it the editor waited, and the C64 time lost to the
+  100 ms cap since the start. Red when under 100 %, and then also in the log.
 
 `kestrel_sw_clock.c` is where the clocking changed (CIAs and VIC handed their cycles at the next raster line, CIA
 timer underflow or I/O access, exactly when upstream would have seen the event; envelopes in exact steps once a
-sample); `patches/libcRSID__C64__*.sed` hook it in, and the key matrix is computed on a `$DC01` read only.
+sample when the SID is here); `patches/libcRSID__C64__*.sed` hook it in, and the key matrix is computed on a
+`$DC01` read only.
 
-## The SID on BARD: one switch
+## The SID on BARD (decisions.md 2026-11-08)
 
-`kestrel_sw_sid.h` `SW_SID_ON_BARD`: 0 (now) renders the SID here, from the C64's I/O page. 1 hands every write to
-`$D400-$D7FF` to `sw_sid_write(register, value, C64 cycle)` after the instruction that wrote it (captured in the
-I/O write path, `kestrel_sw_clock.c` `sw_io_write`), to go on the BARD queue (`feat/bard-queue`, not on main yet:
-decisions.md "The BARD queue", `libs/zig/bard.zig`): a C mirror of its ring, `hostBardAttach(block, lead)`, SID live,
-each write a command `{t, $D400 + reg, value}` stamped on the cart's 44.1 kHz clock (cycle x 44100 / 985248).
-Building with 1 stops at an `#error` until that lands; the local render is then to be skipped (the 6502 still
-reads `$D41B`/`$D41C` back). docs/ROADMAP.md has the row.
+`kestrel_sw_sid.h` `SW_SID_ON_BARD` is 1: the cart renders no SID. Every write the 6502 makes to `$D400-$D7FF`
+goes on the BARD queue (`kestrel_sw_bard.c`, a C copy of `libs/zig/bard.zig`'s ring, `hostBardAttach`) after the
+instruction that made it, stamped with its C64 cycle on the cart's 44.1 kHz clock (`t = cycle x 32 /
+SampleClockRatio`); SID live plays it on BARD (on the page: the worklet; natively: `host/audio_bardq.c`), a lead
+(~139 ms) behind. A reset and the registers as the C64 holds them open the queue at t 0.
+
+- **The clock:** the C64 runs on the frame's real time (`kestrel_frame_us`, capped at 100 ms), no longer on the
+  audio, so the player's IRQs, and the song's tempo, follow real time at any frame rate.
+- **When ZIGGY can't run all of it** (`kestrel_sw_pace.c`): each frame the emulation may take 60 % of the time it
+  covers (85 % until the board showed 7 fps: a frame was then ~7x the picture's time); past that (never in the frame's first tenth) only IRQ handlers run and the main program waits until the
+  next frame. The IRQs (~40 % of the C64's time: player, raster splits) keep their time; the editor slows.
+  Without a host clock (the harnesses) nothing waits.
+- Lost with it: the header's oscilloscope (the samples are BARD's) and the main-volume keys.
+- `SW_SID_ON_BARD 0` builds the old way (the light engine here, the audio as the clock) to measure against.
+
+Proofs: `apps/sidwizard_bard_check.mjs` (page = native host, 14.8 s from the first heard sample; tempo: 20 ms and 60
+ms frames make the same writes with the same stamps and the same samples; hold: with the main program held ~3/4 of
+every frame the song's ticks are the same writes at the same distances; `--break stamp|reg` caught), and
+`apps/ports_headless.mjs sidwizard` hears the song on the page's SID live. `--dump <file>` writes the song's
+commands for `make snd-bench SND_BARDQ=1 BARDQ_LOG=<file>` (BARD's load: not measured yet; the engine is BARD
+SID's, 58 %).
 
 ## Build
 
@@ -108,7 +153,7 @@ reads `$D41B`/`$D41C` back). docs/ROADMAP.md has the row.
     node apps/ports/sidwizard/run.mjs 400  # headless: PNGs, KEYS=, CLICKS=, AUDIO=1, C_IMAGE= (see its header)
 
 The cart is committed prebuilt (as every port: `./build.sh` does not rebuild it). Gates: `ports_sidwizard`
-(`apps/ports_headless.mjs sidwizard`, `apps/sidwizard_save.mjs`).
+(`apps/ports_headless.mjs sidwizard`, `apps/sidwizard_save.mjs`, `apps/sidwizard_bard_check.mjs`).
 
 ## Provenance
 

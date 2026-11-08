@@ -57,7 +57,12 @@ static int sw_shift_held(void) { return sw_keys[SDLK_LSHIFT] || sw_keys[SDLK_RSH
 static int sw_host_key(int sym)
 {
     if (sw_exit_dialog == 1) {                  /* "DO YOU REALLY WANT TO EXIT? (Y/N)" */
-        if (sym == SDLK_y) { kestrel_quit(); return 1; }
+        if (sym == SDLK_y) {
+#if SW_SID_ON_BARD
+            sw_bq_close();                      /* the sound side's SID stops with the program */
+#endif
+            kestrel_quit(); return 1;
+        }
         sw_exit_dialog = 2;                     /* any other key: closes on its release */
         return 1;
     }
