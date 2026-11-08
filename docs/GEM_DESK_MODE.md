@@ -19,13 +19,13 @@ of 1 Nov: 640x480 replaces 640x400 (the same mechanism, 80 more lines).
 - **The compositor is bypassed, not changed.** The scanout fetch reads plane 0's lines straight from
   memory (80 beats a line instead of the picture's 400) and the palette lookup moves into the pixel
   clock, on a mirror of palette 0. `zm_video_comp` (FRESCO's compositor, the block every break test
-  guards) keeps its netlist. The sequencer issues no pass in desk mode, only PRESENT, which keeps
-  pacing the frame at the VBL as today.
+  guards) keeps its netlist. The sequencer issues no pass in desk mode. It waits for the swap
+  (`vseq_wait_swap`, as `vseq_mix_only` does), then issues PRESENT, so the frame stays paced at the VBL.
 - **Cost (estimate).** About 150-230 LUT and 2 RAMB18 for the mode, plus 60-100 LUT for a hardware
   pointer (needed: below). The board is at 90.3 % LUT on the 3 Nov estimate (15,893 / 17,600) before
   CHISEL v2's +952, so ~95.7 % with it: **this needs a payer** (Matt's decision, §9).
 - **Speed.** DDR traffic for the picture: 18.4 MB/s (today 53.8 MB/s of scanout plus ~170 MB/s of
-  row I/O per composited plane). The cart CPU gets back the ~0.7 Mc a frame FRESCO costs a one-plane
+  row I/O per composited plane, TRUECOLOR_PLANE.md's figure). The cart CPU gets back the ~0.7 Mc a frame FRESCO costs a one-plane
   desktop today. The scanout's margin grows: 80 beats in one line time (26.4 us) instead of 400 in two.
 - **The oracle survives.** The desk picture is a pure function of plane 0 and palette 0. The sealed
   machine computes it (`hwRenderDesk`), and the page, `scene_hash.mjs`, the native host and hp_sim hash
@@ -74,9 +74,9 @@ The display buffers carry RGB pairs today. An 8-bit plane needs 256 lookups some
 |---|---|---|---|
 | `zm_vtiming` | 75 LUT | `desk` input. Desk geometry: raster lines 60..539 shown ONCE (`zm_line = ny - 60`, 9 bits holds 479), `zm_active` also needs `80 <= nx < 720`, `zm_x = nx - 80`; `zm_hbl` on every output line of the raster (not every other one); `zm_vbl` at output line 540, not 580. The VESA 800x600@60 timing itself does not change, so the HDMI sink never resyncs. `desk` is latched at `zm_vbl` | +25-40 |
 | `zm_video_scan` | 27 | Desk read address `{line[0], x[9:3]}` (beat), then the byte `x[2:0]` of the 64-bit word, then the mirror lookup, then the registered RGB: 2 more stages. **The syncs are delayed by the same 2 stages in both modes**, so the wire latency the TMDS / `video_out_tb` tests pin changes once, to one new constant. The free logic holds as is: `freed[!hbl_line[0]]` at each HBL and `freed[1]` at the VBL, because 479 is odd like 279 | +30-50 |
-| `zm_video_scanfetch` | 58 | Desk: request length 80 (not 400), last beat 79, last line 479 (not 279), row address `dbase + y*640` (`y<<9 + y<<7`) from a desk base latched at the VBL, not `fbase + y*3200`. The beat goes in whole (64 bits, no `{[55:32],[23:0]}` repack) | +30-50 |
-| `zm_video_dcram` (display) | in u_comp's BRAM count | `DW` 48 → 64, so one beat is one write (beats arrive with no back-pressure, and two 48-bit writes a beat would need a skid buffer). Normal mode uses bits [47:0] | +1 RAMB18 |
-| palette mirror (new `zm_video_dcram` instance, AW 8, DW 24) | — | Written when a snooped palette store hits plane 0's 256 words (`cpu_sel` palette bit, `cpu_waddr` in plane 0's range, byte enables kept); read by the scan | +1 RAMB18, ~10 LUT |
+| `zm_video_scanfetch` | 58 | Desk: request length 80 (not 400), last beat 79, last line 479 (not 279), row address `desk_base + y*640` (`y<<9 + y<<7`) from a desk base latched at the VBL, not `fbase + y*3200`. The beat goes in whole (64 bits, no `{[55:32],[23:0]}` repack) | +30-50 |
+| `zm_video_dcram` (display, `u_disp` in `zm_video_out`) | 1 RAMB36 + 1 RAMB18 (1024 x 48) | `DW` 48 → 64, so one beat is one write (beats arrive with no back-pressure, and two 48-bit writes a beat would need a skid buffer). Normal mode uses bits [47:0] | +1 RAMB18-equiv. |
+| palette mirror (new `zm_video_dcram` instance, AW 8, DW 24) | — | Written when a snooped palette store hits plane 0's 256 words (`cpu_sel` palette bit, `cpu_waddr` in plane 0's range); read by the scan. A byte store to a palette word is legal (`u_pal` honours `cpu_be`), so the mirror needs byte enables too: three 8-bit lanes (`zm_video_dcram` gains a `be` port, or three instances) | +1 RAMB18, ~10 LUT |
 | desk registers in `zm_video_out` (new, beside the snoop) | — | A copy of `RESOLUTION` (`== RES_DESK` → `desk_req`) and of plane 0's `FB_BASE`, taken from the snoop. The bus address `vbase + FB_BASE[0]` is computed once at the VBL, not per line | +45-70 (a 32-bit add, 40 FF) |
 | CDC for `desk` | — | `desk_req` (comp clock) → 2 FF → `zm_vtiming`, latched at `zm_vbl`. The latched level → 2 FF → comp clock, where scanfetch samples it 4 clocks after its synchronised `vbl` (the pulse and the level both take 2-3 clocks: the wait makes the order certain). It changes at most once a frame and then holds for >10 ms | +5-10 |
 | **mode total** | | | **~150-230 LUT, 2 RAMB18, 0 DSP** |
@@ -119,7 +119,9 @@ GEM's incremental dirty-rect drawing (`deskdirty.zig`) suits a single buffer and
 buffering awkward (every change drawn twice). Recommendation: accept it and document it as the
 mode's ST behaviour. A cart that wants no tearing (a TUI repainting the whole screen) can use two
 buffers (614 KB of the 1 MiB pool) and flip `FB_BASE`, which the board latches at the VBL. The edge
-case: a flip made late in a `frame()` that overruns the VBL waits a frame on the board.
+case: a flip made late in a `frame()` that overruns the VBL waits a frame on the board. A palette
+write made mid-frame belongs to the same class: the mirror updates live, so the board shows it from
+the line being scanned, while the browser shows it from the next frame. No hash can see either.
 
 ## 4. The pointer: a real gap
 
@@ -143,6 +145,10 @@ halved (doubled lines). Both become mode-dependent: desk is 640x480 at 1:1, with
 Glass needs to know the mode. It can read a desk bit that the firmware publishes in its video status
 word (`map_cart.zig` `VSF_*`), which is the cheapest option, or `REG_RESOLUTION` through devmem.
 `PTR_COORD_MASK` (10 bits) already holds 639 and 479.
+
+**Does glass read the frame?** No. The OSD (`rtl/glass/zm_glass_osd.v`) is drawn over the pixel
+stream in the PL, after the scanout, so it works unchanged in desk mode. Its position is in 800x600
+output coordinates. Only `tools/board_pic.py` reads the pictures (§6).
 
 ## 5. ABI: what a cart sees
 
@@ -195,15 +201,18 @@ proven separately on the wire (§7). The two proofs meet at the region dump. `to
 gains a desk branch that reads plane 0 and palette 0.
 
 **The firmware sequencer** (`cycles/bmain.c` `frame`, `vseq.c`): in desk mode it skips `vseq_clear`,
-`vplan_frame`, `bplanes_run` and `bcursor_draw`, stores `FRAME + 1`, and still calls `vseq_present()`.
-PRESENT with no passes swaps two unused pictures at the next VBL, and that swap is the frame's pace,
-as today (VS_SWAP). No new wait is needed.
+`vplan_frame`, `bplanes_run` and `bcursor_draw`, and stores `FRAME + 1`. It then calls
+`vseq_wait_swap()` and `vseq_present()`. The wait is required. Today the swap wait comes from the
+first picture-writing pass (`d_ok`), and a second PRESENT before the VBL only keeps `pending` set
+(`pending <= (pending && !vbl) || present`). Without the wait, a desk frame would run unthrottled: dt
+would collapse, and hp_sim's frame numbering would drift from the browser's. With the wait, the swap
+of two unused pictures at each VBL paces the frame, as `vseq_mix_only` already does.
 
 ## 7. Testing plan
 
 | Level | What | Notes |
 |---|---|---|
-| RTL testbench | `video_out_tb` gains a desk scenario: a synthetic plane (a gradient + a 1-px checker + a distinct byte per beat lane) and palette, 2 frames on the wire, compared with the machine's `hwRenderDesk` output; the random memory latency of `video_mem.h` on every run. The scenario switches modes (normal → desk → normal) and expects whole frames of each, no underrun after the first black frame | Seconds of CXXRTL, not an hp_sim |
+| RTL testbench | `video_out_tb` gains a desk scenario: a synthetic plane (a gradient + a 1-px checker + a distinct byte per beat lane) and palette, 2 frames on the wire, compared with the machine's `hwRenderDesk` output; the random memory latency of `video_mem.h` on every run. The scenario switches modes (normal → desk → normal) and expects whole frames of each and **zero underruns across both switches**. The only black frame is the one scanfetch already costs after reset ("waiting for a fresh VBL") | Seconds of CXXRTL, not an hp_sim |
 | Break tests (`video_mutants.json`, `ZM_RTL_BREAK=1`) | each must fail the desk scenario: byte order reversed within the beat; lines doubled in desk; x not offset by 80; mirror written from plane 1's palette; `desk` sampled without the VBL latch (mid-frame switch); the old 400-beat length in desk; `--starve` (must underrun); the syncs not delayed (RGB two clocks early) | One per mechanism |
 | Machine | native zig test of `video_desk.zig`: the two halves' seam at y 240, `FB_BASE & ~7`, A = 255, `hwInit` leaves desk, the other planes ignored; a break (`--break seam`: half 1 renders rows 0..239 again) | |
 | Browser | `apps/desk_check.mjs` (named in `build.sh`): a tiny desk test cart, scene_hash in desk, the mode switch both ways, the pointer range; its `gate` line in the same commit | Long pixel proofs come from here, not the sim |
@@ -227,7 +236,7 @@ pointer mapping, which keys on `desk_medium` today. The 8x16 font (GEM5 P2.5) is
 | RTL: vtiming, scan, scanfetch, dcram width, mirror, desk registers, CDC | 2-3 |
 | RTL testbench scenario + 8 break tests | 1-1.5 |
 | Hardware pointer (RTL + test + break test) and glass mouse mode | 1.5-2 |
-| Firmware: desk frame path, FRAME, hash, capability bit | 1 |
+| Firmware: desk frame path (with the swap wait), FRAME, hash, capability bit | 1 |
 | Machine `video_desk.zig` + exports + tests, HW_API / HARDWARE_SPEC / gen_docs, HW 1.17.0 | 1-1.5 |
 | Page + scene_hash + native host + `desk_check.mjs` + test cart | 1.5 |
 | ZigOS `setDeskPlane` + `vramAlloc` guard | 0.5 |
@@ -244,6 +253,7 @@ pointer mapping, which keys on `desk_medium` today. The 8x16 font (GEM5 P2.5) is
 - **A wrong mode crossing** shows one black frame and sets the sticky `underrun` on every switch.
   The mid-frame-switch break test exists for this.
 - **Tearing** on the board only (§3): the browser can never show it, and no hash can see it.
+- **Pacing**: the desk frame path must wait for the swap (§6), or the cart runs unthrottled on the board.
 - **A stale palette mirror** if a palette store bypasses the snoop. None does today. The copper
   writes `u_pal` directly but is off in desk mode, and `setDeskPlane` rewrites palette 0.
 - **Older bitstreams**: a cart that skips the capability check shows garbage on them.
