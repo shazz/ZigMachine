@@ -93,9 +93,11 @@ sample); `patches/libcRSID__C64__*.sed` hook it in, and the key matrix is comput
 
 `kestrel_sw_sid.h` `SW_SID_ON_BARD`: 0 (now) renders the SID here, from the C64's I/O page. 1 hands every write to
 `$D400-$D7FF` to `sw_sid_write(register, value, C64 cycle)` after the instruction that wrote it (captured in the
-I/O write path, `kestrel_sw_clock.c` `sw_io_write`), for a SID_WRITE command on the BARD message queue
-(`feat/bard-queue`, not on main yet: building with 1 stops at an `#error` until then); the local render is then
-to be skipped (the 6502 still reads `$D41B`/`$D41C` back). docs/ROADMAP.md has the row.
+I/O write path, `kestrel_sw_clock.c` `sw_io_write`), to go on the BARD queue (`feat/bard-queue`, not on main yet:
+decisions.md "The BARD queue", `libs/zig/bard.zig`): a C mirror of its ring, `hostBardAttach(block, lead)`, SID live,
+each write a command `{t, $D400 + reg, value}` stamped on the cart's 44.1 kHz clock (cycle x 44100 / 985248).
+Building with 1 stops at an `#error` until that lands; the local render is then to be skipped (the 6502 still
+reads `$D41B`/`$D41C` back). docs/ROADMAP.md has the row.
 
 ## Build
 
