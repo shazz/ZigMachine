@@ -63,6 +63,8 @@ fn word(i: u32) *volatile u32 {
 /// (no sound side yet, or a host without one): every command is then refused.
 pub fn open(lead: u32) bool {
     for (&block.head) |*h| h.* = 0;
+    // No slot's seq is its index before the cart writes it (a zeroed slot 0 would pass for command 0).
+    for (&block.cmds) |*c| @as(*volatile u32, @ptrCast(&c.seq)).* = 0xFFFF_FFFF;
     word(W.cap).* = CAP;
     word(W.ev_cap).* = EV_CAP;
     word(W.lead).* = lead;

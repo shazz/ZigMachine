@@ -230,6 +230,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
+    apps/zig/scenes/bard_sid/tune.zig
     libs/zig/players/mp3_frame_test.zig
     libs/zig/players/mp3_in_test.zig
     libs/zig/players/mp3_resample_test.zig

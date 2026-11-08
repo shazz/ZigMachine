@@ -31,7 +31,9 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 
 async function nativeRun() {
     const host = "build/host/bard_sid/host_audio";
-    execFileSync("make", ["-s", "memmap", host], { cwd: "fpga", stdio: ["ignore", "ignore", "inherit"] });
+    // One make at a time: the gate runs this harness three times at once (ROADMAP: the mp3_player flake).
+    execFileSync("mkdir", ["-p", "fpga/build/bardq"]);
+    execFileSync("flock", ["build/bardq/make.lock", "make", "-s", "memmap", host], { cwd: "fpga", stdio: ["ignore", "ignore", "inherit"] });
     const dir = await mkdtemp(join(tmpdir(), "bard_queue-"));
     const log = execFileSync(`fpga/${host}`, ["bard_sid", String(FRAMES), String(FRAMES)],
         { env: { ...process.env, ZM_AUDIO_LOG: `${dir}/h`, ZM_GLASS_KEYS: "" }, encoding: "utf8", timeout: 600000 });

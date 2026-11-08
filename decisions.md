@@ -1622,7 +1622,8 @@ user is a GoatTracker 2 port whose replay writes SID registers each tick: BARD's
 **Decision:**
 - **The ring is in the cart's own memory** (`libs/zig/bard.zig`, `zg.bard`): a 64-byte header, 256 commands and 16
   events of 16 bytes. Each header word has one writer (cart or host); single producer, single consumer. A command
-  is the Paula queue's entry `{t, addr, value, seq}`; `seq` = its ring index, written last, so a reader takes an
+  is the Paula queue's entry `{t, addr, value, seq}`; `seq` = its ring index, written last (and every slot's
+  seq set to ~0 at the open, so a zeroed slot 0 never passes for command 0), so a reader takes an
   entry only once it is whole. A full ring refuses the command (counted in the header); the cart never blocks.
 - **One system-table entry** (1.12, appended): `hostBardAttach(block, lead) u32` hands the ring over once (0:
   no queue here). After that there is no call: the host takes the commands after each cart frame and writes back
