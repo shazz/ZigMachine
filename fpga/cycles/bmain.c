@@ -30,6 +30,7 @@
 #include "bdiskapp.h"
 #include "bkos.h"
 #include "bcursor.h"
+#include "bdesk.h"
 #include "binput.h"
 #include "bboard.h"
 #include "bdiag.h"
@@ -99,7 +100,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     uint32_t tc = board_cycles();
     w2c_rom_kosTick(&e->rom); /* KOS's frame counter (sysvars.frames), as the browser's frame */
-    vseq_clear(e);
+    if (!bdesk_clear(e)) vseq_clear(e); /* desk mode: no clear, FRAME + 1 (bdesk.h) */
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     bdiskapp_media(e, f); /* KOS: drive A changed under the running cart (glass I / E)? */
     uint32_t t0 = board_cycles();
@@ -111,6 +112,10 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     printf("ZM AF %ld %lu %lu\n", f, (unsigned long)(t1 - t0), (unsigned long)(board_cycles() - t1));
     BCHISEL_SYNC(); /* and one the bridges above started */
     uint32_t t2 = board_cycles();
+    if (bdesk_frame(e, h)) { /* the scanout shows plane 0: no pass, paced on the swap */
+        g_cart = t1 - t0, g_seq = (t0 - tc) + (board_cycles() - t2);
+        return;
+    }
     /* Asked once, before any cart code can run between planes; again in video.zig's place when
      * a plane has an HBL handler (vplan.h). Only the lines that changed are composited. */
     unsigned on = 0;
@@ -191,6 +196,7 @@ static uint32_t boot(void) {
     bdiskapp_boot(); /* after bdisk_boot: the disk it found decides */
     int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
     host_boot_machine(&g_env);
+    bdesk_boot(&g_env); /* the bitstream's desk capability, for hwDeskAvailable() */
     uint32_t post = bkos_boot(&g_env, bdiskapp_bootable); /* the variables, hwInit; KOS's POST before both */
     if (!sector && !post) host_boot_cart(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
