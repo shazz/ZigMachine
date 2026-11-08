@@ -43,7 +43,7 @@ function envFor(machine, extra) {
     const env = { ...extra };
     for (const k of ["hwVideoBase", "hwRamBase", "hwRamTop", "hwRamSize", "hwRamUsed", "hwRamFree", "hwRamAlloc",
         "hwRamMark", "hwRamRelease", "hwRamAllocFailures", "hwRomRamBase", "hwRomRamTop", "hwRomRamSize",
-        "hwRomRamUsed", "hwRomRamFree"]) env[k] = machine[k];
+        "hwRomRamUsed", "hwRomRamFree", "hwDeskAvailable"]) env[k] = machine[k];
     return env;
 }
 

@@ -87,6 +87,7 @@ async function hostEnv(memory, machine, rom) {
         hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
         hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
         hwRomRamFree: machine.hwRomRamFree,
+        hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0
         beep: noop, diskReadBlock: noop,
         hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
         hostPaulaClaim: () => 0, hostPaulaUpload: noop, hostPaulaWrite: noop, hostPaulaRelease: noop, // HW 1.14.0

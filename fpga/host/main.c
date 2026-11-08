@@ -32,6 +32,7 @@
 #include "bootsec_host.h"
 #include "disk.h" /* host_cdisk: C:, whose writes KFS serves (host/kos_cfile.c) */
 #include "kos_host.h"
+#include "host_desk.h" /* the desk mode's frame hash */
 #include "host_io.h"
 #include "sha256.h"
 #include "wasm-rt-exceptions.h" /* wasm_rt_impl_try needs wasm_rt_set_unwind_target */
@@ -71,6 +72,10 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     w2c_cart_frame(&e->cart, frame_dt(f));
     host_io_disk_frame(e, f); /* --data-disk: before the song bridge, as the browser's step */
     AUDIO(audio_soft_frame(e));
+    if (w2c_machine_hwDeskActive(&e->machine)) { /* the desk mode: plane 0 at 640x480, no planes */
+        if (h) host_desk_hash(e, h);
+        return;
+    }
     for (u32 p = 0; p < planes; p++) {
         if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
             char off[16];

@@ -69,7 +69,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
         hwRamRelease: machine.hwRamRelease, hwRamAllocFailures: machine.hwRamAllocFailures,
         hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
         hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
-        hwRomRamFree: machine.hwRomRamFree,
+        hwRomRamFree: machine.hwRomRamFree, hwDeskAvailable: machine.hwDeskAvailable,
         ...rom,
     };
     if (cImage) env.kosDriveRead = makeCDrive(memory, cImage);
@@ -103,6 +103,17 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
 // (alpha 0), else the page behind (left 0 here).
 function stackOver(comp, snap) {
     for (let i = 0; i < snap.length; i++) if (snap[i] >>> 24) comp[i] = snap[i];
+}
+
+// The desk picture (HW 1.17.0): the machine renders it as two 640x240 RGBA halves in the PFB.
+const DESK_W = 640, DESK_H = 480, DESK_HALF = DESK_W * (DESK_H / 2) * 4;
+function deskPicture(memory, machine) {
+    const out = new Uint8Array(2 * DESK_HALF);
+    for (let half = 0; half < 2; half++) {
+        machine.hwRenderDesk(half);
+        out.set(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), DESK_HALF), half * DESK_HALF);
+    }
+    return out;
 }
 
 function parseCalls(list) {
@@ -165,15 +176,22 @@ async function fingerprint(argv) {
         demo.frame(16.6);
         step?.(demo); // --data-disk: the browser's step after the frame
         const png = shotAt === f; // SCENE_PNG=F:path: this frame's picture as a PNG (apps/scene_png.mjs)
-        if (composite || png) comp.fill(0);
-        for (let p = 0; p < planes; p++) {
-            if (!demo.isPlaneEnabled(p)) { if (!composite) h?.update(`off${p}`); continue; }
-            machine.hwRenderPlane(p);
-            if (composite || png) stackOver(comp, new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size >> 2));
-            else h?.update(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size));
+        if (machine.hwDeskActive?.()) { // the desk mode (HW 1.17.0): "desk", then the 640x480 picture
+            const desk = deskPicture(memory, machine); // (composite or not: nothing to compose)
+            h?.update("desk");
+            h?.update(desk);
+            if (png) writePng(shotPath, desk, DESK_W, DESK_H);
+        } else {
+            if (composite || png) comp.fill(0);
+            for (let p = 0; p < planes; p++) {
+                if (!demo.isPlaneEnabled(p)) { if (!composite) h?.update(`off${p}`); continue; }
+                machine.hwRenderPlane(p);
+                if (composite || png) stackOver(comp, new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size >> 2));
+                else h?.update(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size));
+            }
+            if (composite) h?.update(new Uint8Array(comp.buffer));
+            if (png) writePng(shotPath, new Uint8Array(comp.buffer), machine.hwPhysWidth(), machine.hwPhysHeight());
         }
-        if (composite) h?.update(new Uint8Array(comp.buffer));
-        if (png) writePng(shotPath, new Uint8Array(comp.buffer), machine.hwPhysWidth(), machine.hwPhysHeight());
         if (!sample) continue;
         const hash = h.digest("hex");
         total.update(hash);

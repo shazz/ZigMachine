@@ -2,6 +2,7 @@
 #include "bdesk.h"
 
 #include "bmailbox.h" /* mb_presenting */
+#include "host_desk.h"
 #include "vboard.h" /* zmv_status, ZMV_BIT */
 #include "vseq.h"
 #include "zm_memmap.h"
@@ -27,19 +28,9 @@ void bdesk_leave(struct w2c_env* e) {
     vseq_clear(e);
 }
 
-/* The browser's desk hash (docs/GEM_DESK_MODE.md §6): the tag, then the two halves in order. */
-static void hash(struct w2c_env* e, sha256_ctx* h) {
-    const uint8_t* pfb = e->memory.data + w2c_machine_hwPhysicalPtr(&e->machine);
-    sha256_update(h, "desk", 4);
-    for (uint32_t half = 0; half < 2; half++) {
-        w2c_machine_hwRenderDesk(&e->machine, half);
-        sha256_update(h, pfb, (size_t)ZM_DESK_WIDTH * (ZM_DESK_HEIGHT / 2) * 4);
-    }
-}
-
 int bdesk_frame(struct w2c_env* e, sha256_ctx* h) {
     if (!desk(e)) return 0;
-    if (h) hash(e, h);
+    if (h) host_desk_hash(e, h); /* the browser's rule (host/host_desk.h) */
     /* No pass waits for the swap, so this does: without it PRESENT would only keep `pending` set
      * and the frames would run unpaced (zm_video_out.v's swap is what holds them to the VBL). */
     vseq_wait_swap();

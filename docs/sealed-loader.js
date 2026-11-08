@@ -500,6 +500,7 @@ async function boot() {
             hwRomRamSize: machine.hwRomRamSize,
             hwRomRamUsed: machine.hwRomRamUsed,
             hwRomRamFree: machine.hwRomRamFree,
+            hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0: the desk mode exists here
             // The ROM chip's flat ABI (rom/sdk/rom.zig). Spread, not listed: the
             // ROM's exports ARE the surface, so a new entry point needs no host
             // change — and the host cannot silently omit one and leave an app
@@ -648,6 +649,41 @@ window.kosInsert = (url) => kosMedia(url);
 window.kosEject = () => kosMedia(null);
 
 // --------------------------------------------------------------------------
+// The desk mode (HW 1.17.0, docs/HW_API.md "Desk mode"): while the machine says so, canvas 0
+// shows the 640x480 picture 1:1 where the board shows it, in the middle of the 800x600 frame
+// (the plane canvases cover its lines 20..579, so 80 px in and 40 down, at 1 CSS px a pixel),
+// and the other canvases are blank. Leaving it gives canvas 0 its raster size back.
+// --------------------------------------------------------------------------
+const DESK_W = 640, DESK_H = 480, DESK_HALF = DESK_W * (DESK_H / 2) * 4;
+function deskView(contexts, planeDirty, fb_width, fb_height) {
+    let active = false, image = null; // made on the first desk frame (a headless page has no ImageData)
+    const place = (on) => {
+        const canvas = contexts[0].canvas;
+        if (on && !image) image = new ImageData(DESK_W, DESK_H);
+        canvas.width = on ? DESK_W : fb_width;
+        canvas.height = on ? DESK_H : fb_height;
+        for (const [k, v] of [["left", "80px"], ["top", "40px"], ["width", "640px"], ["height", "480px"]])
+            canvas.style[k] = on ? v : "";
+        for (let i = 1; i < contexts.length; i++) contexts[i].clearRect(0, 0, fb_width, fb_height);
+        planeDirty.fill(false);
+        active = on;
+    };
+    return {
+        show() {
+            const on = !!(machine.hwDeskActive && machine.hwDeskActive());
+            if (on !== active) place(on);
+            if (!on) return false;
+            for (let half = 0; half < 2; half++) {
+                machine.hwRenderDesk(half);
+                image.data.set(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), DESK_HALF), half * DESK_HALF);
+            }
+            contexts[0].putImageData(image, 0, 0);
+            return true;
+        },
+    };
+}
+
+// --------------------------------------------------------------------------
 // Render loop
 // --------------------------------------------------------------------------
 function start() {
@@ -678,6 +714,7 @@ function start() {
     // from enabled -> disabled (e.g. a multi-plane scene returning to the menu)
     // gets its stale layer cleared ONCE, instead of leaving the old image on top.
     const planeDirty = new Array(nb_planes).fill(false);
+    const desk = deskView(contexts, planeDirty, fb_width, fb_height);
 
     // The machine runs at a FIXED 60 Hz, whatever the display refreshes at. rAF
     // fires once per refresh, so on a 120 Hz ProMotion panel (or 144 Hz) a cart
@@ -794,6 +831,7 @@ function start() {
             if (n && audioCtx) postSfx(memory, demo.sfxEntriesPtr(), n);
         }
 
+        if (desk.show()) return; // the desk mode (HW 1.17.0): plane 0 at 640x480, no planes
         let anyPlane = false;
         for (let i = 0; i < nb_planes; i++) {
             if (demo.isPlaneEnabled(i)) {
