@@ -12,6 +12,8 @@
 //   *.HIP            a Jochen Hippel Amiga module: its own 68000 replay (bra, bra at 0)
 //                    and a "TFMX" song, on Paula
 //   *.KT             a klystrack song ("cyd!song" at 0): the .kt player (klystron's cyd) on Paula
+//   *.SID            a C64 PSID ("PSID" at 0): cRSID on BARD (players/sid.zig). An RSID (a real
+//                    C64 program, "RSID" at 0) is listed but not played: the player refuses it
 //
 // An SNDH, XM or HIP may be stored ZX0-packed (the "ZX0!" container): the header is
 // checked on the bytes it depacks to (sysinfo/sound_play.zig).
@@ -20,13 +22,13 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const Kind = enum(u8) { sndh, sap, pcm, xm, hip, kt };
-pub const MAX: usize = 6; // the page's rows for files
+pub const Kind = enum(u8) { sndh, sap, pcm, xm, hip, kt, sid };
+pub const MAX: usize = 7; // the page's rows for files
 
 pub const Entry = struct { name: [16]u8, len: u32, kind: Kind };
 
 /// What the page says under the list.
-pub const Status = enum(u8) { idle, playing, stopped, not_found, too_big, bad_image, refused };
+pub const Status = enum(u8) { idle, playing, stopped, not_found, too_big, bad_image, refused, rsid };
 
 /// The kind a file name says, or null: not a sound file.
 pub fn kindOf(name: []const u8) ?Kind {
@@ -38,6 +40,7 @@ pub fn kindOf(name: []const u8) ?Kind {
     if (eqlUpper(ext, "XM")) return .xm;
     if (eqlUpper(ext, "HIP")) return .hip;
     if (eqlUpper(ext, "KT")) return .kt;
+    if (eqlUpper(ext, "SID")) return .sid;
     return null;
 }
 
@@ -58,7 +61,17 @@ pub fn imageOk(kind: Kind, bytes: []const u8) bool {
         .hip => bytes.len >= 4 and bytes[0] == 0x60 and bytes[2] == 0x60 and
             std.mem.indexOf(u8, bytes[0..@min(bytes.len, HIP_TFMX_WITHIN)], "TFMX") != null,
         .kt => std.mem.startsWith(u8, bytes, "cyd!song"), // players/kt_load.zig's own test
+        .sid => isPsid(bytes) or isRsid(bytes),
     };
+}
+
+pub fn isPsid(bytes: []const u8) bool {
+    return std.mem.startsWith(u8, bytes, "PSID");
+}
+
+/// A real C64 program: players/sid.zig refuses it, so the page does not offer it to the player.
+pub fn isRsid(bytes: []const u8) bool {
+    return std.mem.startsWith(u8, bytes, "RSID");
 }
 
 /// How far into a Hippel module its "TFMX" song may start (players/hip_format.zig's bound).
@@ -166,4 +179,15 @@ test "an image must carry its kind's header before it plays" {
     try std.testing.expect(imageOk(.sap, "SAP\r\nAUTHOR"));
     try std.testing.expect(!imageOk(.sap, &sndh));
     try std.testing.expect(!imageOk(.pcm, ""));
+}
+
+test "a SID is a PSID or an RSID by its first four bytes; an RSID is not a PSID" {
+    try std.testing.expectEqual(@as(?Kind, .sid), kindOf("HERMINI.SID"));
+    try std.testing.expectEqual(@as(?Kind, .sid), kindOf("tune.sid"));
+    try std.testing.expect(imageOk(.sid, "PSID\x00\x02"));
+    try std.testing.expect(imageOk(.sid, "RSID\x00\x02"));
+    try std.testing.expect(isPsid("PSID\x00\x02") and !isPsid("RSID\x00\x02"));
+    try std.testing.expect(isRsid("RSID\x00\x02") and !isRsid("PSID"));
+    try std.testing.expect(!imageOk(.sid, "SNDH\x00\x02"));
+    try std.testing.expect(!imageOk(.sid, "PSI"));
 }

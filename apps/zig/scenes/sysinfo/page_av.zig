@@ -108,6 +108,7 @@ fn kindName(k: sound_list.Kind) []const u8 {
         .xm => "XM (TRACKER + PAULA)",
         .hip => "HIP (68000 + PAULA)",
         .kt => "KT (KLYSTRACK + PAULA)",
+        .sid => "SID (6502 + SID)",
     };
 }
 
@@ -119,6 +120,7 @@ fn statusName(s: sound_list.Status) []const u8 {
         .too_big => "TOO BIG FOR THE BUFFER",
         .bad_image => "NOT WHAT ITS NAME SAYS",
         .refused => "REFUSED BY THE HOST",
+        .rsid => "RSID: A C64 PROGRAM, CANNOT PLAY",
     };
 }
 
@@ -126,7 +128,7 @@ fn statusName(s: sound_list.Status) []const u8 {
 fn playerName(mode: u8) []const u8 {
     return switch (mode) {
         0 => "NONE",
-        1 => "PAULA (MOD/XM/HIP/KT)",
+        1 => "PAULA (MOD/XM/HIP/KT/SID)",
         2 => "YM DUMP",
         3 => "SAMPLE",
         4 => "SNDH (68000)",
