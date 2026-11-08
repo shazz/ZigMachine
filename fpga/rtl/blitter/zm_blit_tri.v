@@ -5,13 +5,13 @@
 // Here the vertices are ranked by y once (top, mid, bot): on any line exactly two edges are live,
 // the long one (top, bot) and a short one, (top, mid) above mid and (mid, bot) from mid down,
 // and a horizontal edge never is. Each live edge is an incremental walker (zm_blit_twalk) set up
-// with two divides (a sequential 16-clock divider): its step floor-divmod(dx, dy), and its start
-// at the first visible line, floor-divmod(dx * t0, dy), t0 = that line - ay (no divide when t0 = 0,
-// an edge that starts on screen). A scanline then costs a few clocks plus its pixels, where v1
-// divided three times a line (~111 clocks). Edge setup (2026-11-07):
+// with two divides (a sequential 17-clock divider): its start at the first visible line,
+// floor-divmod(dx * t0, dy), t0 = that line - ay, and its step floor-divmod(dx, dy). A scanline
+// then costs a few clocks plus its pixels, where v1 divided three times a line (~111 clocks).
+// Edge setup (2026-11-08):
 //   PICK: the edge's vertices (registered: vertex mux -> subtract -> DSP in one clock missed
-//   100 MHz on the board in v1), EDGE: dx, |dx|, dy, t0, MUL: |dx| * t (the DSP), GO: the divide
-//   (or clear it: t = 0), DIV, LD: load the walker, A2: the start step; then the same for t = 1.
+//   100 MHz on the board in v1), EDGE: dx, dy, t0, MUL: dx * t + dy * 2^16 (the DSP), GO, DIV:
+//   the divide, LD: load the walker, A2: the start step; then the same for t = 1.
 // CYCLES counts pixels, not clocks: unchanged.
 `default_nettype none
 
@@ -49,19 +49,21 @@ module zm_blit_tri (
 
     // edge setup: PICK registers the vertices, EDGE the differences, MUL the product
     reg signed [15:0] ax, ay, bx, by, l_by, s_by;
-    reg [15:0] adx, sdy, t;
-    reg neg, tz;
-    reg [31:0] anum;
+    reg [15:0] sdy, t;
+    reg signed [16:0] e_dx;
+    reg [32:0] anum;
     wire signed [16:0] dx = {bx[15], bx} - {ax[15], ax};
     wire div_done;
-    wire [15:0] q, r;
-    zm_blit_div dv (.clk(clk), .rst(rst), .go(st == GO && !tz), .clr(st == GO && tz), .num(anum), .den(sdy),
-        .done(div_done), .q(q), .r(r));
-    // floor-divmod from the magnitudes: dx >= 0 (q, r); dx < 0: (-q, 0) when r = 0, else (-q-1, dy-r).
-    // The start's quotient comes with ax added (the walker starts from x = 0).
-    wire nz = |r, rsel = neg && nz;
-    wire [15:0] kq = (ph ? 16'd0 : ax) + (neg ? ~q : q) + {15'd0, neg && !nz};
-    wire [15:0] kr = (rsel ? sdy : 16'd0) + (rsel ? ~r : r) + {15'd0, rsel};
+    wire [16:0] q;
+    wire [15:0] r;
+    zm_blit_div dv (.clk(clk), .rst(rst), .go(st == GO), .num(anum), .den(sdy), .done(div_done), .q(q), .r(r));
+    // floor-divmod of a signed numerator by the unsigned divider: |dx| * t < dy * 2^16, so
+    // dx * t + dy * 2^16 lies in [0, dy * 2^17), its quotient is floor(dx * t / dy) + 2^16 and its
+    // remainder the floor remainder itself. The 2^16 vanishes in the walker's 16-bit x (exact
+    // modulo 2^16, and x is always a 16-bit vertex coordinate). The start's quotient comes with
+    // ax added (the walker starts from x = 0).
+    wire [15:0] kq = (ph ? 16'd0 : ax) + q[15:0];
+    wire [15:0] kr = r;
 
     wire w_ld = st == LD, w_sa = st == A2 || st == SPAN, w_sb = st == STB;
     wire to_s = sid != 2'd0;
@@ -93,13 +95,12 @@ module zm_blit_tri (
                 st <= EDGE;
             end
             EDGE: begin
-                neg <= dx[16]; adx <= dx[16] ? -dx[15:0] : dx[15:0];
-                sdy <= by - ay; t <= {6'd0, y} - ay;
+                e_dx <= dx; sdy <= by - ay; t <= {6'd0, y} - ay;
                 if (to_s) s_by <= by; else l_by <= by;
                 st <= MUL;
             end
-            MUL: begin anum <= adx * t; tz <= t == 16'd0; st <= GO; end
-            GO: st <= tz ? LD : DIV;
+            MUL: begin anum <= e_dx * $signed({1'b0, t}) + $signed({1'b0, sdy, 16'd0}); st <= GO; end   // one DSP48: A*B+C
+            GO: st <= DIV;
             DIV: if (div_done) st <= LD;
             LD: if (!ph) st <= A2;
                 else if (sid == 2'd0) begin sid <= 2'd1; st <= PICK; end

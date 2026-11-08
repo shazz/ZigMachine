@@ -21,7 +21,7 @@ module zm_blit_twalk (
 );
     reg [15:0] qd, rd, dy;
     reg [16:0] r;
-    wire [17:0] radd = {1'b0, r} + (sa ? {2'b00, rd} : -{2'b00, dy});
+    wire [17:0] radd = {1'b0, r} + (sa ? {2'b00, rd} : ~{2'b00, dy}) + {17'd0, !sa};   // - dy as ~dy + 1: one carry chain
     wire carry = sb && !radd[17];
     always @(posedge clk) begin
         if (ld) begin qd <= kq; rd <= kr; dy <= kdy; end

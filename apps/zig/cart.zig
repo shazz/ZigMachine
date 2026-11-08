@@ -131,6 +131,7 @@ const scene = switch (opts.index) {
     118 => @import("scenes/sid_test.zig"), // SID TEST: one text plane, keys 1-3 play HerMiniSID by name, as bytes, and as a refused RSID; 5 stops (libs/zig/players/sid.zig)
     119 => @import("scenes/c64_1988.zig"), // 1988 (Tristar & Red Sector Inc., C64 2021): only sprites, the VIC-II's sprite unit replaying the original's IRQ chains
     120 => @import("scenes/c64_transmission64.zig"), // TRANSMISSION64 (Padua, C64 2021 invitation): a VIC-II model fed the original's IRQ chains, its stores timed against the beam
+    121 => @import("scenes/tri_test.zig"), // TRI TEST: CHISEL TRIANGLE against the model, edge cases + stress, an on-screen hash with the golden one
     else => @compileError("bad cart index"),
 };
 

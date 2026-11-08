@@ -18,8 +18,8 @@ const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
 /// The model's hashes (apps/tri_test_check.mjs recomputes both from its own rasteriser).
-pub const GOLDEN_A: u32 = 0x00000000;
-pub const GOLDEN_B: u32 = 0x00000000;
+pub const GOLDEN_A: u32 = 0x742130AC;
+pub const GOLDEN_B: u32 = 0x890B350F;
 
 const PLANE = 0;
 const W = 320;

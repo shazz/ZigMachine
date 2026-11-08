@@ -58,6 +58,8 @@ SHELF = (
     "mp3_player",
     # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.
     "sid_test",
+    # CHISEL's TRIANGLE against the browser model: OK / BAD on screen, to compare bitstreams.
+    "tri_test",
 )  # fmt: skip
 OS_CART = "gem"  # KOS's desktop: what the browser boots for a data disk or an empty drive
 DESKTOP_FILE = "kos/desktop.rv32"  # glass/src/app_drive.zig DESKTOP

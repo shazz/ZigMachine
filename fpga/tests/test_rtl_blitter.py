@@ -48,14 +48,14 @@ MUTANTS = [
     ("bresenham_tie_break", "zm_blit_line.v", "mx = e2 >= dy", "mx = e2 > dy"),
     # TRIANGLE's edge walk (zm_blit_tri, _twalk, _div): the model's per-line floor divide, bit for bit
     ("triangle_bottom_edge_closed", "zm_blit_tri.v", "if (ys >= lb ||", "if (ys > lb ||"),
-    ("triangle_floor_is_truncation", "zm_blit_tri.v", "{15'd0, neg && !nz}", "{15'd0, neg}"),
-    ("triangle_step_remainder_not_complemented", "zm_blit_tri.v",
-     "(rsel ? sdy : 16'd0) + (rsel ? ~r : r) + {15'd0, rsel}", "r"),
+    # without the dy * 2^16 offset a negative slope's numerator wraps: no floor, no remainder
+    ("triangle_numerator_offset_dropped", "zm_blit_tri.v", " + $signed({1'b0, sdy, 16'd0})", ""),
+    ("triangle_quotient_bits_shifted", "zm_blit_tri.v", "+ q[15:0];", "+ q[16:1];"),
     ("triangle_carry_on_remainder_above_dy", "zm_blit_twalk.v", "sb && !radd[17];", "sb && !radd[17] && radd[16:0] != 17'd0;"),
     ("triangle_carry_not_added_to_x", "zm_blit_twalk.v", "(sa ? qd : 16'd0) + {15'd0, carry}", "(sa ? qd : 16'd0)"),
-    ("triangle_start_offset_skipped", "zm_blit_tri.v", "tz <= t == 16'd0;", "tz <= 1'b1;"),
+    ("triangle_start_offset_skipped", "zm_blit_tri.v", "t <= {6'd0, y} - ay;", "t <= 16'd0;"),
     ("triangle_short_edge_never_switches", "zm_blit_tri.v", "sid == 2'd1 && ys >= sb", "1'b0 && ys >= sb"),
-    ("triangle_divide_drops_the_high_half", "zm_blit_div.v", "r <= num[31:16];", "r <= 16'd0;"),
+    ("triangle_divide_drops_the_high_half", "zm_blit_div.v", "r <= num[32:17];", "r <= 16'd0;"),
     ("desc_ignored", "zm_blit_core.v", ".desc(f_con[6])", ".desc(1'b0)"),
     ("key_compare_inverted", "zm_blit_pxq.v", "bv_next == key", "bv_next != key"),
     # the key test made as the head loads: it must be the loading pixel's B, not the one in H

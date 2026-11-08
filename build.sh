@@ -380,6 +380,8 @@ gate sid node apps/sid_check.mjs --break seed   # ...and the native build's dith
 gate sid node apps/sid_check.mjs --break rsid   # ...and an RSID let through as a PSID fails the refusal check
 gate sid_test node apps/sid_test_check.mjs   # SID TEST: key 1 asks for hermini.sid by name, 5 for "none"; key 2 is requestSongBytes kind 6 of the tune's bytes, key 3 of the same as an RSID; the loader's postSfx makes loadSid of each; the audio modules play the PSID (mode 1, heard) and refuse the RSID (status 2, silent); both tune files are cRSID's HerMiniSID (md5)
 gate sid_test node apps/sid_test_check.mjs --break name   # ...and key 1 expected to ask for another file fails
+gate tri_test node apps/tri_test_check.mjs   # TRI TEST (cart 121): every TRIANGLE of set A (edge cases + 160 seeded) and of set B (48 a frame, 300 frames) equals a rasteriser written in the harness from the spec; the cart's on-screen hashes are the GOLDEN_A / GOLDEN_B the board compares against
+gate tri_test node apps/tri_test_check.mjs --break floor   # ...and a rasteriser that truncates instead of flooring is caught
 gate kt node apps/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted
 gate kt node apps/kt_check.mjs --break pin   # ...and a wrong pin fails
 gate kt node apps/kt_check.mjs --break lowbyte   # ...and the low-byte channels silenced (8-bit sides) fail the Paula check
