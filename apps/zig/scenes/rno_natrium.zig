@@ -87,6 +87,7 @@ pub const Demo = struct {
         self.wants_quit = false;
         self.zig_toggle = false;
         allocRam(); // before seq.reset, which clears the screens
+        zig.os = zigos; // the harness reads the planes of a cart that never pressed Z
         self.seq.reset();
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;

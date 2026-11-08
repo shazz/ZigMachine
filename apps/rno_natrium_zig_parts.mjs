@@ -1,5 +1,6 @@
 // The part-by-part checks of apps/rno_natrium_zig.mjs (see its header), in timeline order.
 import * as Z from "./rno_natrium_zig_model.mjs";
+import { checkFull } from "./rno_natrium_zig_full.mjs";
 
 const wrap = (d) => Math.abs((((d + 64) % 128) + 128) % 128 - 64);
 
@@ -87,9 +88,13 @@ function classic(c, name, to) {
 }
 
 export async function checkParts(c) {
+    c.zigRun(0xC8, null, 1, null);
+    c.ok(c.zig.demo.natZigPart() === 5, "Z at $A0: ZIG mode is on; at $C8, the dot tunnel");
+    checkFull(c, "dots", 0x5A0, c.skew);
+    await c.shot("dots");
     c.zigRun(0x700, null, 1, null);
     const ram = c.zig.machine.hwRamUsed();
-    c.ok(c.zig.demo.natZigPart() === 1, "Z at $6F0: ZIG mode is on, in the tunnel");
+    c.ok(c.zig.demo.natZigPart() === 1, "at $700: the tunnel");
     const map = c.zig.u16(c.zig.demo.natZigBuf(0), Z.MW * Z.MH);
     checkMap(map, c.ok);
     checkBorders(c, c.ok);
@@ -109,8 +114,9 @@ export async function checkParts(c) {
     c.zigRun(0x10F0, null, 1, null);
     classic(c, "credits", 0x1110);
     await c.shot("credits");
-    c.zigRun(0x14F0, null, 1, null);
-    classic(c, "twister", 0x1510);
+    c.zigRun(0x1208, null, 1, null);
+    checkFull(c, "twister", 0x1500, c.skew);
+    await c.shot("twister");
     c.zigRun(0x18F0, null, 1, null);
     env(c, Z.picture("girl_red.bin"), 0x1930);
     await c.shot("prism");

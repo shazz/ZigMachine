@@ -1252,7 +1252,11 @@ git ignores. The music debug screen plays it on key 6, XM TEST on key 3. In the 
 board, songs are linked into the firmware, so build <code>make board-fw CART=music</code>
 with the file in place: <code>fpga/tools/song_pack.py</code> packs <code>local.xm</code> when it is
 there and leaves it out, with a note, when it is not. That firmware then holds
-the song: keep it off anything you publish.</p>
+the song: keep it off anything you publish.
+SID TEST's keys 1-4 work the same way: four HVSC tunes (<code>cybernoid_ii.sid</code>,
+<code>wizball.sid</code>, <code>commando.sid</code>, <code>club_style.sid</code>, the list in <code>song_pack.py</code>
+<code>LOCAL_SONGS</code>), gitignored, copied from the SID study's set; without them the
+screen says "NOT ON THIS MACHINE".</p>
 <h4 id="music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</h4>
 <p><code>zg.requestSong("song.kt")</code> plays a klystrack song, in the browser and on BARD. The player
 (<code>libs/zig/players/kt*.zig</code>) is klystron's own engine ported line for line to integer Zig: the

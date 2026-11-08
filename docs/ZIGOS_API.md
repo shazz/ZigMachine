@@ -311,7 +311,7 @@ const w = zg.mp3Status(.word);              // bits 0-1 state (0 idle 1 playing 
 - **Flow control is the cart's**: it knows what it fed, `.used` says what the player took; bytes fed past
   the 64 KiB ring are dropped (and counted). The status answers a frame or two late (the page's worklet,
   BARD's mailbox): right after a start, assume the player used nothing. `.frames` (x 1152 / rate) is the
-  time played; `.load` is BARD's last render in per mille (0 where nothing measures it).
+  time played; `.load` is BARD's load over the last second of renders in per mille (0 where nothing measures it).
 - **Output**: 44.1 kHz streams are **bit-exact**: each side is the decoder's sample `>> 1` (two 8-bit Paula
   channels carry exactly 15 bits: `fpga/tests/hilo_probe.py`), so 6 dB under full scale. 32 and 48 kHz
   are converted to 44.1 linearly (not bit-exact). A true 16-bit out waits for a CHORUS 16-bit PCM mode.

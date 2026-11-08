@@ -4,7 +4,7 @@ the names every staging tool writes, the same as glass reads them (fpga/glass/sr
     /            the boot files only (BootROM / U-Boot read them there)
     /KESTREL/    the system: system.rv32, kos/desktop.rv32, glass.cfg, an optional glass override,
                  progs/ (by-hash and per-disk program images), rollback/ (old card files)
-    /CARTS/      the OSD's shelf: <category>/demo-<tag>.zmd + shelf.txt
+    /CARTS/      the OSD's shelf: <category>/demo-<tag>.zmd (demos/<platform>/demo-<tag>.zmd) + shelf.txt
     /HD/         KOS's C: (the desktop shell roots C:\\ there; nothing above it shows in GEM)
 """
 

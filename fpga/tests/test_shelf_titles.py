@@ -59,3 +59,16 @@ def test_a_cart_outside_the_catalog_and_every_hub_gets_no_line() -> None:
 def test_hub_title_cuts_at_a_word_and_keeps_the_osd_cap() -> None:
     assert shelf_meta.hub_title("G / ONE TWO THREE FOUR FIVE SIX (x)") == "ONE TWO THREE FOUR"
     assert shelf_meta.hub_title("G / ABCDEFGHIJKLMNOPQRSTUVWXYZ") == "ABCDEFGHIJKLMNOPQRSTUV"  # one word: hard cut
+
+
+@pytest.mark.parametrize("tag", ["rno_natrium", "grodan_kvack", "replicants_emlyn", "skystrike", "vex", "stcs"])
+def test_a_cart_with_a_zig_mode_says_z_in_its_osd_title(tag: str) -> None:
+    # Matt, 7 Nov: "when a cart has a z mode can you add (Z) in the title?"
+    title = _row(tag)[1]
+    assert title.endswith(" (Z)") and len(title) <= shelf_meta.channels.MAX_NAME_LEN
+
+
+@pytest.mark.parametrize("tag", ["stniccc", "sysinfo", "ziggy"])
+def test_a_cart_without_one_keeps_its_title(tag: str) -> None:
+    # ziggy's Z switches ZM-X on and off: an instruction set, not a ZIG mode
+    assert not _row(tag)[1].endswith("(Z)")

@@ -1,6 +1,8 @@
 // The register writes a part's IRQ chain makes in a frame, as the sprite unit (vic.zig) reads them.
 
-pub const Write = struct { line: u16, cyc: u8, reg: u8, val: u8 };
+/// 8 bytes, 4-aligned: at 5 bytes in a 6-byte stride the copies LLVM makes of one are word
+/// accesses that land misaligned every other entry (each a trap on the board, ~210 cycles).
+pub const Write = struct { line: u16 align(4), cyc: u8, reg: u8, val: u8 };
 
 /// A frame's writes in line/cycle order. Lines >= 312 belong to the next frame (a handler
 /// that runs past the frame's last line: part 3's end-of-frame work does).

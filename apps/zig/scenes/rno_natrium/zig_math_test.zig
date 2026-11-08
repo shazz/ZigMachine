@@ -45,6 +45,42 @@ test "tunnel: the formula is the original table, texel for texel within one" {
     try std.testing.expect(worst_v <= 1);
 }
 
+test "dots: $C2DC's (u, v) is dotTexel of the table word, at every entry" {
+    const dots = @import("tunnel_dots.zig");
+    for (0..16000) |i| {
+        const w: u32 = A.be16(A.tunnel_map, i);
+        const d1 = ((w & 0xFF) << 8) | (w >> 8);
+        const t = dots.mapUV(i);
+        const e = M.dotTexel(d1 & 0xFF, (d1 >> 8) * 4);
+        try std.testing.expectEqual(t.u, e & 15);
+        try std.testing.expectEqual(t.v, (e >> 8) / 4);
+    }
+}
+
+test "dots: the formula is the table word, within a texel (U8 256 a turn, V8 = 128 + 1024 / r)" {
+    var worst_u: u32 = 0;
+    var worst_v: u32 = 0;
+    for (0..100) |cy| for (0..160) |cx| {
+        const dx2: i32 = @as(i32, @intCast(cx)) * 4 + 2 - 320;
+        const dy2: i32 = @as(i32, @intCast(cy)) * 4 + 2 - 200;
+        const w: u32 = A.be16(A.tunnel_map, cy * 160 + cx);
+        const d1 = ((w & 0xFF) << 8) | (w >> 8);
+        const f = M.dotWord(dx2, dy2);
+        if (d1 == 0) {
+            try std.testing.expectEqual(@as(u16, 0), M.dotEntry(dx2, dy2));
+            continue;
+        }
+        const du = @min((f[0] -% (d1 & 0xFF)) & 255, ((d1 & 0xFF) -% f[0]) & 255);
+        const v = f[1] / 4;
+        const dv = @min((v -% (d1 >> 8)) & 255, ((d1 >> 8) -% v) & 255);
+        worst_u = @max(worst_u, du);
+        // the hole's rim: 1024 / r moves 2 texels a quarter cell
+        if (d1 >> 8 < 236) worst_v = @max(worst_v, dv);
+    };
+    try std.testing.expect(worst_u <= 1);
+    try std.testing.expect(worst_v <= 1);
+}
+
 test "angle: the four axes and an octant" {
     try std.testing.expectEqual(@as(u32, 0), M.angle(5, 0));
     try std.testing.expectEqual(@as(u32, 32 << 8), M.angle(0, 5)); // down

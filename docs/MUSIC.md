@@ -317,6 +317,10 @@ board, songs are linked into the firmware, so build `make board-fw CART=music`
 with the file in place: `fpga/tools/song_pack.py` packs `local.xm` when it is
 there and leaves it out, with a note, when it is not. That firmware then holds
 the song: keep it off anything you publish.
+SID TEST's keys 1-4 work the same way: four HVSC tunes (`cybernoid_ii.sid`,
+`wizball.sid`, `commando.sid`, `club_style.sid`, the list in `song_pack.py`
+`LOCAL_SONGS`), gitignored, copied from the SID study's set; without them the
+screen says "NOT ON THIS MACHINE".
 
 ## KT (klystrack)
 

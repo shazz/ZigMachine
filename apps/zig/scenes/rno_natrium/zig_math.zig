@@ -67,6 +67,36 @@ pub fn tunnelEntry(dx2: i32, dy2: i32) u16 {
     return @intCast(v << 8 | u);
 }
 
+/// The dot tunnel's map entry ($D670, part 1) for a pixel at (dx2, dy2) half
+/// pixels from the centre: vq << 8 | u, u 0..15 the blob column, vq 0..127 the
+/// blob row in QUARTER texels (so the scroll moves every host frame). The
+/// $144C8 word holds U8 = 128 + angle 128/pi (256 a turn, 0 to the left) and
+/// V8 = 128 + 1024 / r (r in cells, = 2048 / r in pixels); $C2DC reads
+/// u = U8 & 15, v = (V8 + ((U8 >> 4) & 7) * 8) & 31: the octant term that
+/// twists the rings into a spiral. Both survive a half turn (U8 + 128), so
+/// the original's mirrored bottom half is this same formula below the centre.
+/// The hole (r < 16 px, the table's zero entries) is entry 0, as there.
+pub fn dotEntry(dx2: i32, dy2: i32) u16 {
+    const w = dotWord(dx2, dy2);
+    return dotTexel(w[0], w[1]);
+}
+
+/// The $144C8 word's two bytes at full resolution: U8, and V8 in quarters.
+pub fn dotWord(dx2: i32, dy2: i32) [2]u32 {
+    const r2: u32 = @intCast(dx2 * dx2 + dy2 * dy2);
+    if (r2 < HOLE_R2) return .{ 0, 0 };
+    const r8 = isqrt(16 * r2); // eighths of a pixel
+    // 4 * V8: the table holds floor(128.75 + 1024 / r) (r in cells), to within one
+    const v8q: u32 = (515 + 65536 / r8) & 1023;
+    return .{ ((angle(dx2, dy2) + (64 << 8) + 64) >> 7) & 255, v8q };
+}
+
+/// $C2DC on (U8, 4 V8): u = U8 & 15, v = V8 + the octant term, in quarters.
+pub fn dotTexel(u8_: u32, v8q: u32) u16 {
+    const vq = (v8q + ((u8_ >> 4) & 7) * 32) & 127;
+    return @intCast(vq << 8 | (u8_ & 15));
+}
+
 inline fn chan(c: u32, s: u5) u32 {
     return (c >> s) & 0xFF;
 }

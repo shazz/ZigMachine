@@ -15,7 +15,7 @@ const Screen = st.Screen;
 
 /// $AF81A entry i as $C2DC derives it from the $144C8 source word:
 /// u = low nibble, v = 5 bits that the octant term twists into a spiral.
-inline fn mapUV(i: usize) struct { u: u32, v: u32 } {
+pub inline fn mapUV(i: usize) struct { u: u32, v: u32 } {
     const w: u32 = A.be16(A.tunnel_map, i);
     const d1: u32 = ((w & 0xFF) << 8) | (w >> 8);
     const d3 = ((d1 >> 1) + ((d1 & 0x70) << 6)) & 0xF80;

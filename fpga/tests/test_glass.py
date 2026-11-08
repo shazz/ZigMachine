@@ -254,7 +254,7 @@ def test_shelf_meta_describes_every_catalog_cart_from_the_repo() -> None:
 def test_shelf_meta_skips_tags_it_does_not_know(tmp_path: Path) -> None:
     out = shelf_meta.write(tmp_path, ["stniccc", "no_such_cart"])
     lines = [ln for ln in out.read_text().splitlines() if not ln.startswith("#")]
-    assert [ln.split("\t")[0] for ln in lines] == ["demos/demo-stniccc.zmd"]
+    assert [ln.split("\t")[0] for ln in lines] == ["demos/atari_st/demo-stniccc.zmd"]
 
 
 def test_the_menu_shows_shelf_txt_details_for_the_selected_cart(tools: dict[str, Path], tmp_path: Path) -> None:
