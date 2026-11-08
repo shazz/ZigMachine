@@ -24,6 +24,7 @@ const draw = @import("vic_draw.zig");
 pub const LINES = 312; // PAL
 pub const Out = draw.Out;
 pub const Mem = draw.Mem;
+pub const cache = draw.cache;
 pub const ROWS = draw.ROWS; // physical rows (raster lines 11..290)
 pub const PTR0: u8 = 0x30; // a write to PTR0 + i is sprite i's pointer (screen + $3F8 + i)
 pub const BANK: u8 = 0x38; // a write here is $DD00: bits 0-1 select the VIC bank (3 - value)
@@ -42,6 +43,8 @@ pub const Vic = struct {
     mcbase: [8]u8 = .{63} ** 8,
     mc: [8]u8 = .{63} ** 8,
     row: [8][3]u8 = undefined, // fetched at c58, shown on the next line
+    addr: [8]u16 = .{0} ** 8, // where each row was fetched from (the run's source: vic_runs.zig)
+    abank: u8 = 0, // bit n: sprite n's row was fetched from bank 3
     shown: u8 = 0, // which sprites have a row to show on the next line
     vb: bool = true, // vertical border flip-flop (set = border)
     right_open: bool = false, // the previous line's right border stayed open
@@ -80,6 +83,7 @@ pub const Vic = struct {
                 self.runLine(line, mix[0..n], mem, out);
             }
         }
+        out.end(mem);
         while (k < ws.len) : (k += 1) {
             if (ws[k].line < LINES) @panic("vic: write out of line order"); // a part's bug, never drop it
             next.w(ws[k].line - LINES, ws[k].cyc, ws[k].reg, ws[k].val);
@@ -100,7 +104,7 @@ pub const Vic = struct {
         i = self.apply(ws, i, 54, &right_open);
         self.c55(line);
         i = self.apply(ws, i, 57, &right_open);
-        var li = draw.LineInfo{ .reg = &self.reg, .shown = self.shown, .data = &self.row, .vb = self.vb, .left_open = left_open, .right_open = right_open, .border = border_start, .border_end = 0, .split_cyc = 0 };
+        var li = draw.LineInfo{ .reg = &self.reg, .shown = self.shown, .data = &self.row, .addr = &self.addr, .abank = self.abank, .vb = self.vb, .left_open = left_open, .right_open = right_open, .border = border_start, .border_end = 0, .split_cyc = 0 };
         if (li.shown != 0) out.sprites(line, &li);
         self.fetchAll(mem);
         _ = self.apply(ws, i, 255, &right_open);
@@ -169,12 +173,14 @@ pub const Vic = struct {
 
     fn fetchAll(self: *Vic, mem: draw.Mem) void {
         self.shown = self.dma;
+        self.abank = if (self.bank3) self.dma else 0;
         var m = self.dma;
         while (m != 0) : (m &= m - 1) {
             const s: usize = @ctz(m);
             self.mc[s] = self.mcbase[s];
             const base = @as(u16, self.ptr[s]) * 64 + self.mc[s];
-            for (0..3) |j| self.row[s][j] = mem.byte(self.bank3, base + @as(u16, @intCast(j)), !self.vb);
+            self.addr[s] = base;
+            self.row[s] = mem.row(self.bank3, base, !self.vb);
             self.mc[s] += 3;
         }
     }

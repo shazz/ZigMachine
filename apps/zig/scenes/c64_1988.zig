@@ -26,6 +26,7 @@ const zg = @import("zigos");
 const show_mod = @import("c64_1988/show.zig");
 const vic = show_mod.vic;
 const assets = @import("c64_1988/assets.zig");
+const raster = @import("c64_1988/raster.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -73,10 +74,20 @@ fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     if (if (band) out.vopen[line] else out.sides[line]) fb.flickerBorder();
 }
 
+// CHISEL's keyed copy of an expanded block's rectangle, from cart RAM into the plane.
+fn blit(ctx: *anyopaque, x: u16, y: u16, src: []const u8, src_w: u16, sx: u16, sy: u16, w: u16, h: u16) void {
+    const self: *Demo = @ptrCast(@alignCast(ctx));
+    self.blitter.blitImage(self.fb, @intCast(x), @intCast(y), src, src_w, sx, sy, w, h, 0);
+}
+
 pub const Demo = struct {
     show: show_mod.Show = undefined,
     out: vic.Out = undefined,
     frames: u32 = 0, // machine frames (60 Hz)
+    list: []u32 = &.{}, // the plane's copper list (raster.zig); empty: the plane HBL plays it
+    blitter: zg.Blitter = .{},
+    fb: *LogicalFB = undefined,
+    blocks: vic.cache.Cache = undefined, // the sprite blocks, expanded (vic_cache.zig)
     wants_quit: bool = false,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -85,12 +96,26 @@ pub const Demo = struct {
         fb.setOverscanBuffer();
         fb.setPaletteEntry(0, zg.Color.fromRGBA(rgba(0)));
         for (0..16) |c| fb.setPaletteEntry(@intCast(c + 1), zg.Color.fromRGBA(rgba(@intCast(c))));
-        self.out = .{ .pix = fb.fb[0..vic.Out.ROWS_COLS] };
+        self.fb = fb;
+        self.blitter.init();
+        // ~290 KB of expanded blocks, from the RAM arena (zeroed; no bytes in the cart)
+        const images = zg.mem.mustAlloc([vic.cache.IMAGE]u8, vic.cache.SLOTS);
+        self.blocks = .{ .images = images[0..vic.cache.SLOTS] };
+        self.out = .{ .pix = fb.fb[0..vic.Out.ROWS_COLS], .cache = &self.blocks, .blit = .{ .ctx = self, .f = blit } };
         self.show = show_mod.Show.init(assets.all);
         self.frames = 0;
         self.wants_quit = false;
         g_out = &self.out;
         fb.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, planeHbl);
+        // The copper list takes over the handler's job (its FLICK fires at the position the
+        // handler was registered at, which clearing the handler keeps); no VRAM: the handler.
+        self.list = &.{};
+        if (fb.copperList(raster.WORDS)) |l| {
+            @memset(l, 0);
+            l[0] = 0xF000_0000 | 511 << 19;
+            self.list = l;
+            fb.clearFrameBufferHBLHandler();
+        }
         zigos.setHBLHandler(borderHbl);
         if (MUSIC_SID) _ = zg.requestSongBytes(SONG, .sid, 0);
     }
@@ -105,7 +130,9 @@ pub const Demo = struct {
         _ = dt;
         self.frames += 1;
         const due = self.frames * 5 / 6;
+        if (self.show.frames >= due) return;
         while (self.show.frames < due) self.show.step(&self.out);
+        if (self.list.len != 0) raster.build(self.list, &self.out, rgba);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
