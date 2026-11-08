@@ -26,6 +26,7 @@ FPGA = Path(__file__).resolve().parent.parent
 RTL = FPGA / "rtl" / "video"
 TB = FPGA / "tests" / "tb" / "video_comp_tb.cpp"
 OUT_TB = FPGA / "tests" / "tb" / "video_out_tb.cpp"
+DESK_TB = FPGA / "tests" / "tb" / "video_desk_tb.cpp"
 CXXRTL_INCLUDE = Path(yowasp_yosys.__file__).parent / "share/include/backends/cxxrtl/runtime"
 SOURCES = [
     "zm_video_sdpram.v",
@@ -52,6 +53,7 @@ OUT_SOURCES = [
     "zm_vtiming.v",
     "zm_video_sync.v",
     "zm_video_scan.v",
+    "zm_video_desk.v",
     "zm_video_out.v",
 ]
 
@@ -72,7 +74,8 @@ def cxxrtl(
 
 
 def build_tb(
-    rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out: bool = False, tube: int | None = None
+    rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out: bool = False, tube: int | None = None,
+    desk: bool = False,
 ) -> Path:
     """The replay testbench (`out`: the whole-frame one) linked against the RTL in
     rtl_dir, as out_dir/video_comp_tb (video_out_tb). `tube`: built with that TUBE
@@ -83,6 +86,8 @@ def build_tb(
     neither may exec or compile against the other's half-written files.
     """
     tb, top, sources = (OUT_TB, "zm_video_out", OUT_SOURCES) if out else (TB, "zm_video_comp", SOURCES)
+    if desk:  # the desk mode on the wire (tests/tb/video_desk_tb.cpp), on zm_video_out
+        tb, top, sources = DESK_TB, "zm_video_out", OUT_SOURCES
     work = out_dir / f".build-{os.getpid()}-{top}"
     cc = cxxrtl(rtl_dir, work, top, sources, tube)
     inc = [f"-I{CXXRTL_INCLUDE}", f"-I{cc.parent}", f"-I{FPGA / 'build' / 'vdump'}", f"-I{TB.parent}"]
@@ -121,6 +126,27 @@ def wire(
     video_mix.mix(frames_dir, frames, tube=tube)
     args = [str(exe), *(["--starve", str(starve)] if starve > 1 else []), str(ratio[0]), str(ratio[1])]
     args += [str(frames_dir), *map(str, frames)]
+    return subprocess.run(args, capture_output=True, text=True, timeout=1200, check=False)
+
+
+def desk_ref(out_dir: Path, fb_base: int) -> Path:
+    """tools/desk_ref.zig's plane, palette and the machine's picture of them, in out_dir."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    zig = shutil.which("zig") or str(Path.home() / ".local/zig/0.16.0/zig")
+    root = FPGA.parent
+    subprocess.run([zig, "run", "--dep", "video_desk", f"-Mroot={FPGA / 'tools' / 'desk_ref.zig'}",
+                    f"-Mvideo_desk={root / 'machine' / 'video_desk.zig'}", "--", str(out_dir), hex(fb_base)],
+                   check=True, cwd=root)
+    return out_dir
+
+
+def desk_wire(
+    exe: Path, ratio: tuple[int, int], ref_dir: Path, fb_base: int, starve: int = 1, desk_only: bool = False
+) -> subprocess.CompletedProcess[str]:
+    """Run the desk testbench; returncode 0 means every pixel and sync of every frame, normal and
+    desk, matched across the mode switches with no underrun."""
+    args = [str(exe), *(["--starve", str(starve)] if starve > 1 else []), *(["--desk-only"] if desk_only else [])]
+    args += [str(ratio[0]), str(ratio[1]), str(ref_dir), hex(fb_base)]
     return subprocess.run(args, capture_output=True, text=True, timeout=1200, check=False)
 
 

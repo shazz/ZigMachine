@@ -11,6 +11,11 @@
 // written and a frame on the screen is always one whole picture, one frame late.
 // The compositor has no deadline; only the scanout fetch has one (a raster
 // line, 2,112 pixel clocks), and `underrun` sticks if it ever misses it.
+//
+// Desk mode (HW 1.17.0, zm_video_desk.v): the scanout fetch reads plane 0's
+// bytes instead of a picture and the scanout looks them up in a mirror of
+// palette 0. The compositor is not involved (the sequencer issues it no pass)
+// and does not change; the swap still paces the frames.
 `default_nettype none
 
 module zm_video_out #(
@@ -72,15 +77,17 @@ module zm_video_out #(
     output wire        underrun,
     // in clk's domain
     output wire        vbl,              // one clock: the raster is done
+    output wire        desk,             // the frame being shown is a desk frame
     output reg         front = 1'b0,     // the picture being shown
     output reg         pending = 1'b0,   // the back picture is complete, waiting for the VBL
     output reg  [31:0] swaps = 32'd0     // pictures shown so far
 );
-    wire t_hs, t_vs, t_de, t_active, t_hbl, t_vbl;
+    wire t_hs, t_vs, t_de, t_active, t_hbl, t_vbl, desk_req_p, desk_p, desk_g;
     wire [9:0] t_x;
     wire [8:0] t_line, t_hbl_line;
     zm_vtiming u_timing (
-        .clk(pix_clk), .rst(pix_rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .out_x(), .out_y(),
+        .clk(pix_clk), .rst(pix_rst), .desk(desk_req_p), .desk_q(desk_p), .desk_g(desk_g), .hsync(t_hs),
+        .vsync(t_vs), .de(t_de), .out_x(), .out_y(),
         .zm_active(t_active), .zm_x(t_x), .zm_line(t_line), .zm_hbl(t_hbl), .zm_hbl_line(t_hbl_line),
         .zm_vbl(t_vbl));
     zm_video_sync u_vbl (.src_clk(pix_clk), .src_pulse(t_vbl), .dst_clk(clk), .dst_pulse(vbl));
@@ -112,18 +119,32 @@ module zm_video_out #(
         .wr_req_len(wr_req_len), .wr_dat_valid(wr_dat_valid), .wr_dat_ready(wr_dat_ready), .wr_dat(wr_dat),
         .wr_busy(wr_busy), .overflow(overflow));
 
+    // --- the desk mode's registers, its crossing and palette 0's mirror ---
+    wire [31:0] desk_base;
+    wire [7:0] pal_raddr;
+    wire [23:0] pal_rdata;
+    zm_video_desk u_desk (
+        .clk(clk), .rst(rst), .vbase(vbase), .cpu_we(cpu_we), .cpu_waddr(cpu_waddr), .cpu_be(cpu_be),
+        .cpu_wdata(cpu_wdata), .cpu_sel(cpu_sel), .desk_base(desk_base), .desk(desk), .pix_clk(pix_clk),
+        .desk_req_p(desk_req_p), .desk_shown(desk_p), .pal_raddr(pal_raddr), .pal_rdata(pal_rdata));
+
     // --- scanout fetch -> display buffers -> scanout, with their hand-over ---
+    // The fetch takes the VBL four clocks late: the mode zm_vtiming sampled at the VBL has
+    // crossed by then (two flip-flops, as the pulse), and the swap is done (front_n == front).
     wire line_ready, dp_we;
     wire [8:0] ready_line;
     wire [9:0] dp_waddr, dp_raddr;
-    wire [47:0] dp_wdata, dp_rdata;
+    wire [63:0] dp_wdata, dp_rdata;
     reg [1:0] dp_free = 2'b11;
+    reg [3:0] vbl_d = 4'd0;
+    always @(posedge clk) vbl_d <= {vbl_d[2:0], vbl};
     zm_video_scanfetch u_fetch (
-        .clk(clk), .rst(rst), .vbl(vbl), .base(front_n ? fb1_base : fb0_base), .dp_free(dp_free),
+        .clk(clk), .rst(rst), .vbl(vbl_d[3]), .base(front_n ? fb1_base : fb0_base), .desk(desk),
+        .desk_base(desk_base), .dp_free(dp_free),
         .rd_req_valid(sc_req_valid), .rd_req_ready(sc_req_ready), .rd_req_addr(sc_req_addr),
         .rd_req_len(sc_req_len), .rd_rsp_valid(sc_rsp_valid), .rd_rsp_data(sc_rsp_data), .dp_we(dp_we),
         .dp_waddr(dp_waddr), .dp_wdata(dp_wdata), .line_ready(line_ready), .ready_line(ready_line));
-    zm_video_dcram #(.AW(10), .DW(48)) u_disp (.wclk(clk), .we(dp_we), .waddr(dp_waddr), .wdata(dp_wdata),
+    zm_video_dcram #(.AW(10), .DW(64)) u_disp (.wclk(clk), .we(dp_we), .waddr(dp_waddr), .wdata(dp_wdata),
         .rclk(pix_clk), .raddr(dp_raddr), .rdata(dp_rdata));
 
     // Publication (clk -> pix_clk) and release (pix_clk -> clk) of each display buffer.
@@ -145,9 +166,10 @@ module zm_video_out #(
     endgenerate
 
     zm_video_scan u_scan (
-        .clk(pix_clk), .rst(pix_rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .zm_active(t_active),
+        .clk(pix_clk), .rst(pix_rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .zm_active(t_active), .desk(desk_g),
         .zm_x(t_x), .zm_line(t_line), .zm_hbl(t_hbl), .zm_vbl(t_vbl), .zm_hbl_line(t_hbl_line),
         .pub(pub_p), .pub_line(pub_line), .freed(freed_p), .dp_raddr(dp_raddr), .dp_rdata(dp_rdata),
+        .pal_raddr(pal_raddr), .pal_rdata(pal_rdata),
         .r(r), .g(g), .b(b), .de_o(de), .hs_o(hsync), .vs_o(vsync), .underrun(underrun));
 endmodule
 

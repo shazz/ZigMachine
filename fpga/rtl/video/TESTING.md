@@ -3,6 +3,7 @@
 ```sh
 uv run pytest -q tests/test_rtl_video.py                   # the replays and oracle checks, ~1 min
 ZM_RTL_BREAK=1 uv run pytest -q tests/test_rtl_video.py    # + the 25 break tests, ~5 min more
+ZM_RTL_BREAK=1 uv run pytest -q tests/test_rtl_video_desk.py # the desk mode on the wire + its 12 break tests, ~20 min
 uv run python tools/video_dump.py tutorial 300             # record frames of a cart
 uv run python tools/video_dump.py --synth beam             # record a synthetic scenario
 uv run python tools/video_rtl.py build/vdump/tutorial/frames 300   # replay (video_cover.py: coverage)
@@ -94,5 +95,6 @@ in every pass, and a break test of that rule is caught.
 | scanout: 800x600 stream, bars, two clocks (5:2, 15:4, 2:1) | **proven** | `video_out_tb` on `union_main`, `dhs_0pxl0reg` (2 frames), `worst`; 2:1 on `worst` must underrun |
 | TMDS encoding | **proven** | 2 M symbols equal to a spec encoder, decode and DC balance (worst disparity 8) |
 | true colour (modes 5 and 6, HW 1.15.0): 565 expansion of every value, HSCROLL per line (odd too), odd base and stride, LBASE and HSCROLL records on border lines, under an 8-bit alpha plane | **proven, synthetic only** | synthetic `truecolor` (`tools/video_dump/vsynth_tc.c`); 8 break tests (`tc_*` in `video_mutants.json`: shift-only expansion, the other half-word, the index not doubled, through the palette, half a line fetched, HSCROLL ignored, mode 6 as a window, the copper's cover without mode 6); the browser's `apps/truecolor_check.mjs` against an independent model |
+| desk mode (HW 1.17.0): plane 0 at 640x480 1:1 through the palette-0 mirror, byte lanes, a misaligned FB_BASE, switched mid-frame both ways | **proven, synthetic only** | `tests/test_rtl_video_desk.py`: the wire against the machine's `hwRenderDesk` (`tools/desk_ref.zig`), no underrun across both switches; a beat every 16 clocks holds, 64 underruns; 12 break tests (`video_desk_mutants.json`) |
 | fullscreen stride > 1021 | **not supported** | flagged (`overflow`) and not drawn. The machine has no such limit. |
 

@@ -219,7 +219,7 @@
   {
     "id": "scan_rgb_misaligned",
     "file": "zm_video_scan.v",
-    "old": "{de_o, hs_o, vs_o} <= {de1, hs1, vs1};",
+    "old": "{de_o, hs_o, vs_o} <= {de2, hs2, vs2};",
     "new": "{de_o, hs_o, vs_o} <= {de, hsync, vsync};",
     "catch": "union_intro",
     "tb": "out"
@@ -227,8 +227,8 @@
   {
     "id": "scan_one_buffer",
     "file": "zm_video_scan.v",
-    "old": "assign dp_raddr = {zm_line[0], zm_x[9:1]};",
-    "new": "assign dp_raddr = {1'b0, zm_x[9:1]};",
+    "old": "assign dp_raddr = {zm_line[0], word};",
+    "new": "assign dp_raddr = {1'b0, word};",
     "catch": "union_intro",
     "tb": "out"
   },

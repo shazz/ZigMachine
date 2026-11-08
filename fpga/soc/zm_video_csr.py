@@ -28,6 +28,7 @@ STATUS_FIELDS = [
     ("front", 1, "the picture being shown"),
     ("underrun", 1, "the scanout showed a line not fetched"),
     ("overflow", 1, "a plane line was too long to fetch"),
+    ("desk", 1, "1: this bitstream shows the desk mode (HW 1.17.0); an older one reads 0"),
 ]
 
 
