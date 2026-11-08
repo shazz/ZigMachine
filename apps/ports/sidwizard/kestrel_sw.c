@@ -12,12 +12,19 @@
  *   files        upstream's stdio over the floppy (read-only, flat) and C: as "/C" (KOS GEMDOS, read-write)
  *
  * The SID is the light engine (cRSID.HighQualitySID = 0, upstream's "-sidlight") at 22050 Hz, as BARD's .sid
- * player. SW_SID_ON_BARD (kestrel_sw_sid.h) is where the SID register writes would go to BARD instead. */
+ * player. SW_SID_ON_BARD (kestrel_sw_sid.h) is the switch that sends the SID's register writes to BARD instead. */
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <libgen.h>
 #include "SDL.h"
 #include "kestrel_audio.h"
+#include "kestrel_sw_sid.h"
 
 void kestrel_log(const char *m);
 void kestrel_quit(void);
@@ -35,11 +42,13 @@ static byte PianoKeyScanCodeRow, PianoKeyScanCodeColumn;
 static byte BorderAlias = 1;                   /* "-lofiborder": no sprite blur (the picture is 16 colours) */
 signed char Zoom = 1;
 static cRSID_C64instance *C64 = &cRSID_C64;
+static byte ArgMIDIname[MIDI_NAME_LENGTH_MAX + 1];   /* the config file's MIDI device (no MIDI here) */
 static int sw_exit_dialog, sw_startup_menu = 1;
 #define SID_Wizard_2SID SID_Wizard             /* patches/file.h.sed: only the 1-SID program is built */
 #define SID_Wizard_3SID SID_Wizard
 #define SID_Wizard_4SID SID_Wizard
 
+#include "kestrel_sw_files.c"
 #include "host/file.c"
 #include "resources/chargen.h"
 #include "host/buttoncharset.h"
@@ -88,6 +97,9 @@ static void sw_start_c64(void)
 {
     updateSIDamount(1);
     initDiskIO();
+    /* main(): device 8 at the start folder (the floppy's root), device 9 = C: (kestrel_sw_files.c) */
+    chdir("/"); strcpy(StartUpPath, "/"); strcpy(C64drivePaths[0], "/");
+    if (kestrel_c_mounted()) strcpy(C64drivePaths[1], "/C");
     cRSID.SelectedSIDmodel = 8580; cRSID.Stereo = CRSID_CHANNELMODE_MONO;
     cRSID.HighQualitySID = 0; cRSID.HighQualityResampler = 0;
     cRSID_init(SW_RATE, 0);
@@ -110,10 +122,11 @@ __attribute__((export_name("boot"))) void boot(void)
     kestrel_log("sidwizard: booted");
 }
 
-/* Real time, at most 3 frames: a frame the C64 cannot keep up with is skipped rather than caught up. */
+/* Real time, at most 20 ms (a PAL frame): the C64 costs ~3.5x real time on the board (README.md, "Cost"), so
+ * it runs slow there whatever the cap; a short cap keeps the editor answering (more frames, each shorter). */
 __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
-    uint32_t us = kestrel_frame_us(elapsed_ms, 50);
+    uint32_t us = kestrel_frame_us(elapsed_ms, 20);
     kestrel_audio_pump(us, SW_RATE, 100, sw_mix, 0);
     sw_video_frame();
 }

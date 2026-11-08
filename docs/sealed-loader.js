@@ -864,6 +864,11 @@ const KEY_CODES = {
 // (AltGr, whose evt.key is "AltGraph" on many layouts) has its own code after
 // them, 0xE018 (pt2-clone's play song); a cart that knows only Alt takes it as Alt.
 const MOD_CODES = { ControlLeft: 0xE014, ShiftLeft: 0xE015, ControlRight: 0xE016, ShiftRight: 0xE017, AltRight: 0xE018 };
+// Keys only a cart that OWNS the keyboard gets (an ABI addition, 2026-11-07, for SID-Wizard: Tab is its
+// C64 CONTROL key, Home/PageUp/PageDown move in its tables): Tab keeps moving the page's focus for every
+// other cart. A cart that does not know a code ignores it (the C ports' key maps, GEM's text fields take
+// 32..126 only); the board's glass sends the same codes (fpga/glass/src/map.zig). 0xE020.. are the glass's own.
+const OWNER_KEY_CODES = { Tab: 0xE019, Home: 0xE01A, End: 0xE01B, PageUp: 0xE01C, PageDown: 0xE01D };
 
 window.document.body.addEventListener('keydown', function (evt) {
     if (!demo) return;
@@ -920,6 +925,7 @@ window.document.body.addEventListener('keydown', function (evt) {
             if (!(evt.key === "Alt" && evt.repeat)) demo.key(KEY_CODES[evt.key]); // Alt is a toggle: once a press
         }
         else if (MOD_CODES[evt.code] !== undefined && !evt.repeat) demo.key(MOD_CODES[evt.code]);
+        else if (owns && OWNER_KEY_CODES[evt.key] !== undefined) { evt.preventDefault(); demo.key(OWNER_KEY_CODES[evt.key]); }
     }
 });
 
@@ -943,6 +949,7 @@ const heldDirs = new Set(); // directions this page has seen go down and not up
 const heldKeys = new Set();
 function keyUpCode(key, code) {
     if (MOD_CODES[code] !== undefined) return MOD_CODES[code];
+    if (OWNER_KEY_CODES[key] !== undefined) return OWNER_KEY_CODES[key];
     if (key === "Backspace") return 8;
     if (key === "Enter") return 13;
     if (key.length === 1) return key.charCodeAt(0);

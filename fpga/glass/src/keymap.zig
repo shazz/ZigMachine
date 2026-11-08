@@ -11,6 +11,7 @@ const map = @import("map.zig");
 // evdev codes this file names (linux/input-event-codes.h).
 pub const KEY_ESC = 1;
 pub const KEY_BACKSPACE = 14;
+pub const KEY_TAB = 15;
 pub const KEY_ENTER = 28;
 pub const KEY_LEFTCTRL = 29;
 pub const KEY_LEFTSHIFT = 42;
@@ -85,6 +86,9 @@ fn named(code: u16) ?u32 {
         KEY_PAGEDOWN => map.KEY_PAGE_DOWN,
         KEY_LEFT => map.KEY_ARROW_LEFT,
         KEY_RIGHT => map.KEY_ARROW_RIGHT,
+        KEY_TAB => map.KEY_TAB, // the owner-only codes (sealed-loader.js OWNER_KEY_CODES)
+        KEY_HOME => map.KEY_HOME,
+        KEY_END => map.KEY_END,
         KEY_INSERT => map.KEY_INSERT,
         KEY_DELETE => map.KEY_DELETE,
         KEY_UNDO => map.KEY_UNDO,
@@ -141,6 +145,9 @@ test "named keys use the browser's codes; unknown keys send nothing" {
     try std.testing.expectEqual(@as(?u32, 0xE013 | map.KEY_DOWN), event(KEY_LEFTALT, 1, &m)); // ST Replay's Alt
     try std.testing.expectEqual(@as(?u32, 0xE018 | map.KEY_DOWN), event(KEY_RIGHTALT, 1, &m)); // its own: pt2's play song
     try std.testing.expectEqual(@as(?u32, null), event(KEY_F11, 1, &m)); // the browser has no F11 code
+    try std.testing.expectEqual(@as(?u32, 0xE019 | map.KEY_DOWN), event(KEY_TAB, 1, &m)); // Tab, Home, End: the browser's owner-only codes
+    try std.testing.expectEqual(@as(?u32, 0xE01A | map.KEY_DOWN), event(KEY_HOME, 1, &m));
+    try std.testing.expectEqual(@as(?u32, 0xE01B), event(KEY_END, 0, &m));
     try std.testing.expectEqual(@as(?u32, null), event(KEY_CAPSLOCK, 1, &m));
     try std.testing.expectEqual(@as(?u32, null), event(240, 1, &m));
 }

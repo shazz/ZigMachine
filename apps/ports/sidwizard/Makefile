@@ -14,11 +14,12 @@ KINC   := ../kestrel_sdl2/include
 # X11 scancode table for the positional keys. UNCOMPRESSED_NATIVES: the native program is unpacked at build time.
 DEFS   := -DSIDAMOUNT=1 -D_LINUX=1 -DENABLED_SDL=1 -DUNCOMPRESSED_NATIVES=1 -DOSCILLOSCOPE_SHOWS_ALL_CHANNELS=1 \
           -DVERSION=\"1.9\" -DSUBVERSION=\"7\" -DKESTREL_CDRIVE -D__KESTREL__
-CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu99 -Iinclude -I$(GEN) -I. -I$(KINC) $(DEFS) \
+OPT    ?= -Os
+CFLAGS := $(EXTRA) -target wasm32-wasi $(OPT) -g0 -mbulk-memory -std=gnu99 -Iinclude -I$(GEN) -I. -I$(KINC) $(DEFS) \
           -Wno-unused-parameter -Wno-pointer-sign -Wno-deprecated-non-prototype -Wno-unused-variable \
           -Wno-unused-function -Wno-comment -Wno-char-subscripts -Wno-unused-but-set-variable \
-          -Wno-unused-value -Wno-parentheses -Wno-dangling-else -Wno-misleading-indentation
-MEM := 4194304
+          -Wno-unused-value -Wno-parentheses -Wno-dangling-else -Wno-misleading-indentation -Wno-static-in-inline
+MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=131072 -Wl,--strip-debug
 

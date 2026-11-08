@@ -187,6 +187,9 @@ for w in "$OUT"/demo-*.wasm; do
         chipnomad) P=apps/ports/chipnomad/songs
                    portdisk "$tag" "$w" --file "MICROEGG.CNM=$P/MICROEGG.CNM" \
                         --file "MICROPIZ.CNM=$P/MICROPIZ.CNM" --file "WB7.CNM=$P/WB7.CNM" ;;
+        # SID-Wizard: Hermit's own example song "Flash It Back" (upstream native/examples, WTF licence,
+        # data/), which the cart opens at start (kestrel_sw_keysim.c); saves go to C: (README.md).
+        sidwizard) portdisk "$tag" "$w" --file "FLASHBAK.SWM=apps/ports/sidwizard/data/FLASHBAK.SWM" ;;
         *)         pack "$OUT/demo-$tag.zmd" "$tag" "$w" ;;
     esac
 done
