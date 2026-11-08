@@ -4,8 +4,8 @@
  *                      straight from the C64's I/O page every sample (now)
  *   SW_SID_ON_BARD 1   every write to $D400-$D7FF (the SID and its mirrors) is handed to sw_sid_write(), with the
  *                      register, the value and the C64 cycle it happened at, after the instruction that wrote it;
- *                      the local SID is not rendered (the CPU, CIAs, VIC and envelopes still run: the 6502 reads
- *                      $D41B/$D41C back). sw_sid_write() is to send a SID_WRITE command on the BARD message queue
+ *                      the local SID render is then to be skipped (the CPU, CIAs, VIC and envelopes still run: the
+ *                      6502 reads $D41B/$D41C back). sw_sid_write() is to send a SID_WRITE command on the BARD queue
  *                      (feat/bard-queue, not on main yet: building with 1 stops at the #error below)
  *
  * The capture costs nothing with 0: libcRSID's write path calls sw_io_write() for any I/O write already

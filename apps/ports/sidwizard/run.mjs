@@ -6,11 +6,13 @@
 //   writes build/audio.wav (signed 8-bit mono as fed). SNAP=n also writes every n-th frame.
 //   A click may name its buttons and hold: "frame,x,y,buttons,hold" (buttons 1 = left, 4 = right; hold in frames, 6).
 //   MOVES="frame,x,y,buttons;..." puts the pointer there (buttons held) at that frame: menus, drags.
+//   C_IMAGE=x.img puts C: over a copy of that FAT image (OUT_IMAGE=y.img writes it after the run).
 //   HASHES=file writes the sha256 of every frame's physical picture, one a line: a before/after (CART=) proof.
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { makeCDrive, makeCFile } from "../../scene_hash_disk.mjs";
 
 const FRAMES = +(process.argv[2] ?? 60), OUT = process.argv[3] ?? "apps/ports/sidwizard/build/frame";
 const CART = process.env.CART ?? "apps/ports/sidwizard/build/demo-sidwizard.wasm"; // CART=...: another build (a before/after)
@@ -32,6 +34,9 @@ const env = { memory, ...rom, consoleLogJS: (p, n) => console.log("cart:", text(
     hostAudioFeed: (p, n) => { const b = new Int8Array(memory.buffer, p, n); audio.n += n; for (const v of b) audio.peak = Math.max(audio.peak, Math.abs(v)); if (process.env.AUDIO) audio.chunks.push(Buffer.from(new Uint8Array(memory.buffer, p, n))); },
     diskReadBlock: (b, dst) => { if (!DISK) return 0; const s = DISK.subarray(b * 512, b * 512 + 512); new Uint8Array(memory.buffer, dst, s.length).set(s); return s.length; } };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
+// C_IMAGE=x.img: C: over a copy of that FAT image, reads and writes as the page serves them (OUT_IMAGE= saves it after)
+const cImg = process.env.C_IMAGE ? new Uint8Array(await readFile(process.env.C_IMAGE)) : null;
+if (cImg) { env.kosDriveRead = makeCDrive(memory, cImg); env.kosFileOp = makeCFile(memory, cImg); }
 const wasi = {}, missing = new Set();
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes))) {
     if (imp.module === "env" && !(imp.name in env)) { env[imp.name] = () => 0; missing.add("env." + imp.name); }
@@ -83,6 +88,7 @@ for (let f = 1; f <= FRAMES; f++) {
     if (f === FRAMES || f === 1 || (SNAP && f % SNAP === 0)) { await png(`${OUT}${f}.png`); console.log(`wrote ${OUT}${f}.png`); }
 }
 console.log(`${FRAMES} frames, ${(total / FRAMES).toFixed(2)} ms a frame on average, worst ${worst.toFixed(1)} ms; audio: ${audio.n} samples at ${audio.rate} Hz fed (${(audio.n / Math.max(1, FRAMES)).toFixed(1)} a frame), peak |s8| ${audio.peak}`);
+if (cImg && process.env.OUT_IMAGE) { await writeFile(process.env.OUT_IMAGE, cImg); console.log(`wrote ${process.env.OUT_IMAGE}`); }
 if (HASHES) { await writeFile(HASHES, hashes.join("\n") + "\n"); console.log(`wrote ${HASHES} (${hashes.length} frames)`); }
 if (process.env.AUDIO && audio.n) {
     const pcm = Buffer.concat(audio.chunks).map((v) => (v + 128) & 255);   // WAV 8-bit is unsigned

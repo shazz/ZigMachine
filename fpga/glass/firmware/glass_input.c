@@ -34,6 +34,8 @@ glass_route_t glass_route(uint32_t ev, int owns) {
     if (!owns && c >= '1' && c <= '7') r.shade = (int)(c - '1');
     /* demo.key(): every code but the arrows; a modifier only on its first press. */
     if (!is_arrow(c) && !(is_mod(c) && (ev & KEY_REPEAT))) r.key = (int)c;
+    /* OWNER_KEY_CODES (Tab, Home, End, PageUp, PageDown): only a cart that owns the keyboard. */
+    if (!owns && c >= KEY_TAB && c <= KEY_PAGE_DOWN_CART) r.key = -1;
     return r;
 }
 

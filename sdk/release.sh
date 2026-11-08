@@ -77,6 +77,8 @@ if [ -n "$CARD" ]; then
     cp "$ROOT/libs/c/pvmp3/upstream/patent_disclaimer.txt" "$DEST/licenses/pvmp3-patent_disclaimer.txt"
     # cRSID (Hermit) is linked into the BARD image too: its licence line and the credit it asks for (THIRD_PARTY.md)
     cp "$ROOT/libs/c/crsid/cRSID-README.txt" "$DEST/licenses/cRSID-README.txt"
+    # SID-Wizard (Hermit) is the CARTS/tools/demo-sidwizard.zmd cart: its README's licence line and credit (THIRD_PARTY.md)
+    cp "$ROOT/apps/ports/sidwizard/upstream/README.txt" "$DEST/licenses/SID-Wizard-README.txt"
 else
     CARD_NOTE="none: get the KESTREL $VERSION card from its release page"
 fi

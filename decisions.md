@@ -1611,3 +1611,32 @@ BARD); reSID/reSIDfp (GPL, far heavier); unpatched cRSID at 22.05 kHz (55-82 %: 
 **Consequences:** machine-audio.wasm grows by ~400 KB (cRSID's zero-filled C64 is a data segment: the memory is
 imported); snd.bin is 1.99 MB of its 2 MiB limit; the SID mutes Paula sound effects as MP3 does; RSID digi tunes do
 not play.
+
+## 2026-11-07 — SID-Wizard: the PC version's design (its C64 program on its own libcRSID), vendored; owner-only key codes
+
+**Status:** accepted
+**Context:** Matt asked for SID-Wizard 1.97 (Hermit's C64 tracker) as a cart: its UI is the C64's 40x25 text
+screen. Its PC version runs the native 6502 program on SID-Wizard's own libcRSID (a C64 with CIAs, VIC raster
+IRQs, a keyboard matrix and KERNAL disk traps), behind an SDL 1.2 host. The machine's key ABI had no Tab, Home,
+End, PageUp or PageDown, and SID-Wizard needs Tab (C64 CONTROL: track stepping, the file dialog's fields).
+**Decision:** (1) the same design: the native program on SID-Wizard's libcRSID (not libs/c/crsid's 1.58, which is a
+PSID player without that C64), upstream's keyboard/mouse/disk code unchanged over a tiny SDL 1.2 key-state header,
+and a small host of ours for the picture (the C64-UI mode at zoom 1 as palette indices into the 400x280 plane),
+the sound (kestrel_audio_pump at 22.05 kHz, each sample one cRSID_generateSample(): the C64 is clocked by the
+audio, as upstream) and the files (floppy + C:). (2) Upstream is vendored in apps/ports/sidwizard/upstream,
+unmodified (no repository to pin; WTF licence), patched at build time by sed patches like the other ports.
+(3) Tab, Home, End, PageUp, PageDown are new key codes 0xE019..0xE01D, **owner-only**: the browser sends them
+only to a cart that owns the keyboard (so Tab still moves the page's focus for a scene), the board glass's
+firmware the same; on the board Page Up/Down page the OSD while it is open and reach the cart as 0xE01C/0xE01D
+when it is closed. F11/F12 are not added (the board's OSD hotkeys). (4) The 1 MHz parts are clocked less often
+with upstream's results (CIAs + VIC at their next event or an I/O access, the envelopes once a sample in exact
+steps, the key matrix on a $DC01 read) and forced inlining is off: 11.6 -> 5.9 Mc/frame playing.
+**Alternatives considered:** an SDL 1.2-on-SDL2 shim (the PC display code at 32 bits, zoomed, then converted every
+frame: dearer than drawing the C64 screen as indices); GoatTracker (a PC UI, not the C64's); libs/c/crsid for the
+C64 (no CIA/VIC/keyboard); a cart-side remap of an existing key for CONTROL (no spare key on a PC keyboard that the
+browser forwards); forwarding the new codes to every cart (steals Tab from the page for scenes that ignore it).
+**Consequences:** the C64 costs ~3.5x real time on ZIGGY: the cart runs at ~16-19 fps on the board but the C64
+inside at ~30 % speed (songs play slow) until the SID moves to BARD (`kestrel_sw_sid.h`, one switch, after
+feat/bard-queue) and/or a smaller 6502 core (ROADMAP). Every cart that owns the keyboard may now receive
+0xE019..0xE01D: the ports and GEM ignore them (ports_headless presses them before each port's pin; gem_headless
+"owner-keys-ignored").

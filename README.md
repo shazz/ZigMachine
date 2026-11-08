@@ -92,6 +92,7 @@ docs/               the web root, the built wasm, and the API docs
 | GRAFX2 (C) | [GrafX2](https://gitlab.com/GrafX2/grafX2), a bitmap paint program | Sunset Design and the GrafX2 team | GPL-2.0 (the cart too; its corresponding source: `apps/ports/grafx2/README.md`) |
 | KLYSTRACK (C) | [klystrack](https://github.com/kometbomb/klystrack) + klystron, a chiptune tracker | Tero "kometbomb" Lindeman | MIT |
 | CHIPNOMAD (C++) | [ChipNomad](https://github.com/Megus/chipnomad-tracker), an AY tracker | Megus | MIT |
+| SID-WIZARD (C) | [SID-Wizard](https://demozoo.org/productions/99999/) 1.97, the C64 SID tracker as its PC version runs it (its own 6502 program on its own libcRSID C64) | Mihaly "Hermit" Horvath, with Soci of Singular Crew | WTF ("Do what the frick you want with this code, but mentioning me if you use it would still be nice") |
 
 `apps/ports/kestrel_sdl2` uses [stb_image](https://github.com/nothings/stb) (Sean Barrett, public domain / MIT), and GrafX2 and klystrack are post-processed with [binaryen](https://github.com/WebAssembly/binaryen) (Apache-2.0). If you are one of the original authors and would rather your work were not here, please open an issue.
 

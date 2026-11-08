@@ -331,6 +331,23 @@ const SCENARIOS = {
         for (let i = 0; i < 10; i++) gem.frame();
         await gem.shot(`${out}/dir-folder-win.ppm`);
     },
+    // The owner-only key codes (sealed-loader.js OWNER_KEY_CODES, 2026-11-07: Tab, Home, End, PageUp,
+    // PageDown for SID-Wizard) reach GEM too (it owns the keyboard): its name field must ignore them.
+    // A typed letter right after must still go in, or the field was never listening.
+    "owner-keys-ignored": async (gem, out) => {
+        gem.open(...FLOPPY);
+        for (let i = 0; i < 10; i++) gem.frame();
+        gem.click(145, 8); gem.click(200, 39);               // File > New Folder...: the name field, caret on
+        for (let i = 0; i < 3; i++) gem.frame();
+        const field = gem.hash();
+        for (const code of [0xE019, 0xE01A, 0xE01B, 0xE01C, 0xE01D]) { gem.key(code); gem.demo.keyUp?.(code); }
+        for (let i = 0; i < 3; i++) gem.frame();
+        await gem.shot(`${out}/owner-keys-ignored.ppm`);
+        if (gem.hash() !== field) throw new Error("an owner-only key code changed GEM's name field");
+        gem.key(0x41);                                       // 'A'
+        for (let i = 0; i < 3; i++) gem.frame();
+        if (gem.hash() === field) throw new Error("the name field took no key at all (the test proves nothing)");
+    },
     // The ROM's handle tables must survive an app being launched over and over.
     // ST Replay opens a Gui, a Dialog and a FileSel from the ROM on EVERY init;
     // when it leaked them (Phase 2 step 2.1) the tables were exhausted after two
