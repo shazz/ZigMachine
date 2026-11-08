@@ -17,7 +17,8 @@
 //   node apps/gem_desk_check.mjs [shots_dir]      node apps/gem_desk_check.mjs --break
 //   --break  each mutant must be caught: pointer (the page's old plane mapping, y squeezed to
 //            0..199), inf (the boot disk's #E 02 read as 01), nosave (no Save Desktop), older
-//            (a machine without the mode that says yes: Desk is not greyed)
+//            (on a machine without the mode, the ROM told it exists: Desk is not greyed, and
+//            Desk + OK must still leave the shell in low res, setDeskPlane refusing)
 import { bootGem } from "./gem_headless.mjs";
 import { writePng } from "./scene_png.mjs";
 
@@ -199,7 +200,8 @@ function saveDesktop(gem, brk, check) {
 async function boot(brk, text, available, dir, fails) {
     const check = (ok, what) => ok || fails.push(what);
     const t = brk === "inf" ? new TextEncoder().encode(new TextDecoder().decode(text).replace("#E 02", "#E 01")) : text;
-    const gem = await bootGem({ diskReadBlock: serveDisk(infDisk(t)), deskAvailable: brk === "older" ? 1 : available });
+    const gem = await bootGem({ diskReadBlock: serveDisk(infDisk(t)), deskAvailable: available });
+    if (brk === "older" && !available) gem.rom.deskSetDeskAvailable(1); // the ROM lied to: Desk offered
     gem.mount(DISK);
     settle(gem, 12);
     if (available) {

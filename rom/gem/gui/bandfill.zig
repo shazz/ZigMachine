@@ -1,7 +1,8 @@
 // --------------------------------------------------------------------------
 // A blitter FILL anywhere on a screen taller than a plane. The machine clips a
 // destination narrower than the raster at the plane height, 200 rows
-// (machine/blitter_regs.zig dstHeight: it knows a buffer only by its stride),
+// (machine/blitter_regs.zig dstHeight, CHISEL fpga/rtl/blitter/zm_blit_clip.v: it knows a
+// buffer only by its stride),
 // and the desk mode (HW 1.17.0) is 640x480: a fill at y 300 drew nothing, so the
 // desktop's colour stopped at row 200. Below a 200-row screen it is one blit, as
 // before; on a taller one each 200-row band the rectangle crosses is one blit
