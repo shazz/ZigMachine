@@ -27,6 +27,7 @@ from blitter_random import make_script
 from blitter_speed import H, W, speed_script
 from blitter_tex import make_tex_script
 from blitter_tri import make_tri_script
+from blitter_trispeed import trispeed_script
 
 BUILD = FPGA / "build" / "tests" / "blitter"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
@@ -40,6 +41,7 @@ SCRIPTS = {
     "tex1": lambda: make_tex_script(3, 320),
     "queue1": lambda: make_queue_script(3, 40),
     "tri1": lambda: make_tri_script(5, 3000),
+    "trispeed": lambda: trispeed_script()[0],
 }
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [
@@ -254,6 +256,18 @@ def test_in_plane_copies_run_unordered_where_no_read_can_alias(oracle: dict[str,
         per_px = (clk - OP_CLOCKS) / (W * (1 if "one row" in name else H))
         print(f"{name}: {per_px:.2f} clocks a pixel")
         assert (per_px < 1.6) if fast else (per_px > 2.5), f"{name}: {per_px:.2f} clocks a pixel"
+
+
+def test_a_triangle_row_costs_a_few_clocks_not_a_divide(oracle: dict[str, Path], tb: Path) -> None:
+    """The edge walk: a few clocks a row plus its pixels and one setup (four 17-clock divides);
+    v1 divided three times a row (~111 clocks), which this bound refuses (small: 960 > 426)."""
+    r = _run([str(tb), "trispeed.txt", str(oracle["trispeed"]), "fast", "11", "trispeed.out"])
+    assert r.returncode == 0, r.stdout
+    clocks = [int(line.split()[6]) for line in (BUILD / "trispeed.out").read_text().splitlines()]
+    pixels = [int(row[2]) for row in _trace(oracle["trispeed"])]
+    for (name, rows), clk, px in zip(trispeed_script()[1], clocks, pixels, strict=True):
+        print(f"{name}: {px} px, {clk} clocks")
+        assert clk <= 1.1 * px + 6 * rows + 300, f"{name}: {clk} clocks for {px} px over {rows} rows"
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
