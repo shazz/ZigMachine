@@ -130,6 +130,7 @@ const scene = switch (opts.index) {
     117 => @import("scenes/mp3_player.zig"), // MP3 PLAYER: a jukebox for C:\MUSIC's .MP3 files (KOS GEMDOS), decoded by the sound side (pvmp3)
     118 => @import("scenes/sid_test.zig"), // SID TEST: one text plane, keys 1-3 play HerMiniSID by name, as bytes, and as a refused RSID; 5 stops (libs/zig/players/sid.zig)
     119 => @import("scenes/c64_1988.zig"), // 1988 (Tristar & Red Sector Inc., C64 2021): only sprites, the VIC-II's sprite unit replaying the original's IRQ chains
+    120 => @import("scenes/erfurt_menu.zig"), // THE ERFURT MEGADEMO menu (Atari Scene Collective, ST/STE 2026): the drum, real rainbows (121 once c64_transmission64 lands)
     else => @compileError("bad cart index"),
 };
 
