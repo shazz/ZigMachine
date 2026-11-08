@@ -108,7 +108,7 @@ const SPECS = {
     },
     sidwizard: {
         cart: "docs/demo-sidwizard.wasm", disk: "docs/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "edit", "quit"],
-        pinAt: 300, pin: "f7174fd2133c57dcac2b361dbe63d08f6d51fb6e0f76810826726bac73831ac0", bindsOwnerKeys: true, bard: true,
+        pinAt: 300, pin: "e1da1e2fbdb43a235e7cfa28a9ca73bcabc5b320d5902591a88c84beb4ffa3fe", bindsOwnerKeys: true, bard: true,
         // FLASHBAK.SWM opens off the floppy at start (the cart's key simulator, as upstream's command line: ~frame
         // 250); Tab (an owner-only code: C64 CONTROL) steps the cursor to track 2; Down, Space (editing mode), W
         // types a D on its row 1; F1 plays

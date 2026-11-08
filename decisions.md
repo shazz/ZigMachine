@@ -1717,3 +1717,33 @@ takes more than 3 % of the time); a faster 6502 core (the right long-term lever,
 a C64's), so key handling and redraws lag there; the music does not. The cart's oscilloscope and main-volume keys
 no longer act on the sound (the samples are BARD's). A write is heard a lead (6,144 samples, ~139 ms) after the C64
 made it, as BARD SID's.
+
+## 2026-11-08 — SID-Wizard's C64 in real time on ZIGGY: libcRSID's 6502 with its registers in locals
+
+**Status:** accepted
+**Context:** With the SID on BARD (the ADR above), the board played Flash It Back ~25 % slow and the editor ran at
+7 fps. The C64 cost ~1.8x real time on ZIGGY with its main program running (frame_cost; the board ~1.15x the model):
+libcRSID's 6502 kept its registers in the `cRSID_C64.CPU` struct and was a call per instruction, ~215 rv32
+instructions per 6502 instruction, with ~19 KB of code a frame against the 16 KB I$ (1.4 Mc of misses). The pace
+guard held the main program after 85 % of each frame, so a frame was ~7x the picture's time, ~140 ms, past the
+100 ms cap: the C64 got ~70 % of real time.
+**Decision:** `kestrel_sw_cpu.c` fuses libcRSID's `cRSID_emulateC64` loop (RealSID mode, as kestrel-patched) and
+`cRSID_emulateCPU` into one function with the 6502's registers in locals for a whole C64 sample, memory read
+straight from the PLA's bank table unless the page is I/O, written straight to RAM outside `$D000-$DFFF`, and
+upstream's own `rd`/`wr`/`wr2` for the rest. It is a transcription, not a new core: the same bit-group decoding,
+types, cycle counts and quirks, so the machine is the same byte for byte, which `apps/sidwizard_cpu_check.mjs`
+proves on random C64s (every opcode, and whole samples of random code, the 275 KB machine compared). Two more cuts
+with the same machine: the editor's idle loop (it polls flags only its IRQ sets) waits in libcRSID's idle state,
+the wait stepping to the next CIA/VIC event; and reads of CIA1's ports and the VIC's raster registers skip the
+CIAs/VIC hand-over, since they cannot change before the next event. Est. 3.84 -> 1.72 Mc playing (I$ misses gone),
+the C64 ~55-60 % of ZIGGY. The pace guard stays, at 60 %, and the cap's losses are counted and shown
+(`kestrel_sw_rt.c`, a line in the bottom border), never silent.
+**Alternatives considered:** a new table-driven 6502 (faster dispatch, but a different machine to validate, and a
+256-case core is larger than the I$ budget); hot/cold code placement by section attributes (the wasm -> rv32 path
+keeps one code section, and the I$ model counts executed bytes, not their order: only a smaller working set
+helps); a generic raster-wait/idle-loop detector (SID-Wizard's one loop, checked byte for byte, is enough and
+cannot misfire on other code); raising the cap (a frame that cannot keep up only grows).
+**Consequences:** the 6502 exists twice (upstream's still runs the init calls and, with `SW_CPU_UPSTREAM`, the
+whole cart), so an upstream fix to CPU.c must be carried to `kestrel_sw_cpu_step.h`; the CPU check catches any
+divergence. The idle-loop wait moves IRQ entries by a few cycles: the song's 9,126 SID writes are the same, 580 of
+their stamps one 44.1 kHz sample apart. The bottom border carries a status line (`C64 100% HELD 0% OWED 0.0S`).

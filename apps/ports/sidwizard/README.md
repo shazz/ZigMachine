@@ -64,19 +64,56 @@ byte for byte.
 
 ## Cost (`apps/frame_cost.mjs`, est. on ZIGGY at 100 MHz)
 
-| build | idle editor | playing Flash It Back |
-|---|---|---|
-| upstream as it is (always-inline, -O2, every part clocked every 6502 instruction) | — | 11.6 Mc/frame |
-| envelopes once a sample, `-Os`, inlining not forced, CIAs + VIC at their events (port/sidwizard) | 5.2 | 5.9 |
-| the SID on BARD (feat/sidwizard-bard): no SID render, no envelopes here | 3.7 | 3.7 |
-| and the picture stores only what changed (VRAM 9 KB -> 1.9 KB a frame, same pixels frame for frame) | 3.9 | 3.9 |
+| build | idle editor | playing Flash It Back | file browser |
+|---|---|---|---|
+| upstream as it is (always-inline, -O2, every part clocked every 6502 instruction) | — | 11.6 Mc/frame | — |
+| envelopes once a sample, `-Os`, inlining not forced, CIAs + VIC at their events (port/sidwizard) | 5.2 | 5.9 | — |
+| the SID on BARD (feat/sidwizard-bard): no SID render, no envelopes here | 3.7 | 3.7 | — |
+| and the picture stores only what changed (VRAM 9 KB -> 1.9 KB a frame, same pixels frame for frame) | 3.89 | 3.84 | 4.24 |
+| and the 6502 in registers, the idle loop waited out, the clock-free I/O reads (below) | **1.69** | **1.72** | **1.70** |
+
+(FRESCO is 0.7 Mc of each; the cart's own part went 3.1 -> 1.0 Mc playing: the 6502 2.8 -> 0.6 with the I$, whose
+working set fell from ~19 KB to ~16 KB a frame, so its 1.4 Mc of misses are gone. The file browser's IRQ waits for a
+raster line reading `$D012` ~1,750 times a frame, each read a 400-cycle hand-over before.)
 
 (The last row is the same within the estimate's noise: the stores are cheap since posted stores; it is FRESCO's
 dirty-line planner that gains, 20 of 280 lines changing a frame. The board's "296 %" was the whole frame, cart +
-FRESCO, against a 60th: `budget.zig percent`, not FRESCO alone.) What is left is the 6502: `cRSID_emulateCPU`
-~0.8 Mc, ~5,100 instructions a 60th (the editor's main loop never idles), the instruction loop 0.3, the CIAs/VIC
-hand-overs 0.3, and the I$ (1.4 Mc: ~19 KB of code a frame for a 16 KB cache): ~2.3x real time, which is why the
-main program yields to the IRQs on the board (above). A smaller, faster 6502 core is the lever left (ROADMAP).
+FRESCO, against a 60th: `budget.zig percent`, not FRESCO alone.)
+
+### The C64 in real time on ZIGGY
+
+The 3e1c3729 card on the board: the song ~25 % slow, the editor 7 fps. The C64 then cost ~1.8x real time with its
+main program running (the model; the board measured ~1.15x the model), so `kestrel_sw_pace.c` held the main
+program after 85 % of each frame: frames of ~140 ms, past the 100 ms cap, so the C64 got ~70 % of real time.
+
+- **The 6502 in registers** (`kestrel_sw_cpu.c`, `kestrel_sw_cpu_step.h`): libcRSID's `cRSID_emulateC64` loop and
+  `cRSID_emulateCPU` fused, instruction for instruction and quirk for quirk (the same bit-group decoding, types,
+  timings, illegal opcodes), but the registers are locals for a whole C64 sample and memory goes straight to the
+  bank the PLA maps unless the page is I/O (then upstream's own `rd`/`wr`/`wr2`). Upstream's took ~215 rv32
+  instructions a 6502 instruction with its loop (every register a load or store through the `cRSID_C64.CPU`
+  struct, a call per instruction); this ~135, and 9.8 KB of code for the two.
+  `apps/sidwizard_cpu_check.mjs` runs both on random C64s: every opcode on 48 machines, one instruction, and 4,000
+  samples of random code; the whole 275 KB machine must be the same after each (`--break`: a wrong ADC carry).
+  `SW_CPU_UPSTREAM` builds the cart on libcRSID's 6502: the pictures of 1,200 frames (browse, load, play) are the
+  same.
+- **The idle loop waited out** (`kestrel_sw_idle.c`): the editor's main loop ($082D) polls two flags its IRQ sets
+  and a quit flag; when the 6502 is in it with all three clear it waits in libcRSID's idle state for the next
+  interrupt (the loop's code is checked byte for byte first), and the wait steps to the next CIA/VIC event at once.
+  A quarter of the main program's time was that loop (the `SW_PROFILE_PC` build's PC profile).
+- **Clock-free I/O reads** (`kestrel_sw_clock.c sw_io_clockless`): CIA1's ports and the VIC's `$D011/$D012/$D019`
+  are read without the CIAs/VIC hand-over, since what they hold cannot change before the next event. The same
+  pictures and the same SID writes as with the hand-over (`SW_IO_TOUCH_ALL`).
+- Against 3e1c3729 the song makes the same 9,126 SID writes with the same values; 580 stamps are a sample (44.1 kHz)
+  apart: an IRQ entered from the wait instead of from the idle loop's own instructions starts a few cycles apart.
+
+Now the whole C64, its editor included, is ~0.9 Mc a 60th of a second: ~55 % of ZIGGY by the model (~60 % with the
+board's 1.15x), so it keeps real time without holding anything, and a frame is the picture's ~9 ms plus that.
+`kestrel_sw_pace.c` stays as the guard, now at 60 % (so a frame stays under ~2.5x the picture's time whatever the
+editor does), and `kestrel_sw_rt.c` counts what the cap takes:
+
+- **The real-time line** in the bottom border, once a second: `C64 100% HELD 0% OWED 0.0S`: the C64 time run over
+  the wall time passed (100 % = the song's tempo), the share of it the editor waited, and the C64 time lost to the
+  100 ms cap since the start. Red when under 100 %, and then also in the log.
 
 `kestrel_sw_clock.c` is where the clocking changed (CIAs and VIC handed their cycles at the next raster line, CIA
 timer underflow or I/O access, exactly when upstream would have seen the event; envelopes in exact steps once a
@@ -93,15 +130,15 @@ SampleClockRatio`); SID live plays it on BARD (on the page: the worklet; nativel
 
 - **The clock:** the C64 runs on the frame's real time (`kestrel_frame_us`, capped at 100 ms), no longer on the
   audio, so the player's IRQs, and the song's tempo, follow real time at any frame rate.
-- **When ZIGGY can't run all of it** (`kestrel_sw_pace.c`): each frame the emulation may take 85 % of the time it
-  covers; past that (never in the frame's first tenth) only IRQ handlers run and the main program waits until the
+- **When ZIGGY can't run all of it** (`kestrel_sw_pace.c`): each frame the emulation may take 60 % of the time it
+  covers (85 % until the board showed 7 fps: a frame was then ~7x the picture's time); past that (never in the frame's first tenth) only IRQ handlers run and the main program waits until the
   next frame. The IRQs (~40 % of the C64's time: player, raster splits) keep their time; the editor slows.
   Without a host clock (the harnesses) nothing waits.
 - Lost with it: the header's oscilloscope (the samples are BARD's) and the main-volume keys.
 - `SW_SID_ON_BARD 0` builds the old way (the light engine here, the audio as the clock) to measure against.
 
 Proofs: `apps/sidwizard_bard_check.mjs` (page = native host, 14.8 s from the first heard sample; tempo: 20 ms and 60
-ms frames make the same writes with the same stamps and the same samples; hold: with the main program held 2/3 of
+ms frames make the same writes with the same stamps and the same samples; hold: with the main program held ~3/4 of
 every frame the song's ticks are the same writes at the same distances; `--break stamp|reg` caught), and
 `apps/ports_headless.mjs sidwizard` hears the song on the page's SID live. `--dump <file>` writes the song's
 commands for `make snd-bench SND_BARDQ=1 BARDQ_LOG=<file>` (BARD's load: not measured yet; the engine is BARD

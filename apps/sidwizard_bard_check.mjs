@@ -11,9 +11,9 @@
 //   tempo    the page at 50 fps (20 ms frames) and at 16.7 fps (60 ms, the board's ~20): the C64 runs on the
 //            frame's time, so it makes the same SID writes with the same stamps, and the outputs are the same samples
 //   hold     the board's case where ZIGGY cannot run all of the C64 (kestrel_sw_pace.c): a host clock that says
-//            each frame's allowance is spent ~40 % of the way in, so the main program waits for the rest of
+//            each frame's allowance is spent ~25 % of the way in, so the main program waits for the rest of
 //            it and only the IRQs run: F1 is seen later, but from the song's 150th tick on, each tick is the
-//            same writes at the same distances (within 2 samples: the IRQ is entered from idle steps), so the
+//            same writes at the same distances (within 2 samples: the IRQ is entered from the wait), so the
 //            player keeps its time
 //   node apps/sidwizard_bard_check.mjs [--break stamp|reg] [--dump <commands.bin>]  (--dump: the song for snd-bench SND_BARDQ)
 //     stamp: the loader delays every SID write two samples; reg: it writes the next register: both fail `equal`
@@ -140,8 +140,8 @@ if (!broke) {
     if (wf.length < 2000 || d >= 0) errors.push(`tempo: ${wf.length} writes at 50 fps, ${ws.length} at 16.7 fps; write ${d} differs: ${wf[d]} vs ${ws[d]}`);
     else notes.push(`tempo: the same ${wf.length} SID writes, same stamps, at 50 and 16.7 fps`);
     same("tempo", fast.left, slow.left, errors, notes, 44100 * 5);
-    // 3 ms a look at the clock: the frame's 14.1 ms allowance (85 % of 16.6) is spent after ~5 of its ~12 looks,
-    // so the main program waits for the last ~2/3 of every frame. F1 is then seen later: the song is compared
+    // 3 ms a look at the clock: the frame's 10 ms allowance (60 % of 16.6) is spent after ~4 of its ~12 looks,
+    // so the main program waits for the last ~3/4 of every frame. F1 is then seen later: the song is compared
     // from its 150th tick.
     let t = 0;
     const held = await pageRun({ clock: () => (t += 3000) });
@@ -149,14 +149,14 @@ if (!broke) {
     const k = b.findIndex((x) => x.key === a[at].key); // the held run's tick that is the plain run's tick 150
     const n = Math.min(a.length - at, b.length - k) - 1;
     let bad = k < 0 || n < 200 ? 0 : -1;
-    // Within 2 samples: a held main program enters the IRQ from libcRSID's idle steps (7 cycles), not from its
-    // own instructions (2..7), so an IRQ may start a cycle or few apart: a stamp a sample apart.
+    // Within 2 samples: a held main program enters the IRQ from the wait (which steps to the IRQ's own cycle), not
+    // from its own instructions (2..7), so an IRQ may start a cycle or few apart: a stamp a sample apart.
     const near = (x, y) => Math.abs(x - y) <= 2;
     for (let i = 1; bad < 0 && i < n; i++)
         if (a[at + i].key !== b[k + i].key || !near(a[at + i].t - a[at].t, b[k + i].t - b[k].t)
             || a[at + i].dt.some((d, j) => !near(d, b[k + i].dt[j]))) bad = i;
     if (bad >= 0) errors.push(`hold: tick ${at} of the song ${k < 0 ? "never comes" : `departs ${bad} ticks later`} (${a.length} and ${b.length} ticks)`);
-    else notes.push(`hold: the main program waited 2/3 of every frame: from the song's tick ${at} on, ${n} ticks are the same writes at the same` +
+    else notes.push(`hold: the main program waited ~3/4 of every frame: from the song's tick ${at} on, ${n} ticks are the same writes at the same` +
         ` distances (tick ${at} came ${b[k].t - a[at].t} samples later: the slower main program loaded the song and saw F1 later)`);
 }
 for (const n of notes) console.log(`  ${n}`);

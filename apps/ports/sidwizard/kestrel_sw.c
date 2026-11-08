@@ -62,6 +62,13 @@ static void sw_reset_editor(void);
 #include "kestrel_sw_keys.c"
 #include "kestrel_sw_keysim.c"
 #include "kestrel_sw_pace.c"
+#include "kestrel_sw_idle.c"
+#include "kestrel_sw_cpu.c"
+#include "kestrel_sw_rt.c"
+#include "kestrel_sw_prof.c"
+#ifdef SW_CPU_TEST
+#include "kestrel_sw_cpu_test.c"
+#endif
 
 #define SW_RATE 22050
 #define SW_TICK 110                            /* samples in upstream's 5 ms main-loop pass (KEYSCAN_PERIOD) */
@@ -91,6 +98,13 @@ static void sw_tick(void)
  * Nothing is rendered: the SID's writes went on the BARD queue as they happened (kestrel_sw_bard.c).
  * kestrel_sw_pace.c decides how much of it the main program gets when ZIGGY cannot run it all. */
 static uint64_t sw_owed;
+static void sw_c64_sample(void)                 /* kestrel_sw_cpu.c's 6502, or upstream's (SW_CPU_UPSTREAM: the before) */
+{
+#ifndef SW_CPU_UPSTREAM
+    if (MOSTLY(cRSID_C64.RealSIDmode && !cRSID_C64.HighQualitySID)) { sw_emulate_c64(); return; }
+#endif
+    cRSID_emulateC64();
+}
 static void sw_run_c64(uint32_t us)
 {
     sw_owed += (uint64_t)us * SW_RATE;
@@ -98,12 +112,11 @@ static void sw_run_c64(uint32_t us)
     sw_owed %= 1000000u;
     sw_pace_begin(n);
     for (uint32_t i = 0; i < n; i++) {
-        if (!cRSID.Paused) { sw_pace_step(i); cRSID_emulateC64(); }
-#ifdef SW_PROFILE_IRQ
-        { static unsigned irq, all; all++; if (cRSID_C64.CPU.ST & 4) irq++;
-          if (all == 22050 * 15) { char b[64]; snprintf(b, sizeof b, "irq share %u of %u samples", irq, all); kestrel_log(b); } }
+        if (!cRSID.Paused) { sw_idle_step(); sw_pace_step(i); sw_c64_sample(); sw_rt_held += (uint32_t)sw_pace_holding; }
+#if defined SW_PROFILE_IRQ || defined SW_PROFILE_PC
+        sw_profile_sample();
 #endif
-        sw_samples++;
+        sw_samples++; sw_rt_samples++;
         if (++sw_tick_count >= SW_TICK) { sw_tick_count = 0; sw_tick(); }
     }
     sw_bq_frame(sw_cycle + sw_io_cycles);
@@ -146,6 +159,10 @@ static void sw_start_c64(void)
 __attribute__((export_name("boot"))) void boot(void)
 {
     sw_start_c64();
+#ifdef SW_CPU_TEST
+    sw_cpu_test();
+    sw_start_c64();
+#endif
     sw_video_init();
     sw_keysim_open(SW_BOOT_SONG);
     kestrel_log("sidwizard: booted");
@@ -157,12 +174,15 @@ __attribute__((export_name("boot"))) void boot(void)
 __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
 #if SW_SID_ON_BARD
-    sw_run_c64(kestrel_frame_us(elapsed_ms, 100));
+    sw_run_c64(sw_rt_frame_us(kestrel_frame_us(elapsed_ms, 3600000u)));  /* capped and counted: kestrel_sw_rt.c */
 #else
     uint32_t us = kestrel_frame_us(elapsed_ms, 20);
     kestrel_audio_pump(us, SW_RATE, 100, sw_mix, 0);
 #endif
     sw_video_frame();
+#if SW_SID_ON_BARD
+    sw_rt_draw();
+#endif
 }
 
 __attribute__((export_name("isPlaneEnabled"))) int isPlaneEnabled(int p) { return p == 0; }

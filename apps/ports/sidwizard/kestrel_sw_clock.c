@@ -53,6 +53,24 @@ static void sw_io_touch(void)
     sw_io_due = 0;
 }
 
+/* A read that needs no hand-over (MEM.c), when no SID write waits to be stamped (the hand-over is what stamps it):
+ *   CIA1's ports, $DC00-$DC03 (the keyboard), which the CIA's clock never changes;
+ *   the VIC's raster line and IRQ flags, $D011, $D012, $D019, which change only when a line ends: an event, and
+ *   the pending cycles never reach one (sw_io_due), so a hand-over now would not change what is read.
+ * The CIAs and the VIC then catch up at their next event as if the read had not happened: the same machine,
+ * without the ~400-cycle hand-over for each read of a loop that polls them (the file browser's IRQ waits for a
+ * raster line reading $D012 ~1,750 times a frame). */
+static int sw_io_clockless(unsigned short address)
+{
+#ifdef SW_IO_TOUCH_ALL                         /* the before of a before/after */
+    return 0;
+#endif
+#if SW_SID_ON_BARD
+    if (sw_sid_reg >= 0) return 0;
+#endif
+    return (address & 0xFFFC) == 0xDC00 || address == 0xD012 || address == 0xD011 || address == 0xD019;
+}
+
 /* An I/O register is about to be written (MEM.c): the same, and a SID register is noted for BARD. */
 static void sw_io_write(unsigned short address)
 {
@@ -62,6 +80,17 @@ static void sw_io_write(unsigned short address)
 #else
     (void)address;
 #endif
+}
+
+/* The 6502 waiting (libcRSID's idle state: between IRQs, or held by kestrel_sw_idle.c / kestrel_sw_pace.c):
+ * upstream counted it 7 cycles at a time; it now goes straight to the CIAs'/VIC's next event (where the IRQ that
+ * ends the wait is raised), never past the end of the C64 sample. */
+static unsigned char sw_idle_cycles(void)
+{
+    unsigned n = sw_io_due > sw_io_cycles ? sw_io_due - sw_io_cycles : 1;
+    unsigned left = ((unsigned)(cRSID_C64.SampleClockRatio - cRSID_C64.SampleCycleCnt) >> CRSID_CLOCK_FRACTIONAL_BITS) + 1;
+    if (n > left) n = left;
+    return (unsigned char)(n > 255 ? 255 : n);
 }
 
 static unsigned sw_adsr_cycles;

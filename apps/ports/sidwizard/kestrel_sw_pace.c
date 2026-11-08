@@ -16,7 +16,7 @@
  * Where the host has no clock (hostMicros() == 0: every harness), nothing is held: the C64 runs as upstream, and
  * the output is the same on every host. */
 
-#define PACE_SHARE_NUM 85                      /* the emulation's share of the frame's real time: 85 % (the rest */
+#define PACE_SHARE_NUM 60                      /* the emulation's share of the frame's real time: 60 % (the rest */
 #define PACE_SHARE_DEN 100                     /* is the picture, FRESCO's passes and the frame's glue) */
 #define PACE_FREE_NUM 1                        /* the main program always runs the frame's first tenth: never */
 #define PACE_FREE_DEN 10                       /* starved, whatever the IRQs cost */
@@ -45,8 +45,12 @@ static void sw_pace_begin(uint32_t samples)
 /* Before C64 sample i of the frame. */
 static void sw_pace_step(uint32_t i)
 {
+#ifdef SW_PACE_FORCE                           /* measuring (frame_cost has no clock): hold from the free tenth on */
+    if (!sw_pace_hold && i >= sw_pace_free) {
+#else
     if (!sw_pace_t0) return;                   /* no host clock: as upstream */
     if (!sw_pace_hold && i >= sw_pace_free && i % PACE_CHECK == 0 && hostMicros() - sw_pace_t0 > sw_pace_allow) {
+#endif
         sw_pace_hold = 1;
         sw_pace_held_frames++;
     }
