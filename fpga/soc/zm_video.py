@@ -39,6 +39,7 @@ class ZMVideoTiming(LiteXModule):
             "zm_vtiming",
             i_clk=ClockSignal(cd),
             i_rst=ResetSignal(cd),
+            i_desk=0,  # this standalone timing generator shows no desk (rtl/video/zm_video_out.v does)
             o_hsync=self.hsync,
             o_vsync=self.vsync,
             o_de=self.de,

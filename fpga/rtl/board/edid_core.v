@@ -25,7 +25,8 @@ module edid_core #(
     wire [10:0] out_x;
     wire [9:0]  out_y;
     zm_vtiming u_t (.clk(clk), .rst(rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .out_x(out_x), .out_y(out_y),
-                    .zm_active(), .zm_x(), .zm_line(), .zm_hbl(), .zm_hbl_line(), .zm_vbl());
+                    .zm_active(), .zm_x(), .zm_line(), .zm_hbl(), .zm_hbl_line(), .zm_vbl(), .desk(1'b0), .desk_q(),
+                    .desk_g());
 
     wire [7:0] rd_addr, rd_data, sum_data;
     wire [4:0] sum_addr;

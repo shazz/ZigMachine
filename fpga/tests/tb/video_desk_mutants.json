@@ -1,0 +1,86 @@
+[
+  {
+    "id": "desk_bytes_reversed",
+    "why": "the beat's bytes read right to left: byte 0 is the leftmost pixel",
+    "file": "zm_video_scan.v",
+    "old": "assign pal_raddr = dp_rdata[{byte1, 3'b000} +: 8];",
+    "new": "assign pal_raddr = dp_rdata[{~byte1, 3'b000} +: 8];"
+  },
+  {
+    "id": "desk_lines_doubled",
+    "why": "a desk line shown twice, as a raster line is",
+    "file": "zm_vtiming.v",
+    "old": "if (n_in_raster) zm_line <= desk_g ? n_raster_y[8:0] : n_raster_y[9:1];",
+    "new": "if (n_in_raster) zm_line <= n_raster_y[9:1];"
+  },
+  {
+    "id": "desk_x_not_offset",
+    "why": "the desk picture not moved 80 pixels right",
+    "file": "zm_vtiming.v",
+    "old": "zm_x <= desk_g ? nx[9:0] - D_LEFT[9:0] : nx[9:0];",
+    "new": "zm_x <= nx[9:0];"
+  },
+  {
+    "id": "desk_mirror_from_plane1",
+    "why": "the mirror takes palette 1's stores, not palette 0's",
+    "file": "zm_video_desk.v",
+    "old": "pal_idx[9:8] == 2'd0;",
+    "new": "pal_idx[9:8] == 2'd1;"
+  },
+  {
+    "id": "desk_mirror_whole_words",
+    "why": "a byte store to a palette word writes all of the mirror's word",
+    "file": "zm_video_desk.v",
+    "old": ".we({3{pal0_we}} & cpu_be[2:0])",
+    "new": ".we({3{pal0_we}})"
+  },
+  {
+    "id": "desk_no_vbl_latch",
+    "why": "the mode taken mid-frame, not at the VBL",
+    "file": "zm_vtiming.v",
+    "old": "if (n_vbl) desk_q <= desk;",
+    "new": "desk_q <= desk;"
+  },
+  {
+    "id": "desk_geometry_at_vbl",
+    "why": "the geometry switched at the VBL: lines 540..579 of a desk frame become normal lines",
+    "file": "zm_vtiming.v",
+    "old": "if (frame_start) desk_g <= desk_q;",
+    "new": "desk_g <= desk_q;"
+  },
+  {
+    "id": "desk_400_beats",
+    "why": "a desk line fetched with the picture's 400-beat length",
+    "file": "zm_video_scanfetch.v",
+    "old": "assign rd_req_len = dk ? ZM_DESK_WIDTH / 8 : 10'd400;",
+    "new": "assign rd_req_len = 10'd400;"
+  },
+  {
+    "id": "desk_picture_stride",
+    "why": "desk lines 3200 bytes apart",
+    "file": "zm_video_scanfetch.v",
+    "old": "wire [31:0] stride = dk ? ZM_DESK_WIDTH : 32'd3200;",
+    "new": "wire [31:0] stride = 32'd3200;"
+  },
+  {
+    "id": "desk_base_unaligned",
+    "why": "FB_BASE's low three bits kept: a misaligned beat",
+    "file": "zm_video_desk.v",
+    "old": "vbase + {fb0[31:3], 3'b000}",
+    "new": "vbase + fb0"
+  },
+  {
+    "id": "desk_normal_rgb_early",
+    "why": "the normal path's RGB not delayed to the desk path's depth: a clock ahead of its syncs",
+    "file": "zm_video_scan.v",
+    "old": "{b, g, r} <= dshow2 ? pal_rdata : rgb2;",
+    "new": "{b, g, r} <= dshow2 ? pal_rdata : show1 && !desk1 ? (odd1 ? dp_rdata[55:32] : dp_rdata[23:0]) : 24'd0;"
+  },
+  {
+    "id": "desk_fetch_on_the_picture",
+    "why": "the fetch never takes the desk mode: it reads the picture at the desk's length",
+    "file": "zm_video_scanfetch.v",
+    "old": "wire [31:0] start = desk ? desk_base : base;",
+    "new": "wire [31:0] start = base;"
+  }
+]

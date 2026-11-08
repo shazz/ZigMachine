@@ -189,6 +189,7 @@ env hostMp3Ctl host void(u32,u32)
 env hostMp3Feed host void(u32,u32)
 env hostMp3Status host u32(u32)
 env hostBardAttach host u32(u32,u32)
+env hwDeskAvailable machine u32()
 history 1.0 fa4a662ec3dc87d5
 history 1.1 64a7d6a3302c9dbe
 history 1.2 a9e177eac3ffafb8

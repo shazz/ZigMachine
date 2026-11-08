@@ -137,6 +137,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
             f.front.eq(x.front),
             f.underrun.eq(x.underrun),
             f.overflow.eq(x.overflow),
+            f.desk.eq(1),  # a capability, not a state: the firmware tells the cart (cycles/bdesk.c)
             self.comp_busy.status.eq(x.comp_busy),
         ]
 

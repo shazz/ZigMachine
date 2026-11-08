@@ -190,7 +190,8 @@ of latency (`tests/tb/video_mem.h`); `--timing` gives it a fixed latency instead
 | `zm_video_sdpram.v` | Simple dual-port RAM with byte enables. Infers BRAM or LUTRAM. |
 | `zm_video_mix.v` | The plane mixer: one sweep a pass, into the accumulator line (the picture's row). |
 | `zm_video_scanfetch.v` | The scanout's fetch: the shown picture, a line ahead of the beam, into the display buffers. |
-| `zm_video_dcram.v` | A RAM with a clock per port: the display buffers' clock crossing. |
+| `zm_video_dcram.v` | A RAM with a clock per port: the display buffers' clock crossing (and the desk mirror's, with byte lanes). |
+| `zm_video_desk.v` | The desk mode (HW 1.17.0): RES_DESK and FB_BASE[0] from the snoop, the mode's crossing, the mirror of palette 0. |
 | `zm_video_out.v` | Compositor + double buffer + scanout fetch + `zm_vtiming` + scanout, two clock domains. |
 | `zm_video_scan.v`, `zm_video_sync.v` | The scanout; a toggle pulse synchroniser. |
 | `zm_tmds_enc.v`, `zm_tmds_shift.v`, `zm_dvi_out.v` | One TMDS channel; the 10:1 shifter (fabric, 5x clock); DVI out (3 encoders, shifter + ODDR, OBUFDS). Board only. |

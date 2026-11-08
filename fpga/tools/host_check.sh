@@ -32,6 +32,7 @@ else
     for t in tutorial_steps c-tutorial_steps rust-tutorial_steps; do
         for n in 1 4 7; do echo "$t|300|10|1:setShadeMode:$n" >>"$jobs_file"; done
     done
+    echo "desk_test|300|10|100:setShadeMode:1" >>"$jobs_file" # the desk mode left at frame 100 (HW 1.17.0)
 fi
 
 # Build every distinct cart's host first (make -j; -k so one failure does not stop the rest).
