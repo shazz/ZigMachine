@@ -190,6 +190,11 @@ pub const PTR_WIDTH: u32 = 800;
 pub const PTR_HEIGHT: u32 = 280;
 pub const PTR_BORDER_X: u32 = 80; // the visible window's origin in the raster
 pub const PTR_BORDER_Y: u32 = 40;
+// The desk mode (HW 1.17.0, map_cart.zig VMODE_*): the picture is 640x480 at 1:1, so the word
+// holds it at the same offset, (PTR_BORDER_X, PTR_BORDER_Y)..+(640, 480), y in whole rows, and
+// the firmware's subtraction gives the desk's 0..639 x 0..479 (glass_input.c, unchanged).
+pub const PTR_DESK_WIDTH: u32 = 640;
+pub const PTR_DESK_HEIGHT: u32 = 480;
 
 // --- REG_CART_STATE, as the cart CPU's firmware reports it --------------------
 pub const CART_RESET: u32 = 0; // also what a CPU held in reset leaves there

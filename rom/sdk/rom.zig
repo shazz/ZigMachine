@@ -111,7 +111,7 @@ pub extern fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32;
 // --- the desktop (step 2.3) ---
 // A singleton: there is one desktop and one screen. `deskRender` returns the
 // Action flat — see DeskAction.
-pub const DeskAction = enum(u32) { none = 0, launch = 1, res_low = 2, res_medium = 3 };
+pub const DeskAction = enum(u32) { none = 0, launch = 1, res_low = 2, res_medium = 3, res_desk = 4 };
 
 pub extern fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void;
 pub extern fn deskSetScreen(w: i32, h: i32) void;
@@ -137,6 +137,13 @@ pub extern fn deskDriveSetFileCount(unit: u32, n: u32) void;
 pub extern fn deskDriveReset(unit: u32) void;
 pub extern fn deskDriveFolder(unit: u32, parent: i32, name: u32, len: u32, cluster: u32) i32;
 pub extern fn deskSetDriveC(present: u32) void;
+// The desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8): the capability, the host's pointer mapped
+// in the ROM, DESKTOP.INF read back at boot (its #E code, 0xFF for none) and the last one saved.
+pub extern fn deskSetDeskAvailable(available: u32) void;
+pub extern fn deskHostPointer(x: i32, y: i32, buttons: u32) void;
+pub extern fn deskLoadInf(ptr: u32, len: u32) u32;
+pub extern fn deskInfPtr() u32;
+pub extern fn deskInfLen() u32;
 
 /// The desktop, as a shell cart drives it.
 pub const Desktop = struct {
@@ -160,6 +167,18 @@ pub const Desktop = struct {
     }
     pub fn requestOpenAt(x: i32, y: i32) void {
         deskRequestOpenAt(x, y);
+    }
+    /// The host's pointer as it arrives (demo.pointer): the ROM maps it to the screen's mode.
+    pub fn hostPointer(x: i32, y: i32, buttons: u32) void {
+        deskHostPointer(x, y, buttons);
+    }
+    pub fn setDeskAvailable(available: bool) void {
+        deskSetDeskAvailable(@intFromBool(available));
+    }
+    /// DESKTOP.INF read off the boot disk: its #E resolution code (0 low, 1 medium, 2 desk), or null.
+    pub fn loadInf(text: []const u8) ?u8 {
+        const r = deskLoadInf(@intCast(@intFromPtr(text.ptr)), @intCast(text.len));
+        return if (r > 2) null else @intCast(r);
     }
     pub fn key(cp: u32) void {
         deskKey(cp);

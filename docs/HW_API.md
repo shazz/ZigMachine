@@ -221,7 +221,16 @@ sides, 60-line bars, black). Nothing is composited.
   only sees stores) and sets `RES_DESK`; it errors and changes nothing otherwise (`DeskUnavailable`,
   `VramFull`, `NotPlaneZero`). `leaveDesk()` goes back to a low-res plane on the same buffer.
   Since 1.17.0 the VRAM pool also has a guard: a plane that does not fit traps instead of drawing
-  over the PFB. `apps/zig/scenes/desk_test.zig` (cart 121) is the worked example.
+  over the PFB. `apps/zig/scenes/desk_test.zig` (cart 126) is the worked example.
+- **The blitter knows a destination only by its stride:** it clips a destination narrower than the
+  raster (stride < 800) at 200 rows, the plane height, so a FILL (or any op) on the desk's plane
+  stops at row 199. Draw below it by pointing `D_BASE` at a lower band (each 200-row band one op,
+  clipped to the buffer's 480 rows yourself: the last band would run to row 599); ZigGEM does that
+  in `rom/gem/gui/bandfill.zig`. The CPU (`setPixelValue`, text) reaches all 480 rows.
+- **The pointer** in the desk is the desk's own: `demo.pointer(x, y, ...)` gets 0..639 x 0..479
+  (the page maps its canvas there; on the board glass follows the firmware's VMODE word, FPGA_GLASS
+  "The mouse"). ZigGEM's desk mode (Options > Set Preferences > Desk, DESKTOP.INF `#E 02`) is the
+  reference program: `docs/GEM_DESK_MODE.md` §8.
 - The design, the RTL and its LUT bill: `docs/GEM_DESK_MODE.md`, `decisions.md` 2026-11-08 "GEM desk mode".
 
 ### Opening the borders (overscan) — the ST timing trick

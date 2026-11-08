@@ -2,21 +2,40 @@
 #include "bdesk.h"
 
 #include "bmailbox.h" /* mb_presenting */
+#include "glass_cart.h" /* VMODE_*: the mode word glass reads for the pointer */
+#include "glass_map.h"  /* CART_CPU_BASE, DDR_CART_BYTES */
 #include "host_desk.h"
 #include "vboard.h" /* zmv_status, ZMV_BIT */
 #include "vseq.h"
 #include "zm_memmap.h"
 
+#define VMODE_ADDR (CART_CPU_BASE + DDR_CART_BYTES - VMODE_FROM_TOP)
+_Static_assert(KOS_FILE_FROM_TOP <= VMODE_FROM_TOP - 4, "the mode word is over the C: file block");
+_Static_assert(VMODE_FROM_TOP <= KOS_CGEN_FROM_TOP - 4, "the mode word is over the C: generation word");
+
+static uint32_t g_vmode; /* the word last stored: one store a change, not one a frame */
+
 static volatile uint8_t* region(struct w2c_env* e) { return e->memory.data + ZM_HW_VIDEO_BASE; }
 
 static int desk(struct w2c_env* e) { return region(e)[ZM_REG_RESOLUTION] == ZM_RES_DESK; }
 
+/* Tell glass the cart's mode (map_cart.zig VMODE_*): the pointer is 640x480 at 1:1 in the desk. */
+static void publish(int on) {
+    uint32_t w = VMODE_TAG | (on ? VMODE_DESK : 0u);
+    if (w == g_vmode) return;
+    g_vmode = w;
+    *(volatile uint32_t*)(uintptr_t)VMODE_ADDR = w;
+}
+
 void bdesk_boot(struct w2c_env* e) {
     w2c_machine_hwSetDeskAvailable(&e->machine, (zmv_status() & ZMV_BIT(DESK)) != 0);
+    g_vmode = 0; /* a load zeroed the word: the first frame stores it */
 }
 
 int bdesk_clear(struct w2c_env* e) {
-    if (!desk(e)) return 0;
+    int on = desk(e);
+    publish(on);
+    if (!on) return 0;
     volatile uint32_t* frame = (volatile uint32_t*)(region(e) + ZM_REG_FRAME);
     *frame = *frame + 1; /* video.zig's clear() in desk mode; the snoop carries it to the compositor */
     return 1;

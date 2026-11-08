@@ -73,7 +73,7 @@ pub const MenuBar = struct {
     pub fn process(self: *MenuBar, g: *Gui, menus: []const Menu, bar_w: i16, locked: bool) ?MenuPick {
         if (locked) self.open = -1; // a modal dialog owns input — bar is inert
         g.rect(.{ .x = 0, .y = 0, .w = bar_w, .h = MENU_H }, WHITE);
-        g.blit.fill(g.fb, 0, MENU_H, @intCast(bar_w), 1, BLACK);
+        g.fill(0, MENU_H, @intCast(bar_w), 1, BLACK);
 
         var x: i16 = TITLE_X0;
         var pick: ?MenuPick = null;

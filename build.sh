@@ -229,7 +229,9 @@ NATIVE_TESTS="
     rom/kos/gemdos_wtest.zig
     rom/kos/kfs_path.zig
     rom/gem/desktop/deskinf.zig
+    rom/gem/desktop/deskinf_read.zig
     rom/gem/gui/grid.zig
+    rom/gem/gui/screen.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
@@ -333,6 +335,8 @@ gate sdk node apps/sdk_check.mjs --break still    # ...and an update() that move
 gate sdk node apps/sdk_check.mjs --break raster   # ...and a cart without its copper (one flat background) is caught
 gate sdk node apps/sdk_check.mjs --break song     # ...and a song no file under docs/music/ is caught
 gate gem node apps/gem_headless.mjs "$SHOTS"
+gate gem node apps/gem_desk_check.mjs "$SHOTS"   # GEM in the desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8): Set Preferences' Desk button puts plane 0 in the desk; the 640x480 picture is the page model of plane 0, the desktop's colour reaches row 479 (the blitter's 200-row clip banded, gui/bandfill.zig), the trash on the bottom row; a window dragged to y 330 lands there (the pointer 1:1); Save Desktop writes #E 02; Low leaves the desk and clamps the window into 320x200; a boot whose disk holds that DESKTOP.INF comes back in the desk, the window where it was; without the mode (hwDeskAvailable 0) it boots low, the window clamped, Desk greyed
+gate gem node apps/gem_desk_check.mjs --break   # ...and the page's old y mapping, the INF's 02 read as 01, no Save Desktop and a machine that says yes without the mode are each caught
 gate gem node apps/kos_desk_check.mjs   # KOS's desktop on the board (4 Nov): repainting only what changed is pixel-exact (a session hashed every frame = the every-frame repaint's pin) and a C: window costs < 1.7 Mc (the old repaint: 2.5, caught); A:\ with C: mounted lists the floppy, not the card; a folder opens INSIDE its drive's window as on TOS 1.00 (its close box and File > Close go up a level, Close Window leaves an empty desktop: main 0e47697e's window-per-folder ROM fails that)
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent
@@ -452,7 +456,7 @@ gate chisel_v2 node apps/chisel_v2_play_check.mjs   # CHISEL V2 at play: P shows
 gate chisel_v2 node apps/chisel_v2_play_check.mjs --break photo   # ...and P never sent fails all nine photo checks
 gate tc_test node apps/tc_test_check.mjs   # TC TEST (cart 113, HW 1.15.0): plane 0 alone in FB_MODE 6; the gamut shows all 65,536 colours, the plasma and hue views > 4,096, compare's bands 565 > 256-palette > 16 ST colours, ramps 32/64/32/64 steps, dither > plain; the plasma moves every frame while the pixel memory hashes the same (only the copper list moves it), the still views do not move; key 8 FADE (HW 1.16.0): a whole 256-frame cycle equals a model of the fade registers over an unchanged pixel memory, reaching full black, full white, a flash and the plain hues; eight distinct views; N/P pictures only in a ZM_TC_ART build, and the git-tracked cart carries none
 gate tc_test node apps/tc_test_check.mjs --break   # ...and mode 5, colours quantised to 3 bits, a pixel written a frame, a frozen list and a tracked cart with local pictures, the fade registers zeroed, a pixel rewritten during the fade and a model without the fade are each caught
-gate desk_test node apps/desk_check.mjs   # DESK TEST (cart 121, HW 1.17.0): the desk mode's 640x480 picture (hwRenderDesk) is the cart's model pixel for pixel; plane 0's buffer 64-aligned inside the VRAM pool; still; key 2 leaves for low res on the same buffer, key 1 brings the same desk back; hwClear only counts FRAME, hwRenderPlane draws nothing; a machine without the mode keeps the cart out; scene_hash's desk sample is "desk" + the picture
+gate desk_test node apps/desk_check.mjs   # DESK TEST (cart 126, HW 1.17.0): the desk mode's 640x480 picture (hwRenderDesk) is the cart's model pixel for pixel; plane 0's buffer 64-aligned inside the VRAM pool; still; key 2 leaves for low res on the same buffer, key 1 brings the same desk back; hwClear only counts FRAME, hwRenderPlane draws nothing; a machine without the mode keeps the cart out; scene_hash's desk sample is "desk" + the picture
 gate desk_test node apps/desk_check.mjs --break   # ...and a palette entry, the checker, the halves swapped, FRAME counted twice, an older machine saying yes and the hash without its tag are each caught
 gate ziggy node apps/ziggy_check.mjs   # ZIGGY (cart 115): ZM-X on and off draw the SAME picture (ROTO at 64/128/256 and VOXEL, frame 40), the picture area is the mode's own, frames move, the texture size changes the pixels, VOXEL has sky on top and ground at the bottom, the HUD is drawn and follows the mode, Escape leaves; P swaps ROTO's texture for the parrot photo at 64/128/256 (ZM-X on = off, photo indices and palette, HUD says PHOTO)
 gate ziggy node apps/ziggy_check.mjs --break   # ...and ZM-X off compared a frame later is caught

@@ -9,6 +9,7 @@ const dirmodel = @import("dirmodel.zig");
 const deskwin = @import("deskwin.zig");
 const desknav = @import("desknav.zig");
 const deskinf = @import("deskinf.zig");
+const deskmode = @import("deskmode.zig");
 const desk_icons = @import("desk_icons.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
@@ -91,12 +92,13 @@ pub fn saveDesktop(d: *Desktop) void {
     const drive = &d.items[desk_icons.IC_FLOPPY];
     const trash = &d.items[desk_icons.IC_TRASH];
     const text = deskinf.write(&d.inf_buf, .{
-        .medium = d.g.screen_w == 640,
+        .res = deskmode.resOf(d.g.screen),
         .bg = .{ d.bg_r, d.bg_g, d.bg_b },
         .drive = .{ .col = drive.cellCol(), .row = drive.cellRow(), .label = "FLOPPY DISK" }, // not the source
         .trash = .{ .col = trash.cellCol(), .row = trash.cellRow(), .label = trash.label },
         .wins = open_wins[0..n],
     });
+    d.mode.inf_len = @intCast(text.len); // deskInfPtr / deskInfLen: the shell's (and a harness's) copy
     if (!d.drives[0].put(deskinf.NAME, @intCast(text.len))) // on the boot disk, A:
         d.dlg.alert("Cannot save the desktop.", "The disk directory is full.");
 }

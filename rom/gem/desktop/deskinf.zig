@@ -3,7 +3,7 @@
 // the desktop's state as a short text file of tagged lines, and this is that
 // file: one line per thing worth remembering, in TOS's own line prefixes.
 //
-//   #E <res> <rrggbb>          desktop: resolution (00 low / 01 medium) + colour
+//   #E <res> <rrggbb>          desktop: resolution (00 low / 01 medium / 02 desk) + colour
 //   #W <sx> <sy> <x> <y> <w> <h> <v> <path>@   an open window (cells), v=0 icons
 //   #M <col> <row> <drive> <label>@            the drive icon's grid cell
 //   #T <col> <row> <label>@                    the trash icon's grid cell
@@ -11,14 +11,18 @@
 // TOS packs more into its own #E/#W fields than we have state for; rather than
 // emit bytes we would be inventing, each line carries only what the desktop
 // actually knows. Pure text assembly — no GUI, so `zig test` covers the format.
+// deskinf_read.zig reads it back (the shell, at boot).
 // --------------------------------------------------------------------------
 const std = @import("std");
 
 pub const CellIcon = struct { col: i16, row: i16, label: []const u8 };
 pub const Win = struct { x: i16, y: i16, w: i16, h: i16, text_view: bool, path: []const u8 };
 
+/// #E's resolution code. 02 is the desk mode (640x480, HW 1.17.0, docs/GEM_DESK_MODE.md).
+pub const Res = enum(u8) { low = 0, medium = 1, desk = 2 };
+
 pub const Config = struct {
-    medium: bool,
+    res: Res,
     bg: [3]u8,
     drive: CellIcon,
     trash: CellIcon,
@@ -32,7 +36,7 @@ pub const MAX_BYTES = 512;
 // whole desktop truncates at a line boundary rather than emitting a half line.
 pub fn write(buf: []u8, c: Config) []const u8 {
     var w = Writer{ .buf = buf };
-    w.line("#E {s} {x:0>2}{x:0>2}{x:0>2}", .{ if (c.medium) "01" else "00", c.bg[0], c.bg[1], c.bg[2] });
+    w.line("#E {d:0>2} {x:0>2}{x:0>2}{x:0>2}", .{ @intFromEnum(c.res), c.bg[0], c.bg[1], c.bg[2] });
     for (c.wins) |win|
         w.line("#W 00 00 {d:0>2} {d:0>2} {d:0>2} {d:0>2} {s} {s}@", .{
             cells(win.x), cells(win.y), cells(win.w), cells(win.h),
@@ -77,7 +81,7 @@ const Writer = struct {
 
 // --- native format tests --------------------------------------------------
 const test_cfg = Config{
-    .medium = false,
+    .res = .low,
     .bg = .{ 1, 160, 164 },
     .drive = .{ .col = 0, .row = 0, .label = "FLOPPY" },
     .trash = .{ .col = 0, .row = 3, .label = "TRASH" },
@@ -97,12 +101,19 @@ test "an empty desktop writes the config and both icons" {
 
 test "each open window is a #W line in cells" {
     var cfg = test_cfg;
-    cfg.medium = true;
+    cfg.res = .medium;
     cfg.wins = &.{.{ .x = 16, .y = 24, .w = 240, .h = 96, .text_view = true, .path = "A:\\" }};
     var buf: [MAX_BYTES]u8 = undefined;
     const out = write(&buf, cfg);
     try std.testing.expect(std.mem.startsWith(u8, out, "#E 01 "));
     try std.testing.expect(std.mem.indexOf(u8, out, "#W 00 00 02 03 30 12 01 A:\\@\r\n") != null);
+}
+
+test "the desk mode writes #E 02" {
+    var cfg = test_cfg;
+    cfg.res = .desk;
+    var buf: [MAX_BYTES]u8 = undefined;
+    try std.testing.expect(std.mem.startsWith(u8, write(&buf, cfg), "#E 02 01a0a4\r\n"));
 }
 
 test "a full buffer truncates at a line boundary" {

@@ -210,12 +210,16 @@ var raw_fbs: [MAX_GUI]zg.LogicalFB = undefined;
 // only correct answers, and they change under you: setResLow/setResMedium rewrite
 // the stride register on the same buffer. So anything holding a bound context has
 // to re-bind when the resolution changes (see deskSetScreen).
+//
+// The desk mode (HW 1.17.0) IGNORES FB_STRIDE: plane 0 is 640 a row whatever the register holds
+// (ZigOS's setDeskPlane leaves it as the last mode wrote it, 320 after low res), so the stride
+// comes from RESOLUTION there, or a desk entered from low res draws at pitch 320.
 fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
     if (plane >= hw.NB_PLANES) return false;
     const base: usize = @intCast(hw.hwVideoBase());
     const regs: [*]u8 = @ptrFromInt(base);
     const fb_off = std.mem.readInt(u32, regs[hw.REG_FB_BASE + plane * 4 ..][0..4], .little);
-    const stride = std.mem.readInt(u16, regs[hw.REG_FB_STRIDE + plane * 2 ..][0..2], .little);
+    const stride = if (deskPlane(plane)) hw.DESK_WIDTH else std.mem.readInt(u16, regs[hw.REG_FB_STRIDE + plane * 2 ..][0..2], .little);
     raw_os.initTextOnly();
     fb.* = .{
         .fb = @ptrFromInt(base + fb_off),
@@ -227,6 +231,17 @@ fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
         .zigos = &raw_os,
     };
     return true;
+}
+
+fn resolution() u8 {
+    return @as(*const u8, @ptrFromInt(@as(usize, @intCast(hw.hwVideoBase())) + hw.REG_RESOLUTION)).*;
+}
+fn deskPlane(plane: u32) bool {
+    return plane == 0 and resolution() == hw.RES_DESK;
+}
+// The Screen a context bound over `plane` lays out on: the caller's size, the machine's mode.
+fn screenOf(fb: *const zg.LogicalFB, w: i32, h: i32) gui.Screen {
+    return .{ .w = i16Of(w), .h = i16Of(h), .stride = @intCast(fb.stride), .mode = gui.modeOfResolution(resolution()) };
 }
 
 /// Open a drawing context over PLANE `plane`. THE way to get a context: naming a
@@ -242,8 +257,7 @@ export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
             .os = &raw_os,
             .fb = &raw_fbs[i],
             .blit = &blits[i],
-            .screen_w = i16Of(screen_w),
-            .screen_h = i16Of(screen_h),
+            .screen = screenOf(&raw_fbs[i], screen_w, screen_h),
         };
         used.* = true;
         return @intCast(i + 1);
@@ -314,8 +328,7 @@ export fn guiClose(h: u32) void {
 }
 export fn guiResize(h: u32, screen_w: i32, screen_h: i32) void {
     const g = guiAt(h) orelse return;
-    g.screen_w = i16Of(screen_w);
-    g.screen_h = i16Of(screen_h);
+    g.screen = screenOf(g.fb, screen_w, screen_h);
 }
 export fn guiSetPointer(h: u32, x: i32, y: i32, buttons: u32) void {
     (guiAt(h) orelse return).setPointer(x, y, buttons);
@@ -348,13 +361,13 @@ export fn guiText(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u
     g.text(slice(ptr, len), i16Of(x), i16Of(y), u8Of(ink), u8Of(paper));
 }
 /// A raw filled span. This exists because app code used to reach THROUGH the
-/// context — `g.blit.fill(g.fb, ...)` — for spans the toolkit had no verb for
+/// context — `g.fill(...)` — for spans the toolkit had no verb for
 /// (ST Replay's waveform). Across a module boundary that is impossible, so the
 /// verb is here instead. It is `guiRect` without the Rect, kept separate so the
 /// intent (a raw span, not a widget) stays legible at the call site.
 export fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
     const g = guiAt(h) orelse return;
-    g.blit.fill(g.fb, i16Of(x), i16Of(y), u16Of(w), u16Of(hh), u8Of(color));
+    g.fill(i16Of(x), i16Of(y), u16Of(w), u16Of(hh), u8Of(color));
 }
 export fn dialogOpen() u32 {
     for (&dialog_used, 0..) |*used, i| {
@@ -456,20 +469,18 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     desk_blit = .{};
     desk_blit.init();
     desk.init(&raw_os, &desk_fb, &desk_blit);
-    desk.g.screen_w = i16Of(screen_w);
-    desk.g.screen_h = i16Of(screen_h);
+    desk.g.screen = screenOf(&desk_fb, screen_w, screen_h);
     desk_ready = true;
 }
-/// The desktop's screen changed size (the Options menu switches LOW/MEDIUM).
+/// The desktop's screen changed (the Options menu switches LOW/MEDIUM/DESK).
 export fn deskSetScreen(w: i32, h: i32) void {
     if (!desk_ready) return;
     // RE-BIND: switching LOW/MEDIUM rewrites the plane's stride register on the
-    // same buffer, and our LogicalFB copy would keep the old one — drawing at the
-    // wrong pitch, which looks like a shear rather than like a bug.
+    // same buffer, and the desk mode moves the plane to its own buffer, so our
+    // LogicalFB copy would keep the old base and pitch — drawing a shear rather
+    // than anything that looks like a bug.
     _ = bindFb(&desk_fb, desk_plane, h);
-    desk.g.screen_w = i16Of(w);
-    desk.g.screen_h = i16Of(h);
-    desk.clampIcons(); // keep icons on-screen at the new width
+    desk.setScreen(screenOf(&desk_fb, w, h)); // icons, windows, a DESKTOP.INF read at boot: onto it
 }
 export fn deskBeginFrame() void {
     if (desk_ready) desk.beginFrame();
@@ -485,6 +496,7 @@ export fn deskRender() u32 {
         .launch => 1,
         .res_low => 2,
         .res_medium => 3,
+        .res_desk => 4, // the desk mode (HW 1.17.0): the shell asks setDeskPlane
     };
 }
 export fn deskSetPointer(x: i32, y: i32, buttons: u32) void {
@@ -587,6 +599,39 @@ export fn deskDriveFolder(unit: u32, parent: i32, name: u32, len: u32, cluster: 
 /// C: mounted (1: its icon shows) or not (0).
 export fn deskSetDriveC(present: u32) void {
     if (desk_ready) gem.setDriveC(&desk, present);
+}
+
+// The desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8), appended (sys_abi minor): the ROM cannot
+// ask the machine (it imports only hwVideoBase and hwBlit), so the shell says whether the mode
+// exists; until it does, Set Preferences greys Desk.
+export fn deskSetDeskAvailable(available: u32) void {
+    if (!desk_ready) return;
+    desk.mode.desk_ok = available != 0;
+    gem.touch(&desk);
+}
+/// The HOST's pointer (physical-visible: 0..639 x 0..199 in a plane mode, 0..639 x 0..479 in the
+/// desk; bit 1 the native double-click pulse), mapped to the desktop's screen in ONE place
+/// (gui.Screen.fromHost: low res halves x). deskSetPointer / deskRequestOpenAt take logical ones.
+export fn deskHostPointer(x: i32, y: i32, buttons: u32) void {
+    if (!desk_ready) return;
+    const p = desk.g.screen.fromHost(x, y);
+    if (buttons & 2 != 0) desk.requestOpenAt(p[0], p[1]) else desk.setPointer(p[0], p[1], buttons);
+}
+/// DESKTOP.INF's text (`len` bytes at `ptr`, the shell read it off the boot disk): the colour
+/// now, the icons and windows at the next deskSetScreen, clamped to that screen. Returns its #E
+/// resolution code (0 low, 1 medium, 2 desk), or 0xFF when the file has none.
+export fn deskLoadInf(ptr: u32, len: u32) u32 {
+    if (!desk_ready or ptr == 0) return 0xFF;
+    const text: [*]const u8 = @ptrFromInt(ptr);
+    const res = gem.loadInf(&desk, text[0..@min(len, gem.INF_MAX)]) orelse return 0xFF;
+    return @intFromEnum(res);
+}
+/// What Save Desktop last wrote as DESKTOP.INF: where, and how many bytes (0: not saved yet).
+export fn deskInfPtr() u32 {
+    return @intCast(@intFromPtr(&desk.inf_buf));
+}
+export fn deskInfLen() u32 {
+    return if (desk_ready) desk.mode.inf_len else 0;
 }
 
 inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {

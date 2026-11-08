@@ -7,6 +7,7 @@
 const zsrc = @import("zigos");
 const LogicalFB = zsrc.LogicalFB;
 const glyphs = @import("../gem_glyphs.zig"); // GEM window-control bitmaps
+const screen = @import("screen.zig"); // the Screen description + the font's metrics
 
 // GEM-ish palette (installed on the plane by installPalette).
 pub const BLACK: u8 = 0;
@@ -58,18 +59,19 @@ pub fn installPalette(fb: *LogicalFB) void {
     }
 }
 
-pub const Rect = struct { x: i16, y: i16, w: i16, h: i16 };
+pub const Rect = screen.Rect;
 
 pub fn inRect(r: Rect, px: i32, py: i32) bool {
     return px >= r.x and px < r.x + r.w and py >= r.y and py < r.y + r.h;
 }
 
 // --- GEM metrics (shared by menu.zig and window.zig) ---
-// The menu bar is gl_hbox = char height + 3 = 11 rows; 10 white rows (text on
-// row 1) closed by a black line on row MENU_H; the work area starts at MENU_H+1.
-pub const MENU_H: i16 = 10;
-pub const CELL: i16 = 8; // one character cell (gl_wchar) — the GEM layout unit
-pub const ITEM_H: i16 = 8;
+// The font's, as data (screen.zig Metrics): the menu bar is gl_hbox = char height
+// + 3 = 11 rows; 10 white rows (text on row 1) closed by a black line on row
+// MENU_H; the work area starts at MENU_H+1. v1's 8x8 font in every mode.
+pub const MENU_H: i16 = screen.METRICS.menu_h;
+pub const CELL: i16 = screen.METRICS.cell; // one character cell (gl_wchar) — the GEM layout unit
+pub const ITEM_H: i16 = screen.METRICS.item_h;
 
 // Title bar = the 12x11 gadget box height; info line shares its top line.
 pub const TITLE_H: i16 = glyphs.GH;

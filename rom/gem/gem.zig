@@ -20,6 +20,8 @@ pub const Desktop = desktop.Desktop;
 pub const setDrive = @import("desktop/desk_icons.zig").setDrive;
 pub const setDriveC = @import("desktop/desk_icons.zig").setDriveC; // KOS's C: (docs/KOS_FAT.md F5)
 pub const driveOfUnit = @import("desktop/deskdrive.zig").ofUnit;
+pub const loadInf = @import("desktop/deskmode.zig").loadInf; // DESKTOP.INF off the boot disk
+pub const INF_MAX = @import("desktop/deskinf.zig").MAX_BYTES;
 pub const touch = @import("desktop/deskdirty.zig").touch; // a host wrote the desktop's state: repaint
 pub const DirModel = @import("desktop/dirmodel.zig").DirModel;
 // The FAT record layout the host packs into Desktop.disk_dir. Published

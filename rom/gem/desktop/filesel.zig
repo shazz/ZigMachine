@@ -60,8 +60,8 @@ pub const FileSel = struct {
 
     pub fn process(self: *FileSel, g: *gui.Gui) Result {
         if (!self.active) return .none;
-        const dx = @divTrunc(g.screen_w - W, 2);
-        const dy = @divTrunc(@as(i16, 200) - H, 2);
+        const dx = g.screen.centreX(W);
+        const dy = g.screen.centreY(H);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
         box(g, .{ .x = dx, .y = dy, .w = W, .h = H });
 
@@ -99,7 +99,7 @@ pub const FileSel = struct {
         const tx = r.x + @divTrunc(r.w - tw, 2);
         g.rect(.{ .x = tx - 8, .y = bar.y, .w = tw + 16, .h = bar.h }, gui.WHITE);
         g.text(t, tx, r.y + 2, gui.BLACK, gui.WHITE);
-        g.blit.fill(g.fb, r.x, r.y + gui.TITLE_H - 1, @intCast(r.w), 1, gui.BLACK);
+        g.fill(r.x, r.y + gui.TITLE_H - 1, @intCast(r.w), 1, gui.BLACK);
         if (self.list.draw(g, r)) |idx| { // picking a row fills the Selection field
             self.list.sel = @intCast(idx);
             self.name.set(self.list.nameAt(idx));
@@ -124,5 +124,5 @@ fn rule(g: *gui.Gui, x: i16, y: i16, cells: usize, text: []const u8) void {
 fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16) void {
     var out: [12]u8 = undefined;
     g.text(f.cells(&out), x, y, gui.BLACK, gui.WHITE);
-    g.blit.fill(g.fb, x + f.caretCol() * 8, y - 1, 2, 9, gui.BLACK);
+    g.fill(x + f.caretCol() * 8, y - 1, 2, 9, gui.BLACK);
 }

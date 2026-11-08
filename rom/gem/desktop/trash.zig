@@ -25,8 +25,8 @@ pub const DeleteDlg = struct {
 
     pub fn process(self: *DeleteDlg, g: *gui.Gui) Result {
         if (!self.active) return .none;
-        const dx = @divTrunc(g.screen_w - W, 2);
-        const dy = @divTrunc(@as(i16, 200) - H, 2);
+        const dx = g.screen.centreX(W);
+        const dy = g.screen.centreY(H);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
 
         g.rect(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.WHITE);

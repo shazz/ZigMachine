@@ -31,7 +31,7 @@ pub fn runDialogs(d: *Desktop, g: *gui.Gui, action: *Action) void {
     // Only a modal dialog locks the bar. (Don't lock on overWindow: a drop-down
     // that overlaps a window must still accept item clicks — the drop-on-hover
     // guard already blocks menus opening mid window-drag.)
-    if (d.menubar.process(g, &menus, g.screen_w, d.isModal())) |p| menuPick(d, p, action);
+    if (d.menubar.process(g, &menus, g.screen.w, d.isModal())) |p| menuPick(d, p, action);
     _ = d.dlg.process(g);
     _ = d.about.process(g); // Desktop Info... (modal while active)
     switch (d.trash.process(g)) { // DELETE FILE(S) confirm
@@ -57,7 +57,11 @@ fn runPrefs(d: *Desktop, g: *gui.Gui, action: *Action) void {
             d.bg_r = d.prefs.cr;
             d.bg_g = d.prefs.cg;
             d.bg_b = d.prefs.cb;
-            action.* = if (d.prefs.medium) .res_medium else .res_low;
+            action.* = switch (d.prefs.res) {
+                .low => .res_low,
+                .medium => .res_medium,
+                .desk => .res_desk,
+            };
             d.prefs.active = false;
         },
         .cancel => {
@@ -124,7 +128,7 @@ fn menuPick(d: *Desktop, p: gui.MenuPick, action: *Action) void {
             else => {}, // separator
         },
         MENU_OPTIONS => switch (p.item) {
-            0 => d.prefs.open(d.bg_r, d.bg_g, d.bg_b, d.g.screen_w == 640),
+            0 => d.prefs.open(d.bg_r, d.bg_g, d.bg_b, d.g.screen.mode, d.mode.desk_ok),
             2 => deskops.saveDesktop(d), // Save Desktop -> A:\DESKTOP.INF
             else => {},
         },

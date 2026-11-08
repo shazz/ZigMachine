@@ -18,7 +18,9 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-click
 
-export async function bootGem() {
+// opts.diskReadBlock(memory): the drive (a boot disk with a DESKTOP.INF, gem_desk_check.mjs);
+// opts.deskAvailable: hwDeskAvailable's answer (0: a board bitstream without the desk mode).
+export async function bootGem(opts = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     // A HOLDER, not a plain `let`: the machine's hblDispatch import is wired once at
@@ -57,10 +59,12 @@ export async function bootGem() {
             hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
             hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
             hwRomRamFree: machine.hwRomRamFree,
+            hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0: the shell sizes plane 0 by it (desk mode)
             ...rom, // the ROM chip's flat ABI
             // GEM touches none of these headlessly, but the import list must match.
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
-            diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
+            diskReadBlock: opts.diskReadBlock ? opts.diskReadBlock(memory) : noop,
+            hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
             kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5): none here, so no C: icon
             kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE
@@ -76,6 +80,7 @@ export async function bootGem() {
     // gets caught before it reaches a browser).
     machine.hwSetCartHigh(cartRam(cart).high ?? 0);
 
+    machine.hwSetDeskAvailable(opts.deskAvailable ?? 1);
     machine.hwInit();
     demo.boot();
     demo.skipBoot();

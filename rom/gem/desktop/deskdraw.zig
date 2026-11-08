@@ -16,7 +16,7 @@ const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 
 pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
-    g.rect(.{ .x = 0, .y = 0, .w = g.screen_w, .h = 200 }, gui.DESK); // green work area
+    g.rect(.{ .x = 0, .y = 0, .w = g.screen.w, .h = g.screen.h }, gui.DESK); // green work area
     for (&d.items, 0..) |*it, i| {
         if (!desk_icons.shown(d, i)) continue; // KOS: no disk, no drive icon
         // A dragged file over the TRASH highlights it as a valid drop target.

@@ -126,3 +126,44 @@ test "REG_POINTER: a click shorter than a poll is still seen, then released" {
     g.pointerAck(seq + 1); // nothing more owed
     try std.testing.expectEqual(p, g.pointer());
 }
+
+// The desk mode (HW 1.17.0, map_cart.zig VMODE_*): the picture is 640x480 at 1:1, so the word
+// covers it at the border offset, y at full rate, and the firmware's border subtraction
+// (glass_input.c) hands the cart 0..639 x 0..479.
+test "the desk mode: y at full rate, the position held to the 640x480 picture" {
+    try std.testing.expectEqual(@as(u32, memmap.DESK_WIDTH), map.PTR_DESK_WIDTH);
+    try std.testing.expectEqual(@as(u32, memmap.DESK_HEIGHT), map.PTR_DESK_HEIGHT);
+    try std.testing.expect(map.PTR_BORDER_Y + map.PTR_DESK_HEIGHT - 1 <= map.PTR_COORD_MASK);
+    var mo = m.Mouse{};
+    mo.setDesk(true);
+    try std.testing.expectEqual(@as(u32, 400), x(one(&mo).?)); // a mode change sends the position
+    mo.update(m.EV_REL, m.REL_Y, 10, 0);
+    try std.testing.expectEqual(@as(u32, 150), y(one(&mo).?)); // 140 + 10: square pixels
+    mo.update(m.EV_REL, m.REL_X, -100_000, 0);
+    mo.update(m.EV_REL, m.REL_Y, 100_000, 0);
+    const w = one(&mo).?;
+    try std.testing.expectEqual(map.PTR_BORDER_X, x(w)); // the desk's x 0, not the black side bar
+    try std.testing.expectEqual(map.PTR_BORDER_Y + map.PTR_DESK_HEIGHT - 1, y(w)); // its row 479
+    mo.setDesk(false); // back to a plane mode: clamped into the raster
+    try std.testing.expectEqual(map.PTR_HEIGHT - 1, y(one(&mo).?));
+    mo.update(m.EV_REL, m.REL_Y, -10, 0);
+    try std.testing.expectEqual(map.PTR_HEIGHT - 1 - 5, y(one(&mo).?)); // half rate again
+    mo.setDesk(false);
+    try std.testing.expectEqual(@as(?u32, null), one(&mo)); // no change, nothing sent
+}
+
+test "the firmware's mode word: tagged desk only, anything else the plane modes" {
+    const mc = @import("map_cart.zig");
+    const bus = @import("bus.zig");
+    var words = [_]u32{0} ** 1024; // a 4 KiB window top
+    const ddr = bus.Ddr{ .words = &words };
+    const at = (words.len * 4 - mc.VMODE_FROM_TOP) / 4;
+    try std.testing.expect(!m.deskMode(ddr)); // zeroed by a load: an older firmware, no frame yet
+    words[at] = mc.VMODE_TAG | mc.VMODE_DESK;
+    try std.testing.expect(m.deskMode(ddr));
+    words[at] = mc.VMODE_TAG;
+    try std.testing.expect(!m.deskMode(ddr));
+    words[at] = mc.VMODE_DESK; // untagged: not a word the firmware wrote
+    try std.testing.expect(!m.deskMode(ddr));
+    try std.testing.expect(mc.VMODE_FROM_TOP > mc.KOS_FILE_FROM_TOP and mc.VMODE_FROM_TOP < mc.KOS_CGEN_FROM_TOP);
+}

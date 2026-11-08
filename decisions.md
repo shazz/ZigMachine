@@ -1724,7 +1724,7 @@ ZigOS `setDeskPlane` + the `vramAlloc` guard, the page / scene_hash / native hos
 test cart, ZigGEM's five abstractions, glass's mouse mapping, board bring-up.
 ## 2026-11-08 — CHISEL TRIANGLE: a Bresenham edge walk, no divider
 
-**Status:** accepted (bitstream and board A/B pending, the lead's; TRI TEST, cart 121, compares them)
+**Status:** accepted (bitstream and board A/B pending, the lead's; TRI TEST, cart 125, compares them)
 **Context:** The first payer for the GEM 640x480 desk mode (study/gem-640x480): CHISEL v2's cut (4),
 "an incremental edge walk instead of the per-scanline divide (~-100 LUT, faster too)". v1 divided
 each live edge on each row with a 32-clock sequential divider and a DSP.
@@ -1744,3 +1744,32 @@ clocks a hidden row: 3,000 rows up 26,540 -> 30,845 clocks, at -32,768 ~130,000 
 The carts that draw TRIANGLE (anima glenz/knot, blitter demo, fuji logo, obj, rno_natrium envmap,
 tsl_hybridglenz) project objects onto the plane, not far above it; a cart that throws huge
 polygons at CHISEL should clip them first.
+
+## 2026-11-08 — ZigGEM in the desk mode: one Screen, the pointer mapped in the ROM, fills banded
+
+**Status:** accepted
+**Context:** GEM_DESK_MODE §8 / DEVPAC_GAP §3b: ZigGEM had to run in the 640x480 desk mode
+(HW 1.17.0) beside low and medium, switched from Set Preferences without a reboot, and remember
+it in DESKTOP.INF. Its layout read 200 in nine places, the shell halved the pointer on a
+`desk_medium` boolean, the ROM bound a plane by its `FB_STRIDE` (which the desk ignores), and
+DESKTOP.INF was written but never read.
+**Decision:** a `Screen` in `Gui` (mode, size, stride, font; `rom/gem/gui/screen.zig`), set by the
+ROM from `RESOLUTION` when it binds; the font's metrics as data. The host's pointer is mapped in
+the ROM by one appended export, `deskHostPointer`, rather than by changing `deskSetPointer`'s
+meaning, so an older shell on a newer system keeps working. The ROM cannot ask the machine
+(`hwDeskAvailable` is not among its imports, and adding one touches every host), so the shell
+says it (`deskSetDeskAvailable`). DESKTOP.INF is read at boot by the shell off the .zmd and
+parsed in the ROM (`deskLoadInf`), its rectangles applied at the next `deskSetScreen` so they are
+clamped to the mode chosen. Fills below row 199 are banded in the ROM (`gui/bandfill.zig`): the
+blitter clips any stride-640 destination at 200 rows, on the board as in the machine. The board's
+mouse follows a VMODE word the firmware writes in the cart window (`map_cart.zig`), read by glass
+at each report: no PL register, no RTL. System table 1.13 (five appended exports).
+**Alternatives considered:** the machine's blitter clip taking 480 rows in the desk (an HW and
+RTL change; banding costs a few blits only below row 200); glass reading `RESOLUTION` through
+the cart's memory (glass does not know where the firmware places the wasm memory); the vstat
+block's flags (written only by the probe firmware); a separate medium and desk buffer (the
+ROM's re-bind would need the medium buffer's base back; one buffer by the capability is simpler).
+**Consequences:** low and medium are pixel-identical to the ROM before. In the desk a full repaint
+costs up to three blits a rectangle that spans the screen. The board draws no arrow in the desk
+yet (GEM_DESK_MODE §4). A shell built before 1.13 runs on the new system unchanged (no Desk
+button: the ROM greys it until told).

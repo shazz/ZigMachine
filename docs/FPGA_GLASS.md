@@ -165,7 +165,17 @@ The browser (`docs/sealed-loader.js`, "Pointer input") calls
 
 - **Coordinates** are the machine's physical-visible area, 0..639 by 0..199
   (`hwPhysWidth − 2·hwBorderX` by `hwPhysHeight − 2·hwBorderY`). A low-res cart
-  halves x itself (`gem_desktop.zig`); `union_textracker.zig` clamps.
+  halves x itself (GEM's ROM does it for its shell, `deskHostPointer`);
+  `union_textracker.zig` clamps.
+- **The desk mode** (HW 1.17.0, `RESOLUTION = RES_DESK`) is 640x480 at 1:1, and
+  the page sends 0..639 by 0..479 there. The firmware stores a VMODE word in the
+  window's top 4 KiB (`map_cart.zig` `VMODE_*`, written by `cycles/bdesk.c` on each
+  change: `VMODE_TAG`, plus `VMODE_DESK` in the desk); glass reads it at each
+  mouse report (`mouse.deskMode`). In the desk the position is held to the
+  picture, (`PTR_BORDER_X`, `PTR_BORDER_Y`) + 640x480 in the word, and y moves at
+  full rate (square pixels), so the firmware's unchanged border subtraction gives
+  the cart 0..639 by 0..479. A change of mode clamps the position into the new
+  box. An untagged word (an older firmware) is the plane modes.
 - **Buttons:** any mouse button is bit 0. A double-click is a one-off pulse of
   bit 1, sent after the second release's state and before the release itself
   (`gem_desktop.zig` opens the item under the pointer on it). There is no wheel.

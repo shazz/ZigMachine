@@ -72,8 +72,8 @@ pub const Dialog = struct {
     pub fn process(self: *Dialog, g: *Gui) DlgResult {
         if (!self.active) return .none;
         // A dialog never hangs off the screen, however long its text is.
-        const bw = @min(self.want_w, g.screen_w - 8);
-        const b = Rect{ .x = @divTrunc(g.screen_w - bw, 2), .y = @divTrunc(g.screen_h - self.want_h, 2), .w = bw, .h = self.want_h };
+        const bw = @min(self.want_w, g.screen.w - 8);
+        const b = Rect{ .x = @divTrunc(g.screen.w - bw, 2), .y = @divTrunc(g.screen.h - self.want_h, 2), .w = bw, .h = self.want_h };
         box(g, b);
         if (self.filesel) g.text(self.title, b.x + 8, b.y + 8, BLACK, WHITE);
         const res = if (self.filesel) self.fileList(g, b) else self.alertBody(g, b);

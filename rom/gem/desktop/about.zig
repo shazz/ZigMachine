@@ -31,8 +31,8 @@ pub const About = struct {
     // logo with the copyright block beside it — everything centred but the logo.
     pub fn process(self: *About, g: *gui.Gui) Result {
         if (!self.active) return .none;
-        const dx = @divTrunc(g.screen_w - W, 2);
-        const dy = @divTrunc(@as(i16, 200) - H, 2);
+        const dx = g.screen.centreX(W);
+        const dy = g.screen.centreY(H);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
 
         g.rect(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.WHITE); // flat (no shadow)

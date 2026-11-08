@@ -290,7 +290,7 @@ pub const Wm = struct {
         } else {
             w.saved = w.r;
             // GEM "full" = the desktop work area (everything below the menu bar).
-            w.r = .{ .x = 0, .y = MENU_H + 1, .w = g.screen_w, .h = 200 - MENU_H - 1 };
+            w.r = g.screen.workArea();
             w.full = true;
         }
         self.zoomed = .{ .from = from, .to = w.r }; // owner animates the box

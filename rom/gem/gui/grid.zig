@@ -9,7 +9,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const CELL: i16 = 8; // pixels per character cell (gl_wchar / row pitch)
+pub const CELL: i16 = @import("screen.zig").METRICS.cell; // pixels per character cell (gl_wchar / row pitch)
 
 // A dialog-local coordinate frame: cells measured from the dialog's top-left.
 pub const Grid = struct {

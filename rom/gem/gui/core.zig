@@ -10,6 +10,8 @@ const Blitter = zsrc.Blitter;
 const glyphs = @import("../gem_glyphs.zig");
 const types = @import("types.zig");
 const Rect = types.Rect;
+const Screen = @import("screen.zig").Screen;
+const bandfill = @import("bandfill.zig");
 const inRect = types.inRect;
 const BLACK = types.BLACK;
 const WHITE = types.WHITE;
@@ -19,8 +21,7 @@ pub const Gui = struct {
     os: *ZigOS,
     fb: *LogicalFB,
     blit: *Blitter,
-    screen_w: i16 = 320, // set to 640 for a medium-res app (centres dialogs etc.)
-    screen_h: i16 = 200,
+    screen: Screen = .{}, // the mode, size and font every layout reads (screen.zig)
     px: i32 = -1,
     py: i32 = -1,
     down: bool = false,
@@ -40,14 +41,18 @@ pub const Gui = struct {
     }
 
     // --- primitives ---
+    /// A blitter fill on this screen, whatever its height (bandfill.zig: the desk is 480 rows).
+    pub fn fill(self: *Gui, x: i16, y: i16, w: u16, h: u16, color: u8) void {
+        bandfill.fill(self.blit, self.fb, x, y, w, h, color);
+    }
     pub fn rect(self: *Gui, r: Rect, color: u8) void {
-        self.blit.fill(self.fb, r.x, r.y, @intCast(r.w), @intCast(r.h), color);
+        self.fill(r.x, r.y, @intCast(r.w), @intCast(r.h), color);
     }
     pub fn frame(self: *Gui, r: Rect, color: u8) void {
-        self.blit.fill(self.fb, r.x, r.y, @intCast(r.w), 1, color);
-        self.blit.fill(self.fb, r.x, r.y + r.h - 1, @intCast(r.w), 1, color);
-        self.blit.fill(self.fb, r.x, r.y, 1, @intCast(r.h), color);
-        self.blit.fill(self.fb, r.x + r.w - 1, r.y, 1, @intCast(r.h), color);
+        self.fill(r.x, r.y, @intCast(r.w), 1, color);
+        self.fill(r.x, r.y + r.h - 1, @intCast(r.w), 1, color);
+        self.fill(r.x, r.y, 1, @intCast(r.h), color);
+        self.fill(r.x + r.w - 1, r.y, 1, @intCast(r.h), color);
     }
     // A raised (or sunken) 3D bevel box (TOS 4 / MagiC look — NOT used by the
     // TOS 1.x-style chrome, kept for apps that want it).
@@ -55,10 +60,10 @@ pub const Gui = struct {
         const hi: u8 = if (raised) WHITE else DGRAY;
         const lo: u8 = if (raised) DGRAY else WHITE;
         self.rect(r, face);
-        self.blit.fill(self.fb, r.x, r.y, @intCast(r.w), 1, hi);
-        self.blit.fill(self.fb, r.x, r.y, 1, @intCast(r.h), hi);
-        self.blit.fill(self.fb, r.x, r.y + r.h - 1, @intCast(r.w), 1, lo);
-        self.blit.fill(self.fb, r.x + r.w - 1, r.y, 1, @intCast(r.h), lo);
+        self.fill(r.x, r.y, @intCast(r.w), 1, hi);
+        self.fill(r.x, r.y, 1, @intCast(r.h), hi);
+        self.fill(r.x, r.y + r.h - 1, @intCast(r.w), 1, lo);
+        self.fill(r.x + r.w - 1, r.y, 1, @intCast(r.h), lo);
     }
     pub fn text(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
         self.os.printText(self.fb, s, x, y, ink, paper);

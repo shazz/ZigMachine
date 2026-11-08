@@ -18,14 +18,20 @@
 // Select in apps/zig/floppy.zig.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const rom = @import("rom_sdk");
 
 const PLANE: u32 = 0; // GEM owns plane 0
 
+/// The desktop's screen (Options > Set Preferences), numbered as DESKTOP.INF's #E codes.
+/// desk is the 640x480 desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md), where the machine has it.
+const Mode = enum(u8) { low = 0, medium = 1, desk = 2 };
+
 pub const Demo = struct {
-    desk_medium: bool = false, // desktop resolution (Options menu); GEM defaults to LOW
+    mode: Mode = .low, // GEM defaults to LOW
+    desk_ok: bool = false, // plane 0 has the desk buffer: the machine shows the desk mode
     fb: *LogicalFB = undefined,
     // The program the desktop asked us to run, held until the host polls for it.
     // 16 bytes because that is a FAT entry's name field (docs/FLOPPY_DISK.md).
@@ -35,21 +41,50 @@ pub const Demo = struct {
     fat_media: u32 = 0, // KOS's media-change count when it was read: a swap re-reads drive A
 
     pub fn init(self: *Demo, os: *ZigOS) void {
-        self.desk_medium = false;
         self.fat_loaded = false;
         self.fat_media = @import("gem_fat.zig").mediaChanges();
         self.run_len = 0;
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
-        self.fb.setMediumPlane(); // allocate the 640-wide buffer once (serves LOW and MEDIUM)
+        self.allocPlane();
         rom.installPalette(PLANE); // one palette for desktop AND apps
         os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // border white
-        // The ROM binds the desktop to a PLANE and reads its registers; applyDeskRes
+        // The ROM binds the desktop to a PLANE and reads its registers; applyMode
         // below switches the resolution, which rewrites the stride, and deskSetScreen
         // re-binds. So the order here is: configure the plane, bind, then set the res.
         rom.Desktop.initPlane(PLANE, 640, 200);
-        self.applyDeskRes();
+        rom.Desktop.setDeskAvailable(self.desk_ok);
+        self.mode = bootMode(self.desk_ok);
+        self.applyMode();
         _ = @import("gem_fat.zig").loadC(); // KOS's C: (docs/KOS_FAT.md F5): the SD card, if a host serves it
+    }
+
+    // ONE buffer for every mode, allocated once by the capability (DEVPAC_GAP §3b item 4):
+    // the desk's 640x480 where the machine shows it (its first 640x200 / 320x200 serve MEDIUM
+    // and LOW, as the medium buffer always did), else the 640-wide medium buffer.
+    fn allocPlane(self: *Demo) void {
+        self.desk_ok = hw.hwDeskAvailable() != 0;
+        if (self.desk_ok) {
+            if (self.fb.setDeskPlane()) |_| {
+                self.fb.leaveDesk(); // back to a plane mode at once: init never shows a frame
+                return;
+            } else |_| self.desk_ok = false; // the VRAM pool is full: no desk this boot
+        }
+        self.fb.setMediumPlane();
+    }
+
+    // DESKTOP.INF on the boot disk (Options > Save Desktop wrote it) picks the boot mode: its
+    // #E code, the desk only where the machine has it (else the default, LOW: an alert would
+    // stop a boot the user cannot answer yet). Its icons and windows reach the ROM with it, and
+    // are laid out on the mode chosen here, clamped (deskSetScreen).
+    fn bootMode(desk_ok: bool) Mode {
+        var buf: [512]u8 = undefined; // rom/gem/desktop/deskinf.zig MAX_BYTES
+        const lay = zg.disk.mount() orelse return .low;
+        const ent = zg.disk.find(lay, "DESKTOP.INF") orelse return .low;
+        const n = zg.disk.read(ent, &buf);
+        const code = rom.Desktop.loadInf(buf[0..n]) orelse return .low;
+        const mode: Mode = @enumFromInt(code);
+        return if (mode == .desk and !desk_ok) .low else mode;
     }
 
     // GEM binds its own keys, so the host must forward rather than interpret.
@@ -58,9 +93,31 @@ pub const Demo = struct {
         return 1;
     }
 
-    fn applyDeskRes(self: *Demo) void {
-        if (self.desk_medium) self.fb.setResMedium() else self.fb.setResLow();
-        rom.Desktop.setScreen(if (self.desk_medium) 640 else 320, 200);
+    // Put plane 0 in `self.mode` and re-bind the desktop to it. Leaving the desk goes back to the
+    // same buffer in a plane mode; entering it where it is missing keeps the mode it was in.
+    fn applyMode(self: *Demo) void {
+        if (self.mode == .desk) {
+            self.fb.setDeskPlane() catch {
+                self.mode = if (self.fb.stride == 640) .medium else .low;
+            };
+        }
+        if (self.mode != .desk and self.fb.isDesk()) self.fb.leaveDesk();
+        switch (self.mode) {
+            .low => self.fb.setResLow(),
+            .medium => self.fb.setResMedium(),
+            .desk => {},
+        }
+        const size: [2]i32 = switch (self.mode) {
+            .low => .{ 320, 200 },
+            .medium => .{ 640, 200 },
+            .desk => .{ hw.DESK_WIDTH, hw.DESK_HEIGHT },
+        };
+        rom.Desktop.setScreen(size[0], size[1]);
+    }
+
+    fn setMode(self: *Demo, mode: Mode) void {
+        self.mode = mode;
+        self.applyMode();
     }
 
     pub fn update(self: *Demo, os: *ZigOS, dt: f32) void {
@@ -77,14 +134,9 @@ pub const Demo = struct {
         rom.Desktop.endFrame();
         switch (action) {
             .launch => self.requestRun(),
-            .res_low => {
-                self.desk_medium = false;
-                self.applyDeskRes();
-            },
-            .res_medium => {
-                self.desk_medium = true;
-                self.applyDeskRes();
-            },
+            .res_low => self.setMode(.low),
+            .res_medium => self.setMode(.medium),
+            .res_desk => self.setMode(.desk),
             .none => {},
         }
     }
@@ -107,15 +159,12 @@ pub const Demo = struct {
         return self.run_name[0..self.run_len];
     }
 
+    // The host's coordinates as they come (physical-visible: 0..639 x 0..199, 0..479 in the
+    // desk); the ROM maps them to the desktop's mode in one place (gui.Screen.fromHost), and
+    // bit 1 is the loader's native double-click pulse.
     pub fn pointer(self: *Demo, x: i32, y: i32, buttons: u32) void {
-        // The host sends physical-visible coords (0..640). Medium logical is 640
-        // (1:1); low logical is 320, so halve X. Y is 200 in both.
-        const lx = if (self.desk_medium) x else @divTrunc(x, 2);
-        if (buttons & 2 != 0) {
-            rom.Desktop.requestOpenAt(lx, y); // native double-click pulse from the loader
-        } else {
-            rom.Desktop.setPointer(lx, y, buttons);
-        }
+        _ = self;
+        rom.Desktop.hostPointer(x, y, buttons);
     }
 
     pub fn key(self: *Demo, cp: u32) void {

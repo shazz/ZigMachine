@@ -92,8 +92,8 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
     // a 320px low-res screen — so pull the window LEFT before narrowing it.
     // Both edges (and the size gadget with them) must open on screen, and the
     // content must stay wide enough for the text view's last column.
-    r.w = @min(r.w, d.g.screen_w - 4);
-    r.x = @max(0, @min(r.x, d.g.screen_w - r.w - 2));
+    r.w = @min(r.w, d.g.screen.w - 4);
+    r.x = @max(0, @min(r.x, d.g.screen.w - r.w - 2));
     const min_w = icon_mod.CELL_W + 2 + gui.SCROLL;
     const min_h = gui.TITLE_H + gui.INFO_H + icon_mod.CELL_H + gui.SCROLL;
     const id = d.wm.tryAdd(.{ .r = r, .title = title, .min_w = min_w, .min_h = min_h }) orelse {
@@ -115,7 +115,7 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
 fn advanceCascade(d: *Desktop, r: Rect) void {
     var nx = r.x + 16;
     var ny = r.y + 12;
-    if (nx + r.w > d.g.screen_w or ny + r.h > 200) {
+    if (nx + r.w > d.g.screen.w or ny + r.h > d.g.screen.h) {
         nx = desk_icons.WIN_X0;
         ny = desk_icons.WIN_Y0;
     }

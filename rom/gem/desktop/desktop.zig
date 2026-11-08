@@ -29,12 +29,13 @@ const desksel = @import("desksel.zig");
 const deskdraw = @import("deskdraw.zig");
 const deskmenu = @import("deskmenu.zig");
 const deskdirty = @import("deskdirty.zig");
+const deskmode = @import("deskmode.zig");
 
 const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
 const NO_RECT: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
-pub const Action = enum { none, launch, res_low, res_medium };
+pub const Action = enum { none, launch, res_low, res_medium, res_desk };
 pub const ViewMode = enum { icons, text }; // View menu: FLOPPY contents as icons or text
 pub const SortKey = dirmodel.SortKey;
 pub const MAX_FILES = dirmodel.MAX_FILES;
@@ -58,6 +59,7 @@ pub const Desktop = struct {
     dir: *dirmodel.DirModel = undefined, // drives[drv.cur], the drive in focus (deskdrive.zig): init() sets it
     drv: deskdrive.State = .{},
     dirty: deskdirty.State = .{}, // repaint only what changed (deskdirty.zig)
+    mode: deskmode.State = .{}, // the screen modes: desk capability, DESKTOP.INF read back (deskmode.zig)
     launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
     // WHICH program. -1 = "the disk's app" (the FLOPPY icon acting as a launcher,
     // which names no file), resolved by launchName() to the first program on the
@@ -108,7 +110,7 @@ pub const Desktop = struct {
     open_src: Rect = NO_RECT, // source rect for the next window open
 
     pub fn init(self: *Desktop, os: *zsrc.ZigOS, fb: *zsrc.LogicalFB, blit: *zsrc.Blitter) void {
-        self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
+        self.g = .{ .os = os, .fb = fb, .blit = blit, .screen = gui.Screen.of(.medium) };
         self.menubar = .{};
         self.wm = .{};
         self.dlg = .{};
@@ -185,9 +187,8 @@ pub const Desktop = struct {
     pub fn endFrame(self: *Desktop) void {
         self.g.endFrame();
     }
-    pub fn clampIcons(self: *Desktop) void {
-        deskdirty.touch(self); // the screen was re-bound (deskSetScreen): every pixel moved
-        desk_icons.clampIcons(self);
+    pub fn setScreen(self: *Desktop, s: gui.Screen) void {
+        deskmode.setScreen(self, s); // the screen was re-bound (deskSetScreen): every pixel moved
     }
 
     // Character keyboard: feeds the Show Info rename field while it's open.

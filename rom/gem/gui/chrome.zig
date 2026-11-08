@@ -37,9 +37,9 @@ pub fn draw(g: *Gui, w: *const Window, active: bool) Rect {
 fn titleBar(g: *Gui, w: *const Window, active: bool) void {
     const bar = Rect{ .x = w.r.x + glyphs.GW, .y = w.r.y + 1, .w = w.r.w - 2 * glyphs.GW, .h = TITLE_H - 2 };
     if (active) g.hatch(bar, BLACK, WHITE) else g.rect(bar, WHITE);
-    g.blit.fill(g.fb, bar.x, bar.y, 1, @intCast(bar.h), BLACK); // mover left bound
-    g.blit.fill(g.fb, bar.x + bar.w - 1, bar.y, 1, @intCast(bar.h), BLACK); // mover right bound
-    g.blit.fill(g.fb, w.r.x, w.r.y + TITLE_H - 1, @intCast(w.r.w), 1, BLACK); // underline
+    g.fill(bar.x, bar.y, 1, @intCast(bar.h), BLACK); // mover left bound
+    g.fill(bar.x + bar.w - 1, bar.y, 1, @intCast(bar.h), BLACK); // mover right bound
+    g.fill(w.r.x, w.r.y + TITLE_H - 1, @intCast(w.r.w), 1, BLACK); // underline
     const tw: i16 = @as(i16, @intCast(w.title.len)) * 8;
     const tx = w.r.x + @divTrunc(w.r.w - tw, 2);
     g.rect(.{ .x = tx - 8, .y = bar.y, .w = tw + 16, .h = bar.h }, WHITE); // clear patch
@@ -57,7 +57,7 @@ fn infoLine(g: *Gui, w: *const Window) void {
     const max_chars: usize = @intCast(@max(0, @divTrunc(w.r.w - LEFT - 2, 8)));
     const info = w.info[0..@min(w.info.len, max_chars)];
     g.text(info, w.r.x + LEFT, y + 1, BLACK, WHITE); // 1px lower, like the title
-    g.blit.fill(g.fb, w.r.x, y + INFO_H - 1, @intCast(w.r.w), 1, BLACK);
+    g.fill(w.r.x, y + INFO_H - 1, @intCast(w.r.w), 1, BLACK);
 }
 
 // Right + bottom scrollbars: real ST arrow gadgets sharing frame lines with

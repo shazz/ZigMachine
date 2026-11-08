@@ -244,6 +244,33 @@ pointer mapping, which keys on `desk_medium` today. The 8x16 font (GEM5 P2.5) is
 | OOC numbers, a 6-frame hp_sim, board bring-up (lead) | 0.5-1 |
 | **Total** | **~12-15** |
 
+### As built (phase 2b, branch `feat/gem-desk-ziggem`)
+
+- **Screen** (`rom/gem/gui/screen.zig`): `Gui.screen` holds w, h, stride, the mode and the font;
+  the ROM sets it when it binds the plane (`rom_main.zig` `screenOf`: the mode from
+  `RESOLUTION`, the stride 640 in the desk whatever `FB_STRIDE` holds) and on `deskSetScreen`.
+  `types.zig`'s `MENU_H` / `CELL` / `ITEM_H` are the 8x8 font's `Metrics`; the nine 200s are
+  `screen.h`, `centreX/Y` and `workArea()`.
+- **Pointer, one place:** `deskHostPointer(x, y, buttons)` (appended export) takes the host's
+  coordinates and maps them by the mode (`Screen.fromHost`: low halves x); the shell forwards.
+- **Plane by capability:** the shell (`gem_desktop.zig`) takes the desk's 307,200 B once when
+  `hwDeskAvailable()` says so and runs LOW and MEDIUM on its first rows, else the medium buffer;
+  it tells the ROM (`deskSetDeskAvailable`), and Set Preferences greys Desk without it.
+- **Mode change** (`rom/gem/desktop/deskmode.zig`): every window, its full-box rect and each
+  directory's remembered rect are clamped into the new work area; an icon on the old bottom row
+  keeps the bottom row (the trash).
+- **DESKTOP.INF:** Save Desktop writes `#E 02` in the desk. At boot the shell reads A:'s
+  DESKTOP.INF off a .zmd (`zg.disk`) and hands it to `deskLoadInf`, which returns the `#E` code
+  (no desk on this machine: low res) and keeps the icons and A:\'s window for the next
+  `deskSetScreen`, so they land clamped to the mode it boots in; A:\ reopens where it was.
+- **The blitter clip** (found here): CHISEL and the machine clip a stride-640 destination at 200
+  rows, so the desk's fills stopped at row 199; the ROM bands them (`gui/bandfill.zig`).
+- **Tests:** `apps/gem_desk_check.mjs` (+ 4 break tests); low and medium are pixel-identical to
+  the ROM before (scene_hash, gem_headless's 15 shots, a medium session); native tests of
+  `screen.zig` and `deskinf_read.zig`; glass `mouse_test.zig`; host-check gem + desk_test.
+- **Left:** the arrow on the board in the desk (no picture for `bcursor.c`: §4's hardware
+  pointer, Matt's call), DESKTOP.INF off a FAT floppy, Save Desktop to a real disk.
+
 ## 9. Risks, and what Matt must decide
 
 **Risks**

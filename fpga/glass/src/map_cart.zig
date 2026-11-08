@@ -123,6 +123,18 @@ pub const KOS_FILE_PATH_MAX: u32 = 127; // kfs_abi.zig PATH_MAX
 pub const KOS_FILE_TIMEOUT_MS: u32 = 10000;
 pub const KOS_CGEN_FROM_TOP: u32 = 0x3CC; // CPU 0x41FF_FC34: the C: generation: glass bumps it after each write it made
 
+// --- the video mode word, at window end - VMODE_FROM_TOP (CPU 0x41FF_FC38) -----
+// The pointer's geometry depends on the cart's screen mode (docs/GEM_DESK_MODE.md §4): the
+// desk mode (RESOLUTION = RES_DESK, HW 1.17.0) is 640x480 at 1:1, the plane modes 640x200 on
+// the 800x280 raster with rows twice as tall. ZIGGY's firmware (cycles/bdesk.c) writes
+// VMODE_TAG, with VMODE_DESK while the cart is in the desk, at each frame it changes; glass
+// reads it at each mouse report (mouse.zig). A load zeroes it: no tag (an older firmware, or no
+// frame yet) is the plane modes. Between the C: generation word and the C: file block.
+pub const VMODE_FROM_TOP: u32 = 0x3C8;
+pub const VMODE_TAG: u32 = 0x5600_0000; // "V"
+pub const VMODE_TAG_MASK: u32 = 0xFF00_0000;
+pub const VMODE_DESK: u32 = 1 << 0;
+
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk
 // hands it the listing). DISK_MAGIC_PROGRAM: the cart is a program GEM launched off

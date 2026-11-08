@@ -174,6 +174,7 @@ pub const App = struct {
     /// report (x and y together), as the browser's mousemove does.
     pub fn sync(self: *App) void {
         var words: [2]u32 = undefined;
+        self.mouse.setDesk(mouse.deskMode(self.ddr)); // the pointer's geometry follows the cart's mode
         const n = self.mouse.flush(&words);
         if (self.open) return;
         for (words[0..n]) |w| self.regs.write(map.REG_POINTER, w);

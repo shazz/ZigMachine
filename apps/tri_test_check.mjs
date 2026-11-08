@@ -1,4 +1,4 @@
-// TRI TEST (cart 121) headless: boots the sealed machine + demo-tri_test.wasm and proves every
+// TRI TEST (cart 125) headless: boots the sealed machine + demo-tri_test.wasm and proves every
 // TRIANGLE the cart draws against a rasteriser written here from HW_API.md / BLITTER_HW_SPEC.md
 // (deterministic odd-even scanline fill: each edge with ay < by covers rows [ay, by) at
 // x = ax + floor((bx-ax) * (y-ay) / (by-ay)), the span from the least x to the greatest, cut to

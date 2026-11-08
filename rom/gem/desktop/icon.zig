@@ -107,12 +107,6 @@ pub const Icon = struct {
         return x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h;
     }
 
-    // Keep the icon AND its (wider) label box on-screen — the label stays
-    // centred over the icon at the border instead of clamping independently.
-    pub fn clampInto(self: *Icon, screen_w: i16, screen_h: i16) void {
-        self.place(self.cellCol(), self.cellRow(), screen_w, screen_h);
-    }
-
     // Put the icon in desktop cell (col,row), clamped to the cells that fit. The
     // ART is what gets centred in the cell — a bitmap with padding around its art
     // (TRASH) would otherwise sit visibly off-centre next to a tight one.
@@ -170,9 +164,9 @@ pub const Icon = struct {
                 } // else: outside the silhouette -> transparent (desktop shows)
             }
         }
-        var box = self.labelBox(g.screen_w);
+        var box = self.labelBox(g.screen.w);
         var lo: i16 = 0;
-        var hi: i16 = g.screen_w;
+        var hi: i16 = g.screen.w;
         if (self.bounds) |b| {
             // A label is a whole row, so a partly visible ROW is dropped; across
             // the window's edges it is CUT instead — the name loses its last (or
@@ -187,7 +181,7 @@ pub const Icon = struct {
         }
         const box_bg: u8 = if (sel) gui.BLACK else gui.WHITE;
         g.rect(box, box_bg);
-        const full = self.labelBox(g.screen_w);
+        const full = self.labelBox(g.screen.w);
         const lw: i16 = @as(i16, @intCast(self.label.len)) * LABEL_FW;
         g.textSmallIn(self.label, full.x + @divTrunc(full.w - lw, 2), full.y + LABEL_PAD_TOP, if (sel) gui.WHITE else gui.BLACK, box_bg, lo, hi);
     }

@@ -32,10 +32,10 @@ const CASCADE_DY: i16 = 12;
 // GEM's default desktop: the drive in the top-left cell, the trash in the
 // bottom one of the same column.
 pub fn placeDefaultIcons(d: *Desktop) void {
-    const rows = @divTrunc(d.g.screen_h - icon.GRID_Y0, icon.CELL_H);
-    d.items[IC_FLOPPY].place(0, 0, d.g.screen_w, d.g.screen_h);
-    d.items[IC_HARD].place(0, 1, d.g.screen_w, d.g.screen_h);
-    d.items[IC_TRASH].place(0, rows - 1, d.g.screen_w, d.g.screen_h);
+    const rows = @divTrunc(d.g.screen.h - icon.GRID_Y0, icon.CELL_H);
+    d.items[IC_FLOPPY].place(0, 0, d.g.screen.w, d.g.screen.h);
+    d.items[IC_HARD].place(0, 1, d.g.screen.w, d.g.screen.h);
+    d.items[IC_TRASH].place(0, rows - 1, d.g.screen.w, d.g.screen.h);
 }
 
 /// Drive A's disk (insertDisk): bits 7:0 its kind (0 none, 1 a .zmd, 2 a FAT image), bit 8 a
@@ -69,10 +69,6 @@ pub fn shown(d: *const Desktop, i: usize) bool {
 }
 
 // Keep icons on-screen (called when the resolution/screen width changes).
-pub fn clampIcons(d: *Desktop) void {
-    for (&d.items) |*it| it.clampInto(d.g.screen_w, d.g.screen_h);
-}
-
 // Icon drag in progress (called from render). GEM drags a dotted GHOST, not the
 // icon: the original stays put until the button is released, when the icon jumps
 // to the ghost and magnet-snaps to the grid. The ghost itself is drawn in
@@ -84,7 +80,7 @@ pub fn updateDrag(d: *Desktop, g: *gui.Gui, di: u8) void {
         if (d.moved) {
             it.x = p.x;
             it.y = p.y;
-            it.snap(d.g.screen_w, d.g.screen_h);
+            it.snap(d.g.screen.w, d.g.screen.h);
         }
         d.drag = null;
         return;

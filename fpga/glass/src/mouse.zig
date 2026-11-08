@@ -10,6 +10,8 @@
 // is timed here from the events' own timestamps (deterministic in tests).
 const std = @import("std");
 const map = @import("map.zig");
+const mc = @import("map_cart.zig");
+const bus = @import("bus.zig");
 
 // linux/input-event-codes.h
 pub const EV_SYN = 0x00;
@@ -28,12 +30,28 @@ pub const SCALE_ONE = 256;
 
 /// The events a mouse sends; a combo keyboard+mouse node sends both kinds, so
 /// routing is per event, not per device. Joypad buttons start at 0x120.
+/// The firmware's video mode word in the cart window (map_cart.zig VMODE_*): is the cart in the
+/// desk mode? An untagged word (an older firmware, no frame yet) is the plane modes.
+pub fn deskMode(ddr: bus.Ddr) bool {
+    if (ddr.bytes() < mc.VMODE_FROM_TOP) return false;
+    const w = ddr.words[(ddr.bytes() - mc.VMODE_FROM_TOP) / 4];
+    return w & mc.VMODE_TAG_MASK == mc.VMODE_TAG and w & mc.VMODE_DESK != 0;
+}
+
 pub fn isMouse(ev_type: u16, code: u16) bool {
     return ev_type == EV_REL or (ev_type == EV_KEY and code >= BTN_LEFT and code <= BTN_MOUSE_LAST);
 }
 
-const MAX_X: i32 = @as(i32, map.PTR_WIDTH) * SCALE_ONE - 1;
-const MAX_Y: i32 = @as(i32, map.PTR_HEIGHT) * SCALE_ONE - 1;
+// Where the position may go, in 1/SCALE_ONE pixels: the whole raster in the plane modes, the
+// 640x480 picture in the desk mode (map.zig PTR_DESK_*), where nothing is drawn round it.
+const Box = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
+const PLANES = Box{ .x0 = 0, .y0 = 0, .x1 = @as(i32, map.PTR_WIDTH) * SCALE_ONE - 1, .y1 = @as(i32, map.PTR_HEIGHT) * SCALE_ONE - 1 };
+const DESK = Box{
+    .x0 = @as(i32, map.PTR_BORDER_X) * SCALE_ONE,
+    .y0 = @as(i32, map.PTR_BORDER_Y) * SCALE_ONE,
+    .x1 = @as(i32, map.PTR_BORDER_X + map.PTR_DESK_WIDTH) * SCALE_ONE - 1,
+    .y1 = @as(i32, map.PTR_BORDER_Y + map.PTR_DESK_HEIGHT) * SCALE_ONE - 1,
+};
 
 pub const Mouse = struct {
     // Sub-pixel position, so a scale below one pixel a count still moves.
@@ -46,6 +64,7 @@ pub const Mouse = struct {
     double: bool = false, // the release that ends a double-click owes the pulse
     dirty: bool = false,
     sent: ?u32 = null, // the last word written, to skip a sub-pixel nudge
+    desk: bool = false, // the cart is in the desk mode (map_cart.zig VMODE_DESK): 640x480 at 1:1
 
     pub fn x(self: Mouse) u32 {
         return @intCast(@divFloor(self.fx, SCALE_ONE));
@@ -59,14 +78,31 @@ pub const Mouse = struct {
         return self.x() << map.PTR_X_SHIFT | self.y() << map.PTR_Y_SHIFT | buttons << map.PTR_BTN_SHIFT;
     }
 
+    /// The cart's screen mode (the firmware's VMODE word): a change keeps the pointer inside the
+    /// new mode's box and sends the clamped position at the next report.
+    pub fn setDesk(self: *Mouse, on: bool) void {
+        if (on == self.desk) return;
+        self.desk = on;
+        const b = self.box();
+        self.fx = std.math.clamp(self.fx, b.x0, b.x1);
+        self.fy = std.math.clamp(self.fy, b.y0, b.y1);
+        self.dirty = true;
+    }
+
+    fn box(self: Mouse) Box {
+        return if (self.desk) DESK else PLANES;
+    }
+
     /// Fold one mouse event in; the words to write come out at the next SYN_REPORT (`flush`).
     pub fn update(self: *Mouse, ev_type: u16, code: u16, value: i32, ms: i64) void {
+        const b = self.box();
         switch (ev_type) {
             // A ZigMachine row is twice as tall as its column is wide (640x200 on
-            // a 4:3 screen), so y moves half as many rows a count as x moves columns.
+            // a 4:3 screen), so y moves half as many rows a count as x moves columns;
+            // the desk's pixels are square, so there it moves as many.
             EV_REL => switch (code) {
-                REL_X => self.fx = std.math.clamp(self.fx +| value *| self.scale, 0, MAX_X),
-                REL_Y => self.fy = std.math.clamp(self.fy +| @divTrunc(value *| self.scale, 2), 0, MAX_Y),
+                REL_X => self.fx = std.math.clamp(self.fx +| value *| self.scale, b.x0, b.x1),
+                REL_Y => self.fy = std.math.clamp(self.fy +| @divTrunc(value *| self.scale, @as(i32, if (self.desk) 1 else 2)), b.y0, b.y1),
                 else => return, // the browser has no wheel: REL_WHEEL is dropped
             },
             EV_KEY => self.button(code - BTN_LEFT, value, ms),

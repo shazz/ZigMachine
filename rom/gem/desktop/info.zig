@@ -33,7 +33,7 @@ pub const Info = struct {
 fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void {
     var out: [12]u8 = undefined;
     g.text(f.cells(&out), x, y, gui.BLACK, gui.WHITE);
-    if (edit) g.blit.fill(g.fb, x + f.caretCol() * 8, y - 1, 2, 9, gui.BLACK);
+    if (edit) g.fill(x + f.caretCol() * 8, y - 1, 2, 9, gui.BLACK);
 }
     pub const Result = enum { none, ok, cancel };
 
@@ -101,8 +101,8 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
         }
         const H = self.boxH();
         const W = self.boxW();
-        const dx = @divTrunc(g.screen_w - W, 2);
-        const dy = @divTrunc(@as(i16, 200) - H, 2);
+        const dx = g.screen.centreX(W);
+        const dy = g.screen.centreY(H);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
 
         g.rect(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.WHITE);

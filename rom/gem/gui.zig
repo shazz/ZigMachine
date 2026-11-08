@@ -22,6 +22,7 @@ const window = @import("gui/window.zig");
 const dialog = @import("gui/dialog.zig");
 const menu = @import("gui/menu.zig");
 const grid = @import("gui/grid.zig");
+const screen = @import("gui/screen.zig");
 
 // --- palette ---
 pub const BLACK = types.BLACK;
@@ -37,6 +38,9 @@ pub const RAINBOW_N = types.RAINBOW_N;
 pub const installPalette = types.installPalette;
 
 // --- geometry + metrics ---
+pub const Screen = screen.Screen; // the one screen description (mode, size, font)
+pub const ScreenMode = screen.Mode;
+pub const modeOfResolution = screen.modeOfResolution;
 pub const Rect = types.Rect;
 pub const inRect = types.inRect;
 // grid layout (8px character cells) for dialogs
@@ -50,6 +54,8 @@ pub const TITLE_H = types.TITLE_H;
 pub const INFO_H = types.INFO_H;
 pub const SCROLL = types.SCROLL;
 pub const MAX_WIN = types.MAX_WIN;
+pub const MIN_W = types.MIN_W; // a window's smallest size (the clamp of a saved one, deskmode.zig)
+pub const MIN_H = types.MIN_H;
 
 // --- widgets, windows, dialogs, menus ---
 pub const Gui = core.Gui;

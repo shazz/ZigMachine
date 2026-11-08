@@ -4,6 +4,10 @@
 // desktop background colour. Mouse-only: each RGB channel has -/+ steppers (±8,
 // clamped 0..255); the colour previews live via the DESK palette entry.
 //
+// The resolution is a row of three radio buttons: Low, Medium, and Desk (the
+// 640x480 desk mode at 1:1, HW 1.17.0, docs/GEM_DESK_MODE.md). Desk is greyed
+// where the machine has no desk mode (the shell asked hwDeskAvailable).
+//
 // Laid out on the 8px character-cell grid engine (gui.Grid / gui.hspread) so the
 // margins and button row are even instead of hand-tuned pixels.
 // --------------------------------------------------------------------------
@@ -15,14 +19,16 @@ pub const Prefs = struct {
     cr: u8 = 1,
     cg: u8 = 160,
     cb: u8 = 164,
-    medium: bool = false,
+    res: gui.ScreenMode = .low,
+    desk_ok: bool = false, // the machine shows the desk mode
 
     pub const Result = enum { none, ok, cancel };
-    const W: i16 = 256; // 32 cells
+    const W: i16 = 256; // 32 cells: fits the 320-wide low-res screen
     const H: i16 = 152; // 19 cells
+    const RES_W: i16 = 56; // a resolution button: "Medium" and a cell of margin
 
-    pub fn open(self: *Prefs, r: u8, g: u8, b: u8, medium: bool) void {
-        self.* = .{ .active = true, .cr = r, .cg = g, .cb = b, .medium = medium };
+    pub fn open(self: *Prefs, r: u8, g: u8, b: u8, res: gui.ScreenMode, desk_ok: bool) void {
+        self.* = .{ .active = true, .cr = r, .cg = g, .cb = b, .res = res, .desk_ok = desk_ok };
     }
 
     fn clampStep(v: u8, d: i16) u8 {
@@ -41,8 +47,8 @@ pub const Prefs = struct {
     }
 
     pub fn process(self: *Prefs, g: *gui.Gui) Result {
-        const dx = @divTrunc(g.screen_w - W, 2);
-        const dy = @divTrunc(@as(i16, 200) - H, 2);
+        const dx = g.screen.centreX(W);
+        const dy = g.screen.centreY(H);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
 
         g.rect(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.WHITE); // no shadow (dialogs are flat; only windows cast one)
@@ -51,18 +57,16 @@ pub const Prefs = struct {
         title(g, "SET PREFERENCES", dx, grid.y(1) + 2, W);
 
         // Background colour: R/G/B steppers on the cell grid (pitch 2 cells) + swatch.
-        g.text("Background colour:", grid.x(3), grid.y(4), gui.BLACK, gui.WHITE);
-        self.cr = channel(g, grid.x(4), grid.y(6), "R", self.cr);
-        self.cg = channel(g, grid.x(4), grid.y(8), "G", self.cg);
-        self.cb = channel(g, grid.x(4), grid.y(10), "B", self.cb);
+        g.text("Background colour:", grid.x(3), grid.y(3), gui.BLACK, gui.WHITE);
+        self.cr = channel(g, grid.x(4), grid.y(5), "R", self.cr);
+        self.cg = channel(g, grid.x(4), grid.y(7), "G", self.cg);
+        self.cb = channel(g, grid.x(4), grid.y(9), "B", self.cb);
         g.fb.setPaletteEntry(gui.DESK, .{ .r = self.cr, .g = self.cg, .b = self.cb, .a = 255 }); // live preview
-        const sw = gui.Rect{ .x = grid.x(20), .y = grid.y(6), .w = grid.w(9), .h = grid.h(6) };
+        const sw = gui.Rect{ .x = grid.x(20), .y = grid.y(5), .w = grid.w(9), .h = grid.h(6) };
         g.rect(sw, gui.DESK); // swatch
         g.frame(sw, gui.BLACK);
 
-        g.text("Resolution:", grid.x(3), grid.y(13) + 2, gui.BLACK, gui.WHITE);
-        if (g.button(.{ .x = grid.x(14), .y = grid.y(13), .w = 44, .h = 12 }, "Low", !self.medium)) self.medium = false;
-        if (g.button(.{ .x = grid.x(20), .y = grid.y(13), .w = 60, .h = 12 }, "Medium", self.medium)) self.medium = true;
+        self.resolutionRow(g, grid);
 
         // OK / Cancel: even margins + gap across the 3-cell-margin content width.
         const bw: i16 = 64;
@@ -72,7 +76,31 @@ pub const Prefs = struct {
         if (g.buttonThick(.{ .x = gui.hspread(grid.x(3), cw, 2, bw, 1), .y = oky, .w = bw, .h = 14 }, "Cancel", false, 2)) return .cancel;
         return .none;
     }
+
+    // "Resolution:" over a row of three radio buttons spread across the content width.
+    fn resolutionRow(self: *Prefs, g: *gui.Gui, grid: gui.Grid) void {
+        g.text("Resolution:", grid.x(3), grid.y(11) + 2, gui.BLACK, gui.WHITE);
+        if (g.button(resButton(grid, 0), "Low", self.res == .low)) self.res = .low;
+        if (g.button(resButton(grid, 1), "Medium", self.res == .medium)) self.res = .medium;
+        if (!self.desk_ok) return greyed(g, resButton(grid, 2), "Desk"); // no desk mode here
+        if (g.button(resButton(grid, 2), "Desk", self.res == .desk)) self.res = .desk;
+    }
+
+    /// Where resolution button `i` (0 Low, 1 Medium, 2 Desk) sits.
+    pub fn resButton(grid: gui.Grid, i: i16) gui.Rect {
+        const cw = W - grid.w(6);
+        return .{ .x = gui.hspread(grid.x(3), cw, 3, RES_W, i), .y = grid.y(13), .w = RES_W, .h = 12 };
+    }
 };
+
+// A choice the machine cannot make, greyed as TOS greys one: the frame and the
+// label in the menus' disabled ink (MGRAY), never pressed, never selected.
+fn greyed(g: *gui.Gui, r: gui.Rect, label: []const u8) void {
+    g.rect(r, gui.WHITE);
+    g.frame(r, gui.MGRAY);
+    const tx = r.x + @divTrunc(r.w - @as(i16, @intCast(label.len)) * 8, 2);
+    g.text(label, tx, r.y + @divTrunc(r.h - 8, 2), gui.MGRAY, gui.WHITE);
+}
 
 // Centre a title string in a `width`-wide area starting at x.
 fn title(g: *gui.Gui, s: []const u8, x: i16, y: i16, width: i16) void {

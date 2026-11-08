@@ -1067,11 +1067,18 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) relea
     let buttons = 0;
     // Send PHYSICAL-VISIBLE coordinates (0..RASTER_VIS_WIDTH / 0..RASTER_VIS_HEIGHT):
     // for a medium screen those ARE the logical coords; a low-res scene halves x.
+    // In the desk mode (HW 1.17.0) the picture is canvas 0, 640x480 at one CSS pixel a pixel,
+    // centred on the same 800x560 surface (deskView: CSS (80, 40)): a raster row is two CSS
+    // rows there, so y counts the surface's CSS rows and the coordinates come out 0..639 x
+    // 0..479 (x is the raster's columns either way).
     function send(evt) {
         if (!demo || !demo.pointer || !machine) return;
         const r = surface.getBoundingClientRect();
+        const desk = !!(machine.hwDeskActive && machine.hwDeskActive());
+        const rows = desk ? 2 * machine.hwPhysHeight() : machine.hwPhysHeight(); // 560 CSS rows in the desk
+        const top = desk ? (rows - DESK_H) / 2 : machine.hwBorderY();
         const px = (evt.clientX - r.left) * (machine.hwPhysWidth() / r.width) - machine.hwBorderX();
-        const py = (evt.clientY - r.top) * (machine.hwPhysHeight() / r.height) - machine.hwBorderY();
+        const py = (evt.clientY - r.top) * (rows / r.height) - top;
         demo.pointer(Math.round(px), Math.round(py), buttons);
     }
     surface.addEventListener('mousemove', send);
