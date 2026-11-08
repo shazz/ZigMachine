@@ -209,6 +209,25 @@ The sim takes about 40 minutes (`ZM_BARD_SIM=1` runs it from the test; otherwise
 run again). The scripted cart waits out the song's load before it counts frames. Without that wait, the
 frames lost to the load were caught up at once, and the sim ended before the song was heard.
 
+### The BARD queue (system table 1.12)
+
+`make snd-bench SND_BARDQ=1 ZM_FRAMES=8` (`cycles/sound/sbardq_bench.c`): no cart; BARD SID's tune as the page's
+loader posted it (`node apps/bard_queue_check.mjs --dump build/bardq/commands.bin`) goes through a ring in BARD's
+memory and the same pump as the play image (`host/bardq_pump.c`) into SID live on raw cRSID, the lead one frame so
+seven of the eight frames play the tune. combo16 core (`SndNdD16Dyn8Sx`, soc_hp_snd16), 8 Nov:
+
+| Frame | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | **mean 1-7** |
+|---|---|---|---|---|---|---|---|---|---|
+| Mc | 2.04 | 0.73 | 1.12 | 0.86 | 1.15 | 0.88 | 1.21 | 0.80 | **0.96 (58 %)** |
+| commands taken | 27 | 6 | 7 | 5 | 0 | 5 | 10 | 6 | |
+
+- The tune's whole cost is the engine's and the player's around it: 0.96 Mc, as hermini.sid's file mode (1.02 Mc,
+  61 %); the peak frame is 1.21 Mc (73 %). Frame 0 is the cold start (the first chunk, the caches).
+- 50 commands applied, 16 still ahead at the end, none refused, no re-anchor. A batch costs its copy (16 bytes an
+  entry) and one D-cache drop when the head moved: a few thousand cycles at most.
+- `snd.bin`: 1,998,040 -> 2,003,288 bytes (+5,248: the pump, SID live, raw SID); 93,864 bytes left of 2 MiB. The
+  queue's own 21 KB (ring, stage, events) lives in song RAM, not in the image.
+
 ## Size
 
 `fpga/tools/sound_ooc.py`: Vivado out of context on the xc7z010-1, the whole block (core, decoder, arbiter, posted
