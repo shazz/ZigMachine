@@ -106,12 +106,15 @@ const SPECS = {
         use: useChipnomad,
     },
     sidwizard: {
-        cart: "docs/demo-sidwizard.wasm", disk: "docs/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "quit"],
-        pinAt: 300, pin: "e9288624d85a5c035e7ff54990e3744dc62fafa7b8e33c06f923c0a489159193", bindsOwnerKeys: true,
+        cart: "docs/demo-sidwizard.wasm", disk: "docs/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "edit", "quit"],
+        pinAt: 300, pin: "3b0adaafb2e79749fc3c2d444db85061df9636a9d932fd340ba69d7e5c28d8d9", bindsOwnerKeys: true,
         // FLASHBAK.SWM opens off the floppy at start (the cart's key simulator, as upstream's command line: ~frame
-        // 250); Tab (an owner-only code: C64 CONTROL) steps the cursor to track 2; F1 plays
+        // 250); Tab (an owner-only code: C64 CONTROL) steps the cursor to track 2; Down, Space (editing mode), W
+        // types a D on its row 1; F1 plays
         events: (brk) => [
             ...(brk === "tab" ? [] : tap(262, key(0xe019), keyUp(0xe019))),
+            ...(brk === "edit" ? [] : [...tap(272, (d) => d.input(DOWN), (d) => d.inputRelease(DOWN)), ...tap(278, key(32), keyUp(32)),
+                ...tap(286, key(0x77), keyUp(0x77))]),
             [309, (d, m) => { m.audio.peak = 0; }], // what is heard after F1 (the start-up menu clicks before)
             ...(brk === "silent" ? [] : tap(310, key(0xe001), keyUp(0xe001))),
         ],
@@ -278,6 +281,8 @@ function useSidwizard(r) {
     check("sidwizard opens FLASHBAK.SWM off the floppy at start", r.m.log.includes("sidwizard: song opened"), r.m.log.slice(-2).join(" / "));
     const a = r.shots.get(258), b = r.shots.get(270), row0 = (p) => sha(rect(p, 240, 36, 399, 43));
     check("sidwizard Tab (an owner-only key code) steps the cursor to track 2", a && b && row0(a) !== row0(b), "the cursor sprite is over track 2, row 0");
+    const c = r.shots.get(300), row1 = (p) => sha(rect(p, 240, 44, 399, 51));
+    check("sidwizard Space (editing mode) and W type a note on track 2, row 1", a && c && row1(a) !== row1(c), "track 2's row 1 is no longer empty");
     check("sidwizard F1 plays the song", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak} after F1, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
 }
 SPECS.sidwizard.keep = (f) => [258, 270, 300].includes(f);

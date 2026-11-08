@@ -48,8 +48,8 @@ by position). The machine's key ABI had no Tab, Home, End, PageUp or PageDown, w
 tracks, switches the file dialog's fields): they were added as **owner-only codes** 0xE019..0xE01D
 (`docs/sealed-loader.js` `OWNER_KEY_CODES`, the board glass's `map.zig` and firmware `glass_input.c`; decisions.md
 2026-11-07), sent only to a cart that owns the keyboard. Upstream's PC-side keys: Shift+F8 the exit dialog (Y
-quits back to GEM), Shift+F7 / Shift+F9 reset the editor, Shift+Up/Down (and F11/F12 in the browser; the board
-keeps those for its OSD) the main volume. A click positions the cursor as upstream's mouse code does (the left
+quits back to GEM), Shift+F7 / Shift+F9 reset the editor, Shift+Up/Down the main volume (upstream's F11/F12 too,
+but the machine sends no code for them: the board keeps them for its OSD). A click positions the cursor as upstream's mouse code does (the left
 border's buttons are not drawn). No MIDI.
 
 ### Files
@@ -74,8 +74,11 @@ byte for byte.
 | envelopes holding at sustain set no step limit | **5.2** | **5.9** |
 
 So the C64 costs about **3.5x real time** on the board: the cart runs (~16-19 fps), but the C64 inside runs at
-about 30 % speed, and the song plays slow (the frame is capped at 20 ms of C64 time: a slow board frame is not
-caught up, so the editor keeps answering). In the browser it runs at full speed. Where the rest goes: the
+about 30 % speed: the audio ring gets about a third of real time's samples (`kestrel_audio.h`: it replays stale
+bytes in between, as klystrack's did before BARD), and the song plays slow and broken (the frame is capped at 20
+ms of C64 time: a slow board frame is not caught up, so the editor keeps answering). 50/60 fps does not hold.
+In the browser it runs at full speed. The clock batching was checked by its results (the screens, the song
+heard, the save byte-identical), not A/B'd sample for sample against upstream's per-instruction clocking. Where the rest goes: the
 6502 core (`cRSID_emulateCPU`, ~0.84 Mc, ~165 cycles an instruction, ~5,100 instructions a frame: SID-Wizard's
 main loop never idles), the instruction loop (0.34), the SID (light engine + envelopes ~0.5) and the I$ (2.7 Mc:
 ~21 KB of code a frame against a 16 KB cache). The two levers left: **the SID on BARD** (below: the SID render

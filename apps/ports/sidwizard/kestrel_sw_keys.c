@@ -6,7 +6,7 @@
  * '-' '=' '[' ']' '\' positional keys). The machine sends what was typed (sealed-loader.js: '#' for Shift+3, '3'
  * when it comes up after Shift), so a typed character is folded back to its US key, which gives both.
  * The keys SIDwizard.c's own event loop handled before the C64 sees anything are handled here too: Shift+F8 the
- * exit dialog, Shift+F7/F9 reset the editor, F11/F12 and Shift+Up/Down the main volume. */
+ * exit dialog, Shift+F7/F9 reset the editor, Shift+Up/Down the main volume (the machine sends no F11/F12). */
 
 static Uint8 sw_keys[SDLK_LAST + 1];
 Uint8 *SDL_GetKeyState(int *numkeys) { if (numkeys) *numkeys = SDLK_LAST; return sw_keys; }
@@ -36,7 +36,7 @@ static int sw_sym_of(Uint32 cp, int *x11)
         { 8, SDLK_BACKSPACE, 22 }, { 13, SDLK_RETURN, 36 }, { 0xE00C, SDLK_DELETE, 119 }, { 0xE00B, SDLK_INSERT, 118 },
         { 0xE012, SDLK_ESCAPE, 9 }, { 0xE014, SDLK_LCTRL, 37 }, { 0xE015, SDLK_LSHIFT, 50 }, { 0xE016, SDLK_RCTRL, 105 },
         { 0xE017, SDLK_RSHIFT, 62 }, { 0xE019, SDLK_TAB, 23 }, { 0xE01A, SDLK_HOME, 110 }, { 0xE01B, SDLK_END, 115 },
-        { 0xE01C, SDLK_PAGEUP, 112 }, { 0xE01D, SDLK_PAGEDOWN, 117 }, { 0xE01E, SDLK_F11, 95 }, { 0xE01F, SDLK_F12, 96 },
+        { 0xE01C, SDLK_PAGEUP, 112 }, { 0xE01D, SDLK_PAGEDOWN, 117 },
     };
     *x11 = 0;
     for (unsigned i = 0; i < sizeof special / sizeof special[0]; i++)

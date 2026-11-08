@@ -44,7 +44,7 @@ signed char Zoom = 1;
 static cRSID_C64instance *C64 = &cRSID_C64;
 static byte ArgMIDIname[MIDI_NAME_LENGTH_MAX + 1];   /* the config file's MIDI device (no MIDI here) */
 static int sw_exit_dialog, sw_startup_menu = 1;
-#define SID_Wizard_2SID SID_Wizard             /* patches/file.h.sed: only the 1-SID program is built */
+#define SID_Wizard_2SID SID_Wizard             /* patches/host__file.h.sed: only the 1-SID program is built */
 #define SID_Wizard_3SID SID_Wizard
 #define SID_Wizard_4SID SID_Wizard
 
