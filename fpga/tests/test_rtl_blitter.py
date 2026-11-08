@@ -26,6 +26,7 @@ from blitter_queue import make_queue_script
 from blitter_random import make_script
 from blitter_speed import H, W, speed_script
 from blitter_tex import make_tex_script
+from blitter_tri import make_tri_script
 
 BUILD = FPGA / "build" / "tests" / "blitter"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
@@ -38,6 +39,7 @@ SCRIPTS = {
     "speed": lambda: speed_script()[0],
     "tex1": lambda: make_tex_script(3, 320),
     "queue1": lambda: make_queue_script(3, 40),
+    "tri1": lambda: make_tri_script(5, 3000),
 }
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [

@@ -1,18 +1,18 @@
 // TRIANGLE sequencer: deterministic odd-even scanline fill, the arithmetic of
-// machine/blitter.zig doTriangle/crossSpan. For each scanline y (clipped) and each of the
-// three edges (low end first, half-open [ay, by)), x = ax + floor((bx-ax) * (y-ay) / (by-ay))
-// with the floor division done by a shared sequential divider; xl/xr are the min/max, and
-// the span, cut to the clip, is issued as pixels (the core picks COLOR or the halftone bit
-// and combines it with the destination through MINTERM).
-// v1 divides per scanline per edge (~35 clocks each); an incremental edge walk (one divide
-// per edge per triangle) would make a small triangle several times faster.
-// The edge setup is pipelined over four clocks (PICK: pick + order the vertices; EDGE:
-// subtract; MUL: |dxe| * t; GO: start the divide) so that no path runs vertex mux ->
-// compare -> subtract -> multiply -> divider in one clock: in one, it missed 100 MHz by
-// 4 ns on the board (Vivado, 2026-10-10); with the pick and the subtract in one clock the
-// full SoC still missed by 1.0 ns, register -> vertex mux -> compare -> subtract -> the
-// DSP's input register (2026-10-11), hence PICK. Likewise the edge's x is registered (MINMAX)
-// before the min/max. CYCLES counts pixels, not clocks: unchanged.
+// machine/blitter_ops.zig doTriangle/crossSpan. The model, for each scanline y, takes each edge
+// with ay < by and ay <= y < by (half-open) at x = ax + floor((bx-ax) * (y-ay) / (by-ay)) and
+// fills from the least such x to the greatest, cut to the clip.
+// Here the vertices are ranked by y once (top, mid, bot): on any line exactly two edges are live,
+// the long one (top, bot) and a short one, (top, mid) above mid and (mid, bot) from mid down,
+// and a horizontal edge never is. Each live edge is an incremental walker (zm_blit_twalk) set up
+// with two divides (a sequential 16-clock divider): its step floor-divmod(dx, dy), and its start
+// at the first visible line, floor-divmod(dx * t0, dy), t0 = that line - ay (no divide when t0 = 0,
+// an edge that starts on screen). A scanline then costs a few clocks plus its pixels, where v1
+// divided three times a line (~111 clocks). Edge setup (2026-11-07):
+//   PICK: the edge's vertices (registered: vertex mux -> subtract -> DSP in one clock missed
+//   100 MHz on the board in v1), EDGE: dx, |dx|, dy, t0, MUL: |dx| * t (the DSP), GO: the divide
+//   (or clear it: t = 0), DIV, LD: load the walker, A2: the start step; then the same for t = 1.
+// CYCLES counts pixels, not clocks: unchanged.
 `default_nettype none
 
 module zm_blit_tri (
@@ -25,94 +25,109 @@ module zm_blit_tri (
     input  wire               px_ready,
     output reg                done
 );
-    localparam [3:0] IDLE = 0, EDGE = 1, DIV = 2, NEXT = 3, SPAN = 4, PIX = 5, NEXTY = 6, MUL = 7, GO = 8, MINMAX = 9,
-                     PICK = 10;
+    localparam [3:0] IDLE = 0, PICK = 1, EDGE = 2, MUL = 3, GO = 4, DIV = 5, LD = 6, A2 = 7, LINE = 8,
+                     MINMAX = 9, SPAN = 10, STB = 11, PIX = 12, NEXTY = 13;
     reg [3:0] st;
-    reg [1:0] e;
-    reg signed [17:0] y, ymax, xl, xr, x, xend;
+    reg [1:0] sid;                  // the edge being set up: 0 long (top, bot), 1 (top, mid), 2 (mid, bot)
+    reg ph;                         // setup phase: 0 the start (t0), 1 the step (t = 1)
+    reg [9:0] y;                    // the scanline: inside the check's box, 0..279
+    reg signed [17:0] x, xend;
+    reg signed [15:0] xl, xr;
 
-    // the edge e is v[e] -> v[e+1], ordered so that ay < by
-    wire [1:0] eb = e == 2'd2 ? 2'd0 : e + 2'd1;
-    wire signed [17:0] pax = e == 0 ? x0 : e == 1 ? x1 : x2, pay = e == 0 ? y0 : e == 1 ? y1 : y2;
-    wire signed [17:0] pbx = eb == 0 ? x0 : eb == 1 ? x1 : x2, pby = eb == 0 ? y0 : eb == 1 ? y1 : y2;
-    wire swap = pay > pby;
-    // PICK registers the ordered edge; EDGE subtracts from those registers
-    reg signed [17:0] ax, ay, bx, by;
-    wire skip = ay == by || y < ay || y >= by;
-    wire signed [17:0] dye = by - ay;
-    wire signed [17:0] dxe = bx - ax, t = y - ay;   // |dxe| < 2^16, 0 <= t < 2^16: one DSP48
-    wire neg = dxe[17];
-    wire [16:0] adx = neg ? -dxe[16:0] : dxe[16:0];
-    // EDGE registers the ordered edge, MUL the product, GO starts the divider from registers
-    reg signed [17:0] e_ax;
-    reg [16:0] e_adx, e_t, e_dye;
-    reg e_neg, e_skip;
-    reg [33:0] anum;   // |dxe| * t: the numerator's magnitude, 17 x 17 unsigned
-    wire div_go = st == GO;
+    // rank the vertices by y once (ties in any order: a horizontal edge is never live)
+    wire caa = $signed(y1[15:0]) < $signed(y0[15:0]), cb = $signed(y2[15:0]) < $signed(y0[15:0]),
+         cc = $signed(y2[15:0]) < $signed(y1[15:0]);
+    wire [1:0] rk0 = {1'b0, caa} + {1'b0, cb}, rk1 = {1'b0, !caa} + {1'b0, cc};
+    function [1:0] who(input [1:0] k, input [1:0] r0, input [1:0] r1);
+        who = r0 == k ? 2'd0 : r1 == k ? 2'd1 : 2'd2;
+    endfunction
+    reg [1:0] i_top, i_mid, i_bot;
+    wire [1:0] ia = sid == 2'd2 ? i_mid : i_top, ib = sid == 2'd1 ? i_mid : i_bot;
+    function [15:0] pickv(input [1:0] i, input [15:0] a, input [15:0] b, input [15:0] c);
+        pickv = i == 2'd0 ? a : i == 2'd1 ? b : c;
+    endfunction
+
+    // edge setup: PICK registers the vertices, EDGE the differences, MUL the product
+    reg signed [15:0] ax, ay, bx, by, l_by, s_by;
+    reg [15:0] adx, sdy, t;
+    reg neg, tz;
+    reg [31:0] anum;
+    wire signed [16:0] dx = {bx[15], bx} - {ax[15], ax};
     wire div_done;
-    wire [31:0] q;
-    wire [16:0] r;
-    zm_blit_div dv (.clk(clk), .rst(rst), .go(div_go), .num(anum[31:0]), .den(e_dye), .done(div_done), .q(q), .r(r));
-    wire [31:0] up = q + (r != 17'd0);
-    wire signed [17:0] xe = e_ax + (e_neg ? -up[17:0] : q[17:0]);
-    reg signed [17:0] xe_q;
+    wire [15:0] q, r;
+    zm_blit_div dv (.clk(clk), .rst(rst), .go(st == GO && !tz), .clr(st == GO && tz), .num(anum), .den(sdy),
+        .done(div_done), .q(q), .r(r));
+    // floor-divmod from the magnitudes: dx >= 0 (q, r); dx < 0: (-q, 0) when r = 0, else (-q-1, dy-r).
+    // The start's quotient comes with ax added (the walker starts from x = 0).
+    wire nz = |r, rsel = neg && nz;
+    wire [15:0] kq = (ph ? 16'd0 : ax) + (neg ? ~q : q) + {15'd0, neg && !nz};
+    wire [15:0] kr = (rsel ? sdy : 16'd0) + (rsel ? ~r : r) + {15'd0, rsel};
 
-    // the scanlines: the vertices' y range cut to the clip, which is the check's box (ey0, ey1)
-    wire signed [17:0] lo = ey0, hi = ey1 - 18'sd1;
+    wire w_ld = st == LD, w_sa = st == A2 || st == SPAN, w_sb = st == STB;
+    wire to_s = sid != 2'd0;
+    wire signed [15:0] xa, xb;          // the long edge's x, the short edge's
+    zm_blit_twalk wl (.clk(clk), .clr(st == PICK && !to_s), .ld(w_ld && !to_s), .kq(kq), .kr(kr), .kdy(sdy),
+        .sa(w_sa && (st == SPAN || !to_s)), .sb(w_sb), .x(xa));
+    zm_blit_twalk ws (.clk(clk), .clr(st == PICK && to_s), .ld(w_ld && to_s), .kq(kq), .kr(kr), .kdy(sdy),
+        .sa(w_sa && (st == SPAN || to_s)), .sb(w_sb), .x(xb));
 
+    wire signed [16:0] ys = {7'd0, y}, lb = {l_by[15], l_by}, sb = {s_by[15], s_by};
     assign px_valid = st == PIX && x <= xend;
     assign px_x = x;
-    assign px_y = y;
+    assign px_y = {8'd0, y};
 
     always @(posedge clk) begin
         done <= 1'b0;
         if (rst) st <= IDLE;
         else case (st)
             IDLE: if (go) begin
-                y <= lo; ymax <= hi; e <= 2'd0; xl <= 18'sh1FFFF; xr <= 18'sh20000;
-                if (lo > hi) done <= 1'b1;
+                y <= ey0[9:0]; sid <= 2'd0; ph <= 1'b0;
+                i_top <= who(2'd0, rk0, rk1); i_mid <= who(2'd1, rk0, rk1); i_bot <= who(2'd2, rk0, rk1);
+                if (ey0 >= ey1) done <= 1'b1;
                 else st <= PICK;
             end
             PICK: begin
-                ax <= swap ? pbx : pax; ay <= swap ? pby : pay;
-                bx <= swap ? pax : pbx; by <= swap ? pay : pby;
+                ax <= pickv(ia, x0[15:0], x1[15:0], x2[15:0]); ay <= pickv(ia, y0[15:0], y1[15:0], y2[15:0]);
+                bx <= pickv(ib, x0[15:0], x1[15:0], x2[15:0]); by <= pickv(ib, y0[15:0], y1[15:0], y2[15:0]);
+                ph <= 1'b0;
                 st <= EDGE;
             end
             EDGE: begin
-                e_ax <= ax; e_adx <= adx; e_t <= t[16:0]; e_dye <= dye[16:0]; e_neg <= neg; e_skip <= skip;
+                neg <= dx[16]; adx <= dx[16] ? -dx[15:0] : dx[15:0];
+                sdy <= by - ay; t <= {6'd0, y} - ay;
+                if (to_s) s_by <= by; else l_by <= by;
                 st <= MUL;
             end
-            MUL: begin
-                anum <= e_adx * e_t;
-                st <= e_skip ? NEXT : GO;
-            end
-            GO: st <= DIV;
-            DIV: if (div_done) begin
-                xe_q <= xe;
-                st <= MINMAX;
+            MUL: begin anum <= adx * t; tz <= t == 16'd0; st <= GO; end
+            GO: st <= tz ? LD : DIV;
+            DIV: if (div_done) st <= LD;
+            LD: if (!ph) st <= A2;
+                else if (sid == 2'd0) begin sid <= 2'd1; st <= PICK; end
+                else st <= LINE;
+            A2: begin t <= 16'd1; ph <= 1'b1; st <= MUL; end
+            LINE: begin
+                if (ys >= lb || y == ey1[9:0]) begin st <= IDLE; done <= 1'b1; end
+                else if (sid == 2'd1 && ys >= sb) begin sid <= 2'd2; st <= PICK; end
+                else st <= MINMAX;
             end
             MINMAX: begin
-                if (xe_q < xl) xl <= xe_q;
-                if (xe_q > xr) xr <= xe_q;
-                st <= NEXT;
-            end
-            NEXT: begin
-                e <= e + 2'd1;
-                st <= e == 2'd2 ? SPAN : PICK;
+                xl <= xa < xb ? xa : xb;
+                xr <= xa < xb ? xb : xa;
+                st <= SPAN;
             end
             SPAN: begin
                 x <= xl > cx0 ? xl : cx0;
                 xend <= xr < cx1 - 18'sd1 ? xr : cx1 - 18'sd1;
-                st <= xr < xl ? NEXTY : PIX;
+                st <= STB;
             end
+            STB: st <= PIX;
             PIX: begin
                 if (x > xend || (px_ready && x == xend)) st <= NEXTY;
                 if (px_ready) x <= x + 18'sd1;
             end
             default: begin  // NEXTY
-                y <= y + 18'sd1; e <= 2'd0; xl <= 18'sh1FFFF; xr <= 18'sh20000;
-                if (y == ymax) begin st <= IDLE; done <= 1'b1; end
-                else st <= PICK;
+                y <= y + 10'd1;
+                st <= LINE;
             end
         endcase
     end
