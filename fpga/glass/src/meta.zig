@@ -5,8 +5,8 @@
 //
 //   FILE <TAB> TITLE <TAB> GROUP <TAB> YEAR <TAB> TYPE <TAB> DESCRIPTION
 //
-// FILE is the disk's path under the shelf, its folder first ("demos/demo-stniccc.zmd",
-// fpga/tools/shelf_category.py); an older shelf.txt names the bare file.
+// FILE is the disk's path under the shelf, its folders first ("demos/atari_st/demo-stniccc.zmd",
+// fpga/tools/shelf_category.py); an older shelf.txt names a shorter path or the bare file.
 // Any field but FILE and TITLE may be empty. A side file, not a block inside the
 // .zmd: the disk format and the browser loader stay as they are, and the text is
 // fixable without repacking a disk.
@@ -125,6 +125,9 @@ test "a foldered line is found by its path first, then by its file name on a fla
     try std.testing.expectEqualStrings("JOUST OLD", t.find("old", "demo-joust.zmd").?.title); // the path wins
     try std.testing.expectEqualStrings("JOUST GAME", t.find("", "demo-joust.zmd").?.title); // flat card: the file
     try std.testing.expectEqualStrings("STNICCC", t.find("Demos", "DEMO-STNICCC.ZMD").?.title);
+    try std.testing.expectEqualStrings("STNICCC", t.find("demos/atari_st", "demo-stniccc.zmd").?.title); // by the file
+    const nested = try parse(arena.allocator(), "demos/demo-a.zmd\tOLD\ndemos/atari_st/demo-a.zmd\tNEW\n");
+    try std.testing.expectEqualStrings("NEW", nested.find("demos/atari_st", "demo-a.zmd").?.title); // the path wins
     try std.testing.expectEqualStrings("FLAT", t.find("demos", "demo-flat.zmd").?.title); // an old flat shelf.txt
     try std.testing.expectEqual(@as(?Meta, null), t.find("demos", "demo-stniccc.zmdx"));
     try std.testing.expectEqual(@as(?Meta, null), t.find("games", "joust.zmd")); // not a suffix match

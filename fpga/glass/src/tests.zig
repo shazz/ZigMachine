@@ -19,6 +19,8 @@ test {
     _ = @import("shelf_test.zig");
     _ = @import("shelf_view_test.zig");
     _ = @import("app_folders_test.zig");
+    _ = @import("shelf_nest_test.zig");
+    _ = @import("app_nest_test.zig");
     _ = @import("config.zig");
     _ = @import("meta.zig");
     _ = @import("stats.zig");
