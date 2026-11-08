@@ -69,8 +69,8 @@ pub fn fromIlbm(dst: *Screen, body: []const u8, row0: usize, rows: usize) void {
 /// halves: spread_lo is pixels 0..3, spread_hi pixels 4..7. (One u64 table was
 /// two-word maths on rv32, and its `writeInt` into a byte slice compiled to
 /// eight byte stores: 64,000 bus writes a frame.)
-const spread_lo: [256]u32 = spreadTable(0);
-const spread_hi: [256]u32 = spreadTable(4);
+pub const spread_lo: [256]u32 = spreadTable(0);
+pub const spread_hi: [256]u32 = spreadTable(4);
 
 fn spreadTable(comptime first: usize) [256]u32 {
     @setEvalBranchQuota(10000);

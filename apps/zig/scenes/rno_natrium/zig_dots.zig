@@ -21,6 +21,7 @@
 // A frame: one blit of R.bg, then ONE MAP that ORs bit 0 in (MT_OR_BC): the
 // pen of every pixel is the ST's, plane 0 the tunnel's, as on the ST.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const v2 = zg.chisel_v2;
 const st = @import("st.zig");
@@ -30,16 +31,17 @@ const R = @import("zig_res.zig");
 
 pub const TW: usize = 32; // 16 blob columns, then the same inverted
 pub const TH: usize = 128; // 32 blob rows in quarter texels
-const LINE_WORDS: usize = 20 * 3; // planes 1..3 of an ST line
+const LINE_WORDS: usize = st.LINE / 4; // an ST line as u32 words
+const PLANE0_OUT: u32 = std.mem.nativeToLittle(u32, 0xFFFF_0000); // bytes 2, 3 of a group's first word
 
 pub var map: []u16 = &.{};
 pub var tex: []u8 = &.{};
-var cache: []u16 = &.{}; // planes 1..3 of each ST line as last expanded
+var cache: []u32 = &.{}; // planes 1..3 of each ST line as last expanded (plane 0 masked)
 
 pub fn build() bool {
     map = zg.mem.alloc(u16, R.W * R.H) orelse return false;
     tex = zg.mem.alloc(u8, TW * TH) orelse return false;
-    cache = zg.mem.alloc(u16, 200 * LINE_WORDS) orelse return false;
+    cache = zg.mem.alloc(u32, 200 * LINE_WORDS) orelse return false;
     // the top half computed, the bottom its half turn (exact: zig_math_test)
     for (0..R.H / 2) |y| for (0..R.W) |x| {
         const e = M.dotEntry(@as(i32, @intCast(2 * x + 1)) - @as(i32, R.W), @as(i32, @intCast(2 * y + 1)) - @as(i32, R.H));
@@ -53,18 +55,16 @@ pub fn build() bool {
     return true;
 }
 
-/// ST line r's planes 1..3 into R.bg, edges carried out to the side borders.
+/// ST line r's planes 1..3 into R.bg (st.toChunky's spread tables, plane 0
+/// left out), edges carried out to the side borders.
 fn expandLine(s: *const st.Screen, r: usize) void {
     const out = R.bg[(R.OY + r) * R.W ..][0..R.W];
+    const wp: [*]u32 = @ptrCast(@alignCast(out.ptr + R.OX));
     for (0..20) |g| {
-        const o = r * st.LINE + g * 8;
-        const p1 = st.getW(s, o + 2);
-        const p2 = st.getW(s, o + 4);
-        const p3 = st.getW(s, o + 6);
-        for (0..16) |b| {
-            const k: u4 = @intCast(15 - b);
-            const pen = ((p1 >> k) & 1) << 1 | ((p2 >> k) & 1) << 2 | ((p3 >> k) & 1) << 3;
-            out[R.OX + g * 16 + b] = @intCast(pen);
+        const w = s[r * st.LINE + g * 8 ..][0..8];
+        inline for (0..2) |half| {
+            wp[g * 4 + half * 2] = (st.spread_lo[w[2 + half]] << 1) | (st.spread_lo[w[4 + half]] << 2) | (st.spread_lo[w[6 + half]] << 3);
+            wp[g * 4 + half * 2 + 1] = (st.spread_hi[w[2 + half]] << 1) | (st.spread_hi[w[4 + half]] << 2) | (st.spread_hi[w[6 + half]] << 3);
         }
     }
     @memset(out[0..R.OX], out[R.OX]);
@@ -80,19 +80,20 @@ fn borders(r: usize) void {
     while (y < end) : (y += 2) @memcpy(R.bg[y * R.W ..][0..R.W], src);
 }
 
-/// Expand the lines whose planes 1..3 changed (`all`: every line).
+/// Expand the lines whose planes 1..3 changed (`all`: every line). A group's
+/// 8 bytes are two words: plane 0 is the first word's low half (bytes 0, 1).
 pub fn sync(s: *const st.Screen, all: bool) void {
+    const words: [*]const u32 = @ptrCast(@alignCast(s));
     for (0..200) |r| {
         const c = cache[r * LINE_WORDS ..][0..LINE_WORDS];
-        var changed = all;
-        for (0..20) |g| for (0..3) |p| {
-            const w = st.getW(s, r * st.LINE + g * 8 + 2 + 2 * p);
-            if (c[g * 3 + p] != w) {
-                c[g * 3 + p] = w;
-                changed = true;
-            }
-        };
-        if (changed) {
+        const line = words[r * LINE_WORDS ..][0..LINE_WORDS];
+        var diff: u32 = 0;
+        for (c, line, 0..) |*k, w, i| {
+            const v = if (i & 1 == 0) w & PLANE0_OUT else w;
+            diff |= k.* ^ v;
+            k.* = v;
+        }
+        if (all or diff != 0) {
             expandLine(s, r);
             borders(r);
         }

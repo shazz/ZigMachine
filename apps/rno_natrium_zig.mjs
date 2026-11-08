@@ -11,21 +11,25 @@
 //            levels (no dither) and a new picture EVERY VBL (the original: every 3)
 //   roto     every pixel is the skin at the original's matrix, over the whole window
 //   panel    the girl panel over tunnel, wobble and roto is the original's, pixel for pixel
-//   classic  the parts with no ZIG version show the original's frame at (40, 40)
+//   dots     part 1 FULLSCREEN: the ST's curtains/logos | the blob tunnel, every pixel, borders lit
+//   twister  part 5 FULLSCREEN: the chrome strip at the original's sines, the bar through the borders
+//            (both: apps/rno_natrium_zig_full.mjs)
+//   classic  the parts with no ZIG version (credits) show the original's frame at (40, 40)
 //   back     Z off (mid-cube at $D30, and at $1C30): the next 48 frames are REF's,
 //            pixel for pixel, plane 0 alone; Z on again at $D60 needs no new memory
 //   ops      CHISEL ops a frame <= 3; Escape leaves (the cart now owns the keys)
 //   node apps/rno_natrium_zig.mjs [outdir] [--break]
-//     --break: REF runs one VBL ahead during the round trips, so "back" must fail (exit 0)
+//     --break: REF runs one VBL ahead during the round trips, so "back" must fail, and the
+//              dots and twister models run one VBL off, so their pixel checks must fail (exit 0)
 import { mkdir, writeFile } from "node:fs/promises";
 import { boot } from "./rno_natrium_boot.mjs";
 import * as Z from "./rno_natrium_zig_model.mjs";
 
 const BROKE = process.argv.includes("--break");
 const OUT = process.argv.slice(2).find((a) => !a.startsWith("--")) || "/tmp/rno_natrium";
-const K_Z = 122, K_ESC = 0xE012, PART = ["classic", "tunnel", "wobble", "env", "roto"];
-let failed = 0, backFails = 0;
-const ok = (c, m) => { console.log(`  ${c ? "ok  " : "FAIL"} ${m}`); if (!c) { failed++; if (m.startsWith("back")) backFails++; } };
+const K_Z = 122, K_ESC = 0xE012, PART = ["classic", "tunnel", "wobble", "env", "roto", "dots", "twister"];
+let failed = 0, backFails = 0, pixelFails = 0;
+const ok = (c, m) => { console.log(`  ${c ? "ok  " : "FAIL"} ${m}`); if (!c) { failed++; if (m.startsWith("back")) backFails++; if (/^(dots|twister): \d+ frames, every pixel/.test(m)) pixelFails++; } };
 
 class Cart {
     constructor(b) { Object.assign(this, b); this.vbls = 0; }
@@ -42,7 +46,7 @@ class Cart {
         return o;
     }
     window() { const r = this.raster(), o = []; for (let y = 40; y < 240; y++) o.push(...r.subarray(y * 400 + 40, y * 400 + 360)); return o; }
-    plane(p) { return new Uint8Array(this.memory.buffer, this.demo.natPlanePtr(p), Z.W * Z.H).slice(); }
+    plane(p, n = Z.W * Z.H) { return new Uint8Array(this.memory.buffer, this.demo.natPlanePtr(p), n).slice(); }
     u16(ptr, n) { return new Uint16Array(this.memory.buffer, ptr, n).slice(); }
 }
 
@@ -91,18 +95,18 @@ async function shot(name) {
 }
 
 console.log("rno_natrium ZIG mode");
-both(0x6F0);
+both(0xA0);
 zig.demo.key(K_Z);
 const ram0 = zig.machine.hwRamUsed();
-await (await import("./rno_natrium_zig_parts.mjs")).checkParts({ ref, zig, both, zigRun, against, roundTrip, ok, shot, same, ram0, K_Z });
+await (await import("./rno_natrium_zig_parts.mjs")).checkParts({ ref, zig, both, zigRun, against, roundTrip, ok, shot, same, ram0, K_Z, skew: BROKE ? 1024 : 0 });
 zig.demo.key(K_ESC);
 zig.step();
 ok(zig.demo.pollCartRequest() === -1, "Escape hands the screen back to the menu (pollCartRequest -1)");
 ok(zig.machine.hwRamAllocFailures() === 0, "no zg.mem allocation refused");
 // exitCode, never process.exit() (node 24 deadlocks at exit).
 if (BROKE) {
-    const caught = backFails === 2 && failed === 2;
-    console.log(caught ? "rno_natrium ZIG: PASS (--break caught: a VBL apart is not the original's frame)" : `rno_natrium ZIG: FAILED -- --break not caught (${backFails}/${failed})`);
+    const caught = backFails === 2 && pixelFails === 2 && failed === 4;
+    console.log(caught ? "rno_natrium ZIG: PASS (--break caught: a VBL apart is not the original's frame, nor the dots' or the twister's)" : `rno_natrium ZIG: FAILED -- --break not caught (${backFails} back, ${pixelFails} pixel, ${failed} in all)`);
     process.exitCode = caught ? 0 : 1;
 } else {
     console.log(failed ? `rno_natrium ZIG: FAILED (${failed})` : "rno_natrium ZIG: PASS");

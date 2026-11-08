@@ -329,11 +329,19 @@ ZM-X (`tex2d`, `mulsh`) and CHISEL v2 (AFFINE / MAP). Figures below are from
   60 fps). The 128x128 skin texture fits the D$. The V0 = `$7FFE` bug is the faithful mode's.
 - **Wobble:** per-row and per-column offsets into a 128x128 texture: a CPU loop with `tex2d`, or MAP
   with a map rebuilt per frame **(inferred)**.
-- **Twister:** the 256 KB `movep.l` tables exist only because of planes; chunky, it is a CPU loop with
-  `tex2d` over the 512x64 strip **(inferred)**.
-- **Dot tunnel:** the same MAP op on the one-bit blob texture, full screen, both halves; the
-  inverted, mirrored bottom half is a palette swap below line 100 (copper `PAL`) rather than an
-  inverted LUT **(inferred)**.
+- **Twister (done 7 Nov, `zig_twist.zig`, Matt's "marshmallow bar"):** full screen, ZIGGY. It is
+  neither affine (the column map changes every 2 px) nor a MAP (512 texels across, MAP's u is 8 bits):
+  a 200-entry column table a frame from the two sines, run on past both ends (100 columns, the middle
+  80 the original's), then each line is 100 u32 stores of two u16 texel pairs. The 64 strip rows are
+  stretched to 90 lines (x 1.4, as 200 -> 280), the bob covers lines 13..266, the greetings sit on
+  window lines 1..8 / 271..278.
+- **Dot tunnel (done 7 Nov, `zig_dots.zig`):** one MAP over 400x280 from the table's formula. The
+  table word fits U8 = 128 + angle 128/pi (0.5 worst) and V8 = floor(128.75 + 1024/r_cells) (within
+  one); `$C2DC` reads u = U8 & 15, v = V8 + ((U8 >> 4) & 7) * 8 (proved on all 16000 words,
+  `zig_math_test.zig`). Both survive a half turn, so the "mirrored" bottom half is just the
+  formula's own lower half; the inversion is texture columns 16..31 (the blob inverted), not a
+  palette swap. Planes 1..3 (curtains, logos) are a pen layer blitted first, carried out over the
+  borders, and the MAP ORs bit 0 in (MT_OR_BC). Before/after frames: `zig_fullscreen/`.
 - **Timeline:** unchanged; the ZIG mode replaces renderers, not the sequencer, so the music sync
   holds.
 
