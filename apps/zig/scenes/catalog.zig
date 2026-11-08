@@ -105,6 +105,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "POLKA DOTS F32", .tag = "polkadots_f32" }, // zigmachine
     .{ .name = "XM TEST", .tag = "xm_test" }, // zigmachine
     .{ .name = "KT TEST", .tag = "kt_test" }, // zigmachine — klystrack .kt songs on the .kt player
+    .{ .name = "DESK TEST", .tag = "desk_test" }, // zigmachine — the desk mode (HW 1.17.0): plane 0 at 640x480 1:1, a known picture
     .{ .name = "SID TEST", .tag = "sid_test" }, // zigmachine — a C64 PSID on the .sid player (cRSID: BARD native, machine-audio.wasm)
     .{ .name = "SYSINFO", .tag = "sysinfo" }, // system
     .{ .name = "DMA SHRINKING SPHERE", .tag = "lockbuster2" }, // atari st — DMA "Incredible Shrinking Sphere Cracktro" (demozoo 79466)

@@ -608,6 +608,7 @@ pub fn build(b: *std.Build) void {
         "demo-sid_test", // 118 — SID TEST: a Commodore 64 PSID (HerMiniSID, Hermit) on the .sid player: cRSID, native on BARD, machine-audio.wasm on the page; keys 1-3 by name, as bytes, an RSID refused; 5 stops
         "demo-c64_1988", // 119 — TRISTAR & RED SECTOR INC. / 1988 (C64, Only Sprites 2021, code Shazz): the eight sprites multiplexed by the original's IRQ chains, replayed on a VIC-II sprite model (data ripped by tools/c64_1988_rip.py)
         "demo-c64_transmission64", // 120 — PADUA / TRANSMISSION64 INVITATION (C64, 2021): rings over the boot screen, the radio logo, the dots and the info panel, on a VIC-II model fed the original's IRQ chains (data ripped by tools/c64_transmission64_rip.py)
+        "demo-desk_test", // 121 — DESK TEST: the desk mode (HW 1.17.0): plane 0 alone at 640x480 1:1, 256 cells of palette 0, a 1-px checker and frame, text; key 1 desk, key 2 low res
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
