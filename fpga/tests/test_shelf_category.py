@@ -54,8 +54,8 @@ def test_a_cart_goes_in_its_category(tag: str, category: str) -> None:
         ("trsi_transarctica", "demos/atari_falcon/demo-trsi_transarctica.zmd"),
         ("c64_1988", "demos/c64/demo-c64_1988.zmd"),
         ("union_tnt3", "demos/atari_st/demo-union_tnt3.zmd"),  # in no catalog line: the Union Demo's machine
-        ("fuji_hobbytronic", "demos/zigmachine/demo-fuji_hobbytronic.zmd"),  # written for the machine, an XL tune
-        ("anima", "demos/zigmachine/demo-anima.zmd"),
+        ("fuji_hobbytronic", "demos/kestrel/demo-fuji_hobbytronic.zmd"),  # written for the machine, an XL tune
+        ("anima", "demos/kestrel/demo-anima.zmd"),
         ("joust", "games/demo-joust.zmd"),  # only demos/ is split by platform
         ("pt2", "tools/demo-pt2.zmd"),
     ],
@@ -66,7 +66,7 @@ def test_a_demo_goes_in_its_platform_folder(tag: str, path: str) -> None:
 
 def test_every_platform_folder_is_one_fat_name_glass_takes() -> None:
     names = set(shelf_category.PLATFORMS.values())
-    assert {"atari_st", "amiga", "atari_falcon", "atari_xl", "c64", "zigmachine"} == names
+    assert {"atari_st", "amiga", "atari_falcon", "atari_xl", "c64", "kestrel"} == names
     assert all(re.fullmatch(r"[a-z0-9_]{1,24}", n) for n in names)  # no space (ctl load), shelf.zig MAX_FOLDER
     demos = [t for t in shelf_category.every_tag() if shelf_category.category(t) == "demos"]
     assert {shelf_category.platform(t) for t in demos} == names - {"atari_xl"}  # no XL production yet

@@ -5,7 +5,7 @@
 The glass OSD lists the shelf's folders first and a folder's carts inside it, so every disk
 the card carries sits at CARTS/<category>/demo-<tag>.zmd (tools/glass_shelf.py), and a demo one
 level further down, by the machine it comes from: CARTS/demos/<platform>/demo-<tag>.zmd
-(PLATFORMS: atari_st, amiga, atari_falcon, atari_xl, c64, zigmachine). The category comes from
+(PLATFORMS: atari_st, amiga, atari_falcon, atari_xl, c64, kestrel). The category comes from
 where the repo already says it:
 
 - TABLE first: the carts a rule gets wrong or cannot know (a game ported from the ST, a test
@@ -62,9 +62,9 @@ _BY_CATEGORY = {
 # shows '_' as a space ("ATARI ST/", fpga/glass/src/shelf_view.zig label()).
 PLATFORMS = {
     "atari st": "atari_st", "amiga": "amiga", "atari falcon": "atari_falcon", "atari xl": "atari_xl",
-    "c64": "c64", "zigmachine": "zigmachine",  # the machine's own screens, written for it
+    "c64": "c64", "zigmachine": "kestrel",  # the machine's own screens, written for it (Matt: "call it kestrel")
 }  # fmt: skip
-# A demo whose platform its catalog type does not give. fuji_hobbytronic stays "zigmachine": a
+# A demo whose platform its catalog type does not give. fuji_hobbytronic stays in kestrel/: a
 # screen written for the machine whose TUNE is an Atari XL SAP, not a port of an XL production.
 PLATFORM_TABLE: dict[str, str] = {}
 HUB = "union_demo"  # tools/shelf_meta.py HUBS: a Union screen is the Union Demo's machine's

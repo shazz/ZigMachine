@@ -44,7 +44,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "BAD FLICKER", .tag = "badflicker" }, // zigmachine
     .{ .name = "ICS BUMPY'S", .tag = "ics" }, // atari st
     .{ .name = "OXYGENE 312 SPRITES", .tag = "leonard" }, // atari st
-    .{ .name = "MAXI", .tag = "maxi" }, // zigmachine
+    .{ .name = "MAXI", .tag = "maxi" }, // atari st
     .{ .name = "MED OVERSCAN", .tag = "medium_overscan" }, // zigmachine
     .{ .name = "RES SWITCH", .tag = "res_switch" }, // zigmachine
     .{ .name = "SHAPES", .tag = "shapes" }, // zigmachine

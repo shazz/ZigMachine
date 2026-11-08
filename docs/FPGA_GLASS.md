@@ -397,7 +397,7 @@ its own place (Matt, 6 Nov: GEM's C: used to show the whole card):
 /KESTREL/    the system: system.rv32, kos/desktop.rv32, glass.cfg, glass (an optional override),
              progs/ (by-hash/ and demo-<tag>/: programs' board images), rollback/ (old card files)
 /CARTS/      the OSD's shelf: demos/ games/ tools/ tutorials/ tests/ system/ + shelf.txt;
-             demos/ split by platform: amiga/ atari_falcon/ atari_st/ atari_xl/ c64/ zigmachine/
+             demos/ split by platform: amiga/ atari_falcon/ atari_st/ atari_xl/ c64/ kestrel/
 /HD/         KOS's C: (the desktop shell roots C:\ there: docs/KOS_FAT.md); glass never reads it
 ```
 
