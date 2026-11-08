@@ -13,6 +13,7 @@
 const std = @import("std");
 const hw = @import("hardware"); // sealed video ABI header (named module)
 const chisel = @import("chisel.zig");
+const vram_pool = @import("vram_pool.zig");
 
 // --------------------------------------------------------------------------
 // Re-exports so scenes (in the separate `apps` module) can reach the whole open
@@ -146,10 +147,10 @@ pub const HEIGHT: u16 = hw.HEIGHT;
 pub const OVERSCAN_MAGIC_X: u16 = hw.OVERSCAN_MAGIC_X; // register the overscan HBL here
 pub const OVERSCAN_X_TOL: u16 = hw.OVERSCAN_X_TOL;
 pub const NB_PLANES: u8 = hw.NB_PLANES;
-// The VRAM pool and what a plane costs in it. vramAlloc() has NO pool guard —
-// it bumps straight past the end into the physical framebuffer — so a scene that
-// allocates a big backing buffer should bound-check its total at comptime, and
-// it needs these numbers to do that without hardcoding the memory map.
+// The VRAM pool and what a plane costs in it. vramAlloc() traps when the pool is
+// full (vram_pool.zig: it used to bump past the end into the physical framebuffer),
+// so a scene that allocates a big backing buffer should still bound-check its total
+// at comptime, and it needs these numbers to do that without hardcoding the memory map.
 pub const VRAM_BYTES: usize = hw.VRAM_BYTES;
 pub const NORMAL_FB_BYTES: usize = hw.NORMAL_FB_BYTES;
 pub const OVERSCAN_FB_BYTES: usize = hw.FULLSCREEN_FB_BYTES; // one 400x280 plane
@@ -176,19 +177,21 @@ var g_base: usize = 0;
 // a fullscreen plane 112000. `vram_top` is a byte offset from the region base.
 var vram_top: usize = 0;
 
+const VRAM_END: usize = hw.OFF_VRAM + VRAM_BYTES; // the PFB starts here
+// A plane's buffer: one that does not fit is a scene bug, so it traps (loud) instead of
+// drawing over the PFB (silent). vramTry is the asking form.
 fn vramAlloc(bytes: usize) usize {
-    const off = vram_top;
-    vram_top += (bytes + 3) & ~@as(usize, 3); // keep 4-aligned
-    return off;
+    return vram_pool.alloc(&vram_top, VRAM_END, bytes, 4) orelse @panic("VRAM pool exhausted");
+}
+fn vramTry(bytes: usize, alignment: usize) ?usize {
+    return vram_pool.alloc(&vram_top, VRAM_END, bytes, alignment);
 }
 
 /// Words in VRAM for a copper list's PALREF tables (HW 1.9.0, machine/copper.zig): `off` is the
 /// region offset a PALREF names. Null when the pool has no room (the caller keeps its handler).
 pub const VramWords = struct { words: []u32, off: u32 };
 pub fn vramWords(n: usize) ?VramWords {
-    const off = (vram_top + 3) & ~@as(usize, 3);
-    if (off + n * 4 > hw.OFF_VRAM + VRAM_BYTES) return null;
-    vram_top = off + n * 4;
+    const off = vramTry(n * 4, 4) orelse return null;
     return .{ .words = @as([*]u32, @ptrFromInt(g_base + off))[0..n], .off = @intCast(off) };
 }
 
@@ -548,6 +551,7 @@ pub const LogicalFB = struct {
     // This plane's copper list buffer in VRAM (copperList), and its REG_FB_COPPER value.
     copper_words: []u32 = &.{},
     copper_v: u16 = 0,
+    desk_off: usize = 0, // setDeskPlane's buffer (a region offset), 0: none yet this scene
 
     // Point this plane's pixel view at `fb_off` (a byte offset into the region,
     // from the VRAM allocator) and publish it to the machine's FB_BASE register.
@@ -567,6 +571,7 @@ pub const LogicalFB = struct {
         self.zigos = zigos;
         self.is_enabled = false;
         self.copper_words = &.{}; // the VRAM pool was reset: no list until one is asked for
+        self.desk_off = 0; // ... and no desk buffer
         writeU16(hw.REG_FB_COPPER + @as(usize, self.id) * 2, 0);
     }
 
@@ -807,6 +812,36 @@ pub const LogicalFB = struct {
         writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, MEDIUM_WIDTH);
         writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
         writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
+    }
+
+    // The desk mode (HW 1.17.0, docs/HW_API.md "Desk mode"): plane 0 alone, 640x480 at 1:1, for
+    // GEM and tools. Allocates its 307,200 bytes 64-aligned from the VRAM pool (once a scene: it
+    // keeps the buffer when it leaves and comes back), clears it, and stores all 256 entries of
+    // palette 0 again: the board shows them from a mirror that only CPU stores fill. Errors (and
+    // changes nothing) on another plane, where the machine has no desk mode (an older board
+    // bitstream: the cart then stays in its mode, e.g. medium), or when the pool is full.
+    pub fn setDeskPlane(self: *LogicalFB) error{ NotPlaneZero, DeskUnavailable, VramFull }!void {
+        if (self.id != 0) return error.NotPlaneZero;
+        if (hw.hwDeskAvailable() == 0) return error.DeskUnavailable;
+        const fresh = self.desk_off == 0;
+        if (fresh) self.desk_off = vramTry(hw.DESK_FB_BYTES, 64) orelse return error.VramFull;
+        self.bind(self.desk_off);
+        self.stride = hw.DESK_WIDTH;
+        self.fb_w = hw.DESK_WIDTH;
+        self.fb_h = hw.DESK_HEIGHT;
+        if (fresh) self.clearFrameBuffer(0);
+        const pal: [*]volatile u32 = @ptrCast(self.palette);
+        for (0..256) |i| pal[i] = pal[i];
+        writeU8(hw.REG_RESOLUTION, hw.RES_DESK);
+    }
+    // Back from the desk to a low-res plane on the same buffer (its first 320x200 bytes, as
+    // setResLow): redraw after switching. setDeskPlane goes back to the desk.
+    pub fn leaveDesk(self: *LogicalFB) void {
+        self.setResLow(); // RES_PLANES, stride 320, FB_MODE normal
+    }
+    pub fn isDesk(self: *const LogicalFB) bool {
+        _ = self;
+        return @as(*const u8, @ptrFromInt(g_base + hw.REG_RESOLUTION)).* == hw.RES_DESK;
     }
 
     pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
