@@ -321,6 +321,41 @@ const w = zg.mp3Status(.word);              // bits 0-1 state (0 idle 1 playing 
 - The worked example is the MP3 PLAYER tools cart (`apps/zig/scenes/mp3_player.zig`): C:\MUSIC through
   KOS GEMDOS, a 32 KiB chunk at a time.
 
+## 8d. The BARD queue: SID live (system table 1.12)
+
+`zg.bard` (`libs/zig/bard.zig`) is a ring of **timed commands** from the cart to the sound side (BARD on
+the board, the AudioWorklet on the page) and a ring of **events** back, both in the cart's own memory. The
+cart writes and never waits; the host takes the commands once a frame (on the board BARD reads them in DDR
+itself) and writes back what it took, the sound side's position and the events. Its first device is
+**SID live**: cRSID with no tune, whose SID the cart writes register by register, as a C64 player does.
+
+```zig
+const bard = zg.bard;
+if (!bard.open(6144)) return;                 // the lead (samples): the latest a command may arrive. false: no queue here
+while (bard.due(k * 882)) : (k += 1) {        // a 50 Hz replay on the sound side's clock: 882 samples a tick
+    if (bard.room() < 32) break;              // a whole tick or none (a full ring refuses, counted in dropped())
+    if (k == 0) _ = bard.sidReset(0, .mos6581); // a fresh SID (PAL), 6581 or 8580: silent until the first
+    _ = bard.sidWrite(k * 882, 0x18, 0x0F);   // $D400 + reg, at the cart's sample t
+    _ = bard.mark(k * 882, row);              // an event back when the sound side reaches t (24-bit arg)
+}
+while (bard.pollEvent()) |e| { ... }          // e.t, e.kind (.mark .reset .resync .dropped), e.arg
+bard.close();                                  // or any song request, or the next cart
+```
+
+- **Time**: `t` is the cart's own 44.1 kHz sample clock (the Paula queue's rule, HW_API 5): the first batch
+  plays `lead` samples after it arrives, and every command keeps its distance to it. A write lands at the first
+  22.05 kHz engine sample at or after its stamp, on every host. A batch that arrives late re-anchors the clocks
+  and sends a `.resync` event. `bard.position()` is the sound side's position on the cart's clock (a frame or
+  two old); `due(t)` is `t < position() + lead`.
+- **Overflow**: a full cart ring refuses the command (`dropped()`); a full player queue (1024) drops the rest of
+  a batch and sends `.dropped`; events the cart did not read in time (16), or more than three in a board frame,
+  are counted in `eventsLost()`. Nothing blocks.
+- **Ownership**: the queue's open stops every player; the SID player plays only the cart's writes (mode 1, the
+  Paula channels, like a `.sid`). A song request, `stopSong` or the next cart ends it.
+- **Cost on the board**: see `docs/FPGA_SOUND_CPU.md` (Effects, "the BARD queue").
+- The worked example is BARD SID (cart 124, `apps/zig/scenes/bard_sid.zig`): a three-voice Zig tracker
+  (`bard_sid/tune.zig`), a beat flash from the marks.
+
 ## 9. Build & run
 
 ```

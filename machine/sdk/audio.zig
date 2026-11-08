@@ -48,6 +48,8 @@ pub extern fn machineAudioReset() void; // silence the chip when a program ends
 // mono PCM into the caller's buffer, which the .sid player puts on Paula (libs/zig/players/sid.zig).
 pub extern fn machineSidLoad(file_abs: u32, len: u32, subtune: u32) u32; // 0 ok, 1 not a .sid, 2 RSID, 3 bad length
 pub extern fn machineSidRender(dst_abs: u32, n: u32) void; // n s16 samples at 22050 Hz
+pub extern fn machineSidRaw(model: u32) u32; // raw SID: a C64 with no tune (6581 / 8580, PAL); 0 ok
+pub extern fn machineSidWrite(reg: u32, value: u32) void; // one SID register, $D400 + reg (0..0x18)
 
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.

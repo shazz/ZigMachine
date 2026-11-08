@@ -153,6 +153,7 @@ NATIVE_TESTS="
     libs/zig/players/hip_format_test.zig
     libs/zig/players/amiga_beam_test.zig
     libs/zig/players/cart_paula_queue_test.zig
+    libs/zig/players/sid_live_test.zig
     libs/zig/players/mod_format_test.zig
     libs/zig/players/xm_format_test.zig
     libs/zig/players/xm_instr_test.zig
@@ -229,6 +230,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
+    apps/zig/scenes/bard_sid/tune.zig
     libs/zig/players/mp3_frame_test.zig
     libs/zig/players/mp3_in_test.zig
     libs/zig/players/mp3_resample_test.zig
@@ -380,6 +382,10 @@ gate sid node apps/sid_check.mjs --break seed   # ...and the native build's dith
 gate sid node apps/sid_check.mjs --break rsid   # ...and an RSID let through as a PSID fails the refusal check
 gate sid_test node apps/sid_test_check.mjs   # SID TEST: keys 1-4 ask for the local HVSC tunes by name (gitignored, never fetched, none tracked), key 6 for hermini.sid, 5 for "none"; key 7 is requestSongBytes kind 6 of the tune's bytes, mode 7 (no key) of the same as an RSID; the loader's postSfx makes loadSid of each; the audio modules play the PSID (mode 1, heard) and refuse the RSID (status 2, silent); both tune files are cRSID's HerMiniSID (md5)
 gate sid_test node apps/sid_test_check.mjs --break name   # ...and key 6 expected to ask for another file fails
+gate bard_sid node apps/bard_queue_check.mjs   # BARD queue (zg.bard, table 1.12): BARD SID writes its tune into its ring; the loader's bardFrame + the worklet's bardQueue on the audio modules (raw cRSID) = host_audio (the cart and players through wasm2c, cRSID native, host/bardq_pump.c: BARD's pump), the same samples from the first heard one over 420 frames; every command applied, none refused, dropped or re-anchored, the beat marks back; key 2 resets an 8580 mid-tune (its event back, the output parts after the key); bardDrain stops at an entry not whole
+gate bard_sid node apps/bard_queue_check.mjs --break stamp   # ...and the loader delaying every SID write two samples (one engine sample) fails parity
+gate bard_sid node apps/bard_queue_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
+gate bard_sid uv run --project fpga python -m pytest -q fpga/tests/test_bard_queue.py   # ...and the board's answer across S2C (cycles/bardq_s2c.h) lands in the cart's block as the page writes it: no tail past the head, no position before the anchor, events unpacked, lapped or full counted lost
 gate kt node apps/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted
 gate kt node apps/kt_check.mjs --break pin   # ...and a wrong pin fails
 gate kt node apps/kt_check.mjs --break lowbyte   # ...and the low-byte channels silenced (8-bit sides) fail the Paula check

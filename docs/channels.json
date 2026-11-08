@@ -20,6 +20,11 @@
   "type": "atari st"
  },
  {
+  "tag": "bard_sid",
+  "title": "BARD SID",
+  "type": "zigmachine"
+ },
+ {
   "tag": "bladerunners",
   "title": "BLADERUNNERS DUNGEON",
   "type": "atari st"

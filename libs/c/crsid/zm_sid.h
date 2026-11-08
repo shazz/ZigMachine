@@ -23,4 +23,15 @@ uint32_t zm_sid_load(uint8_t *file, uint32_t len, uint32_t subtune);
 /* The next `n` samples (s16 mono at ZM_SID_RATE) into `dst`; silence when nothing is loaded. */
 void zm_sid_render(int16_t *dst, uint32_t n);
 
+/* Raw SID (the BARD queue, libs/zig/players/sid_live.zig): a C64 with no tune, whose SID the caller
+ * writes register by register. `model` 6581 or 8580 (anything else: 6581), PAL clock. It is a load:
+ * a fresh C64 playing a 2-byte PSID whose init and play are an RTS, so every field a tune's load
+ * sets (volume, clocks, the attenuator) is set the same way. 0 ok. */
+uint32_t zm_sid_raw(uint32_t model);
+
+/* One SID register (0x00..0x18, $D400 + reg) as the 6502 would write it; ignored when nothing is
+ * loaded or past $D418. cRSID reads the registers every cycle, so the write takes hold at the next
+ * sample rendered. */
+void zm_sid_write(uint32_t reg, uint32_t value);
+
 #endif

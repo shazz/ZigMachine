@@ -18,6 +18,7 @@
 #include "dflush.h"
 #include "haudio.h"
 #include "snd_mailbox.h"
+#include "sbardq.h"
 #include "smp3bench.h"
 #include "sound.h"
 #include "trap.h"
@@ -39,6 +40,7 @@ static void timed_pump(void) {
     S2C(S_PUSHED) = baudio.pushed;
     S2C(S_RESYNCS) = baudio.resyncs;
     S2C(S_ANCHORS) = baudio.anchors;
+    sbardq_publish(); /* the BARD queue's position and events, after the render */
 }
 
 #ifdef ZM_SND_BENCH
@@ -49,6 +51,8 @@ static void run(void) {
     uint32_t t0 = SND_REG(SND_CYCLES);
 #ifdef ZM_SND_MP3 /* make snd-bench SND_MP3=1: the song is an .mp3, streamed (cycles/sound/smp3bench.c) */
     mp3_bench_start(ZM_SONG);
+#elif defined(ZM_SND_BARDQ) /* make snd-bench SND_BARDQ=1: SID live, a linked command log (sbardq_bench.c) */
+    bq_bench_start();
 #else
     audio_play(ZM_SONG, ZM_TUNE);
 #endif
@@ -63,13 +67,24 @@ static void run(void) {
 #ifdef ZM_SND_MP3
         mp3_bench_feed(); /* timed with the render: a cart's feeds cost BARD their copy */
 #endif
+#ifdef ZM_SND_BARDQ
+        uint32_t put = bq_bench_frame((uint32_t)f); /* timed with the render: BARD pumps the ring */
+#endif
         audio_render(FRAME);
         printf("F %d %lu\nFW %d %lu %lu\n", f, (unsigned long)(SND_REG(SND_CYCLES) - c0), f,
                (unsigned long)(SND_REG(SND_IBUS_WAIT) - i0), (unsigned long)(SND_REG(SND_DBUS_WAIT) - d0));
+#ifdef ZM_SND_BARDQ
+        printf("BQ %d put %lu\n", f, (unsigned long)put);
+#endif
 #ifdef ZM_SND_MP3
         mp3_bench_report(f);
 #endif
     }
+#ifdef ZM_SND_BARDQ
+    printf("BQ applied %lu pending %lu refused %lu resyncs %lu\n", (unsigned long)w2c_audio_audioBardApplied(&g_aud.player),
+           (unsigned long)w2c_audio_audioBardPending(&g_aud.player), (unsigned long)w2c_audio_audioBardRefused(&g_aud.player),
+           (unsigned long)w2c_audio_audioBardResyncs(&g_aud.player));
+#endif
     baudio_report();
     sound_finish(0);
 }
@@ -115,6 +130,10 @@ static void command(void) {
         effects(arg);
         return;
     }
+    if (op == OP_BARD) {
+        sbardq_open(C2S(C_PTR), arg);
+        return;
+    }
     uint32_t words[C_NAME_WORDS + 1] = {0};
     for (uint32_t i = 0; i < C_NAME_WORDS; i++) words[i] = C2S(C_NAME + i);
     const char* name = (const char*)words;
@@ -134,6 +153,7 @@ static void run(void) {
             last = seq;
             S2C(S_ACK) = seq;
         }
+        sbardq_take(); /* the cart's ring, in DDR: no command, no wait */
         timed_pump();
     }
 }
@@ -147,6 +167,7 @@ int main(void) {
         sound_finish(1);
     }
     baudio_boot();
+    sbardq_boot();
     S2C(S_ACK) = C2S(C_SEQ); /* the boot's nonce (cycles/bsound.c): this side is up */
     S2C(S_READY) = S_READY_VALUE;
     run();

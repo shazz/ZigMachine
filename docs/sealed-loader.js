@@ -421,6 +421,7 @@ async function instantiateCart(bytes, what) {
         // message rather than a call.
         if (audioNode) audioNode.port.postMessage({ type: "reset" });
         paulaCart = null; // the reset gives the Paula channels back to the machine
+        bardCart = null; // ...and ends the outgoing cart's BARD queue (its ring is gone)
         mp3Pending.length = 0; // ...and the outgoing cart's MP3 stream ends with it (the worklet's reset stopped it)
         mp3State = [0, 0, 0];
         sndhResident = null; // ...and the new cart's first zg.sndhCall loads its image
@@ -522,6 +523,8 @@ async function boot() {
             hostPaulaUpload: (src, off, len) => hostPaulaUpload(src, off, len),
             hostPaulaWrite: (ptr, n) => hostPaulaWrite(ptr, n),
             hostPaulaRelease: () => hostPaulaRelease(),
+            // The BARD queue (table 1.12, libs/zig/bard.zig): the cart's ring of timed commands.
+            hostBardAttach: (block, lead) => hostBardAttach(block, lead),
             // Free-running microseconds, u32 (wraps every ~71 min). A BENCHMARK aid
             // (the raytrace carts): carts stay frame-locked, never time-driven.
             // decisions.md 2026-10-10.
@@ -793,6 +796,8 @@ function start() {
             const n = demo.pollSfx();
             if (n && audioCtx) postSfx(memory, demo.sfxEntriesPtr(), n);
         }
+        // zg.bard (table 1.12): the frame's timed commands, off the cart's ring to the worklet.
+        bardFrame();
 
         let anyPlane = false;
         for (let i = 0; i < nb_planes; i++) {
@@ -1240,6 +1245,7 @@ function startAudio() {
                         new Uint8Array(memory.buffer, demo.getAudioModePointer(), 1)[0] = msg.mode;
                     }
                     if (msg.mp3 && !mp3Pending.length) mp3State = msg.mp3;
+                    if (msg.bard && bardCart) bardPublish(new Uint32Array(memory.buffer), bardCart.block >>> 2, msg.bard);
                     if (demo && demo.getSongMsPointer) {
                         new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = msg.songMs | 0;
                     }
@@ -1260,6 +1266,7 @@ function startAudio() {
         flushPendingStream(); // a scene may have requested streaming before audio was enabled
         flushMp3(); // ...or started an MP3 stream and fed it
         flushPaulaClaim(); // ...or claimed the Paula channels (its uploads are in paulaCart.chip)
+        flushBardOpen(); // ...or opened its BARD queue
     })();
     return audioReady;
 }
@@ -1580,6 +1587,56 @@ function hostPaulaRelease() {
     if (!paulaCart) return;
     paulaCart = null;
     if (audioNode) audioNode.port.postMessage({ type: "paulaRelease" });
+}
+// The BARD queue (table 1.12, libs/zig/bard.zig): the cart's ring of timed commands, taken once a
+// frame and posted to the worklet (apps/zig/demo_audio_sidlive.zig plays them at their samples);
+// the worklet's position and events come back in its audioState. fpga/host/bardq_pump.c is the
+// native host's and BARD's copy of bardDrain / bardPublish. Until sound is on nothing is taken: the
+// cart's ring fills, and the cart's first batch plays once the worklet is up.
+let bardCart = null; // { block, lead } while the cart's queue is open
+function hostBardAttach(block, lead) {
+    const u = new Uint32Array(memory.buffer);
+    if (!block) { bardCart = null; if (audioNode) audioNode.port.postMessage({ type: "bardClose" }); return 0; }
+    if (block & 15 || block + 64 > memory.buffer.byteLength || u[block >>> 2] !== 0x51424d5a) return 0;
+    bardCart = { block, lead: lead >>> 0 };
+    flushBardOpen();
+    return 1;
+}
+function flushBardOpen() {
+    if (bardCart && audioNode) audioNode.port.postMessage({ type: "bardOpen", lead: bardCart.lead });
+}
+function bardFrame() {
+    if (!bardCart || !audioNode) return;
+    const words = bardDrain(new Uint32Array(memory.buffer), bardCart.block >>> 2);
+    if (words.length) audioNode.port.postMessage({ type: "bardCmds", words: words.buffer }, [words.buffer]);
+}
+// The ring's new commands as {t, addr, value, 0} words, the cart's tail moved past them. An entry
+// is taken only when its seq is its index (a reader never takes half an entry).
+function bardDrain(u, b) {
+    const cap = u[b + 1], head = u[b + 4], out = [];
+    let tail = u[b + 5];
+    if (!cap || cap & (cap - 1) || (head - tail) >>> 0 > cap) return new Uint32Array(0);
+    for (; tail !== head; tail = (tail + 1) >>> 0) {
+        const e = b + 16 + 4 * (tail & (cap - 1));
+        if (u[e + 3] !== tail) break;
+        out.push(u[e], u[e + 1], u[e + 2], 0);
+    }
+    u[b + 5] = tail;
+    return Uint32Array.from(out);
+}
+// The sound side's answer into the cart's block: its position, and each event (t, kind, arg) the
+// ring has room for (else counted lost).
+function bardPublish(u, b, st) {
+    u[b + 7] = st.pos >>> 0;
+    u[b + 8] = st.anchored ? 1 : 0;
+    const cap = u[b + 1], evCap = u[b + 2], ev = st.events || [];
+    for (let i = 0; i + 2 < ev.length; i += 3) {
+        const head = u[b + 9];
+        if (!evCap || (head - u[b + 10]) >>> 0 >= evCap) { u[b + 11] = (u[b + 11] + 1) >>> 0; continue; }
+        const e = b + 16 + 4 * cap + 4 * (head % evCap);
+        u[e] = ev[i]; u[e + 1] = ev[i + 1]; u[e + 2] = ev[i + 2]; u[e + 3] = head;
+        u[b + 9] = (head + 1) >>> 0;
+    }
 }
 window.playMod = playMod;
 window.playYm = playYm;

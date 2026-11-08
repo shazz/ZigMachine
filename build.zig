@@ -611,6 +611,7 @@ pub fn build(b: *std.Build) void {
         "", // 121: reserved (taken by unmerged branches, lead 8 Nov)
         "", // 122: reserved (taken by unmerged branches, lead 8 Nov)
         "demo-erfurt_menu", // 123 — ATARI SCENE COLLECTIVE / THE ERFURT MEGADEMO menu (ST/STE 2026): the drum menu, real colour-0 rainbows, from the original disks
+        "demo-bard_sid", // 124 — BARD SID: the BARD queue's test cart (zg.bard, table 1.12): the cart writes the SID's registers tick by tick, stamped on its sample clock; raw cRSID plays each at its sample (BARD native, machine-audio.wasm); a mark back each beat flashes the background
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

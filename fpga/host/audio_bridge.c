@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bardq.h"
 #include "haudio.h"
 
 #define NAME_MAX 64u /* libs/zig/zigos.zig g_song_name */
@@ -86,6 +87,7 @@ int audio_bridge(struct w2c_env* e) {
     }
     sndh_calls(e);
     effects(e);
+    audio_bard_frame(e); /* the BARD queue (table 1.12): host/audio_bardq.c or cycles/bsound_bardq.c */
     return started;
 }
 

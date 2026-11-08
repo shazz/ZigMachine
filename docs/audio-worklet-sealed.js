@@ -84,6 +84,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 this.port.postMessage({ type: "paulaRefused", what: msg.type });
                 return;
             }
+            if (msg.type.startsWith("bard")) return this.bardQueue(msg);
             if (msg.type === "loadMod") {
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadMod(len);
@@ -280,6 +281,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 songMs: this.demo.audioSndhPositionMs ? this.demo.audioSndhPositionMs() : 0,
                 scopes: this.scopes.map((s) => Array.from(s)),
                 mp3: this.demo.audioMp3Status ? [0, 1, 2].map((w) => this.demo.audioMp3Status(w) >>> 0) : null,
+                bard: this.bardState(),
             });
         }
         return true;
@@ -312,6 +314,42 @@ ZigAudioSealedProcessor.prototype.cartPaula = function (msg) {
             d.audioPaulaQueue(part.length >> 4);
         }
     }
+};
+
+// The BARD queue (table 1.12; apps/zig/demo_audio_sidlive.zig): open SID live, close it, or queue a
+// frame's commands (the loader's bardDrain words, 16 bytes each), staged and queued for their samples.
+ZigAudioSealedProcessor.prototype.bardQueue = function (msg) {
+    const d = this.demo;
+    if (msg.type === "bardOpen") {
+        this.sample = null;
+        d.audioBardOpen(msg.lead >>> 0);
+        this.bardEv = 0;
+    } else if (msg.type === "bardClose") {
+        d.audioBardClose();
+    } else if (msg.type === "bardCmds" && !d.audioBardActive()) {
+        d.audioBardQueue(msg.words.byteLength >> 4); // counted, not staged: song RAM is someone else's
+    } else if (msg.type === "bardCmds") {
+        const src = new Uint8Array(msg.words), cap = d.audioBardStageCap() * 16;
+        for (let at = 0; at + 16 <= src.length; at += cap) {
+            const part = src.subarray(at, Math.min(src.length, at + cap));
+            new Uint8Array(this.memory.buffer, d.audioBardStagePtr(), part.length).set(part);
+            d.audioBardQueue(part.length >> 4);
+        }
+    }
+};
+
+// The queue's answer for the loader's bardPublish: position, and the events since the last one.
+ZigAudioSealedProcessor.prototype.bardState = function () {
+    const d = this.demo;
+    if (!d.audioBardActive || !d.audioBardActive()) return null;
+    const n = d.audioBardEventCount() >>> 0, cap = d.audioBardEventCap();
+    const ring = new Uint32Array(this.memory.buffer, d.audioBardEventsPtr(), 4 * cap), events = [];
+    if (((n - (this.bardEv || 0)) >>> 0) > cap) this.bardEv = (n - cap) >>> 0; // lapped: the newest
+    for (; this.bardEv !== n; this.bardEv = (this.bardEv + 1) >>> 0) {
+        const e = 4 * (this.bardEv % cap);
+        events.push(ring[e], ring[e + 1], ring[e + 2]);
+    }
+    return { pos: d.audioBardPosition() >>> 0, anchored: !!d.audioBardAnchored(), events };
 };
 
 // zg.samplePlay, before the players render `n` frames: the ring written up to

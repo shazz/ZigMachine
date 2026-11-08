@@ -46,4 +46,12 @@ enum { S_ACK = 0, S_READY = 1, S_PUSHED = 2, S_APPLIED = 3, S_STATUS = 4, S_RESY
  * S2C[12..22]: the players' audio state for the cart's mirror and zg.mp3Status (cycles/aud_state.h S_AS). */
 #define S_READY_VALUE 0x52534D5Au /* 'ZMSR': the sound firmware is up and polling */
 
+/* The BARD queue (table 1.12, host/bardq.h): OP_BARD opens it (C_PTR the cart's block in DDR, C_ARG
+ * the lead) or closes it (C_PTR 0); then no command at all. ZIGGY writes the ring's head after each
+ * cart frame in C2S word C_BQ_HEAD (outside every command's words); BARD takes the entries from DDR
+ * past its D-cache and answers in S2C words S_BQ.. (after the audio state): the commands taken, its
+ * position, the event count << 1 | anchored, and the last S_BQ_SLOTS events {t, kind | arg << 8}. */
+enum { OP_BARD = 4, C_BQ_HEAD = 5 };
+enum { S_BQ = 23, S_BQ_TAIL = 23, S_BQ_POS = 24, S_BQ_EVN = 25, S_BQ_EV = 26, S_BQ_SLOTS = 3 };
+
 #endif

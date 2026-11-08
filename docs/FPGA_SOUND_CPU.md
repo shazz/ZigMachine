@@ -169,6 +169,7 @@ bridge carried only songs and `sndhCall`s, so on KESTREL with BARD, Beat Dis's k
 | the stream imports | `zg.audioStreamStart` / `audioFeed` / `audioStreamStop` are env imports, not queue entries. `tools/host_gen.py` routes them through `host/hstream.h` to `host/audio_bridge.c`, which applies each at once (mid-frame, as the browser posts them) as an effect `0x81..0x83`. A feed's bytes are copied while BARD runs its command (ZIGGY waits for the ACK), since a cart may reuse its buffer within the frame |
 | the MP3 imports (table 1.11) | `zg.mp3Ctl` / `mp3Feed` / `mp3Status` are env imports as the stream's (`host/hstream.h` `HOST_MP3_*`): `host/audio_bridge.c` carries a control as effect `0x88` (op in `a`, arg in `rate`) and a feed as `0x89` (its bytes copied by BARD while ZIGGY waits for the ACK, `cycles/bsound.c`); `host/audio_mp3.c` applies them to demo-audio.wasm's MP3 player (`libs/zig/players/mp3.zig`: pvmp3 through wasm2c, the PCM on the four Paula channels as a high and a low byte a side, `x >> 1` exact). BARD publishes the status in its S2C bank (`cycles/aud_state.h` `AS_MP3_W`: the word, bytes used, frames decoded, and its own render load in per mille), which `hostMp3Status` reads past the D-cache. Cost: `make snd-bench SONG=TONES44.MP3 MUSIC=$PWD/../apps/zig/assets/mp3 SND_MP3=1` |
 | a `.sid` (by name, or `requestSongBytes` kind 6) | `audioLoadSid(len, subtune)` (`host/audio.c` `load_paula` -> `host/audio_sid.c`): the player (`libs/zig/players/sid.zig`, through wasm2c) calls the `machineSidLoad` / `machineSidRender` imports, which BARD answers with cRSID itself, **native C** (`host/crsid.c`, the one object built `-march=rv32im -mno-div`), not machine-audio.wasm's copy; an RSID is refused (`ZM SID refused <name>: RSID not supported`). Cost: `make snd-bench SONG=hermini.sid` (61 % of BARD; fpga/review/SID_BARD_STUDY.md section 6) |
+| the BARD queue (table 1.12) | not an effect, and no command after its open: `env.hostBardAttach(block, lead)` hands BARD the cart's ring (`libs/zig/bard.zig`) in one `OP_BARD` command (C_PTR the block in DDR; its ACK waited for once). After each cart frame ZIGGY writes the ring's head in C2S word 5 (`cycles/bsound_bardq.c`); between renders BARD drops its D-cache when the head moved and takes the whole entries from the cart's DDR (`cycles/sound/sbardq.c`, `host/bardq_pump.c`: `seq` = the index, so an entry still on its way waits a turn) into demo-audio.wasm's SID live queue (`apps/zig/demo_audio_sidlive.zig`), which plays each write at its sample on raw cRSID (`machineSidRaw` / `machineSidWrite`, native). After a render it publishes S2C 23-31 (commands taken, position, events: `cycles/bardq_s2c.h`), which ZIGGY copies into the cart's block. F11 says "SID" (song `sidlive`). Cost: `make snd-bench SND_BARDQ=1` ("The BARD queue" below) |
 | the Paula imports (HW 1.14.0) | `env.hostPaulaClaim` / `Upload` / `Write` / `Release` (docs/HW_API.md 5) are env imports too, through `host/hstream.h` to `host/audio_bridge.c`, carried as effects `0x84..0x87`. `host/audio_paula.c` applies them: the claim (`audioPaulaClaim(lead)`: every player stopped, song RAM zeroed: it is the cart's chip RAM now), an upload copied from the cart's memory in DDR into chip RAM, a write batch (16-byte entries read in DDR) staged into `demo-audio.wasm`'s queue, which applies each at its sample through `paula.zig` into CHORUS's PCM registers. ZIGGY waits for a batch's ACK (its buffer is the next frame's), not for an upload's (the cart keeps its samples). The claim answers 0 while BARD is not up: the cart mixes itself. While a cart holds the channels, `host/audio.c` refuses every song, `sndhCall` and effect (`ZM PAULA ... refused`) |
 
   A refusal is logged with the count, as the browser's console does (`ZM FX ymWrite refused (n so far)`).
@@ -207,6 +208,25 @@ bridge carried only songs and `sndhCall`s, so on KESTREL with BARD, Beat Dis's k
 The sim takes about 40 minutes (`ZM_BARD_SIM=1` runs it from the test; otherwise the test checks the last
 run again). The scripted cart waits out the song's load before it counts frames. Without that wait, the
 frames lost to the load were caught up at once, and the sim ended before the song was heard.
+
+### The BARD queue (system table 1.12)
+
+`make snd-bench SND_BARDQ=1 ZM_FRAMES=8` (`cycles/sound/sbardq_bench.c`): no cart; BARD SID's tune as the page's
+loader posted it (`node apps/bard_queue_check.mjs --dump build/bardq/commands.bin`) goes through a ring in BARD's
+memory and the same pump as the play image (`host/bardq_pump.c`) into SID live on raw cRSID, the lead one frame so
+seven of the eight frames play the tune. combo16 core (`SndNdD16Dyn8Sx`, soc_hp_snd16), 8 Nov:
+
+| Frame | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | **mean 1-7** |
+|---|---|---|---|---|---|---|---|---|---|
+| Mc | 2.04 | 0.73 | 1.12 | 0.86 | 1.15 | 0.88 | 1.21 | 0.80 | **0.96 (58 %)** |
+| commands taken | 27 | 6 | 7 | 5 | 0 | 5 | 10 | 6 | |
+
+- The tune's whole cost is the engine's and the player's around it: 0.96 Mc, as hermini.sid's file mode (1.02 Mc,
+  61 %); the peak frame is 1.21 Mc (73 %). Frame 0 is the cold start (the first chunk, the caches).
+- 50 commands applied, 16 still ahead at the end, none refused, no re-anchor. A batch costs its copy (16 bytes an
+  entry) and one D-cache drop when the head moved: a few thousand cycles at most.
+- `snd.bin`: 1,998,040 (7 Nov, before) -> 2,003,432 bytes on main 4e05431d + the queue (+5,392 with main's F11 window; the queue alone +5,248); 93,720 bytes left of 2 MiB. The
+  queue's own 21 KB (ring, stage, events) lives in song RAM, not in the image.
 
 ## Size
 

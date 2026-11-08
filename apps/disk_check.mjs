@@ -93,6 +93,7 @@ async function hostEnv(memory, machine, rom) {
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5): no C: image here
         kosFileOp: () => -46, // ...nor its writes (docs/KOS_GEMDOS.md §7): EDRIVE
         hostMp3Ctl: noop, hostMp3Feed: noop, hostMp3Status: () => 0, // table 1.11: no MP3 player here
+        hostBardAttach: () => 0, // table 1.12: no BARD queue here
         hostMicros: () => 0, // the benchmark clock (decisions.md 2026-10-10); 0 = none, fixed work
         audioPlay: noop, audioStop: noop, loadSample: noop,   // RETIRED, kept as stubs
     };

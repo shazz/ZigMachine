@@ -92,6 +92,16 @@ static void post(uint32_t op, const char* name, uint32_t arg) {
     SND_REG(SND_C2S + C_SEQ) = ++g_seq;
 }
 
+void bsound_command(uint32_t op, uint32_t arg, uint32_t ptr) {
+    if (!baudio.on) return;
+    wait_ack();
+    SND_REG(SND_C2S + C_OP) = op;
+    SND_REG(SND_C2S + C_ARG) = arg;
+    SND_REG(SND_C2S + C_PTR) = ptr;
+    SND_REG(SND_C2S + C_SEQ) = ++g_seq;
+    wait_ack();
+}
+
 void audio_play(const char* name, uint32_t tune) { post(OP_PLAY, name, tune); }
 void audio_sndh_call(const char* name, uint32_t d0) { post(OP_SNDH_CALL, name, d0); }
 

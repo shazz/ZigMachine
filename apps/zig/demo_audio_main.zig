@@ -30,6 +30,7 @@ comptime {
     _ = @import("demo_audio_mod.zig");
     _ = @import("demo_audio_raw.zig");
     _ = @import("demo_audio_xm.zig");
+    _ = @import("demo_audio_sidlive.zig"); // the BARD queue: SID live, the cart's timed writes
 }
 pub const kt_exports = @import("demo_audio_kt.zig"); // klystrack (.kt): cyd on the four Paula channels
 pub const mp3_exports = @import("demo_audio_mp3.zig"); // MP3 (pvmp3) on the four Paula channels

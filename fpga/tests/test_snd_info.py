@@ -53,6 +53,8 @@ int main(void) {
     sndinfo_render(&g_w, 1600000, 735); dump(); /* the 60th: 44100 samples, a whole window */
     sndinfo_render(&g_w, 200000, 735); dump();  /* the next window fills: the load stays */
     printf("%u\n", (unsigned)g_w.load_pm);
+    sndinfo_bard(ROUTE_BARD, 1); dump();
+    sndinfo_bard(ROUTE_BARD, 0); dump();
     return 0;
 }
 """
@@ -156,10 +158,17 @@ def test_a_cart_mp3_stream_is_named_and_its_stop_is_idle(steps: list[list[int]])
 def test_the_load_now_is_a_whole_windows_mean_not_one_render(steps: list[list[int]]) -> None:
     # A render's cost beats against a reader sampling once a second (F11: 10 % for ten seconds, then
     # 80 %): the load now is a second's sums, published once the window fills, held until the next.
-    filling, whole, after, pm = steps[18], steps[19], steps[20], steps[21][0]
+    filling, whole, after, pm = steps[18], steps[19], steps[20], steps[-1][0]  # the fixture puts load_pm last
     assert (filling[mc.SI_CYCLES], filling[mc.SI_SAMPLES]) == (0, 0)
     cycles = 46 * 1600000 + 14 * 200000
     assert (whole[mc.SI_CYCLES], whole[mc.SI_SAMPLES]) == (cycles, 44100)
     assert (after[mc.SI_CYCLES], after[mc.SI_SAMPLES]) == (cycles, 44100)
     assert whole[mc.SI_PEAK_CYCLES] == 1600000  # the peak is still one render's
     assert pm == cycles // 44100 * 441 // 1000  # zg.mp3Status(.load): the same window
+
+
+def test_a_cart_bard_queue_is_sid_live_and_its_close_is_idle(steps: list[list[int]]) -> None:
+    on, off = steps[21], steps[22]  # BARD SID (zg.bard): F11 "BARD SID", not "BARD idle"
+    assert head(on)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_SID) and on[mc.SI_FLAGS] & mc.SIF_STARTED
+    assert name(on) == "sidlive"
+    assert head(off)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and off[mc.SI_FLAGS] == 0

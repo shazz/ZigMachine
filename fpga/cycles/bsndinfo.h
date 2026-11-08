@@ -88,6 +88,17 @@ static inline void sndinfo_paula(uint32_t route, int held) {
     sndinfo_close();
 }
 
+/* A cart's BARD queue opened or closed (env.hostBardAttach, host/bardq_pump.c): SID live, the cart's
+ * own register writes on cRSID, so the page says "SID" with the load (glass PLAYER_SID), song "sidlive". */
+static inline void sndinfo_bard(uint32_t route, int on) {
+    sndinfo_song(route, on ? "sidlive" : "none", 0);
+    if (!on) return;
+    sndinfo_open();
+    sndinfo_head(route, PLAYER_SID, 0);
+    ZM_SND_INFO[SI_FLAGS] = SIF_STARTED;
+    sndinfo_close();
+}
+
 /* A cart's MP3 stream started (held) or stopped (env.hostMp3Ctl, host/audio_mp3.c): no file name
  * reaches BARD, so the song is "mp3". Stopped: back to no player. */
 static inline void sndinfo_mp3(uint32_t route, int on) {
