@@ -1,7 +1,7 @@
 # fpga/cycles/sys_abi.txt: the KESTREL system table and cart header (decisions.md 2026-10-15).
 # GENERATED and checked by fpga/tools/sys_abi.py (build.sh runs --check): never edit by hand;
 # `python3 fpga/tools/sys_abi.py --update` rewrites it and bumps the version.
-version 1.12
+version 1.13
 const CART_IMG_AT 0x300000
 const CART_HDR_MAGIC 0x41434d5a
 const CART_HDR_VERSION_AT 0x4
@@ -203,3 +203,4 @@ history 1.9 4b1c79d4b84fe5a5
 history 1.10 730fb08e229465dc
 history 1.11 f2bec05c34dad001
 history 1.12 a613e7c33a0cb041
+history 1.13 18f804210e1e60f4
