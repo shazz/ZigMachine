@@ -1,14 +1,17 @@
 // SID TEST (cart "sid_test", apps/zig/scenes/sid_test.zig): the test screen for the .sid player
 // (libs/zig/players/sid.zig; apps/sid_check.mjs checks the player and its engine). Boots the cart over
 // the real machine + ROM and presses keys through setShadeMode, as the loader and the glass do:
-//   name     key 1 asks for hermini.sid by name; key 5 for "none" (zg.SONG_STOP)
-//   bytes    key 2 is zg.requestSongBytes (sfx op 8, kind 6: SongKind.sid) of the tune's exact bytes, the
-//            path a C64 port takes for a tune read off its own disk; key 3 the same bytes as an RSID
+//   name     keys 1-4 ask for the local HVSC tunes by name (cybernoid_ii.sid, wizball.sid, commando.sid,
+//            club_style.sid: gitignored, never fetched here, none tracked); key 6 for hermini.sid;
+//            key 5 for "none" (zg.SONG_STOP)
+//   bytes    key 7 is zg.requestSongBytes (sfx op 8, kind 6: SongKind.sid) of the tune's exact bytes, the
+//            path a C64 port takes for a tune read off its own disk; mode 7 (no key) the same bytes as an RSID
 //   bridge   docs/sealed-loader.js's own postSfx turns each into loadSid; the audio modules play the PSID
 //            (mode 1, heard) and refuse the RSID ("RSID not supported", silent)
 //   song     docs/music/hermini.sid and apps/zig/assets/sid/HERMINI.SID are cRSID's HerMiniSID (md5)
 //   node apps/sid_test_check.mjs [--break name]
-//     name: key 1 is expected to ask for another file, so the check must fail
+//     name: key 6 is expected to ask for another file, so the check must fail
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -79,26 +82,36 @@ for (const f of ["docs/music/hermini.sid", "apps/zig/assets/sid/HERMINI.SID"]) {
     if (md5 !== MD5) errors.push(`song: ${f} md5 ${md5}, not HerMiniSID's ${MD5}`);
 }
 const cart = await bootCart("docs/demo-sid_test.wasm");
-const k1 = await press(cart, 0);
-if (k1.name !== (BROKE ? "other.sid" : "hermini.sid")) errors.push(`name: key 1 asked for ${k1.name}`);
-for (const [key, rsid] of [[1, false], [2, true]]) {
+const LOCAL = ["cybernoid_ii.sid", "wizball.sid", "commando.sid", "club_style.sid"];
+for (const [i, want] of LOCAL.entries()) {
+    const k = await press(cart, i);
+    if (k.name !== want) errors.push(`name: key ${i + 1} asked for ${k.name}, not ${want}`);
+}
+// No host plays it here, as on a card without the file: past the screen's second of silence ("NOT ON
+// THIS MACHINE") the cart keeps running (a trap would throw out of frame()).
+for (let f = 0; f < 90; f++) cart.demo.frame(16.6);
+const tracked = execFileSync("git", ["ls-files", "--", ...LOCAL.map((n) => `docs/music/${n}`)], { encoding: "utf8" }).trim();
+if (tracked) errors.push(`local: ${tracked.split("\n").join(", ")} committed: the HVSC tunes stay on their owner's machine`);
+const k1 = await press(cart, 5);
+if (k1.name !== (BROKE ? "other.sid" : "hermini.sid")) errors.push(`name: key 6 asked for ${k1.name}`);
+for (const [key, rsid] of [[6, false], [7, true]]) {
     const { posted } = await press(cart, key);
     const msg = posted.find((p) => p.type === "loadSid");
     const bytes = msg ? new Uint8Array(msg.bytes) : null;
     const want = tune.slice();
     if (rsid) want[0] = "R".charCodeAt(0);
     if (!bytes || bytes.length !== want.length || bytes.some((b, i) => b !== want[i])) {
-        errors.push(`bytes: key ${key + 1} posted ${posted.map((p) => p.type).join(",") || "nothing"}, not loadSid of the ${rsid ? "RSID" : "tune"}'s bytes`);
+        errors.push(`bytes: mode ${key} posted ${posted.map((p) => p.type).join(",") || "nothing"}, not loadSid of the ${rsid ? "RSID" : "tune"}'s bytes`);
         continue;
     }
     const got = await loadSid(msg);
     const fine = rsid ? !got.ok && got.status === 2 && got.mode === 0 && got.peak === 0 : got.ok && got.mode === 1 && got.peak > 0.01;
-    if (!fine) errors.push(`bridge: key ${key + 1} ${JSON.stringify(got)}`);
-    console.log(`  key ${key + 1}: loadSid of ${bytes.length} bytes (${rsid ? "RSID: refused, status 2" : `played, mode 1, peak ${got.peak.toFixed(3)}`})`);
+    if (!fine) errors.push(`bridge: mode ${key} ${JSON.stringify(got)}`);
+    console.log(`  mode ${key}: loadSid of ${bytes.length} bytes (${rsid ? "RSID: refused, status 2" : `played, mode 1, peak ${got.peak.toFixed(3)}`})`);
 }
 const k5 = await press(cart, 4);
 if (k5.name !== "none") errors.push(`name: key 5 asked for ${k5.name}, not none`);
-console.log(`  key 1: asks for ${k1.name}; key 5: ${k5.name}; both tune files are HerMiniSID (md5)`);
+console.log(`  keys 1-4: ${LOCAL.join(", ")} (local, none tracked); key 6: ${k1.name}; key 5: ${k5.name}; both tune files are HerMiniSID (md5)`);
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
     const hit = errors.find((e) => e.startsWith("name:"));
