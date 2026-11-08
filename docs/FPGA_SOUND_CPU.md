@@ -225,7 +225,7 @@ seven of the eight frames play the tune. combo16 core (`SndNdD16Dyn8Sx`, soc_hp_
   61 %); the peak frame is 1.21 Mc (73 %). Frame 0 is the cold start (the first chunk, the caches).
 - 50 commands applied, 16 still ahead at the end, none refused, no re-anchor. A batch costs its copy (16 bytes an
   entry) and one D-cache drop when the head moved: a few thousand cycles at most.
-- `snd.bin`: 1,998,040 -> 2,003,288 bytes (+5,248: the pump, SID live, raw SID); 93,864 bytes left of 2 MiB. The
+- `snd.bin`: 1,998,040 (7 Nov, before) -> 2,003,432 bytes on main 4e05431d + the queue (+5,392 with main's F11 window; the queue alone +5,248); 93,720 bytes left of 2 MiB. The
   queue's own 21 KB (ring, stage, events) lives in song RAM, not in the image.
 
 ## Size
