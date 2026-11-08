@@ -18,7 +18,7 @@ import shelf_category
 def test_every_demo_moves_to_the_path_staging_now_writes() -> None:
     pairs, bad = sd_nest_demos.moves(sd_nest_demos.demo_names())
     assert bad == []
-    assert len(pairs) == 87  # the card's CARTS/demos/ on 7 Nov
+    assert len(pairs) == 88  # the card's CARTS/demos/ on 7 Nov (87) + c64_transmission64
     assert ("demos/demo-stniccc.zmd", "demos/atari_st/demo-stniccc.zmd") in pairs
     assert all(to == shelf_category.disk_path(to.rsplit("demo-", 1)[1][:-4]) for _, to in pairs)
 
