@@ -100,7 +100,8 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     uint32_t tc = board_cycles();
     w2c_rom_kosTick(&e->rom); /* KOS's frame counter (sysvars.frames), as the browser's frame */
-    if (!bdesk_clear(e)) vseq_clear(e); /* desk mode: no clear, FRAME + 1 (bdesk.h) */
+    int desk = bdesk_clear(e); /* desk mode: no clear, FRAME + 1 (bdesk.h) */
+    if (!desk) vseq_clear(e);
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     bdiskapp_media(e, f); /* KOS: drive A changed under the running cart (glass I / E)? */
     uint32_t t0 = board_cycles();
@@ -116,6 +117,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
         g_cart = t1 - t0, g_seq = (t0 - tc) + (board_cycles() - t2);
         return;
     }
+    if (desk) bdesk_leave(e); /* the cart left desk mode this frame: the clear it skipped, late */
     /* Asked once, before any cart code can run between planes; again in video.zig's place when
      * a plane has an HBL handler (vplan.h). Only the lines that changed are composited. */
     unsigned on = 0;

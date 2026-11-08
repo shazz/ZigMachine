@@ -21,6 +21,12 @@ int bdesk_clear(struct w2c_env* e) {
     return 1;
 }
 
+void bdesk_leave(struct w2c_env* e) {
+    volatile uint32_t* frame = (volatile uint32_t*)(region(e) + ZM_REG_FRAME);
+    *frame = *frame - 1; /* the compositor counts it again, and vseq_clear copies its count back */
+    vseq_clear(e);
+}
+
 /* The browser's desk hash (docs/GEM_DESK_MODE.md §6): the tag, then the two halves in order. */
 static void hash(struct w2c_env* e, sha256_ctx* h) {
     const uint8_t* pfb = e->memory.data + w2c_machine_hwPhysicalPtr(&e->machine);

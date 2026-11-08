@@ -16,4 +16,9 @@ int bdesk_clear(struct w2c_env* e);
  * browser's desk hash: "desk", then hwRenderDesk(0)'s and hwRenderDesk(1)'s 614,400 bytes. The
  * picture is paced: the swap is waited for before PRESENT. */
 int bdesk_frame(struct w2c_env* e, sha256_ctx* h);
+/* A frame that began in desk mode and ends in another: the clear bdesk_clear skipped, now, so
+ * the planes have a CLEAR colour and fill state to start from. FRAME was already counted, so the
+ * clear's own count is taken back. The browser's PFB keeps the desk's pixels on this frame: this
+ * one frame matches no oracle. */
+void bdesk_leave(struct w2c_env* e);
 #endif
