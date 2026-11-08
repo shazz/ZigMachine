@@ -1763,7 +1763,7 @@ parsed in the ROM (`deskLoadInf`), its rectangles applied at the next `deskSetSc
 clamped to the mode chosen. Fills below row 199 are banded in the ROM (`gui/bandfill.zig`): the
 blitter clips any stride-640 destination at 200 rows, on the board as in the machine. The board's
 mouse follows a VMODE word the firmware writes in the cart window (`map_cart.zig`), read by glass
-at each report: no PL register, no RTL. System table 1.13 (five appended exports).
+at each report: no PL register, no RTL. System table 1.14 (five appended exports; 1.13 is hwDeskAvailable).
 **Alternatives considered:** the machine's blitter clip taking 480 rows in the desk (an HW and
 RTL change; banding costs a few blits only below row 200); glass reading `RESOLUTION` through
 the cart's memory (glass does not know where the firmware places the wasm memory); the vstat
@@ -1771,5 +1771,5 @@ block's flags (written only by the probe firmware); a separate medium and desk b
 ROM's re-bind would need the medium buffer's base back; one buffer by the capability is simpler).
 **Consequences:** low and medium are pixel-identical to the ROM before. In the desk a full repaint
 costs up to three blits a rectangle that spans the screen. The board draws no arrow in the desk
-yet (GEM_DESK_MODE §4). A shell built before 1.13 runs on the new system unchanged (no Desk
+yet (GEM_DESK_MODE §4). A shell built before 1.14 runs on the new system unchanged (no Desk
 button: the ROM greys it until told).
