@@ -216,6 +216,12 @@ sides, 60-line bars, black). Nothing is composited.
 - The host shows the picture through `hwRenderDesk(0)` and `hwRenderDesk(1)` (§4): the top and
   bottom 640x240 halves as RGBA in the PFB (a whole 640x480 picture does not fit in it). A desk
   frame's hash (scene_hash, hp_sim) is `"desk"` then the two halves in order.
+- **ZigOS:** `zg.lfbs[0].setDeskPlane()` asks `hwDeskAvailable()`, takes 307,200 bytes 64-aligned from
+  the VRAM pool (once a scene), clears them, stores all of palette 0 again (the board's mirror
+  only sees stores) and sets `RES_DESK`; it errors and changes nothing otherwise (`DeskUnavailable`,
+  `VramFull`, `NotPlaneZero`). `leaveDesk()` goes back to a low-res plane on the same buffer.
+  Since 1.17.0 the VRAM pool also has a guard: a plane that does not fit traps instead of drawing
+  over the PFB. `apps/zig/scenes/desk_test.zig` (cart 121) is the worked example.
 - The design, the RTL and its LUT bill: `docs/GEM_DESK_MODE.md`, `decisions.md` 2026-11-08 "GEM desk mode".
 
 ### Opening the borders (overscan) — the ST timing trick
