@@ -395,6 +395,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "sidwizard",
+  "title": "SID-WIZARD (C)",
+  "type": "pc"
+ },
+ {
   "tag": "falcon_ays",
   "title": "SITTING COMFORTABLY?",
   "type": "atari falcon"

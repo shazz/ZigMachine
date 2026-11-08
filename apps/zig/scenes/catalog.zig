@@ -7,7 +7,7 @@
 // each scene is its own cartridge, so nothing bloats the launcher). MUST stay in
 // sync with the cartridge matrix in build.zig — except polyglot carts (tags
 // c-* / rust-*), which apps/{c,rust}/build.sh builds, and the C program ports
-// (pt2, grafx2, klystrack, chipnomad: apps/ports, committed prebuilt);
+// (pt2, grafx2, klystrack, chipnomad, sidwizard: apps/ports, committed prebuilt);
 // tools/mkdisks.sh packs a floppy for every one listed here.
 //
 // Excluded (pre-existing bit-rot vs the current ZigOS API): demo, demo_test,
@@ -141,6 +141,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2
     .{ .name = "KLYSTRACK (C)", .tag = "klystrack" }, // pc — kometbomb's chiptune tracker (MIT), apps/ports/klystrack
     .{ .name = "CHIPNOMAD (C++)", .tag = "chipnomad" }, // pc — Megus's AY tracker (MIT), apps/ports/chipnomad
+    .{ .name = "SID-WIZARD (C)", .tag = "sidwizard" }, // pc — Hermit's C64 SID tracker, its PC version (WTF licence), apps/ports/sidwizard
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.

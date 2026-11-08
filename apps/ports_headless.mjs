@@ -22,8 +22,10 @@
 //                instruments are type None: silent), and START (Space) plays it: the stream is not silent
 //   quit      the program's own quit (pt2 Esc Esc, GrafX2 Q + Discard, klystrack Esc, ChipNomad
 //             Settings > Quit) asks for request 4, and GEM's desktop comes back exactly as it was
+//   keys      the owner-only key codes (Tab, Home, End, PageUp, PageDown) are pressed before the pinned frame:
+//             a port that does not bind them leaves its picture as pinned
 //
-//   node apps/ports_headless.mjs <pt2|grafx2|klystrack|chipnomad> [--break <x>] [--png <dir>]
+//   node apps/ports_headless.mjs <pt2|grafx2|klystrack|chipnomad|sidwizard> [--break <x>] [--png <dir>]
 //   node apps/ports_headless.mjs pt2 --clock <us>   the board's case: hostMicros advances <us> a frame while
 //             dt stays 16.6 ms (a slow frame); the audio feed must follow the clock, not dt (kestrel_audio.h)
 // --break SABOTAGES the interaction and passes only if a check notices:
@@ -103,8 +105,30 @@ const SPECS = {
             ...tap(f + 80, key(KEY_X), keyUp(KEY_X))],
         use: useChipnomad,
     },
+    sidwizard: {
+        cart: "docs/demo-sidwizard.wasm", disk: "docs/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "edit", "quit"],
+        pinAt: 300, pin: "3b0adaafb2e79749fc3c2d444db85061df9636a9d932fd340ba69d7e5c28d8d9", bindsOwnerKeys: true,
+        // FLASHBAK.SWM opens off the floppy at start (the cart's key simulator, as upstream's command line: ~frame
+        // 250); Tab (an owner-only code: C64 CONTROL) steps the cursor to track 2; Down, Space (editing mode), W
+        // types a D on its row 1; F1 plays
+        events: (brk) => [
+            ...(brk === "tab" ? [] : tap(262, key(0xe019), keyUp(0xe019))),
+            ...(brk === "edit" ? [] : [...tap(272, (d) => d.input(DOWN), (d) => d.inputRelease(DOWN)), ...tap(278, key(32), keyUp(32)),
+                ...tap(286, key(0x77), keyUp(0x77))]),
+            [309, (d, m) => { m.audio.peak = 0; }], // what is heard after F1 (the start-up menu clicks before)
+            ...(brk === "silent" ? [] : tap(310, key(0xe001), keyUp(0xe001))),
+        ],
+        // Shift+F8: SIDwizard.c's exit dialog, Y
+        quit: (f) => [[f + 5, key(SHIFT_LEFT)], ...tap(f + 8, key(0xe008), keyUp(0xe008)), [f + 12, keyUp(SHIFT_LEFT)], ...tap(f + 20, key(0x79), keyUp(0x79))],
+        use: useSidwizard,
+    },
 };
 
+// The owner-only key codes (sealed-loader.js OWNER_KEY_CODES: Tab, Home, End, PageUp, PageDown, 2026-11-07, for
+// SID-Wizard) pressed and released just before each port's pinned frame: a port that does not know them must
+// ignore them, so the pin holds (sidwizard binds them: its pin is taken with them as C64 keys).
+const ownerKeys = (f) => [[f, (d) => { for (const c of [0xe019, 0xe01a, 0xe01b, 0xe01c, 0xe01d]) d.key(c); }],
+    [f + 1, (d) => { for (const c of [0xe019, 0xe01a, 0xe01b, 0xe01c, 0xe01d]) d.keyUp(c); }]];
 // A key or button at frame f, released 2 frames later; SELECT + Right (the next screen) at frame f.
 const tap = (f, down, up) => [[f, down], [f + 2, up]];
 const selectTo = (f, dir) => [[f, (d) => d.key(SHIFT_LEFT)], ...tap(f + 2, (d) => d.input(dir), (d) => d.inputRelease(dir)), [f + 6, (d) => d.keyUp(SHIFT_LEFT)]];
@@ -144,7 +168,7 @@ function check(name, ok, detail = "") {
 // (in boot or a frame) ends the run and fails it.
 async function run() {
     const quitting = !clockUs && broke !== "disk"; // --break disk pulls the drive: no desktop to come back to
-    const events = [...spec.events(broke), ...(quitting && broke !== "quit" ? spec.quit(spec.frames) : [])];
+    const events = [...(spec.bindsOwnerKeys ? [] : ownerKeys(spec.pinAt - 4)), ...spec.events(broke), ...(quitting && broke !== "quit" ? spec.quit(spec.frames) : [])];
     const frames = spec.frames + (quitting ? QUIT_FRAMES : 0), shots = new Map(), audio = { peak: 0, n: 0, rate: 0 };
     let trap = "", m = { demo: { isPlaneEnabled: () => 0 }, audio, songs: [] }, gem = null, plane0 = 0, last = "";
     try {
@@ -152,7 +176,7 @@ async function run() {
         m.songs = [];
         gem = await launchFromGem(m, spec.cart, broke === "disk"); // --break disk: the drive pulled as it starts
         for (let f = 1; f <= frames; f++) {
-            if (!m.backs) for (const [ef, fn] of events) if (ef === f) fn(m.demo); // the program's events, until it quits
+            if (!m.backs) for (const [ef, fn] of events) if (ef === f) fn(m.demo, m); // the program's events, until it quits
             step(m);
             drainSongs(m, f);
             if (f === spec.frames) plane0 = m.demo.isPlaneEnabled(0);
@@ -242,6 +266,26 @@ function useChipnomad(r) {
     check("chipnomad plays the note", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak}, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
 }
 SPECS.chipnomad.keep = (f) => [20, 38].includes(f);
+
+// A rectangle of the physical picture (x0..x1, y0..y1 inclusive), for a region hash.
+function rect(pic, x0, y0, x1, y1) {
+    const out = [];
+    for (let y = y0; y <= y1; y++) out.push(pic.px.subarray((y * pic.W + x0) * 4, (y * pic.W + x1 + 1) * 4));
+    return Buffer.concat(out);
+}
+
+// SID-Wizard (apps/ports/sidwizard): its C64 picture sits at (30,13) of the 400x280 plane, text row k at y 36 + 8k,
+// column c at x 40 + 8c (x doubled on the physical frame). Track 2's first row is columns 10..19 of row 0 (the
+// cursor is on track 1 until Tab).
+function useSidwizard(r) {
+    check("sidwizard opens FLASHBAK.SWM off the floppy at start", r.m.log.includes("sidwizard: song opened"), r.m.log.slice(-2).join(" / "));
+    const a = r.shots.get(258), b = r.shots.get(270), row0 = (p) => sha(rect(p, 240, 36, 399, 43));
+    check("sidwizard Tab (an owner-only key code) steps the cursor to track 2", a && b && row0(a) !== row0(b), "the cursor sprite is over track 2, row 0");
+    const c = r.shots.get(300), row1 = (p) => sha(rect(p, 240, 44, 399, 51));
+    check("sidwizard Space (editing mode) and W type a note on track 2, row 1", a && c && row1(a) !== row1(c), "track 2's row 1 is no longer empty");
+    check("sidwizard F1 plays the song", r.m.audio.peak > 8, `peak |s8| ${r.m.audio.peak} after F1, ${r.m.audio.n} samples at ${r.m.audio.rate} Hz`);
+}
+SPECS.sidwizard.keep = (f) => [258, 270, 300].includes(f);
 
 // The feed follows the host clock: every frame but the first (no clock yet: its dt) owes clockUs of
 // audio, on top of the lead the stream starts with (pt2: 125 ms). Fixed rate/60 a frame fails this.

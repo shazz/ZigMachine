@@ -17,6 +17,12 @@ Inside `KESTREL/system.rv32` (BARD's players; on the page `docs/demo-audio.wasm`
 | the SID engine | Mihaly Horvath's (Hermit) cRSID 1.58 (CSDb release 261057), the .sid player's C64 (6502 + SID), with three bit-exact patches and a regenerated filter table (`libs/c/crsid/patches/`) | "License is still WTF: Do what the frick you want with this code, but it would be nice mentioning me as the original author." (its README, in `licenses/cRSID-README.txt`) | `zigmachine/libs/c/crsid/` (`README.md` there) |
 | the MP3 decoder | PacketVideo's pvmp3 (AOSP `frameworks/av/media/module/codecs/mp3dec`, commit e2f09893), unmodified, compiled into the MP3 player | Apache-2.0 (text and notice in `licenses/pvmp3-NOTICE`; patent disclaimer `licenses/pvmp3-patent_disclaimer.txt`) | `zigmachine/libs/c/pvmp3/` (`README.md` there) |
 
+On the shelf, one cart is a third-party program as a whole, not a port of a screen:
+
+| Part | What | Licence | Source |
+|---|---|---|---|
+| `CARTS/tools/demo-sidwizard.zmd` | Mihaly Horvath's (Hermit) SID-Wizard 1.97, the C64 SID tracker (with much help from Soci of Singular Crew), as its PC version runs it: the native C64 program on SID-Wizard's own libcRSID, under our host; the disk carries Hermit's example song "Flash It Back" | WTF: "Do what the frick you want with this code, but mentioning me if you use it would still be nice." (its README, in `licenses/SID-Wizard-README.txt`) | `zigmachine/apps/ports/sidwizard/` (`README.md` there; upstream's files, unchanged, in `upstream/`) |
+
 Everything else on the card is ZigMachine's: `zigmachine.bit` is the KESTREL RTL in
 `zigmachine/fpga/` (the maintainer's combo16 Vivado build), `boot.scr` is
 `zigmachine/fpga/glass/boot/boot.cmd` compiled, and `KESTREL/` and `CARTS/` are built from this

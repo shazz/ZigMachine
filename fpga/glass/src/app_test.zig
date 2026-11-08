@@ -43,8 +43,10 @@ test "keys reach the cart only while the OSD is closed, and are released when it
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD == 0);
     a.padEvent(pad.EV_ABS, pad.ABS_HAT0X, 1, .{}, .{}, "pad");
     try std.testing.expectEqual(map.JOY_RIGHT, r.glass.joy);
-    a.key(keymap.KEY_PAGEDOWN, 1); // the OSD's own key: a cart never sees it
+    a.key(keymap.KEY_PAGEDOWN, 1); // the OSD pages with it; a cart gets the browser's code (2026-11-07)
     a.key(keymap.KEY_PAGEDOWN, 0);
+    try std.testing.expectEqual(@as(?u32, map.KEY_PAGE_DOWN_CART | map.KEY_DOWN), r.glass.pop());
+    try std.testing.expectEqual(@as(?u32, map.KEY_PAGE_DOWN_CART), r.glass.pop());
     try std.testing.expectEqual(@as(?u32, null), r.glass.pop());
 }
 

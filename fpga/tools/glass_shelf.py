@@ -52,8 +52,9 @@ SHELF = (
     # board a door is a REQ_LOAD_CART for its shelf disk, and the screen's -1 comes back (app_request.zig).
     "union_demo", "union_deltaforce", "union_tnt3", "union_superscroller", "union_tnt1", "union_reps",
     "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker",
-    # The C program ports (apps/ports, prebuilt docs/demo-<tag>.wasm): pt2-clone, GrafX2, klystrack, ChipNomad.
-    "pt2", "grafx2", "klystrack", "chipnomad",
+    # The C program ports (apps/ports, prebuilt docs/demo-<tag>.wasm): pt2-clone, GrafX2, klystrack, ChipNomad,
+    # SID-Wizard.
+    "pt2", "grafx2", "klystrack", "chipnomad", "sidwizard",
     # The MP3 jukebox (tools): C:\\MUSIC through KOS GEMDOS, decoded on BARD (system table 1.11).
     "mp3_player",
     # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.

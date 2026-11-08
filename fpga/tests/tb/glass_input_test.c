@@ -87,6 +87,10 @@ int main(void) {
     expect(D | KEY_ALT_RIGHT, 1, "key(57368)");             /* Right Alt: its own code (pt2's play song) */
     expect(D | R | KEY_ALT_RIGHT, 1, "");                   /* a modifier too: no repeat */
     expect(KEY_ALT_RIGHT, 1, "keyUp(57368)");
+    expect(D | KEY_TAB, 0, "");                             /* the owner-only codes: not for a scene */
+    expect(D | KEY_TAB, 1, "key(57369)");                   /* Tab, for an app that owns the keys (SID-Wizard) */
+    expect(D | KEY_PAGE_UP_CART, 1, "key(57372)");
+    expect(KEY_TAB, 1, "keyUp(57369)");
     log_buf[0] = 0;
     glass_joy(0, JOY_LEFT | JOY_FIRE, record, NULL);
     glass_joy(JOY_LEFT | JOY_FIRE, JOY_FIRE, record, NULL);

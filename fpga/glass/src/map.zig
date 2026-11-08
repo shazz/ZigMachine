@@ -121,14 +121,33 @@ pub const KEY_ARROW_UP: u32 = 0xE020;
 pub const KEY_ARROW_DOWN: u32 = 0xE021;
 pub const KEY_ARROW_LEFT: u32 = 0xE022;
 pub const KEY_ARROW_RIGHT: u32 = 0xE023;
-// Page Up/Down page the OSD's shelf (Matt, 2026-10-20). The ST has no such keys and no
-// cart has a code for them, so the glass never forwards them (App.keyEvent drops them).
+// Page Up/Down page the OSD's shelf (Matt, 2026-10-20). With the OSD closed they reach the cart as
+// the browser's owner-only codes (cartKey below).
 pub const KEY_PAGE_UP: u32 = 0xE024;
 pub const KEY_PAGE_DOWN: u32 = 0xE025;
+// The browser's OWNER_KEY_CODES (sealed-loader.js, an ABI addition of 2026-11-07 for SID-Wizard):
+// a cart that does not know them ignores them.
+pub const KEY_TAB: u32 = 0xE019;
+pub const KEY_HOME: u32 = 0xE01A;
+pub const KEY_END: u32 = 0xE01B;
+pub const KEY_PAGE_UP_CART: u32 = 0xE01C;
+pub const KEY_PAGE_DOWN_CART: u32 = 0xE01D;
 
-/// Keys only the OSD uses: never pushed to the cart.
-pub fn osdOnly(code: u32) bool {
-    return code == KEY_PAGE_UP or code == KEY_PAGE_DOWN;
+/// A key event as the cart gets it: the OSD's own page codes become the browser's.
+pub fn cartKey(ev: u32) u32 {
+    const flags = ev & ~KEY_CODE_MASK;
+    return switch (ev & KEY_CODE_MASK) {
+        KEY_PAGE_UP => flags | KEY_PAGE_UP_CART,
+        KEY_PAGE_DOWN => flags | KEY_PAGE_DOWN_CART,
+        else => ev,
+    };
+}
+
+test "Page Up/Down reach a cart as the browser's codes, other keys unchanged" {
+    const std = @import("std");
+    try std.testing.expectEqual(KEY_PAGE_UP_CART | KEY_DOWN, cartKey(KEY_PAGE_UP | KEY_DOWN));
+    try std.testing.expectEqual(KEY_PAGE_DOWN_CART | KEY_REPEAT | KEY_DOWN, cartKey(KEY_PAGE_DOWN | KEY_REPEAT | KEY_DOWN));
+    try std.testing.expectEqual(@as(u32, 'q') | KEY_DOWN, cartKey('q' | KEY_DOWN));
 }
 
 // --- joypad (REG_JOY): the demo.input() directions, as held bits -------------

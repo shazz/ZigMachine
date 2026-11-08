@@ -141,9 +141,12 @@ keydown and keyup logic):
 ```
 bits 20:0  the code demo.key() gets: the character of a printable key, or the
            browser's private-use code (F1..F10 0xE001.., Esc 0xE012, Alt
-           0xE013, the modifiers 0xE014..0xE017, Right Alt 0xE018); the
-           arrows, which the browser sends only
-           to input(), get 0xE020..0xE023
+           0xE013, the modifiers 0xE014..0xE017, Right Alt 0xE018; Tab,
+           Home, End 0xE019..0xE01B and Page Up/Down 0xE01C/0xE01D, the
+           owner-only codes, which the firmware passes only to a cart that
+           owns the keyboard); the arrows, which the browser sends only
+           to input(), get 0xE020..0xE023; Page Up/Down are 0xE024/0xE025
+           here and become 0xE01C/0xE01D when the OSD is closed (cartKey)
 bit 24     down (clear = released)
 bit 25     auto-repeat
 ```
