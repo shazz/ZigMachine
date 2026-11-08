@@ -1685,3 +1685,35 @@ inside at ~30 % speed (songs play slow) until the SID moves to BARD (`kestrel_sw
 feat/bard-queue) and/or a smaller 6502 core (ROADMAP). Every cart that owns the keyboard may now receive
 0xE019..0xE01D: the ports and GEM ignore them (ports_headless presses them before each port's pin; gem_headless
 "owner-keys-ignored").
+
+## 2026-11-08 — SID-Wizard's SID on BARD: stamped writes on the BARD queue, the C64 clocked by the frame's time
+
+**Status:** accepted
+**Context:** On the board SID-Wizard ran at ~20 fps with the SID (cRSID's light engine) on ZIGGY, where the audio
+clocked the C64: ZIGGY could emulate only ~30 % of real time, so songs played slow and broken. The BARD queue
+(decisions.md 2026-11-07) is on main: a cart can write SID registers stamped on its 44.1 kHz clock and SID live
+plays them on BARD. Matt: "start the move to BARD using the queue".
+**Decision:**
+- **Every SID write goes on the queue** (`apps/ports/sidwizard/kestrel_sw_bard.c`, a C copy of `libs/zig/bard.zig`'s
+  ring): captured in libcRSID's I/O write path, handed over after the instruction that made it, stamped
+  `t = C64 cycle x 32 / SampleClockRatio` (2 output samples a 22.05 kHz "C64 sample": exactly the cart's clock;
+  985248 cycles a second would drift 0.1 % against it). A reset and the 25 registers as the C64 has them open the
+  queue, at t 0. The cart renders no SID (`SW_SID_ON_BARD`, default 1; 0 keeps the old way to measure against).
+- **The C64 is clocked by the frame's real time** (`kestrel_frame_us`, capped at 100 ms), no longer by the audio.
+  Its CIAs, raster lines and so the IRQs that run the player follow the clock; the stamps follow the C64. So the
+  song's tempo is the C64's, whatever ZIGGY's frame rate (a 60 ms frame makes the same writes with the same stamps
+  as three 20 ms ones: `apps/sidwizard_bard_check.mjs` tempo).
+- **When ZIGGY cannot run all of that 6502** (the editor's main loop never idles; the C64 costs ~3.9 Mc a 60th
+  estimated, ~2.3x real time), the main program yields (`kestrel_sw_pace.c`): each frame the emulation may take
+  85 % of the real time it covers (hostMicros); past that, except in the frame's first tenth, the 6502 runs only
+  inside IRQ handlers (I flag set) and the main program waits in libcRSID's idle state until the next frame. The
+  IRQs (player, raster splits; ~40 % of the C64's time) come on time and run whole: the song keeps its tempo, the
+  editor answers slower. With no host clock (every harness) nothing waits, so page and native host stay equal.
+**Alternatives considered:** keep the audio as the clock and render on BARD (the C64 would still run at ZIGGY's
+speed: wrong tempo); clock the C64 by frame time and let it fall behind (the cap, then slow music again); skip
+whole frames of C64 time (IRQs lost: the player skips ticks); detect the editor's idle loops (it has none: no PC
+takes more than 3 % of the time); a faster 6502 core (the right long-term lever, ROADMAP).
+**Consequences:** the main program's speed on the board depends on how much the IRQs leave (estimate ~10-60 % of
+a C64's), so key handling and redraws lag there; the music does not. The cart's oscilloscope and main-volume keys
+no longer act on the sound (the samples are BARD's). A write is heard a lead (6,144 samples, ~139 ms) after the C64
+made it, as BARD SID's.

@@ -11,14 +11,14 @@
 //   tempo    the page at 50 fps (20 ms frames) and at 16.7 fps (60 ms, the board's ~20): the C64 runs on the
 //            frame's time, so it makes the same SID writes with the same stamps, and the outputs are the same samples
 //   hold     the board's case where ZIGGY cannot run all of the C64 (kestrel_sw_pace.c): a host clock that says
-//            each frame's allowance is spent a third of the way in, so the main program waits for the rest of
+//            each frame's allowance is spent ~40 % of the way in, so the main program waits for the rest of
 //            it and only the IRQs run: F1 is seen later, but from the song's 150th tick on, each tick is the
 //            same writes at the same distances (within 2 samples: the IRQ is entered from idle steps), so the
 //            player keeps its time
-//   node apps/sidwizard_bard_check.mjs [--break stamp|reg]
+//   node apps/sidwizard_bard_check.mjs [--break stamp|reg] [--dump <commands.bin>]  (--dump: the song for snd-bench SND_BARDQ)
 //     stamp: the loader delays every SID write two samples; reg: it writes the next register: both fail `equal`
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -112,6 +112,15 @@ function same(name, a, b, errors, notes, min = MIN_SAMPLES) {
 
 const errors = [], notes = [];
 const page = await pageRun();
+const di = process.argv.indexOf("--dump");
+if (di > 0) { // the song for snd-bench SND_BARDQ (BARDQ_LOG): a reset and the registers as they stand at the song's
+    // first write, at t 0, then the song's writes rebased to it (the bench plays a log from t 0, a frame's lead)
+    const w = writes(page.cmds), i = w.findIndex((x) => x[0] > SONG_T), t0 = w[i][0], reg = new Map();
+    for (const [, a, v] of w.slice(0, i)) if (a >= 0xd400) reg.set(a, v);
+    const out = [0, 1, 8580, 0, ...[...reg].flatMap(([a, v]) => [0, a, v, 0]), ...w.slice(i).flatMap(([t, a, v]) => [t - t0 + 1, a, v, 0])];
+    await writeFile(process.argv[di + 1], new Uint8Array(Uint32Array.from(out).buffer));
+    console.log(`  dump: ${out.length / 4} commands (the song from ${t0}) to ${process.argv[di + 1]}`);
+}
 if (process.env.PROFILE) { // the page's output, the peak of each 0.1 s
     const row = [];
     for (let i = 0; i < page.left.length; i += 4410) row.push(page.left.subarray(i, i + 4410).reduce((m, v) => Math.max(m, Math.abs(v)), 0));
@@ -131,10 +140,11 @@ if (!broke) {
     if (wf.length < 2000 || d >= 0) errors.push(`tempo: ${wf.length} writes at 50 fps, ${ws.length} at 16.7 fps; write ${d} differs: ${wf[d]} vs ${ws[d]}`);
     else notes.push(`tempo: the same ${wf.length} SID writes, same stamps, at 50 and 16.7 fps`);
     same("tempo", fast.left, slow.left, errors, notes, 44100 * 5);
-    // 2.5 ms a look at the clock: the frame's 11.6 ms allowance is spent after ~4 of its ~12 looks, so the main
-    // program waits for the last ~2/3 of every frame. F1 is then seen later: the song is compared from its start.
+    // 3 ms a look at the clock: the frame's 14.1 ms allowance (85 % of 16.6) is spent after ~5 of its ~12 looks,
+    // so the main program waits for the last ~2/3 of every frame. F1 is then seen later: the song is compared
+    // from its 150th tick.
     let t = 0;
-    const held = await pageRun({ clock: () => (t += 2500) });
+    const held = await pageRun({ clock: () => (t += 3000) });
     const a = ticks(page.cmds), b = ticks(held.cmds), at = Math.min(150, a.length - 1);
     const k = b.findIndex((x) => x.key === a[at].key); // the held run's tick that is the plain run's tick 150
     const n = Math.min(a.length - at, b.length - k) - 1;
@@ -147,7 +157,7 @@ if (!broke) {
             || a[at + i].dt.some((d, j) => !near(d, b[k + i].dt[j]))) bad = i;
     if (bad >= 0) errors.push(`hold: tick ${at} of the song ${k < 0 ? "never comes" : `departs ${bad} ticks later`} (${a.length} and ${b.length} ticks)`);
     else notes.push(`hold: the main program waited 2/3 of every frame: from the song's tick ${at} on, ${n} ticks are the same writes at the same` +
-        ` distances (tick ${at} came ${b[k].t - a[at].t} samples later: F1 was seen later)`);
+        ` distances (tick ${at} came ${b[k].t - a[at].t} samples later: the slower main program loaded the song and saw F1 later)`);
 }
 for (const n of notes) console.log(`  ${n}`);
 if (broke) {

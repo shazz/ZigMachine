@@ -705,13 +705,16 @@ gate ports_chipnomad node apps/ports_headless.mjs chipnomad   # CHIPNOMAD (C++):
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break key   # ...and X never pressed is caught
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break silent   # ...and START never pressed (silence) is caught
 gate ports_chipnomad node apps/ports_headless.mjs chipnomad --break quit   # ...and no quit is caught
-gate ports_sidwizard node apps/ports_headless.mjs sidwizard   # SID-WIZARD (C, Hermit's C64 program on its own libcRSID C64): launched from GEM, FLASHBAK.SWM opened off the floppy at start (upstream's command-line key simulator), the editor pinned; Tab (an owner-only key code, 0xE019 = C64 CONTROL) steps the cursor to track 2, Down, Space (editing) and W type a note there; F1 plays the song (heard); Shift+F8, Y quits back to GEM
+gate ports_sidwizard node apps/ports_headless.mjs sidwizard   # SID-WIZARD (C, Hermit's C64 program on its own libcRSID C64): launched from GEM, FLASHBAK.SWM opened off the floppy at start (upstream's command-line key simulator), the editor pinned; Tab (an owner-only key code, 0xE019 = C64 CONTROL) steps the cursor to track 2, Down, Space (editing) and W type a note there; F1 plays the song, heard on the page's SID live (the BARD queue); Shift+F8, Y quits back to GEM
 gate ports_sidwizard node apps/ports_headless.mjs sidwizard --break silent   # ...and F1 never pressed (silence) is caught
 gate ports_sidwizard node apps/ports_headless.mjs sidwizard --break tab   # ...and Tab never pressed (the cursor stays on track 1) is caught
 gate ports_sidwizard node apps/ports_headless.mjs sidwizard --break edit   # ...and no note typed (track 2's row 1 stays empty) is caught
 gate ports_sidwizard node apps/ports_headless.mjs sidwizard --break quit   # ...and no quit is caught
 gate ports_sidwizard node apps/sidwizard_save.mjs   # SID-WIZARD saves to C: (KOS GEMDOS): F8, SAVE TUNE, into the floppy root's "C" folder, MYSONG: C:\MYSONG.SWM is the floppy's FLASHBAK.SWM byte for byte past its load address
 gate ports_sidwizard node apps/sidwizard_save.mjs --break write   # ...and a host that refuses writes (no file) is caught
+gate ports_sidwizard node apps/sidwizard_bard_check.mjs   # SID-WIZARD's SID on BARD (the BARD queue, table 1.12): every SID write stamped with its C64 cycle; page (loader + worklet + audio modules) = native host_audio, 14.8 s of Flash It Back from the first heard sample; 20 ms and 60 ms frames make the same writes and samples (the C64 runs on the frame's time); with the main program held 2/3 of each frame (a late host clock) the song's ticks are unchanged
+gate ports_sidwizard node apps/sidwizard_bard_check.mjs --break stamp   # ...and the loader delaying every SID write two samples fails parity
+gate ports_sidwizard node apps/sidwizard_bard_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
