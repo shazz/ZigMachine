@@ -309,6 +309,7 @@ Offsets are from the window's start; the cart CPU (ZIGGY) sees offset 0 at
 | `0x01C0_0000` | `0x41C0_0000` | to `0x01FE_F000` | the sound CPU's RAM (`snd` only) | BARD |
 | `0x01FE_F000` | `0x41FE_F000` | 64 KiB | the sound CPU's console ring (`snd` only) | BARD |
 | `0x01FF_FC00` | `0x41FF_FC00` | 16 B | **the disk descriptor** (`DISK_DESC_*`) | ZWINDOW (load) |
+| `0x01FF_FCFC` | `0x41FF_FCFC` | 4 B | **the desktop's mode** (`DESK_REZ_*`): Getrez across a program load (docs/GEM_DESK_MODE.md §5) | ZIGGY, carried by ZWINDOW on requests 3 and 4 |
 | `0x01FF_FD00` | `0x41FF_FD00` | 64 B | **the cart-swap request block** (`CART_REQ_*`, "Programs off a data disk") | ZIGGY |
 | `0x01FF_FE00` | `0x41FF_FE00` | 12 B | the write-path diagnostic's control (`cycles/bdiag.h`) | the ARM, on request |
 | `0x01FF_FF00` | `0x41FF_FF00` | 256 B | the debug mailbox (`cycles/bmailbox.h`) | ZIGGY |

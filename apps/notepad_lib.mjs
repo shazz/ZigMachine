@@ -57,6 +57,17 @@ export async function afterDesktop(img, mode, brk = "") {
     return driver(m);
 }
 
+/** A fresh machine + ROM (the board loads each program as a new image) told the desktop's `mode`
+ *  as the board's firmware tells it (cycles/bkos.c: deskSetScreenMode before the cart's init; null:
+ *  nothing carried), then `cart` started. brk "carry": the mode is never handed over. */
+export async function afterBoardLoad(img, mode, cart = CART, brk = "") {
+    const m = await rig(img, brk);
+    m.machine.hwInit();
+    if (mode !== null && brk !== "carry") m.rom.deskSetScreenMode(mode);
+    startCart(m, await readFile(cart), cart);
+    return driver(m);
+}
+
 function driver(m) {
     const d = {
         m,

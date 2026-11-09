@@ -47,6 +47,9 @@ pub const Options = struct {
     /// written as the KOS boot words for the firmware (cycles/bkos.c). null: a load that is no
     /// reset (a program, back to the desktop, a door's cart): no words, no POST.
     kos: ?u32 = null,
+    /// The desktop's mode word the running cart left (map_cart.zig DESK_REZ_*), carried into a
+    /// program it launched or the desktop it quits back to (app_request.zig). null: none.
+    desk_rez: ?u32 = null,
 };
 
 fn noIdle() void {}
@@ -115,6 +118,7 @@ pub fn start(regs: bus.Regs, ddr: bus.Ddr, p: *const Plan, opt: Options) Error!R
     if (opt.fw_opt) |o| ddr.words[(ddr.bytes() - mc.FW_OPT_FROM_TOP) / 4] = mc.FW_OPT_TAG | (o & mc.FW_OPT_MASK);
     if (opt.skip_boot_sector) ddr.words[(ddr.bytes() - mc.BOOTSEC_SKIP_FROM_TOP) / 4] = mc.BOOTSEC_SKIP;
     kosWords(ddr, opt);
+    if (opt.desk_rez) |r| ddr.words[(ddr.bytes() - mc.DESK_REZ_FROM_TOP) / 4] = r;
     regs.write(map.REG_LOAD_BASE, map.DDR_CART_BASE);
     regs.write(map.REG_LOAD_SIZE, p.imageEnd());
     // Keys typed for the previous cart (or the menu) must not reach this one.

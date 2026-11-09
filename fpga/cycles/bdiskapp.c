@@ -6,6 +6,7 @@
 
 #include "bboard.h"
 #include "bcartreq.h"
+#include "bdeskrez.h"
 #include "bdinval.h"
 #include "bdisk.h"
 #include "disk.h"
@@ -16,6 +17,7 @@
 /* The request block (glass/src/map_cart.zig), between the descriptor and the diagnostic's control. */
 #define REQ_ADDR (CART_CPU_BASE + DDR_CART_BYTES - CART_REQ_FROM_TOP)
 #define MEDIA_ADDR (CART_CPU_BASE + DDR_CART_BYTES - KOS_MEDIA_FROM_TOP)
+#define REZ_ADDR (CART_CPU_BASE + DDR_CART_BYTES - DESK_REZ_FROM_TOP)
 _Static_assert(CART_REQ_FROM_TOP < DISK_DESC_FROM_TOP - DISK_DESC_WORDS * 4, "the block is over the descriptor");
 _Static_assert(CART_REQ_FROM_TOP - CART_REQ_HEAD_WORDS * 4 - CART_REQ_NAME_MAX >= 0x200, "the block is over bdiag");
 _Static_assert(CART_REQ_NAME_MAX >= ZMD_DIR_KEY, "a FAT name must fit the block");
@@ -114,6 +116,11 @@ void bdiskapp_frame(struct w2c_env* e, long f) {
     uint32_t n = g_dapp.name_len < ZMD_FIND_MAX ? g_dapp.name_len : ZMD_FIND_MAX;
     printf("ZM CARTREQ %ld %lu %.*s %d\n", f, (unsigned long)g_dapp.req, (int)n, (const char*)g_dapp.name,
            g_dapp.file != 0);
+    /* The desktop's mode for the next image's ROM (bdeskrez.h), before the block the glass takes:
+     * the desk's live one into a program, the one it launched in back to the desktop. */
+    if (g_dapp.req == REQ_RUN_PROGRAM || g_dapp.req == REQ_BACK_TO_OS)
+        *(volatile uint32_t*)(uintptr_t)REZ_ADDR = bdeskrez_word(
+            g_dapp.req == REQ_RUN_PROGRAM ? w2c_rom_deskScreenMode(&e->rom) : w2c_rom_deskReturnMode(&e->rom));
     if (g_dapp.req == REQ_RUN_PROGRAM && g_dapp.file)
         bdiskapp_signal(REQ_RUN_PROGRAM, g_dapp.file->key, g_dapp.file->key_len);
     else if (g_dapp.req == REQ_RUN_PROGRAM && (g_dapp.kind & 0xFF) == 2) /* a FAT image: glass finds it by name */

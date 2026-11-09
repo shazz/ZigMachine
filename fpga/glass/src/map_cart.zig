@@ -28,6 +28,18 @@ pub const CART_REQ_MAGIC: u32 = 0x5152_4D5A; // "ZMRQ"
 pub const CART_REQ_HEAD_WORDS: u32 = 4;
 pub const CART_REQ_NAME_MAX: u32 = 48;
 
+// --- the desktop's mode word, at window end - DESK_REZ_FROM_TOP (CPU 0x41FF_FCFC) --------
+// Getrez across a program load (rom/rom_deskmode.zig): a program GEM launched, and the desktop
+// it quits back to, are each a new image whose ROM starts fresh. The firmware writes DESK_REZ_TAG
+// | the mode (0 low, 1 medium, 2 desk; rom deskReturnMode) BEFORE the request block; for
+// REQ_RUN_PROGRAM and REQ_BACK_TO_OS the glass reads it before the load and writes it again after
+// the window is verified (loader.zig Options.desk_rez). Every other load leaves it zero; the
+// firmware zeroes it once read, and ignores it on a reset (KOS's boot words: cycles/bkos.c).
+// Between the C: sector block and the request block.
+pub const DESK_REZ_FROM_TOP: u32 = 0x304;
+pub const DESK_REZ_TAG: u32 = 0x5200_0000; // "R"
+pub const DESK_REZ_TAG_MASK: u32 = 0xFF00_0000;
+
 // --- the boot sector's skip word, at window end - BOOTSEC_SKIP_FROM_TOP (CPU 0x41FF_FC20) ----
 // A disk's executable boot sector (fpga/cycles/bbootsec.c) runs when the disk goes in, as in
 // the browser; not when a program quits back to the OS over the same disk (swapCart req 4),
