@@ -45,18 +45,20 @@ test "relative motion sums into an absolute position, y at half rate" {
     try std.testing.expectEqual(@as(?u32, null), one(&mo)); // nothing new since
 }
 
-test "the position clamps to the raster's edge, over the borders" {
+test "the position clamps to the visible window's edge, never into the borders" {
     var mo = m.Mouse{};
     mo.update(m.EV_REL, m.REL_X, -100_000, 0);
     mo.update(m.EV_REL, m.REL_Y, std.math.maxInt(i32), 0); // saturates, never wraps
     var w = one(&mo).?;
-    try std.testing.expectEqual(@as(u32, 0), x(w));
-    try std.testing.expectEqual(map.PTR_HEIGHT - 1, y(w));
+    try std.testing.expectEqual(map.PTR_BORDER_X, x(w));
+    try std.testing.expectEqual(map.PTR_HEIGHT - map.PTR_BORDER_Y - 1, y(w));
     mo.update(m.EV_REL, m.REL_X, 3, 0); // no debt piled up past the edge
     w = one(&mo).?;
-    try std.testing.expectEqual(@as(u32, 3), x(w));
+    try std.testing.expectEqual(map.PTR_BORDER_X + 3, x(w));
     mo.update(m.EV_REL, m.REL_X, 100_000, 0);
-    try std.testing.expectEqual(map.PTR_WIDTH - 1, x(one(&mo).?));
+    try std.testing.expectEqual(map.PTR_WIDTH - map.PTR_BORDER_X - 1, x(one(&mo).?));
+    mo.update(m.EV_REL, m.REL_Y, -100_000, 0);
+    try std.testing.expectEqual(map.PTR_BORDER_Y, y(one(&mo).?));
 }
 
 test "the sensitivity scale keeps sub-pixel motion" {
@@ -144,10 +146,10 @@ test "the desk mode: y at full rate, the position held to the 640x480 picture" {
     const w = one(&mo).?;
     try std.testing.expectEqual(map.PTR_BORDER_X, x(w)); // the desk's x 0, not the black side bar
     try std.testing.expectEqual(map.PTR_BORDER_Y + map.PTR_DESK_HEIGHT - 1, y(w)); // its row 479
-    mo.setDesk(false); // back to a plane mode: clamped into the raster
-    try std.testing.expectEqual(map.PTR_HEIGHT - 1, y(one(&mo).?));
+    mo.setDesk(false); // back to a plane mode: clamped into the visible window
+    try std.testing.expectEqual(map.PTR_HEIGHT - map.PTR_BORDER_Y - 1, y(one(&mo).?));
     mo.update(m.EV_REL, m.REL_Y, -10, 0);
-    try std.testing.expectEqual(map.PTR_HEIGHT - 1 - 5, y(one(&mo).?)); // half rate again
+    try std.testing.expectEqual(map.PTR_HEIGHT - map.PTR_BORDER_Y - 1 - 5, y(one(&mo).?)); // half rate again
     mo.setDesk(false);
     try std.testing.expectEqual(@as(?u32, null), one(&mo)); // no change, nothing sent
 }

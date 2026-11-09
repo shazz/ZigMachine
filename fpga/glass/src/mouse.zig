@@ -42,10 +42,16 @@ pub fn isMouse(ev_type: u16, code: u16) bool {
     return ev_type == EV_REL or (ev_type == EV_KEY and code >= BTN_LEFT and code <= BTN_MOUSE_LAST);
 }
 
-// Where the position may go, in 1/SCALE_ONE pixels: the whole raster in the plane modes, the
+// Where the position may go, in 1/SCALE_ONE pixels: the visible window in the plane modes (Matt,
+// 9 Nov: the pointer stops at the screen's visible edge, it never goes into the borders), the
 // 640x480 picture in the desk mode (map.zig PTR_DESK_*), where nothing is drawn round it.
 const Box = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
-const PLANES = Box{ .x0 = 0, .y0 = 0, .x1 = @as(i32, map.PTR_WIDTH) * SCALE_ONE - 1, .y1 = @as(i32, map.PTR_HEIGHT) * SCALE_ONE - 1 };
+const PLANES = Box{
+    .x0 = @as(i32, map.PTR_BORDER_X) * SCALE_ONE,
+    .y0 = @as(i32, map.PTR_BORDER_Y) * SCALE_ONE,
+    .x1 = @as(i32, map.PTR_WIDTH - map.PTR_BORDER_X) * SCALE_ONE - 1,
+    .y1 = @as(i32, map.PTR_HEIGHT - map.PTR_BORDER_Y) * SCALE_ONE - 1,
+};
 const DESK = Box{
     .x0 = @as(i32, map.PTR_BORDER_X) * SCALE_ONE,
     .y0 = @as(i32, map.PTR_BORDER_Y) * SCALE_ONE,
