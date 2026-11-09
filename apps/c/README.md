@@ -77,3 +77,12 @@ cd docs && python3 -m http.server 3333
 # open http://localhost:3333/sealed.html?demo=demo-c.wasm
 ```
 No system `wasm-ld` needed — `zig cc` bundles lld.
+
+## `bench.c`: the Hatari benchmark suite on this machine
+CoreMark, Dhrystone 2.1, Whetstone and LINPACK (double AND single/f32 builds) plus a RAM read/write/copy test,
+the same C sources as the Hatari ST/STE/TT/Falcon runs (`apps/c/bench/`, licences in `bench/LICENSES.md`), so the
+numbers compare like for like with the FPGA console. Built by `bench/build.sh` (many files, per-file flags), which
+`apps/c/build.sh bench` calls. The clock is `env.hostMicros` (0 = no clock: "no clock", never a number); each job
+runs in ~8 ms slices; results are drawn with the ROM text API and logged once as `ZM BENCH <name>=<value> <unit>`
+(the console log exists in the browser only: on the board the cart log goes nowhere, the screen is where the numbers are read). Keys: 1 reruns,
+Escape leaves. Proof: `node apps/bench_headless.mjs` (browser timings are not the board's).

@@ -25,6 +25,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "c-bench",
+  "title": "BENCH (C)",
+  "type": "zigmachine"
+ },
+ {
   "tag": "bladerunners",
   "title": "BLADERUNNERS DUNGEON",
   "type": "atari st"

@@ -42,8 +42,12 @@ build_one() {
     # in another checkout or worktree gave different bytes. That made the cart
     # unreproducible and failed the pre-push "docs/ matches source" check. The
     # wasm `name` section stays, so stack traces still show function names.
-    "$ZIG" cc -target wasm32-freestanding -O2 -g0 -ffreestanding -fno-builtin -mbulk-memory \
-        -nostdlib "${LDFLAGS[@]}" -Wl,--strip-debug -o "$out" "$src"
+    if [ "$scene" = bench ]; then   # many files and per-file flags: its own script
+        bash bench/build.sh "$PWD/$out" "${LDFLAGS[@]}"
+    else
+        "$ZIG" cc -target wasm32-freestanding -O2 -g0 -ffreestanding -fno-builtin -mbulk-memory \
+            -nostdlib "${LDFLAGS[@]}" -Wl,--strip-debug -o "$out" "$src"
+    fi
     printf '%-34s %8d bytes   ?demo=%s\n' "$src" "$(stat -c%s "$out")" "$(basename "$out")"
 }
 
