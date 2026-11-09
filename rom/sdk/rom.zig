@@ -144,6 +144,8 @@ pub extern fn deskHostPointer(x: i32, y: i32, buttons: u32) void;
 pub extern fn deskLoadInf(ptr: u32, len: u32) u32;
 pub extern fn deskInfPtr() u32;
 pub extern fn deskInfLen() u32;
+// The desk's two buffers (system table 1.15, rom/gem/desktop/deskflip.zig): drawn frames flip FB_BASE.
+pub extern fn deskSetBuffers(a: u32, b: u32) void;
 
 /// The desktop, as a shell cart drives it.
 pub const Desktop = struct {
@@ -174,6 +176,10 @@ pub const Desktop = struct {
     }
     pub fn setDeskAvailable(available: bool) void {
         deskSetDeskAvailable(@intFromBool(available));
+    }
+    /// The desk's two buffers (region offsets): a drawn desk frame goes into the one not on screen.
+    pub fn setBuffers(a: usize, b: usize) void {
+        deskSetBuffers(@intCast(a), @intCast(b));
     }
     /// DESKTOP.INF read off the boot disk: its #E resolution code (0 low, 1 medium, 2 desk), or null.
     pub fn loadInf(text: []const u8) ?u8 {

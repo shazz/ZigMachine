@@ -14,6 +14,7 @@ _Static_assert(KOS_FILE_FROM_TOP <= VMODE_FROM_TOP - 4, "the mode word is over t
 _Static_assert(VMODE_FROM_TOP <= KOS_CGEN_FROM_TOP - 4, "the mode word is over the C: generation word");
 
 static uint32_t g_vmode; /* the word last stored: one store a change, not one a frame */
+static uint32_t g_base0; /* plane 0's FB_BASE at the last desk frame: a change is a flip */
 
 static volatile uint8_t* region(struct w2c_env* e) { return e->memory.data + ZM_HW_VIDEO_BASE; }
 
@@ -30,6 +31,7 @@ static void publish(int on) {
 void bdesk_boot(struct w2c_env* e) {
     w2c_machine_hwSetDeskAvailable(&e->machine, (zmv_status() & ZMV_BIT(DESK)) != 0);
     g_vmode = 0; /* a load zeroed the word: the first frame stores it */
+    g_base0 = 0;
 }
 
 int bdesk_clear(struct w2c_env* e) {
@@ -55,5 +57,14 @@ int bdesk_frame(struct w2c_env* e, sha256_ctx* h) {
     vseq_wait_swap();
     mb_presenting();
     vseq_present();
+    /* A flip (GEM's two desk buffers, rom/gem/desktop/deskflip.zig): the scanout takes the new
+     * FB_BASE at the next VBL, and the cart's next frame draws into the buffer it just left. So
+     * that frame starts after that VBL (the swap PRESENT asks for is taken at the same VBL), or a
+     * frame that overran would draw over the picture still on the screen. */
+    uint32_t base0 = *(volatile uint32_t*)(region(e) + ZM_REG_FB_BASE);
+    if (base0 != g_base0) {
+        g_base0 = base0;
+        vseq_wait_swap();
+    }
     return 1;
 }

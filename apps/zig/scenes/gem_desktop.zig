@@ -32,6 +32,7 @@ const Mode = enum(u8) { low = 0, medium = 1, desk = 2 };
 pub const Demo = struct {
     mode: Mode = .low, // GEM defaults to LOW
     desk_ok: bool = false, // plane 0 has the desk buffer: the machine shows the desk mode
+    desk_back: usize = 0, // the desk's second buffer (deskBuffers), 0: none yet
     fb: *LogicalFB = undefined,
     // The program the desktop asked us to run, held until the host polls for it.
     // 16 bytes because that is a FAT entry's name field (docs/FLOPPY_DISK.md).
@@ -44,6 +45,7 @@ pub const Demo = struct {
         self.fat_loaded = false;
         self.fat_media = @import("gem_fat.zig").mediaChanges();
         self.run_len = 0;
+        self.desk_back = 0; // the VRAM pool is new: no second desk buffer yet
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
         self.allocPlane();
@@ -97,9 +99,9 @@ pub const Demo = struct {
     // same buffer in a plane mode; entering it where it is missing keeps the mode it was in.
     fn applyMode(self: *Demo) void {
         if (self.mode == .desk) {
-            self.fb.setDeskPlane() catch {
+            if (self.fb.setDeskPlane()) |_| self.deskBuffers() else |_| {
                 self.mode = if (self.fb.stride == 640) .medium else .low;
-            };
+            }
         }
         if (self.mode != .desk and self.fb.isDesk()) self.fb.leaveDesk();
         switch (self.mode) {
@@ -113,6 +115,14 @@ pub const Demo = struct {
             .desk => .{ hw.DESK_WIDTH, hw.DESK_HEIGHT },
         };
         rom.Desktop.setScreen(size[0], size[1]);
+    }
+
+    // The desk's second buffer: the board scans plane 0 out live there, so the ROM draws each
+    // frame into the buffer not on screen and flips FB_BASE (rom/gem/desktop/deskflip.zig). With
+    // no room for it in the VRAM pool the desk stays single-buffered (draws in place, may tear).
+    fn deskBuffers(self: *Demo) void {
+        if (self.desk_back == 0) self.desk_back = zg.deskBuffer() orelse 0; // once a boot
+        rom.Desktop.setBuffers(if (self.desk_back == 0) 0 else self.fb.desk_off, self.desk_back);
     }
 
     fn setMode(self: *Demo, mode: Mode) void {

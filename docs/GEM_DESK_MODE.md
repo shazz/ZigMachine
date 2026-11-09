@@ -112,6 +112,15 @@ compositor's row I/O (tutorial, one plane: 3.39 MB a frame, 203 MB/s). The DDR3 
 
 ## 3. Tearing (Matt to decide; recommendation: accept)
 
+**Superseded 9 Nov 2026** (Matt on the board: the screen blinked every time the mouse moved). The
+desktop repaints whole frames, so the half-drawn one was on the screen. GEM now double-buffers the
+desk: the shell allocates a second desk buffer (`zg.deskBuffer`, 614 KB of the pool for the pair) and
+hands both to the ROM (`deskSetBuffers`, system table 1.15); a drawn frame goes into the buffer
+FB_BASE does not show and FB_BASE moves to it when the frame is whole (rom/gem/desktop/deskflip.zig);
+a clean frame draws and flips nothing. The firmware starts the frame after a flip only once the VBL
+has taken it (cycles/bdesk.c), so the next frame never draws into the picture being scanned. No pool
+room for the second buffer: the desk stays single-buffered. The text below is the original study.
+
 The scanout reads plane 0 **live** while the cart draws into it. The browser shows the plane as it
 was after `frame()`. The board can therefore show a half-drawn redraw for one frame where the browser
 never does. That is how TOS worked: GEM drew straight into screen RAM while the Shifter read it.
@@ -124,6 +133,14 @@ write made mid-frame belongs to the same class: the mirror updates live, so the 
 the line being scanned, while the browser shows it from the next frame. No hash can see either.
 
 ## 4. The pointer: a real gap
+
+**Decided 9 Nov 2026: option 2, GEM draws its own pointer** (no LUT for option 3: the slices are at
+100 %). With two buffers (§3) there is no save-under problem: a pointer move is a touch, which redraws
+the whole frame, and the arrow is drawn last (rom/gem/desktop/deskarrow.zig, TOS's ARROW form from
+bcursor.c, white mask, black data). Only in the desk: in low and medium the hosts still draw it, and
+GEM does not export `drawsOwnPointer` (the board tests that export's presence, so GEM would lose its
+low/medium arrow). The page hides its cursor for any cart in the desk (the board draws none there).
+The text below is the original study.
 
 Today `cycles/bcursor.c` draws GEM's arrow into the back picture after compositing, and the next
 composite erases it. Desk mode has no picture. The options:

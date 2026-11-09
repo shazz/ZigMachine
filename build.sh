@@ -232,6 +232,8 @@ NATIVE_TESTS="
     rom/gem/desktop/deskinf_read.zig
     rom/gem/gui/grid.zig
     rom/gem/gui/screen.zig
+    rom/gem/desktop/deskflip.zig
+    rom/gem/desktop/deskarrow.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
@@ -337,6 +339,8 @@ gate sdk node apps/sdk_check.mjs --break song     # ...and a song no file under 
 gate gem node apps/gem_headless.mjs "$SHOTS"
 gate gem node apps/gem_desk_check.mjs "$SHOTS"   # GEM in the desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8): Set Preferences' Desk button puts plane 0 in the desk; the 640x480 picture is the page model of plane 0, the desktop's colour reaches row 479 (the blitter's 200-row clip banded, gui/bandfill.zig), the trash on the bottom row; a window dragged to y 330 lands there (the pointer 1:1); Save Desktop writes #E 02; Low leaves the desk and clamps the window into 320x200; a boot whose disk holds that DESKTOP.INF comes back in the desk, the window where it was; without the mode (hwDeskAvailable 0) it boots low, the window clamped, Desk greyed
 gate gem node apps/gem_desk_check.mjs --break   # ...and the page's old y mapping, the INF's 02 read as 01, no Save Desktop and a ROM told the mode exists on a machine without it (Desk not greyed) are each caught
+gate gem node apps/gem_desk_flip_check.mjs   # the desk's two buffers (Matt on the board 8 Nov: the screen blinked when the mouse moved): a clean frame flips nothing, a drawn one goes into the buffer not on screen (left untouched) and flips FB_BASE, a session over a poisoned back buffer = the single-buffered desk frame by frame; GEM's arrow at the pointer in the desk only
+gate gem node apps/gem_desk_flip_check.mjs --break   # ...and buffers never handed, a host that never rests, a ROM told the wrong pointer and an arrow in the low plane are each caught
 gate gem node apps/kos_desk_check.mjs   # KOS's desktop on the board (4 Nov): repainting only what changed is pixel-exact (a session hashed every frame = the every-frame repaint's pin) and a C: window costs < 1.7 Mc (the old repaint: 2.5, caught); A:\ with C: mounted lists the floppy, not the card; a folder opens INSIDE its drive's window as on TOS 1.00 (its close box and File > Close go up a level, Close Window leaves an empty desktop: main 0e47697e's window-per-folder ROM fails that)
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent

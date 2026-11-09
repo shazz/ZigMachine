@@ -165,6 +165,7 @@ pub const Desktop = struct {
             self.launch_req = false;
             action = .launch;
         }
+        deskdraw.drawPointer(g); // last: over the menus and the dialogs (the desk only)
         return action;
     }
 

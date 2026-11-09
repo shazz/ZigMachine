@@ -21,27 +21,13 @@
 //            Desk + OK must still leave the shell in low res, setDeskPlane refusing)
 import { bootGem } from "./gem_headless.mjs";
 import { writePng } from "./scene_png.mjs";
+import { W, H, REG_FB_BASE, OFF_PAL, OFF_VRAM, VRAM_BYTES, RES_DESK, prefsAt, dv, res, settle, deskPicture,
+    pickRes as pickResVia } from "./gem_desk_lib.mjs";
 
-const W = 640, H = 480, HALF = W * (H / 2) * 4;
-const REG_RES = 0x00, REG_FB_BASE = 0x44, OFF_PAL = 0x100, OFF_VRAM = 0x1100, VRAM_BYTES = 1 << 20;
-const RES_DESK = 3;
 const MUTANTS = ["pointer", "inf", "nosave", "older"];
 // rom/gem/gui/types.zig: BLACK 0, WHITE 1, MGRAY 3, DESK 5; Prefs' default background
 const BLACK = [0, 0, 0], MGRAY = [140, 140, 140], DESK_BG = [1, 160, 164];
 const DISK = [{ name: "ALPHA.PRG", type: 0, size: 12345, date: 20260912 }];
-
-// Where Set Preferences' buttons are on a screen (rom/gem/desktop/prefs.zig: a 256x152 box,
-// centred; resButton i at hspread over the 3-cell content width, row 13; OK on row 16).
-function prefsAt(sw, sh) {
-    const dx = (sw - 256) >> 1, dy = (sh - 152) >> 1, x0 = dx + 24, cw = 256 - 48;
-    const gap3 = Math.trunc((cw - 3 * 56) / 4), gap2 = Math.trunc((cw - 2 * 64) / 3);
-    const res = (i) => [x0 + gap3 * (i + 1) + 56 * i + 28, dy + 13 * 8 + 6];
-    return { low: res(0), medium: res(1), desk: res(2), ok: [x0 + gap2 + 32, dy + 16 * 8 + 7], dx, dy };
-}
-
-const dv = (gem) => new DataView(gem.memory.buffer, gem.machine.hwVideoBase());
-const res = (gem) => dv(gem).getUint8(REG_RES);
-const settle = (gem, n = 4) => { for (let i = 0; i < n; i++) gem.frame(); };
 
 // The host's pointer, as sealed-loader.js sends it: the desk's own coordinates there, and the
 // `pointer` mutant's plane mapping (the canvas's 560 CSS rows squeezed onto 0..199).
@@ -54,25 +40,8 @@ const lx = (gem, x) => (res(gem) === 0 ? 2 * x : x);
 function click(gem, brk, x, y) { gem.click(...host(gem, brk, lx(gem, x), y)); }
 function drag(gem, brk, a, b) { gem.drag(...host(gem, brk, a[0], a[1]), ...host(gem, brk, b[0], b[1]), 8); }
 
-function pickRes(gem, brk, which, sw, sh) {
-    click(gem, brk, 180, 8); // Options (the host's x 360 in low res)
-    click(gem, brk, 210, 15); // Set Preferences...
-    settle(gem);
-    const p = prefsAt(sw, sh);
-    click(gem, brk, ...p[which]);
-    click(gem, brk, ...p.ok);
-    settle(gem, 6);
-    return p;
-}
+const pickRes = (gem, brk, which, sw, sh) => pickResVia(gem, (x, y) => click(gem, brk, x, y), which, sw, sh);
 
-function deskPicture(gem) {
-    const out = new Uint8Array(2 * HALF);
-    for (let half = 0; half < 2; half++) {
-        gem.machine.hwRenderDesk(half);
-        out.set(new Uint8Array(gem.memory.buffer, gem.machine.hwPhysicalPtr(), HALF), half * HALF);
-    }
-    return out;
-}
 // The page model: plane 0's bytes at FB_BASE & ~7, stride 640, through palette 0, alpha 255.
 function modelOf(gem) {
     const v = dv(gem), base = gem.machine.hwVideoBase() + (v.getUint32(REG_FB_BASE, true) & ~7);
@@ -140,7 +109,8 @@ async function session(brk, dir, fails) {
     const gem = await bootGem();
     gem.mount(DISK);
     check(res(gem) === 0, `boot: GEM came up in RESOLUTION ${res(gem)}, not low`);
-    const base = await enterDesk(gem, brk, dir, check);
+    const base = dv(gem).getUint32(REG_FB_BASE, true); // the one buffer of every mode (setDeskPlane's)
+    await enterDesk(gem, brk, dir, check);
     await windowLow(gem, brk, dir, check);
     const text = saveDesktop(gem, brk, check);
     pickRes(gem, brk, "low", W, H);

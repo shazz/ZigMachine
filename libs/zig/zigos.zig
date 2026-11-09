@@ -195,6 +195,16 @@ pub fn vramWords(n: usize) ?VramWords {
     return .{ .words = @as([*]u32, @ptrFromInt(g_base + off))[0..n], .off = @intCast(off) };
 }
 
+/// A second desk buffer from the VRAM pool (64-aligned, cleared), for a cart that draws whole
+/// frames and flips plane 0's FB_BASE between it and setDeskPlane's (the board scans plane 0 out
+/// live in the desk and latches FB_BASE at the VBL: docs/GEM_DESK_MODE.md §3). A region offset,
+/// null when the pool has no room. Each call allocates: the cart keeps the one it got.
+pub fn deskBuffer() ?usize {
+    const off = vramTry(hw.DESK_FB_BYTES, 64) orelse return null;
+    @memset(@as([*]u8, @ptrFromInt(g_base + off))[0..hw.DESK_FB_BYTES], 0);
+    return off;
+}
+
 /// A second true-colour buffer from the VRAM pool (draw the next frame there, then
 /// LogicalFB.showTruecolor); null when the pool has no room.
 pub fn truecolorBuffer(size: tc.Size) ?tc.Fb {
@@ -835,9 +845,10 @@ pub const LogicalFB = struct {
         for (0..256) |i| pal[i] = pal[i];
         writeU8(hw.REG_RESOLUTION, hw.RES_DESK);
     }
-    // Back from the desk to a low-res plane on the same buffer (its first 320x200 bytes, as
-    // setResLow): redraw after switching. setDeskPlane goes back to the desk.
+    // Back from the desk to a low-res plane on setDeskPlane's buffer (its first 320x200 bytes, as
+    // setResLow), whichever buffer a flip left on screen: redraw after switching.
     pub fn leaveDesk(self: *LogicalFB) void {
+        if (self.desk_off != 0) self.bind(self.desk_off);
         self.setResLow(); // RES_PLANES, stride 320, FB_MODE normal
     }
     pub fn isDesk(self: *const LogicalFB) bool {

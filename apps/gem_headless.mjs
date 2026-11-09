@@ -20,6 +20,7 @@ const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-c
 
 // opts.diskReadBlock(memory): the drive (a boot disk with a DESKTOP.INF, gem_desk_check.mjs);
 // opts.deskAvailable: hwDeskAvailable's answer (0: a board bitstream without the desk mode).
+// opts.rom(rom, machine): ROM entries the cart sees instead of the ROM's own (gem_desk_flip_check.mjs's mutants).
 export async function bootGem(opts = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
@@ -61,6 +62,7 @@ export async function bootGem(opts = {}) {
             hwRomRamFree: machine.hwRomRamFree,
             hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0: the shell sizes plane 0 by it (desk mode)
             ...rom, // the ROM chip's flat ABI
+            ...(opts.rom ? opts.rom(rom, machine) : {}), // a harness's mutant: ROM entries the cart calls, replaced
             // GEM touches none of these headlessly, but the import list must match.
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock: opts.diskReadBlock ? opts.diskReadBlock(memory) : noop,

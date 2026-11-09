@@ -1835,3 +1835,11 @@ cannot misfire on other code); raising the cap (a frame that cannot keep up only
 whole cart), so an upstream fix to CPU.c must be carried to `kestrel_sw_cpu_step.h`; the CPU check catches any
 divergence. The idle-loop wait moves IRQ entries by a few cycles: the song's 9,126 SID writes are the same, 580 of
 their stamps one 44.1 kHz sample apart. The bottom border carries a status line (`C64 100% HELD 0% OWED 0.0S`).
+
+## 2026-11-09 — GEM's desk mode: two buffers flipped by the ROM, and GEM's own arrow
+
+**Status:** accepted
+**Context:** On the board the desk scanout reads plane 0 live. Each pointer move made the desktop repaint the whole screen in place, so the half-drawn frame showed (a blink). The board firmware draws its arrow into the composited picture, and the desk has none, so there was no pointer. A hardware pointer (GEM_DESK_MODE §4 option 3) has no LUT budget: the slices are at 100 %.
+**Decision:** The shell allocates a second desk buffer (`zg.deskBuffer`) and hands the pair to the ROM (`deskSetBuffers`, system table 1.15). In the desk the ROM reads the front from FB_BASE every frame. A frame deskdirty draws goes into the other buffer, then FB_BASE moves to it. A clean frame draws and flips nothing (rom/gem/desktop/deskflip.zig). The board firmware waits for the VBL after a flip before it starts the next frame (cycles/bdesk.c). GEM draws TOS's ARROW last in a drawn desk frame (deskarrow.zig). The page hides its cursor for any cart in the desk.
+**Alternatives considered:** Accept the tearing, as TOS did (the original §3 recommendation): Matt saw it and it looks broken. A save-under pointer in a single buffer: it is stale or missing while the cart draws. Exporting `drawsOwnPointer` from GEM: the board tests the export's presence, so GEM would lose its arrow in low and medium. The ROM deriving the second buffer as A + 307,200: an unwritten contract.
+**Consequences:** The pair costs 614 KB of the 1 MiB VRAM pool. When the second buffer does not fit, the desk stays single-buffered. A shell built before 1.15 still runs single-buffered, with the arrow (it is the ROM's). The new gem cart needs a 1.15 system image. On the board, a flip frame that overruns the VBL waits for the next one. Whether the blink is gone and the arrow shows can only be proven on the board.

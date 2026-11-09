@@ -459,12 +459,14 @@ var desk_blit: zg.Blitter = .{};
 var desk_fb: zg.LogicalFB = undefined;
 var desk_plane: u32 = 0;
 var desk_ready: bool = false;
+var desk_pair: gem.deskflip.Pair = .{}; // the desk's two buffers (deskSetBuffers), none: draw in place
 
 /// Bring up the desktop over PLANE `plane`. Same reasoning as guiOpenPlane: a
 /// shell written in C could not have called the pointer form.
 export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     if (!bindFb(&desk_fb, plane, screen_h)) return;
     desk_plane = plane;
+    desk_pair = .{};
     desk = .{};
     desk_blit = .{};
     desk_blit.init();
@@ -491,13 +493,32 @@ export fn deskEndFrame() void {
 /// Draw a frame and report what the user asked for — the Action enum, flat.
 export fn deskRender() u32 {
     if (!desk_ready) return 0;
-    return switch (desk.render()) {
+    return switch (deskFrame()) {
         .none => 0,
         .launch => 1,
         .res_low => 2,
         .res_medium => 3,
         .res_desk => 4, // the desk mode (HW 1.17.0): the shell asks setDeskPlane
     };
+}
+/// The desk's two buffers (region offsets, deskflip.zig): a drawn desk frame goes into the one
+/// FB_BASE does not show, then FB_BASE moves to it. 0, 0: draw in place (the single buffer).
+export fn deskSetBuffers(a: u32, b: u32) void {
+    desk_pair = .{ .a = a, .b = b };
+}
+// In the desk, draw into the buffer not on screen and show it once the frame is whole; in the
+// plane modes (and with no pair) draw where the plane is bound.
+fn deskFrame() gem.Action {
+    if (!deskPlane(desk_plane)) return desk.render();
+    const base: usize = @intCast(hw.hwVideoBase());
+    const reg: *volatile u32 = @ptrFromInt(base + hw.REG_FB_BASE + @as(usize, desk_plane) * 4);
+    const front = reg.*;
+    const drew = gem.mustDraw(&desk);
+    desk_fb.fb = @ptrFromInt(base + gem.deskflip.target(desk_pair, front));
+    const action = desk.render();
+    const shown = gem.deskflip.after(desk_pair, front, drew);
+    if (shown != front) reg.* = shown;
+    return action;
 }
 export fn deskSetPointer(x: i32, y: i32, buttons: u32) void {
     if (desk_ready) desk.setPointer(x, y, buttons);

@@ -1055,11 +1055,14 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) relea
     surface.draggable = false;              // stop the browser "grab the image" drag-ghost
     surface.addEventListener('dragstart', function (e) { e.preventDefault(); });
     // A cart that draws its own pointer (its drawsOwnPointer export, apps/zig/demo_main.zig)
-    // gets no host cursor over the screen, as the board firmware skips its arrow for it.
-    // Checked every frame (a property read): any swap path may change the cart.
+    // gets no host cursor over the screen, as the board firmware skips its arrow for it. So does
+    // every cart in the desk mode: the board has no picture to draw an arrow on there (bmain.c
+    // returns from bdesk_frame before bcursor_draw), and GEM draws its own (deskarrow.zig).
+    // Checked every frame (a property read): any swap path may change the cart or its mode.
     let hidden = false;
     window.syncCartCursor = function () {
-        const hide = !!(demo && demo.drawsOwnPointer && demo.drawsOwnPointer() !== 0);
+        const desk = !!(machine && machine.hwDeskActive && machine.hwDeskActive());
+        const hide = desk || !!(demo && demo.drawsOwnPointer && demo.drawsOwnPointer() !== 0);
         if (hide === hidden) return;
         hidden = hide;
         surface.style.cursor = hide ? "none" : "";
