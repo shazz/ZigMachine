@@ -42,9 +42,10 @@ from typing import Any
 
 from litex.gen import LiteXModule
 from litex.soc.interconnect import axi
-from migen import Cat, Constant as Const, If, Signal
+from migen import Cat, If, Signal
+from migen import Constant as Const
 
-from soc import zm_hp_read
+from soc import zm_hp_prefetch, zm_hp_read
 from soc.zm_hp_bypass import StoreTags
 from soc.zm_hp_posted import PostedStores
 from soc.zm_hp_read import CTI_CLASSIC
@@ -87,10 +88,13 @@ class WishboneHP(LiteXModule):
     """`bus` (32-bit, word-addressed Wishbone slave) -> `hp` (64-bit AXI3 master)."""
 
     def __init__(self, bus: Bus, hp: axi.AXIInterface, posted: int = 0, read_bypass: bool = False,
-                 break_: str = "") -> None:  # fmt: skip
-        """`read_bypass` (needs `posted`): soc/zm_hp_bypass.py; `break_`: its break test's mutant."""
-        if read_bypass and not posted:
-            raise ValueError("zm_hp: read_bypass needs posted stores")
+                 break_: str = "", *, fast_burst: bool = False, prefetch: bool = False,
+                 read_break: str = "") -> None:  # fmt: skip
+        """`read_bypass` (needs `posted`): soc/zm_hp_bypass.py; `break_`: its break test's mutant.
+        `fast_burst`: a refill's words one a clock (soc/zm_hp_read.py line_buffer); `prefetch`
+        (needs `posted`): the next line read ahead (soc/zm_hp_prefetch.py, `io_kill` its IO input). `read_break`: their mutants."""
+        if (read_bypass or prefetch) and not posted:
+            raise ValueError(f"zm_hp: {'read_bypass' if read_bypass else 'prefetch'} needs posted stores")
         self.bus, self.hp = bus, hp
         self.idle = Signal(reset=1)  # every acknowledged store is in DDR (always, without `posted`)
         self.ack = ack = Signal()
@@ -101,9 +105,11 @@ class WishboneHP(LiteXModule):
         self.rbusy, self.wbusy = Signal(), Signal()  # an AXI read / write is in flight
         self.rwait = Signal()  # what a read miss waits for: the drain, or (bypass) a same-line store
         self.comb += [bus.ack.eq(ack), *fixed_fields(hp.ar), *fixed_fields(hp.aw)]
-        zm_hp_read.line_buffer(self)
-        zm_hp_read.axi_read(self, ddr_addr)
+        zm_hp_read.line_buffer(self, fast_burst, read_break)
+        start = zm_hp_read.axi_read(self, ddr_addr)
         self._posted(posted) if posted else self._write()
+        if prefetch:
+            zm_hp_prefetch.prefetch(self, ddr_addr, start, read_break)
         self.comb += self.rwait.eq(self._bypass(posted, break_) if read_bypass else self.wbusy)
 
     def _posted(self, depth: int) -> None:
