@@ -11,6 +11,7 @@ const linux = std.os.linux;
 const mc = @import("map_cart.zig");
 const kp = @import("kos_kfs_path");
 const fs = @import("kos_fs.zig");
+const net = @import("kos_net.zig");
 
 pub const Op = enum(u32) { gen = 0, write = 1, delete = 2, rename = 3, mkdir = 4, rmdir = 5, setattr = 6, abort = 7, _ };
 const FIRST: u32 = 1;
@@ -119,7 +120,12 @@ pub fn run(root: i32, r: *const Req) fs.Fail!i32 {
     defer _ = linux.close(dir);
     const name = p.last();
     switch (r.op) {
-        .write => return save(dir, name, r),
+        .write => {
+            const rc = try save(dir, name, r);
+            // The network spike (kos_net.zig): a saved C:\NET\<NAME>.REQ is sent, its reply saved as .ANS.
+            if (r.flags & LAST != 0 and net.isRequest(p.parent(), name)) net.serve(dir, name);
+            return rc;
+        },
         .abort => {
             if (r.slot >= SLOTS) return error.BadHandle;
             var t: [9]u8 = undefined;
