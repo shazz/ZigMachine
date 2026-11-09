@@ -17,6 +17,8 @@ pub const Pool = struct {
     n_ted: usize = 0,
     icons: [160]eng.IconBlk = undefined,
     n_icon: usize = 0,
+    cicons: [48]eng.CIconBlk = undefined,
+    n_cicon: usize = 0,
     text: [6144]u8 = undefined,
     n_text: usize = 0,
     full: bool = false,
@@ -25,6 +27,7 @@ pub const Pool = struct {
         self.n = 0;
         self.n_ted = 0;
         self.n_icon = 0;
+        self.n_cicon = 0;
         self.n_text = 0;
         self.full = false;
     }
@@ -41,6 +44,13 @@ pub const Pool = struct {
         self.icons[self.n_icon] = ib;
         self.n_icon += 1;
         return &self.icons[self.n_icon - 1];
+    }
+
+    pub fn cicon(self: *Pool, ci: eng.CIconBlk) *const eng.CIconBlk {
+        if (self.n_cicon == self.cicons.len) return self.fail(&EMPTY_CICON);
+        self.cicons[self.n_cicon] = ci;
+        self.n_cicon += 1;
+        return &self.cicons[self.n_cicon - 1];
     }
 
     /// Room for `len` bytes of text (filled by the caller), "" when the pool is full.
@@ -61,6 +71,7 @@ pub const Pool = struct {
 
 const EMPTY_TED: eng.Ted = .{ .text = "" };
 const EMPTY_ICON: eng.IconBlk = .{ .mask = &.{}, .data = &.{}, .w = 0, .h = 0 };
+const EMPTY_CICON: eng.CIconBlk = .{ .mono = EMPTY_ICON, .col = &.{} };
 
 /// One tree being built in the pool: objects are appended and linked as GEM links them
 /// (a parent's children run head -> next -> ... -> back to the parent).

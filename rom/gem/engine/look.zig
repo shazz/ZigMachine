@@ -28,6 +28,7 @@ pub const Look = struct {
     small: *const Font, // the small font (icon labels, te_font 5)
     patterns: *const [8][16]u16 = &PATTERNS,
     grey: u8 = 3, // a DISABLED object's text (a plane palette index)
+    face: u4 = LWHITE, // the 3D face's GEM colour (TOS 4 with few colours, and Matt's reference: white)
 
     pub fn ink(self: *const Look, c: u4) u8 {
         return self.pal[c];

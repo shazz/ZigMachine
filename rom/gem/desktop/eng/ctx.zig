@@ -19,8 +19,6 @@ pub const Ctx = struct {
     set: *const assets.Set,
     three_d: bool,
     s: *scene.Scene,
-    cicons: [24]eng.CIconBlk = undefined,
-    n_cicon: usize = 0,
 
     pub fn layer(self: *Ctx, l: scene.Layer) void {
         self.s.add(l);
@@ -33,14 +31,9 @@ pub const Ctx = struct {
         return out;
     }
 
+    /// A colour icon block, in the pool: the trees are drawn after this Ctx (a stack value) is gone.
     pub fn cicon(self: *Ctx, ib: *const eng.IconBlk, col: []const u8) *const eng.CIconBlk {
-        if (self.n_cicon == self.cicons.len) {
-            self.pool.full = true;
-            self.n_cicon = 0;
-        }
-        self.cicons[self.n_cicon] = .{ .mono = ib.*, .col = col };
-        self.n_cicon += 1;
-        return &self.cicons[self.n_cicon - 1];
+        return self.pool.cicon(.{ .mono = ib.*, .col = col });
     }
 };
 

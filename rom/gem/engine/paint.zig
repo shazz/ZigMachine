@@ -49,7 +49,7 @@ pub fn kind3d(look: *const Look, o: *const Object) u16 {
 /// The face of a 3D object: grey, an indicator darker when selected; the light /
 /// dark edges inside `r` (swapped for a pushed activator).
 fn face3d(cv: *Canvas, look: *const Look, k: u16, r: Rect, sel: bool) void {
-    const face = if (k == obj.FL3DIND and sel) look.ink(L.LBLACK) else look.ink(L.LWHITE);
+    const face = if (k == obj.FL3DIND and sel) look.ink(L.LBLACK) else look.ink(look.face);
     cv.fill(r, face);
     if (k == obj.FL3DBAK) return;
     const pushed = sel and k == obj.FL3DACT;

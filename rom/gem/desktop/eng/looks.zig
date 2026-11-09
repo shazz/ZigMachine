@@ -19,12 +19,14 @@ pub fn pens() [16]u8 {
     p[L.BLACK] = 0;
     p[L.GREEN] = 5; // the desktop: Set Preferences' colour
     p[L.LWHITE] = 2;
-    p[L.LBLACK] = 4;
+    p[L.LBLACK] = 3; // the 3D shadow: mid grey (the reference's 136)
     return p;
 }
 
 pub fn look(set: *const assets.Set, three_d: bool) L.Look {
-    return .{ .three_d = three_d, .pal = pens(), .font = &set.sys, .small = &set.small, .grey = 3 };
+    // TOS 4's window, as Matt's reconstruction draws it (aes340_tos4 windows): white gadget faces with a
+    // grey shadow edge, the font's gadget glyphs, TOS 1's grey mover; no drop shadow.
+    return .{ .three_d = three_d, .pal = pens(), .font = &set.sys, .small = &set.small, .grey = 3, .face = L.WHITE };
 }
 
 /// The palette entries the VDI pens use: (index, r, g, b) for each slot.

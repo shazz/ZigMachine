@@ -3,8 +3,8 @@
 // (same title bar, gadgets, tracks and sliders: types.zig vTrack / hTrack /
 // sliderBox), then the work area, a CLIPKIDS box holding the directory
 // (b_dir.zig). Flat look: TOS 1's, the gadget bitmaps of gem_glyphs.zig and the
-// grey mover. 3D look: TOS 4's, grey 3D gadgets drawn as the font's gadget
-// characters (0x01..0x07), a grey title bar on the active window, no shadow.
+// grey mover. 3D look: TOS 4's as Matt's reconstruction draws it: 3D gadgets (white face,
+// grey shadow edge) drawn as the font's gadget characters (0x01..0x07), no drop shadow.
 // --------------------------------------------------------------------------
 const eng = @import("../../engine/obj.zig");
 const L = @import("../../engine/look.zig");
@@ -83,18 +83,13 @@ fn chrome(c: *Ctx, t: *Tree, w: *const types.Window, active: bool) void {
     gadget(c, t, .size, w.r.w - GW, w.r.h - GH);
 }
 
+// The mover: TOS's grey on the active window (TOS 4 keeps it), the title on a clear patch.
 fn titleBar(c: *Ctx, t: *Tree, w: *const types.Window, active: bool) void {
-    const bar_w = w.r.w - 2 * GW + 2;
-    if (c.three_d) {
-        const ted = c.pool.ted(.{ .text = w.title, .just = eng.JUST_CENTRE, .color = eng.colorWord(1, 1, true, 7, L.WHITE), .thickness = 1 });
-        _ = t.add(0, .{ .ty = eng.G_BOXTEXT, .flags = if (active) eng.FL3DBAK else 0, .spec = .{ .ted = ted }, .x = GW - 1, .w = bar_w, .h = types.TITLE_H });
-    } else {
-        _ = t.add(0, .{ .ty = eng.G_BOX, .spec = ctx_mod.box(1, 1, L.BLACK, if (active) 2 else 0), .x = GW, .w = w.r.w - 2 * GW, .h = types.TITLE_H });
-        const tw: i16 = @intCast(@min(w.title.len * 8, 4000));
-        const tx = @divTrunc(w.r.w - tw, 2);
-        _ = t.add(0, .{ .ty = eng.G_BOX, .spec = ctx_mod.box(0, 1, L.WHITE, 7), .x = tx - 8, .y = 1, .w = tw + 16, .h = types.TITLE_H - 2 });
-        _ = t.add(0, .{ .ty = eng.G_STRING, .spec = .{ .str = w.title }, .x = tx, .y = 2, .w = tw, .h = 8 });
-    }
+    _ = t.add(0, .{ .ty = eng.G_BOX, .spec = ctx_mod.box(1, 1, L.BLACK, if (active) 2 else 0), .x = GW, .w = w.r.w - 2 * GW, .h = types.TITLE_H });
+    const tw: i16 = @intCast(@min(w.title.len * 8, 4000));
+    const tx = @divTrunc(w.r.w - tw, 2);
+    _ = t.add(0, .{ .ty = eng.G_BOX, .spec = ctx_mod.box(0, 1, L.WHITE, 7), .x = tx - 8, .y = 1, .w = tw + 16, .h = types.TITLE_H - 2 });
+    _ = t.add(0, .{ .ty = eng.G_STRING, .spec = .{ .str = w.title }, .x = tx, .y = 2, .w = tw, .h = 8 });
     gadget(c, t, .close, 0, 0);
     gadget(c, t, .full, w.r.w - GW, 0);
 }
