@@ -102,6 +102,7 @@ fn applyInf(d: *Desktop, p: *const inf_read.Loaded) void {
         d.view = if (w.text_view) .text else .icons;
         deskwin.addFloppyWindow(d, title, dirmodel.ROOT);
         if (d.wm.topOpen()) |id| d.wm.wins[id].r = r; // C: keeps no remembered rect (deskwin)
+        d.grow_b = r; // the zoom-box grows to where the window is, not the cascade's spot
     }
     deskdrive.focusTop(d);
 }

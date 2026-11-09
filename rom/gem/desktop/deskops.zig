@@ -103,8 +103,13 @@ pub fn saveDesktop(d: *Desktop) bool {
         .wins = open_wins[0..n],
     });
     d.mode.inf_len = @intCast(text.len); // deskInfPtr / deskInfLen: the shell's (and a harness's) copy
-    const on = &d.drives[if (d.drv.c_mounted) deskdrive.C else deskdrive.A];
-    if (on.put(deskinf.NAME, @intCast(text.len))) return true;
+    if (d.drv.c_mounted) {
+        // The file goes to the card whatever the listing holds: C:'s model is capped at MAX_FILES
+        // over the whole /HD tree, so a full listing only means it shows at the next start.
+        _ = d.drives[deskdrive.C].put(deskinf.NAME, @intCast(text.len));
+        return true;
+    }
+    if (d.drives[deskdrive.A].put(deskinf.NAME, @intCast(text.len))) return true; // A: in memory only
     d.dlg.alert("Cannot save the desktop.", "The disk directory is full.");
     return false;
 }
