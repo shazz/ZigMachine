@@ -137,6 +137,8 @@ for w in "$OUT"/demo-*.wasm; do
         # the app depacks them as it reads them. And a klystrack song for the .kt
         # player on BARD: upstream's STARPORT2 example (MIT, apps/ports/klystrack/
         # LICENSE), unpacked: 1822 bytes, packing it saves nothing worth a block.
+        # And a C64 tune for the .sid player (cRSID on BARD): HerMiniSID by Hermit, cRSID's own
+        # test tune (379 bytes, unpacked), the one SID TEST ships.
         sysinfo)   BOOTSEC="$OUT/boot-novirus.wasm"
                    [ -f "$BOOTSEC" ] || { echo "mkdisks: $BOOTSEC is missing: run zig build first"; exit 1; }
                    pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot --boot-wasm "$BOOTSEC" \
@@ -145,7 +147,8 @@ for w in "$OUT"/demo-*.wasm; do
                         --file "SAMPLE.RAW=$OUT/music/smp1_short.raw" \
                         --file "KEYGEN.XM=$(packcart "$OUT/music/keygen_9000.xm")" \
                         --file "THALION.HIP=$(packcart "$OUT/music/hippel/thalion_intro.hip")" \
-                        --file "STARPORT.KT=$OUT/music/starport2.kt" ;;
+                        --file "STARPORT.KT=$OUT/music/starport2.kt" \
+                        --file "HERMINI.SID=$OUT/music/hermini.sid" ;;
         # STNICCC 2000 streams its polygon data off the disk, 64 KB at a time.
         stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;

@@ -31,6 +31,9 @@ void kestrel_quit(void);
 int kestrel_c_mounted(void);
 
 #include "libcRSID/libcRSID.c"     /* cRSID, cRSID_C64: the C64 and its SID (includes SIDwizard.h via VIC.h) */
+#if SW_SID_ON_BARD
+#include "kestrel_sw_bard.c"
+#endif
 
 /* SIDwizard.c's globals that host/file.c and host/keyboard.c use */
 static char DriverTypePos = TUNE_DRIVERTYPE_POS_1SID, TuningTypePos = TUNE_TUNINGTYPE_POS_1SID;
@@ -58,6 +61,14 @@ static int sw_exit_dialog, sw_startup_menu = 1;
 static void sw_reset_editor(void);
 #include "kestrel_sw_keys.c"
 #include "kestrel_sw_keysim.c"
+#include "kestrel_sw_pace.c"
+#include "kestrel_sw_idle.c"
+#include "kestrel_sw_cpu.c"
+#include "kestrel_sw_rt.c"
+#include "kestrel_sw_prof.c"
+#ifdef SW_CPU_TEST
+#include "kestrel_sw_cpu_test.c"
+#endif
 
 #define SW_RATE 22050
 #define SW_TICK 110                            /* samples in upstream's 5 ms main-loop pass (KEYSCAN_PERIOD) */
@@ -81,6 +92,36 @@ static void sw_tick(void)
     handleDiskIO();
 }
 
+#if SW_SID_ON_BARD
+/* The C64 clocked by the frame's real time: `us` worth of 22.05 kHz "C64 samples" (libcRSID's step: 714/16
+ * cycles of CPU, CIAs, VIC, then its disk byte traps), with upstream's 5 ms main-loop pass every 110 of them.
+ * Nothing is rendered: the SID's writes went on the BARD queue as they happened (kestrel_sw_bard.c).
+ * kestrel_sw_pace.c decides how much of it the main program gets when ZIGGY cannot run it all. */
+static uint64_t sw_owed;
+static void sw_c64_sample(void)                 /* kestrel_sw_cpu.c's 6502, or upstream's (SW_CPU_UPSTREAM: the before) */
+{
+#ifndef SW_CPU_UPSTREAM
+    if (MOSTLY(cRSID_C64.RealSIDmode && !cRSID_C64.HighQualitySID)) { sw_emulate_c64(); return; }
+#endif
+    cRSID_emulateC64();
+}
+static void sw_run_c64(uint32_t us)
+{
+    sw_owed += (uint64_t)us * SW_RATE;
+    uint32_t n = (uint32_t)(sw_owed / 1000000u);
+    sw_owed %= 1000000u;
+    sw_pace_begin(n);
+    for (uint32_t i = 0; i < n; i++) {
+        if (!cRSID.Paused) { sw_idle_step(); sw_pace_step(i); sw_c64_sample(); sw_rt_held += (uint32_t)sw_pace_holding; }
+#if defined SW_PROFILE_IRQ || defined SW_PROFILE_PC
+        sw_profile_sample();
+#endif
+        sw_samples++; sw_rt_samples++;
+        if (++sw_tick_count >= SW_TICK) { sw_tick_count = 0; sw_tick(); }
+    }
+    sw_bq_frame(sw_cycle + sw_io_cycles);
+}
+#else
 static void sw_mix(void *ctx, int16_t *stereo, int frames)
 {
     (void)ctx;
@@ -91,6 +132,7 @@ static void sw_mix(void *ctx, int16_t *stereo, int frames)
         if (++sw_tick_count >= SW_TICK) { sw_tick_count = 0; sw_tick(); }
     }
 }
+#endif
 
 /* main()'s set-up: a PAL C64 with one 8580, the native program in RAM, the CPU at its start. */
 static void sw_start_c64(void)
@@ -117,18 +159,30 @@ static void sw_start_c64(void)
 __attribute__((export_name("boot"))) void boot(void)
 {
     sw_start_c64();
+#ifdef SW_CPU_TEST
+    sw_cpu_test();
+    sw_start_c64();
+#endif
     sw_video_init();
     sw_keysim_open(SW_BOOT_SONG);
     kestrel_log("sidwizard: booted");
 }
 
-/* Real time, at most 20 ms (a PAL frame): the C64 costs ~3.5x real time on the board (README.md, "Cost"), so
- * it runs slow there whatever the cap; a short cap keeps the editor answering (more frames, each shorter). */
+/* The frame's real time. With the SID on BARD the C64 keeps it (kestrel_sw_pace.c: its timers, raster IRQs and
+ * so the music's ticks, whatever ZIGGY's frame rate), up to 100 ms (a stall is not caught up). Without, at most
+ * 20 ms of it: the light engine on ZIGGY costs ~3.5x real time, so a short cap keeps the editor answering. */
 __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
+#if SW_SID_ON_BARD
+    sw_run_c64(sw_rt_frame_us(kestrel_frame_us(elapsed_ms, 3600000u)));  /* capped and counted: kestrel_sw_rt.c */
+#else
     uint32_t us = kestrel_frame_us(elapsed_ms, 20);
     kestrel_audio_pump(us, SW_RATE, 100, sw_mix, 0);
+#endif
     sw_video_frame();
+#if SW_SID_ON_BARD
+    sw_rt_draw();
+#endif
 }
 
 __attribute__((export_name("isPlaneEnabled"))) int isPlaneEnabled(int p) { return p == 0; }

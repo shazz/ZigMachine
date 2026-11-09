@@ -54,6 +54,8 @@ static Uint8 sw_charset[2][0x800];         /* the two charsets, kept at start as
 static Uint8 sw_prev_vram[SW_VRAM_SIZE], sw_prev_cram[SW_VRAM_SIZE], sw_prev_cs = 0xFF, sw_dirty[SW_VRAM_SIZE];
 static Uint8 sw_top[7 * 64], sw_bottom[7 * 64], sw_top_col = 0xFF, sw_bottom_col = 0xFF, sw_bars[SW_H];
 static int sw_refresh = 1, sw_dialog, sw_vol_sig = -1;
+static uint32_t sw_drawn[SW_VRAM_SIZE], sw_frame_no;  /* the frame each text cell was last drawn in */
+static int sw_sep_dirty;                    /* the cursor was or is over the separator lines */
 static Uint32 sw_nib[16];                  /* 4 glyph bits -> 4 pixels of 0xFF (pixel 0 = bit 3) */
 static Uint32 sw_dbl[16][2];               /* 4 sprite bits -> 8 pixels (each bit 2 wide) */
 static struct { int x, y, w, h; } sw_cur;  /* where the cursor sprite was drawn */

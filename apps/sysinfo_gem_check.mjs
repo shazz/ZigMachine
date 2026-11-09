@@ -3,7 +3,7 @@
 // and Q goes back to the desktop (request 4), over and over. GEM is apps/gem_headless.mjs's,
 // which services the swap protocol the way docs/sealed-loader.js does.
 //   disk     docs/demo-sysinfo.zmd is a data disk whose only program is BOOT.WSM (beside its
-//            six sound files: SND, SAP, RAW, XM, HIP, KT; the KT added 6 Nov 2026 for the .kt player), and BOOT.WSM depacks (romDepack, as the loader does) to
+//            seven sound files: SND, SAP, RAW, XM, HIP, KT, SID; the KT added 6 Nov 2026, the SID 8 Nov), and BOOT.WSM depacks (romDepack, as the loader does) to
 //            docs/demo-sysinfo.wasm byte for byte: what tools/glass_shelf.py matches the board
 //            image by
 //   sector   it carries the "No virus in ZigMachine" boot sector (docs/boot-novirus.wasm, a v2
@@ -67,7 +67,7 @@ async function checkDisk() {
     const names = Object.keys(disk.mounted.files);
     const prog = disk.mounted.files["BOOT.WSM"];
     const progs = names.filter((n) => disk.mounted.files[n].type === 0);
-    expect(progs.length === 1 && prog && prog.type === 0 && names.length === 7, `its FAT holds one program, BOOT.WSM, and six sound files (${names.join(" ")})`);
+    expect(progs.length === 1 && prog && prog.type === 0 && names.length === 8, `its FAT holds one program, BOOT.WSM, and seven sound files (${names.join(" ")})`);
     if (!prog) return null;
     const bytes = await depacked(prog);
     expect(bytes.length === cart.length && bytes.every((b, i) => b === cart[i]), "BOOT.WSM is demo-sysinfo.wasm, byte for byte");
