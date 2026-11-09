@@ -29,7 +29,7 @@ function session(engine) {
     pickRes(r, (x, y) => r.click(x, y), "desk", 640, 200);
     r.open(35, 40);
     for (let i = 0; i < 10; i++) r.frame();
-    if (engine) r.calls.push(`${r.f}:rom.deskSetEngine:1`);
+    if (engine) r.calls.push(`${r.f}:rom.deskSetEngine:${process.env.GEM_LOOK ?? 1}`); // GEM_LOOK=2: the 3D look
     for (let i = 0; i < 6; i++) r.frame();
     const warmup = r.f;
     for (let i = 0; i < FRAMES; i++) r.point(300 + 7 * (i % 20), 300 + (i & 1), 0); // never still

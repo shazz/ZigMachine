@@ -58,6 +58,11 @@ The desk, A:\ open, the pointer moving every frame (apps/gem_engine_cost.mjs):
 | old path, before this branch | 2.72 | ~37 |
 | old path now (icon.zig's artBox remembered: it re-scanned each 32x30 bitmap several times a frame) | 2.21 | ~45 |
 | engine | 1.07 | 60 (0.70 of it is FRESCO's fixed plane cost) |
+| engine, 3D, with Matt's TOS 4 set (scratch ROM) | 1.04 | 60 |
+
+These are ESTIMATES from the cost model, not measurements: Matt read ~25 fps on the board for the old
+path (9 Nov), where the model says ~37, so the model is optimistic for GEM by about 1.5x. The engine's
+1.07 Mc leaves room for that; 60 fps on the board is plausible, not proven: only the board's OSD says.
 
 A pointer move paints two 16x16 boxes; the engine's own work is ~0.15 Mc plus ~0.17 of I$ misses (the
 frame's code is ~29 KB against a 16 KB I$). Only the board says what the real fps is.
@@ -72,6 +77,23 @@ frame's code is ~29 KB against a 16 KB I$). Only the board says what the real fp
   engineoff are each caught.
 - Native: rect lists (overflow, subtraction), malformed trees, find/button edge cases, clip and extent
   containment, 300 random edits where painting the damage equals a whole repaint.
+
+## Return fires the default button
+
+Matt on the board (9 Nov): Return did not close a dialog although its default button is drawn bold.
+As TOS's form_do does, Return / Enter (codes 13 / 10) now fire the DEFAULT button of the open dialog
+(`Gui.enter`, `buttonThick` border 3 / `buttonEx` default), on the old path and the engine alike; Show
+Info's name field keeps its own Return. gem_engine_check closes Desktop Info with Return on both paths
+(mutant `noenter`). What key code the board's glass sends for Return was not checked here.
+
+## The look, checked by eye
+
+Screenshots of the desk (old path, flat engine, TOS 4 engine with Matt's set: the desk, a drop-down,
+Desktop Info, a window drag) were taken with a scratch ROM built with `-Dgem_assets` and compared with
+gem_assets/aes340_tos4/components/*/windows/*.png. They stay local (prototypes/gem5_card/shots/). The TOS 4
+window now follows the reference: white gadget faces with a grey shadow edge, the font's gadget glyphs,
+TOS's grey mover, no drop shadow. Still different: the reference's gadgets are wider (its font is
+8x16 at 640x400), and its menus and dialogs are TOS 4's own trees.
 
 ## Not in this step (honest list)
 
