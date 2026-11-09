@@ -60,3 +60,9 @@ test "half a picture fits in the PFB, a whole one does not" {
     try std.testing.expect(desk.HALF_PIXELS * 4 <= memmap.PFB_BYTES);
     try std.testing.expect(desk.HALF_PIXELS * 8 > memmap.PFB_BYTES);
 }
+
+test "the bars are REG_BACKGROUND, R in the low byte, alpha 255 whatever was stored" {
+    try expectEqual(@as(u32, 0xFFFF_FFFF), desk.bars(0x00FF_FFFF)); // GEM's white
+    try expectEqual(@as(u32, 0xFFA0_5020), desk.bars(0xC4A0_5020));
+    try expectEqual(@as(u32, 0xFF00_0000), desk.bars(0)); // a reset register: black bars
+}

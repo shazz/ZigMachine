@@ -13,7 +13,7 @@ void bdesk_boot(struct w2c_env* e);
 /* Before the cart's frame, in vseq_clear's place: 1 if RESOLUTION says desk, after FRAME + 1. */
 int bdesk_clear(struct w2c_env* e);
 /* After the cart's frame: 1 if the frame is a desk frame. Then `h` (a hashed frame) gets the
- * browser's desk hash: "desk", then hwRenderDesk(0)'s and hwRenderDesk(1)'s 614,400 bytes. The
+ * browser's desk hash (host_desk.h): "desk", the bars, then the two 614,400-byte halves. The
  * picture is paced: the swap is waited for before PRESENT. */
 int bdesk_frame(struct w2c_env* e, sha256_ctx* h);
 /* A frame that began in desk mode and ends in another: the clear bdesk_clear skipped, now, so

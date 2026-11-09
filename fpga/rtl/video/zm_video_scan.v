@@ -16,7 +16,9 @@
 // Outputs are three clocks behind zm_vtiming's in BOTH modes (the RAM, the
 // mirror's read in desk mode or a register in normal mode, the output
 // register), so RGB stays aligned with its syncs. Outside the raster the
-// picture is black: the bars.
+// picture is black, except a desk frame's bars (inside DE, outside the 640x480): they
+// show REG_BACKGROUND (`bars`, zm_video_desk.v), taken in the vertical sync so a frame
+// shows one colour. A desk pixel the fetch missed (underrun) stays black.
 `default_nettype none
 
 module zm_video_scan (
@@ -34,6 +36,7 @@ module zm_video_scan (
     input  wire [63:0] dp_rdata,
     output wire [7:0]  pal_raddr,          // desk: the mirror of palette 0
     input  wire [23:0] pal_rdata,          //   {B, G, R}, the clock after its address
+    input  wire [23:0] bars,               // desk: the bars' {B, G, R}, as of the last VBL
     output reg  [7:0]  r, g, b,
     output reg         de_o, hs_o, vs_o,
     output reg         underrun = 1'b0
@@ -59,15 +62,16 @@ module zm_video_scan (
 
     // Stage 1: the RAM answers (desk: its byte addresses the mirror); stage 2: the mirror answers,
     // or the normal pixel is registered; stage 3: the registered outputs.
-    reg de1, hs1, vs1, show1, desk1, odd1, de2, hs2, vs2, dshow2;
+    reg de1, hs1, vs1, show1, desk1, odd1, bar1, de2, hs2, vs2, dshow2;
     reg [2:0] byte1;
-    reg [23:0] rgb2;
+    reg [23:0] rgb2, bars_f = 24'd0;      // the bars' colour of this frame
     assign pal_raddr = dp_rdata[{byte1, 3'b000} +: 8];
     always @(posedge clk) begin
+        if (vsync) bars_f <= bars;        // between the bottom bar and the top one
         {de1, hs1, vs1, show1, odd1} <= {de, hsync, vsync, zm_active && ok, zm_x[0]};
-        {desk1, byte1} <= {desk, zm_x[2:0]};
+        {desk1, byte1, bar1} <= {desk, zm_x[2:0], de && desk && !zm_active};
         {de2, hs2, vs2, dshow2} <= {de1, hs1, vs1, show1 && desk1};
-        rgb2 <= show1 && !desk1 ? (odd1 ? dp_rdata[55:32] : dp_rdata[23:0]) : 24'd0;
+        rgb2 <= bar1 ? bars_f : show1 && !desk1 ? (odd1 ? dp_rdata[55:32] : dp_rdata[23:0]) : 24'd0;
         {de_o, hs_o, vs_o} <= {de2, hs2, vs2};
         {b, g, r} <= dshow2 ? pal_rdata : rgb2;
     end

@@ -14,7 +14,7 @@ of 1 Nov: 640x480 replaces 640x400 (the same mechanism, 80 more lines).
 
 - **The mode.** `RESOLUTION = RES_DESK` (3). Plane 0 only: 640x480 bytes from the VRAM pool, stride
   640, palette 0, shown 1:1 (no pixel or line doubling) in the middle of the 800x600 output (80 px
-  sides, 60-line bars, black). No other plane, no HBL handler (global or plane), no copper, no linepal,
+  sides, 60-line bars in `BACKGROUND`'s colour since 9 Nov, black before: §10). No other plane, no HBL handler (global or plane), no copper, no linepal,
   no BEAM, no overscan flicker, no HSCROLL, no true colour, no alpha.
 - **The compositor is bypassed, not changed.** The scanout fetch reads plane 0's lines straight from
   memory (80 beats a line instead of the picture's 400) and the palette lookup moves into the pixel
@@ -209,7 +209,7 @@ picture (1,228,800 B) does not fit, and the 8 MiB map is frozen (`sealed-loader.
 come back. The pointer surface (canvas 3) takes the desk geometry, and `send()` maps it to 0..639 /
 0..479 with no border offset.
 
-**scene_hash.mjs**: a desk frame's hash is the tag `desk` followed by the two halves in order (the
+**scene_hash.mjs**: a desk frame's hash is the tag `desk`, the bars' colour (`hwDeskBars`, §10), then the two halves in order (the
 `--composite` path is the same, since there is nothing to compose). **The native host**
 (`fpga/cycles/main.c`, `fpga/host/kos_host.c`) has the same branch. **hp_sim** (`cycles/bmain.c`
 `hash_plane`): a hashed desk frame calls the translated `hwRenderDesk` after `vseq_idle` and hashes
@@ -316,4 +316,29 @@ pointer mapping, which keys on `desk_medium` today. The 8x16 font (GEM5 P2.5) is
 3. **The pointer**: hardware pointer (recommended) or a software one.
 4. **640x480 rather than 640x400**: 480 is the brief's. It replaces the 1 Nov 640x400 row; 400 would
    save 15 % of the bytes and nothing in RTL.
-5. **Border colour**: black (this study) or `BACKGROUND` (+24 bits crossed, ~10 LUT).
+5. **Border colour**: black (this study) or `BACKGROUND` (+24 bits crossed, ~10 LUT). **Decided 9 Nov
+   (Matt): `BACKGROUND`, white under GEM** (§10).
+
+## 10. The bars take BACKGROUND (9 Nov 2026)
+
+Matt approved the bars in `BACKGROUND`'s colour; no new register, HW stays 1.17.0 (a cart cannot read
+the bars back, and a desk cart that never writes `BACKGROUND` gets the black of `hwInit`/ZigOS, as
+before). GEM stores white when it enters the desk (`apps/zig/scenes/gem_desktop.zig` `applyMode`) and
+puts back what it found when it leaves.
+
+- **RTL.** `zm_video_desk.v` snoops `BACKGROUND`'s three colour lanes (byte enables honoured) and takes
+  them into a frame word at the VBL (clk); that word holds still for a frame, so its 24 bits cross on
+  plain flip-flops. `zm_video_scan.v` takes the crossed word in the vertical sync (lines 601..604,
+  after the bottom bar, before the top one), so the bottom bar never splits at the VBL's line 580,
+  and shows it where DE is up outside the 640x480 in a desk frame. An underrun inside the picture
+  stays black. Byte order: R is byte 0, as palette 0's mirror. The sync delays are unchanged.
+- **Proof.** `video_desk_tb` stores A, then R and B alone by byte stores mid-frame (the frame keeps A
+  to its last line, the next shows B), then C after a VBL (the next desk frame still shows B); every
+  bar pixel is checked, and a starved run must show no bar colour inside the picture. Six break tests
+  (`video_desk_mutants.json`, `desk_bars_*`): bars black, R/B swapped, whole-word stores, no VBL
+  latch, no vsync latch, bars on underrun.
+- **Hosts.** `hwDeskBars()` (machine/video_desk.zig `bars`) is the one definition: the page paints
+  canvas 1 with it around a hole for the picture, and the desk hash (scene_hash, the native host,
+  bdesk.c through host_desk.h) is `"desk"` + its 4 bytes + the two halves, so a colour change moves
+  the hash.
+

@@ -25,6 +25,7 @@ const rom = @import("rom_sdk");
 const gem_inf = @import("gem_inf.zig");
 
 const PLANE: u32 = 0; // GEM owns plane 0
+const WHITE = zg.Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
 
 /// The desktop's screen (Options > Set Preferences), numbered as DESKTOP.INF's #E codes.
 /// desk is the 640x480 desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md), where the machine has it.
@@ -35,6 +36,8 @@ pub const Demo = struct {
     desk_ok: bool = false, // plane 0 has the desk buffer: the machine shows the desk mode
     desk_back: usize = 0, // the desk's second buffer (deskBuffers), 0: none yet
     fb: *LogicalFB = undefined,
+    os: *ZigOS = undefined,
+    plane_bg: zg.Color = WHITE, // REG_BACKGROUND before the desk: what leaving it puts back
     // The program the desktop asked us to run, held until the host polls for it.
     // 16 bytes because that is a FAT entry's name field (docs/FLOPPY_DISK.md).
     run_name: [16]u8 = [_]u8{0} ** 16,
@@ -49,10 +52,11 @@ pub const Demo = struct {
         self.run_len = 0;
         self.desk_back = 0; // the VRAM pool is new: no second desk buffer yet
         self.fb = &os.lfbs[0];
+        self.os = os;
         self.fb.is_enabled = true;
         self.allocPlane();
         rom.installPalette(PLANE); // one palette for desktop AND apps
-        os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // border white
+        os.setBackgroundColor(WHITE); // border white
         // The ROM binds the desktop to a PLANE and reads its registers; applyMode
         // below switches the resolution, which rewrites the stride, and deskSetScreen
         // re-binds. So the order here is: configure the plane, bind, then set the res.
@@ -100,13 +104,23 @@ pub const Demo = struct {
 
     // Put plane 0 in `self.mode` and re-bind the desktop to it. Leaving the desk goes back to the
     // same buffer in a plane mode; entering it where it is missing keeps the mode it was in.
+    // The desk's bars (80 px a side, 60 lines above and below) show REG_BACKGROUND: white, as
+    // TOS's desktop is framed; leaving the desk puts back the colour it found.
     fn applyMode(self: *Demo) void {
         if (self.mode == .desk) {
-            if (self.fb.setDeskPlane()) |_| self.deskBuffers() else |_| {
+            const was_desk = self.fb.isDesk();
+            if (self.fb.setDeskPlane()) |_| {
+                self.deskBuffers();
+                if (!was_desk) self.plane_bg = self.os.getBackgroundColor();
+                self.os.setBackgroundColor(WHITE);
+            } else |_| {
                 self.mode = if (self.fb.stride == 640) .medium else .low;
             }
         }
-        if (self.mode != .desk and self.fb.isDesk()) self.fb.leaveDesk();
+        if (self.mode != .desk and self.fb.isDesk()) {
+            self.fb.leaveDesk();
+            self.os.setBackgroundColor(self.plane_bg);
+        }
         switch (self.mode) {
             .low => self.fb.setResLow(),
             .medium => self.fb.setResMedium(),

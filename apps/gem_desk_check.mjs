@@ -3,6 +3,8 @@
 // pointer in PHYSICAL-VISIBLE coordinates, 0..639 x 0..479 in the desk).
 //   prefs    Options > Set Preferences has a Desk button; pressing it and OK puts plane 0 in the
 //            desk (RESOLUTION 3, hwDeskActive), on a 64-aligned buffer inside the VRAM pool
+//   bars     the desk's bars (hwDeskBars = BACKGROUND) are white, though BACKGROUND held another
+//            colour before; leaving the desk puts that colour back
 //   picture  the desk picture (hwRenderDesk's two halves) is the page model of plane 0 (each byte
 //            through palette 0, alpha 255): the desktop's colour reaches row 479, the trash
 //            sits on the bottom row, and the screen is laid out at 640x480 (menu bar, icons)
@@ -27,6 +29,7 @@ import { W, H, REG_FB_BASE, OFF_PAL, OFF_VRAM, VRAM_BYTES, RES_DESK, prefsAt, dv
 const MUTANTS = ["pointer", "inf", "nosave", "older"];
 // rom/gem/gui/types.zig: BLACK 0, WHITE 1, MGRAY 3, DESK 5; Prefs' default background
 const BLACK = [0, 0, 0], MGRAY = [140, 140, 140], DESK_BG = [1, 160, 164];
+const REG_BACKGROUND = 0x04, PLANE_BG = 0xFF123456; // a colour a cart might leave there; RGBA LE
 const DISK = [{ name: "ALPHA.PRG", type: 0, size: 12345, date: 20260912 }];
 
 // The host's pointer, as sealed-loader.js sends it: the desk's own coordinates there, and the
@@ -110,11 +113,14 @@ async function session(brk, dir, fails) {
     gem.mount(DISK);
     check(res(gem) === 0, `boot: GEM came up in RESOLUTION ${res(gem)}, not low`);
     const base = dv(gem).getUint32(REG_FB_BASE, true); // the one buffer of every mode (setDeskPlane's)
+    dv(gem).setUint32(REG_BACKGROUND, PLANE_BG, true);
     await enterDesk(gem, brk, dir, check);
+    check(gem.machine.hwDeskBars() >>> 0 === 0xFFFFFFFF, `bars: the desk's bars are ${(gem.machine.hwDeskBars() >>> 0).toString(16)}, not white`);
     await windowLow(gem, brk, dir, check);
     const text = saveDesktop(gem, brk, check);
     pickRes(gem, brk, "low", W, H);
     check(!gem.machine.hwDeskActive() && res(gem) === 0, `leave: Low + OK left RESOLUTION ${res(gem)}`);
+    check(dv(gem).getUint32(REG_BACKGROUND, true) === PLANE_BG, "bars: leaving the desk did not put BACKGROUND back");
     check(dv(gem).getUint32(REG_FB_BASE, true) === base, "leave: low res left the desk's buffer");
     const lp = lowPicture(gem);
     check(rowShare(lp, 320, 80, 4, 316, BLACK) > 0.9, "leave: the window was not clamped into 320x200 (no title bar frame on row 80)");

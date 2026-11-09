@@ -654,12 +654,24 @@ window.kosEject = () => kosMedia(null);
 // --------------------------------------------------------------------------
 // The desk mode (HW 1.17.0, docs/HW_API.md "Desk mode"): while the machine says so, canvas 0
 // shows the 640x480 picture 1:1 where the board shows it, in the middle of the 800x600 frame
-// (the plane canvases cover its lines 20..579, so 80 px in and 40 down, at 1 CSS px a pixel),
-// and the other canvases are blank. Leaving it gives canvas 0 its raster size back.
+// (the plane canvases cover its lines 20..579, so 80 px in and 40 down, at 1 CSS px a pixel).
+// Canvas 1, above it, holds the bars around it in REG_BACKGROUND's colour (hwDeskBars, as the
+// board's scanout paints them) with a hole where the picture shows; the others are blank.
+// Leaving it gives canvas 0 its raster size back and clears the bars.
 // --------------------------------------------------------------------------
 const DESK_W = 640, DESK_H = 480, DESK_HALF = DESK_W * (DESK_H / 2) * 4;
 function deskView(contexts, planeDirty, fb_width, fb_height) {
     let active = false, image = null; // made on the first desk frame (a headless page has no ImageData)
+    let bars = -1; // the colour canvas 1's bars hold, -1: none drawn
+    const paintBars = (rgba) => { // RGBA little-endian: R in the low byte; alpha is not shown
+        const ctx = contexts[1];
+        if (!ctx || rgba === bars) return;
+        bars = rgba;
+        ctx.fillStyle = `rgb(${rgba & 255}, ${(rgba >>> 8) & 255}, ${(rgba >>> 16) & 255})`;
+        ctx.fillRect(0, 0, fb_width, fb_height);
+        // the picture's hole, in canvas 1's raster pixels (CSS 80, 40, 640x480 at 2 CSS rows a row)
+        ctx.clearRect((fb_width - DESK_W) / 2, (fb_height - DESK_H / 2) / 2, DESK_W, DESK_H / 2);
+    };
     const place = (on) => {
         const canvas = contexts[0].canvas;
         if (on && !image) image = new ImageData(DESK_W, DESK_H);
@@ -668,6 +680,7 @@ function deskView(contexts, planeDirty, fb_width, fb_height) {
         for (const [k, v] of [["left", "80px"], ["top", "40px"], ["width", "640px"], ["height", "480px"]])
             canvas.style[k] = on ? v : "";
         for (let i = 1; i < contexts.length; i++) contexts[i].clearRect(0, 0, fb_width, fb_height);
+        bars = -1;
         planeDirty.fill(false);
         active = on;
     };
@@ -676,6 +689,7 @@ function deskView(contexts, planeDirty, fb_width, fb_height) {
             const on = !!(machine.hwDeskActive && machine.hwDeskActive());
             if (on !== active) place(on);
             if (!on) return false;
+            if (machine.hwDeskBars) paintBars(machine.hwDeskBars() >>> 0);
             for (let half = 0; half < 2; half++) {
                 machine.hwRenderDesk(half);
                 image.data.set(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), DESK_HALF), half * DESK_HALF);

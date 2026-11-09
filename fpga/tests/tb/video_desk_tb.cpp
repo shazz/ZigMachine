@@ -14,9 +14,17 @@
 // are desk; RES_PLANES written at line 100 of frame 4 (inside the desk picture), so 5-6 are
 // normal; RES_DESK again at line 600 of frame 5, after its VBL: frame 6 stays normal, 7 is desk.
 // A frame's mode is the last value written before its VBL (output line 580). Every pixel
-// clock is checked: syncs, the bars (black), the picture, from frame 0 (both clocks leave reset
+// clock is checked: syncs, the bars, the picture, from frame 0 (both clocks leave reset
 // together here, so the fetch starts in phase). `underrun` must never rise, across both switches. --desk-only: desk from the first VBL, 3 frames,
 // and --starve then starts with them (the desk's deadline alone).
+//
+// The bars of a desk frame are REG_BACKGROUND (R in byte 0, alpha never shown); a normal frame's
+// border is the picture's. A frame's colour is, like its mode, the last written before its VBL,
+// and holds through its bottom bar (lines 540..599, past the VBL): A from the start; at line 300
+// of desk frame 3, R and B alone by byte stores (frame 3 keeps A to its last line, 4 shows B);
+// C at line 590 of frame 6, after its VBL (desk frame 7 still shows B). A desk pixel inside the
+// picture is never the bars' colour (the palette has none): one that is, where the fetch was
+// late, is counted ("bar pixels in the picture"), as an underrun must show black.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -41,13 +49,19 @@ uint32_t pattern(long x, long y) {  // a normal picture's {0, B, G, R} word
 
 struct Screen {
     bool locked = false, seen_underrun = false, written_desk = false, next_desk = false, desk = false;  // desk: this frame's mode
-    long x = 0, y = 0, frame = 0, bad_px = 0, bad_sync = 0, desk_frames = 0, normal_frames = 0;
+    uint32_t written_bg = 0, next_bg = 0, bg = 0;  // REG_BACKGROUND: as stored, at the VBL, this frame's
+    long x = 0, y = 0, frame = 0, bad_px = 0, bad_sync = 0, desk_frames = 0, normal_frames = 0, bars_in_pic = 0;
+
+    bool in_picture() const { return y >= kDeskTop && y < kDeskTop + kH && x >= kDeskLeft && x < kDeskLeft + kW; }
 
     void expect(uint8_t want[3]) const {
         want[0] = want[1] = want[2] = 0;
-        if (x >= 800) return;
+        if (x >= 800 || y >= 600) return;
         if (desk) {
-            if (y < kDeskTop || y >= kDeskTop + kH || x < kDeskLeft || x >= kDeskLeft + kW) return;
+            if (!in_picture()) {
+                want[0] = uint8_t(bg), want[1] = uint8_t(bg >> 8), want[2] = uint8_t(bg >> 16);
+                return;
+            }
             const uint8_t* m = &g_desk[(size_t(y - kDeskTop) * kW + size_t(x - kDeskLeft)) * 4];
             want[0] = m[0], want[1] = m[1], want[2] = m[2];
             return;
@@ -60,7 +74,7 @@ struct Screen {
     void pixel(const Top& t) {
         bool de = t.p_de.get<bool>(), hs = t.p_hsync.get<bool>(), vs = t.p_vsync.get<bool>();
         if (!locked && !(locked = de)) return;
-        if (x == 0 && y == 0) desk = next_desk;
+        if (x == 0 && y == 0) desk = next_desk, bg = next_bg;
         bool want_de = x < 800 && y < 600, want_hs = x >= 840 && x < 968, want_vs = y >= 601 && y < 605;
         if ((de != want_de || hs != want_hs || vs != want_vs) && ++bad_sync <= 5)
             std::printf("FAIL frame %ld (%ld, %ld): de %d hs %d vs %d\n", frame, x, y, de, hs, vs);
@@ -72,7 +86,8 @@ struct Screen {
         if ((r != want[0] || g != want[1] || b != want[2]) && ++bad_px <= 8)
             std::printf("FAIL frame %ld %s (%ld, %ld): rgb %02x%02x%02x, want %02x%02x%02x\n", frame,
                         desk ? "desk" : "normal", x, y, r, g, b, want[0], want[1], want[2]);
-        if (x == 0 && y == kVbl) next_desk = written_desk;  // the next frame's mode, as the VBL samples it
+        if (desk && in_picture() && (r | g << 8 | b << 16) == (bg & 0xFFFFFFu)) bars_in_pic++;
+        if (x == 0 && y == kVbl) next_desk = written_desk, next_bg = written_bg;  // the next frame's, as the VBL samples them
         if (++x == kHTotal) x = 0, y++;
         if (y == kVTotal) y = 0, frame++, (desk ? desk_frames : normal_frames)++;
     }
@@ -145,6 +160,13 @@ void setup(Rig& rig, uint32_t fb_base) {
     };
 }
 
+// REG_BACKGROUND, the lanes `be` selects of `word` (the others keep their value).
+void set_background(Rig& rig, uint32_t word, uint32_t be = 0xF) {
+    rig.cpu_write(ZM_REG_BACKGROUND, word, be);
+    for (int k = 0; k < 4; k++)
+        if (be >> k & 1) screen.written_bg = (screen.written_bg & ~(0xFFu << 8 * k)) | (word & 0xFFu << 8 * k);
+}
+
 void set_resolution(Rig& rig, int res) {
     rig.cpu_write(ZM_REG_RESOLUTION, uint32_t(res), 0x1);
     screen.written_desk = res == ZM_RES_DESK;
@@ -177,6 +199,7 @@ int main(int argc, char** argv) {
         return 2;
     static Rig rig;
     setup(rig, fb_base);
+    set_background(rig, 0xC4A05020u);  // A: R 20, G 50, B A0, a garbage alpha
     bool ran = true;
     if (desk_only) {  // starved from the first desk frame on: the desk's own deadline
         set_resolution(rig, ZM_RES_DESK);
@@ -187,18 +210,23 @@ int main(int argc, char** argv) {
         scan_rd.period = starve;
         ran = run_to(rig, 2, 300);
         set_resolution(rig, ZM_RES_DESK);
+        ran = ran && run_to(rig, 3, 300);
+        set_background(rig, 0xDEADBE7Eu, 0x1);  // B: R 7E ...
+        set_background(rig, 0xDE13BEEFu, 0x4);  //    ... and B 13, by byte stores, mid-frame
         ran = ran && run_to(rig, 4, 100);
         set_resolution(rig, ZM_RES_PLANES);
         ran = ran && run_to(rig, 5, 600);
         set_resolution(rig, ZM_RES_DESK);  // after the VBL, before line 0: the next frame stays normal
+        ran = ran && run_to(rig, 6, 590);
+        set_background(rig, 0x00F0E0D0u);  // C, after the VBL: desk frame 7 still shows B
         ran = ran && run_to(rig, 8, 0);
     }
     bool underrun = rig.top.p_underrun.get<bool>();
     long want_desk = 3, want_normal = desk_only ? 1 : 5;  // frame 0 is normal
     bool ok = ran && !screen.bad_px && !screen.bad_sync && !underrun && !rig.mem.bad &&
               screen.desk_frames == want_desk && screen.normal_frames == want_normal;
-    std::printf("%ld frames on the wire (%ld desk, %ld normal) at %ld:%ld: %ld bad pixels, %ld bad sync, underrun %d"
-                " -> %s\n", screen.frame, screen.desk_frames, screen.normal_frames, num, den, screen.bad_px,
-                screen.bad_sync, int(underrun), ok ? "MATCH" : "DIFFER");
+    std::printf("%ld frames on the wire (%ld desk, %ld normal) at %ld:%ld: %ld bad pixels, %ld bad sync, underrun %d,"
+                " %ld bar pixels in the picture -> %s\n", screen.frame, screen.desk_frames, screen.normal_frames, num,
+                den, screen.bad_px, screen.bad_sync, int(underrun), screen.bars_in_pic, ok ? "MATCH" : "DIFFER");
     return ok ? 0 : 1;
 }

@@ -504,6 +504,10 @@ pub fn renderPlane(fb_id: usize) void {
 pub fn deskActive() bool {
     return desk.active(r8(memmap.REG_RESOLUTION));
 }
+// The colour of the bars around the desk picture (video_desk.bars).
+pub fn deskBars() u32 {
+    return desk.bars(r32(memmap.REG_BACKGROUND));
+}
 // Half `half` of the 640x480 desk picture into the PFB (rows 240 half .. 240 half + 239).
 pub fn renderDesk(half: u32) void {
     desk.renderHalf(pfb(), region(), fbBase(0), pal(0), half);

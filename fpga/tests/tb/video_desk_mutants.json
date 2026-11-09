@@ -82,5 +82,48 @@
     "file": "zm_video_scanfetch.v",
     "old": "wire [31:0] start = desk ? desk_base : base;",
     "new": "wire [31:0] start = base;"
+  },
+  {
+    "id": "desk_bars_black",
+    "why": "the bars hardwired black, as before REG_BACKGROUND reached them",
+    "file": "zm_video_scan.v",
+    "old": "rgb2 <= bar1 ? bars_f :",
+    "new": "rgb2 <= bar1 ? 24'd0 :"
+  },
+  {
+    "id": "desk_bars_rb_swapped",
+    "why": "REG_BACKGROUND read as {R, G, B}: byte 0 is red",
+    "file": "zm_video_scan.v",
+    "old": "if (vsync) bars_f <= bars;",
+    "new": "if (vsync) bars_f <= {bars[7:0], bars[15:8], bars[23:16]};"
+  },
+  {
+    "id": "desk_bars_whole_words",
+    "why": "a byte store to REG_BACKGROUND writes all of the snoop's word",
+    "file": "zm_video_desk.v",
+    "old": "if (reg_we && cpu_waddr[4:0] == W_BG && cpu_be[i])",
+    "new": "if (reg_we && cpu_waddr[4:0] == W_BG && |cpu_be)"
+  },
+  {
+    "id": "desk_bars_no_vbl_latch",
+    "why": "REG_BACKGROUND crossed as stored, not as at the VBL: a store after the VBL shows a frame early",
+    "file": "zm_video_desk.v",
+    "old": "if (vbl) bg_frame <= bg;",
+    "new": "bg_frame <= bg;"
+  },
+  {
+    "id": "desk_bars_no_sync_latch",
+    "why": "the bars take the VBL's colour at once, not in the vertical sync: the bottom bar changes colour at line 580",
+    "file": "zm_video_scan.v",
+    "old": "if (vsync) bars_f <= bars;",
+    "new": "bars_f <= bars;"
+  },
+  {
+    "id": "desk_bars_on_underrun",
+    "why": "a desk pixel the fetch missed shows the bars' colour, hiding the fault (run starved)",
+    "file": "zm_video_scan.v",
+    "old": "de && desk && !zm_active}",
+    "new": "de && desk && !(zm_active && ok)}",
+    "starve": 64
   }
 ]

@@ -29,6 +29,11 @@ export fn hwDeskActive() u32 {
 export fn hwRenderDesk(half: u32) void {
     video.renderDesk(half);
 }
+// The bars around the desk picture (80 px a side, 60 lines above and below the 640x480 in the
+// 800x600 output): REG_BACKGROUND as RGBA, alpha 255. The host paints them and hashes them.
+export fn hwDeskBars() u32 {
+    return video.deskBars();
+}
 // Whether this machine shows the desk mode: yes in the browser and the native host; on the
 // board the firmware declares its bitstream's capability bit at boot (fpga/cycles/bmain.c), so a
 // cart asks before it switches. A hardware property: hwInit() leaves it alone.

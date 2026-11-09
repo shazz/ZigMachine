@@ -196,14 +196,21 @@ every channel value, coefficient and direction against the formula.
 
 `RESOLUTION = 3` (`RES_DESK`) is a screen mode for GEM and tools (Devpac, a text UI), not for demos:
 **plane 0 alone, 640x480 palette indices, shown 1:1** in the middle of the 800x600 output (80-pixel
-sides, 60-line bars, black). Nothing is composited.
+sides, 60-line bars in `BACKGROUND`'s colour). Nothing is composited.
 
 - Plane 0's bytes start at `FB_BASE[0] & ~7` (the board fetches 8-byte beats), stride 640 (`FB_STRIDE`
   is ignored), 307,200 bytes from the VRAM pool (`DESK_FB_BYTES`). Each byte looks up palette 0;
   alpha is ignored (the picture is opaque).
 - Ignored in desk mode: every other plane and `PLANE_ENABLE` above plane 0, `FB_MODE`, `FB_STRIDE`,
-  `HSCROLL`, every HBL id (global and per plane), `FB_COPPER`, the BEAM table, `BACKGROUND`,
+  `HSCROLL`, every HBL id (global and per plane), `FB_COPPER`, the BEAM table,
   `RES_FLICKER`, the true-colour registers. `FRAME` still counts (`hwClear` does only that).
+- **The bars are `BACKGROUND`** (since 9 Nov 2026, still 1.17.0): its R, G and B, alpha ignored, as
+  the border in the plane modes. Like the mode, the colour is the one stored before the VBL and holds
+  for the whole next frame, bars above and below alike (a store after the VBL waits a frame). Only a
+  store counts: a BEAM line's colour carried into `BACKGROUND` is not seen, and no BEAM runs in desk
+  mode anyway. A pixel of the picture the board's fetch missed (an underrun) stays black, never the
+  bars' colour. GEM sets white in the desk and puts the old colour back when it leaves; `hwInit` and
+  ZigOS's scene reset write black, so the next cart starts black.
 - The mode is sampled once a frame, at the VBL: a write mid-frame takes effect from the next frame,
   in both directions. `hwInit` writes `RES_PLANES`, so every boot, chainload and swap leaves it.
 - **Ask first:** `hwDeskAvailable()` is 1 where the mode exists (the browser, the native host, a
@@ -214,8 +221,9 @@ sides, 60-line bars, black). Nothing is composited.
   A palette write mid-frame shows from the line being scanned on the board, from the next frame in
   the browser. No hash can see either difference.
 - The host shows the picture through `hwRenderDesk(0)` and `hwRenderDesk(1)` (§4): the top and
-  bottom 640x240 halves as RGBA in the PFB (a whole 640x480 picture does not fit in it). A desk
-  frame's hash (scene_hash, hp_sim) is `"desk"` then the two halves in order.
+  bottom 640x240 halves as RGBA in the PFB (a whole 640x480 picture does not fit in it), and paints
+  the bars from `hwDeskBars()`. A desk frame's hash (scene_hash, the native host, hp_sim) is `"desk"`,
+  then `hwDeskBars()` as 4 bytes little-endian (R, G, B, 255), then the two halves in order.
 - **ZigOS:** `zg.lfbs[0].setDeskPlane()` asks `hwDeskAvailable()`, takes 307,200 bytes 64-aligned from
   the VRAM pool (once a scene), clears them, stores all of palette 0 again (the board's mirror
   only sees stores) and sets `RES_DESK`; it errors and changes nothing otherwise (`DeskUnavailable`,
@@ -281,6 +289,7 @@ hwPhysHeight() u32       // 280
 hwVersion() u32          // 0x0001_1100 (1.17.0)
 hwDeskActive() u32       // 1.17.0: RESOLUTION is RES_DESK (the host shows the desk picture)
 hwRenderDesk(half) void  // 1.17.0: desk rows 240 half .. 240 half + 239 as 640x240 RGBA in the PFB
+hwDeskBars() u32         // 1.17.0 (9 Nov): the desk's bars, BACKGROUND as RGBA with alpha 255
 hwDeskAvailable() u32    // 1.17.0: 1 where the desk mode exists (see "Desk mode")
 hwSetDeskAvailable(v) void // 1.17.0: the board's firmware declares its bitstream's capability
 ```

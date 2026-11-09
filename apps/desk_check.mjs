@@ -9,10 +9,11 @@
 //            same buffer), key 1 comes back to the same picture
 //   clear    in desk mode hwClear only counts FRAME, and hwRenderPlane draws nothing
 //   older    with hwDeskAvailable() = 0 (an older board bitstream) the cart never enters it
-//   hash     scene_hash.mjs's sample of a desk frame is "desk" + the picture
+//   hash     scene_hash.mjs's sample of a desk frame is "desk" + the bars (hwDeskBars: the cart's
+//            REG_BACKGROUND, alpha 255, 4 bytes little-endian) + the picture
 //   node apps/desk_check.mjs           node apps/desk_check.mjs --break
 //   --break  each mutant (a palette entry, the checker, the halves swapped, the frame counted
-//            twice, an older machine said yes, the hash without its tag) must be caught
+//            twice, an older machine said yes, the hash without its tag or its bars) must be caught
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -24,7 +25,7 @@ const RES_DESK = 3, INK = 255;
 // The two 8x8 text lines (desk_test/picture.zig TITLE, HELP at TEXT_X, TEXT_Y and + 10): their cells.
 const TEXT = [{ x0: 168, y0: 454, n: 28 }, { x0: 168, y0: 464, n: 25 }];
 const inText = (x, y) => TEXT.some((t) => y >= t.y0 && y < t.y0 + 8 && x >= t.x0 && x < t.x0 + 8 * t.n);
-const MUTANTS = ["palette", "checker", "halves", "frame", "older", "tag"];
+const MUTANTS = ["palette", "checker", "halves", "frame", "older", "tag", "bars"];
 
 async function boot(brk, available = 1) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -104,6 +105,9 @@ async function run(brk) {
     frame(m);
     check(m.machine.hwDeskActive() === 1 && dv(m).getUint8(REG_RES) === RES_DESK, "picture: the cart is not in desk mode");
     const first = picture(m), pic = checkPicture(first, brk);
+    const bars = Buffer.alloc(4);
+    bars.writeUInt32LE(m.machine.hwDeskBars() >>> 0);
+    check(bars[3] === 255, "picture: the bars' alpha is not 255");
     check(pic.ok, `picture: ${pic.why}`);
     const base = dv(m).getUint32(REG_FB_BASE, true);
     check(base % 64 === 0 && base >= OFF_VRAM && base + W * H <= OFF_VRAM + VRAM_BYTES, `pool: FB_BASE ${base}`);
@@ -127,9 +131,10 @@ async function run(brk) {
     const old = await boot(brk, 0);
     for (let i = 0; i < 3; i++) frame(old);
     check(!old.machine.hwDeskActive(), "older: the cart entered the desk on a machine without it");
-    const hash = createHash("sha256").update(brk === "tag" ? "" : "desk").update(first).digest("hex");
+    const hash = createHash("sha256").update(brk === "tag" ? "" : "desk").update(brk === "bars" ? "" : bars)
+        .update(first).digest("hex");
     const json = JSON.parse(execFileSync("node", ["apps/scene_hash.mjs", CART, "10", "10"], { encoding: "utf8" }));
-    check(json.samples[0].hash === hash, "hash: scene_hash's desk frame is not \"desk\" + the picture");
+    check(json.samples[0].hash === hash, "hash: scene_hash's desk frame is not \"desk\" + the bars + the picture");
     return fails;
 }
 

@@ -3,7 +3,9 @@
 // alone, 640x480 palette indices at stride 640 from FB_BASE[0] & ~7, through
 // palette 0, shown 1:1. Nothing is composited: no other plane, no HBL handler,
 // no copper, no BEAM, no border. The picture is a pure function of plane 0's
-// bytes and palette 0, and this file is that function.
+// bytes and palette 0, and this file is that function. Around it, in the 800x600
+// output, the bars (80 px a side, 60 lines above and below) show REG_BACKGROUND
+// (`bars`), as the border does in the plane modes.
 //
 // A whole 640x480 RGBA picture (1,228,800 B) does not fit in the PFB (896,000 B),
 // so the host takes it in two halves: hwRenderDesk(h) writes rows 240h..240h+239
@@ -36,6 +38,12 @@ pub fn baseOf(fb_base: u32) usize {
 /// ignores alpha: the board's mirror keeps only {B, G, R}).
 pub inline fn colour(pal_word: u32) u32 {
     return pal_word | 0xFF00_0000;
+}
+
+/// The bars' colour on the wire: REG_BACKGROUND's R, G and B as stored, alpha 255 (the board
+/// shows no alpha: zm_video_desk.v keeps {B, G, R}).
+pub inline fn bars(background: u32) u32 {
+    return colour(background);
 }
 
 /// Half `half` (0 = rows 0..239, 1 = rows 240..479) of the desk picture into `out`, row-major,

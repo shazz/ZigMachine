@@ -122,11 +122,11 @@ module zm_video_out #(
     // --- the desk mode's registers, its crossing and palette 0's mirror ---
     wire [31:0] desk_base;
     wire [7:0] pal_raddr;
-    wire [23:0] pal_rdata;
+    wire [23:0] pal_rdata, bars_p;
     zm_video_desk u_desk (
         .clk(clk), .rst(rst), .vbase(vbase), .cpu_we(cpu_we), .cpu_waddr(cpu_waddr), .cpu_be(cpu_be),
-        .cpu_wdata(cpu_wdata), .cpu_sel(cpu_sel), .desk_base(desk_base), .desk(desk), .pix_clk(pix_clk),
-        .desk_req_p(desk_req_p), .desk_shown(desk_p), .pal_raddr(pal_raddr), .pal_rdata(pal_rdata));
+        .cpu_wdata(cpu_wdata), .cpu_sel(cpu_sel), .vbl(vbl), .desk_base(desk_base), .desk(desk), .pix_clk(pix_clk),
+        .desk_req_p(desk_req_p), .desk_shown(desk_p), .pal_raddr(pal_raddr), .pal_rdata(pal_rdata), .bars_p(bars_p));
 
     // --- scanout fetch -> display buffers -> scanout, with their hand-over ---
     // The fetch takes the VBL four clocks late: the mode zm_vtiming sampled at the VBL has
@@ -169,7 +169,7 @@ module zm_video_out #(
         .clk(pix_clk), .rst(pix_rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .zm_active(t_active), .desk(desk_g),
         .zm_x(t_x), .zm_line(t_line), .zm_hbl(t_hbl), .zm_vbl(t_vbl), .zm_hbl_line(t_hbl_line),
         .pub(pub_p), .pub_line(pub_line), .freed(freed_p), .dp_raddr(dp_raddr), .dp_rdata(dp_rdata),
-        .pal_raddr(pal_raddr), .pal_rdata(pal_rdata),
+        .pal_raddr(pal_raddr), .pal_rdata(pal_rdata), .bars(bars_p),
         .r(r), .g(g), .b(b), .de_o(de), .hs_o(hsync), .vs_o(vsync), .underrun(underrun));
 endmodule
 

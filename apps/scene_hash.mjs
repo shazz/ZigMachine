@@ -116,6 +116,13 @@ function deskPicture(memory, machine) {
     return out;
 }
 
+// The bars around it (REG_BACKGROUND, alpha 255) as the 4 bytes the board shows: R, G, B, 255.
+function deskBars(machine) {
+    const b = new Uint8Array(4);
+    new DataView(b.buffer).setUint32(0, machine.hwDeskBars() >>> 0, true);
+    return b;
+}
+
 function parseCalls(list) {
     const calls = new Map();
     for (const spec of list) {
@@ -176,9 +183,10 @@ async function fingerprint(argv) {
         demo.frame(16.6);
         step?.(demo); // --data-disk: the browser's step after the frame
         const png = shotAt === f; // SCENE_PNG=F:path: this frame's picture as a PNG (apps/scene_png.mjs)
-        if (machine.hwDeskActive?.()) { // the desk mode (HW 1.17.0): "desk", then the 640x480 picture
+        if (machine.hwDeskActive?.()) { // the desk mode (HW 1.17.0): "desk", the bars, the 640x480 picture
             const desk = deskPicture(memory, machine); // (composite or not: nothing to compose)
             h?.update("desk");
+            h?.update(deskBars(machine)); // REG_BACKGROUND: a colour change is a new hash
             h?.update(desk);
             if (png) writePng(shotPath, desk, DESK_W, DESK_H);
         } else {

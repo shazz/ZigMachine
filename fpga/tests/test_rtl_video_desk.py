@@ -54,15 +54,16 @@ def test_a_desk_line_holds_a_fetch_too_starved_for_the_picture(desk_tb: Path, re
 
 
 def test_a_starved_desk_fetch_underruns(desk_tb: Path, ref: Path) -> None:
+    """The pixels the fetch missed are black, never the bars' colour: the fault stays visible."""
     result = video_rtl.desk_wire(desk_tb, WIRE, ref, FB_BASE, starve=64, desk_only=True)
     assert result.returncode != 0
-    assert "underrun 1" in result.stdout
+    assert "underrun 1, 0 bar pixels in the picture" in result.stdout
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 @pytest.mark.parametrize("mutant", MUTANTS, ids=[m["id"] for m in MUTANTS])
-def test_a_broken_desk_rule_is_caught(mutant: dict[str, str], ref: Path) -> None:
-    name, file, old, new = (mutant[k] for k in ("id", "file", "old", "new"))
+def test_a_broken_desk_rule_is_caught(mutant: dict[str, str | int], ref: Path) -> None:
+    name, file, old, new = (str(mutant[k]) for k in ("id", "file", "old", "new"))
     work = FPGA / "build" / "tests" / "mutants" / name  # under fpga/build: yowasp's Yosys sees only this tree
     shutil.rmtree(work, ignore_errors=True)
     rtl = work / "rtl"
@@ -72,5 +73,9 @@ def test_a_broken_desk_rule_is_caught(mutant: dict[str, str], ref: Path) -> None
     (rtl / file).write_text(text.replace(old, new))
     video_dump.memmap_header()
     exe = video_rtl.build_tb(rtl, work, desk=True)
+    if "starve" in mutant:  # a rule about underruns: the starved run must show the bars in the picture
+        result = video_rtl.desk_wire(exe, WIRE, ref, FB_BASE, starve=int(mutant["starve"]), desk_only=True)
+        assert " 0 bar pixels in the picture" not in result.stdout, f"{name} went unnoticed:\n{result.stdout}"
+        return
     result = video_rtl.desk_wire(exe, WIRE, ref, FB_BASE)
     assert result.returncode != 0, f"{name} went unnoticed:\n{result.stdout}"

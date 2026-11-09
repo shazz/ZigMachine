@@ -16,6 +16,13 @@
 //   in the pixel clock. The BRAM's two ports are the crossing, as the display
 //   buffers'. The copper writes the compositor's palette directly, but no copper
 //   list runs in desk mode, and ZigOS rewrites palette 0 when it enters it.
+// - `bars_p`: the colour of the bars around the picture, REG_BACKGROUND's {B, G, R} (alpha is
+//   never shown), a store per byte lane. The register is taken at the VBL (`vbl`, clk) into a
+//   word that then holds still for a whole frame, so its 24 bits cross on plain flip-flops and
+//   arrive whole; the scanout takes the crossed word in the vertical sync, after the bottom bar
+//   and before the top one (zm_video_scan.v), so no frame shows two colours. A BEAM line's
+//   colour that zm_video_regs.v carries into BACKGROUND is not a CPU store and is not seen:
+//   no pass, so no BEAM, runs in desk mode.
 `default_nettype none
 
 module zm_video_desk (
@@ -27,29 +34,35 @@ module zm_video_desk (
     input  wire [3:0]  cpu_be,
     input  wire [31:0] cpu_wdata,
     input  wire [2:0]  cpu_sel,          // {BEAM table, palettes, register block}
+    input  wire        vbl,              // one clock: the raster is done (clk)
     output wire [31:0] desk_base,
     output wire        desk,             // the mode of the frame being shown, in clk's domain
     input  wire        pix_clk,
     output wire        desk_req_p,       // RES_DESK requested, in pix_clk's domain
     input  wire        desk_shown,       // zm_vtiming's sampled mode (pix_clk)
     input  wire [7:0]  pal_raddr,
-    output wire [23:0] pal_rdata
+    output wire [23:0] pal_rdata,
+    output wire [23:0] bars_p            // REG_BACKGROUND {B, G, R} as of the last VBL (pix_clk)
 );
 `include "zm_video_memmap.vh"
 
-    localparam [4:0] W_RES = ZM_REG_RESOLUTION / 4, W_FB0 = ZM_REG_FB_BASE / 4;
+    localparam [4:0] W_RES = ZM_REG_RESOLUTION / 4, W_FB0 = ZM_REG_FB_BASE / 4, W_BG = ZM_REG_BACKGROUND / 4;
     localparam integer PAL_W = ZM_OFF_PAL / 4;
     wire reg_we = cpu_we && cpu_sel[0];
     wire [10:0] pal_idx = cpu_waddr[10:0] - PAL_W[10:0];   // within the 4 palettes when cpu_sel[1]
 
     reg desk_req = 1'b0;
     reg [31:0] fb0 = 32'd0;
+    reg [23:0] bg = 24'd0, bg_frame = 24'd0;   // REG_BACKGROUND's {B, G, R}; its value at the VBL
     integer i;
     always @(posedge clk) begin
         if (rst) desk_req <= 1'b0;
         else if (reg_we && cpu_waddr[4:0] == W_RES && cpu_be[0]) desk_req <= cpu_wdata[7:0] == ZM_RES_DESK;
         for (i = 0; i < 4; i = i + 1)
             if (reg_we && cpu_waddr[4:0] == W_FB0 && cpu_be[i]) fb0[i * 8 +: 8] <= cpu_wdata[i * 8 +: 8];
+        for (i = 0; i < 3; i = i + 1)
+            if (reg_we && cpu_waddr[4:0] == W_BG && cpu_be[i]) bg[i * 8 +: 8] <= cpu_wdata[i * 8 +: 8];
+        if (vbl) bg_frame <= bg;
     end
     assign desk_base = vbase + {fb0[31:3], 3'b000};
 
@@ -61,6 +74,9 @@ module zm_video_desk (
     always @(posedge clk) shown_s <= {shown_s[0], desk_shown};
     assign desk_req_p = req_s[1];
     assign desk = shown_s[1];
+    (* ASYNC_REG = "TRUE" *) reg [23:0] bg_s0 = 24'd0, bg_s1 = 24'd0;  // still for a frame around the sync
+    always @(posedge pix_clk) {bg_s1, bg_s0} <= {bg_s0, bg_frame};
+    assign bars_p = bg_s1;
 
     wire pal0_we = cpu_we && cpu_sel[1] && pal_idx[9:8] == 2'd0;
     zm_video_dcram #(.AW(8), .DW(24), .LW(8)) u_mirror (.wclk(clk), .we({3{pal0_we}} & cpu_be[2:0]),
