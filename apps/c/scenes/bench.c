@@ -13,6 +13,7 @@
 #include "../bench/kestrel/bench.h"
 #include <stdio.h>
 #include <string.h>
+#include "../zigmachine_tvnoise.h"   // a catalog channel: +/- tunes in through the snow (exactly one .c file includes it)
 
 #define ROM_IMPORT(name) __attribute__((import_module("env"), import_name(name)))
 ROM_IMPORT("hwVideoBase") extern int hwVideoBase(void);
@@ -126,6 +127,7 @@ void boot(void) {
 __attribute__((export_name("frame")))
 void frame(float elapsed_ms) {
     (void)elapsed_ms;
+    if (zm_tvnoise_frame()) return;   // a channel change: snow first
     run_frame();
     draw();
 }
@@ -144,7 +146,7 @@ __attribute__((export_name("benchSetTargetUs"))) void benchSetTargetUs(u32 us) {
 __attribute__((export_name("benchBreak"))) void benchBreak(int kind) { bench_break = kind; }
 
 __attribute__((export_name("isPlaneEnabled"))) int isPlaneEnabled(int id) { return id == 0; }
-__attribute__((export_name("hblDispatch"))) void hblDispatch(u32 id, u32 plane, u32 line, u32 x) { (void)id; (void)plane; (void)line; (void)x; }
-__attribute__((export_name("skipBoot"))) void skipBoot(void) {}
+__attribute__((export_name("hblDispatch"))) void hblDispatch(u32 id, u32 plane, u32 line, u32 x) { (void)id; (void)plane; (void)x; if (zm_tvnoise_hbl()) return; (void)line; }
+__attribute__((export_name("skipBoot"))) void skipBoot(void) { zm_tvnoise_stop(); }
 __attribute__((export_name("setShadeMode"))) void setShadeMode(u32 m) { (void)m; }
 __attribute__((export_name("input"))) void input(unsigned char dir) { (void)dir; }
