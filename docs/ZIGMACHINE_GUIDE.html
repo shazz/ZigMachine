@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -1391,7 +1391,7 @@ start ~0.5 Mc once. No Paula sound effect while a SID plays.</p>
 <article class="api" id="LogicalFB.setResLow"><code class="sig"><b class="fn">setResLow</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setResLow" aria-label="Link to setResLow">#</a><p class="doc">Switch an already-medium plane (setMediumPlane) between LOW (320, drawn pixel-doubled) and MEDIUM (640, 1:1) at runtime WITHOUT reallocating: the 640-wide buffer holds a 320 image too (stride 320 uses its first columns). Redraw after switching (content is stride-dependent).</p></article>
 <article class="api" id="LogicalFB.setResMedium"><code class="sig"><b class="fn">setResMedium</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setResMedium" aria-label="Link to setResMedium">#</a></article>
 <article class="api" id="LogicalFB.setDeskPlane"><code class="sig"><b class="fn">setDeskPlane</b>(self: *LogicalFB) <span class="ret">error{ NotPlaneZero, DeskUnavailable, VramFull }!void</span></code><a class="anchor" href="#LogicalFB.setDeskPlane" aria-label="Link to setDeskPlane">#</a><p class="doc">The desk mode (HW 1.17.0, docs/HW_API.md &quot;Desk mode&quot;): plane 0 alone, 640x480 at 1:1, for GEM and tools. Allocates its 307,200 bytes 64-aligned from the VRAM pool (once a scene: it keeps the buffer when it leaves and comes back), clears it, and stores all 256 entries of palette 0 again: the board shows them from a mirror that only CPU stores fill. Errors (and changes nothing) on another plane, where the machine has no desk mode (an older board bitstream: the cart then stays in its mode, e.g. medium), or when the pool is full.</p></article>
-<article class="api" id="LogicalFB.leaveDesk"><code class="sig"><b class="fn">leaveDesk</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.leaveDesk" aria-label="Link to leaveDesk">#</a><p class="doc">Back from the desk to a low-res plane on the same buffer (its first 320x200 bytes, as setResLow): redraw after switching. setDeskPlane goes back to the desk.</p></article>
+<article class="api" id="LogicalFB.leaveDesk"><code class="sig"><b class="fn">leaveDesk</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.leaveDesk" aria-label="Link to leaveDesk">#</a><p class="doc">Back from the desk to a low-res plane on setDeskPlane&#x27;s buffer (its first 320x200 bytes, as setResLow), whichever buffer a flip left on screen: redraw after switching.</p></article>
 <article class="api" id="LogicalFB.isDesk"><code class="sig"><b class="fn">isDesk</b>(self: *const LogicalFB) <span class="ret">bool</span></code><a class="anchor" href="#LogicalFB.isDesk" aria-label="Link to isDesk">#</a></article>
 <article class="api" id="LogicalFB.getRenderTarget"><code class="sig"><b class="fn">getRenderTarget</b>(self: *LogicalFB) <span class="ret">RenderTarget</span></code><a class="anchor" href="#LogicalFB.getRenderTarget" aria-label="Link to getRenderTarget">#</a></article>
 <h3 class="api-group">Palette management</h3>
@@ -1492,5 +1492,5 @@ start ~0.5 Mc once. No Paula sound effect while a SID plays.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>
