@@ -22,7 +22,7 @@
 //
 //   node apps/kos_desk_check.mjs [--pin]     (--pin: print the session's total, for a pin update)
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -92,9 +92,15 @@ function check(what, ok) {
     if (!ok) process.exitCode = 1;
 }
 
+// The floppy's DEMO.WSM is a fixed stand-in, not docs/demo-tutorial.wasm (the fixture's default):
+// its SIZE is on screen (the window's "N bytes used" line), so every rebuild of the tutorial moved
+// the pin with no change to the desktop (8 Nov 2026: 47,539 -> 47,586 bytes when the desk branch's
+// ZigOS rebuilt every cart). Nothing here launches it; 47,539 bytes is the size the pin was taken at.
+const DEMO_WSM_BYTES = 47539;
 function floppy() {
-    const out = join(mkdtempSync(join(tmpdir(), "kos-desk-")), "kos.st");
-    execFileSync("python3", ["tools/kos_fat_fixture.py", out]);
+    const dir = mkdtempSync(join(tmpdir(), "kos-desk-")), out = join(dir, "kos.st"), wsm = join(dir, "demo.wsm");
+    writeFileSync(wsm, Buffer.alloc(DEMO_WSM_BYTES));
+    execFileSync("python3", ["tools/kos_fat_fixture.py", out, wsm]);
     return out;
 }
 
