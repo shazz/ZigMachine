@@ -130,7 +130,30 @@ for (const [mode, name] of [[1, "medium"], [2, "desk"]]) {
     c.ctrl("a"); c.ctrl("c"); c.key(K.END); c.ctrl("v");
     shot(`${name}_pasted`, c);
     same(c, `${name}: select all, copy, paste`);
+    if (mode === 2) { // graf_mouse: the ROM's arrow, drawn save-under (no host draws one in the desk)
+        const h1 = c.plane(); c.point(10, 10); const h2 = c.plane(); c.point(300, 100);
+        check("desk: the arrow follows the pointer and leaves nothing behind", h1 === c.plane() && h1 !== h2);
+    }
 }
+
+// --- the text by the pointer and Find (session b, NOTE.TXT open) ---
+b.ctrl("f"); b.type("kos"); b.key(13); b.frames(2);
+b.ctrl("x"); b.ctrl("s");
+const found = await mtype(img, "NOTE.TXT");
+shot("found", b);
+check("^F kos, Return selects it; ^X ^S: the file lost it", found === "Hello, GEM 5!\r\nNotepad on .", JSON.stringify(found));
+b.click(b.win(0) + 1, b.win(1) + 1); b.type("X"); b.ctrl("s");
+check("a click places the cursor (row 0, column 0): X typed there", (await mtype(img, "NOTE.TXT"))?.startsWith("XHello") === true);
+same(b, "found, cut, clicked");
+
+// --- leaving: ^Q on a modified text asks, No quits; the closer quits a clean one (request 4) ---
+a.ctrl("q");
+a.click(160, 117); a.frames(2); // No (the alert's second button in low res)
+check("^Q, Save changes? No: back to the desktop (request 4)", a.m.demo.pollCartRequest() === 4);
+const q = await afterDesktop(new Uint8Array(await readFile(C_IMAGE)), 0, brk);
+q.frames(3);
+q.click(q.win(4) + 5, q.win(5) + 5); q.frames(2);
+check("the closer on a clean text quits (request 4)", q.m.demo.pollCartRequest() === 4);
 
 await rm(IMG, { force: true });
 if (pngDir) {

@@ -142,6 +142,7 @@ pub const App = struct {
         aes.mouse(self.g, false); // graf_mouse(M_OFF): the desk's arrow comes off first
         defer aes.mouse(self.g, true);
         if (self.repaint) self.paintAll();
+        if (self.modal != .none) self.view.draw(&self.doc); // a repaint under an open dialog: the text too, then the box over it
         inp.drain(self);
         if (self.modal != .none) return frame.modal(self);
         if (self.bar.process(false)) |p| flow.run(self, menu.ofPick(p));

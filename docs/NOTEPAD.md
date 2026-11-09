@@ -29,7 +29,7 @@ the app-facing ABI (`rom_sdk`, and its new half `rom_sdk.aes`), the files are KO
   most on disk (CR LF), 32 files in the selector (its list's size).
 - **Resolutions**: the desktop's. A program cannot read it off the machine (each cart swap resets
   `RESOLUTION`), so the ROM tells it (`deskScreenMode`, Getrez). Low (320x200), medium (640x200) and the
-  desk (640x480, where the machine has it). Digits 1-3 (`setShadeMode`) switch at run time. The font is
+  desk (640x480, where the machine has it). `setShadeMode(0..2)` switches at run time (the harness and frame_cost call it; on the page the digits are typed, Notepad owns the keyboard). The font is
   the system 8x8 in every mode: the 8x16 one exists only in Matt's local asset set (`-Dgem_assets`) and
   the app API has no text call for it. The view asks the ROM for the cell (`guiCell`), so an 8x16 system
   font would change the line height and nothing else.

@@ -63,7 +63,7 @@ pub fn drain(a: *App) void {
 
 fn modalKey(a: *App, cp: u32) void {
     switch (a.modal) {
-        .find => a.find.key(cp),
+        .find => if (cp == 13) aes.key(a.g, cp) else a.find.key(cp), // Return: the default button (Find)
         .fsel_open, .fsel_save => if (cp == 13) aes.key(a.g, cp) else a.fsel.key(cp),
         else => aes.key(a.g, cp), // Return fires the alert's default button
     }
