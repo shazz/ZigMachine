@@ -45,7 +45,7 @@ pub const Look = struct {
 };
 
 /// The object patterns 0..7: 0 hollow, 7 solid, 1..6 ordered dithers from sparse
-/// to dense (ours: a 4x4 Bayer order, tiled to 16x16).
+/// to dense (ours: a 4x4 Bayer order, tiled to 16x16; 2 is TOS's window grey).
 pub const PATTERNS: [8][16]u16 = blk: {
     @setEvalBranchQuota(10000);
     const bayer = [4][4]u8{ .{ 0, 8, 2, 10 }, .{ 12, 4, 14, 6 }, .{ 3, 11, 1, 9 }, .{ 15, 7, 13, 5 } };
@@ -60,6 +60,7 @@ pub const PATTERNS: [8][16]u16 = blk: {
             out[p][y] = row;
         }
     }
+    for (0..16) |y| out[2][y] = if (y % 2 == 0) 0x5555 else 0; // TOS's grey: odd columns of even rows (25%)
     break :blk out;
 };
 

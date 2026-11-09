@@ -1107,6 +1107,11 @@ pub const ZigOS = struct {
         blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font_6, SMALL_FONT_WIDTH, SMALL_FONT_HEIGHT, Clip.UNBOUNDED);
     }
 
+    // The 6x6 font confined to `clip` (GEM 5's engine draws ZigGEM's dialogs into one clip).
+    pub fn printTextSmallClipped(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8, clip: Clip) void {
+        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font_6, SMALL_FONT_WIDTH, SMALL_FONT_HEIGHT, clip);
+    }
+
     // --- Framebuffer / register management ---
     pub fn setResolution(self: *ZigOS, res: Resolution) void {
         _ = self;

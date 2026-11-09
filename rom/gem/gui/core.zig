@@ -1,7 +1,6 @@
 // --------------------------------------------------------------------------
-// Gui — pointer state + immediate-mode drawing primitives, held for one frame.
-// Immediate-mode drawing over the blitter (fast fills) + ZigOS text. Pointer
-// state comes from the host via demo.pointer() (see sealed-loader.js).
+// Gui — pointer state (from the host, sealed-loader.js) + immediate-mode drawing
+// primitives over the blitter (fast fills) + ZigOS text, held for one frame.
 // --------------------------------------------------------------------------
 const zsrc = @import("zigos");
 const ZigOS = zsrc.ZigOS;
@@ -12,6 +11,7 @@ const types = @import("types.zig");
 const Rect = types.Rect;
 const Screen = @import("screen.zig").Screen;
 const bandfill = @import("bandfill.zig");
+const clip = @import("clip.zig");
 const inRect = types.inRect;
 const BLACK = types.BLACK;
 const WHITE = types.WHITE;
@@ -27,6 +27,8 @@ pub const Gui = struct {
     down: bool = false,
     prev: bool = false,
     edge: bool = false, // press started this frame
+    clip: ?Rect = null, // GEM 5: draw only inside (MUTED: nothing); null = the old path (clip.zig)
+    rec: ?Rect = null, // GEM 5: non-null = collect the box of everything drawn (clip.zig)
 
     pub fn setPointer(self: *Gui, x: i32, y: i32, buttons: u32) void {
         self.px = x;
@@ -43,6 +45,7 @@ pub const Gui = struct {
     // --- primitives ---
     /// A blitter fill on this screen, whatever its height (bandfill.zig: the desk is 480 rows).
     pub fn fill(self: *Gui, x: i16, y: i16, w: u16, h: u16, color: u8) void {
+        if (self.clip != null or self.rec != null) return clip.fill(self, x, y, w, h, color);
         bandfill.fill(self.blit, self.fb, x, y, w, h, color);
     }
     pub fn rect(self: *Gui, r: Rect, color: u8) void {
@@ -54,8 +57,7 @@ pub const Gui = struct {
         self.fill(r.x, r.y, 1, @intCast(r.h), color);
         self.fill(r.x + r.w - 1, r.y, 1, @intCast(r.h), color);
     }
-    // A raised (or sunken) 3D bevel box (TOS 4 / MagiC look — NOT used by the
-    // TOS 1.x-style chrome, kept for apps that want it).
+    // A raised/sunken bevel box (TOS 4 look; not used by the TOS 1 chrome).
     pub fn bevel(self: *Gui, r: Rect, face: u8, raised: bool) void {
         const hi: u8 = if (raised) WHITE else DGRAY;
         const lo: u8 = if (raised) DGRAY else WHITE;
@@ -66,16 +68,19 @@ pub const Gui = struct {
         self.fill(r.x + r.w - 1, r.y, 1, @intCast(r.h), lo);
     }
     pub fn text(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
+        if (self.clip != null or self.rec != null) return clip.text(self, s, x, y, ink, paper, false, null);
         self.os.printText(self.fb, s, x, y, ink, paper);
     }
     // 6x6 system font (icon labels).
     pub fn textSmall(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
+        if (self.clip != null or self.rec != null) return clip.text(self, s, x, y, ink, paper, true, null);
         self.os.printTextSmall(self.fb, s, x, y, ink, paper);
     }
 
     // Text confined to `r` — clipped per PIXEL, so a glyph cell may overlap its
     // neighbours without painting over them.
     pub fn textClipped(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, r: Rect) void {
+        if (self.clip != null or self.rec != null) return clip.text(self, s, x, y, ink, paper, false, r);
         self.os.printTextClipped(self.fb, s, x, y, ink, paper, .{
             .x0 = r.x,
             .y0 = r.y,
@@ -84,10 +89,8 @@ pub const Gui = struct {
         });
     }
 
-    // Text clipped to the horizontal span [lo, hi) a CHARACTER at a time: the
-    // part that fits is drawn and the rest is cut off, so a name slides out of a
-    // window letter by letter instead of vanishing whole. Cell-aligned layouts
-    // (and cell-stepped scrolling) keep the trimmed text on the grid.
+    // Text clipped to the span [lo, hi) a CHARACTER at a time: a name slides out of a
+    // window letter by letter instead of vanishing whole, and stays on the cell grid.
     pub fn textIn(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, lo: i16, hi: i16) void {
         const c = hClip(s, x, 8, lo, hi);
         if (c.s.len > 0) self.text(c.s, c.x, y, ink, paper);
@@ -109,19 +112,16 @@ pub const Gui = struct {
         return .{ .s = str, .x = px };
     }
 
-    // A single pixel, clipped to the framebuffer. Everything that plots directly
-    // (gadgets, hatch, icons, dotted overlays) goes through here: a window can be
-    // dragged past an edge, and an unclipped write there wraps onto the
-    // neighbouring scanline instead of disappearing.
+    // A single pixel, clipped to the framebuffer (gadgets, hatch, icons, overlays plot here):
+    // an unclipped write past an edge would wrap onto the neighbouring scanline.
     pub fn plot(self: *Gui, x: i16, y: i16, c: u8) void {
+        if ((self.clip != null or self.rec != null) and !clip.plot(self, x, y)) return;
         if (x < 0 or x >= @as(i16, @intCast(self.fb.fb_w))) return;
         if (y < 0 or y >= @as(i16, @intCast(self.fb.fb_h))) return;
         self.fb.setPixelValue(@intCast(x), @intCast(y), c);
     }
 
-    // A GEM dotted rectangle outline (every other pixel) — the shape every
-    // "pending" gesture is drawn with: window move/resize, icon drag, the
-    // window-open zoom box, the rubber-band marquee.
+    // GEM's dotted outline (every other pixel): every pending gesture (move, drag, zoom, band).
     pub fn dotted(self: *Gui, r: Rect, c: u8) void {
         var x: i16 = r.x;
         while (x < r.x + r.w) : (x += 2) {
@@ -135,9 +135,9 @@ pub const Gui = struct {
         }
     }
 
-    // Blit a GEM control gadget (a GWxGH box lifted verbatim from the ST GEM
-    // reference: frame + background + symbol) opaquely at (x,y). 1 = ink, 0 = paper.
+    // A GEM control gadget (a GWxGH box from the ST reference), opaque: 1 = ink, 0 = paper.
     pub fn gadget(self: *Gui, x: i16, y: i16, box: [glyphs.GH]u16, ink: u8, paper: u8) void {
+        if (clip.muted(self)) return; // GEM 5's logic pass: no pixel, skip the per-pixel loop
         for (box, 0..) |bits, row| {
             var col: u4 = 0;
             while (col < glyphs.GW) : (col += 1) {
@@ -147,9 +147,8 @@ pub const Gui = struct {
         }
     }
 
-    // GEM "grey" pattern fill — the title-bar mover / scrollbar track. Lifted
-    // from the ST reference: one ink dot on every even row at every odd column
-    // (25%), aligned to SCREEN coordinates like a VDI pattern fill.
+    // GEM "grey" fill (title-bar mover, scroll track), from the ST reference: one ink dot on
+    // every even row at every odd column (25%), aligned to SCREEN coordinates like a VDI fill.
     pub fn hatch(self: *Gui, r: Rect, ink: u8, paper: u8) void {
         self.rect(r, paper);
         var yy: i16 = r.y;

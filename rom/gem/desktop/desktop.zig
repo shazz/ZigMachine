@@ -1,7 +1,6 @@
 // --------------------------------------------------------------------------
-// ZigGEM Desktop — the GEM-style desktop shell. This file owns the Desktop
-// STATE and the per-frame render loop; the behaviour sits beside it as free
-// functions over *Desktop:
+// ZigGEM Desktop — the desktop shell: the Desktop STATE and the per-frame loop;
+// the behaviour sits beside it as free functions over *Desktop:
 //   dirmodel.zig   the disk FAT + in-RAM folders (pure, natively tested)
 //   dirview.zig    a directory drawn in a window: icon/text layout, hit-tests
 //   deskwin.zig    directory windows: open/close, geometry, scrolling; desknav.zig folders in them
@@ -30,6 +29,7 @@ const deskdraw = @import("deskdraw.zig");
 const deskmenu = @import("deskmenu.zig");
 const deskdirty = @import("deskdirty.zig");
 const deskmode = @import("deskmode.zig");
+const deskeng = @import("eng/engine.zig");
 
 const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
@@ -108,6 +108,10 @@ pub const Desktop = struct {
     grow_b: Rect = NO_RECT, // zoom-box: to
     grow_t: u8 = 0, // zoom-box frames remaining (0 = idle)
     open_src: Rect = NO_RECT, // source rect for the next window open
+    grow_drawn: ?Rect = null, // the zoom-box frame drawn this frame (the GEM 5 engine's overlay)
+    eng: ?*deskeng.Engine = null, // GEM 5's engine, when the ROM handed one (eng/engine.zig)
+    eng_dlg: ?Rect = null, // engine frame: the clip the dialogs paint in (null: the old path)
+    eng_rec: ?Rect = null, // engine frame: the box the dialogs painted (deskmenu.runDialogs)
 
     pub fn init(self: *Desktop, os: *zsrc.ZigOS, fb: *zsrc.LogicalFB, blit: *zsrc.Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen = gui.Screen.of(.medium) };
@@ -145,6 +149,12 @@ pub const Desktop = struct {
     pub fn render(self: *Desktop) Action {
         if (!deskdirty.mustDraw(self)) return .none; // nothing changed: the plane holds this frame
         defer deskdirty.drew(self);
+        if (self.eng) |e| if (e.active(self)) return e.frame(self); // GEM 5: the same step, painted from trees
+        return self.step();
+    }
+
+    // One frame of the desktop: input, logic and (immediate-mode) drawing in one pass.
+    pub fn step(self: *Desktop) Action {
         const g = &self.g;
         var action: Action = .none;
         const modal = self.isModal();

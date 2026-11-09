@@ -79,17 +79,20 @@ pub fn startGrow(d: *Desktop, from: Rect, to: Rect) void {
 
 // GEM zoom-box: a dotted frame interpolated from grow_a to grow_b over a few frames.
 fn drawGrow(d: *Desktop, g: *gui.Gui) void {
+    d.grow_drawn = null;
     if (d.grow_t == 0) return;
     const n: i16 = GROW_STEPS;
     const k: i16 = n - @as(i16, @intCast(d.grow_t)) + 1; // 1..n
     const a = d.grow_a;
     const b = d.grow_b;
-    g.dotted(.{
+    const r: Rect = .{
         .x = a.x + @divTrunc((b.x - a.x) * k, n),
         .y = a.y + @divTrunc((b.y - a.y) * k, n),
         .w = a.w + @divTrunc((b.w - a.w) * k, n),
         .h = a.h + @divTrunc((b.h - a.h) * k, n),
-    }, gui.BLACK);
+    };
+    g.dotted(r, gui.BLACK);
+    d.grow_drawn = r; // the GEM 5 engine draws it from here
     d.grow_t -= 1;
 }
 

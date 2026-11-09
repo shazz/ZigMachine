@@ -18,7 +18,7 @@ const MENU_OPTIONS = 3;
 
 // Stack storage for the per-frame menu items (their slices are handed to the
 // menu bar within the same frame).
-const MenuBuf = struct {
+pub const MenuBuf = struct {
     desk: [1]gui.MenuItem = undefined,
     file: [8]gui.MenuItem = undefined,
     view: [7]gui.MenuItem = undefined,
@@ -32,6 +32,16 @@ pub fn runDialogs(d: *Desktop, g: *gui.Gui, action: *Action) void {
     // that overlaps a window must still accept item clicks — the drop-on-hover
     // guard already blocks menus opening mid window-drag.)
     if (d.menubar.process(g, &menus, g.screen.w, d.isModal())) |p| menuPick(d, p, action);
+    // GEM 5's engine paints the bar itself; the dialogs (not on it yet) paint into their box.
+    if (d.eng_dlg) |c| {
+        g.clip = c;
+        g.rec = gui.clip.MUTED;
+    }
+    defer if (d.eng_dlg != null) {
+        d.eng_rec = g.rec;
+        g.rec = null;
+        g.clip = gui.clip.MUTED;
+    };
     _ = d.dlg.process(g);
     _ = d.about.process(g); // Desktop Info... (modal while active)
     switch (d.trash.process(g)) { // DELETE FILE(S) confirm
@@ -72,7 +82,7 @@ fn runPrefs(d: *Desktop, g: *gui.Gui, action: *Action) void {
     }
 }
 
-fn buildMenus(d: *Desktop, buf: *MenuBuf) [4]gui.Menu {
+pub fn buildMenus(d: *Desktop, buf: *MenuBuf) [4]gui.Menu {
     const has_sel = d.sel_icon >= 0 or d.sel_file >= 0 or d.sel_folder >= 0;
     // New Folder / Close / Close Window act ON a window, so they need one to
     // be the current thing: no open window, or a DESKTOP icon selected (the

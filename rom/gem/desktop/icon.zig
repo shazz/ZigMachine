@@ -142,6 +142,7 @@ pub const Icon = struct {
     // the desktop shows through the silhouette) and its caps label beneath on a
     // fixed-width box. When `sel`, the icon is inverse-video (GEM selection).
     pub fn draw(self: *const Icon, g: *gui.Gui, sel: bool) void {
+        if (gui.clip.muted(g)) return; // GEM 5's logic pass draws nothing (gui/clip.zig)
         const ink_c: u8 = if (sel) gui.WHITE else gui.BLACK;
         const body_c: u8 = if (sel) gui.BLACK else gui.WHITE;
         const ic = self.bmp;
