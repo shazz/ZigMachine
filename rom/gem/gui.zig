@@ -69,3 +69,7 @@ pub const MenuItem = menu.MenuItem;
 pub const MenuPick = menu.MenuPick;
 pub const MenuBar = menu.MenuBar;
 pub const isSeparator = menu.isSeparator;
+// GEM 5's program API (rom/rom_app.zig): a program's windows and menu bar, save-under.
+pub const appwin = @import("gui/appwin.zig");
+pub const appmenu = @import("gui/appmenu.zig");
+pub const saveunder = @import("gui/saveunder.zig");

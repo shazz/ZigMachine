@@ -135,6 +135,7 @@ const scene = switch (opts.index) {
     124 => @import("scenes/bard_sid.zig"), // BARD SID: the BARD queue (zg.bard): the cart writes the SID live, tick by tick, raw cRSID plays it at its samples
     125 => @import("scenes/tri_test.zig"), // TRI TEST: CHISEL TRIANGLE against the model, edge cases + stress, an on-screen hash with the golden one
     126 => @import("scenes/desk_test.zig"), // DESK TEST: the desk mode (HW 1.17.0), plane 0 at 640x480 1:1: a known picture, key 1 desk, key 2 low res
+    127 => @import("scenes/notepad.zig"), // NOTEPAD: a windowed text editor on GEM 5's program API (windows, menu bar, form_alert), C:\*.TXT through KOS GEMDOS
     else => @compileError("bad cart index"),
 };
 

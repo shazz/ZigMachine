@@ -149,6 +149,9 @@ for w in "$OUT"/demo-*.wasm; do
                         --file "THALION.HIP=$(packcart "$OUT/music/hippel/thalion_intro.hip")" \
                         --file "STARPORT.KT=$OUT/music/starport2.kt" \
                         --file "HERMINI.SID=$OUT/music/hermini.sid" ;;
+        # NOTEPAD is a GEM program as ST Replay and SysInfo are: a DATA disk, GEM opens it, BOOT.WSM
+        # is double-clicked, ^Q goes back to the desktop (request 4). Its files are on C: (KOS GEMDOS).
+        notepad)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
         # STNICCC 2000 streams its polygon data off the disk, 64 KB at a time.
         stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;

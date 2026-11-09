@@ -232,6 +232,8 @@ NATIVE_TESTS="
     rom/gem/desktop/deskinf_read.zig
     rom/gem/gui/grid.zig
     rom/gem/gui/screen.zig
+    rom/gem/gui/formalert.zig
+    rom/gem/gui/saveunder.zig
     rom/gem/scrollpage_test.zig
     rom/gem/desktop/deskflip.zig
     rom/gem/desktop/deskarrow.zig
@@ -394,6 +396,10 @@ gate mp3 node apps/mp3_check.mjs --break lowbyte   # ...and the low-byte channel
 gate mp3 node apps/mp3_check.mjs --break overfeed   # ...and feeding past the ring (no flow control) fails (bytes dropped)
 gate mp3 node apps/mp3_check.mjs --break noend   # ...and never telling the player the input ended fails (it never ends)
 gate mp3_player node apps/mp3_player_check.mjs   # MP3 PLAYER cart over the machine + ROM, C: = docs/mp3-c.img through KOS GEMDOS: Down Down Return plays TONES44.MP3; the bytes it fed are the file's in order, never past the ring, the end told; the audio out = the reference >> 1; the next file starts at the end, N past the last stops, Esc again asks for request 4
+gate notepad node apps/notepad_check.mjs   # NOTEPAD (docs/NOTEPAD.md) on GEM 5's program API over the machine + ROM, C: = a copy of docs/gemdos-c.img: launched from GEM off its data disk; typed, ^S to C:\NOTE.TXT (mtools: the bytes, CR LF; fsck clean), reopened in a new session pixel for pixel; "Save changes?" Cancel / Yes; the menu by the pointer; 60 lines, PgUp, a held arrow; the sizer; in low, medium and the desk; the screen as drawn = a whole repaint after every step
+gate notepad node apps/notepad_check.mjs --break write   # ...and a host that refuses every write is caught
+gate notepad node apps/notepad_check.mjs --break bytes   # ...and a byte changed on its way to C: is caught
+gate notepad node apps/notepad_check.mjs --break ctrl   # ...and Control never sent (^S types an s) is caught
 gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
 gate mp3_player uv run --project fpga python -m pytest -q fpga/tests/test_mp3_native.py   # ...and on the native host (host_audio, --c-image docs/mp3-c.img, the glass's key router): Down Down Return plays TONES44.MP3, the machine's 16-bit out = the reference >> 1; no key, no sound
 gate sid node apps/sid_check.mjs   # .sid player (libs/zig/players/sid.zig, cRSID libs/c/crsid): the engine in machine-audio.wasm renders hermini.sid's first 10 s to the same samples, 0.1 s block for block, as the same C built natively by the host's cc (fpga/tools/sid_render.c on patch.sh's tree: what BARD runs, host/crsid.c), local study tunes too when present; the player's 44.1 kHz output a side = the engine upsampled (midpoints) >> 1, mode 1, heard; an RSID refused (status 2) and garbage (1), silent

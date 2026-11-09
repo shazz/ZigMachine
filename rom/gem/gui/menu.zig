@@ -137,6 +137,29 @@ pub const MenuBar = struct {
         return pick;
     }
 
+    /// The open drop-down's box as process() draws it (frame included), null when none is open,
+    /// and the item row the pointer is on in it (-1: none, or one that cannot be picked).
+    /// A program's context (rom/gem/gui/appmenu.zig) saves the screen under it and redraws
+    /// the bar only when one of these changes.
+    pub fn dropBox(self: *const MenuBar, menus: []const Menu) ?Rect {
+        var x: i16 = TITLE_X0;
+        for (menus, 0..) |m, i| {
+            const tb = titleBox(x, m);
+            if (self.open == @as(i16, @intCast(i))) return dropRect(m, tb.x);
+            x += tb.w;
+        }
+        return null;
+    }
+    pub fn hoverRow(self: *const MenuBar, menus: []const Menu, px: i32, py: i32) i16 {
+        const d = self.dropBox(menus) orelse return -1;
+        const m = menus[@intCast(self.open)];
+        if (px < d.x + 1 or px >= d.x + d.w - 1 or py < d.y + 1) return -1;
+        const j = @divTrunc(py - d.y - 1, ITEM_H);
+        if (j >= m.items.len) return -1;
+        const it = m.items[@intCast(j)];
+        return if (isSeparator(it) or it.disabled) -1 else @intCast(j);
+    }
+
     // Is the pointer over the currently-open drop-down (so a click shouldn't close)?
     fn overDrop(self: *MenuBar, g: *Gui, menus: []const Menu) bool {
         var x: i16 = TITLE_X0;

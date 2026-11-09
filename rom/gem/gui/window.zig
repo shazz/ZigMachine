@@ -101,9 +101,16 @@ pub const Wm = struct {
         return .{ .x = w.r.x + w.r.w - 2 * glyphs.GW + 1, .y = w.r.y + w.r.h - glyphs.GH, .w = glyphs.GW, .h = glyphs.GH };
     }
 
+    /// Is (px, py) on one of `w`'s four arrow gadgets? (A program's context repeats them while
+    /// held: rom/gem/gui/appwin.zig.)
+    pub fn onArrow(w: *const Window, px: i32, py: i32) bool {
+        return inRect(upBox(w), px, py) or inRect(downBox(w), px, py) or
+            inRect(leftBox(w), px, py) or inRect(rightBox(w), px, py);
+    }
+
     // An arrow gadget steps the content by one unit (a row / a character cell),
     // clamped to the bounds the window's owner published in vmax / hmax.
-    fn scrollPress(w: *Window, g: *Gui) bool {
+    pub fn scrollPress(w: *Window, g: *Gui) bool {
         if (inRect(upBox(w), g.px, g.py)) {
             w.vscroll = @max(0, w.vscroll - 1);
         } else if (inRect(downBox(w), g.px, g.py)) {

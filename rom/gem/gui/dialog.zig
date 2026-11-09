@@ -4,6 +4,7 @@
 // on the frame the user chooses. Draw it LAST, over everything.
 // --------------------------------------------------------------------------
 const types = @import("types.zig");
+const formalert = @import("formalert.zig");
 const Gui = @import("core.zig").Gui;
 const Rect = types.Rect;
 const BLACK = types.BLACK;
@@ -26,6 +27,12 @@ pub const Dialog = struct {
     nlines: u8 = 0,
     warn: bool = false, // draw the GEM warning sign in the left gutter
     items: []const []const u8 = &.{},
+    // form_alert's buttons (formAlert; none: the one OK of alert()), copied in like the lines.
+    btn_buf: [formalert.MAX_BUTTONS][formalert.BUTTON_MAX]u8 = undefined,
+    btn_len: [formalert.MAX_BUTTONS]u8 = [_]u8{0} ** formalert.MAX_BUTTONS,
+    nbtn: u8 = 0,
+    default_btn: u8 = 0, // 1-based as form_alert's, 0: none
+    choice: u8 = 0, // the button that closed it, 1-based (form_alert's return value)
     want_w: i16 = 0,
     want_h: i16 = 0,
 
@@ -54,6 +61,28 @@ pub const Dialog = struct {
         self.want_w = widest * 8 + 32 + (if (warn) SIGN_W else 0);
         self.want_h = @as(i16, self.nlines) * LINE_H + 44;
     }
+    /// form_alert(default, "[icon][lines][buttons]"): false (nothing opened) for a malformed string.
+    pub fn formAlert(self: *Dialog, spec: []const u8, default: u8) bool {
+        const a = formalert.parse(spec) orelse return false;
+        self.alertLines(a.lines[0..a.nlines], a.icon != 0);
+        var widest: usize = 0;
+        for (a.buttons[0..a.nbuttons], 0..) |b, i| {
+            @memcpy(self.btn_buf[i][0..b.len], b);
+            self.btn_len[i] = @intCast(b.len);
+            widest = @max(widest, b.len);
+        }
+        self.nbtn = a.nbuttons;
+        self.default_btn = if (default <= a.nbuttons) default else 0;
+        const row: i16 = @as(i16, a.nbuttons) * (btnW(widest) + BTN_GAP) - BTN_GAP + 32;
+        self.want_w = @max(self.want_w, row);
+        return true;
+    }
+    const BTN_GAP: i16 = 8;
+    // A form_alert button: the longest label and a cell each side, as the AES sized them.
+    fn btnW(widest: usize) i16 {
+        return @as(i16, @intCast(widest + 2)) * 8;
+    }
+
     pub fn openFiles(self: *Dialog, title: []const u8, items: []const []const u8) void {
         self.* = .{ .active = true, .filesel = true, .title = title, .items = items };
         self.nlines = 0;
@@ -87,8 +116,30 @@ pub const Dialog = struct {
         while (i < self.nlines) : (i += 1)
             g.text(self.lines[i], tx, b.y + 10 + @as(i16, i) * LINE_H, BLACK, WHITE);
         if (self.warn) warnSign(g, b.x + 12, b.y + 12);
+        if (self.nbtn > 0) return self.buttons(g, b);
         const ok = Rect{ .x = b.x + @divTrunc(b.w - 56, 2), .y = b.y + b.h - 22, .w = 56, .h = 14 };
         return if (g.buttonThick(ok, "OK", false, 3)) .{ .ok = 0 } else .none;
+    }
+
+    // form_alert's row of equal buttons, centred; the default one has the thick border
+    // (Return fires it). The choice is kept 1-based, form_alert's return value.
+    fn buttons(self: *Dialog, g: *Gui, b: Rect) DlgResult {
+        var widest: usize = 0;
+        for (self.btn_len[0..self.nbtn]) |n| widest = @max(widest, n);
+        const bw = btnW(widest);
+        const row = @as(i16, self.nbtn) * (bw + BTN_GAP) - BTN_GAP;
+        var x = b.x + @divTrunc(b.w - row, 2);
+        var i: u8 = 0;
+        while (i < self.nbtn) : (i += 1) {
+            const r = Rect{ .x = x, .y = b.y + b.h - 22, .w = bw, .h = 14 };
+            const thick: i16 = if (self.default_btn == i + 1) 3 else 2;
+            if (g.buttonThick(r, self.btn_buf[i][0..self.btn_len[i]], false, thick)) {
+                self.choice = i + 1;
+                return .{ .ok = i };
+            }
+            x += bw + BTN_GAP;
+        }
+        return .none;
     }
 
     // The GEM alert warning sign: an exclamation mark inside a triangle, drawn
