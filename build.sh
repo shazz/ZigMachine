@@ -234,6 +234,7 @@ NATIVE_TESTS="
     rom/gem/gui/screen.zig
     rom/gem/desktop/deskflip.zig
     rom/gem/desktop/deskarrow.zig
+    rom/gem/engine/engine_test.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
