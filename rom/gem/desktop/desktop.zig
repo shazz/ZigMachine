@@ -61,10 +61,8 @@ pub const Desktop = struct {
     dirty: deskdirty.State = .{}, // repaint only what changed (deskdirty.zig)
     mode: deskmode.State = .{}, // the screen modes: desk capability, DESKTOP.INF read back (deskmode.zig)
     launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
-    // WHICH program. -1 = "the disk's app" (the FLOPPY icon acting as a launcher,
-    // which names no file), resolved by launchName() to the first program on the
-    // disk. The host needs a NAME, not an index: it reads the file out of the
-    // mounted disk's FAT and instantiates it as the next cart.
+    // WHICH program; -1 = the disk's app (the FLOPPY icon as a launcher), launchName() resolves
+    // it. The host needs a NAME: it reads the file out of the disk's FAT as the next cart.
     launch_file: i16 = -1,
     drag: ?u8 = null,
     grab_dx: i16 = 0,
@@ -91,12 +89,9 @@ pub const Desktop = struct {
     win_dir: [gui.MAX_WIN]i16 = [_]i16{deskwin.WIN_NONE} ** gui.MAX_WIN, // per-window directory
     win_cols: [gui.MAX_WIN]i16 = [_]i16{1} ** gui.MAX_WIN, // icon grid width, fixed at open
     inf_buf: [deskinf.MAX_BYTES]u8 = [_]u8{0} ** deskinf.MAX_BYTES, // DESKTOP.INF text
-    // Each DIRECTORY remembers where its window was and how big, so closing and
-    // reopening it puts it back rather than restarting the cascade. Indexed by
-    // dir + 1 (the root is -1); w == 0 means "never opened".
+    // Each DIRECTORY's last window rect (reopening puts it back); dir + 1 (root -1); w 0: never.
     win_geom: [dirmodel.MAX_FOLDERS + 1]Rect = [_]Rect{NO_RECT} ** (dirmodel.MAX_FOLDERS + 1),
-    // Backing store for each window's GEM info line ("N bytes used in M items.").
-    // Window.info is a slice, and Desktop is static, so it may point in here.
+    // Each window's info line text ("N bytes used in M items."): Window.info slices into it.
     win_info: [gui.MAX_WIN][32]u8 = [_][32]u8{[_]u8{0} ** 32} ** gui.MAX_WIN,
     sel_folder: i16 = -1, // selected folder in the top window, -1 = none
     sel_files: u32 = 0, // rubber-band multi-select: bit per file (MAX_FILES = 32)
@@ -112,6 +107,7 @@ pub const Desktop = struct {
     eng: ?*deskeng.Engine = null, // GEM 5's engine, when the ROM handed one (eng/engine.zig)
     eng_dlg: ?Rect = null, // engine frame: the clip the dialogs paint in (null: the old path)
     eng_rec: ?Rect = null, // engine frame: the box the dialogs painted (deskmenu.runDialogs)
+    no_enter: bool = false, // gem_engine_check's --break: Return ignored (the bug Matt saw on the board)
 
     pub fn init(self: *Desktop, os: *zsrc.ZigOS, fb: *zsrc.LogicalFB, blit: *zsrc.Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen = gui.Screen.of(.medium) };
@@ -137,9 +133,8 @@ pub const Desktop = struct {
         self.g.fb.setPaletteEntry(gui.DESK, .{ .r = self.bg_r, .g = self.bg_g, .b = self.bg_b, .a = 255 });
     }
 
-    // An open dialog owns all input: the icons, the windows AND the menu bar.
-    // ONE list, read by both render and runDialogs — two copies once drifted and
-    // left the menu bar live under the COPY box.
+    // An open dialog owns all input (icons, windows, menu bar). ONE list for render and
+    // runDialogs: two copies once drifted and left the menu bar live under the COPY box.
     pub fn isModal(self: *const Desktop) bool {
         return self.dlg.active or self.prefs.active or self.about.active or
             self.trash.active or self.info.active or self.copy.active;
@@ -202,14 +197,13 @@ pub const Desktop = struct {
         deskmode.setScreen(self, s); // the screen was re-bound (deskSetScreen): every pixel moved
     }
 
-    // Character keyboard: feeds the Show Info rename field while it's open.
+    // Character keyboard: the Show Info name field; Return fires an open dialog's default.
     pub fn key(self: *Desktop, cp: u32) void {
         deskdirty.touch(self);
-        if (self.info.active) self.info.key(cp);
+        if (self.info.active) return self.info.key(cp); // its name field takes Return itself
+        if ((cp == 13 or cp == 10) and self.isModal() and !self.no_enter) self.g.enter = true; // the DEFAULT button (TOS form_do)
     }
-    // Directional input from the host (0=up 1=down 2=left 3=right). The desktop
-    // only uses left/right, and only to walk the caret in the name field of an
-    // open INFORMATION / NEW FOLDER box.
+    // Directional input (0 up 1 down 2 left 3 right): left/right walk the name field's caret.
     pub fn input(self: *Desktop, dir: u32) void {
         deskdirty.touch(self);
         if (!self.info.active) return;

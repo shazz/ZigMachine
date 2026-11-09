@@ -27,6 +27,7 @@ pub const Gui = struct {
     down: bool = false,
     prev: bool = false,
     edge: bool = false, // press started this frame
+    enter: bool = false, // Return / Enter this frame: the DEFAULT button fires (TOS form_do)
     clip: ?Rect = null, // GEM 5: draw only inside (MUTED: nothing); null = the old path (clip.zig)
     rec: ?Rect = null, // GEM 5: non-null = collect the box of everything drawn (clip.zig)
 
@@ -40,6 +41,7 @@ pub const Gui = struct {
     }
     pub fn endFrame(self: *Gui) void {
         self.prev = self.down;
+        self.enter = false;
     }
 
     /// A blitter fill on this screen, whatever its height (bandfill.zig: the desk is 480 rows).
@@ -163,13 +165,11 @@ pub const Gui = struct {
     pub fn hit(self: *Gui, r: Rect) bool {
         return inRect(r, self.px, self.py);
     }
-    // A flat GEM (TOS 1.x) button: white box, 1px black border, inverse video
-    // while pressed or `active` (SELECTED). Returns true on the press frame.
+    // A flat GEM (TOS 1.x) button: white box, 1px border, inverse while pressed or `active`.
     pub fn button(self: *Gui, r: Rect, label: []const u8, active: bool) bool {
         return self.buttonEx(r, label, active, false);
     }
-    // `default` = the GEM default exit button: a solid 2px border (the outer
-    // frame plus a second frame 1px inside it).
+    // `default` = GEM's default exit button (a 2px border): Return fires it too.
     pub fn buttonEx(self: *Gui, r: Rect, label: []const u8, active: bool, default: bool) bool {
         const held = active or (self.down and self.hit(r));
         const ink: u8 = if (held) WHITE else BLACK;
@@ -179,11 +179,11 @@ pub const Gui = struct {
         if (default) self.frame(.{ .x = r.x + 1, .y = r.y + 1, .w = r.w - 2, .h = r.h - 2 }, BLACK);
         const tx = r.x + @divTrunc(r.w - @as(i16, @intCast(label.len)) * 8, 2);
         self.text(label, tx, r.y + @divTrunc(r.h - 8, 2), ink, paper);
-        return self.edge and self.hit(r);
+        return (self.edge and self.hit(r)) or (default and self.enter);
     }
     // A flat GEM button with an explicit border thickness (nested frames). GEM
     // dialogs use 1px for multi-choice buttons, 2px for a normal exit button,
-    // 3px for the default (OK). Inverse-video while pressed or `active`.
+    // 3px for the default (OK), which Return fires too. Inverse-video while pressed or `active`.
     pub fn buttonThick(self: *Gui, r: Rect, label: []const u8, active: bool, border: i16) bool {
         const held = active or (self.down and self.hit(r));
         const ink: u8 = if (held) WHITE else BLACK;
@@ -194,6 +194,6 @@ pub const Gui = struct {
             self.frame(.{ .x = r.x + i, .y = r.y + i, .w = r.w - 2 * i, .h = r.h - 2 * i }, BLACK);
         const tx = r.x + @divTrunc(r.w - @as(i16, @intCast(label.len)) * 8, 2);
         self.text(label, tx, r.y + @divTrunc(r.h - 8, 2), ink, paper);
-        return self.edge and self.hit(r);
+        return (self.edge and self.hit(r)) or (border >= 3 and self.enter);
     }
 };

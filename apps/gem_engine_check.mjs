@@ -10,16 +10,17 @@
 //             buffer survives outside them) and lands where it was dropped
 //   oracle    after every gesture, painting only the damage = repainting the whole desk, byte for
 //             byte (deskSetEngine again invalidates both buffers: the next frame is a whole repaint)
+//   return    Return closes Desktop Info with its default button, old path and engine (TOS form_do)
 //   cost      apps/frame_cost.mjs, A:\ open, the pointer moving every frame: old path vs engine
 //   node apps/gem_engine_check.mjs        node apps/gem_engine_check.mjs --break
 //   --break   each mutant (engine.zig BREAK_*) must be caught: whole (repaint all), noclip (paint
-//             unclipped), onesnap (one snapshot for two buffers), drop (lose a damage box), and
+//             unclipped), onesnap (one snapshot for two buffers), drop (lose a damage box), noenter (Return ignored), and
 //             engineoff (the engine never switched on)
 import { bootGem } from "./gem_headless.mjs";
 import { W, H, res, fbBase, settle, pickRes, bufferAt } from "./gem_desk_lib.mjs";
 import { cost } from "./gem_engine_cost.mjs";
 
-const MUTANTS = { whole: 1 << 8, noclip: 1 << 9, onesnap: 1 << 10, drop: 1 << 11, engineoff: 0 };
+const MUTANTS = { whole: 1 << 8, noclip: 1 << 9, onesnap: 1 << 10, drop: 1 << 11, noenter: 1 << 12, engineoff: 0 };
 const BLACK = 0, WHITE = 1, DESK = 5; // rom/gem/gui/types.zig
 const DISK = [{ name: "ALPHA.PRG", type: 0, size: 12345, date: 20260912 }, { name: "README.TXT", type: 1, size: 99, date: 20260912 }];
 const WIN = { x: 24, y: 24, w: 320, h: 120 }; // A:\ opens here (deskwin's cascade start, the desk's 640 width)
@@ -110,6 +111,30 @@ function pointer(gem, pair, check) {
     oracle(gem, "three pointer moves", check);
 }
 
+// Matt on the board (9 Nov): Return did not close a dialog although its default button is drawn
+// bold. TOS's form_do: Return fires the DEFAULT button. Desktop Info, on the old path and the engine.
+function returnKey(gem, check) {
+    const breaks = gem.engMode & ~0xFF;
+    for (const mode of [0, gem.engMode & 0xFF]) {
+        gem.rom.deskSetEngine(mode | breaks);
+        gem.point(600, 400, 0);
+        settle(gem, 6);
+        const before = bufferAt(gem, fbBase(gem)).slice();
+        gem.point(20, 4, 0); // over Desk: it drops
+        gem.click(30, 15); // Desktop Info...
+        gem.point(600, 400, 0);
+        settle(gem, 6);
+        const same = () => bufferAt(gem, fbBase(gem)).every((v, i) => v === before[i]);
+        const path = mode ? "the engine" : "the old path";
+        check(!same(), `return: Desktop Info did not open (${path}): the check proves nothing`);
+        gem.key(13);
+        settle(gem, 6);
+        check(same(), `return: Return did not close Desktop Info with its default button (${path})`);
+    }
+    gem.rom.deskSetEngine(gem.engMode);
+    settle(gem, 4);
+}
+
 function window(gem, pair, check) {
     const grab = [250, WIN.y + 5], drop = [350, WIN.y + 65];
     gem.point(...grab, 0);
@@ -142,6 +167,7 @@ async function run(brk, look = 1) {
     clean(gem, pair, check);
     pointer(gem, pair, check);
     window(gem, pair, check);
+    returnKey(gem, check);
     return fails;
 }
 

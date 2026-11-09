@@ -35,6 +35,7 @@ pub const BREAK_WHOLE: u32 = 1 << 8; // repaint the whole screen every drawn fra
 pub const BREAK_NOCLIP: u32 = 1 << 9; // paint every layer unclipped
 pub const BREAK_ONESNAP: u32 = 1 << 10; // one snapshot for both buffers (forgets the frame before last)
 pub const BREAK_DROP: u32 = 1 << 11; // lose the damage's last rectangle
+pub const BREAK_ENTER: u32 = 1 << 12; // Return does not fire the DEFAULT button (old path too)
 
 /// What the harness reads (deskEngineStats): u32s, in this order.
 pub const Stats = extern struct { frames: u32 = 0, drawn: u32 = 0, rects: u32 = 0, area: u32 = 0, written: u32 = 0, last_area: u32 = 0, last_rects: u32 = 0, overflow: u32 = 0 };
@@ -84,6 +85,7 @@ pub const Engine = struct {
             else => .old,
         };
         self.breaks = v & ~@as(u32, 0xFF);
+        d.no_enter = v & BREAK_ENTER != 0;
         self.invalidate();
         if (self.mode != .old) installPens(self, d);
         deskdirty.touch(d);
