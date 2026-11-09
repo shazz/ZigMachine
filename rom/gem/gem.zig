@@ -25,6 +25,7 @@ pub const INF_MAX = @import("desktop/deskinf.zig").MAX_BYTES;
 pub const touch = @import("desktop/deskdirty.zig").touch; // a host wrote the desktop's state: repaint
 pub const mustDraw = @import("desktop/deskdirty.zig").mustDraw; // the next render draws (deskRender's flip)
 pub const deskflip = @import("desktop/deskflip.zig"); // the desk's two buffers
+pub const Engine = @import("desktop/eng/engine.zig").Engine; // GEM 5: the desk painted from object trees
 pub const DirModel = @import("desktop/dirmodel.zig").DirModel;
 // The FAT record layout the host packs into Desktop.disk_dir. Published
 // because the ROM clamps against it and the host must derive its own cap

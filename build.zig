@@ -36,6 +36,12 @@ pub fn build(b: *std.Build) void {
     // TC TEST's local pictures (tools/tc_art.py): the owner's own, not cleared to publish, so only
     // an explicit `-Dtc-art=<dir>` (build.sh: ZM_TC_ART=<dir>) puts them in the cart.
     const tc_art_dir = b.option([]const u8, "tc-art", "TC TEST: embed the pictures in this directory (local only: never commit that cart).");
+    // GEM 5's look (decisions.md 2026-11-09): a LOCAL asset directory (Matt's TOS 4 reconstruction) is
+    // converted into the build cache and compiled into the ROM. Unset: the TOS 1.0 set in the repo.
+    // Never commit a docs/rom.wasm built with it: build such a ROM into a scratch prefix.
+    const gem_assets_dir = b.option([]const u8, "gem_assets", "GEM: compile this LOCAL asset directory into the ROM (never commit the result).");
+    const gem_trees_dir = b.option([]const u8, "gem_trees", "GEM: also compile the object trees of this LOCAL zig_extract directory.");
+    const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
 
     if (!build_wasm) return;
 
@@ -359,6 +365,8 @@ pub fn build(b: *std.Build) void {
     addPvmp3(b, players_mod);
     // rom/ — reference system software (GEM). Linked into rom.wasm (rom_chip
     // below), NOT into carts: a cart gets rom_sdk, the flat ABI header.
+    const gem_opts = b.addOptions();
+    gem_opts.addOption(bool, "engine_default", gem_engine_new);
     const rom_mod = b.createModule(.{
         .root_source_file = b.path("rom/rom.zig"),
         .target = wasm_target,
@@ -366,6 +374,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zigos", .module = zigos_mod },
             .{ .name = "hardware", .module = sdk_video },
+            .{ .name = "gem_assets", .module = gemAssets(b, gem_assets_dir, gem_trees_dir, wasm_target, optimize) },
+            .{ .name = "gem_opts", .module = gem_opts.createModule() },
         },
     });
     // rom/sdk/ — the FLAT, app-facing ROM ABI. Apps import this as `rom_sdk`; only
@@ -805,6 +815,22 @@ fn addCrsid(b: *std.Build, mod: *std.Build.Module) void {
 
 // TC TEST's `tc_art` module: the pictures tools/tc_art.py converts from `dir`, or none (the
 // default build, the gate and every cart in docs/: the local pictures are not cleared to publish).
+// The GEM asset module: tools/gem_assets_conv.py over a local directory, output in the cache;
+// without one, the committed empty set (rom/gem/engine/assets_none.zig).
+fn gemAssets(b: *std.Build, dir: ?[]const u8, trees: ?[]const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Module {
+    const root = if (dir) |d| blk: {
+        const run = b.addSystemCommand(&.{ "uv", "run", "--quiet", "--with", "pillow", "python" });
+        run.addFileArg(b.path("tools/gem_assets_conv.py"));
+        run.setCwd(b.path("."));
+        run.addArg(d);
+        const out = run.addOutputDirectoryArg("gem_assets");
+        if (trees) |t| run.addArgs(&.{ "--trees", t });
+        run.has_side_effects = true; // the directory's files are not declared inputs: convert every build
+        break :blk out.path(b, "gem_assets.zig");
+    } else b.path("rom/gem/engine/assets_none.zig");
+    return b.createModule(.{ .root_source_file = root, .target = target, .optimize = optimize });
+}
+
 fn tcArt(b: *std.Build, dir: ?[]const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Module {
     const root = if (dir) |d| blk: {
         const run = b.addSystemCommand(&.{ "uv", "run", "--quiet", "--with", "pillow", "python" });

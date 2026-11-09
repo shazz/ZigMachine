@@ -234,6 +234,7 @@ NATIVE_TESTS="
     rom/gem/gui/screen.zig
     rom/gem/desktop/deskflip.zig
     rom/gem/desktop/deskarrow.zig
+    rom/gem/engine/engine_test.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
@@ -293,6 +294,8 @@ python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
 python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?c=kos-c.img) is what its generator writes
 python3 tools/gemdos_c_image.py --check   # docs/gemdos-c.img (KOS GEMDOS's C: with pictures in folders, ?c=gemdos-c.img) is what its generator writes
+uv run --quiet --with pillow python tools/gem_assets_conv_test.py   # -Dgem_assets's converter (GEM 5, decisions.md 2026-11-09): a made-up asset directory's arrow, glyphs, icons and tree land in the generated Zig where it says (nothing of the TOS sources)
+for _b in arrow glyph tree; do ! uv run --quiet --with pillow python tools/gem_assets_conv_test.py --break $_b > /dev/null || { echo "gem_assets_conv_test --break $_b: not caught"; exit 1; }; done   # ...and a converter that loses the arrow, a glyph or a tree is caught
 python3 tools/mp3_c_image.py --check   # docs/mp3-c.img (the MP3 PLAYER's C:, C:\MUSIC's CC0 test files, ?c=mp3-c.img) is what its generator writes
 python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 python3 tools/gen_tutorial.py --check   # TUTORIAL.html regenerated from TUTORIAL.md
@@ -341,6 +344,8 @@ gate gem node apps/gem_desk_check.mjs "$SHOTS"   # GEM in the desk mode (HW 1.17
 gate gem node apps/gem_desk_check.mjs --break   # ...and the page's old y mapping, the INF's 02 read as 01, no Save Desktop and a ROM told the mode exists on a machine without it (Desk not greyed) are each caught
 gate gem node apps/gem_desk_flip_check.mjs   # the desk's two buffers (Matt on the board 8 Nov: the screen blinked when the mouse moved): a clean frame flips nothing, a drawn one goes into the buffer not on screen (left untouched) and flips FB_BASE, a session over a poisoned back buffer = the single-buffered desk frame by frame; GEM's arrow at the pointer in the desk only
 gate gem node apps/gem_desk_flip_check.mjs --break   # ...and buffers never handed, a host that never rests, a ROM told the wrong pointer and an arrow in the low plane are each caught
+gate gem node apps/gem_engine_check.mjs   # GEM 5 step 1 (docs/GEM5_ENGINE.md): the desk painted by the engine in both looks, A:\ open: frames with no input paint nothing (a poisoned back buffer kept), a pointer move <= 512 px, a window drag its old and new places, damage = a whole repaint after every gesture; frame_cost with the pointer moving every frame: the engine < 1.75 Mc and below the old path
+gate gem node apps/gem_engine_check.mjs --break   # ...and an engine that repaints everything, paints unclipped, keeps one snapshot for two buffers, loses a damage box, or never switches on is each caught
 gate gem node apps/kos_desk_check.mjs   # KOS's desktop on the board (4 Nov): repainting only what changed is pixel-exact (a session hashed every frame = the every-frame repaint's pin) and a C: window costs < 1.7 Mc (the old repaint: 2.5, caught); A:\ with C: mounted lists the floppy, not the card; a folder opens INSIDE its drive's window as on TOS 1.00 (its close box and File > Close go up a level, Close Window leaves an empty desktop: main 0e47697e's window-per-folder ROM fails that)
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent

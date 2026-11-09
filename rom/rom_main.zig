@@ -460,6 +460,7 @@ var desk_fb: zg.LogicalFB = undefined;
 var desk_plane: u32 = 0;
 var desk_ready: bool = false;
 var desk_pair: gem.deskflip.Pair = .{}; // the desk's two buffers (deskSetBuffers), none: draw in place
+var desk_eng: gem.Engine = .{}; // GEM 5's engine (rom/gem/desktop/eng/engine.zig): the desk mode only
 
 /// Bring up the desktop over PLANE `plane`. Same reasoning as guiOpenPlane: a
 /// shell written in C could not have called the pointer form.
@@ -472,6 +473,9 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     desk_blit.init();
     desk.init(&raw_os, &desk_fb, &desk_blit);
     desk.g.screen = screenOf(&desk_fb, screen_w, screen_h);
+    desk_eng.init(raw_os.system_font, raw_os.system_font_6);
+    desk.eng = &desk_eng;
+    if (desk_eng.mode != .old) desk_eng.setMode(&desk, @intFromEnum(desk_eng.mode)); // -Dgem_engine: its pens too
     desk_ready = true;
 }
 /// The desktop's screen changed (the Options menu switches LOW/MEDIUM/DESK).
@@ -483,6 +487,8 @@ export fn deskSetScreen(w: i32, h: i32) void {
     // than anything that looks like a bug.
     _ = bindFb(&desk_fb, desk_plane, h);
     desk.setScreen(screenOf(&desk_fb, w, h)); // icons, windows, a DESKTOP.INF read at boot: onto it
+    desk_eng.invalidate(); // the buffers hold the old screen
+    if (desk_eng.mode != .old) desk_eng.setMode(&desk, @intFromEnum(desk_eng.mode) | desk_eng.breaks);
 }
 export fn deskBeginFrame() void {
     if (desk_ready) desk.beginFrame();
@@ -505,6 +511,16 @@ export fn deskRender() u32 {
 /// FB_BASE does not show, then FB_BASE moves to it. 0, 0: draw in place (the single buffer).
 export fn deskSetBuffers(a: u32, b: u32) void {
     desk_pair = .{ .a = a, .b = b };
+    desk_eng.invalidate();
+}
+/// GEM 5 (system table 1.16): the desk mode's painter. 0 the old ZigGEM path, 1 the engine with
+/// the flat TOS 1 look, 2 with the TOS 4 3D look; bits 8.. are the harness's mutants (engine.zig).
+export fn deskSetEngine(v: u32) void {
+    if (desk_ready) desk_eng.setMode(&desk, v);
+}
+/// The engine's counters (engine.zig Stats: u32s), for the harness and the perf probe.
+export fn deskEngineStats() u32 {
+    return @intCast(@intFromPtr(&desk_eng.stats));
 }
 // In the desk, draw into the buffer not on screen and show it once the frame is whole; in the
 // plane modes (and with no pair) draw where the plane is bound.
@@ -513,9 +529,14 @@ fn deskFrame() gem.Action {
     const base: usize = @intCast(hw.hwVideoBase());
     const reg: *volatile u32 = @ptrFromInt(base + hw.REG_FB_BASE + @as(usize, desk_plane) * 4);
     const front = reg.*;
-    const drew = gem.mustDraw(&desk);
-    desk_fb.fb = @ptrFromInt(base + gem.deskflip.target(desk_pair, front));
+    const must = gem.mustDraw(&desk);
+    const target = gem.deskflip.target(desk_pair, front);
+    desk_fb.fb = @ptrFromInt(base + target);
+    const on = desk_eng.active(&desk);
+    desk_eng.slot = @intFromBool(desk_pair.b != 0 and target == desk_pair.b);
+    if (!on and must) desk_eng.invalidate(); // the old path repaints a buffer whole
     const action = desk.render();
+    const drew = must and (!on or desk_eng.drew); // the engine's clean frame paints nothing: no flip
     const shown = gem.deskflip.after(desk_pair, front, drew);
     if (shown != front) reg.* = shown;
     return action;

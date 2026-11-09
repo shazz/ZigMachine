@@ -59,6 +59,7 @@ pub const MIN_H = types.MIN_H;
 
 // --- widgets, windows, dialogs, menus ---
 pub const Gui = core.Gui;
+pub const clip = @import("gui/clip.zig"); // GEM 5: the primitives' clip + recorder
 pub const Window = types.Window;
 pub const Wm = window.Wm;
 pub const DlgResult = dialog.DlgResult;

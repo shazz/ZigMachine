@@ -32,6 +32,7 @@ pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
         const is_dir = deskwin.isFloppyWin(d, id);
         if (is_dir) deskdrive.use(d, d.drv.win[id]); // KOS F5: A:'s or C:'s model
         if (is_dir) deskwin.updateChrome(d, id); // info line + scroll state
+        if (gui.clip.muted(g)) continue; // GEM 5's logic pass: the engine paints the windows
         const v = if (is_dir) deskwin.viewOf(d, id) else undefined;
         _ = d.wm.drawChrome(g, id, id == d.wm.topOpen());
         if (is_dir) dirview.drawDir(d, g, d.win_dir[id], v);
@@ -48,7 +49,7 @@ pub fn drawScene(d: *Desktop, g: *gui.Gui) void {
 // The desk's arrow (deskarrow.zig), the last thing a drawn frame paints: in LOW and MEDIUM the
 // hosts draw it over their picture (the board's bcursor.c, the browser's cursor).
 pub fn drawPointer(g: *gui.Gui) void {
-    if (g.screen.mode != .desk) return;
+    if (g.screen.mode != .desk or gui.clip.muted(g)) return; // GEM 5: the engine draws its own
     const p = deskarrow.at(g.px, g.py, g.screen.w, g.screen.h);
     const plane: deskarrow.Plane = .{ .pix = g.fb.fb, .stride = g.fb.stride, .w = g.fb.fb_w, .h = g.fb.fb_h };
     deskarrow.draw(plane, p[0], p[1], .{ .mask = gui.WHITE, .data = gui.BLACK });
@@ -79,17 +80,20 @@ pub fn startGrow(d: *Desktop, from: Rect, to: Rect) void {
 
 // GEM zoom-box: a dotted frame interpolated from grow_a to grow_b over a few frames.
 fn drawGrow(d: *Desktop, g: *gui.Gui) void {
+    d.grow_drawn = null;
     if (d.grow_t == 0) return;
     const n: i16 = GROW_STEPS;
     const k: i16 = n - @as(i16, @intCast(d.grow_t)) + 1; // 1..n
     const a = d.grow_a;
     const b = d.grow_b;
-    g.dotted(.{
+    const r: Rect = .{
         .x = a.x + @divTrunc((b.x - a.x) * k, n),
         .y = a.y + @divTrunc((b.y - a.y) * k, n),
         .w = a.w + @divTrunc((b.w - a.w) * k, n),
         .h = a.h + @divTrunc((b.h - a.h) * k, n),
-    }, gui.BLACK);
+    };
+    g.dotted(r, gui.BLACK);
+    d.grow_drawn = r; // the GEM 5 engine draws it from here
     d.grow_t -= 1;
 }
 
