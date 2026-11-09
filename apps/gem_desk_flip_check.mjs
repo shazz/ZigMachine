@@ -8,7 +8,7 @@
 //            the other buffer of a pair (64-aligned, in the pool, not overlapping, one of them
 //            the boot buffer) and leaves the buffer that was on screen untouched; the desk rests
 //            again within SETTLE frames
-//   whole    a session (a window opened and dragged, a menu, a click) with the back buffer
+//   whole    a session (A:\ opened and dragged to y 184, a menu title hovered, a click) with the back buffer
 //            poisoned before every frame shows, frame by frame, the single-buffered desk's
 //            pictures: every drawn frame is whole, and two buffers change no pixel
 //   arrow    in the desk the arrow (mask white, data black) is at the pointer, and follows it;
@@ -120,6 +120,10 @@ async function whole(brk, check) {
     const pair = fbBase(gem) !== f0 ? [f0, fbBase(gem)] : null;
     if (brk !== "noflip") check(pair !== null, "whole: two moves did not show two buffers (nothing poisoned)");
     const pics = play(gem, pair), refPics = play(ref, null);
+    const plane = bufferAt(gem, fbBase(gem));
+    let black = 0;
+    for (let x = 130; x < 400; x++) black += plane[184 * W + x] === BLACK;
+    check(black > 240, "whole: A:\\ was not dragged to y 184 (no title bar frame there): the session proves less than it says");
     const bad = pics.findIndex((pic, i) => !pic.every((v, j) => v === refPics[i][j]));
     check(bad < 0, `whole: session frame ${bad} over a poisoned back buffer is not the single-buffered desk's`);
 }
