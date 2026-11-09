@@ -42,7 +42,6 @@ pub const Gui = struct {
         self.prev = self.down;
     }
 
-    // --- primitives ---
     /// A blitter fill on this screen, whatever its height (bandfill.zig: the desk is 480 rows).
     pub fn fill(self: *Gui, x: i16, y: i16, w: u16, h: u16, color: u8) void {
         if (self.clip != null or self.rec != null) return clip.fill(self, x, y, w, h, color);
@@ -57,8 +56,7 @@ pub const Gui = struct {
         self.fill(r.x, r.y, 1, @intCast(r.h), color);
         self.fill(r.x + r.w - 1, r.y, 1, @intCast(r.h), color);
     }
-    // A raised/sunken bevel box (TOS 4 look; not used by the TOS 1 chrome).
-    pub fn bevel(self: *Gui, r: Rect, face: u8, raised: bool) void {
+    pub fn bevel(self: *Gui, r: Rect, face: u8, raised: bool) void { // TOS 4 look; not the TOS 1 chrome's
         const hi: u8 = if (raised) WHITE else DGRAY;
         const lo: u8 = if (raised) DGRAY else WHITE;
         self.rect(r, face);
@@ -123,6 +121,7 @@ pub const Gui = struct {
 
     // GEM's dotted outline (every other pixel): every pending gesture (move, drag, zoom, band).
     pub fn dotted(self: *Gui, r: Rect, c: u8) void {
+        if (clip.muted(self)) return; // GEM 5's logic pass: no pixel, skip the loop
         var x: i16 = r.x;
         while (x < r.x + r.w) : (x += 2) {
             self.plot(x, r.y, c);
@@ -150,6 +149,7 @@ pub const Gui = struct {
     // GEM "grey" fill (title-bar mover, scroll track), from the ST reference: one ink dot on
     // every even row at every odd column (25%), aligned to SCREEN coordinates like a VDI fill.
     pub fn hatch(self: *Gui, r: Rect, ink: u8, paper: u8) void {
+        if (clip.muted(self)) return;
         self.rect(r, paper);
         var yy: i16 = r.y;
         while (yy < r.y + r.h) : (yy += 1) {

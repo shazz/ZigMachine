@@ -53,6 +53,7 @@ pub const Engine = struct {
     slot: u1 = 0, // the buffer this frame draws into (rom_main.deskFrame)
     drew: bool = false,
     stats: Stats = .{},
+    ready: bool = false, // init ran once: a re-init (a cart returned) keeps the mode deskSetEngine chose
 
     pub fn init(self: *Engine, sys8: []const u8, small6: []const u8) void {
         const default_on = @import("gem_opts").engine_default; // build.zig -Dgem_engine
@@ -67,9 +68,8 @@ pub const Engine = struct {
             self.arrow_data[2 * r + 1] = @intCast(self.set.arrow.data[r] & 0xFF);
         }
         self.arrow = .{ .mask = &self.arrow_mask, .data = &self.arrow_data, .w = 16, .h = 16, .bpr = 2, .color = 0x1000 };
-        self.mode = if (default_on) (if (self.set.present) .three_d else .flat) else .old;
-        self.breaks = 0;
-        self.stats = .{};
+        if (!self.ready) self.mode = if (default_on) (if (self.set.present) .three_d else .flat) else .old;
+        self.ready = true;
     }
 
     pub fn active(self: *const Engine, d: *const Desktop) bool {
@@ -142,6 +142,8 @@ pub const Engine = struct {
         var st: compose.Stats = .{};
         const all = whole(screen);
         compose.compose(&cv, &look, &self.scene, if (self.breaks & BREAK_NOCLIP != 0) &all else &dmg, &st);
+        if (self.breaks & BREAK_NOCLIP != 0) st.area = dmg.area(); // the bug paints past the damage it reports
+        if (self.breaks & BREAK_NOCLIP != 0) st.area = dmg.area(); // the bug paints past the damage it reports
         snap.record(&self.scene);
         self.drew = true;
         self.count(st, cv.written);

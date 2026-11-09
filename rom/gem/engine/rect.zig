@@ -12,7 +12,7 @@
 const std = @import("std");
 
 pub const Rect = struct {
-    x: i16 = 0,
+    x: i16 align(8) = 0, // 8-aligned: copied as one 64-bit word, which must not trap on the board
     y: i16 = 0,
     w: i16 = 0,
     h: i16 = 0,
@@ -136,7 +136,7 @@ pub const RectList = struct {
     /// Cut `b` out of every member. False (and the list left as it was) when the
     /// pieces would not fit: the caller must not rely on the cut then.
     pub fn subtract(self: *RectList, b: Rect) bool {
-        if (b.empty()) return true;
+        if (b.empty() or !self.meets(b)) return true;
         var out: RectList = .{};
         var pieces: [4]Rect = undefined;
         for (self.slice()) |a| {
@@ -147,9 +147,14 @@ pub const RectList = struct {
                 out.n += 1;
             }
         }
-        self.r = out.r;
+        @memcpy(self.r[0..out.n], out.r[0..out.n]);
         self.n = out.n;
         return true;
+    }
+
+    pub fn meets(self: *const RectList, b: Rect) bool {
+        for (self.slice()) |a| if (!intersect(a, b).empty()) return true;
+        return false;
     }
 
     /// The area the members cover, counting overlaps twice (a cost measure).

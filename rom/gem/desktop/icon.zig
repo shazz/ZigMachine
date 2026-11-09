@@ -42,6 +42,19 @@ const BASELINE: i16 = 30; // tallest icon; icon BOTTOMS align within a cell
 // to line an icon up or trace its outline (cell placement, the label, the drag
 // ghost) must measure the art rather than trust w/h.
 pub fn artBox(bmp: icons.Icon) Rect {
+    // Asked for every icon several times a frame (layout, hit-tests, labels): the scan of a
+    // 32x30 bitmap cost ~10k instructions each time. The bitmaps are constants: remember them.
+    const key = @intFromPtr(bmp.ink.ptr);
+    for (art_seen[0..art_n]) |e| if (e.key == key) return e.box;
+    const box = scanArt(bmp);
+    art_seen[art_n % art_seen.len] = .{ .key = key, .box = box };
+    art_n = @min(art_n + 1, art_seen.len);
+    return box;
+}
+var art_seen: [12]struct { key: usize, box: Rect } = undefined;
+var art_n: usize = 0;
+
+fn scanArt(bmp: icons.Icon) Rect {
     const rowbytes: usize = (@as(usize, bmp.w) + 7) / 8;
     var x0: i16 = @intCast(bmp.w);
     var y0: i16 = @intCast(bmp.h);

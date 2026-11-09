@@ -78,7 +78,7 @@ pub const Ted = struct {
 
 /// ICONBLK: a 1 bpp image + mask, its label under it, all relative to the object.
 pub const IconBlk = struct {
-    mask: []const u8, // rows of rowBytes() bytes, MSB first
+    mask: []const u8 align(8), // rows of rowBytes() bytes, MSB first
     data: []const u8,
     w: i16,
     h: i16,
@@ -119,7 +119,7 @@ pub const Spec = union(enum) {
 };
 
 pub const Object = struct {
-    next: i16 = NIL,
+    next: i16 align(8) = NIL, // 8-aligned: copied with 64-bit words (a misaligned one traps on the board)
     head: i16 = NIL,
     tail: i16 = NIL,
     ty: u8 = G_IBOX,

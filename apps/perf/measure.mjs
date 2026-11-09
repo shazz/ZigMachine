@@ -43,6 +43,11 @@ export async function measure(cartPath, opts) {
                 new Uint8Array(run.memory.buffer).set(args, run.demo[name.slice(5)]());
                 continue;
             }
+            if (name.startsWith("rom.")) { // a ROM entry (GEM 5's deskSetEngine): what the shell would call
+                if (typeof run.rom[name.slice(4)] !== "function") throw new Error(`rom has no export ${name.slice(4)}`);
+                run.rom[name.slice(4)](...args);
+                continue;
+            }
             if (typeof run.demo[name] !== "function") throw new Error(`cart has no export ${name}`);
             run.demo[name](...args);
         }

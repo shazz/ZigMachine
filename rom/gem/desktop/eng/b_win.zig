@@ -102,7 +102,10 @@ fn titleBar(c: *Ctx, t: *Tree, w: *const types.Window, active: bool) void {
 fn gadget(c: *Ctx, t: *Tree, g: Gadget, x: i16, y: i16) void {
     const i = @intFromEnum(g);
     if (c.three_d) {
-        _ = t.add(0, .{ .ty = eng.G_BOXCHAR, .flags = eng.FL3DBAK, .spec = ctx_mod.boxChar(CHARS[i], 1, L.LWHITE), .x = x, .y = y, .w = GW, .h = GH });
+        // A set's font has the gadget glyphs; ZigOS's built-in 8x8 has none there: TOS 1's bitmaps then.
+        const ch: u8 = if (c.set.present) CHARS[i] else 0;
+        _ = t.add(0, .{ .ty = eng.G_BOXCHAR, .flags = eng.FL3DBAK, .spec = ctx_mod.boxChar(ch, 1, L.LWHITE), .x = x, .y = y, .w = GW, .h = GH });
+        if (!c.set.present) _ = t.add(0, .{ .ty = eng.G_IMAGE, .spec = .{ .image = &GADGET_BLK[i] }, .x = x, .y = y, .w = GW, .h = GH });
         return;
     }
     _ = t.add(0, .{ .ty = eng.G_BOX, .spec = ctx_mod.box(0, 1, L.WHITE, 7), .x = x, .y = y, .w = GW, .h = GH });

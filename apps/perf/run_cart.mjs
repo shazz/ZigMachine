@@ -133,7 +133,7 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
         const w = x.mem ? new Uint32Array(x.mem.buffer) : null;
         return a + (w ? w[MIS_LOADS] + w[MIS_STORES] : 0);
     }, 0);
-    return { memory, machine, demo, hw, mods, vlo, misaligned };
+    return { memory, machine, demo, rom, hw, mods, vlo, misaligned };
 }
 
 // One host frame, exactly scene_hash.mjs's loop body.
