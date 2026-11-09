@@ -16,11 +16,13 @@ import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
 
 // Re-pinned for HW 1.13.0: only ST Replay's "bytes free" figure (top right) moved, the
-// cart window being 3 MiB; the selector's pixels are unchanged.
+// cart window being 3 MiB; the selector's pixels are unchanged. Again 9 Nov 2026 (the desk
+// branch's ZigOS made ST Replay's wasm bigger): against main's cart, 66 pixels differ, all in
+// x 509..530, y 10..16 of the screen, which is that figure; the selector is unchanged.
 const PINS = {
-    open: "e1481a76ab8bebba7849bb2460594901efb6f26cc4f005eee8cde070f1d7f10c",
-    drumloop: "6f9e483c3836ce11ff420c3fcb7d37b4f6cbd3bcf611b0e455c0e582c3a8c29f",
-    short: "e2280b48cc381829e82c1fa2090fa6a56778ffec6338a460fd9d4244f7c7921f",
+    open: "16f46d5a528c48bc525ae2ebd2c532161ef0368b0e35e8420e467cfc37283cf4",
+    drumloop: "f71dd0c5c17b5a9a10243a3ec3293fc3c7e1b08f88020fdd94b67dae1a23a690",
+    short: "ece8de007057e46acd3b47edf9651db9a5f8094b5ab48599f4f7f55a7390c7b6",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
 const DX = 160, DY = 24;                 // the 320 x 152 box, centred in 640 x 200
