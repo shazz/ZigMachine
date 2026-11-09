@@ -505,6 +505,7 @@ export fn deskRender() u32 {
         .res_low => 2,
         .res_medium => 3,
         .res_desk => 4, // the desk mode (HW 1.17.0): the shell asks setDeskPlane
+        .save_inf => 5, // Save Desktop: the shell writes deskInfPtr/deskInfLen to C:\DESKTOP.INF
     };
 }
 /// The desk's two buffers (region offsets, deskflip.zig): a drawn desk frame goes into the one

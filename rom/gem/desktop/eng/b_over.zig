@@ -33,8 +33,10 @@ pub fn gestures(c: *Ctx) void {
     if (d.band) dots(&t, desksel.bandRect(d));
     if (d.grow_drawn) |r| dots(&t, r);
     if (d.file_drag >= 0 and d.file_moved) {
-        const bmp = dirview.fileBmp(d, @intCast(d.file_drag));
-        ghost(&t, @intCast(@as(i32, d.g.px) - d.file_gx), @intCast(@as(i32, d.g.py) - d.file_gy), bmp);
+        if (desksel.rowGhost(d)) |r| dots(&t, r) else { // text view: the row's outline
+            const bmp = dirview.fileBmp(d, @intCast(d.file_drag));
+            ghost(&t, @intCast(@as(i32, d.g.px) - d.file_gx), @intCast(@as(i32, d.g.py) - d.file_gy), bmp);
+        }
     }
     if (d.drag) |di| if (d.moved) {
         const p = desk_icons.ghostAt(d, &d.g);

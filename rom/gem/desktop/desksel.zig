@@ -10,6 +10,7 @@ const dirmodel = @import("dirmodel.zig");
 const dirview = @import("dirview.zig");
 const deskwin = @import("deskwin.zig");
 const desk_icons = @import("desk_icons.zig");
+const deskbreak = @import("deskbreak.zig");
 const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 const View = dirview.View;
@@ -79,22 +80,37 @@ fn pressInWindow(d: *Desktop, x: i16, y: i16) void {
 
 // Record where inside the dragged file's icon the pointer grabbed it, so the
 // ghost keeps that offset (GEM never re-centres the outline on the cursor).
-// In text view there is no icon box to grab, so fall back to centring.
+// In text view the file IS its row: the ghost is the row's outline, grabbed
+// where the press landed on it (TOS drags a rectangle of the line, not an icon;
+// Matt on the board, 9 Nov: "dragging a file in text mode shows the icon ghost").
 fn armFileGrab(d: *Desktop, fidx: u8, v: View, x: i16, y: i16) void {
-    if (d.view == .icons) {
-        const o = d.dir.orderIn(d.dir.fileDir(fidx), d.sort);
-        var p: usize = 0;
-        while (p < o.n) : (p += 1) {
-            if (o.ord[p] != fidx) continue;
+    d.file_gw = 0; // an icon's ghost unless the row below says otherwise
+    const o = d.dir.orderIn(d.dir.fileDir(fidx), d.sort);
+    var p: usize = 0;
+    while (p < o.n) : (p += 1) {
+        if (o.ord[p] != fidx) continue;
+        if (d.view == .icons) {
             const ic = dirview.fileIconSlot(d, p, fidx, v);
             d.file_gx = x - ic.x;
             d.file_gy = y - ic.y;
             return;
         }
+        if (d.breaks & deskbreak.ROW_GHOST != 0) break; // the mutant: the icon ghost, centred
+        const r = dirview.fileRowRect(p, v);
+        d.file_gx = x - r.x;
+        d.file_gy = y - r.y;
+        d.file_gw = r.w;
+        return;
     }
     const bmp = dirview.fileBmp(d, fidx);
     d.file_gx = @divTrunc(@as(i16, @intCast(bmp.w)), 2);
     d.file_gy = @divTrunc(@as(i16, @intCast(bmp.h)), 2);
+}
+
+/// A text-view file drag's ghost: its row's outline where the pointer has carried it; null for an icon's.
+pub fn rowGhost(d: *const Desktop) ?Rect {
+    if (d.file_gw <= 0) return null;
+    return .{ .x = @intCast(@as(i32, d.g.px) - d.file_gx), .y = @intCast(@as(i32, d.g.py) - d.file_gy), .w = d.file_gw, .h = dirview.TROW_H };
 }
 
 pub fn bandRect(d: *const Desktop) Rect {

@@ -111,7 +111,8 @@ pub extern fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32;
 // --- the desktop (step 2.3) ---
 // A singleton: there is one desktop and one screen. `deskRender` returns the
 // Action flat — see DeskAction.
-pub const DeskAction = enum(u32) { none = 0, launch = 1, res_low = 2, res_medium = 3, res_desk = 4 };
+// save_inf: Save Desktop ran, the shell writes deskInfPtr/deskInfLen to a disk (C:\DESKTOP.INF).
+pub const DeskAction = enum(u32) { none = 0, launch = 1, res_low = 2, res_medium = 3, res_desk = 4, save_inf = 5 };
 
 pub extern fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void;
 pub extern fn deskSetScreen(w: i32, h: i32) void;

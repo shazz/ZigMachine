@@ -11,6 +11,7 @@ const desknav = @import("desknav.zig");
 const deskinf = @import("deskinf.zig");
 const deskmode = @import("deskmode.zig");
 const desk_icons = @import("desk_icons.zig");
+const deskdrive = @import("deskdrive.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
@@ -83,10 +84,13 @@ pub fn removeFile(d: *Desktop, idx: usize) void {
 }
 
 // Options > Save Desktop: serialise the desktop (icon cells, open windows,
-// resolution, background) into DESKTOP.INF on the boot disk, the way TOS
-// does. The mounted disk is read-only, so the file is written into the
-// in-memory FAT — it shows up in the FLOPPY window like any other file.
-pub fn saveDesktop(d: *Desktop) void {
+// resolution, background) into DESKTOP.INF, the way TOS does. The ROM reaches
+// no disk: the text stays in inf_buf and the caller reports `.save_inf`, on
+// which the shell writes it to C:\DESKTOP.INF (apps/zig/scenes/gem_inf.zig)
+// and reads it back at every start. The file is listed on C: when it is
+// mounted, else in drive A's in-memory FAT (read-only: nowhere to keep it).
+// False: not saved (the listing is full).
+pub fn saveDesktop(d: *Desktop) bool {
     var open_wins: [gui.MAX_WIN]deskinf.Win = undefined;
     const n = collectWindows(d, &open_wins);
     const drive = &d.items[desk_icons.IC_FLOPPY];
@@ -99,8 +103,10 @@ pub fn saveDesktop(d: *Desktop) void {
         .wins = open_wins[0..n],
     });
     d.mode.inf_len = @intCast(text.len); // deskInfPtr / deskInfLen: the shell's (and a harness's) copy
-    if (!d.drives[0].put(deskinf.NAME, @intCast(text.len))) // on the boot disk, A:
-        d.dlg.alert("Cannot save the desktop.", "The disk directory is full.");
+    const on = &d.drives[if (d.drv.c_mounted) deskdrive.C else deskdrive.A];
+    if (on.put(deskinf.NAME, @intCast(text.len))) return true;
+    d.dlg.alert("Cannot save the desktop.", "The disk directory is full.");
+    return false;
 }
 
 // The open directory windows, back to front, as DESKTOP.INF records them.

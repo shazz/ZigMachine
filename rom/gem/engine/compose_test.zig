@@ -119,6 +119,27 @@ test "random edits: painting the damage equals a whole repaint, every step" {
     }
 }
 
+// The text view scrolled sideways (Matt on the board, 9 Nov 2026): a row WIDER than its window
+// spans both clip edges before and after a step, so its clipped extent is the same and its
+// text, size and type are too. Only its position says it moved.
+fn wideRow(w: *World, x: i16) void {
+    w.wins[0][1] = .{ .next = 0, .ty = obj.G_STRING, .spec = .{ .str = "NAME.EXT   12345 09-12-26" }, .x = x, .y = 4, .w = 75, .h = 5 };
+}
+
+test "a clipped row that scrolled sideways inside its window is repainted (the damage sees its position)" {
+    var w: World = .{};
+    var buf: [W * H]u8 = undefined;
+    var ref: [W * H]u8 = undefined;
+    var snap: damage.Snap = .{};
+    @memset(&buf, 0);
+    wideRow(&w, -3);
+    _ = step(&w, &buf, &snap);
+    wideRow(&w, -6); // one character cell (3 px here) left: the clipped extent is unchanged
+    try expect(step(&w, &buf, &snap) > 0);
+    whole(&w, &ref);
+    try expect(std.mem.eql(u8, &ref, &buf));
+}
+
 test "an external layer is never painted over, but the pointer above it is" {
     var w: World = .{};
     var buf: [W * H]u8 = undefined;

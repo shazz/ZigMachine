@@ -60,6 +60,7 @@ pub fn drawPointer(g: *gui.Gui) void {
 // itself stays where it is until the drop.
 fn drawDragGhosts(d: *Desktop, g: *gui.Gui) void {
     if (d.file_drag >= 0 and d.file_moved) { // a file dragged out of a window
+        if (desksel.rowGhost(d)) |r| return g.dotted(r, gui.BLACK); // text view: the row's outline
         const bmp = dirview.fileBmp(d, @intCast(d.file_drag));
         dragGhost(g, @intCast(@as(i32, g.px) - d.file_gx), @intCast(@as(i32, g.py) - d.file_gy), bmp);
     }

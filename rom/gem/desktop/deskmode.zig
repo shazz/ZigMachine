@@ -86,14 +86,24 @@ fn applyInf(d: *Desktop, p: *const inf_read.Loaded) void {
     if (p.drive) |c| d.items[desk_icons.IC_FLOPPY].place(c.col, c.row, s.w, s.h);
     if (p.trash) |c| d.items[desk_icons.IC_TRASH].place(c.col, c.row, s.w, s.h);
     for (p.wins[0..p.n_wins]) |*w| {
-        // Only drive A's root is known at boot (the folders arrive with the disk's listing):
-        // its window opens where it was, as TOS reopens the windows DESKTOP.INF lists.
-        if (!std.mem.eql(u8, w.pathSlice(), "A:\\")) continue;
-        d.win_geom[0] = s.clampRect(.{ .x = w.x, .y = w.y, .w = w.w, .h = w.h }, gui.MIN_W, gui.MIN_H);
+        // Only the drives' roots are known at boot (a folder needs its listing first): A:\ and,
+        // with the card read (the shell reads C: before the mode), C:\ open where they were,
+        // as TOS reopens the windows DESKTOP.INF lists.
+        const r = s.clampRect(.{ .x = w.x, .y = w.y, .w = w.w, .h = w.h }, gui.MIN_W, gui.MIN_H);
+        const path = w.pathSlice();
+        var title: []const u8 = "A:\\"; // a literal: the window keeps the slice, the parse goes away
+        if (std.mem.eql(u8, path, title)) {
+            d.win_geom[0] = r;
+            deskdrive.use(d, deskdrive.A);
+        } else if (std.mem.eql(u8, path, "C:\\") and d.drv.c_mounted) {
+            title = "C:\\";
+            deskdrive.use(d, deskdrive.C);
+        } else continue;
         d.view = if (w.text_view) .text else .icons;
-        deskdrive.use(d, deskdrive.A);
-        deskwin.addFloppyWindow(d, "A:\\", dirmodel.ROOT);
+        deskwin.addFloppyWindow(d, title, dirmodel.ROOT);
+        if (d.wm.topOpen()) |id| d.wm.wins[id].r = r; // C: keeps no remembered rect (deskwin)
     }
+    deskdrive.focusTop(d);
 }
 
 /// The #E code for the screen the desktop is on (Save Desktop).

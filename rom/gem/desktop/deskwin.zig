@@ -11,6 +11,7 @@ const dirmodel = @import("dirmodel.zig");
 const dirview = @import("dirview.zig");
 const desk_icons = @import("desk_icons.zig");
 const deskdraw = @import("deskdraw.zig");
+const deskbreak = @import("deskbreak.zig");
 const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 const View = dirview.View;
@@ -54,15 +55,26 @@ pub fn overWindow(d: *const Desktop) bool {
 }
 
 // The layout frame for window `id`: its content rect, the same rect shifted
-// by the scroll offset, and the icon grid width frozen at open time.
+// by the scroll offset, and the icon grid's width for the window's CURRENT width.
 pub fn viewOf(d: *Desktop, id: u8) View {
     const c = d.wm.contentRect(id);
     const w = &d.wm.wins[id];
     return .{
         .clip = c,
         .org = .{ .x = c.x - w.hscroll * hStep(d), .y = c.y - w.vscroll * vStep(d), .w = c.w, .h = c.h },
-        .cols = d.win_cols[id],
+        .cols = colsOf(d, id),
     };
+}
+
+// How many icon cells fit across window `id` NOW. TOS re-flows a directory to its window's
+// width, so a resize (the size box, the full box, a mode change clamping it) re-wraps the
+// icons (Matt on the board, 9 Nov: "when expanding the files window, the icons don't
+// reorganize"). Measured from the window each time, never stored: the pointer is routed
+// (desksel) before drawScene refreshes the chrome, so a stored count would be a frame late.
+pub fn colsOf(d: *const Desktop, id: u8) i16 {
+    if (d.breaks & deskbreak.REFLOW != 0) return d.win_cols[id]; // the mutant: frozen at open
+    const c = d.wm.wins[id].r.w - 2 - gui.SCROLL; // Wm.contentRect's width
+    return @max(1, @divTrunc(c, icon_mod.CELL_W));
 }
 
 // One click of a scroll arrow moves the content by exactly one ITEM: an icon
@@ -103,8 +115,7 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
     d.win_dir[id] = dir;
     d.drv.win[id] = d.drv.cur; // the drive in focus: the icon opened, or the folder's window's
     d.sel_icon = -1; // the window, not the icon, is now the selection
-    // Freeze the icon grid at the width the window OPENS with; resizing then
-    // scrolls the same layout instead of re-flowing it.
+    // The width it opens with: only the --break reflow mutant keeps reading it (colsOf).
     d.win_cols[id] = @max(1, @divTrunc(d.wm.contentRect(id).w, icon_mod.CELL_W));
     d.sel_file = -1;
     d.sel_folder = -1;
@@ -142,10 +153,9 @@ pub fn closeTopWindow(d: *Desktop) void {
 }
 
 // Refresh a directory window's chrome for THIS frame: the GEM info line, how
-// much of each scroll track its slider fills, and how far it may scroll. All
-// depend on the window's current size, so they are recomputed every frame
-// rather than at open time — but the icon GRID is not, which is why resizing
-// scrolls the icons instead of re-wrapping them (see View).
+// much of each scroll track its slider fills, how far it may scroll and how far
+// a click in a track pages. All depend on the window's current size (the icon
+// grid re-flows to it: colsOf), so they are recomputed every frame.
 pub fn updateChrome(d: *Desktop, id: u8) void {
     const dir = d.win_dir[id];
     const n = d.dir.fileCount(dir) + d.dir.folderCount(dir);
@@ -159,29 +169,31 @@ pub fn updateChrome(d: *Desktop, id: u8) void {
     w.vslide = permille(shown, rows);
     w.vmax = @max(0, rows - shown);
     w.vscroll = @max(0, @min(w.vscroll, w.vmax));
+    w.vpage = @max(1, shown); // a click in the track: the rows the window shows
 
     const width = contentWidth(d, id, n);
     w.hslide = permille(c.w, width);
     const hs = hStep(d);
     w.hmax = @max(0, @divTrunc(width - c.w + hs - 1, hs));
     w.hscroll = @max(0, @min(w.hscroll, w.hmax));
+    w.hpage = @max(1, @divTrunc(c.w, hs)); // the cells (columns) the window shows
 }
 
 // Rows the window's content occupies — icon view wraps into the window's
-// FIXED column count, text view is one row per item.
+// column count, text view is one row per item.
 fn contentRows(d: *const Desktop, id: u8, n: usize) i16 {
     const items: i16 = @intCast(n);
     if (d.view != .icons) return items;
-    const cols = d.win_cols[id];
+    const cols = colsOf(d, id);
     return @divTrunc(items + cols - 1, cols); // ceil
 }
-// Pixels the content is wide: the OCCUPIED part of the frozen icon grid (a
-// half-empty grid is not something to scroll across), or the fixed TOS column
-// layout of the text view.
+// Pixels the content is wide: the OCCUPIED part of the icon grid (a half-empty
+// grid is not something to scroll across), or the fixed TOS column layout of
+// the text view.
 fn contentWidth(d: *const Desktop, id: u8, n: usize) i16 {
     if (n == 0) return 0;
     if (d.view != .icons) return dirview.TOS_COLS * 8;
-    return @min(d.win_cols[id], @as(i16, @intCast(n))) * icon_mod.CELL_W;
+    return @min(colsOf(d, id), @as(i16, @intCast(n))) * icon_mod.CELL_W;
 }
 
 // What fraction of `total` is visible, in per mille, clamped to a full track.

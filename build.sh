@@ -232,6 +232,7 @@ NATIVE_TESTS="
     rom/gem/desktop/deskinf_read.zig
     rom/gem/gui/grid.zig
     rom/gem/gui/screen.zig
+    rom/gem/scrollpage_test.zig
     rom/gem/desktop/deskflip.zig
     rom/gem/desktop/deskarrow.zig
     rom/gem/engine/engine_test.zig
@@ -346,6 +347,8 @@ gate gem node apps/gem_desk_flip_check.mjs   # the desk's two buffers (Matt on t
 gate gem node apps/gem_desk_flip_check.mjs --break   # ...and buffers never handed, a host that never rests, a ROM told the wrong pointer and an arrow in the low plane are each caught
 gate gem node apps/gem_engine_check.mjs   # GEM 5 step 1 (docs/GEM5_ENGINE.md): the desk painted by the engine in both looks, A:\ open: frames with no input paint nothing (a poisoned back buffer kept), a pointer move <= 512 px, a window drag its old and new places, damage = a whole repaint after every gesture; frame_cost with the pointer moving every frame: the engine < 1.75 Mc and below the old path
 gate gem node apps/gem_engine_check.mjs --break   # ...and an engine that repaints everything, paints unclipped, keeps one snapshot for two buffers, loses a damage box, or never switches on is each caught
+gate gem node apps/gem_desk_bugs_check.mjs   # Matt's five desktop bugs (board, 9 Nov), in low, medium, the desk's old path and the engine's two looks: a resized window re-flows its icons (= opened at that size), a track click pages (= that many arrow clicks), text view scrolls sideways whole (folder rows too; damage = a whole repaint), a text row drags as its row's outline; Save Desktop writes C:\DESKTOP.INF and both the returning shell and a fresh boot read it (the desk, C:\ where it was)
+gate gem node apps/gem_desk_bugs_check.mjs --break   # ...and a grid frozen at open, no track paging, folder rows that stay put, damage blind to a clipped row that moved, the icon ghost in text view and a host that drops C:'s writes are each caught
 gate gem node apps/kos_desk_check.mjs   # KOS's desktop on the board (4 Nov): repainting only what changed is pixel-exact (a session hashed every frame = the every-frame repaint's pin) and a C: window costs < 1.7 Mc (the old repaint: 2.5, caught); A:\ with C: mounted lists the floppy, not the card; a folder opens INSIDE its drive's window as on TOS 1.00 (its close box and File > Close go up a level, Close Window leaves an empty desktop: main 0e47697e's window-per-folder ROM fails that)
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent

@@ -6,6 +6,7 @@
 const glyphs = @import("../gem_glyphs.zig");
 const types = @import("types.zig");
 const chrome = @import("chrome.zig");
+const scrollpage = @import("scrollpage.zig");
 const Gui = @import("core.zig").Gui;
 const Rect = types.Rect;
 const Window = types.Window;
@@ -43,6 +44,7 @@ pub const Wm = struct {
     // A scroll slider being dragged: which window, which axis, and how far into
     // the slider box the pointer grabbed it.
     slider: ?struct { id: u8, vertical: bool, grab: i16 } = null,
+    no_page: bool = false, // gem_desk_bugs_check's --break page: a track click does nothing again
 
     pub fn add(self: *Wm, w: Window) u8 {
         const id = self.n;
@@ -153,7 +155,7 @@ pub const Wm = struct {
     }
 
     // A press on a white slider box starts dragging it (the hatched part of the
-    // track is not a target — GEM pages there, which nothing asks for yet).
+    // track pages: scrollpage.zig, after the arrows in pressWindow).
     fn sliderPress(self: *Wm, id: u8, g: *Gui) bool {
         const w = &self.wins[id];
         if (w.vslide < 1000 and w.vmax > 0) {
@@ -255,6 +257,10 @@ pub const Wm = struct {
             return true;
         }
         if (scrollPress(w, g)) { // arrow gadgets sit over the window body
+            self.toFront(id);
+            return true;
+        }
+        if (!self.no_page and scrollpage.trackPress(w, g.px, g.py)) { // the track off its slider: a page
             self.toFront(id);
             return true;
         }

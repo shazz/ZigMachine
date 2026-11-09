@@ -25,6 +25,7 @@ const b_win = @import("b_win.zig");
 const b_menu = @import("b_menu.zig");
 const b_over = @import("b_over.zig");
 const deskdirty = @import("../deskdirty.zig");
+const deskbreak = @import("../deskbreak.zig");
 const dt = @import("../desktop.zig");
 const Desktop = dt.Desktop;
 
@@ -62,6 +63,7 @@ pub const Engine = struct {
         self.snaps[0].valid = false;
         self.snaps[1].valid = false;
         self.pool.reset();
+        self.scene.no_pos = false;
         for (0..16) |r| {
             self.arrow_mask[2 * r] = @intCast(self.set.arrow.mask[r] >> 8);
             self.arrow_mask[2 * r + 1] = @intCast(self.set.arrow.mask[r] & 0xFF);
@@ -86,6 +88,9 @@ pub const Engine = struct {
         };
         self.breaks = v & ~@as(u32, 0xFF);
         d.no_enter = v & BREAK_ENTER != 0;
+        d.breaks = self.breaks; // the desktop's own mutants (deskbreak.zig), old path and engine
+        d.wm.no_page = v & deskbreak.PAGE != 0;
+        self.scene.no_pos = v & deskbreak.HASH_POS != 0;
         self.invalidate();
         if (self.mode != .old) installPens(self, d);
         deskdirty.touch(d);

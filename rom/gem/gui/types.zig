@@ -102,6 +102,10 @@ pub const Window = struct {
     hscroll: i16 = 0,
     vmax: i16 = 0,
     hmax: i16 = 0,
+    // How far a click in a track (off the slider) pages, in the same units: one window's worth
+    // (scrollpage.zig). The owner sets them with the bounds.
+    vpage: i16 = 1,
+    hpage: i16 = 1,
 };
 
 pub fn topBarsH(w: *const Window) i16 {
@@ -135,7 +139,7 @@ pub const Zoom = struct { from: Rect, to: Rect };
 // content (permille) and its position is scroll/max of the remaining travel.
 pub fn sliderBox(track: Rect, permille: i16, scroll: i16, max: i16, vertical: bool) Rect {
     const span = if (vertical) track.h else track.w;
-    const box = @max(glyphs.GH, @divTrunc(span * @max(@min(permille, 1000), 0), 1000));
+    const box = boxLen(span, permille);
     const travel = span - box;
     const at: i16 = if (max > 0 and travel > 0)
         @intCast(@divTrunc(@as(i32, travel) * @max(0, @min(scroll, max)), max))
@@ -147,11 +151,18 @@ pub fn sliderBox(track: Rect, permille: i16, scroll: i16, max: i16, vertical: bo
         .{ .x = track.x + at, .y = track.y, .w = box, .h = track.h };
 }
 
+// The slider's length: `permille` of the track, at least a gadget. In i32: a 70-px track at
+// 571 per mille is 39,970, past i16 (a trap in a safe build, undefined in the ROM's).
+fn boxLen(span: i16, permille: i16) i16 {
+    const p: i32 = @max(@min(permille, 1000), 0);
+    return @intCast(@max(glyphs.GH, @divTrunc(@as(i32, span) * p, 1000)));
+}
+
 // Where along `track` a slider grabbed at `grab` pixels from its own start now
 // sits, expressed as a scroll value in 0..max.
 pub fn sliderScroll(track: Rect, permille: i16, max: i16, vertical: bool, pointer: i32, grab: i16) i16 {
     const span = if (vertical) track.h else track.w;
-    const box = @max(glyphs.GH, @divTrunc(span * @max(@min(permille, 1000), 0), 1000));
+    const box = boxLen(span, permille);
     const travel = span - box;
     if (travel <= 0 or max <= 0) return 0;
     const start = if (vertical) track.y else track.x;

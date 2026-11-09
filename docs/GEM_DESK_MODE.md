@@ -280,13 +280,19 @@ pointer mapping, which keys on `desk_medium` today. The 8x16 font (GEM5 P2.5) is
   DESKTOP.INF off a .zmd (`zg.disk`) and hands it to `deskLoadInf`, which returns the `#E` code
   (no desk on this machine: low res) and keeps the icons and A:\'s window for the next
   `deskSetScreen`, so they land clamped to the mode it boots in; A:\ reopens where it was.
+  **Since 9 Nov (`fix/gem5-desk-bugs`)** Save Desktop is written to a real disk: `deskRender`
+  returns `save_inf` (5) and the shell writes `deskInfPtr`/`deskInfLen` to `C:\DESKTOP.INF`
+  through KOS GEMDOS (`apps/zig/scenes/gem_inf.zig`; glass on the board, KFS on the page's
+  `?c=` image). Every start of the shell (a boot, the return from a program) reads C:'s first,
+  then the boot disk's; C: is read before the mode is set, so C:\ reopens where it was too.
+  Without a C: (the page with no `?c=`) there is nowhere to save it: the ROM's copy only.
 - **The blitter clip** (found here): CHISEL and the machine clip a stride-640 destination at 200
   rows, so the desk's fills stopped at row 199; the ROM bands them (`gui/bandfill.zig`).
 - **Tests:** `apps/gem_desk_check.mjs` (+ 4 break tests); low and medium are pixel-identical to
   the ROM before (scene_hash, gem_headless's 15 shots, a medium session); native tests of
   `screen.zig` and `deskinf_read.zig`; glass `mouse_test.zig`; host-check gem + desk_test.
 - **Left:** the arrow on the board in the desk (no picture for `bcursor.c`: §4's hardware
-  pointer, Matt's call), DESKTOP.INF off a FAT floppy, Save Desktop to a real disk.
+  pointer, Matt's call), DESKTOP.INF off a FAT floppy (Save Desktop to C: is done, above).
 
 ## 9. Risks, and what Matt must decide
 

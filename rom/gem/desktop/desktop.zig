@@ -35,7 +35,7 @@ const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
 const NO_RECT: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
-pub const Action = enum { none, launch, res_low, res_medium, res_desk };
+pub const Action = enum { none, launch, res_low, res_medium, res_desk, save_inf };
 pub const ViewMode = enum { icons, text }; // View menu: FLOPPY contents as icons or text
 pub const SortKey = dirmodel.SortKey;
 pub const MAX_FILES = dirmodel.MAX_FILES;
@@ -80,6 +80,7 @@ pub const Desktop = struct {
     file_moved: bool = false, // the file drag has moved past the initial press
     file_gx: i16 = 0, // grab offset inside the dragged file's icon (see desksel.armFileGrab)
     file_gy: i16 = 0,
+    file_gw: i16 = 0, // > 0: a text-view row is dragged, its ghost a dotted row this wide (desksel.armFileGrab)
     trash_target: i16 = -1, // file awaiting the DELETE FILE(S) confirm
     bg_r: u8 = 1, // desktop background colour (Prefs); GEM default here is a teal
     bg_g: u8 = 160,
@@ -87,7 +88,7 @@ pub const Desktop = struct {
     view: ViewMode = .icons,
     sort: SortKey = .name, // View menu: sort order for FLOPPY contents
     win_dir: [gui.MAX_WIN]i16 = [_]i16{deskwin.WIN_NONE} ** gui.MAX_WIN, // per-window directory
-    win_cols: [gui.MAX_WIN]i16 = [_]i16{1} ** gui.MAX_WIN, // icon grid width, fixed at open
+    win_cols: [gui.MAX_WIN]i16 = [_]i16{1} ** gui.MAX_WIN, // icon grid width at open (the --break reflow mutant's)
     inf_buf: [deskinf.MAX_BYTES]u8 = [_]u8{0} ** deskinf.MAX_BYTES, // DESKTOP.INF text
     // Each DIRECTORY's last window rect (reopening puts it back); dir + 1 (root -1); w 0: never.
     win_geom: [dirmodel.MAX_FOLDERS + 1]Rect = [_]Rect{NO_RECT} ** (dirmodel.MAX_FOLDERS + 1),
@@ -108,6 +109,7 @@ pub const Desktop = struct {
     eng_dlg: ?Rect = null, // engine frame: the clip the dialogs paint in (null: the old path)
     eng_rec: ?Rect = null, // engine frame: the box the dialogs painted (deskmenu.runDialogs)
     no_enter: bool = false, // gem_engine_check's --break: Return ignored (the bug Matt saw on the board)
+    breaks: u32 = 0, // gem_desk_bugs_check's --break mutants (deskbreak.zig), set by deskSetEngine
 
     pub fn init(self: *Desktop, os: *zsrc.ZigOS, fb: *zsrc.LogicalFB, blit: *zsrc.Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen = gui.Screen.of(.medium) };

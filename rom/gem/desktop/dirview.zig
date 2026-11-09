@@ -12,15 +12,15 @@ const stamp = @import("stamp.zig");
 const dt = @import("desktop.zig");
 const dirmodel = @import("dirmodel.zig");
 const desksel = @import("desksel.zig");
+const deskbreak = @import("deskbreak.zig");
 const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
 
 // A directory window's layout frame. `clip` is the real content rectangle (all
 // that may be painted); `org` is where item (0,0) is placed — `clip` shifted by
-// the window's scroll offset; `cols` is the icon grid's width in cells, FIXED
-// when the window opened, so resizing the window SCROLLS the icons instead of
-// re-wrapping them (GEM keeps a directory's layout put).
+// the window's scroll offset; `cols` is the icon grid's width in cells, as many
+// as the window is wide NOW (deskwin.colsOf), so a resize re-flows the icons as TOS does.
 pub const View = struct { clip: Rect, org: Rect, cols: i16 };
 
 pub const Hit = union(enum) { none, file: u8, folder: u8 };
@@ -113,8 +113,12 @@ fn drawFolderRow(d: *const Desktop, g: *gui.Gui, slot: usize, fidx: u8, v: View,
     if (sel) g.rect(r, gui.BLACK);
     const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
     const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
-    g.text(d.dir.folderName(fidx), v.clip.x + 4, r.y + 1, ink, paper);
-    g.text("<DIR>", v.clip.x + v.clip.w - 6 * 8 - 2, r.y + 1, ink, paper);
+    // A folder row scrolls sideways with the file rows' columns, clipped to the window as they
+    // are: it used to stay put at the window's left edge, unclipped, while the files moved under
+    // it (Matt on the board, 9 Nov: "horizontal scrolling in text mode does weird things").
+    const x = if (d.breaks & deskbreak.ROW_SCROLL != 0) v.clip.x else v.org.x; // the mutant: the old fixed row
+    textCol(g, v, d.dir.folderName(fidx), x + 4, r.y + 1, ink, paper);
+    textCol(g, v, "<DIR>", x + v.clip.w - 6 * 8 - 2, r.y + 1, ink, paper);
 }
 
 // Is a text row inside the window? Rows scrolled off the top or bottom are

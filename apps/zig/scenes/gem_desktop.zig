@@ -22,6 +22,7 @@ const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const rom = @import("rom_sdk");
+const gem_inf = @import("gem_inf.zig");
 
 const PLANE: u32 = 0; // GEM owns plane 0
 
@@ -40,6 +41,7 @@ pub const Demo = struct {
     run_len: u8 = 0,
     fat_loaded: bool = false, // drive A's FAT disk is in the model (gem_fat.zig)
     fat_media: u32 = 0, // KOS's media-change count when it was read: a swap re-reads drive A
+    c_ok: bool = false, // C: mounted (gem_fat.loadC): Save Desktop writes C:\DESKTOP.INF
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         self.fat_loaded = false;
@@ -56,9 +58,11 @@ pub const Demo = struct {
         // re-binds. So the order here is: configure the plane, bind, then set the res.
         rom.Desktop.initPlane(PLANE, 640, 200);
         rom.Desktop.setDeskAvailable(self.desk_ok);
+        // KOS's C: (docs/KOS_FAT.md F5): the SD card, if a host serves it. Before the mode is
+        // set: DESKTOP.INF's C:\ window reopens at that deskSetScreen, on C:'s listing.
+        self.c_ok = @import("gem_fat.zig").loadC();
         self.mode = bootMode(self.desk_ok);
         self.applyMode();
-        _ = @import("gem_fat.zig").loadC(); // KOS's C: (docs/KOS_FAT.md F5): the SD card, if a host serves it
     }
 
     // ONE buffer for every mode, allocated once by the capability (DEVPAC_GAP §3b item 4):
@@ -75,16 +79,15 @@ pub const Demo = struct {
         self.fb.setMediumPlane();
     }
 
-    // DESKTOP.INF on the boot disk (Options > Save Desktop wrote it) picks the boot mode: its
-    // #E code, the desk only where the machine has it (else the default, LOW: an alert would
-    // stop a boot the user cannot answer yet). Its icons and windows reach the ROM with it, and
-    // are laid out on the mode chosen here, clamped (deskSetScreen).
+    // DESKTOP.INF (C:\'s, where Options > Save Desktop writes it, else the boot disk's:
+    // gem_inf.zig) picks the boot mode: its #E code, the desk only where the machine has it
+    // (else the default, LOW: an alert would stop a boot the user cannot answer yet). Its icons
+    // and windows reach the ROM with it, and are laid out on the mode chosen here, clamped
+    // (deskSetScreen).
     fn bootMode(desk_ok: bool) Mode {
-        var buf: [512]u8 = undefined; // rom/gem/desktop/deskinf.zig MAX_BYTES
-        const lay = zg.disk.mount() orelse return .low;
-        const ent = zg.disk.find(lay, "DESKTOP.INF") orelse return .low;
-        const n = zg.disk.read(ent, &buf);
-        const code = rom.Desktop.loadInf(buf[0..n]) orelse return .low;
+        var buf: [gem_inf.MAX]u8 = undefined;
+        const text = gem_inf.read(&buf) orelse return .low;
+        const code = rom.Desktop.loadInf(text) orelse return .low;
         const mode: Mode = @enumFromInt(code);
         return if (mode == .desk and !desk_ok) .low else mode;
     }
@@ -147,6 +150,9 @@ pub const Demo = struct {
             .res_low => self.setMode(.low),
             .res_medium => self.setMode(.medium),
             .res_desk => self.setMode(.desk),
+            .save_inf => if (self.c_ok) {
+                _ = gem_inf.writeC(); // a failure is logged there; the ROM's copy stays
+            },
             .none => {},
         }
     }

@@ -139,7 +139,9 @@ fn menuPick(d: *Desktop, p: gui.MenuPick, action: *Action) void {
         },
         MENU_OPTIONS => switch (p.item) {
             0 => d.prefs.open(d.bg_r, d.bg_g, d.bg_b, d.g.screen.mode, d.mode.desk_ok),
-            2 => deskops.saveDesktop(d), // Save Desktop -> A:\DESKTOP.INF
+            2 => if (deskops.saveDesktop(d)) {
+                action.* = .save_inf; // the shell writes it to C:\ (the ROM reaches no disk)
+            },
             else => {},
         },
         else => {},

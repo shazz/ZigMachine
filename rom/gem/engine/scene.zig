@@ -9,7 +9,8 @@
 //           but it still hides what is below it.
 // measure() walks a tree the way draw.zig paints it (HIDETREE skipped, CLIPKIDS
 // clipping the children) and gives every object its screen extent and a hash
-// of what it shows, which is what the damage pass compares frame to frame.
+// of what it shows and where (the extent is clipped, so it alone misses an
+// object that moved under its clip), which the damage pass compares frame to frame.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const rect = @import("rect.zig");
@@ -39,6 +40,7 @@ pub const Scene = struct {
     hash: [MAX_OBJS]u32 = undefined,
     n_obj: usize = 0,
     overflow: bool = false, // a layer did not fit: the scene is incomplete
+    no_pos: bool = false, // the --break hashpos mutant: hashes blind to where an object is
 
     pub fn add(self: *Scene, l: Layer) void {
         if (self.n == MAX_LAYERS or self.n_obj + l.tree.len > MAX_OBJS) {
@@ -63,7 +65,8 @@ pub const Scene = struct {
             const hs = self.hash[l.first..][0..l.tree.len];
             @memset(ext, Rect{});
             for (l.tree, 0..) |*o, i| hs[i] = hashOf(o);
-            if (l.tree.len > 0) walk(look, l.tree, 0, 0, 0, Rect{ .x = -32000, .y = -32000, .w = 32767, .h = 32767 }, ext, 0);
+            const out: Out = .{ .ext = ext, .pos = if (self.no_pos) null else hs };
+            if (l.tree.len > 0) walk(look, l.tree, 0, 0, 0, Rect{ .x = -32000, .y = -32000, .w = 32767, .h = 32767 }, out, 0);
             l.bounds = .{};
             for (ext) |e| l.bounds = rect.unite(l.bounds, e);
             for (l.cover[0..l.n_cover]) |c| l.bounds = rect.unite(l.bounds, c);
@@ -71,15 +74,23 @@ pub const Scene = struct {
     }
 };
 
-fn walk(look: *const Look, tree: []const Object, i: i16, ox: i32, oy: i32, clip: Rect, ext: []Rect, depth: u8) void {
+// Where walk() writes: each object's clipped extent and, unless null (the mutant), its hash
+// with its screen position mixed in.
+const Out = struct { ext: []Rect, pos: ?[]u32 };
+
+fn walk(look: *const Look, tree: []const Object, i: i16, ox: i32, oy: i32, clip: Rect, out: Out, depth: u8) void {
     const o = &tree[@intCast(i)];
     if (o.flags & obj.HIDETREE != 0) return;
     const r: Rect = .{ .x = @intCast(ox + o.x), .y = @intCast(oy + o.y), .w = o.w, .h = o.h };
-    ext[@intCast(i)] = rect.intersect(draw.extent(look, o, r), clip);
+    out.ext[@intCast(i)] = rect.intersect(draw.extent(look, o, r), clip);
+    // The extent is CLIPPED: a text row wider than its window that scrolled sideways keeps the same
+    // clipped extent, and the same hash, while every pixel of it moved. Its position is part of
+    // what it shows (Matt on the board, 9 Nov: text view scrolled sideways left rows unrepainted).
+    if (out.pos) |hs| hs[@intCast(i)] = mix(hs[@intCast(i)], std.mem.asBytes(&[_]i16{ r.x, r.y }));
     if (depth >= draw.MAX_DEPTH) return;
     const kids = if (o.flags & obj.CLIPKIDS != 0) rect.intersect(clip, r) else clip;
     var it = obj.children(tree, i);
-    while (it.next()) |c| walk(look, tree, c, r.x, r.y, kids, ext, depth + 1);
+    while (it.next()) |c| walk(look, tree, c, r.x, r.y, kids, out, depth + 1);
 }
 
 /// What an object shows, as a 32-bit FNV-1a: its type, flags, state, size and the

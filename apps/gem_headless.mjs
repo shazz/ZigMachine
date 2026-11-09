@@ -14,6 +14,7 @@
 // sends; GEM halves x itself for its 320-wide low-res logical screen.
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-click
@@ -21,6 +22,7 @@ const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-c
 // opts.diskReadBlock(memory): the drive (a boot disk with a DESKTOP.INF, gem_desk_check.mjs);
 // opts.deskAvailable: hwDeskAvailable's answer (0: a board bitstream without the desk mode).
 // opts.rom(rom, machine): ROM entries the cart sees instead of the ROM's own (gem_desk_flip_check.mjs's mutants).
+// opts.cImage: KOS's C: as a FAT image (Uint8Array, written in place); opts.cFileOp(memory): its writes, replaced.
 export async function bootGem(opts = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
@@ -68,8 +70,11 @@ export async function bootGem(opts = {}) {
             diskReadBlock: opts.diskReadBlock ? opts.diskReadBlock(memory) : noop,
             hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
-            kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5): none here, so no C: icon
-            kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE
+            // KOS's C: (docs/KOS_FAT.md F5) and its writes (docs/KOS_GEMDOS.md §7): none (no C: icon,
+            // EDRIVE) unless opts.cImage, a FAT image read and written in place as the page does it
+            // (gem_desk_bugs_check.mjs: Save Desktop to C:\DESKTOP.INF, then a boot over the same image)
+            kosDriveRead: opts.cImage ? makeCDrive(memory, opts.cImage) : () => 0,
+            kosFileOp: opts.cFileOp ? opts.cFileOp(memory) : opts.cImage ? makeCFile(memory, opts.cImage) : () => -46,
             hostMicros: () => 0, // ST Replay's BOOT.WSM imports it (decisions.md 2026-10-17); 0 = frame time
         },
     };
