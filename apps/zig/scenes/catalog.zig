@@ -134,6 +134,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "ZIGGY", .tag = "ziggy" }, // zigmachine — the cart CPU's showcase: CPU rotozoom + voxel landscape, ZM-X on/off, Mc and cycles a pixel
     .{ .name = "TC TEST", .tag = "tc_test" }, // zigmachine — HW 1.15.0's RGB565 true-colour plane: gamut, plasma warp, palette vs 565, gradients
     .{ .name = "MP3 PLAYER", .tag = "mp3_player" }, // system — a jukebox for C:\MUSIC (KOS GEMDOS), decoded by the sound side
+    .{ .name = "NOTEPAD", .tag = "notepad" }, // system — a windowed text editor for C:\*.TXT, the GEM 5 program API's proof (docs/NOTEPAD.md)
     .{ .name = "SITTING COMFORTABLY?", .tag = "falcon_ays" }, // atari falcon — Reservoir Gods' 2004 intro (Chosneck #2), ported from the depacked original
     .{ .name = "1988", .tag = "c64_1988" }, // c64 — Tristar & Red Sector Inc.'s Only Sprites intro (2021, code Shazz), ported from the depacked original
     .{ .name = "TRANSMISSION64", .tag = "c64_transmission64" }, // c64 — Padua's invitation to Transmission64 2021 (code Anonym, Dano, Doomed, Hoogo), ported from the depacked original

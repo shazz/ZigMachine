@@ -23,6 +23,8 @@ const zg = @import("zigos");
 pub const kos = @import("kos.zig");
 /// ZM-X v1 (rom/sdk/zmx.zig): the custom-0 integer ops, as imports with a twin behind each.
 pub const zmx = @import("zmx.zig");
+/// GEM 5's program API (rom/sdk/aes.zig): windows, a menu bar, form_alert, graf_mouse, Getrez.
+pub const aes = @import("aes.zig");
 
 // --- values, not calls ---
 // Defined HERE, not re-exported from the ROM: a header that imported rom/gem

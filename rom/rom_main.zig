@@ -27,6 +27,7 @@ const Rect = gui.Rect;
 comptime {
     _ = @import("kos/kos.zig");
     _ = @import("zmx_exports.zig"); // ZM-X v1's twins (rom/sdk/zmx.zig)
+    _ = @import("rom_app.zig"); // GEM 5's program API: windows, menu bar, form_alert (rom/sdk/aes.zig)
 }
 
 pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
@@ -80,7 +81,7 @@ export fn romDepack(src: u32, src_len: u32, dst: u32, dst_cap: u32) u32 {
 // closing them). Small tables make that failure arrive in seconds instead of
 // hiding until someone opens their fifth window. Raise them for a REAL need, and
 // only after checking the caller closes what it opens.
-const MAX_GUI = 2; // one app + one desktop
+pub const MAX_GUI = 2; // one app + one desktop
 const MAX_DIALOG = 2;
 const MAX_FSEL = 2;
 
@@ -140,15 +141,15 @@ export fn romScratchLen() u32 {
     return SCRATCH_BYTES;
 }
 
-fn guiAt(h: u32) ?*gui.Gui {
+pub fn guiAt(h: u32) ?*gui.Gui {
     if (h == 0 or h > MAX_GUI or !gui_used[h - 1]) return null;
     return &guis[h - 1];
 }
-fn dialogAt(h: u32) ?*gui.Dialog {
+pub fn dialogAt(h: u32) ?*gui.Dialog {
     if (h == 0 or h > MAX_DIALOG or !dialog_used[h - 1]) return null;
     return &dialogs[h - 1];
 }
-fn fselAt(h: u32) ?*gem.FileSel {
+pub fn fselAt(h: u32) ?*gem.FileSel {
     if (h == 0 or h > MAX_FSEL or !fsel_used[h - 1]) return null;
     return &fsels[h - 1];
 }
@@ -162,10 +163,10 @@ fn fselAt(h: u32) ?*gem.FileSel {
 // promise true for the numbers as well. Saturate rather than reject: a widget
 // drawn at a clamped edge is debuggable, a silently skipped one is not.
 // --------------------------------------------------------------------------
-inline fn i16Of(v: i32) i16 {
+pub inline fn i16Of(v: i32) i16 {
     return @intCast(@max(@as(i32, -32768), @min(@as(i32, 32767), v)));
 }
-inline fn u8Of(v: u32) u8 {
+pub inline fn u8Of(v: u32) u8 {
     return @intCast(@min(v, 255));
 }
 // A SIZE from a caller: negative means nothing, so clamp to zero rather than
@@ -174,7 +175,7 @@ inline fn u16Of(v: i32) u16 {
     return @intCast(@max(@as(i32, 0), @min(@as(i32, 65535), v)));
 }
 
-fn slice(ptr: u32, len: u32) []const u8 {
+pub fn slice(ptr: u32, len: u32) []const u8 {
     if (ptr == 0 or len == 0) return &.{};
     const p: [*]const u8 = @ptrFromInt(ptr);
     return p[0..len];
@@ -260,6 +261,7 @@ export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
             .screen = screenOf(&raw_fbs[i], screen_w, screen_h),
         };
         used.* = true;
+        @import("rom_app.zig").resetSlot(i); // a fresh program: no windows, no menu bar
         return @intCast(i + 1);
     }
     return 0;
@@ -326,9 +328,14 @@ const memmapScreenH: i32 = 200;
 export fn guiClose(h: u32) void {
     if (h != 0 and h <= MAX_GUI) gui_used[h - 1] = false;
 }
+/// The context's screen changed. RE-BINDS the plane, as deskSetScreen does for the desktop: a
+/// program that switches LOW / MEDIUM rewrites the stride on the same buffer, and the desk mode
+/// moves plane 0 to its own buffer, so the context would keep drawing at the old base and pitch.
 export fn guiResize(h: u32, screen_w: i32, screen_h: i32) void {
     const g = guiAt(h) orelse return;
+    _ = bindFb(&raw_fbs[h - 1], raw_fbs[h - 1].id, screen_h);
     g.screen = screenOf(g.fb, screen_w, screen_h);
+    @import("rom_app.zig").screenChanged(h - 1);
 }
 export fn guiSetPointer(h: u32, x: i32, y: i32, buttons: u32) void {
     (guiAt(h) orelse return).setPointer(x, y, buttons);
@@ -454,11 +461,12 @@ export fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32 {
 // ceremony. `desk_ready` is the guard, so a call before deskInit() does nothing
 // instead of touching undefined memory.
 // --------------------------------------------------------------------------
-var desk: gem.Desktop = .{};
+pub var desk: gem.Desktop = .{};
 var desk_blit: zg.Blitter = .{};
 var desk_fb: zg.LogicalFB = undefined;
 var desk_plane: u32 = 0;
-var desk_ready: bool = false;
+pub var desk_ready: bool = false;
+pub var desk_seen: bool = false; // a desktop ran on this page: deskScreenMode has an answer (rom_app.zig)
 var desk_pair: gem.deskflip.Pair = .{}; // the desk's two buffers (deskSetBuffers), none: draw in place
 var desk_eng: gem.Engine = .{}; // GEM 5's engine (rom/gem/desktop/eng/engine.zig): the desk mode only
 
@@ -477,6 +485,7 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     desk.eng = &desk_eng;
     if (desk_eng.mode != .old) desk_eng.setMode(&desk, @intFromEnum(desk_eng.mode)); // -Dgem_engine: its pens too
     desk_ready = true;
+    desk_seen = true;
 }
 /// The desktop's screen changed (the Options menu switches LOW/MEDIUM/DESK).
 export fn deskSetScreen(w: i32, h: i32) void {
@@ -677,6 +686,6 @@ export fn deskInfLen() u32 {
     return if (desk_ready) desk.mode.inf_len else 0;
 }
 
-inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {
+pub inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {
     return .{ .x = i16Of(x), .y = i16Of(y), .w = i16Of(w), .h = i16Of(h) };
 }

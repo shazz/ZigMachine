@@ -63,7 +63,7 @@ fn infoLine(g: *Gui, w: *const Window) void {
 // Right + bottom scrollbars: real ST arrow gadgets sharing frame lines with
 // their neighbours (as in the reference), grey tracks, and white sliders that
 // fill the track (nothing scrolls yet), plus the size gadget.
-fn scrollbars(g: *Gui, w: *const Window) void {
+pub fn scrollbars(g: *Gui, w: *const Window) void {
     const rx = w.r.x + w.r.w - glyphs.GW;
     const by = w.r.y + w.r.h - glyphs.GH;
     // right gutter: up gadget shares the bar's bottom line, down gadget the size box's top line

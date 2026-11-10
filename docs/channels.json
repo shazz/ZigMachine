@@ -280,6 +280,11 @@
   "type": "atari st"
  },
  {
+  "tag": "notepad",
+  "title": "NOTEPAD",
+  "type": "system"
+ },
+ {
   "tag": "obj",
   "title": "OBJ DEMO",
   "type": "zigmachine"
