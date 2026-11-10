@@ -6,7 +6,7 @@ const ops = @import("astro_ops");
 const abi = ops.abi;
 const t = std.testing;
 
-const MEM_OFF: u32 = 0x1000; // where the cart's memory starts in the window
+const MEM_OFF: u32 = 0x1004; // where the cart's memory starts in the window: word-aligned, not 8
 const MEM: u32 = 0x10000;
 var mbox: [1024]u32 = undefined;
 var ddr: [(MEM_OFF + MEM) / 4]u32 = undefined;

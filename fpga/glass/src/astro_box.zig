@@ -80,8 +80,10 @@ pub const Server = struct {
         return true;
     }
 
+    // Word alignment is all staging needs (it moves words); the firmware's calloc'd wasm memory
+    // is not promised more.
     fn memOk(s: *Server, off: u32, size: u32) bool {
-        return off % 8 == 0 and size <= s.mirror.len and @as(u64, off) + size <= s.ddr.len * 4;
+        return off % 4 == 0 and size <= s.mirror.len and @as(u64, off) + size <= s.ddr.len * 4;
     }
 
     fn serveOne(s: *Server, mem: ops.Mem, off: u32, at: u32) u32 {
