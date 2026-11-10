@@ -133,11 +133,11 @@ Board figures are *est.* until measured (§6). ZIGGY at 100 MHz; GP0 single-beat
 |---|---|---|---|---|
 | precision | f32 (24-bit) | f64, IEEE | f64, IEEE, the same bits as the soft f64 | same bits |
 | add / mul | 1-10 cycles (FPU) | ~50-150 cycles *est.* | ~150-300 cycles a call *est.* (the round trip): **loses** | free |
-| div / sqrt | ~10-30 (FPU) | ~300-1000 *est.* | the round trip: about even | free |
-| sin / exp / pow | (sinf: soft, ~1,000) | ~3,000-6,000 *est.* | the round trip: **wins ~10-20x** *est.* | free |
+| div / sqrt | ~10-30 (FPU) | ~560 / ~1,400 (sim, below) | the round trip: about even | free |
+| sin / exp / pow | (sinf: soft) | sin ~7,000 (sim, below) | the round trip: **wins ~10-20x** *est.* | free |
 | 48 scalar ops a call | | | ~8 GP0 words each: ~1.2 µs/op *est.*: wins only for libm | |
 | 4096-element sin | ~4 ms | ~150 ms *est.* | ~2.5 ms *est.* (DDR staging dominates) | |
-| LINPACK 100 (0.69 MFLOP) | | ~1 s *est.* | ~15-20 ms *est.* | |
+| LINPACK 100 (0.69 MFLOP) | | ~0.5-1 s *est.* | ~15-20 ms *est.* | |
 | latency jitter | none | none | Linux: a tick when core 1 is busy; isolcpus fixes it | none |
 | cost | LUTs already spent | none | 1 RAMB36, a handful of LUTs, core 1 at 100 % while busy | none |
 | when absent | | | the machine's code on ZIGGY (same bits, soft-float speed) | |
@@ -146,6 +146,27 @@ What decides it is the ARM's access cost: every word it reads over GP0 (the mail
 DDR (the arrays) is a full bus round trip. If `astro-bench` shows those at the slow end, the next lever
 is a cached view of the cart's arrays (a kernel driver with cache maintenance, or the coherent ACP port),
 not more mailbox.
+
+**Measured in the board SoC's simulation** (9 Nov, `hp_sim --sound-cpu --astro` on omarchy, the default
+`I16w2D4Seal` core: no f32 FPU, so the cart's f32 is soft here too; ASTRO BENCH, 6 frames, one job a
+frame; no ARM behind the mailbox, so MAGIC reads 0 and every call is ZIGGY's fallback, which is the
+soft-f64 baseline). The cart's ZIGGY cycles per frame (`ZM VS`, field 2):
+
+| frame (job) | what runs | ZIGGY cycles |
+|---|---|---|
+| 1 roundtrip | 256 hwAstro NOP calls (+ the screen's title) | 0.46 M: at most ~1.8 k a fallback call |
+| 2 add | 1,024 fallback ADDs (256 calls of 1, 16 of 48), 4,096 cart f64 adds, 4,096 f32 | 14.4 M |
+| 3 mul | the same with MUL | 15.2 M |
+| 4 div | DIV | 17.3 M (+2.9 M over add: ~560 cycles a soft divide) |
+| 5 sqrt | SQRT | 21.7 M (+7.3 M: ~1,400 cycles a soft sqrt) |
+| 6 sin | SIN (~9,300 soft sin/sinf in all) | 65.5 M: ~7 k cycles a soft sin |
+
+`ZM ASTRO 1616 0 0 0 14780048`: 1,616 calls, none served (no ARM), none withdrawn (MAGIC 0: nothing
+posted, no 50 ms wait), 14.8 M cycles inside hwAstro (the machine's kernels as ZIGGY's soft f64). So a
+soft-f64 `sin` is ~7,000 ZIGGY cycles (70 µs at 100 MHz): the round trip has a lot of room against
+libm, little against add/mul. (Frame 6's sequencer field, 80 M, is the sim hashing that frame.)
+The PFB-hash verdict of `hp_sim_run` cannot pass for this cart (it draws clock-dependent numbers), so
+the UART is the result.
 
 ## 6. How to measure (the lead, on the board)
 
