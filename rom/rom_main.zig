@@ -28,6 +28,7 @@ comptime {
     _ = @import("kos/kos.zig");
     _ = @import("zmx_exports.zig"); // ZM-X v1's twins (rom/sdk/zmx.zig)
     _ = @import("rom_app.zig"); // GEM 5's program API: windows, menu bar, form_alert (rom/sdk/aes.zig)
+    _ = @import("rom_deskmode.zig"); // the desktop's mode across a program launch: Getrez, the return
 }
 
 pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
@@ -466,7 +467,7 @@ var desk_blit: zg.Blitter = .{};
 var desk_fb: zg.LogicalFB = undefined;
 var desk_plane: u32 = 0;
 pub var desk_ready: bool = false;
-pub var desk_seen: bool = false; // a desktop ran on this page: deskScreenMode has an answer (rom_app.zig)
+pub var desk_seen: bool = false; // a desktop ran on this page: deskScreenMode has an answer (rom_deskmode.zig)
 var desk_pair: gem.deskflip.Pair = .{}; // the desk's two buffers (deskSetBuffers), none: draw in place
 var desk_eng: gem.Engine = .{}; // GEM 5's engine (rom/gem/desktop/eng/engine.zig): the desk mode only
 
@@ -486,6 +487,7 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     if (desk_eng.mode != .old) desk_eng.setMode(&desk, @intFromEnum(desk_eng.mode)); // -Dgem_engine: its pens too
     desk_ready = true;
     desk_seen = true;
+    @import("rom_deskmode.zig").deskBound();
 }
 /// The desktop's screen changed (the Options menu switches LOW/MEDIUM/DESK).
 export fn deskSetScreen(w: i32, h: i32) void {
@@ -595,6 +597,7 @@ export fn deskLaunchName(out: u32, out_cap: u32) u32 {
     const name = desk.launchName();
     const n = @min(name.len, out_cap);
     if (n == 0) return 0;
+    @import("rom_deskmode.zig").launched(); // the mode the desktop comes back in (deskReturnMode)
     const dst: [*]u8 = @ptrFromInt(out);
     @memcpy(dst[0..n], name[0..n]);
     return @intCast(n);

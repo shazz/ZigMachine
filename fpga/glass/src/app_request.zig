@@ -37,6 +37,13 @@ pub fn readBlock(ddr: bus.Ddr, buf: *[mc.CART_REQ_NAME_MAX]u8) ?Request {
     return .{ .req = w[1], .name = buf[0..w[2]] };
 }
 
+/// The desktop's mode word, if the firmware wrote one (tagged, a mode the ROM knows).
+pub fn deskRez(ddr: bus.Ddr) ?u32 {
+    const w = ddr.words[(ddr.bytes() - mc.DESK_REZ_FROM_TOP) / 4];
+    if (w & mc.DESK_REZ_TAG_MASK != mc.DESK_REZ_TAG or w & ~mc.DESK_REZ_TAG_MASK > 2) return null;
+    return w;
+}
+
 /// A FAT name the glass may put in a path: 1..16 of [A-Za-z0-9._-], not starting with a dot.
 /// The cart wrote it: never a path of its own (CWE-22).
 pub fn validName(name: []const u8) bool {
@@ -65,6 +72,10 @@ pub fn poll(app: *App, state: u32) void {
     };
     app.req_done = true;
     if (r.req != state >> map.CART_ARG_SHIFT) return failed(app, "request", error.BadRequestBlock);
+    // The desktop's mode, into the program or back to the desktop (map_cart.zig DESK_REZ):
+    // read now, before the load rewrites the window; only these two loads carry it.
+    if (r.req == mc.REQ_RUN_PROGRAM or r.req == mc.REQ_BACK_TO_OS) app.opt.desk_rez = deskRez(app.ddr);
+    defer app.opt.desk_rez = null;
     switch (r.req) {
         mc.REQ_RUN_PROGRAM => (if (app.floppy_a) @import("app_floppy_prog.zig").run(app, r.name) else runProgram(app, i, r.name)) catch |err| failed(app, r.name, err),
         mc.REQ_BACK_TO_OS => if (app.floppy_a) @import("app_drive.zig").boot(app, null, true) else cart.backToOs(app, i),

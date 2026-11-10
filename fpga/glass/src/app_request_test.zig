@@ -17,15 +17,15 @@ const press = @import("test_rig.zig").press;
 
 const gpa = std.testing.allocator;
 const io = std.testing.io;
-const WORDS = 4096;
+pub const WORDS = 4096;
 
-const Rig = struct {
+pub const Rig = struct {
     glass: sim.Glass = .{},
     words: [WORDS]u32 = [_]u32{0} ** WORDS,
     tmp: std.testing.TmpDir,
     dir: []u8,
 
-    fn init() !*Rig {
+    pub fn init() !*Rig {
         const r = try gpa.create(Rig);
         r.* = .{ .tmp = std.testing.tmpDir(.{}), .dir = undefined };
         r.dir = try std.fmt.allocPrint(gpa, ".zig-cache/tmp/{s}", .{r.tmp.sub_path});
@@ -45,7 +45,7 @@ const Rig = struct {
         try r.tmp.dir.writeFile(io, .{ .sub_path = path, .data = disk });
     }
 
-    fn deinit(r: *Rig) void {
+    pub fn deinit(r: *Rig) void {
         r.tmp.cleanup();
         gpa.free(r.dir);
         gpa.destroy(r);
@@ -56,7 +56,7 @@ const Rig = struct {
     }
 
     /// The firmware's side (cycles/bdiskapp.c): the block, then CART_STATE.
-    fn ask(r: *Rig, req: u32, name: []const u8) void {
+    pub fn ask(r: *Rig, req: u32, name: []const u8) void {
         const at = (WORDS * 4 - mc.CART_REQ_FROM_TOP) / 4;
         var bytes = [_]u8{0} ** mc.CART_REQ_NAME_MAX;
         @memcpy(bytes[0..name.len], name);
@@ -67,7 +67,7 @@ const Rig = struct {
     }
 
     /// The window against loading `path` with `magic`: the first word that differs, or null.
-    fn holds(r: *Rig, path: []const u8, magic: u32) !?usize {
+    pub fn holds(r: *Rig, path: []const u8, magic: u32) !?usize {
         const disk = try r.tmp.dir.readFileAlloc(io, path, gpa, .limited(1 << 20));
         defer gpa.free(disk);
         var p = try loader.planAs(gpa, disk, WORDS * 4, magic);
@@ -77,7 +77,7 @@ const Rig = struct {
     }
 };
 
-fn started(r: *Rig) !App {
+pub fn started(r: *Rig) !App {
     var a = try App.init(gpa, io, r.glass.regs(), r.ddr(), .flat(r.dir));
     press(&a, keymap.KEY_ENTER); // GEM over the data disk
     try std.testing.expectEqual(@as(?usize, 0), a.current);

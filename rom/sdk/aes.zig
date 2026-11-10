@@ -15,6 +15,7 @@ pub extern fn guiTextClip(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, 
 pub extern fn guiCell(h: u32) u32;
 pub extern fn guiMouse(h: u32, on: u32) void;
 pub extern fn deskScreenMode() u32;
+pub extern fn deskReturnMode() u32; // table 1.18 (rom/rom_deskmode.zig)
 pub extern fn dialogFormAlert(h: u32, default: u32, ptr: u32, len: u32) u32;
 pub extern fn dialogChoice(h: u32) u32;
 pub extern fn fileSelSetName(h: u32, ptr: u32, len: u32) void;
@@ -57,6 +58,11 @@ pub const EV_TOPPED: u32 = 64; // WM_TOPPED (done)
 pub const ScreenMode = enum(u8) { low = 0, medium = 1, desk = 2 };
 pub fn screenMode() ?ScreenMode {
     const m = deskScreenMode();
+    return if (m > 2) null else @enumFromInt(m);
+}
+/// The shell's start after a program quit: the mode the desktop launched it in (else null: a boot).
+pub fn returnMode() ?ScreenMode {
+    const m = deskReturnMode();
     return if (m > 2) null else @enumFromInt(m);
 }
 

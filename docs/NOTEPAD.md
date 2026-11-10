@@ -28,7 +28,8 @@ the app-facing ABI (`rom_sdk`, and its new half `rom_sdk.aes`), the files are KO
 - **Limits**, each an alert, never a silent cut: 64 KB of text (LF), 16,384 lines, a file of 128 KB at
   most on disk (CR LF), 32 files in the selector (its list's size).
 - **Resolutions**: the desktop's. A program cannot read it off the machine (each cart swap resets
-  `RESOLUTION`), so the ROM tells it (`deskScreenMode`, Getrez). Low (320x200), medium (640x200) and the
+  `RESOLUTION`), so the ROM tells it (`deskScreenMode`, Getrez; on the board the mode crosses the
+  program's load in a word the glass carries, docs/GEM_DESK_MODE.md §5). Low (320x200), medium (640x200) and the
   desk (640x480, where the machine has it). `setShadeMode(0..2)` switches at run time (the harness and frame_cost call it; on the page the digits are typed, Notepad owns the keyboard). The font is
   the system 8x8 in every mode: the 8x16 one exists only in Matt's local asset set (`-Dgem_assets`) and
   the app API has no text call for it. The view asks the ROM for the cell (`guiCell`), so an 8x16 system
@@ -54,7 +55,7 @@ in `rom/rom_app.zig` and `rom/gem/gui/app*.zig`.
 | 5 | **The host's pointer was the program's problem** | The desktop maps it in one place (`Screen.fromHost`: low res halves x) and drops the page's double-click pulse; `guiSetPointer` took it raw, so a low-res program had to know. `guiHostPointer` | Fixed |
 | 6 | **No clipped text** | A window's last column is cut by the scrollbar: `guiTextClip` (pixel clip, the ROM's `textClipped`) | Fixed |
 | 7 | **No arrow in the desk** | In the desk no host draws the pointer (GEM_DESK_MODE.md §4); the desktop draws its own, a program had nothing. `guiMouse(h, 0/1)`: graf_mouse M_OFF / M_ON, TOS's ARROW drawn save-under, the desk only | Fixed |
-| 8 | **A program could not learn the desktop's resolution** | `deskScreenMode()` (Getrez): the ROM keeps the desktop's screen across the cart swap; 0xFF when no desktop ran | Fixed |
+| 8 | **A program could not learn the desktop's resolution** | `deskScreenMode()` (Getrez): the ROM keeps the desktop's screen across the cart swap; 0xFF when no desktop ran. On the board each load is a fresh ROM: it said 0xFF and Notepad opened in medium over the desk (Matt, 9 Nov); the firmware now carries the mode through the glass (`deskSetScreenMode`, table 1.18), and the desktop comes back in it at Quit (`deskReturnMode`) | Fixed |
 | 9 | **`guiResize` did not re-bind the plane** | After a program changed resolution the context kept the old base and stride (the desktop re-binds in `deskSetScreen`; programs had no way). `guiResize` re-binds now (no program called it before) | Fixed |
 | 10 | **fsel_input's initial name** | `fileSelSetName` (Save As shows the current name) | Fixed |
 | 11 | **Arrows did not repeat; the desktop's still do not** | A program's arrows repeat after 18 frames, every 3 (appwin.zig). The desktop's windows are unchanged (byte-identical rule) | Fixed for programs |

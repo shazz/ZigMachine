@@ -60,12 +60,13 @@ pub const Demo = struct {
         // The ROM binds the desktop to a PLANE and reads its registers; applyMode
         // below switches the resolution, which rewrites the stride, and deskSetScreen
         // re-binds. So the order here is: configure the plane, bind, then set the res.
+        const back = rom.aes.returnMode(); // a program quit: its desktop's mode (initPlane forgets it)
         rom.Desktop.initPlane(PLANE, 640, 200);
         rom.Desktop.setDeskAvailable(self.desk_ok);
         // KOS's C: (docs/KOS_FAT.md F5): the SD card, if a host serves it. Before the mode is
         // set: DESKTOP.INF's C:\ window reopens at that deskSetScreen, on C:'s listing.
         self.c_ok = @import("gem_fat.zig").loadC();
-        self.mode = bootMode(self.desk_ok);
+        self.mode = bootMode(self.desk_ok, back);
         self.applyMode();
     }
 
@@ -87,12 +88,12 @@ pub const Demo = struct {
     // gem_inf.zig) picks the boot mode: its #E code, the desk only where the machine has it
     // (else the default, LOW: an alert would stop a boot the user cannot answer yet). Its icons
     // and windows reach the ROM with it, and are laid out on the mode chosen here, clamped
-    // (deskSetScreen).
-    fn bootMode(desk_ok: bool) Mode {
+    // (deskSetScreen). Back from a program, the mode it was launched in wins (TOS's Getrez).
+    fn bootMode(desk_ok: bool, back: ?rom.aes.ScreenMode) Mode {
+        const was: ?Mode = if (back) |b| @enumFromInt(@intFromEnum(b)) else null;
         var buf: [gem_inf.MAX]u8 = undefined;
-        const text = gem_inf.read(&buf) orelse return .low;
-        const code = rom.Desktop.loadInf(text) orelse return .low;
-        const mode: Mode = @enumFromInt(code);
+        const code: ?u8 = if (gem_inf.read(&buf)) |text| rom.Desktop.loadInf(text) else null;
+        const mode: Mode = was orelse if (code) |c| @enumFromInt(c) else .low;
         return if (mode == .desk and !desk_ok) .low else mode;
     }
 
