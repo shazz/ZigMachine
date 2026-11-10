@@ -24,6 +24,7 @@ pub var three_d: bool = @import("gem_opts").engine_default and @import("gem_asse
 /// The harness's mutants for a program's objects: deskSetEngine's bits 24.. (8..12 are engine.zig's,
 /// 13..18 deskbreak.zig's).
 pub var breaks: u32 = 0;
+pub const BREAK_NODRIVE: u32 = 1 << 25; // the ITEM SELECTOR's drive buttons do nothing (gemtest_fsel_check --break drive)
 pub const BREAK_NOICON: u32 = 1 << 24; // form_alert's icon art is lost (gemtest_alert_check --break icon)
 
 /// The set, loaded once from the context's ZigOS fonts (the ROM's own: every context's).

@@ -48,8 +48,11 @@ Each is a grey line in its window.
    (S1, G19) a program's form_alert is an object tree drawn by the GEM 5 engine: TOS 4's layout, the
    icons NOTE / QUESTION / STOP (the asset set's, else our own TOS 1-style drawings in
    rom/gem/gui/alert_art.zig), the flat look or TOS 4's 3D rules (gui/proglook.zig).
-5. **File selector**: no path: the selector has no drive or folder of its own, the program lists the
-   names and the Directory line is only the mask (fsel_exinput).
+5. **File selector**: no title of the program's own (fsel_exinput). Since `feat/gem5-program-objects`
+   (S2, G21) the ITEM SELECTOR is TOS 4's on the GEM 5 engine: the path as its title, Directory: (editable)
+   and Selection:, the list window (closer, mask, nine rows, arrows, track, slider), DRIVE: A..P (the
+   program's GEMDOS map through `fileSelDrives`, system table 1.21; A: and the spec's drive always; a
+   click re-roots the spec at `X:\` + the mask and answers `relist`), OK and Cancel; flat or 3D.
 6. **Text**: one size (no vst_height), no 8x16 system font through the API, no styles (vst_effects),
    no other fonts (vst_font, GDOS).
 7. **Icons**: no icon call (G_ICON, objc_draw) and no access to the desktop's icon table.
@@ -64,8 +67,8 @@ Each is a grey line in its window.
 ## The known board bugs it shows
 
 - The ITEM SELECTOR lists nothing on C: (File selector area: `C:\*.*` shows the count, and Fsfirst's code).
-- A click on the selector's path / wildcard line does nothing (finding 5), and the selector does not use
-  the TOS 4 look (compare `fsel_c` with the reference in the shots).
+- A click on the selector's path / wildcard line did nothing and the selector was TOS 1.02's: both fixed
+  (the folder selector, then S2's TOS 4 layout with drive buttons).
 - The desktop's icons in low res differ from the desk mode's (the shots' `desktop` row).
 - A program launched from the desk mode opens in medium (Screen modes area: Getrez and the mode now;
   fixed on `fix/board-prog-deskmode`, not merged).
@@ -97,3 +100,7 @@ a whole repaint, in the three modes; a click on each kind of control does what i
 flat and 3D, in the three modes: four icons four alerts, icons 1-3 inked in the icon's box, TOS 4's
 layout (the second button where the layout puts it answers 2), Return the default, an alert left up
 redraws the same screen, Alerts > Malformed alert opens nothing and the Alerts window says so.
+
+`apps/gemtest_fsel_check.mjs` (gate `gemtest`, + `--break drive`): the TOS 4 ITEM SELECTOR, flat and 3D, in
+the three modes: opened on C:\*.*, the A: button gives the selector opened on A:\*.* pixel for pixel, C:
+brings C:\*.* back, B: (absent) does nothing, an idle frame redraws the same, Cancel closes it.

@@ -64,10 +64,8 @@ pub fn files(p: *Pen, app: *App) void {
         p.line(fmt(&b, "Name: \"{s}\"", .{f.name[0..f.name_len]}));
     }
     p.gap();
-    p.missing("the path (drive and folder)");
-    p.missing("  the selector edits: the program");
-    p.missing("  lists the names, Directory is");
-    p.missing("  only the mask (fsel_exinput)");
+    p.line("DRIVE: the drives GEMDOS answers (Dsetdrv)");
+    p.missing("fsel_exinput's own title line");
 }
 
 pub fn icons(p: *Pen) void {

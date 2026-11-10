@@ -414,6 +414,8 @@ gate gemtest node apps/gemtest_check.mjs --break ctrl   # ...and Control never s
 gate gemtest node apps/gemtest_check.mjs --break click   # ...and a pointer not mapped to low res (controls missed) is caught
 gate gemtest node apps/gemtest_alert_check.mjs   # a program's form_alert on the GEM 5 engine (G19 / G18, docs/GEMTEST.md): icons 0-3 four alerts, icons 1-3 their own art in the icon box, flat and 3D (deskSetEngine 2) two looks, TOS 4's layout (the second button where it puts it answers 2, Return the default 1), an alert left up draws the same screen, Alerts > Malformed alert opens nothing and the Alerts window says so; low, medium, the desk
 gate gemtest node apps/gemtest_alert_check.mjs --break icon   # ...and a ROM that loses the icon art is caught
+gate gemtest node apps/gemtest_fsel_check.mjs   # the ITEM SELECTOR as TOS 4's on the GEM 5 engine (G21, docs/GEMTEST.md): opened on C:\*.*, the A: drive button = the selector opened on A:\*.* pixel for pixel, C: back, B: (absent) does nothing, idle frames draw the same, Cancel closes it; flat and 3D; low, medium, the desk
+gate gemtest node apps/gemtest_fsel_check.mjs --break drive   # ...and drive buttons that do nothing are caught
 gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
 gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
 gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught

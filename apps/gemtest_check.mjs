@@ -135,7 +135,7 @@ check("the malformed string opens no alert (only the line changes)", al.plane() 
 const fa = await rig(0); fa.show(30); const ha = fa.plane();
 const fc = await rig(0); fc.show(31); const hc = fc.plane();
 check("the ITEM SELECTOR on A:\\*.* and on C:\\*.* lists different names", ha !== hc);
-fc.click(264, 148); fc.frames(2);
+fc.click(216, 176); fc.frames(2); // Cancel, TOS 4's box at (4, 11) in low res (fsel_tree.zig)
 check("its Cancel closes it", fc.plane() !== hc);
 
 // --- quit ---

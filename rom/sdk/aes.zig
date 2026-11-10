@@ -20,6 +20,7 @@ pub extern fn dialogFormAlert(h: u32, default: u32, ptr: u32, len: u32) u32;
 pub extern fn dialogChoice(h: u32) u32;
 pub extern fn fileSelSetName(h: u32, ptr: u32, len: u32) void;
 pub extern fn fileSelSpec(h: u32, out: u32, out_cap: u32) u32; // system table 1.18
+pub extern fn fileSelDrives(h: u32, map: u32) void; // system table 1.21 (rom_app_fsel.zig)
 pub extern fn menuReset(h: u32) void;
 pub extern fn menuTitle(h: u32, ptr: u32, len: u32) u32;
 pub extern fn menuItem(h: u32, ptr: u32, len: u32, flags: u32) u32;
@@ -108,6 +109,10 @@ pub fn fileSelName(f: rom.FileSel, name: []const u8) void {
 /// After a `relist` answer, the program adds that folder's names (folders with a trailing `\`).
 pub fn fileSelSpecOf(f: rom.FileSel, out: []u8) []const u8 {
     return out[0..fileSelSpec(f.h, p(out), n(out))];
+}
+/// The ITEM SELECTOR's DRIVE: buttons: the drives present (GEMDOS Dsetdrv's map, bit 0 = A:).
+pub fn fileSelDrivesSet(f: rom.FileSel, map: u32) void {
+    fileSelDrives(f.h, map);
 }
 
 pub const MENU_DISABLED: u32 = 1;

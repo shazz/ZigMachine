@@ -69,6 +69,7 @@ fn saveAs(a: *App, then: Cmd) void {
 }
 
 fn selector(a: *App, m: Modal) void {
+    aes.fileSelDrivesSet(a.fsel, files.drives()); // the DRIVE: buttons (G21)
     a.fsel.show(lastSpec(a));
     fill(a, lastSpec(a));
     aes.fileSelName(a.fsel, if (m == .fsel_save) a.name[0..a.name_len] else "");

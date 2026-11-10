@@ -143,6 +143,7 @@ pub const App = struct {
 
     fn modalFrame(self: *App) void {
         const r: rom.Result = if (self.modal == .fsel) self.fsel.process(self.g) else self.dialog.process(self.g);
+        if (r == .relist) return flow.relist(self); // a drive button or a folder: the selector stays up
         if (r != .none) flow.answered(self, r);
     }
 

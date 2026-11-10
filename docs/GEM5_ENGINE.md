@@ -118,6 +118,9 @@ TOS's grey mover, no drop shadow. Still different: the reference's gadgets are w
   or 3D following deskSetEngine; mutant bit 24 loses the icon art). The built-in icons are ours
   (gui/alert_art.zig, generated shapes); `-Dgem_assets` brings the set's NOTE / QUES / STOP BITBLKs
   (the converter's `images`).
+- The ITEM SELECTOR (programs' fsel_input) is on the engine since S2 (G21): desktop/fsel_tree.zig is TOS
+  4's layout as a tree (engine/tree.zig builds it), desktop/fsel_draw.zig hit-tests it by object index
+  and draws it in the program look; filesel.zig keeps the state (path, list, Selection, drive map).
 - The TOS 4 trees are compiled in with `--trees` but nothing draws them yet: the desk's own menus,
   windows and icons are built from ZigGEM's state.
 - The engine is not the default: it does not have every old feature's look (the icon drag ghost is two

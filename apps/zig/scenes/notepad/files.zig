@@ -50,6 +50,12 @@ fn scan(spec: []const u8, attr: i32, folders: bool, start: usize, out: *[MAX_LIS
     return n;
 }
 
+/// The drives that answer (GEMDOS Dsetdrv's map, bit 0 = A:), for the ITEM SELECTOR's DRIVE: buttons.
+pub fn drives() u32 {
+    const dos = gemdos.dos();
+    return @bitCast(dos.Dsetdrv(dos.Dgetdrv()));
+}
+
 /// The folder + name into `buf`.
 pub fn path(dir: []const u8, name: []const u8, buf: []u8) []const u8 {
     return std.fmt.bufPrint(buf, "{s}{s}", .{ dir, name }) catch buf[0..0];

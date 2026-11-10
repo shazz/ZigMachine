@@ -16,3 +16,11 @@ export fn fileSelSpec(h: u32, out: u32, out_cap: u32) u32 {
     @memcpy(dst[0..s.len], s);
     return @intCast(s.len);
 }
+
+/// The drives the ITEM SELECTOR shows as present (its DRIVE: buttons, G21): GEMDOS's drive map
+/// (Dsetdrv's answer), bit 0 = A:. Set before fileSelShow; kept across shows. Without it the
+/// selector shows A: and the spec's own drive. System table 1.21.
+export fn fileSelDrives(h: u32, map: u32) void {
+    const f = main.fselAt(h) orelse return;
+    f.drives = @truncate(map);
+}
