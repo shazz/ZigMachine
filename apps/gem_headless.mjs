@@ -40,7 +40,7 @@ export async function bootGem(opts = {}) {
 
     // The ROM chip, wired exactly as sealed-loader.js does it: machine -> rom ->
     // cart, each importing only from the ones before it.
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile(process.env.ZM_ROM || "docs/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

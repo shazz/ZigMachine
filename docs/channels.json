@@ -160,6 +160,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "gemtest",
+  "title": "GEMTEST",
+  "type": "system"
+ },
+ {
   "tag": "grafx2",
   "title": "GRAFX2 (C)",
   "type": "pc"
