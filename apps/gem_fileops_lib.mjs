@@ -68,7 +68,7 @@ const BOX = { phase: 0, op: 1, status: 2, kept: 3, answer: 4, seq: 5, folders: 6
 export const PHASE = { idle: 0, count: 1, counted: 2, run: 3, conflict: 4, answer: 5, done: 6 };
 
 /** GEM over `cImg` (written in place, `hook` sees each request first), drive A `aImg`, in `mode`. */
-export async function desktop(cImg, aImg, mode = "low", hook = null) {
+export async function desktop(cImg, aImg, mode = "low", hook = null, bits = 0) {
     const img = new Uint8Array(readFileSync(cImg)), a = aImg ? readFileSync(aImg) : null;
     const cFileOp = (m) => { const serve = makeCFile(m, img); return (req) => (hook ? hook(m, req, serve) : serve(req)); };
     const diskReadBlock = (m) => (b, dst) => {
@@ -95,7 +95,7 @@ export async function desktop(cImg, aImg, mode = "low", hook = null) {
     };
     if (mode !== "low") pickRes(gem, ui.click, "medium", 320, 200);
     if (mode.startsWith("desk")) pickRes(gem, ui.click, "desk", 640, 200);
-    if (mode === "desk1") gem.rom.deskSetEngine(1); // GEM 5's engine, the flat TOS 1 look
+    if (mode === "desk1" || bits) gem.rom.deskSetEngine((mode === "desk1" ? 1 : 0) | bits); // 1: GEM 5's engine, flat; bits: rom/gem/desktop/deskbreak.zig
     ui.click(117, 8); ui.click(145, 23); settle(gem, 4); // View > Show as Text: rows, easy to aim at
     return ui;
 }

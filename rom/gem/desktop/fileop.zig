@@ -26,6 +26,8 @@ pub const State = struct {
     seen: u32 = 0, // box.seq at the last repaint
     ctrl: bool = false, // Control held (deskkey.zig): a drag MOVES
     drag_folder: bool = false, // the item dragged (Desktop.file_drag) is a folder, not a file
+    press_x: i32 = 0, // where the press that armed it landed: a drag starts past SLOP (desksel.zig)
+    press_y: i32 = 0,
     confirm: bool = false, // the confirm box is up for the counted operation
     conflict: conflict.Conflict = .{},
     // C:'s windows' paths when the operation started: after the shell re-read C: they are found again by path.

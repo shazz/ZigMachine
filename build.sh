@@ -359,6 +359,7 @@ gate gem node apps/gem_fileops_check.mjs   # GEM5_PLAN P1.1 (docs/GEM_FILEOPS.md
 gate gem node apps/gem_fileops_check.mjs --break copy   # ...and a host that answers 0 to the writes without writing is caught (the bytes)
 gate gem node apps/gem_fileops_check.mjs --break delete   # ...and one that answers 0 to the deletes without deleting (the TRASH)
 gate gem node apps/gem_fileops_check.mjs --break rename   # ...and one that answers 0 to the renames without renaming (the move, Show Info)
+gate gem node apps/gem_fileops_check.mjs --break click   # ...and a desktop where any held press is a drag and icons under a window take drops (Matt, 10 Nov: a click on BOOT.WSM in A: raised "The disk cannot be read") is caught
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent
 gate sndh node apps/ste_dma_check.mjs --break latch    # ...and a tune that never writes its next frame fails the latch check

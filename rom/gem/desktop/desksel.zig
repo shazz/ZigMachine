@@ -85,6 +85,8 @@ fn armDrag(d: *Desktop, i: u8, folder: bool) void {
     d.file_drag = i;
     d.file_moved = false;
     d.fop.drag_folder = folder;
+    d.fop.press_x = d.g.px;
+    d.fop.press_y = d.g.py;
 }
 
 // A folder's grab offset, as armFileGrab's: inside its icon, or its text row.
@@ -173,7 +175,7 @@ fn bandSelect(d: *Desktop) void {
 
 fn updateFileDrag(d: *Desktop, g: *gui.Gui) void {
     if (g.down) {
-        if (!g.edge) d.file_moved = true;
+        if (!g.edge and deskdrop.started(d, g)) d.file_moved = true;
         return;
     }
     if (d.file_moved) deskdrop.drop(d, @intCast(g.px), @intCast(g.py)) else collapse(d);

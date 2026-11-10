@@ -16,7 +16,7 @@
 //   full   a card with 50 KB free: PAIR onto NET stops at B.DAT (the alert, -10), A.TXT copied, no B.DAT,
 //          no temporary file, fsck clean
 //   keep   a host that refuses renames: the Control-drag of ECHO.REQ onto NET leaves it where it was
-//   node apps/gem_fileops_check.mjs [--break copy|delete|rename] [--png <dir>]   (mutants: the host answers 0 to that
+//   node apps/gem_fileops_check.mjs [--break copy|delete|rename|click] [--png <dir>]   (mutants: the host answers 0 to that
 //   kind of request and writes nothing; each must be caught)
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,7 +26,8 @@ const args = process.argv.slice(2);
 const opt = (n) => (args.includes(n) ? args[args.indexOf(n) + 1] : "");
 const brk = opt("--break"), pngDir = opt("--png");
 const MUTANT = { copy: 1, delete: 2, rename: 3 }; // rom/kos/kfs_abi.zig Op: write, delete, rename
-if (brk && !MUTANT[brk]) throw new Error(`--break ${brk}: copy, delete or rename`);
+const CLICK_BIT = 1 << 18; // rom/gem/desktop/deskbreak.zig CLICK: every held press drags, icons under windows take drops
+if (brk && !MUTANT[brk] && brk !== "click") throw new Error(`--break ${brk}: copy, delete, rename or click`);
 const CTRL = 0xe014, BS = 8, RET = 13;
 const DIR = mkdtempSync(`${tmpdir()}/gem_fileops_`);
 let fails = 0;
@@ -37,7 +38,8 @@ const mutant = (m, req, serve) => {
     const op = new Uint32Array(m.buffer, req, 1)[0];
     return MUTANT[brk] === op || (brk === "delete" && op === 5) ? 0 : serve(req);
 };
-const hook = brk ? mutant : null;
+const hook = MUTANT[brk] ? mutant : null;
+const bits = brk === "click" ? CLICK_BIT : 0;
 
 // C:\'s window opens at (2, 24) in low res (clamped), (24, 24) wider; text rows 10 px from y 45.
 const row = (i, y0 = 24) => y0 + 26 + 10 * i;
@@ -125,17 +127,37 @@ async function drive() {
 
 async function deskEngine() {
     console.log("desk1 (GEM 5's engine)");
-    const c = card(DIR, "desk"), ui = await desktop(c, null, "desk1", hook);
+    const c = card(DIR, "desk"), ui = await desktop(c, null, "desk1", hook, bits);
     ui.open(20, 70);
     ui.drag([200, 30], [400, 230]); // C:\'s title bar: the window to (224, 224), off the C: icon
-    const r = op(ui, [300, row(1, 224)], [36, 72]);
+    const seq = ui.box("seq");
+    ui.drag([300, row(1, 224)], [36, 72]); // ECHO.REQ onto the C: icon: its own folder
+    check("ECHO.REQ dropped on the C: icon (its own folder) does nothing", ui.box("seq") === seq && ui.box("phase") === PHASE.idle && !alerted(ui));
+    op(ui, [300, row(1, 224)], [300, row(3, 224)]); // onto NET, then again: NAME CONFLICT
+    const r = op(ui, [300, row(1, 224)], [300, row(3, 224)]);
     if (pngDir) await shot(ui, `${pngDir}/fileops_conflict.png`);
     const conflict = ui.box("phase") === PHASE.conflict;
     for (let i = 0; i < 8; i++) ui.key(BS);
     ui.type("ECHO2.REQ"); ui.key(RET); runOut(ui);
     ui.save();
-    check("ECHO.REQ dropped on the C: icon (its own folder): NAME CONFLICT, copied as ECHO2.REQ", conflict && same(read(c, "HD/ECHO2.REQ"), FILES["ECHO.REQ"]), JSON.stringify(r.counted));
+    check("ECHO.REQ onto NET a second time: NAME CONFLICT, copied as NET\\ECHO2.REQ", conflict && same(read(c, "HD/NET/ECHO2.REQ"), FILES["ECHO.REQ"]), JSON.stringify(r.counted));
     tidy(c);
+}
+
+// Matt on the board, 10 Nov: a click on BOOT.WSM in A:\ raised "The disk cannot be read": a held
+// press counted as a drag and its release "dropped" on C:'s icon under A:\'s window.
+async function clicks() {
+    console.log("clicks (low, A:\\ a .zmd over C:'s icon)");
+    const c = card(DIR, "clicks"), ui = await desktop(c, null, "low", hook, bits), gem = ui.gem;
+    gem.mount(["AAA.DAT", "BBB.DAT", "BOOT.WSM"].map((name, i) => ({ name, type: name.endsWith(".WSM") ? 0 : 1, size: 100 + i, date: 20261110 })));
+    gem.programs["BOOT.WSM"] = gem.gemBytes; // what request 3 runs: any cart will do
+    ui.open(20, 30); // A:\ at (2, 24): BOOT.WSM's row (y 70) lies over C:'s icon
+    const seq = ui.box("seq"), hold = (x, y) => { ui.point(x, y, 1); ui.point(x, y, 1); };
+    ui.point(20, 70, 0); hold(20, 70); ui.point(21, 71, 1); ui.point(21, 71, 0); ui.settle(2); // a click, a pixel of jitter
+    check("a click on BOOT.WSM (held, 1 px of jitter) only selects: nothing posted, no alert", ui.box("seq") === seq && ui.box("phase") === PHASE.idle && !alerted(ui));
+    hold(20, 70); ui.point(20, 70, 0); hold(20, 70); ui.point(20, 70, 0); // a double-click, presses held
+    ui.point(20, 70, 2); ui.point(20, 70, 0); ui.settle(2); // and the loader's double-click pulse
+    check("a double-click on BOOT.WSM runs it (request 3), nothing posted", gem.swaps === 1 && ui.box("seq") === seq, `swaps ${gem.swaps}`);
 }
 
 async function medium() {
@@ -174,7 +196,7 @@ async function keep() {
 }
 
 console.log(`gem_fileops_check: C:'s file operations through the desktop${brk ? ` (--break ${brk})` : ""}`);
-for (const s of [low, drive, deskEngine, medium, full, keep]) await s();
+for (const s of brk === "click" ? [clicks, deskEngine] : [low, drive, deskEngine, medium, full, keep, clicks]) await s();
 rmSync(DIR, { recursive: true, force: true });
 if (brk) {
     console.log(fails ? `\ngem_fileops_check: PASS (--break ${brk} was caught)` : `\ngem_fileops_check: FAILED - --break ${brk} was not caught`);

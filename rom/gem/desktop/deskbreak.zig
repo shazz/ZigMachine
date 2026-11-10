@@ -9,3 +9,4 @@ pub const PAGE: u32 = 1 << 14; // a click in a scroll track does nothing (no pag
 pub const HASH_POS: u32 = 1 << 15; // the engine's damage blind to a clipped object that moved
 pub const ROW_SCROLL: u32 = 1 << 16; // text view: folder rows do not scroll sideways
 pub const ROW_GHOST: u32 = 1 << 17; // text view: a dragged file shows the icon ghost
+pub const CLICK: u32 = 1 << 18; // a click is a drag (no slop) and drops on the icons under a window

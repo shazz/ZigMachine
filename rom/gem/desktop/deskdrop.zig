@@ -16,7 +16,19 @@ const deskdrive = @import("deskdrive.zig");
 const desk_icons = @import("desk_icons.zig");
 const desksel = @import("desksel.zig");
 const fileop = @import("fileop.zig");
+const deskbreak = @import("deskbreak.zig");
 const Desktop = dt.Desktop;
+
+// A press becomes a drag only once the pointer has moved past this many pixels while held (TOS:
+// a few). Below it, a click, or a double-click's presses, stay a click, however long the button
+// is held (Matt on the board, 10 Nov: a click on BOOT.WSM in A: became a drop and an alert).
+const SLOP = 3;
+
+/// The press of a window item has become a drag.
+pub fn started(d: *const Desktop, g: *const gui.Gui) bool {
+    if (d.breaks & deskbreak.CLICK != 0) return true; // the mutant: any held frame is a drag
+    return @abs(g.px - d.fop.press_x) > SLOP or @abs(g.py - d.fop.press_y) > SLOP;
+}
 
 const Target = struct { drv: u1, dir: i16 };
 
@@ -24,8 +36,9 @@ const Target = struct { drv: u1, dir: i16 };
 pub fn drop(d: *Desktop, x: i16, y: i16) void {
     const w = deskwin.topFloppy(d) orelse return;
     const it = items(d, w.dir);
-    if (d.items[desk_icons.IC_TRASH].hitAt(x, y)) return toTrash(d, it);
+    if (onIcon(d, desk_icons.IC_TRASH, x, y)) return toTrash(d, it);
     const t = target(d, w, x, y) orelse return;
+    if (t.drv == it.drv and t.dir == it.dir) return; // its own directory: nothing (TOS)
     if (t.drv == deskdrive.A) {
         d.dlg.alert("The disk in drive A: is", "write-protected.");
         return;
@@ -57,17 +70,36 @@ fn toTrash(d: *Desktop, it: fileop.Items) void {
     d.trash.open(0, 1);
 }
 
-// What (x, y) is: a folder of the top window, a drive icon, or another window's directory.
+// What (x, y) is: a folder of the top window, another window's folder or directory, or (on the
+// bare desktop only: a window above an icon hides it) a drive icon.
 fn target(d: *Desktop, w: deskwin.DirWin, x: i16, y: i16) ?Target {
     switch (dirview.dirHitAt(d, w.dir, w.view, x, y)) {
         .folder => |f| if (!(d.fop.drag_folder and f == d.file_drag)) return .{ .drv = d.drv.cur, .dir = f },
         else => {},
     }
-    if (d.items[desk_icons.IC_FLOPPY].hitAt(x, y) and desk_icons.shown(d, desk_icons.IC_FLOPPY)) return .{ .drv = deskdrive.A, .dir = dirmodel.ROOT };
-    if (d.items[desk_icons.IC_HARD].hitAt(x, y) and desk_icons.shown(d, desk_icons.IC_HARD)) return .{ .drv = deskdrive.C, .dir = dirmodel.ROOT };
-    const id = windowAt(d, x, y) orelse return null;
-    if (id == w.id) return null; // dropped back into its own window: nothing (TOS)
-    return windowTarget(d, id, x, y);
+    if (d.breaks & deskbreak.CLICK != 0) if (iconTarget(d, x, y)) |t| return t; // the mutant: icons first
+    if (windowAt(d, x, y)) |id| {
+        if (id == w.id) return null; // dropped back into its own window: nothing (TOS)
+        return windowTarget(d, id, x, y);
+    }
+    return iconTarget(d, x, y);
+}
+
+fn iconTarget(d: *const Desktop, x: i16, y: i16) ?Target {
+    if (onIcon(d, desk_icons.IC_FLOPPY, x, y)) return .{ .drv = deskdrive.A, .dir = dirmodel.ROOT };
+    if (onIcon(d, desk_icons.IC_HARD, x, y)) return .{ .drv = deskdrive.C, .dir = dirmodel.ROOT };
+    return null;
+}
+
+// Desktop icon `i` is under (x, y) and not hidden by a window.
+fn onIcon(d: *const Desktop, i: usize, x: i16, y: i16) bool {
+    if (!desk_icons.shown(d, i) or !d.items[i].hitAt(x, y)) return false;
+    return d.breaks & deskbreak.CLICK != 0 or !overAnyWindow(d, x, y);
+}
+
+fn overAnyWindow(d: *const Desktop, x: i16, y: i16) bool {
+    for (d.wm.wins[0..d.wm.n]) |w| if (w.open and gui.inRect(w.r, x, y)) return true;
+    return false;
 }
 
 // A folder under the pointer in window `id` (read through its drive's model), else its directory.
