@@ -12,6 +12,7 @@
 const std = @import("std");
 const obj = @import("../engine/obj.zig");
 const L = @import("../engine/look.zig");
+const rect_mod = @import("../engine/rect.zig");
 const Builder = @import("../engine/tree.zig").Builder;
 const glyphs = @import("../gem_glyphs.zig");
 
@@ -50,7 +51,15 @@ pub const View = struct {
     drives: u16 = 1, // present drives, bit 0 = A:
     drive: u8 = 0, // the spec's drive
     pressed: i16 = obj.NIL, // the object held down (drawn SELECTED)
+    three_d: bool = false, // TOS 4's 3D look: indicators are drawn L.ADJ3D larger, so they're laid out smaller
 };
+
+// An indicator's box shrunk by the 3D outset on each side, so it's drawn at `r` (Matt, 10 Nov: the
+// drive buttons and the slider overlapped in every resolution).
+fn inset(v: *const View, x: i16, y: i16, w: i16, h: i16) [4]i16 {
+    const a: i16 = if (v.three_d) L.ADJ3D else 0;
+    return .{ x + a, y + a, w - 2 * a, h - 2 * a };
+}
 
 const FACE = obj.colorWord(L.BLACK, L.BLACK, true, 7, L.WHITE);
 fn box(t: i8) obj.Spec {
@@ -135,7 +144,8 @@ fn scroll(b: *Builder, v: *const View) void {
     const max = if (v.n > ROWS) v.n - ROWS else 0;
     const sh: i16 = if (max == 0) 66 else @max(12, @divTrunc(66 * @as(i16, ROWS), @as(i16, @intCast(v.n))));
     const at: i16 = if (max == 0) 0 else @intCast(@divTrunc(@as(i32, 66 - sh) * @as(i32, @intCast(v.top)), @as(i32, @intCast(max))));
-    _ = b.add(track, .{ .ty = obj.G_BOX, .flags = obj.FL3DIND, .spec = box(1), .x = 0, .y = at, .w = 24, .h = sh });
+    const sl = inset(v, 0, at, 24, sh);
+    _ = b.add(track, .{ .ty = obj.G_BOX, .flags = obj.FL3DIND, .spec = box(1), .x = sl[0], .y = sl[1], .w = sl[2], .h = sl[3] });
     gadget(b, col, 2, 0, 80, 24, 16); // DOWN + its image
 }
 
@@ -147,7 +157,9 @@ fn driveGroup(b: *Builder, v: *const View) void {
         if (v.drives & (@as(u16, 1) << @intCast(k)) == 0) st |= obj.DISABLED;
         if (k == v.drive) st |= obj.SELECTED;
         const ch: u8 = 'A' + @as(u8, @intCast(k));
-        _ = b.add(grp, .{ .ty = obj.G_BOXCHAR, .flags = obj.SELECTABLE | obj.EXIT | obj.RBUTTON | obj.FL3DIND, .state = st, .spec = .{ .box = obj.boxSpec(ch, 1, FACE) }, .x = @as(i16, @intCast(k % 2)) * 40 + 4, .y = @as(i16, @intCast(k / 2)) * 13, .w = 32, .h = 10 });
+        // 3D: drawn 2 px larger all round: 28 x 8 drawn 32 x 12 on a 13 px pitch, a pixel between rows
+        const r = inset(v, @as(i16, @intCast(k % 2)) * 40 + 4, @as(i16, @intCast(k / 2)) * 13 - @as(i16, if (v.three_d) 1 else 0), 32, if (v.three_d) 12 else 10);
+        _ = b.add(grp, .{ .ty = obj.G_BOXCHAR, .flags = obj.SELECTABLE | obj.EXIT | obj.RBUTTON | obj.FL3DIND, .state = st, .spec = .{ .box = obj.boxSpec(ch, 1, FACE) }, .x = r[0], .y = r[1], .w = r[2], .h = r[3] });
     }
 }
 
@@ -182,4 +194,22 @@ test "absent drives are disabled, the spec's drive selected; the box fits 320 x 
     try expect(r.x >= 0 and r.right() <= 320 and r.bottom() <= 200);
     const ok = obj.offset(t, Id.CANCEL).?;
     try expect(ok.bottom() < r.bottom());
+}
+
+test "3D: the drive buttons and the slider, drawn ADJ3D larger, overlap nothing (Matt, 10 Nov)" {
+    var s: Store = .{};
+    var v = sample();
+    v.three_d = true;
+    const t = build(&s, &v, 640, 480);
+    for (0..DRIVES) |a| for (a + 1..DRIVES) |c| {
+        const ra = obj.offset(t, Id.DRIVE0 + @as(i16, @intCast(a))).?.grow(L.ADJ3D);
+        const rc = obj.offset(t, Id.DRIVE0 + @as(i16, @intCast(c))).?.grow(L.ADJ3D);
+        try expect(rect_mod.intersect(ra, rc).empty());
+    };
+    const col = obj.offset(t, Id.UP - 1).?; // the scroll column
+    const sl = obj.offset(t, Id.SLIDER).?.grow(L.ADJ3D);
+    try expect(sl.x >= col.x and sl.right() <= col.right());
+    v.three_d = false; // flat: the boxes as laid out, nothing grows
+    const f = build(&s, &v, 640, 480);
+    try expect(obj.offset(f, Id.DRIVE0).?.w == 32 and obj.offset(f, Id.SLIDER).?.w == 24);
 }

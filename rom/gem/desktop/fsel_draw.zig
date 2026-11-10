@@ -36,7 +36,7 @@ fn view(f: *const FileSel, tx: *Texts) T.View {
     const spec = f.path.text();
     const shown = spec[spec.len -| DIR_CELLS..];
     @memcpy(tx.dir[0..shown.len], shown);
-    var v: T.View = .{ .title = spec, .dir = &tx.dir, .sel = f.name.cells(&tx.sel), .mask = fpath.mask(spec), .rows = undefined, .picked = f.list.sel, .top = f.list.top, .n = f.list.n, .drives = f.drivesShown(), .drive = f.driveOf() };
+    var v: T.View = .{ .title = spec, .dir = &tx.dir, .sel = f.name.cells(&tx.sel), .mask = fpath.mask(spec), .rows = undefined, .picked = f.list.sel, .top = f.list.top, .n = f.list.n, .drives = f.drivesShown(), .drive = f.driveOf(), .three_d = proglook.three_d };
     for (0..T.ROWS) |i| {
         const idx = f.list.top + i;
         var cells: [12]u8 = undefined;
