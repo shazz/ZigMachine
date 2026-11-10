@@ -83,7 +83,8 @@ fn box(cv: *Canvas, look: *const Look, o: *const Object, r: Rect, sel: bool) voi
     if (o.ty == obj.G_BOXCHAR) {
         const ch = [1]u8{obj.boxChar(spec)};
         const push: i16 = if (sel and k == obj.FL3DACT) 1 else 0;
-        centred(cv, look.font, &ch, r, push, look.inv(c.text, sel and k == 0), null);
+        const ink = if (o.state & obj.DISABLED != 0) look.grey else look.inv(c.text, sel and k == 0); // an absent drive
+        centred(cv, look.font, &ch, r, push, ink, null);
     }
 }
 

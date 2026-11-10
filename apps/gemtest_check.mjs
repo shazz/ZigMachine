@@ -136,7 +136,8 @@ const fa = await rig(0); fa.show(30); const ha = fa.plane();
 const fc = await rig(0); fc.show(31); const hc = fc.plane();
 check("the ITEM SELECTOR on A:\\*.* and on C:\\*.* lists different names", ha !== hc);
 fc.click(216, 176); fc.frames(2); // Cancel, TOS 4's box at (4, 11) in low res (fsel_tree.zig)
-check("its Cancel closes it", fc.plane() !== hc);
+const ok = await rig(0); ok.show(31); ok.key(13); ok.frames(2); // Return: OK (the window then says "Button: OK")
+check("its Cancel closes it, answering Cancel (not OK: the button left of it)", fc.plane() !== hc && fc.plane() !== ok.plane());
 
 // --- quit ---
 const q = await rig(0);
