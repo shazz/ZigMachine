@@ -6,8 +6,10 @@ Matt: *"do a spike for syncterm to try to compile it even if the ip stack is moc
 
 ## Result
 
-**It compiles, links and runs**, in the browser's machine (headless, the gate) and through the native host
-(`fpga/host`, the song-discovery run of the board build). SyncTERM 1.9 starts from GEM, switches to the desk mode
+**It compiles, links and runs**, in the browser's machine (headless: the gate, `apps/scene_hash.mjs`) and
+through the native host (`fpga/host`, wasm2c): 120 frames give the same frame hashes on both (total
+`529b06d1...`). The board's lean image builds (`make split-cart CART=syncterm ZM_ZMX=1`, table 1.17).
+SyncTERM 1.9 starts from GEM, switches to the desk mode
 (640x480), dials `telnet://fakebbs.zig`, negotiates telnet (ECHO, SGA, TTYPE "syncterm", NAWS 80x24), draws the
 BBS's ANSI screen 1:1 with its own status bar on row 25 and ours under it, echoes typed keys, and Alt+X then No
 quits back to the desktop.
@@ -97,6 +99,9 @@ add cryptlib (not built), the HTTPS list download `webget.c` the same.
   2,238,592 B left, the heap takes all but 64 KB (2,173,072 B).
 - Heap at boot 566,016 B (the fibers: main's 256 KB C stack, 64 KB for each other thread, a 48 KB save area each);
   ~0.77 MB once connected.
+
+- Board: the lean image `cart.bin` is 2,089,440 B (wasm2c rv32, ZM-X), 892,525 B ZX0-packed; staged with the data
+  disk in `prototypes/syncterm/card/up/` (`stage_card.py`, `install.sh` as notepad's).
 
 ## Cost (apps/frame_cost.mjs, estimate)
 
