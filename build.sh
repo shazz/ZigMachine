@@ -222,6 +222,7 @@ NATIVE_TESTS="
     libs/zig/tvnoise/tvnoise.zig
     apps/zig/scene_tests.zig
     rom/gem/desktop/namefield.zig
+    rom/gem/desktop/filesel_path.zig
     rom/gem/desktop/stamp.zig
     rom/gem/desktop/dirmodel_test.zig
     rom/kos/fat_test.zig
@@ -400,6 +401,9 @@ gate notepad node apps/notepad_check.mjs   # NOTEPAD (docs/NOTEPAD.md) on GEM 5'
 gate notepad node apps/notepad_check.mjs --break write   # ...and a host that refuses every write is caught
 gate notepad node apps/notepad_check.mjs --break bytes   # ...and a byte changed on its way to C: is caught
 gate notepad node apps/notepad_check.mjs --break ctrl   # ...and Control never sent (^S types an s) is caught
+gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
+gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
+gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught
 gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
 gate mp3_player uv run --project fpga python -m pytest -q fpga/tests/test_mp3_native.py   # ...and on the native host (host_audio, --c-image docs/mp3-c.img, the glass's key router): Down Down Return plays TONES44.MP3, the machine's 16-bit out = the reference >> 1; no key, no sound
 gate sid node apps/sid_check.mjs   # .sid player (libs/zig/players/sid.zig, cRSID libs/c/crsid): the engine in machine-audio.wasm renders hermini.sid's first 10 s to the same samples, 0.1 s block for block, as the same C built natively by the host's cc (fpga/tools/sid_render.c on patch.sh's tree: what BARD runs, host/crsid.c), local study tunes too when present; the player's 44.1 kHz output a side = the engine upsampled (midpoints) >> 1, mode 1, heard; an RSID refused (status 2) and garbage (1), silent
