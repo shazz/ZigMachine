@@ -151,6 +151,10 @@ pub extern fn deskInfPtr() u32;
 pub extern fn deskInfLen() u32;
 // The desk's two buffers (system table 1.15, rom/gem/desktop/deskflip.zig): drawn frames flip FB_BASE.
 pub extern fn deskSetBuffers(a: u32, b: u32) void;
+// C:'s file operations (system table 1.18, docs/GEM5_PLAN.md P1.1): the mailbox's address (deskop.zig).
+pub extern fn deskFileOp() u32;
+/// The desktop's file-operation mailbox (deskFileOp): the shell carries out what the ROM posts there.
+pub const deskop = @import("deskop.zig");
 
 /// The desktop, as a shell cart drives it.
 pub const Desktop = struct {
@@ -231,6 +235,11 @@ pub const Desktop = struct {
     /// C: mounted (its icon shows) or not.
     pub fn setDriveC(present: bool) void {
         deskSetDriveC(@intFromBool(present));
+    }
+    /// C:'s file-operation mailbox (deskop.zig), or null before the desktop is up.
+    pub fn fileOp() ?*deskop.Box {
+        const p = deskFileOp();
+        return if (p == 0) null else @ptrFromInt(p);
     }
     /// Fills `out` with the program a .launch refers to; empty if the disk has none.
     pub fn launchName(out: []u8) []const u8 {

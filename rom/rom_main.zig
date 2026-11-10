@@ -689,6 +689,12 @@ export fn deskInfPtr() u32 {
 export fn deskInfLen() u32 {
     return if (desk_ready) desk.mode.inf_len else 0;
 }
+/// C:'s file operations (docs/GEM5_PLAN.md P1.1, system table 1.18): the address of the ROM <->
+/// shell mailbox (rom/sdk/deskop.zig), where the desktop posts a copy, move, delete, rename or
+/// New Folder and the shell answers with counts and the result; 0 before the desktop is up.
+export fn deskFileOp() u32 {
+    return if (desk_ready) @intCast(@intFromPtr(&desk.fop.box)) else 0;
+}
 
 pub inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {
     return .{ .x = i16Of(x), .y = i16Of(y), .w = i16Of(w), .h = i16Of(h) };
