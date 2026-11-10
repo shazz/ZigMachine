@@ -152,62 +152,7 @@ pub const MenuBar = struct {
     }
 };
 
-/// A program's window (wind_create/wind_open/wind_set/wind_get).
-pub const Window = struct {
-    g: rom.Gui,
-    id: u32 = 0,
-
-    pub fn open(g: rom.Gui, r: Rect, title_: []const u8) ?Window {
-        const id = winOpen(g.h, r.x, r.y, r.w, r.h, p(title_), n(title_));
-        return if (id == 0) null else .{ .g = g, .id = id };
-    }
-    pub fn close(self: Window) void {
-        winClose(self.g.h, self.id);
-    }
-    pub fn title(self: Window, s: []const u8) void {
-        winTitle(self.g.h, self.id, p(s), n(s));
-    }
-    pub fn info(self: Window, s: []const u8) void {
-        winInfo(self.g.h, self.id, p(s), n(s));
-    }
-    pub fn scroll(self: Window, vertical: bool, size: i32, pos: i32, max: i32, page: i32) void {
-        winScroll(self.g.h, self.id, @intFromBool(vertical), size, pos, max, page);
-    }
-    pub fn set(self: Window, r: Rect) void {
-        winSet(self.g.h, self.id, r.x, r.y, r.w, r.h);
-    }
-    pub fn events(self: Window) u32 {
-        return winEvents(self.g.h, self.id);
-    }
-    pub fn draw(self: Window) void {
-        winDraw(self.g.h, self.id);
-    }
-    /// The scrollbars only (after scroll() moved or resized a slider).
-    pub fn drawBars(self: Window) void {
-        winDrawBars(self.g.h, self.id);
-    }
-    pub fn work(self: Window) Rect {
-        return self.rectAt(0);
-    }
-    pub fn outer(self: Window) Rect {
-        return self.rectAt(4);
-    }
-    fn rectAt(self: Window, at: u32) Rect {
-        return .{
-            .x = @intCast(winGet(self.g.h, self.id, at)),
-            .y = @intCast(winGet(self.g.h, self.id, at + 1)),
-            .w = @intCast(winGet(self.g.h, self.id, at + 2)),
-            .h = @intCast(winGet(self.g.h, self.id, at + 3)),
-        };
-    }
-    pub fn vscroll(self: Window) i32 {
-        return winGet(self.g.h, self.id, 8);
-    }
-    pub fn hscroll(self: Window) i32 {
-        return winGet(self.g.h, self.id, 9);
-    }
-};
-
+pub const Window = @import("aes_window.zig").Window; // wind_create .. wind_get (aes_window.zig)
 /// A frame of every window's input (winProcess): the OR of their EV_* bits.
 pub fn processWindows(g: rom.Gui) u32 {
     return winProcess(g.h);
