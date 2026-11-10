@@ -16,7 +16,8 @@ drops into the `rom/<your-os>/` slot.
 - `rom.zig` — umbrella module (`@import("rom")` → `.gem`, `.gui`).
 - `gem/` — the reference GEM ROM: `gem.zig` (desktop), `gui.zig` + `gui/` (widget
   toolkit — window chrome, dialogs, menus), `desktop/` (desktop/icons/prefs),
-  `gem_glyphs.zig`, `gem_icons.zig`.
+  `gem_glyphs.zig`, `gem_icons.zig` (TOS 1.0 icons), `iconset.zig` (the icons every
+  screen mode draws: a `-Dgem_assets` set when built in, else gem_icons.zig).
 
 ## Build & run
 Statically linked into the demo for now (no separate artifact yet), so it builds

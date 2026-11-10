@@ -35,6 +35,7 @@ pub fn setScreen(d: *Desktop, s: gui.Screen) void {
     const old_rows = rowsOf(d.g.screen);
     d.g.screen = s;
     deskdirty.touch(d); // every pixel moved
+    if (@import("../iconset.zig").has_colour) d.applyBg(); // the re-bound plane gets the icons' pens
     for (&d.items) |*it| {
         const row = if (it.cellRow() >= old_rows - 1) rowsOf(s) - 1 else it.cellRow();
         it.place(it.cellCol(), row, s.w, s.h);

@@ -34,6 +34,17 @@ decision: decisions.md 2026-11-09 "GEM 5 step 1". Matt: "look and speed first, f
   with the flat TOS 1 look, 2 with the TOS 4 3D look; bits 8.. are the harness's mutants.
   `-Dgem_engine=true` makes the engine the boot default (3D when a local asset set is built in).
   Low and medium never use it.
+- **The icons are one set in every mode** (Matt, 9 Nov: "in low resolution, the same icons should be
+  used as in desk mode"). `rom/gem/iconset.zig` picks each desktop icon once: the asset set's colour
+  icon, else its mono icon, else the TOS 1.0 bitmap in `gem_icons.zig`. The engine (desk) and the old
+  path (low, medium: icon.zig, dirview.zig) both draw from it, so with Matt's set low shows the TOS 4
+  icons too. As real TOS 4 does, an icon is drawn 1:1 in every mode, never scaled: in low the 32 px wide
+  icon looks twice as wide (the ST low pixel is 2:1), and in medium half as tall. A colour icon shows its
+  colour image where the screen has the planes for it (TOS 4 takes the 4-plane image on ST low's 4
+  planes; ST medium has 2, so the mono icon there), and a selected colour icon is the mono one inverted.
+  The old path installs the VDI pens at palette 48..63 only when the set has a colour icon. The icon
+  cell follows the set's tallest art (`icon.zig` BASELINE: 30 for TOS 1.0, unchanged; 32 for TOS 4, so
+  the cell is 72x42 there, in every mode). Proof: `tools/gem_iconset_test.py` (a made-up set, 2 breaks).
 
 ## The assets: `-Dgem_assets=<dir>` (local only)
 

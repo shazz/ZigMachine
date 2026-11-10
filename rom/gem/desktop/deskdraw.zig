@@ -4,7 +4,7 @@
 // move/resize outline, drag ghosts, the zoom-box and the rubber-band marquee.
 // --------------------------------------------------------------------------
 const gui = @import("../gui.zig");
-const icons = @import("../gem_icons.zig");
+const icons = @import("../iconset.zig"); // the build's icon set, every mode
 const icon_mod = @import("icon.zig");
 const dt = @import("desktop.zig");
 const dirview = @import("dirview.zig");

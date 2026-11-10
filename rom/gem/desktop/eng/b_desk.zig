@@ -3,11 +3,11 @@
 // Preferences' palette entry) with the drive and trash icons as its G_ICON
 // children. An icon object sits where ZigGEM's own icon is (icon.zig: the same
 // cell, the same label box), so every hit-test the desktop logic does still
-// lands on what is drawn; a set's icon art is centred on the built-in art's box,
-// its bottom on the same line.
+// lands on what is drawn. The art is iconset.zig's, the same the old path draws
+// in low and medium.
 // --------------------------------------------------------------------------
 const eng = @import("../../engine/obj.zig");
-const icons = @import("../../gem_icons.zig");
+const icons = @import("../../iconset.zig");
 const icon_mod = @import("../icon.zig");
 const desk_icons = @import("../desk_icons.zig");
 const ctx_mod = @import("ctx.zig");
@@ -34,12 +34,10 @@ pub fn build(c: *Ctx) void {
 /// The object for ZigGEM icon `it`, its position relative to (ox, oy).
 pub fn iconObject(c: *Ctx, it: *const icon_mod.Icon, screen_w: i16, sel: bool, ox: i16, oy: i16) Object {
     const a = c.set.icons[@intFromEnum(idOf(it.bmp))];
-    const old = it.artRect();
     const lab = it.labelBox(screen_w);
-    // The set's art centred on the built-in art's box, bottoms aligned; the built-in art at the bitmap's own place.
-    const builtin = a.data.ptr == it.bmp.ink.ptr;
-    const ix: i16 = if (builtin) it.x else old.x + @divTrunc(old.w - a.w, 2);
-    const iy: i16 = if (builtin) it.y else old.y + old.h - a.h;
+    // ZigGEM's icon IS the set's art (iconset.zig: one choice for every mode): it sits at the bitmap's own place.
+    const ix: i16 = it.x;
+    const iy: i16 = it.y;
     const x0 = @min(ix, lab.x);
     const y0 = @min(iy, lab.y);
     const ib = c.pool.icon(.{

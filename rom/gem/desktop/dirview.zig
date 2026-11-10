@@ -6,7 +6,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const gui = @import("../gui.zig");
-const icons = @import("../gem_icons.zig");
+const icons = @import("../iconset.zig"); // the build's icon set, every mode
 const icon_mod = @import("icon.zig");
 const stamp = @import("stamp.zig");
 const dt = @import("desktop.zig");
@@ -27,7 +27,7 @@ pub const Hit = union(enum) { none, file: u8, folder: u8 };
 
 // Icon BOTTOMS sit on this line inside a cell, so every label in a row lines
 // up regardless of how tall (or how padded) the bitmap is.
-const ICON_BASELINE: i16 = 4 + 30; // top margin + tallest icon
+const ICON_BASELINE: i16 = 4 + icon_mod.BASELINE; // top margin + tallest icon of the set
 pub const TROW_H: i16 = 10;
 pub const TOS_COLS: i16 = 37; // NAME(8) EXT(3) SIZE DATE TIME — see drawFileRow
 

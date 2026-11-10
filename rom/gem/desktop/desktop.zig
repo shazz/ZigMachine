@@ -12,7 +12,7 @@
 // --------------------------------------------------------------------------
 const zsrc = @import("zigos");
 const gui = @import("../gui.zig");
-const icons = @import("../gem_icons.zig");
+const icons = @import("../iconset.zig"); // the build's icon set, every mode
 const prefs = @import("prefs.zig");
 const about_mod = @import("about.zig");
 const trash_mod = @import("trash.zig");
@@ -30,6 +30,8 @@ const deskmenu = @import("deskmenu.zig");
 const deskdirty = @import("deskdirty.zig");
 const deskmode = @import("deskmode.zig");
 const deskeng = @import("eng/engine.zig");
+const looks = @import("eng/looks.zig");
+const eng_assets = @import("eng/assets.zig");
 
 const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
@@ -133,6 +135,7 @@ pub const Desktop = struct {
 
     pub fn applyBg(self: *Desktop) void {
         self.g.fb.setPaletteEntry(gui.DESK, .{ .r = self.bg_r, .g = self.bg_g, .b = self.bg_b, .a = 255 });
+        if (icons.has_colour) looks.installPens(self.g.fb, eng_assets.pens()); // low draws a colour icon too
     }
 
     // An open dialog owns all input (icons, windows, menu bar). ONE list for render and

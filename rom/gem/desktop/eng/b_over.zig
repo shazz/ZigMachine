@@ -50,7 +50,7 @@ fn dots(t: *Tree, r: gui.Rect) void {
 }
 
 // An icon's footprint where it would land: its art box and its label field.
-fn ghost(t: *Tree, x: i16, y: i16, bmp: @import("../../gem_icons.zig").Icon) void {
+fn ghost(t: *Tree, x: i16, y: i16, bmp: @import("../../iconset.zig").Icon) void {
     const a = icon_mod.artBox(bmp);
     const ax = x + a.x;
     const lx = ax + @divTrunc(a.w - icon_mod.LABEL_W, 2);

@@ -12,7 +12,7 @@
 // re-exported here as `gem.gui` — the ROM's library surface. Apps use it.
 // --------------------------------------------------------------------------
 pub const gui = @import("gui.zig"); // the ROM's GUI libraries (apps link this)
-pub const icons = @import("gem_icons.zig"); // 1bpp icons ripped from a GEM icon sheet
+pub const icons = @import("iconset.zig"); // the desktop icons: the build's asset set, else gem_icons.zig (TOS 1.0)
 
 const desktop = @import("desktop/desktop.zig");
 pub const Action = desktop.Action;
