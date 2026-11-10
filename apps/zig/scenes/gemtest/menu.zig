@@ -76,7 +76,7 @@ fn alertEntries() [13]Entry {
         const nb = k % 3 + 1;
         out[k] = .{ .label = "  " ++ ICONS[k / 3] ++ ", " ++ [_]u8{'0' + nb} ++ (if (nb == 1) " button" else " buttons"), .cmd = .{ .alert = k } };
     }
-    out[12] = .{ .label = "  Malformed string", .cmd = .{ .alert = 12 } };
+    out[12] = .{ .label = "  Malformed alert (must open nothing)", .cmd = .{ .alert = 12 } };
     return out;
 }
 

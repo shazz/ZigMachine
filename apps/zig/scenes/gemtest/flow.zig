@@ -75,7 +75,9 @@ pub fn alert(app: *App, k: u8) void {
     app.alert_ok = aes.formAlert(app.dialog, 1, if (k < 12) SPECS[k] else "[7][no such icon][OK");
     if (app.alert_ok) {
         app.modal = .alert;
-    } else if (app.wins.area == .alerts) if (app.wins.topSlot()) |t| wins.paintContent(app, t);
+    } else if (app.wins.area != .alerts) {
+        app.showArea(.alerts); // the answer is shown in the Alerts window (Matt, 9 Nov: G18)
+    } else if (app.wins.topSlot()) |t| wins.paintContent(app, t);
 }
 
 /// The ITEM SELECTOR on mask `k`, its list from Fsfirst / Fsnext.

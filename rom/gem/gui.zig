@@ -73,3 +73,4 @@ pub const isSeparator = menu.isSeparator;
 pub const appwin = @import("gui/appwin.zig");
 pub const appmenu = @import("gui/appmenu.zig");
 pub const saveunder = @import("gui/saveunder.zig");
+pub const proglook = @import("gui/proglook.zig"); // the look a program's objects are drawn in (GEM 5)

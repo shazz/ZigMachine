@@ -239,6 +239,7 @@ NATIVE_TESTS="
     rom/gem/desktop/deskflip.zig
     rom/gem/desktop/deskarrow.zig
     rom/gem/engine/engine_test.zig
+    rom/gem/gui_obj_test.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
@@ -299,7 +300,7 @@ python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CS
 python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?c=kos-c.img) is what its generator writes
 python3 tools/gemdos_c_image.py --check   # docs/gemdos-c.img (KOS GEMDOS's C: with pictures in folders, ?c=gemdos-c.img) is what its generator writes
 uv run --quiet --with pillow python tools/gem_assets_conv_test.py   # -Dgem_assets's converter (GEM 5, decisions.md 2026-11-09): a made-up asset directory's arrow, glyphs, icons and tree land in the generated Zig where it says (nothing of the TOS sources)
-for _b in arrow glyph tree; do ! uv run --quiet --with pillow python tools/gem_assets_conv_test.py --break $_b > /dev/null || { echo "gem_assets_conv_test --break $_b: not caught"; exit 1; }; done   # ...and a converter that loses the arrow, a glyph or a tree is caught
+for _b in arrow glyph image tree; do ! uv run --quiet --with pillow python tools/gem_assets_conv_test.py --break $_b > /dev/null || { echo "gem_assets_conv_test --break $_b: not caught"; exit 1; }; done   # ...and a converter that loses the arrow, a glyph, an alert image or a tree is caught
 uv run --quiet --with pillow python tools/gem_iconset_test.py   # low and medium draw the icon set the desk mode draws (rom/gem/iconset.zig, Matt 9 Nov), over the same made-up set
 for _b in select oldpath; do ! uv run --quiet --with pillow python tools/gem_iconset_test.py --break $_b > /dev/null || { echo "gem_iconset_test --break $_b: not caught"; exit 1; }; done   # ...an iconset that ignores the set, or an old path back on gem_icons.zig, is caught
 python3 tools/mp3_c_image.py --check   # docs/mp3-c.img (the MP3 PLAYER's C:, C:\MUSIC's CC0 test files, ?c=mp3-c.img) is what its generator writes
@@ -411,6 +412,8 @@ gate notepad node apps/notepad_check.mjs --break ctrl   # ...and Control never s
 gate gemtest node apps/gemtest_check.mjs   # GEMTEST (docs/GEMTEST.md): every GEM 5 component through the program API, launched from GEM off its data disk; each area drawn, distinct, deterministic, idle frames paint nothing, incremental = whole repaint, in low, medium and the desk; windows topped/moved/sized/scrolled/closed, the menu test, dialog controls, form_alert, the ITEM SELECTOR on A: and C:, ^Q
 gate gemtest node apps/gemtest_check.mjs --break ctrl   # ...and Control never sent (^W types a w) is caught
 gate gemtest node apps/gemtest_check.mjs --break click   # ...and a pointer not mapped to low res (controls missed) is caught
+gate gemtest node apps/gemtest_alert_check.mjs   # a program's form_alert on the GEM 5 engine (G19 / G18, docs/GEMTEST.md): icons 0-3 four alerts, icons 1-3 their own art in the icon box, flat and 3D (deskSetEngine 2) two looks, TOS 4's layout (the second button where it puts it answers 2, Return the default 1), an alert left up draws the same screen, Alerts > Malformed alert opens nothing and the Alerts window says so; low, medium, the desk
+gate gemtest node apps/gemtest_alert_check.mjs --break icon   # ...and a ROM that loses the icon art is caught
 gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
 gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
 gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught

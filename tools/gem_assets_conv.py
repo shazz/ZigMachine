@@ -30,6 +30,7 @@ ICON_IDS = {
     "folder": "FOLDER", "prg": "PROGRAM", "text": "DOCUMENT",
 }
 CICON_IDS = {"cicons_diskcc": "FLOPPY", "cicons_notecc": "NOTE", "cicons_quescc": "QUES", "cicons_stopcc": "STOP"}
+IMAGE_IDS = {"notebb": "NOTE", "quesbb": "QUES", "stopbb": "STOP"}  # form_alert's icons 1 2 3 (BITBLKs)
 FONTS = {"6x6": (6, 6), "8x8": (8, 8), "8x16": (8, 16)}
 CICON_BASE = 48  # plane palette index of VDI pen 0 (rom/gem/desktop/eng/palette)
 
@@ -101,7 +102,7 @@ def read_manifest(root: Path) -> list[dict]:
 
 
 def collect(root: Path) -> dict:
-    out = {"fonts": {}, "icons": [], "cicons": [], "patterns": [], "palette": None, "arrow": None, "busy": None}
+    out = {"fonts": {}, "icons": [], "cicons": [], "images": [], "patterns": [], "palette": None, "arrow": None, "busy": None}
     entries = read_manifest(root)
     pal = next((e["colors"] for e in entries if e["kind"] == "palette" and len(e.get("colors", [])) == 16), None)
     out["palette"] = [hexrgb(c) for c in pal] if pal else None
@@ -110,6 +111,7 @@ def collect(root: Path) -> dict:
         add_entry(root, e, out, pens)
     out["icons"].sort(key=lambda i: i["id"])
     out["cicons"].sort(key=lambda i: i["id"])
+    out["images"].sort(key=lambda i: i["id"])
     return out
 
 
@@ -131,6 +133,10 @@ def add_entry(root: Path, e: dict, out: dict, pens) -> None:
         im = rgba(f)
         out["icons"].append({"id": ICON_IDS[stem], "w": im.width, "h": im.height,
                              "mask": bitrows(im, opaque), "data": bitrows(im, dark), "col": None})
+    elif kind == "bitblk" and "aes340" in e["file"] and stem in IMAGE_IDS:
+        im = rgba(f)
+        out["images"].append({"id": IMAGE_IDS[stem], "w": im.width, "h": im.height,
+                              "mask": bitrows(im, opaque), "data": bitrows(im, dark), "col": None})
     elif kind == "color_icon" and stem.endswith("_4planes") and stem[:-8] in CICON_IDS:
         mono = rgba(f)
         out["cicons"].append({"id": CICON_IDS[stem[:-8]], "w": mono.width, "h": mono.height,

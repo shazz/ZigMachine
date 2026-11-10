@@ -380,7 +380,7 @@ export fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
 export fn dialogOpen() u32 {
     for (&dialog_used, 0..) |*used, i| {
         if (used.*) continue;
-        dialogs[i] = .{};
+        dialogs[i] = .{ .engine = true }; // a program's: its alerts on the GEM 5 engine (gui/alert_obj.zig)
         used.* = true;
         return @intCast(i + 1);
     }
@@ -486,6 +486,7 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     desk_eng.init(raw_os.system_font, raw_os.system_font_6);
     desk.eng = &desk_eng;
     if (desk_eng.mode != .old) desk_eng.setMode(&desk, @intFromEnum(desk_eng.mode)); // -Dgem_engine: its pens too
+    gui.proglook.three_d = desk_eng.mode == .three_d;
     desk_ready = true;
     desk_seen = true;
     @import("rom_deskmode.zig").deskBound();
@@ -529,6 +530,8 @@ export fn deskSetBuffers(a: u32, b: u32) void {
 /// GEM 5 (system table 1.16): the desk mode's painter. 0 the old ZigGEM path, 1 the engine with
 /// the flat TOS 1 look, 2 with the TOS 4 3D look; bits 8.. are the harness's mutants (engine.zig).
 export fn deskSetEngine(v: u32) void {
+    gui.proglook.three_d = v & 0xFF == 2; // a program's objects follow (gui/proglook.zig), desktop or not
+    gui.proglook.breaks = v & ~@as(u32, 0xFF);
     if (desk_ready) desk_eng.setMode(&desk, v);
 }
 /// The engine's counters (engine.zig Stats: u32s), for the harness and the perf probe.

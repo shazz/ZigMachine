@@ -41,10 +41,10 @@ pub fn alerts(p: *Pen, app: *App) void {
         p.endRow();
     }
     p.row(16);
-    p.button(12, "Malformed", false, 1);
+    p.button(12, "Malformed alert (must open nothing)", false, 1);
     p.endRow();
     const last = app.alert_last;
-    if (last == 0xFF) p.line("Last: none") else if (last == 12) p.line(fmt(&b, "Last: malformed, refused: {s}", .{yesNo(!app.alert_ok)})) else p.line(fmt(&b, "Last: icon {d}, {d} buttons: chose {d}", .{ last / 3, last % 3 + 1, app.alert_choice }));
+    if (last == 0xFF) p.line("Last: none") else if (last == 12) p.line(if (app.alert_ok) "Last: malformed: an alert OPENED (wrong)" else "Last: malformed: nothing opened (right)") else p.line(fmt(&b, "Last: icon {d}, {d} buttons: chose {d}", .{ last / 3, last % 3 + 1, app.alert_choice }));
     p.missing("custom icons; form_error");
 }
 
