@@ -5,9 +5,9 @@
 #include <stdio.h>
 
 #include "bboard.h"
-#include "bdeskrez.h"
 #include "bdisk.h"
-#include "bmailbox.h"
+#include "bmailbox.h" /* before bdeskrez.h: its glass_cart.h #defines MB_MAGIC, an enum name here */
+#include "bdeskrez.h"
 #include "bplanes.h"
 #include "csr_addr.h"
 #include "disk.h"
