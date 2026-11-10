@@ -292,6 +292,7 @@ hwRenderDesk(half) void  // 1.17.0: desk rows 240 half .. 240 half + 239 as 640x
 hwDeskBars() u32         // 1.17.0 (9 Nov): the desk's bars, BACKGROUND as RGBA with alpha 255
 hwDeskAvailable() u32    // 1.17.0: 1 where the desk mode exists (see "Desk mode")
 hwSetDeskAvailable(v) void // 1.17.0: the board's firmware declares its bitstream's capability
+hwAstro(desc, count) u32 // 1.18.0 SPIKE: ASTROLABE, count f64 coprocessor descriptors at desc (docs/ARM_FPU_COPROC.md)
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):

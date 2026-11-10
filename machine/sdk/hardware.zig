@@ -188,6 +188,9 @@ pub extern fn hwPhysWidth() u32;
 pub extern fn hwPhysHeight() u32;
 pub extern fn hwVersion() u32; // ZM_HW_VERSION
 pub extern fn hwDeskAvailable() u32; // 1.17.0: 1 where RES_DESK shows (0 on an older board bitstream)
+// 1.18.0, SPIKE: ASTROLABE, the f64 coprocessor (docs/ARM_FPU_COPROC.md): `count` descriptors at `desc`
+pub extern fn hwAstro(desc: u32, count: u32) u32;
+pub const astro = @import("astro.zig"); // its descriptor and ops
 
 // --- RAM instructions ---
 // How much of the cart's RAM window [CART_RAM_BASE, CART_RAM_TOP) is left. The

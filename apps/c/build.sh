@@ -44,6 +44,9 @@ build_one() {
     # wasm `name` section stays, so stack traces still show function names.
     if [ "$scene" = bench ]; then   # many files and per-file flags: its own script
         bash bench/build.sh "$PWD/$out" "${LDFLAGS[@]}"
+    elif [ "$scene" = astro_bench ]; then   # links compiler_rt for sin/sinf (no -nostdlib): ASTROLABE's own
+        "$ZIG" cc -target wasm32-freestanding -O2 -g0 -ffreestanding -fno-builtin -mbulk-memory \
+            "${LDFLAGS[@]}" -Wl,--strip-debug -o "$out" "$src"
     else
         "$ZIG" cc -target wasm32-freestanding -O2 -g0 -ffreestanding -fno-builtin -mbulk-memory \
             -nostdlib "${LDFLAGS[@]}" -Wl,--strip-debug -o "$out" "$src"
