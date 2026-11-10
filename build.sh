@@ -222,6 +222,7 @@ NATIVE_TESTS="
     libs/zig/tvnoise/tvnoise.zig
     apps/zig/scene_tests.zig
     rom/gem/desktop/namefield.zig
+    rom/gem/desktop/filesel_path.zig
     rom/gem/desktop/stamp.zig
     rom/gem/desktop/dirmodel_test.zig
     rom/kos/fat_test.zig
@@ -400,6 +401,12 @@ gate notepad node apps/notepad_check.mjs   # NOTEPAD (docs/NOTEPAD.md) on GEM 5'
 gate notepad node apps/notepad_check.mjs --break write   # ...and a host that refuses every write is caught
 gate notepad node apps/notepad_check.mjs --break bytes   # ...and a byte changed on its way to C: is caught
 gate notepad node apps/notepad_check.mjs --break ctrl   # ...and Control never sent (^S types an s) is caught
+gate gemtest node apps/gemtest_check.mjs   # GEMTEST (docs/GEMTEST.md): every GEM 5 component through the program API, launched from GEM off its data disk; each area drawn, distinct, deterministic, idle frames paint nothing, incremental = whole repaint, in low, medium and the desk; windows topped/moved/sized/scrolled/closed, the menu test, dialog controls, form_alert, the ITEM SELECTOR on A: and C:, ^Q
+gate gemtest node apps/gemtest_check.mjs --break ctrl   # ...and Control never sent (^W types a w) is caught
+gate gemtest node apps/gemtest_check.mjs --break click   # ...and a pointer not mapped to low res (controls missed) is caught
+gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
+gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
+gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught
 gate notepad node apps/desk_rez_check.mjs   # the desktop's mode across a program load (docs/GEM_DESK_MODE.md §5; Matt on the board 9 Nov: Notepad opened in medium over the desk): a fresh ROM told the mode (deskSetScreenMode, as the board's firmware does) opens Notepad in low / medium / the desk, told nothing in medium (Getrez 0xFF); the shell back from a program comes up in the mode it launched it in, a boot in DESKTOP.INF's; a mode past the desk is ignored; the page's launch remembers the return mode
 gate notepad node apps/desk_rez_check.mjs --break carry   # ...and a firmware that never hands the mode over (the board before the fix) is caught
 gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
