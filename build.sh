@@ -299,6 +299,8 @@ python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?
 python3 tools/gemdos_c_image.py --check   # docs/gemdos-c.img (KOS GEMDOS's C: with pictures in folders, ?c=gemdos-c.img) is what its generator writes
 uv run --quiet --with pillow python tools/gem_assets_conv_test.py   # -Dgem_assets's converter (GEM 5, decisions.md 2026-11-09): a made-up asset directory's arrow, glyphs, icons and tree land in the generated Zig where it says (nothing of the TOS sources)
 for _b in arrow glyph tree; do ! uv run --quiet --with pillow python tools/gem_assets_conv_test.py --break $_b > /dev/null || { echo "gem_assets_conv_test --break $_b: not caught"; exit 1; }; done   # ...and a converter that loses the arrow, a glyph or a tree is caught
+uv run --quiet --with pillow python tools/gem_iconset_test.py   # low and medium draw the icon set the desk mode draws (rom/gem/iconset.zig, Matt 9 Nov), over the same made-up set
+for _b in select oldpath; do ! uv run --quiet --with pillow python tools/gem_iconset_test.py --break $_b > /dev/null || { echo "gem_iconset_test --break $_b: not caught"; exit 1; }; done   # ...an iconset that ignores the set, or an old path back on gem_icons.zig, is caught
 python3 tools/mp3_c_image.py --check   # docs/mp3-c.img (the MP3 PLAYER's C:, C:\MUSIC's CC0 test files, ?c=mp3-c.img) is what its generator writes
 python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 python3 tools/gen_tutorial.py --check   # TUTORIAL.html regenerated from TUTORIAL.md

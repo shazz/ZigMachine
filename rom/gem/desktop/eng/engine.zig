@@ -198,10 +198,7 @@ fn meet(a: gui.Rect, b: gui.Rect) gui.Rect {
 }
 
 fn installPens(self: *Engine, d: *Desktop) void {
-    for (0..16) |i| {
-        const p = looks.penEntry(&self.set, i);
-        d.g.fb.setPaletteEntry(p.idx, .{ .r = p.rgb[0], .g = p.rgb[1], .b = p.rgb[2], .a = 255 });
-    }
+    looks.installPens(d.g.fb, self.set.pens);
 }
 
 // The canvas's big fills: the plane's own fill (blit.Dst: CHISEL above its threshold).

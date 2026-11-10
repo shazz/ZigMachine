@@ -6,7 +6,8 @@
 // from under the icon at the desktop border).
 // --------------------------------------------------------------------------
 const gui = @import("../gui.zig");
-const icons = @import("../gem_icons.zig");
+const iconset = @import("../iconset.zig");
+const iconpaint = @import("iconpaint.zig");
 const Rect = gui.Rect;
 
 // GEM icon-label geometry: the name is drawn in the 6x6 system font in a
@@ -25,62 +26,24 @@ pub const LABEL_H: i16 = LABEL_PAD_TOP + 6 + 1;
 // dropped icon lands flush in a grid and only ever overlaps another exactly
 // (GEM allows perfect overlap; it just never leaves icons half-covering).
 // 72x40 is the authentic GEM icon cell (320x200): 70px label box + margin wide,
-// tallest icon (~30) + 8px label tall.
+// tallest icon (~30) + 1px gap + the label box tall. A taller set (TOS 4's 32x32
+// art, iconset.zig) grows the cell by what its tallest art needs, in every mode.
 pub const CELL_W: i16 = 72;
-pub const CELL_H: i16 = 40;
+pub const BASELINE: i16 = @max(30, iconset.TALLEST); // icon BOTTOMS align within a cell
+pub const CELL_H: i16 = BASELINE + 1 + LABEL_H;
 // The desktop's own grid of those cells: column 0 at the left edge, row 0 just
 // under the menu bar. An icon sits CENTRED in its cell with its bottom on the
 // cell's baseline — the same placement a window gives its file icons — so the
 // fixed-width label always lands inside the cell and lines up column to column.
 pub const GRID_X0: i16 = 0;
 pub const GRID_Y0: i16 = gui.MENU_H + 1;
-const BASELINE: i16 = 30; // tallest icon; icon BOTTOMS align within a cell
 
-// The tight bounding box of an icon's SILHOUETTE (ink | body), relative to the
-// bitmap's origin. The ripped icon sheet left some bitmaps much wider than their
-// art — TRASH is declared 51 px wide but draws about 25 — so anything that has
-// to line an icon up or trace its outline (cell placement, the label, the drag
-// ghost) must measure the art rather than trust w/h.
-pub fn artBox(bmp: icons.Icon) Rect {
-    // Asked for every icon several times a frame (layout, hit-tests, labels): the scan of a
-    // 32x30 bitmap cost ~10k instructions each time. The bitmaps are constants: remember them.
-    const key = @intFromPtr(bmp.ink.ptr);
-    for (art_seen[0..art_n]) |e| if (e.key == key) return e.box;
-    const box = scanArt(bmp);
-    art_seen[art_n % art_seen.len] = .{ .key = key, .box = box };
-    art_n = @min(art_n + 1, art_seen.len);
-    return box;
-}
-var art_seen: [12]struct { key: usize, box: Rect } = undefined;
-var art_n: usize = 0;
-
-fn scanArt(bmp: icons.Icon) Rect {
-    const rowbytes: usize = (@as(usize, bmp.w) + 7) / 8;
-    var x0: i16 = @intCast(bmp.w);
-    var y0: i16 = @intCast(bmp.h);
-    var x1: i16 = -1;
-    var y1: i16 = -1;
-    var row: u16 = 0;
-    while (row < bmp.h) : (row += 1) {
-        var col: u16 = 0;
-        while (col < bmp.w) : (col += 1) {
-            const idx = @as(usize, row) * rowbytes + col / 8;
-            const sh: u3 = @intCast(7 - (col % 8));
-            if (((bmp.ink[idx] | bmp.body[idx]) >> sh) & 1 == 0) continue;
-            x0 = @min(x0, @as(i16, @intCast(col)));
-            y0 = @min(y0, @as(i16, @intCast(row)));
-            x1 = @max(x1, @as(i16, @intCast(col)));
-            y1 = @max(y1, @as(i16, @intCast(row)));
-        }
-    }
-    if (x1 < x0) return .{ .x = 0, .y = 0, .w = @intCast(bmp.w), .h = @intCast(bmp.h) }; // blank
-    return .{ .x = x0, .y = y0, .w = x1 - x0 + 1, .h = y1 - y0 + 1 };
-}
+pub const artBox = @import("iconbox.zig").artBox;
 
 pub const Icon = struct {
     x: i16,
     y: i16,
-    bmp: icons.Icon, // the 1bpp icon bitmap (ink + body silhouette)
+    bmp: iconset.Icon, // the 1bpp icon bitmap (ink + body silhouette)
     label: []const u8,
     is_app: bool = false,
     bounds: ?Rect = null, // clip/clamp region (a window's content); null = whole screen
@@ -156,28 +119,13 @@ pub const Icon = struct {
     // fixed-width box. When `sel`, the icon is inverse-video (GEM selection).
     pub fn draw(self: *const Icon, g: *gui.Gui, sel: bool) void {
         if (gui.clip.muted(g)) return; // GEM 5's logic pass draws nothing (gui/clip.zig)
-        const ink_c: u8 = if (sel) gui.WHITE else gui.BLACK;
-        const body_c: u8 = if (sel) gui.BLACK else gui.WHITE;
-        const ic = self.bmp;
-        const rowbytes: usize = (@as(usize, ic.w) + 7) / 8;
-        var row: u16 = 0;
-        while (row < ic.h) : (row += 1) {
-            var col: u16 = 0;
-            while (col < ic.w) : (col += 1) {
-                const idx = row * rowbytes + col / 8;
-                const sh: u3 = @intCast(7 - (col % 8));
-                const sx = self.x + @as(i16, @intCast(col));
-                const sy = self.y + @as(i16, @intCast(row));
-                if (self.bounds) |b| { // clip to the window's content — never draw outside
-                    if (sx < b.x or sx >= b.x + b.w or sy < b.y or sy >= b.y + b.h) continue;
-                }
-                if ((ic.ink[idx] >> sh) & 1 != 0) {
-                    g.plot(sx, sy, ink_c);
-                } else if ((ic.body[idx] >> sh) & 1 != 0) {
-                    g.plot(sx, sy, body_c); // enclosed body
-                } // else: outside the silhouette -> transparent (desktop shows)
-            }
-        }
+        // TOS 4 shows a colour icon's image on a screen with its planes (ST low's 4), the mono
+        // icon elsewhere (medium's 2), and a SELECTED colour icon as the mono one inverted.
+        const planes: u8 = if (g.screen.mode == .medium) 2 else 4;
+        const at: iconpaint.At = .{ .x = self.x, .y = self.y, .bounds = self.bounds };
+        if (if (sel) null else iconset.colourIn(self.bmp, planes)) |e| {
+            iconpaint.colour(g, at, self.bmp, e);
+        } else iconpaint.mono(g, at, self.bmp, sel);
         var box = self.labelBox(g.screen.w);
         var lo: i16 = 0;
         var hi: i16 = g.screen.w;
