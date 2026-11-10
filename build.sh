@@ -422,6 +422,8 @@ gate gemtest node apps/gemtest_redraw_check.mjs   # a program's window redraws (
 gate gemtest node apps/gemtest_redraw_check.mjs --break whole   # ...and redraw lists that are whole windows (the flash) are caught
 gate gemtest node apps/gemtest_redraw_check.mjs --break clamp   # ...and a size past the screen's edge is caught
 gate gemtest node apps/gemtest_redraw_check.mjs --break min   # ...and the old 44-px minimum (no room for the gadgets) is caught
+gate gemtest node apps/gemtest_obj_check.mjs   # a program's object tree on the engine (G20, docs/GEMTEST.md): the Dialogs area's radio group (RBUTTON stays, Low back), a check box twice, the DISABLED button inert, the G_FBOXTEXT takes digits and refuses letters, Backspace, the slider's track; flat and 3D in the desk; the Test menu's shortcuts a right-aligned column in low
+gate gemtest node apps/gemtest_obj_check.mjs --break radio   # ...and a form_button that forgets radio groups is caught
 gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
 gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
 gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught

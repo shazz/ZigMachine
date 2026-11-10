@@ -75,3 +75,4 @@ pub const appmenu = @import("gui/appmenu.zig");
 pub const saveunder = @import("gui/saveunder.zig");
 pub const proglook = @import("gui/proglook.zig"); // the look a program's objects are drawn in (GEM 5)
 pub const winsize = @import("gui/winsize.zig"); // how big a window may be sized (G22, G23)
+pub const objects = @import("gui/objects.zig"); // a program's object trees on the engine (G20)

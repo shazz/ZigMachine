@@ -43,11 +43,16 @@ Each is a grey line in its window.
    or a size the old and new places, a close what was under it; no window is repainted whole, no flash.
    A size drag stops at the screen's edge (G22) and at the size that holds every gadget (G23), the
    desktop's windows too (gui/winsize.zig).
-2. **Dialogs**: no disabled button state; no radio buttons (RBUTTON / objc_change); no check boxes; no
-   editable text (G_FTEXT, form_do, objc_edit); no slider object; no popup menus (menu_popup); no 3D
-   (TOS 4) look for a program's objects (its Gui is TOS 1's flat path: the engine is the desktop's).
-3. **Menus**: the ^key is part of the label (no shortcut field, menu_keys); no submenus; no
-   menu_tnormal.
+2. **Dialogs**: no popup menus (menu_popup), no form_do loop (a program runs form_button / objc_edit a
+   frame at a time). Since S4 (G20, system table 1.23, `rom.aes.obj`) a program lays out an AES OBJECT
+   tree (and TEDINFOs, strings) in its own memory and the ROM draws it on the engine in the program look
+   (`objcDraw`), finds the object under a point (`objcFind`), applies a click (`formButton`: RBUTTON
+   groups, SELECTABLE toggles, DISABLED), changes a state (`objcChange`) and edits a G_FTEXT /
+   G_FBOXTEXT by its template and validation (`objcEdit`, ED_INIT / ED_CHAR / ED_END, the caret).
+   GEMTEST's Dialogs area is such a tree (gemtest/dlg_tree.zig): buttons incl. a disabled one, a radio
+   group, check boxes, a date field, a slider made of a TOUCHEXIT track and its knob.
+3. **Menus**: no submenus, no menu_tnormal. Shortcuts are a right-aligned column since S4: a TAB in a
+   label ("Quit\t^Q") puts what follows at the drop-down's right edge (gui/menu.zig).
 4. **Alerts**: no custom icons (a program's own art), no form_error. Since `feat/gem5-program-objects`
    (S1, G19) a program's form_alert is an object tree drawn by the GEM 5 engine: TOS 4's layout, the
    icons NOTE / QUESTION / STOP (the asset set's, else our own TOS 1-style drawings in
@@ -114,3 +119,8 @@ move and a close of GADGETS keep a poisoned desk pixel and a poisoned back-windo
 rectangles were redrawn) and the screen then equals a whole repaint; its sizer dragged past the corner
 stops at the screen's edge; dragged far up-left it stops where every gadget fits; there, and after a
 larger size and back, the screen equals a whole repaint.
+
+`apps/gemtest_obj_check.mjs` (gate `gemtest`, + `--break radio`): the Dialogs area's object tree in the
+desk, flat and 3D: a radio group (pressed twice it stays; Low brings the first look back), a check box
+twice, the disabled button inert, digits into the date field and letters refused, Backspace, the
+slider's track; and the Test menu's shortcuts ending in one column in low.

@@ -6,4 +6,6 @@ test {
     _ = @import("desktop/fsel_tree.zig");
     _ = @import("gui/appwin_damage.zig");
     _ = @import("gui/winsize.zig");
+    _ = @import("gui/wire.zig");
+    _ = @import("gui/objedit.zig");
 }

@@ -28,6 +28,7 @@ comptime {
     _ = @import("kos/kos.zig");
     _ = @import("zmx_exports.zig"); // ZM-X v1's twins (rom/sdk/zmx.zig)
     _ = @import("rom_app.zig"); // GEM 5's program API: windows, menu bar, form_alert (rom/sdk/aes.zig)
+    _ = @import("rom_app_obj.zig"); // ...and object trees: objc_draw, form_button, objc_edit (1.23)
     _ = @import("rom_deskmode.zig"); // the desktop's mode across a program launch: Getrez, the return
 }
 

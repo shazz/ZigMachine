@@ -23,8 +23,8 @@ pub fn menus(p: *Pen, app: *App) void {
     p.line(fmt(&b, "Last pick: {s}", .{app.lastPick()}));
     p.line(fmt(&b, "Picks: {d}, shortcuts: {d}", .{ app.picks, app.shortcuts }));
     p.gap();
-    p.missing("a shortcut field (the ^key is");
-    p.missing("  part of the label: menu_keys)");
+    p.line("Shortcuts: their own column, right-aligned");
+    p.line(" (a TAB in the label: \"Quit\\t^Q\")");
     p.missing("submenus, menu_tnormal");
 }
 
