@@ -751,6 +751,9 @@ gate ports_sidwizard node apps/sidwizard_bard_check.mjs --break stamp   # ...and
 gate ports_sidwizard node apps/sidwizard_bard_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
 gate ports_sidwizard node apps/sidwizard_cpu_check.mjs   # SID-WIZARD's fast 6502 (kestrel_sw_cpu.c, the registers in locals) = libcRSID's own, byte for byte: every opcode on 48 random C64s (the whole 275 KB machine compared after one instruction) and 4,000 C64 samples of random code (interrupts, the wait, I/O)
 gate ports_sidwizard node apps/sidwizard_cpu_check.mjs --break   # ...and a wrong ADC carry is caught
+gate ports_syncterm node apps/syncterm_headless.mjs   # SYNCTERM (C, GPLv2, the spike: apps/ports/syncterm, fibers on Asyncify, the network MOCKED): launched from GEM over its data disk, it enters the desk mode (640x480), dials telnet://fakebbs.zig (the in-cart BBS), the telnet options are negotiated and WELCOME.ANS is drawn (rows pinned), typed keys come back as the BBS's echo (pinned), Alt+X + No quits back to the desktop as it was
+gate ports_syncterm node apps/syncterm_headless.mjs --break type   # ...and keys never typed (no echo) are caught
+gate ports_syncterm node apps/syncterm_headless.mjs --break quit   # ...and no quit is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain

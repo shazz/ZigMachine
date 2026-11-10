@@ -145,6 +145,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "KLYSTRACK (C)", .tag = "klystrack" }, // pc — kometbomb's chiptune tracker (MIT), apps/ports/klystrack
     .{ .name = "CHIPNOMAD (C++)", .tag = "chipnomad" }, // pc — Megus's AY tracker (MIT), apps/ports/chipnomad
     .{ .name = "SID-WIZARD (C)", .tag = "sidwizard" }, // pc — Hermit's C64 SID tracker, its PC version (WTF licence), apps/ports/sidwizard
+    .{ .name = "SYNCTERM (C)", .tag = "syncterm" }, // pc — Deuce's BBS terminal (GPLv2), the network mocked by an in-cart BBS (the spike), apps/ports/syncterm
     .{ .name = "BENCH (C)", .tag = "c-bench" }, // zigmachine — CoreMark, Dhrystone, Whetstone, LINPACK (double and f32) and RAM speed, the Hatari suite on env.hostMicros; log lines "ZM BENCH name=value unit"
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,

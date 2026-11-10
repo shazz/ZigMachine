@@ -191,7 +191,7 @@ def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) ->
     assert (out / "boot.scr").read_bytes()[:4] == bytes.fromhex("27051956")
     assert rows["zImage"].endswith("zImage")
     shelf = {k: v for k, v in rows.items() if k.startswith(("KESTREL/", "CARTS/"))}
-    apps = ("chipnomad", "grafx2", "klystrack", "pt2", "sidwizard", "st_replay", "sysinfo")  # GEM programs on data disks
+    apps = ("chipnomad", "grafx2", "klystrack", "pt2", "sidwizard", "st_replay", "syncterm", "sysinfo")  # GEM programs on data disks
     data = {f"CARTS/tools/demo-{t}.zmd" for t in apps}  # just files: KOS's desktop boots them
     carts = {f"CARTS/{shelf_category.disk_path(t)}" for t in glass_sd.SHELF} - data | {"KESTREL/kos/desktop.rv32"}
     assert carts | data <= set(shelf)  # every listed cart is named...

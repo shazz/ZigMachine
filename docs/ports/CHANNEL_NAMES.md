@@ -68,6 +68,7 @@ below).
 | klystrack | KLYSTRACK (C) | the program's own name (`apps/ports/klystrack`, upstream README: "klystrack") |
 | chipnomad | CHIPNOMAD (C++) | the program's own name (`apps/ports/chipnomad`, upstream README: "ChipNomad"); written in C++ |
 | sidwizard | SID-WIZARD (C) | the program's own name (`apps/ports/sidwizard`, upstream README: "SID-WIZARD"); its PC version, written in C (the C64 program it runs is 6502) |
+| syncterm | SYNCTERM (C) | the program's own name (`apps/ports/syncterm`, upstream: "SyncTERM"), a BBS terminal; the spike, its network mocked |
 
 ## Length limit
 

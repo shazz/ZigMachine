@@ -5,7 +5,8 @@
  * The script: the connect completes one frame later (so the caller's non-blocking connect path runs),
  * then the BBS opens the telnet negotiation (IAC WILL ECHO, WILL SGA, DO TTYPE, DO NAWS), asks the
  * terminal type when it is offered (SB TTYPE SEND), and once it has the type and the window size (or
- * after half a second) sends BBS.ANS off the cart's floppy (CP437 ANSI art), a line with what the
+ * after half a second) sends WELCOME.ANS off the cart's floppy (data/BBS.ANS; named to sort after BOOT.WSM,
+ * the first file GEM's window lists) (CP437 ANSI art), a line with what the
  * negotiation told it, and a prompt. From then on it echoes what is typed: Enter starts a new prompt line,
  * Backspace rubs out. */
 #include <stdio.h>
@@ -45,7 +46,7 @@ static void outs(struct peer *p, const char *s) { out(p, s, (int)strlen(s)); }
 
 static void send_screen(struct peer *p)
 {
-    FILE *f = fopen("/BBS.ANS", "rb");
+    FILE *f = fopen("/WELCOME.ANS", "rb");
     if (f) {
         uint8_t buf[512];
         size_t n;
@@ -56,7 +57,7 @@ static void send_screen(struct peer *p)
         }
         fclose(f);
     } else {
-        outs(p, "\x1b[2J\x1b[1;31mfakebbs: BBS.ANS is not on this disk.\x1b[0m\r\n");
+        outs(p, "\x1b[2J\x1b[1;31mfakebbs: WELCOME.ANS is not on this disk.\x1b[0m\r\n");
     }
     char line[160];
     snprintf(line, sizeof line, "\x1b[0m\r\n\x1b[1;36mtelnet: terminal %s, %dx%d\x1b[0m\r\n\x1b[1;33m> \x1b[0;37m",

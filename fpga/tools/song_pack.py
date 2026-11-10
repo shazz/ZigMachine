@@ -36,7 +36,7 @@ BYTES = "bytes."
 # Carts whose string literals are not song requests: ported C programs (apps/ports) name their own documents
 # ("untitled.mod", a tracker's module list) and play through the stream ring (hostAudioFeed), never zg.requestSong.
 # Only the songs the log saw them start count.
-NO_LITERAL_SONGS = frozenset({"demo-pt2.wasm", "demo-grafx2.wasm", "demo-klystrack.wasm", "demo-chipnomad.wasm", "demo-sidwizard.wasm"})
+NO_LITERAL_SONGS = frozenset({"demo-pt2.wasm", "demo-grafx2.wasm", "demo-klystrack.wasm", "demo-chipnomad.wasm", "demo-sidwizard.wasm", "demo-syncterm.wasm"})
 
 
 class MissingSong(Exception):
