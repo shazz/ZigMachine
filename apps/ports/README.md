@@ -19,6 +19,7 @@ calls it where its main loop ends:
 | klystrack | Esc (Quit), Alt+F4, or the menu's Exit | `klystrack_main` returns (`kestrel_main.c`) |
 | ChipNomad | SETTINGS (SELECT + Down from the song screen), "Quit ChipNomad", A | `mainLoopTriggerQuit` (`kestrel_main.cpp`) |
 | SID-Wizard | Shift+F8, then Y (upstream PC version's exit dialog) | `kestrel_sw_keys.c` |
+| SyncTERM | Alt+X (disconnect), then Enter on "Save this directory entry?" (No) | `syncterm_main` returns (`kestrel_main.c`) |
 
 | dir | cart | upstream | pinned commit | licence |
 |---|---|---|---|---|
@@ -27,7 +28,8 @@ calls it where its main loop ends:
 | `klystrack/` | `demo-klystrack` | [klystrack](https://github.com/kometbomb/klystrack) + klystron (Tero "kometbomb" Lindeman) | `fe6e746` + `1074324` | MIT |
 | `chipnomad/` | `demo-chipnomad` | [ChipNomad](https://github.com/Megus/chipnomad-tracker) (Megus) | `e4b10d5` | MIT |
 | `sidwizard/` | `demo-sidwizard` | [SID-Wizard](https://demozoo.org/productions/99999/) 1.97 (Mihaly "Hermit" Horvath, with Soci) | source archive md5 `a04e5185...` (vendored) | WTF |
-| `kestrel_sdl2/` | (shared) | ours: SDL2-shaped headers, heap, WASI over the floppy (and opt-in, C: as `/C` over KOS GEMDOS), input, opt-in renderer/RWops/timers | | MIT (the repo's) |
+| `syncterm/` | `demo-syncterm` | [SyncTERM](https://www.syncterm.net) (Stephen Hurd, Synchronet) 1.9, the spike: network mocked | `5bd3194` (sbbs, sparse) | **GPL-2.0** |
+| `kestrel_sdl2/` | (shared) | ours: SDL2-shaped headers, heap, WASI over the floppy (and opt-in, C: as `/C` over KOS GEMDOS), input, opt-in renderer/RWops/timers, opt-in fibers + pthread (Asyncify) | | MIT (the repo's) |
 
 Upstream is **not** vendored here (but for SID-Wizard: no repository, a WTF-licensed source archive, so its
 files are in `sidwizard/upstream/`, unchanged, and patched the same way; its README says why): each port keeps only our glue (`kestrel_*`), the `patches/*.sed` applied to a

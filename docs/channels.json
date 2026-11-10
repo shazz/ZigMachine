@@ -455,6 +455,11 @@
   "type": "atari st"
  },
  {
+  "tag": "syncterm",
+  "title": "SYNCTERM (C)",
+  "type": "pc"
+ },
+ {
   "tag": "tc_test",
   "title": "TC TEST",
   "type": "zigmachine"

@@ -52,8 +52,29 @@ echo "$PINS" | while read -r name url sha; do
     if [ -n "$name" ]; then checkout "$name" "$url" "$sha"; fi
 done
 
+# SyncTERM (GPL-2.0) lives in Synchronet's whole tree (hundreds of MB of history): a shallow, blob-less,
+# sparse checkout of the tag syncterm-1.9 takes only the directories the SyncTERM cart builds from.
+SBBS_SHA=5bd319427e4f58cd965b056c69bb96ed47db7a81   # tag syncterm-1.9
+SBBS_PATHS="/src/syncterm/ /src/conio/ /src/xpdev/ /src/comio/ /src/uifc/ /src/encode/ /src/hash/ /src/sbbs3/ /src/smblib/ /src/build/"
+dir="$UP/sbbs" url=https://gitlab.synchro.net/main/sbbs.git
+[ -n "${MIRROR:-}" ] && url="$MIRROR/sbbs"
+if [ -d "$dir/.git" ]; then
+    have=$(git -C "$dir" rev-parse HEAD)
+    [ "$have" = "$SBBS_SHA" ] || { echo "fetch: $dir is at $have, not the pinned $SBBS_SHA: move it away and run again" >&2; exit 1; }
+    echo "  sbbs: at $SBBS_SHA"
+else
+    echo "  sbbs: $url @ $SBBS_SHA (sparse: $SBBS_PATHS)"
+    git init -q "$dir"
+    git -C "$dir" remote add origin "$url"
+    git -C "$dir" config core.sparseCheckout true
+    printf '%s\n' $SBBS_PATHS > "$dir/.git/info/sparse-checkout"
+    git -C "$dir" fetch -q --depth 1 --filter=blob:none origin "$SBBS_SHA"
+    git -C "$dir" -c advice.detachedHead=false checkout -q "$SBBS_SHA"
+    [ "$(git -C "$dir" rev-parse HEAD)" = "$SBBS_SHA" ] || { echo "fetch: $dir is not at $SBBS_SHA" >&2; exit 1; }
+fi
+
 # binaryen 132 (Apache-2.0), the npm build: wasm-opt as JavaScript, run with node.
-# GrafX2 and klystrack are post-processed with its --asyncify.
+# GrafX2, klystrack and SyncTERM are post-processed with its --asyncify.
 BIN_SHA=6543555fb29bb92548f325c7dc18e9ab7dbb1215edda25993d1e3f71d85b8618
 if [ -f "$UP/binaryen/package.json" ] && grep -q '"version": "132.0.0"' "$UP/binaryen/package.json"; then
     echo "  binaryen: 132.0.0"
