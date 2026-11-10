@@ -56,7 +56,9 @@ pub const CELL: i16 = 8;
 pub const Align = enum(u32) { left = 0, center = 1, right = 2 };
 
 /// What a modal returned this frame.
-pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
+/// relist (system table 1.18): only the ITEM SELECTOR answers it, when its spec moved (a folder
+/// opened, the parent, the Directory: line edited); the list is empty, add the names of aes.fileSelSpec.
+pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2, relist = 3 };
 
 // --------------------------------------------------------------------------
 // Entry points — exports of rom.wasm. Signatures ARE the ABI.

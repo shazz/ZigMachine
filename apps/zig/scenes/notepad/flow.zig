@@ -69,19 +69,49 @@ fn saveAs(a: *App, then: Cmd) void {
 }
 
 fn selector(a: *App, m: Modal) void {
-    a.fsel.show(files.MASK);
-    var names: [files.MAX_LIST][13]u8 = undefined;
-    var lens: [files.MAX_LIST]u8 = undefined;
-    const n = files.list(&names, &lens);
-    for (0..n) |i| a.fsel.add(names[i][0..lens[i]]);
+    a.fsel.show(lastSpec(a));
+    fill(a, lastSpec(a));
     aes.fileSelName(a.fsel, if (m == .fsel_save) a.name[0..a.name_len] else "");
     a.modal = m;
 }
 
+// The selector's list for `s`: its folders, then its files (files.list).
+fn fill(a: *App, s: []const u8) void {
+    var names: [files.MAX_LIST][13]u8 = undefined;
+    var lens: [files.MAX_LIST]u8 = undefined;
+    const n = files.list(s, &names, &lens);
+    for (0..n) |i| a.fsel.add(names[i][0..lens[i]]);
+}
+
+/// The ITEM SELECTOR moved to another folder or mask (`relist`): its list, read again.
+pub fn relist(a: *App) void {
+    var buf: [files.MAX_SPEC]u8 = undefined;
+    fill(a, aes.fileSelSpecOf(a.fsel, &buf));
+}
+
+/// The last accepted path spec (the folder the name lives in, the mask the selector reopens with).
+fn lastSpec(a: *const App) []const u8 {
+    return if (a.spec_len == 0) files.MASK else a.spec[0..a.spec_len];
+}
+
+// The selector's spec kept as the file's folder (an OK); a spec without a folder keeps the old.
+fn accept(a: *App) void {
+    var buf: [files.MAX_SPEC]u8 = undefined;
+    const s = aes.fileSelSpecOf(a.fsel, &buf);
+    if (files.dirOf(s).len == 0) return;
+    @memcpy(a.spec[0..s.len], s);
+    a.spec_len = @intCast(s.len);
+}
+
+// The current name in its folder.
+fn filePath(a: *const App, buf: []u8) []const u8 {
+    return files.path(files.dirOf(lastSpec(a)), a.name[0..a.name_len], buf);
+}
+
 /// Save to the current name: false (and an alert) on a failure.
 fn write(a: *App) bool {
-    var pbuf: [24]u8 = undefined;
-    const fail = files.save(files.path(a.name[0..a.name_len], &pbuf), a.io, &a.doc.text) orelse {
+    var pbuf: [files.MAX_SPEC + 16]u8 = undefined;
+    const fail = files.save(filePath(a, &pbuf), a.io, &a.doc.text) orelse {
         a.doc.modified = false;
         return true;
     };
@@ -122,6 +152,7 @@ fn chosen(a: *App) bool {
     var nb: [13]u8 = undefined;
     const name = files.txtName(a.fsel.chosen(&typed), &nb);
     if (name.len == 0) return false;
+    accept(a);
     @memcpy(a.name[0..name.len], name);
     a.name_len = @intCast(name.len);
     return true;
@@ -129,8 +160,8 @@ fn chosen(a: *App) bool {
 
 fn open(a: *App) void {
     if (!chosen(a)) return;
-    var pbuf: [24]u8 = undefined;
-    if (files.load(files.path(a.name[0..a.name_len], &pbuf), a.io, &a.doc.text)) |f| {
+    var pbuf: [files.MAX_SPEC + 16]u8 = undefined;
+    if (files.load(filePath(a, &pbuf), a.io, &a.doc.text)) |f| {
         failed(a, "Cannot read", f); // names the file, then the half-read text goes
         a.newText();
         return;

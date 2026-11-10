@@ -37,9 +37,11 @@ async function rig(img, brk) {
     return m;
 }
 
-/** GEM boots over Notepad's data disk and runs BOOT.WSM, as on the page. */
-export async function fromGem(img, brk = "") {
+/** GEM boots over Notepad's data disk and runs BOOT.WSM, as on the page. `patch(m)` may change the
+ *  env the cart links against first (a harness's break: a ROM export sabotaged). */
+export async function fromGem(img, brk = "", patch = null) {
     const m = await rig(img, brk);
+    patch?.(m);
     m.launch = await launchFromGem(m, CART);
     return driver(m);
 }

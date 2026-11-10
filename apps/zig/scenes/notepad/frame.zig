@@ -24,6 +24,7 @@ pub fn modal(self: *App) void {
         .none => .none,
     };
     if (r == .none) return;
+    if (r == .relist) return flow.relist(self); // the selector went to another folder: still up
     self.repaint = true; // what the box covered: the next frame paints it all again
     if (m == .find) {
         self.modal = .none;

@@ -19,6 +19,7 @@ pub extern fn deskReturnMode() u32; // table 1.18 (rom/rom_deskmode.zig)
 pub extern fn dialogFormAlert(h: u32, default: u32, ptr: u32, len: u32) u32;
 pub extern fn dialogChoice(h: u32) u32;
 pub extern fn fileSelSetName(h: u32, ptr: u32, len: u32) void;
+pub extern fn fileSelSpec(h: u32, out: u32, out_cap: u32) u32; // system table 1.18
 pub extern fn menuReset(h: u32) void;
 pub extern fn menuTitle(h: u32, ptr: u32, len: u32) u32;
 pub extern fn menuItem(h: u32, ptr: u32, len: u32, flags: u32) u32;
@@ -102,6 +103,11 @@ pub fn choice(d: rom.Dialog) u32 {
 }
 pub fn fileSelName(f: rom.FileSel, name: []const u8) void {
     fileSelSetName(f.h, p(name), n(name));
+}
+/// The selector's path spec (`C:\NET\*.TXT`) into `out`: the folder its list shows, then the mask.
+/// After a `relist` answer, the program adds that folder's names (folders with a trailing `\`).
+pub fn fileSelSpecOf(f: rom.FileSel, out: []u8) []const u8 {
+    return out[0..fileSelSpec(f.h, p(out), n(out))];
 }
 
 pub const MENU_DISABLED: u32 = 1;

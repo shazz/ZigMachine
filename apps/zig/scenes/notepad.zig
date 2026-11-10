@@ -3,7 +3,7 @@
 // to VALIDATE GEM 5's program API (docs/NOTEPAD.md has what that turned up).
 // Everything GEM is the ROM's, through rom_sdk: the window and its gadgets, the
 // menu bar, form_alert, the ITEM SELECTOR, graf_mouse (aes.zig, table 1.17); the
-// files are KOS GEMDOS's (C:\*.TXT). The program draws only its text, and only
+// files are KOS GEMDOS's (C:\*.TXT, any folder of C:). The program draws only its text, and only
 // the rows that changed (notepad/view.zig): an idle frame paints nothing.
 //
 // A GEM program: BOOT.WSM on a data disk, double-clicked in the desktop; it opens
@@ -41,6 +41,8 @@ pub const App = struct {
     desk_ok: bool = false,
     name: [13]u8 = undefined,
     name_len: u8 = 0,
+    spec: [64]u8 = undefined, // the ITEM SELECTOR's last accepted path spec: the name's folder (flow.zig)
+    spec_len: u8 = 0, // 0: C:\*.TXT
     modal: flow.Modal = .none,
     pending: menu.Cmd = .none,
     keys: inp.Queue = .{},

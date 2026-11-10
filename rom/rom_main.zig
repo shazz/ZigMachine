@@ -31,7 +31,7 @@ comptime {
     _ = @import("rom_deskmode.zig"); // the desktop's mode across a program launch: Getrez, the return
 }
 
-pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
+pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2, relist = 3 }; // relist: the ITEM SELECTOR's spec moved (rom_app_fsel.zig)
 
 // --------------------------------------------------------------------------
 // romDepack: the machine unpacks a program it loads from a disk.
@@ -435,6 +435,7 @@ export fn fileSelProcess(h: u32, gui_h: u32) u32 {
     return switch (f.process(g)) {
         .ok => @intFromEnum(Result.ok),
         .cancel => @intFromEnum(Result.cancel),
+        .relist => @intFromEnum(Result.relist),
         else => @intFromEnum(Result.none),
     };
 }
