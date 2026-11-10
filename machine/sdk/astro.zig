@@ -85,6 +85,7 @@ pub const ST_BAD_OP: u32 = 1; // an op or a MAP function this machine does not k
 pub const ST_RANGE: u32 = 2; // an array outside the memory, or a count past the limits
 pub const ST_ALIGN: u32 = 3; // an array not aligned to its element (4 for f32/i32, 8 for f64)
 pub const ST_BAD_DESC: u32 = 4; // the descriptor itself outside the memory or not 8-aligned
+pub const ST_TIMEOUT: u32 = 5; // board only: the ARM took the request and did not finish it in time
 // Bit 8: the ARM served it (board only). 0 = the machine's own code did (browser, native host,
 // or the board's fallback when the mailbox is absent or did not answer in time).
 pub const SERVED_ARM: u32 = 1 << 8;

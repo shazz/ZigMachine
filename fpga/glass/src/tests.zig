@@ -51,4 +51,5 @@ test {
     _ = @import("ctl_test.zig");
     _ = @import("app_ctl_test.zig");
     _ = @import("vstat_test.zig");
+    _ = @import("astro_box_test.zig");
 }

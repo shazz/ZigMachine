@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "bastro.h"
 #include "baudio.h"
 #include "bblit.h"
 #include "bbootsec.h"
@@ -199,6 +200,7 @@ static uint32_t boot(void) {
     int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
     host_boot_machine(&g_env);
     bdesk_boot(&g_env); /* the bitstream's desk capability, for hwDeskAvailable() */
+    bastro_boot(g_env.memory.data, g_env.memory.size); /* ASTROLABE's mailbox, if the bitstream has it */
     uint32_t post = bkos_boot(&g_env, bdiskapp_bootable); /* the variables, hwInit; KOS's POST before both */
     if (!sector && !post) host_boot_cart(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
