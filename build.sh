@@ -426,6 +426,8 @@ gate gemtest node apps/gemtest_obj_check.mjs   # a program's object tree on the 
 gate gemtest node apps/gemtest_obj_check.mjs --break radio   # ...and a form_button that forgets radio groups is caught
 gate gemtest node apps/gemtest_icon_check.mjs   # a program's icons and desktop (G16, docs/GEMTEST.md): GEMTEST's WF_NEWDESK tree of G_ICONs naming the ROM's icons, drawn where the desk shows; a click selects, the next moves the selection, the empty desk deselects all; a drag moves an icon (= a whole repaint after); a double-click opens the Icons area; low and the desk
 gate gemtest node apps/gemtest_icon_check.mjs --break icons   # ...and a ROM that loses its icons is caught
+gate gemtest node apps/gemtest_screen_check.mjs   # Setscreen for a program (GEM 5 S6, docs/GEMTEST.md): GEMTEST's keys 1 2 3 through the ROM: RESOLUTION follows (low, medium, the desk, low) and each screen through the re-bound context = a whole repaint; an unknown mode and the desk without a buffer are refused
+gate gemtest node apps/gemtest_screen_check.mjs --break switch   # ...and a Setscreen that answers yes and does nothing is caught
 gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
 gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
 gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught

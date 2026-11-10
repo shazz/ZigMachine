@@ -111,8 +111,8 @@ pub const App = struct {
     pub fn setShadeMode(self: *App, m: u32) void {
         if (m > 2) return;
         const was = self.mode;
-        self.mode = screen.switchTo(self.fb, @enumFromInt(m), self.desk_ok);
-        self.g.resize(screen.width(self.mode), screen.height(self.mode));
+        const want: aes.ScreenMode = if (m == 2 and !self.desk_ok) .medium else @enumFromInt(m);
+        self.mode = aes.setscreen(self.g, want, @intCast(self.fb.desk_off)) orelse was; // Setscreen: the ROM's (S6)
         if (self.mode != was) if (self.wins.area) |a| self.wins.show(self.g, a, self.mode); // the same mode: a repaint
         if (self.mode != was) self.desk.init(self.g, self.mode);
         self.syncMenu();

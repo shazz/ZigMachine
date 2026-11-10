@@ -80,8 +80,7 @@ pub fn modes(p: *Pen, app: *App) void {
     p.button(2, "Desk", app.mode == .desk, 1);
     p.endRow();
     p.line("Keys 1 2 3 and the Mode menu switch too.");
-    p.missing("Setscreen for a program (it");
-    p.missing("  switches its own plane)");
+    p.line("The switch: Setscreen, the ROM's (keys 1 2 3)");
 }
 
 pub fn press(app: *App, a: Area, id: u8) void {

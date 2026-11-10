@@ -17,6 +17,14 @@ pub extern fn guiScratch(h: u32, ptr: u32, len: u32) u32;
 pub extern fn guiHostPointer(h: u32, x: i32, y: i32, buttons: u32) void;
 pub extern fn guiTextClip(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u32, cx: i32, cy: i32, cw: i32, ch: i32) void;
 pub extern fn guiCell(h: u32) u32;
+pub extern fn guiSetscreen(h: u32, rez: u32, desk_off: u32) u32; // system table 1.25 (rom_app_screen.zig)
+
+/// Setscreen: the program's screen switched by the ROM, the context with it; `desk_off` is the
+/// plane's 640 x 480 buffer (its LogicalFB.desk_off) for the desk. The mode set, null refused.
+pub fn setscreen(g: rom.Gui, mode: ScreenMode, desk_off: u32) ?ScreenMode {
+    const r = guiSetscreen(g.h, @intFromEnum(mode), desk_off);
+    return if (r > 2) null else @enumFromInt(r);
+}
 pub extern fn guiMouse(h: u32, on: u32) void;
 pub extern fn deskScreenMode() u32;
 pub extern fn deskReturnMode() u32; // table 1.18 (rom/rom_deskmode.zig)

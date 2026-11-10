@@ -70,7 +70,9 @@ Each is a grey line in its window.
    WF_NEWDESK: the program's desktop tree, drawn by `winDeskDraw` in the desk's WM_REDRAW rectangles.
    GEMTEST's desktop (gemtest/desk.zig) is such a tree with four icons: a click selects, a drag moves,
    a double-click opens (the Icons area names it).
-8. **Screen modes**: no Setscreen for a program (it switches its own plane).
+8. **Screen modes**: done in S6 (system table 1.25, `rom.aes.setscreen`): Setscreen through the ROM, which
+   writes the plane's mode registers (the desk on the program's own 640 x 480 buffer, as XBIOS Setscreen
+   took the screen's address) and re-binds the program's context; GEMTEST's keys 1 2 3 use it.
 9. **The look**: a ROM built with Matt's TOS 4 set (`-Dgem_assets`, `-Dgem_trees`, `-Dgem_engine=true`)
    draws every GEMTEST component byte for byte as the TOS 1.0 ROM does (the shots, 9 Nov: 56 of 57
    PNGs identical; only GEM's own desktop in the desk mode differs, by its drive icon, the same with
