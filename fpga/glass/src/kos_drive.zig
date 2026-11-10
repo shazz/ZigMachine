@@ -9,6 +9,7 @@ const std = @import("std");
 const linux = std.os.linux;
 const mc = @import("map_cart.zig");
 const kos_file = @import("kos_file.zig");
+const net_card = @import("net_card.zig");
 const layout = @import("layout.zig");
 const HD_DIR = layout.ROOT ++ "/" ++ layout.HD; // C:\ for writes: Linux's own view of the card (KESTREL layout)
 const layout_root: [*:0]const u8 = layout.ROOT;
@@ -85,11 +86,13 @@ pub fn startThread(words: []volatile u32) void {
         var handle: i32 = -1;
         var server: Server = undefined;
         var files: ?kos_file.Server = null;
+        var net: net_card.Card = undefined; // ZIGNIC (docs/GEM_NET.md N2): env.netOp served on Linux's sockets
         fn loop() void {
             const ts = linux.timespec{ .sec = 0, .nsec = 500_000 };
             while (true) {
                 _ = server.poll();
                 if (files) |*f| _ = f.poll();
+                while (net.poll()) {} // a cart may post several ops a frame: each answered at once
                 _ = linux.nanosleep(&ts, null);
             }
         }
@@ -102,6 +105,7 @@ pub fn startThread(words: []volatile u32) void {
     if (linux.errno(rc) != .SUCCESS) return std.log.warn("C: {s}: {t} (KOS's C: will not answer)", .{ PARTITION, linux.errno(rc) });
     S.handle = @intCast(rc);
     S.server = .{ .words = words, .src = Source.fd(&S.handle) };
+    S.net = .{ .words = words };
     const hd = linux.open(HD_DIR, .{ .ACCMODE = .RDONLY, .DIRECTORY = true, .NOFOLLOW = true, .CLOEXEC = true }, 0);
     if (linux.errno(hd) == .SUCCESS)
         S.files = .{ .words = words, .be = .{ .root = @intCast(hd), .mount_point = layout_root, .after = S.dropCache } }
