@@ -60,6 +60,7 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
         hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
         hostBardAttach: () => 0, // table 1.12: no BARD queue here
         hostPointerBox: (x0, y0, x1, y1) => ptrBoxes.push([x0 | 0, y0 | 0, x1 | 0, y1 | 0]), // table 1.21: recorded
+        netOp: () => -1, // table 1.22: ZIGNIC, no card in the harness (SyncTERM falls back to its in-cart BBS)
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5)
         kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE, no C: here
         ...extraEnv,

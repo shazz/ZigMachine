@@ -158,5 +158,4 @@ static void f_close(int s) { if (peers[s].state != KNET_REFUSED) peers[s].state 
 
 unsigned kestrel_fakebbs_typed(void) { return typed; }
 
-static const struct knet_transport fakebbs = { "mock", f_resolve, f_open, f_state, f_rx_avail, f_rx, f_tx_room, f_tx, f_close };
-const struct knet_transport *knet = &fakebbs;
+const struct knet_transport knet_fake = { "mock", f_resolve, f_open, f_state, f_rx_avail, f_rx, f_tx_room, f_tx, f_close }; /* kestrel_zignic.c routes to it */

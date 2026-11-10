@@ -200,7 +200,7 @@ for w in "$OUT"/demo-*.wasm; do
         sidwizard) portdisk "$tag" "$w" --file "FLASHBAK.SWM=apps/ports/sidwizard/data/FLASHBAK.SWM" ;;
         # SyncTERM (the spike): the mocked BBS's welcome screen, our own CP437 ANSI art (mkansi.py), which
         # the in-cart fake BBS sends when SyncTERM dials telnet://fakebbs.zig (kestrel_fakebbs.c).
-        syncterm)  portdisk "$tag" "$w" --file "WELCOME.ANS=apps/ports/syncterm/data/BBS.ANS" ;;
+        syncterm)  portdisk "$tag" "$w" --file "WELCOME.ANS=apps/ports/syncterm/data/BBS.ANS" --file "DIAL.TXT=apps/ports/syncterm/data/DIAL.TXT" ;;
         *)         pack "$OUT/demo-$tag.zmd" "$tag" "$w" ;;
     esac
 done

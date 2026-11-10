@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 /* The cart's entry points for SyncTERM. SyncTERM is threaded (its main loop, the telnet pumps, ciolib's
  * mouse thread); each thread is a fiber (../kestrel_sdl2/src/opt/kestrel_fiber.c), and frame() runs
  * every fiber that can make progress, then draws what changed (kestrel_cio.c). boot() starts SyncTERM's
@@ -19,8 +21,24 @@ uint64_t SDL_GetPerformanceCounter(void) { return kfib_now_us(); }
 uint64_t SDL_GetPerformanceFrequency(void) { return 1000000; }
 uint32_t SDL_GetTicks(void) { return (uint32_t)(kfib_now_us() / 1000); }
 
-static char a0[] = "syncterm", a1[] = "telnet://fakebbs.zig";
+/* The URL dialled at boot: the fake BBS, or, when a ZIGNIC card answers (kestrel_zignic.c), DIAL.TXT's first
+ * line off the disk (a real BBS: telnet://host[:port]). */
+static char a0[] = "syncterm", a1[160] = "telnet://fakebbs.zig";
 static char *argv0[] = { a0, a1, 0 };
+int kestrel_zignic_present(void);
+
+static void pick_url(void)
+{
+    if (!kestrel_zignic_present()) return;
+    FILE *f = fopen("/DIAL.TXT", "rb");
+    if (!f) return;
+    char line[160] = {0};
+    if (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        if (strncmp(line, "telnet://", 9) == 0 || strncmp(line, "rlogin://", 9) == 0) strcpy(a1, line);
+    }
+    fclose(f);
+}
 static int finished;
 
 static void run_main(void *arg)
@@ -35,7 +53,13 @@ static void run_main(void *arg)
 __attribute__((export_name("boot"))) void boot(void)
 {
     kestrel_desk_boot();
-    if (kestrel_desk_on()) kestrel_desk_status(" SyncTERM 1.9 - telnet://fakebbs.zig - network: MOCK (an in-cart BBS, no TCP/IP)");
+    pick_url();
+    if (kestrel_desk_on()) {
+        static char status[200];
+        snprintf(status, sizeof status, " SyncTERM 1.9 - %s - network: %s", a1,
+                 kestrel_zignic_present() ? "ZIGNIC (the card)" : "MOCK (an in-cart BBS, no TCP/IP)");
+        kestrel_desk_status(status);
+    }
     if (!kfib_spawn(run_main, 0, 256 * 1024)) { kestrel_log("syncterm: no fiber for main"); return; }
     kfib_run(64);
     kestrel_heap_report();
