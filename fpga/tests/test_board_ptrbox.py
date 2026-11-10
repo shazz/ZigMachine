@@ -3,7 +3,7 @@ the glass held every cart's pointer to the visible window (f897cb53, for GEM), s
 klystrack, which draw 400x280 planes over the borders, lost their top and bottom rows. ZIGGY's
 firmware now writes where the enabled planes draw; glass stops the pointer there (src/mouse.zig
 planeBox, its test mouse_box_test.zig). Here: the firmware's word for the real carts' registers,
-decoded with glass's rule. ZM_RTL_BREAK=1: every plane taken as the visible window
+decoded with glass's rule, and the rectangle a cart publishes (env.hostPointerBox). ZM_RTL_BREAK=1: every plane taken as the visible window
 (BPTRBOX_BREAK_WINDOW, the clamp that cut pt2 off) must be caught."""
 
 from __future__ import annotations
@@ -46,32 +46,44 @@ def ptrbox_test() -> Path:
     return build("ptrbox_test")
 
 
-def word(exe: Path, on: int, *planes: tuple[int, int]) -> int:
-    regs = [str(v) for p in (list(planes) + [OFF] * 4)[:4] for v in p]
-    return int(subprocess.run([str(exe), str(on), *regs], capture_output=True, text=True, check=True).stdout, 16)
+def run(exe: Path, *args: object) -> str:
+    return subprocess.run([str(exe), *map(str, args)], capture_output=True, text=True, check=True).stdout.strip()
 
 
-def glass_reads(w: int) -> tuple[int, int, int, int] | None:
-    """mouse.zig planeBox: the box in raster pixels (ends exclusive), or None (the whole raster)."""
-    if w & glass_cart.VBOX_TAG_MASK != glass_cart.VBOX_TAG:
+def planes(exe: Path, on: int, *regs: tuple[int, int]) -> tuple[int, int] | None:
+    return glass_reads(run(exe, "planes", on, *(v for p in (list(regs) + [OFF] * 4)[:4] for v in p)))
+
+
+def cart(exe: Path, x0: int, y0: int, x1: int, y1: int) -> tuple[int, int, int, int] | None:
+    return glass_reads(run(exe, "cart", x0 & 0xFFFF_FFFF, y0 & 0xFFFF_FFFF, x1 & 0xFFFF_FFFF, y1 & 0xFFFF_FFFF))
+
+
+def span(w: int, tag: int, end: int) -> tuple[int, int] | None:
+    if w & glass_cart.VBOX_TAG_MASK != tag:
         return None
-    f = glass_cart.VBOX_FIELD_MASK
-    x0 = (w >> glass_cart.VBOX_X0_SHIFT & f) * glass_cart.VBOX_X_UNIT
-    x1 = (w >> glass_cart.VBOX_X1_SHIFT & f) * glass_cart.VBOX_X_UNIT
-    y0 = (w >> glass_cart.VBOX_Y0_SHIFT & f) * glass_cart.VBOX_Y_UNIT
-    y1 = (w >> glass_cart.VBOX_Y1_SHIFT & f) * glass_cart.VBOX_Y_UNIT
-    return (x0, y0, x1, y1) if x0 < x1 <= W and y0 < y1 <= H else None
+    lo, hi = w & glass_cart.VBOX_FIELD_MASK, w >> glass_cart.VBOX_HI_SHIFT & glass_cart.VBOX_FIELD_MASK
+    return (lo, hi) if lo < hi <= end else None
+
+
+def glass_reads(out: str) -> tuple[int, int, int, int] | None:
+    """mouse.zig planeBox over the two words: the box in raster pixels (ends exclusive), or None."""
+    if out == "none":
+        return None
+    xw, yw = (int(v, 16) for v in out.split())
+    xs, ys = span(xw, glass_cart.VBOX_X_TAG, W), span(yw, glass_cart.VBOX_Y_TAG, H)
+    return (xs[0], ys[0], xs[1], ys[1]) if xs and ys else None
 
 
 def test_gem_is_the_visible_window(ptrbox_test: Path) -> None:
     """GEM's desktop: plane 0 MEDIUM, stride 640 (the arrow stays out of the borders, f897cb53)."""
-    assert glass_reads(word(ptrbox_test, 0b1, (MEDIUM, 640))) == WINDOW
+    assert planes(ptrbox_test, 0b1, (MEDIUM, 640)) == WINDOW
 
 
 @pytest.mark.parametrize("cart", ["pt2", "klystrack"])
-def test_an_sdl_port_over_the_borders_is_the_whole_raster(ptrbox_test: Path, cart: str) -> None:
-    """kestrel_plane.c: a picture bigger than 320x200 is a FULLSCREEN plane, stride 400."""
-    assert glass_reads(word(ptrbox_test, 0b1, (FULLSCREEN, 400))) == WHOLE
+def test_a_fullscreen_plane_alone_is_the_whole_raster(ptrbox_test: Path, cart: str) -> None:
+    """kestrel_plane.c: a picture bigger than 320x200 is a FULLSCREEN plane, stride 400; without
+    the cart's own rectangle (an SDL port built before hostPointerBox) that is all the firmware knows."""
+    assert planes(ptrbox_test, 0b1, (FULLSCREEN, 400)) == WHOLE
 
 
 @pytest.mark.parametrize(
@@ -81,31 +93,54 @@ def test_an_sdl_port_over_the_borders_is_the_whole_raster(ptrbox_test: Path, car
 )  # fmt: skip
 def test_each_mode_is_its_rectangle(ptrbox_test: Path, mode: int, stride: int, whole: int) -> None:
     """vwhole.h, the rule vseq_plane_lines also uses (video.zig renderPlane*)."""
-    out = subprocess.run(
-        [str(ptrbox_test), "whole", str(mode), str(stride)], capture_output=True, text=True, check=True
-    )
-    assert int(out.stdout) == whole
-    assert glass_reads(word(ptrbox_test, 0b1, (mode, stride))) == (WHOLE if whole else WINDOW)
+    assert int(run(ptrbox_test, "whole", mode, stride)) == whole
+    assert planes(ptrbox_test, 0b1, (mode, stride)) == (WHOLE if whole else WINDOW)
 
 
 def test_the_box_is_the_union_of_the_enabled_planes_only(ptrbox_test: Path) -> None:
-    planes = ((MEDIUM, 640), (FULLSCREEN, 400), (NORMAL, 320), (NORMAL, 320))
-    assert glass_reads(word(ptrbox_test, 0b0101, *planes)) == WINDOW  # the big plane is off
-    assert glass_reads(word(ptrbox_test, 0b0011, *planes)) == WHOLE
-    assert glass_reads(word(ptrbox_test, 0b1000, *planes)) == WINDOW
+    regs = ((MEDIUM, 640), (FULLSCREEN, 400), (NORMAL, 320), (NORMAL, 320))
+    assert planes(ptrbox_test, 0b0101, *regs) == WINDOW  # the big plane is off
+    assert planes(ptrbox_test, 0b0011, *regs) == WHOLE
+    assert planes(ptrbox_test, 0b1000, *regs) == WINDOW
 
 
 def test_no_plane_enabled_is_the_whole_raster(ptrbox_test: Path) -> None:
     """Nothing drawn to aim at: never a box that traps the pointer."""
-    assert glass_reads(word(ptrbox_test, 0, (MEDIUM, 640))) == WHOLE
+    assert planes(ptrbox_test, 0, (MEDIUM, 640)) == WHOLE
 
 
-def test_the_word_sits_between_kos_boot_words_and_the_boot_sectors_skip_word() -> None:
-    assert glass_cart.KOS_BOOT_FROM_TOP + 4 <= glass_cart.VBOX_FROM_TOP
-    assert glass_cart.VBOX_FROM_TOP + 4 <= glass_cart.BOOTSEC_SKIP_FROM_TOP
+# The SDL layer's rectangles (kestrel_sdl2/src/kestrel_ptrbox.c, pointer() coordinates) and where
+# glass then stops the pointer: pt2-clone 320x255 at (40, 12) of its 400x280 plane, klystrack 320x240
+# at (40, 20): rows 12..266 and 20..259 of the raster, x the visible window.
+@pytest.mark.parametrize(
+    ("name", "rect", "box"),
+    [("pt2", (0, -28, 640, 227), (BX, 12, W - BX, 267)), ("klystrack", (0, -20, 640, 220), (BX, 20, W - BX, 260)),
+     ("whole", (-BX, -BY, W - BX, H - BY), WHOLE), ("gem", (0, 0, 640, 200), WINDOW)],
+)  # fmt: skip
+def test_the_carts_rectangle_is_the_box(
+    ptrbox_test: Path, name: str, rect: tuple[int, ...], box: tuple[int, ...]
+) -> None:
+    assert cart(ptrbox_test, *rect) == box
+
+
+def test_the_carts_rectangle_is_clipped_to_the_raster(ptrbox_test: Path) -> None:
+    assert cart(ptrbox_test, -1000, -1000, 5000, 5000) == WHOLE
+    assert cart(ptrbox_test, -(2**31), -(2**31), 2**31 - 1, 2**31 - 1) == WHOLE  # no overflow
+
+
+@pytest.mark.parametrize("rect", [(0, 0, 0, 200), (10, 0, 5, 200), (900, 0, 1000, 200), (0, -500, 640, -100)])
+def test_an_empty_rectangle_leaves_it_to_the_planes(ptrbox_test: Path, rect: tuple[int, ...]) -> None:
+    assert run(ptrbox_test, "cart", *(v & 0xFFFF_FFFF for v in rect)) == "none"
+
+
+def test_the_words_sit_in_free_words_of_the_windows_top() -> None:
+    assert glass_cart.KOS_BOOT_FROM_TOP + 4 <= glass_cart.VBOX_Y_FROM_TOP
+    assert glass_cart.VBOX_Y_FROM_TOP + 4 <= glass_cart.BOOTSEC_SKIP_FROM_TOP
+    assert glass_cart.KOS_FILE_FROM_TOP + 4 <= glass_cart.VBOX_X_FROM_TOP
+    assert glass_cart.VBOX_X_FROM_TOP + 4 <= glass_cart.VMODE_FROM_TOP
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 def test_break_every_plane_the_window_is_caught() -> None:
     mutant = build("ptrbox_break", "-DBPTRBOX_BREAK_WINDOW")
-    assert glass_reads(word(mutant, 0b1, (FULLSCREEN, 400))) != WHOLE  # pt2 cut off again
+    assert planes(mutant, 0b1, (FULLSCREEN, 400)) != WHOLE  # pt2 cut off again

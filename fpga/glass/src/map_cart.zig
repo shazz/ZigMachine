@@ -147,27 +147,28 @@ pub const VMODE_TAG: u32 = 0x5600_0000; // "V"
 pub const VMODE_TAG_MASK: u32 = 0xFF00_0000;
 pub const VMODE_DESK: u32 = 1 << 0;
 
-// --- the pointer's box, at window end - VBOX_FROM_TOP (CPU 0x41FF_FC24) -----
-// Where the cart draws, so the pointer stops there in the plane modes (Matt, 9 Nov): GEM's one
-// 640x200 plane is the visible window (the arrow never goes into the borders), pt2-clone's and
-// klystrack's 400x280 planes are the whole raster (their top and bottom rows are reachable).
-// ZIGGY's firmware (cycles/bptrbox.h, bdesk.c) writes the union of its enabled planes' rectangles
-// (each the whole raster or the visible window: vwhole.h) at each frame it changes; glass reads it
-// at each mouse report (mouse.zig planeBox). One word, so a report never sees half a box: VBOX_TAG
-// | x0, x1 in VBOX_X_UNIT medium-res pixels | y0, y1 in VBOX_Y_UNIT rows, raster coordinates,
-// ends exclusive (every plane edge is on that grid: bptrbox.h asserts it). No tag (an older
-// firmware, no frame yet: a load zeroes it) is the whole raster, as before the box. The desk
-// mode ignores it (its 640x480 picture). Between the boot sector's skip word and KOS's boot words.
-pub const VBOX_FROM_TOP: u32 = 0x3DC;
-pub const VBOX_TAG: u32 = 0x4200_0000; // "B"
+// --- the pointer's box: two words, at window end - VBOX_X_FROM_TOP / VBOX_Y_FROM_TOP -----
+// Where the cart's picture is, so the pointer stops there in the plane modes (Matt, 9 Nov): GEM's
+// one 640x200 plane is the visible window (the arrow never goes into the borders); pt2-clone's
+// 320x255 and klystrack's 320x240, centred in 400x280 planes, reach their top and bottom rows and
+// no further (their own cursor is drawn only over the picture: past it, it vanished). ZIGGY's
+// firmware (cycles/bptrbox.h, bdesk.c) writes the rectangle the cart published with
+// env.hostPointerBox (the SDL layer: kestrel_sdl2/src/kestrel_ptrbox.c), else the union of its
+// enabled planes' rectangles (each the whole raster or the visible window: vwhole.h), whenever
+// it changes; glass reads both words at each mouse report (mouse.zig planeBox). Raster
+// coordinates, medium-res x, ends exclusive, exact: VBOX_X = VBOX_X_TAG | x0 | x1 << VBOX_HI_SHIFT
+// (CPU 0x41FF_FC3C, between VMODE and the C: file block), VBOX_Y = VBOX_Y_TAG | y0 | y1 <<
+// VBOX_HI_SHIFT (CPU 0x41FF_FC24, between the boot sector's skip word and KOS's boot words). The
+// firmware stores y then x; a report between the two sees a box that is still on the raster, and
+// the next one sees the whole of it. Either word untagged (an older firmware, no frame yet: a load
+// zeroes them) is the whole raster. The desk mode ignores them (its 640x480 picture).
+pub const VBOX_X_FROM_TOP: u32 = 0x3C4;
+pub const VBOX_Y_FROM_TOP: u32 = 0x3DC;
+pub const VBOX_X_TAG: u32 = 0x5800_0000; // "X"
+pub const VBOX_Y_TAG: u32 = 0x5900_0000; // "Y"
 pub const VBOX_TAG_MASK: u32 = 0xFF00_0000;
-pub const VBOX_X_UNIT: u32 = 16;
-pub const VBOX_Y_UNIT: u32 = 8;
-pub const VBOX_FIELD_MASK: u32 = 0x3F;
-pub const VBOX_X0_SHIFT: u32 = 0;
-pub const VBOX_X1_SHIFT: u32 = 6;
-pub const VBOX_Y0_SHIFT: u32 = 12;
-pub const VBOX_Y1_SHIFT: u32 = 18;
+pub const VBOX_FIELD_MASK: u32 = 0x3FF;
+pub const VBOX_HI_SHIFT: u32 = 12;
 
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk

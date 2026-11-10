@@ -3,7 +3,7 @@
 // the browser an absolute position on the canvas, so the motion is summed into
 // a position on the whole physical raster (map.PTR_WIDTH x PTR_HEIGHT, borders
 // included, as the browser's canvas) and clamped to where the cart draws (the
-// firmware's box word, planeBox), as a pointer stops at the edge of a screen.
+// firmware's box words, planeBox), as a pointer stops at the edge of a screen.
 // The firmware makes it the browser's coordinates.
 //
 // The browser's buttons are not the mouse's: ANY button is bit 0, and a
@@ -44,10 +44,10 @@ pub fn isMouse(ev_type: u16, code: u16) bool {
 }
 
 // Where the position may go, in 1/SCALE_ONE pixels: where the cart draws in the plane modes
-// (the firmware's box word, map_cart.zig VBOX_*: GEM's visible window, pt2's whole raster), the
+// (the firmware's box words, map_cart.zig VBOX_*: GEM's visible window, pt2's 320x255 picture), the
 // 640x480 picture in the desk mode (map.zig PTR_DESK_*), where nothing is drawn round it.
 pub const Box = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
-/// No box word (an older firmware, no frame yet): the whole raster, as before the box, so a cart
+/// No box words (an older firmware, no frame yet): the whole raster, as before the box, so a cart
 /// drawn over the borders is never cut off.
 pub const WHOLE = pixels(0, 0, map.PTR_WIDTH, map.PTR_HEIGHT);
 
@@ -60,18 +60,21 @@ fn pixels(x0: u32, y0: u32, x1: u32, y1: u32) Box { // ends exclusive, in pixels
     };
 }
 
-/// The firmware's box word (cycles/bptrbox.h): where the cart's enabled planes draw, or null
-/// for an untagged word or a box that is empty or off the raster.
+/// The firmware's box words (cycles/bptrbox.h): where the cart's picture is, or null for an
+/// untagged word or a box that is empty or off the raster.
 pub fn planeBox(ddr: bus.Ddr) ?Box {
-    if (ddr.bytes() < mc.VBOX_FROM_TOP) return null;
-    const w = ddr.words[(ddr.bytes() - mc.VBOX_FROM_TOP) / 4];
-    if (w & mc.VBOX_TAG_MASK != mc.VBOX_TAG) return null;
-    const x0 = (w >> mc.VBOX_X0_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_X_UNIT;
-    const x1 = (w >> mc.VBOX_X1_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_X_UNIT;
-    const y0 = (w >> mc.VBOX_Y0_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_Y_UNIT;
-    const y1 = (w >> mc.VBOX_Y1_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_Y_UNIT;
-    if (x0 >= x1 or y0 >= y1 or x1 > map.PTR_WIDTH or y1 > map.PTR_HEIGHT) return null;
-    return pixels(x0, y0, x1, y1);
+    const xs = span(ddr, mc.VBOX_X_FROM_TOP, mc.VBOX_X_TAG, map.PTR_WIDTH) orelse return null;
+    const ys = span(ddr, mc.VBOX_Y_FROM_TOP, mc.VBOX_Y_TAG, map.PTR_HEIGHT) orelse return null;
+    return pixels(xs[0], ys[0], xs[1], ys[1]);
+}
+
+fn span(ddr: bus.Ddr, from_top: u32, tag: u32, end: u32) ?[2]u32 {
+    if (ddr.bytes() < from_top) return null;
+    const w = ddr.words[(ddr.bytes() - from_top) / 4];
+    if (w & mc.VBOX_TAG_MASK != tag) return null;
+    const lo = w & mc.VBOX_FIELD_MASK;
+    const hi = w >> mc.VBOX_HI_SHIFT & mc.VBOX_FIELD_MASK;
+    return if (lo < hi and hi <= end) .{ lo, hi } else null;
 }
 
 const DESK = Box{

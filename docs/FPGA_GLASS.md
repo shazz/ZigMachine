@@ -176,14 +176,17 @@ The browser (`docs/sealed-loader.js`, "Pointer input") calls
   full rate (square pixels), so the firmware's unchanged border subtraction gives
   the cart 0..639 by 0..479. A change of mode clamps the position into the new
   box. An untagged word (an older firmware) is the plane modes.
-- **Where the planes draw** (Matt, 9 Nov): in the plane modes the position is held
-  to the union of the cart's enabled planes' rectangles, which the firmware stores
-  beside it (`map_cart.zig` `VBOX_*`, `cycles/bptrbox.h`, written by `bdesk.c` when it
-  changes; each plane is the whole raster or the visible window, `cycles/vwhole.h`).
-  GEM's one 640x200 plane keeps the arrow out of the borders; pt2-clone's and
-  klystrack's 400x280 planes reach the top and bottom rows. No box word (an older
-  firmware, no frame yet) is the whole raster; a box that shrinks under the pointer
-  pulls it in (`mouse.planeBox`, `Mouse.setPlaneBox`).
+- **Where the picture is** (Matt, 9 Nov): in the plane modes the position is held to
+  a box the firmware stores beside the mode word (`map_cart.zig` `VBOX_*`, two exact
+  words, `cycles/bptrbox.h`, written by `bdesk.c` when it changes): the rectangle the
+  cart published with `env.hostPointerBox` (HW_API "The pointer's box"; the SDL layer
+  does it, `kestrel_sdl2/src/kestrel_ptrbox.c`), else the union of its enabled planes'
+  rectangles (each the whole raster or the visible window, `cycles/vwhole.h`). GEM's
+  one 640x200 plane keeps the arrow out of the borders; pt2-clone's 320x255 and
+  klystrack's 320x240, centred in 400x280 planes, reach their top and bottom rows and
+  stop there (their cursor is drawn only over the picture: past it, it vanished). No
+  box words (an older firmware, no frame yet) are the whole raster; a box that shrinks
+  under the pointer pulls it in (`mouse.planeBox`, `Mouse.setPlaneBox`).
 - **Buttons:** any mouse button is bit 0. A double-click is a one-off pulse of
   bit 1, sent after the second release's state and before the release itself
   (`gem_desktop.zig` opens the item under the pointer on it). There is no wheel.

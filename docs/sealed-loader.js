@@ -526,6 +526,9 @@ async function boot() {
             hostPaulaRelease: () => hostPaulaRelease(),
             // The BARD queue (table 1.12, libs/zig/bard.zig): the cart's ring of timed commands.
             hostBardAttach: (block, lead) => hostBardAttach(block, lead),
+            // The pointer's box (table 1.21, HW_API "The pointer's box"): where the cart's picture is,
+            // for the board's mouse. The page's pointer is the host's own: nothing to do here.
+            hostPointerBox: () => {},
             // Free-running microseconds, u32 (wraps every ~71 min). A BENCHMARK aid
             // (the raytrace carts): carts stay frame-locked, never time-driven.
             // decisions.md 2026-10-10.

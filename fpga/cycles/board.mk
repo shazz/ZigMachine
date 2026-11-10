@@ -127,7 +127,7 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 # env.hostMicros (cycles/bmicros.h): the board's images have the clock; the sim's answer 0, as the
 # native host and scene_hash.mjs do, so a benchmark cart does its FIXED work a frame and its
 # hashes compare (apps/zig/scenes/raytrace/bench.zig). Its rate in the sim is cycles/frame.
-MICROS_board := -include bmicros.h -include bkosdrive.h -include bkosfile.h  # ...and env.kosDriveRead / kosFileOp: KOS's C: asked of glass (cycles/bkosdrive.c, bkosfile.c)
+MICROS_board := -include bmicros.h -include bkosdrive.h -include bkosfile.h -include bptrhost.h  # ...and env.kosDriveRead / kosFileOp: KOS's C: asked of glass (cycles/bkosdrive.c, bkosfile.c); env.hostPointerBox: the pointer's box (cycles/bdesk.c)
 MICROS_sim   :=
 # CHISEL's lazy wait (cycles/bchisel.h): every machine and ROM entry of the generated env waits
 # for a lazy op first (tools/host_gen.py HOST_CHISEL_SYNC), in the sim's images as the board's.

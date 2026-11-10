@@ -25,7 +25,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 MANIFEST = FPGA / "cycles/sys_abi.txt"
 sys.path.insert(0, str(FPGA / "tools"))
-from host_bridges import BARD, DISK_APP_BRIDGE, INPUT_BRIDGE, KOS_DRIVE, KOS_FILE, MIRROR, MP3, PAULA, SONG_BRIDGE, STREAM  # after the path insert
+from host_bridges import BARD, DISK_APP_BRIDGE, INPUT_BRIDGE, KOS_DRIVE, KOS_FILE, MIRROR, MP3, PAULA, POINTER_BOX, SONG_BRIDGE, STREAM  # after the path insert
 from host_gen import MACHINE_ENV
 from sys_abi_layout import CONSTS, HEADER, RUNTIME, TYPE_SOURCES, TYPES
 from sys_abi_break import run_breaks
@@ -61,6 +61,8 @@ def env_entries(root: Path = ROOT) -> dict[str, str]:
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in MP3.items()})
     # The BARD queue (host/hstream.h HOST_BARD_ATTACH, libs/zig/bard.zig), by the system (1.12).
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in BARD.items()})
+    # The pointer's box (cycles/bptrhost.h on the board, a no-op elsewhere), by the system (1.21).
+    out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in POINTER_BOX.items()})
     return out
 
 

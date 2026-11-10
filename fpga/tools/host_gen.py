@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 import wasm_info
-from host_bridges import BARD, HOST_DEFAULTS, HOST_ENTRIES, KOS_DRIVE, KOS_FILE, MIRROR, MP3, PAULA, disk_app_bridge, export_table, input_bridge, mirror_bind
+from host_bridges import BARD, HOST_DEFAULTS, HOST_ENTRIES, KOS_DRIVE, KOS_FILE, MIRROR, MP3, PAULA, POINTER_BOX, disk_app_bridge, export_table, input_bridge, mirror_bind
 from host_bridges import song_bridge
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -157,7 +157,7 @@ def forwarder(name: str, ret: str, params: list[str], target: str | None, export
     if name in HOST_ENTRIES:  # the stream ring's, the audio mirror's: a hook macro each
         want_ret, want_params, macro = HOST_ENTRIES[name]
         if target is not None or (ret, params) != (want_ret, want_params):
-            who = "audio mirror" if name in MIRROR else "Paula" if name in PAULA else "C: drive" if name in KOS_DRIVE else "C: writes" if name in KOS_FILE else "MP3 stream" if name in MP3 else "BARD queue" if name in BARD else "stream"
+            who = "audio mirror" if name in MIRROR else "Paula" if name in PAULA else "C: drive" if name in KOS_DRIVE else "C: writes" if name in KOS_FILE else "MP3 stream" if name in MP3 else "BARD queue" if name in BARD else "pointer box" if name in POINTER_BOX else "stream"
             sys.exit(f"host_gen: env.{name} must be the {who}'s {want_ret}{want_params}, not {ret}{params} via {target}")
         ret_kw = "" if ret == "void" else "return "
         return f"{head} {{ {ret_kw}{macro}({', '.join(['e', *(f'a{i}' for i in range(len(params)))])}); }}\n"
