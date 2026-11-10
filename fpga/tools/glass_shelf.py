@@ -57,6 +57,9 @@ SHELF = (
     "pt2", "grafx2", "klystrack", "chipnomad", "sidwizard",
     # The MP3 jukebox (tools): C:\\MUSIC through KOS GEMDOS, decoded on BARD (system table 1.11).
     "mp3_player",
+    # The GEM 5 programs (tools): data disks as st_replay and sysinfo are, the cart is BOOT.WSM: NOTEPAD
+    # (C:\\*.TXT) and GEMTEST (every GEM 5 component, docs/GEMTEST.md).
+    "notepad", "gemtest",
     # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.
     "sid_test",
     # The BARD queue's test screen: the cart writes the SID live (system table 1.12).

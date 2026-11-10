@@ -31,7 +31,7 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => live.demo?.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile(process.env.ZM_ROM || "docs/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
