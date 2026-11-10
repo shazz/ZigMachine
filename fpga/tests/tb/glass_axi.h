@@ -3,7 +3,10 @@
 // once, after the CXXRTL model and CHECK.
 #pragma once
 
-using Top = cxxrtl_design::p_zm__glass__regs;
+#ifndef GLASS_AXI_TOP
+#define GLASS_AXI_TOP p_zm__glass__regs
+#endif
+using Top = cxxrtl_design::GLASS_AXI_TOP;
 static Top top;
 static unsigned rng = 12345;
 static bool coin() { return ((rng = rng * 1103515245u + 12345u) >> 16) & 1; }
@@ -80,8 +83,15 @@ static unsigned axi_read(unsigned addr, unsigned id = 3) {
     CHECK(top.p_s__arready.get<bool>(), "AR not ready for 0x%x", addr);
     tick();
     idle();
+    top.p_s__araddr.set(0x0BEC); // garbage once taken, as AXI allows
     for (int i = 0; i < 2 && coin(); i++) tick();
-    CHECK(top.p_s__rvalid.get<bool>(), "no R for 0x%x", addr);
+    // A register answers 2 clocks after the address, the ASTRO mailbox (a block RAM) 3, later
+    // while a mailbox write holds the RAM's port.
+    for (int guard = 0; !top.p_s__rvalid.get<bool>(); guard++) {
+        CHECK(guard < 4, "no R for 0x%x", addr);
+        if (guard >= 4) return 0;
+        tick();
+    }
     CHECK(top.p_s__rid.get<unsigned>() == id && top.p_s__rlast.get<bool>(), "RID/RLAST wrong");
     unsigned v = top.p_s__rdata.get<unsigned>();
     top.p_s__rready.set(true);

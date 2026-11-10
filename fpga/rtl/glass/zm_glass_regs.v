@@ -9,6 +9,8 @@
 // The cart CPU's side (LiteX CSRs): it pops key events, reads JOY, the pointer
 // (zm_glass_ptr.v) and CTRL.WARM at boot, and reports a state and a heartbeat.
 // AUDIO_VOL goes to the audio mixer (FPGA_GLASS.md, "Volume"); OSD_* to zm_glass_osd.
+// OFF_ASTRO's page goes to ASTROLABE's mailbox (zm_astro_mbox.v, SPIKE): writes through, reads
+// answered a clock later than a register's (the block RAM's read), so every read takes two clocks.
 `default_nettype none
 
 module zm_glass_regs #(
@@ -64,7 +66,13 @@ module zm_glass_regs #(
     input  wire [31:0] cart_beat_in,
     output wire [31:0] ptr,                // the mouse, as the cart reads it
     input  wire        ptr_ack,
-    input  wire [7:0]  ptr_ack_seq
+    input  wire [7:0]  ptr_ack_seq,
+    // ASTROLABE's mailbox (zm_astro_mbox.v port B): word addresses in OFF_ASTRO's 4 KiB page
+    output wire        mb_we, mb_re,
+    output wire [9:0]  mb_waddr, mb_raddr,
+    output wire [31:0] mb_wdata,
+    output wire [3:0]  mb_wstrb,
+    input  wire [31:0] mb_rdata
 );
 `include "glass_map.vh"
 
@@ -72,15 +80,8 @@ module zm_glass_regs #(
     assign {osd_stats, boot_warm, osd_en, cpu_run} = {ctrl[4], ctrl[3], ctrl[1], ctrl[0]};
     assign s_bresp = 2'b00, s_rresp = 2'b00, s_rlast = 1'b1;
 
-    // --- the key FIFO: KEY_DEPTH entries, pushed by the ARM, popped by the cart
-    localparam integer KD = ZG_KEY_DEPTH;
-    reg [31:0] fifo [0:KD - 1];
-    reg [3:0]  rd, wr;
-    reg [4:0]  level;
-    reg        overflow;
-    assign key_valid = level != 5'd0;
-    assign key_data = fifo[rd];
-    wire full = level == KD[4:0];
+    wire [4:0] level;  // the key FIFO's (zm_glass_keys.v)
+    wire       full, overflow;
 
     // --- write channel: hold AW and W until both are here
     reg        aw_have, w_have;
@@ -99,8 +100,16 @@ module zm_glass_regs #(
     wire       is_reg = waddr[15:12] == 4'd0;
     wire       push = do_write && is_reg && waddr[11:2] == ZG_REG_KEY_PUSH[11:2];
     wire       flush = do_write && is_reg && waddr[11:2] == ZG_REG_CTRL[11:2] && wdata[2];
-    wire       pop = key_pop && key_valid;
     wire       ptr_we = do_write && is_reg && waddr[11:2] == ZG_REG_POINTER[11:2];
+
+    assign {mb_waddr, mb_wdata, mb_wstrb} = {waddr[11:2], wdata, wstrb};
+    assign mb_we = do_write && waddr[15:12] == ZG_OFF_ASTRO[15:12];
+
+    // the key FIFO: KEY_DEPTH entries, pushed by the ARM, popped by the cart
+    zm_glass_keys #(.KD(ZG_KEY_DEPTH)) keys (
+        .clk(clk), .rst(rst), .flush(flush), .push(push), .wdata(wdata), .pop_req(key_pop),
+        .key_valid(key_valid), .key_data(key_data), .level(level), .full(full), .overflow(overflow)
+    );
 
     zm_glass_ptr pointer (
         .clk(clk), .rst(rst), .we(ptr_we), .wdata(wdata[23:0]),
@@ -145,17 +154,6 @@ module zm_glass_regs #(
     end
 
     always @(posedge clk) begin
-        if (rst || flush) begin
-            {rd, wr, level, overflow} <= 14'd0;
-        end else begin
-            if (push && !full) begin
-                fifo[wr] <= wdata;
-                wr <= wr + 4'd1;
-            end
-            if (push && full) overflow <= 1'b1;
-            if (pop) rd <= rd + 4'd1;
-            level <= level + {4'd0, push && !full} - {4'd0, pop};
-        end
         // The cart CPU's reports; a CPU held in reset has nothing to report.
         if (rst || !cpu_run) {cart_state, cart_beat} <= 64'd0;
         else begin
@@ -164,12 +162,18 @@ module zm_glass_regs #(
         end
     end
 
-    // --- read channel: one beat, answered the clock after the address
-    assign s_arready = !s_rvalid;
+    // --- read channel: one beat. The address is taken, then a register is answered the next
+    // clock; a mailbox word is read the next clock (unless a mailbox write holds the RAM's port)
+    // and answered the one after.
+    reg        r_busy, r_mb, r_wait;
+    reg [15:0] r_addr;
+    assign s_arready = !r_busy;
+    assign mb_raddr = r_addr[11:2];
+    assign mb_re = r_busy && r_mb && !r_wait && !s_rvalid && !mb_we;
     wire [31:0] status = {29'd0, overflow, full, cpu_run};
     reg  [31:0] rmux;
     always @(*) begin
-        case (s_araddr[11:2])
+        case (r_addr[11:2])
             ZG_REG_ID[11:2]:         rmux = ZG_ID_VALUE;
             ZG_REG_VERSION[11:2]:    rmux = ZG_VERSION;
             ZG_REG_CTRL[11:2]:       rmux = ctrl;
@@ -188,12 +192,17 @@ module zm_glass_regs #(
             ZG_REG_OSD_POS[11:2]:    rmux = {6'd0, osd_y0, 5'd0, osd_x0};
             default:                 rmux = 32'd0;
         endcase
-        if (s_araddr[15:12] != 4'd0) rmux = 32'd0;
+        if (r_addr[15:12] != 4'd0) rmux = 32'd0;
     end
     always @(posedge clk) begin
-        if (rst) s_rvalid <= 1'b0;
-        else if (s_arvalid && s_arready) {s_rvalid, s_rdata, s_rid} <= {1'b1, rmux, s_arid};
-        else if (s_rvalid && s_rready) s_rvalid <= 1'b0;
+        if (rst) {r_busy, r_wait, s_rvalid} <= 3'b000;
+        else if (s_arvalid && s_arready)
+            {r_busy, r_mb, r_wait, r_addr, s_rid} <= {1'b1, s_araddr[15:12] == ZG_OFF_ASTRO[15:12], 1'b0, s_araddr, s_arid};
+        else if (s_rvalid) begin
+            if (s_rready) {s_rvalid, r_busy} <= 2'b00;
+        end else if (r_wait) {s_rvalid, s_rdata, r_wait} <= {1'b1, mb_rdata, 1'b0};
+        else if (r_busy && !r_mb) {s_rvalid, s_rdata} <= {1'b1, rmux};
+        else if (mb_re) r_wait <= 1'b1;
     end
 endmodule
 

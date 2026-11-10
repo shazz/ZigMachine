@@ -28,6 +28,7 @@ SOURCES = [
     "rtl/video/zm_video_dcram.v",
     "rtl/glass/zm_glass_ptr.v",
     "rtl/glass/zm_glass_regs.v",
+    "rtl/glass/zm_glass_keys.v",
     "rtl/glass/zm_glass_osd.v",
     "rtl/board/osd_banner.v",
     "rtl/board/osd_test_core.v",

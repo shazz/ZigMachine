@@ -108,6 +108,12 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
         not getattr(args, "no_read_bypass", not zm_board_mem.READ_BYPASS),
         getattr(args, "sound_core", None),
     )
+    if getattr(args, "astro", False):  # ASTROLABE's mailbox (SPIKE, docs/ARM_FPU_COPROC.md)
+        if args.no_glass:
+            raise SystemExit("zm_z7: --astro needs the glass (its ARM side is on GP0)")
+        from soc.zm_astro import add_astro
+
+        add_astro(soc, platform)
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
     clocks = {

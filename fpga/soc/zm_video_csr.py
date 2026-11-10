@@ -8,6 +8,7 @@ firmware's header is generated from them (tools/cycles_csr.py --video).
 from __future__ import annotations
 
 from litex.soc.interconnect.csr import CSRField, CSRStatus, CSRStorage
+from migen import Signal
 
 CMD_FIELDS = [
     ("op", 3, "0 BG, 1 PLANE, 2 LATCH, 3 MIX, 4 PRESENT, 5 CLEAR"),
@@ -29,6 +30,7 @@ STATUS_FIELDS = [
     ("underrun", 1, "the scanout showed a line not fetched"),
     ("overflow", 1, "a plane line was too long to fetch"),
     ("desk", 1, "1: this bitstream shows the desk mode (HW 1.17.0); an older one reads 0"),
+    ("astro", 1, "1: this bitstream has ASTROLABE's mailbox (soc/zm_astro.py, SPIKE); others read 0"),
 ]
 
 
@@ -36,6 +38,7 @@ class ZMVideoCSRs:
     """Mixed into ZMVideo (a LiteXModule), which collects these attributes as CSRs."""
 
     def _csrs(self) -> None:
+        self.astro_cap = Signal()  # STATUS.ASTRO: soc/zm_astro.py add_astro drives it to 1
         self.cmd = CSRStorage(
             fields=[CSRField(n, size=w, description=d) for n, w, d in CMD_FIELDS],
             description="Writing queues one command (rtl/video/zm_video_comp.v).",

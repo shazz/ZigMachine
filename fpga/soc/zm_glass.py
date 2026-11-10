@@ -22,7 +22,7 @@ from litex.soc.interconnect.csr import CSRStatus, CSRStorage
 from migen import ClockSignal, Instance, ResetSignal, Signal
 
 FPGA = Path(__file__).resolve().parent.parent
-SOURCES = [FPGA / "rtl/glass/zm_glass_regs.v", FPGA / "rtl/glass/zm_glass_ptr.v", FPGA / "rtl/glass/zm_glass_osd.v"]
+SOURCES = [FPGA / "rtl/glass/zm_glass_regs.v", FPGA / "rtl/glass/zm_glass_keys.v", FPGA / "rtl/glass/zm_glass_ptr.v", FPGA / "rtl/glass/zm_glass_osd.v"]
 
 # LiteX platforms are untyped Python classes with no common base worth naming.
 Platform = Any
@@ -54,6 +54,9 @@ class ZMGlass(LiteXModule):
         self.boot_warm = CSRStatus(1, description="CTRL.WARM: this boot keeps the cart's memory (glass_boot.h).")
         # {mute, volume}: for the audio mixer to multiply into the mix (docs/FPGA_GLASS.md, "Volume").
         self.audio_vol = Signal(9)
+        # ASTROLABE's mailbox, port B (soc/zm_astro.py); rdata stays 0 on a SoC without it.
+        self.astro = {"we": Signal(), "re": Signal(), "waddr": Signal(10), "raddr": Signal(10),
+                      "wdata": Signal(32), "wstrb": Signal(4), "rdata": Signal(32)}  # fmt: skip
         self.specials += Instance("zm_glass_regs", **self._ports())
         for src in SOURCES:
             platform.add_source(str(src))
@@ -79,6 +82,7 @@ class ZMGlass(LiteXModule):
             "i_cart_beat_we": self.cart_beat.re, "i_cart_beat_in": self.cart_beat.storage,
             "o_boot_warm": self.boot_warm.status, "o_audio_vol": self.audio_vol,
             "o_ptr": self.pointer.status, "i_ptr_ack": self.pointer_ack.re, "i_ptr_ack_seq": self.pointer_ack.storage,
+            **{f"{'i' if k == 'rdata' else 'o'}_mb_{k}": s for k, s in self.astro.items()},
         }  # fmt: skip
 
     def overlay(self, module: LiteXModule, pic: Picture, cd_pix: str = "pix") -> Picture:
