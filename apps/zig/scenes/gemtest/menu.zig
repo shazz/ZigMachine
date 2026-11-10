@@ -21,6 +21,8 @@ pub const Cmd = union(enum) {
     alert: u8,
     /// 0 low, 1 medium, 2 the desk
     mode: u8,
+    /// the desktop icons' options: 0 the drag ghost, 1 snap to the grid (desk_drag.zig)
+    icon_opt: u8,
 };
 
 const Entry = struct { label: []const u8, cmd: Cmd, key: u8 = 0, flags: u32 = 0 };
@@ -56,6 +58,9 @@ const MODE = [_]Entry{
     .{ .label = "  Low 320x200\t1", .cmd = .{ .mode = 0 } },
     .{ .label = "  Medium 640x200\t2", .cmd = .{ .mode = 1 } },
     .{ .label = "  Desk 640x480\t3", .cmd = .{ .mode = 2 } },
+    SEP,
+    .{ .label = "  Drag ghost\t^G", .cmd = .{ .icon_opt = 0 }, .key = 'g', .flags = aes.MENU_CHECKED },
+    .{ .label = "  Snap to grid\t^S", .cmd = .{ .icon_opt = 1 }, .key = 's' },
 };
 const MENUS = [_]struct { title: []const u8, items: []const Entry }{
     .{ .title = "Desk", .items = &DESK },
@@ -68,6 +73,8 @@ pub const PROBE_MENU = 2;
 pub const MODE_MENU = 4;
 pub const CHECK_ITEM = 3; // PROBE's "Checked item"
 pub const CHECK2_ITEM = 4;
+pub const GHOST_ITEM = 4; // MODE's items after the separator
+pub const SNAP_ITEM = 5;
 
 const ICONS = [_][]const u8{ "None", "Note", "Wait", "Stop" };
 fn alertEntries() [13]Entry {
@@ -105,10 +112,12 @@ pub fn ofKey(letter: u8) Cmd {
     return .none;
 }
 
-/// The checks the program keeps (menu_icheck): the two probes, the current mode; Desk greyed
+/// The checks the program keeps (menu_icheck): the two probes, the current mode, the icon options; Desk greyed
 /// where the machine has no desk mode (menu_ienable).
-pub fn checks(bar: aes.MenuBar, c1: bool, c2: bool, mode: u8, desk_ok: bool) void {
+pub fn checks(bar: aes.MenuBar, c1: bool, c2: bool, mode: u8, desk_ok: bool, ghost: bool, snap: bool) void {
     const on = aes.MENU_CHECKED;
+    bar.flags(MODE_MENU, GHOST_ITEM, if (ghost) on else 0);
+    bar.flags(MODE_MENU, SNAP_ITEM, if (snap) on else 0);
     bar.flags(PROBE_MENU, CHECK_ITEM, if (c1) on else 0);
     bar.flags(PROBE_MENU, CHECK2_ITEM, if (c2) on else 0);
     for (0..3) |i| {

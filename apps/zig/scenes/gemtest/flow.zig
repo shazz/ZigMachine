@@ -54,6 +54,10 @@ pub fn run(app: *App, cmd: menu.Cmd, by_key: bool) void {
         .probe => |k| probe(app, k),
         .alert => |k| alert(app, k),
         .mode => |m| app.setShadeMode(m),
+        .icon_opt => |k| {
+            if (k == 0) app.desk.ghost = !app.desk.ghost else app.desk.snap = !app.desk.snap;
+            app.syncMenu();
+        },
     }
 }
 

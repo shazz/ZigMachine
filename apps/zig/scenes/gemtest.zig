@@ -83,7 +83,7 @@ pub const App = struct {
         return self.last_pick;
     }
     pub fn syncMenu(self: *App) void {
-        menu.checks(self.bar, self.check1, self.check2, @intFromEnum(self.mode), self.desk_ok);
+        menu.checks(self.bar, self.check1, self.check2, @intFromEnum(self.mode), self.desk_ok, self.desk.ghost, self.desk.snap);
     }
     pub fn showArea(self: *App, a: areas.Area) void {
         self.wins.show(self.g, a, self.mode);

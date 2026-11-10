@@ -5,6 +5,9 @@
 //   select   a click selects an icon, a second one moves the selection, a click on the empty desk deselects
 //            all: the first screen again
 //   drag     an icon dragged up lands there (its old box is desk again) and the screen = a whole repaint
+//   ghost    while an icon is held off its place, a dotted box (Mode > Drag ghost) sits where it would land,
+//            and none once released; Drag ghost off: none while held
+//   snap     Mode > Snap to grid: an icon dropped between grid cells lands on the nearest one
 //   open     a double-click on an icon opens the Icons area (a window comes up, G_ICONs in it)
 //   node apps/gemtest_icon_check.mjs [--break icons]   icons: the ROM's icons lost (deskSetEngine bit 30)
 import { readFile } from "node:fs/promises";
@@ -28,6 +31,8 @@ function inked(d, [x0, y0, w, h]) {
     return n;
 }
 
+const toggle = (d, k) => d.ctrl(k ? "s" : "g"); // Mode > Drag ghost ^G, Snap to grid ^S
+
 async function run(mode) {
     const tag = MODES[mode];
     const d = await afterDesktop(img, mode);
@@ -49,6 +54,26 @@ async function run(mode) {
     check(`${tag}: an icon dragged up lands there, its old place desk again`, old === 0 && moved >= 40, `${old} / ${moved}`);
     const inc = rest(), full = d.repainted();
     check(`${tag}: after the drag the screen = a whole repaint`, inc === full);
+    // The ghost: icon 1 held 50 px right of its place, the box there dotted; released, no dots left over.
+    const [gx, gy] = centre(mode, 1), [bx1, by1] = box(mode, 1);
+    const ghostTop = () => { const { W, idx } = d.indices(); let n = 0; for (let x = bx1 + 50; x < bx1 + 50 + 72; x++) if (idx[by1 * W + x] === 0) n++; return n; };
+    d.point(gx, gy, 0); d.point(gx, gy, 1); d.point(gx + 25, gy, 1); d.point(gx + 50, gy, 1); d.frames(1);
+    const held = ghostTop();
+    d.point(gx, gy, 1); d.point(gx, gy, 0); d.frames(2); // back where it was: no move
+    check(`${tag}: a held icon shows its dotted ghost where it would land, gone on release`, held >= 30 && ghostTop() === 0, `${held} / ${ghostTop()}`);
+    toggle(d, 0);
+    d.point(gx, gy, 0); d.point(gx, gy, 1); d.point(gx + 25, gy, 1); d.point(gx + 50, gy, 1); d.frames(1);
+    const off = ghostTop();
+    d.point(gx, gy, 1); d.point(gx, gy, 0); d.frames(2);
+    check(`${tag}: Drag ghost off (^G): no ghost while held`, off === 0, `${off}`);
+    toggle(d, 0);
+    // Snap: icon 0 dropped 30 px right and 10 up lands back on its cell (80 px columns, the bottom row).
+    const [sx, sy] = centre(mode, 0), [b0x, b0y] = box(mode, 0), right = () => inked(d, [b0x + 72, b0y - 10, 8, 52]); // the gap before icon 1
+    toggle(d, 1); d.drag(sx, sy, sx + 30, sy - 10); rest();
+    check(`${tag}: Snap to grid: dropped between cells, the icon lands on the nearest one`, inked(d, box(mode, 0)) >= 40 && right() === 0, `${right()}`);
+    toggle(d, 1);
+    d.drag(sx, sy, sx + 30, sy - 10); rest();
+    check(`${tag}: free move: the icon lands where it was dropped`, right() >= 4, `${right()}`);
     d.point(...centre(mode, 0), 0); d.point(...centre(mode, 0), 2); d.frames(3); // the page's double-click pulse
     check(`${tag}: a double-click on an icon opens the Icons area`, d.top() === 1, `top ${d.top()}`);
 }

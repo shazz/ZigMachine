@@ -27,6 +27,9 @@ pub const Desk = struct {
     from: [2]i32 = .{ 0, 0 },
     opened: ?u8 = null, // the last icon opened (a double-click)
     prev: bool = false, // the pointer's button last frame
+    ghost: bool = true, // Mode > Drag ghost: a dotted box follows the pointer (desk_drag.zig)
+    snap: bool = false, // Mode > Snap to grid: icons land on the layout's grid
+    shown: ?Rect = null, // the ghost on screen now
 
     /// The tree for a `mode` screen, registered as the program's desktop.
     pub fn init(self: *Desk, g: rom.Gui, mode: rom.aes.ScreenMode) void {
