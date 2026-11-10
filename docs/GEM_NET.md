@@ -3,7 +3,10 @@
 Status: **spec**, 9 Nov 2026. Comes after GEMTEST and the GEM 5 file selector / low-res icon fixes
 (docs/ROADMAP.md). Matt, 9 Nov: "can gem have a virtual TCP/IP stack with an ip address and so on?", then:
 "the goal is to handle most of the network on the ARM and just to get a virtual card on the kestrel, but the
-heavy communication is done by the arm".
+heavy communication is done by the arm" — the way the C64 and Atari 8-bit get networked today: a small
+computer in a cartridge does everything (WiC64: an ESP32 on the C64's user port; FujiNet: an ESP32 on the
+Atari's SIO bus, with its `N:` device that opens `N:TCP://host:port` or `N:HTTPS://...` URLs itself), and the
+8-bit CPU only sends commands and moves bytes. On KESTREL the "cartridge computer" is the ARM.
 
 ## 1. Summary
 
@@ -107,6 +110,7 @@ yield through Asyncify, `SSL_*`-like TLS through `tlsOpen` (a small shim, not Op
 | N5 | **TELNET** GEM program (VT52/ANSI in a GEM window) | board: telnet to the dev laptop / a BBS |
 | N6 | The BSD sockets shim + a curses-on-SDL text layer for C ports | a small C test cart: `getaddrinfo` + `connect` + `select` |
 | N7 | Ports (each its own cart, licence checked first): **SyncTERM** (ANSI/PETSCII BBS client, SDL), an **IRC** client, a **Gopher** client, **Lynx** or **Links** (web over TLS sockets) | each on the board against a live server |
+| N7b (option) | A FujiNet-style **URL mode**: `Sn_MODE` URL, `Sn_HOST` = `https://...` / `tcp://...` / `ssh://...`; the card does HTTP(S) (GET/POST, redirects, chunking) and SSH itself, the cart reads the body or the session bytes | NETINFO fetches a page by URL; an SSH session to the dev laptop |
 | N8 (option) | A second address for the card (a TAP + NAT or a bridge on the RJ45) and raw-frame mode, for programs that want their own stack | GEM's address differs from the board's |
 
 Rough cost: N1-N3 ~1 week, N4-N5 ~4 days, N6 ~3 days, N7 per port 2-5 days.
