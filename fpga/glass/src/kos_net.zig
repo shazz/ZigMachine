@@ -1,7 +1,7 @@
 // The network spike (docs/ROADMAP.md, "Wi-Fi ... TCP/IP for GEM 5"): a cart reaches the network
-// through C:, with no new ABI. A program saves C:\NET\<NAME>.REQ: its first line is
+// through C:, with no new ABI. A program saves <NAME>.REQ (C:\NET\ by convention, any folder works): its first line is
 // "<a.b.c.d> <port>", the rest is sent over TCP. glass (kos_file.zig, after the write) connects,
-// sends, collects the reply until the peer closes or goes quiet, and writes it to C:\NET\<NAME>.ANS,
+// sends, collects the reply until the peer closes or goes quiet, and writes it to <NAME>.ANS beside it,
 // which the program then reads as any file (the C: generation bump makes the ROM re-read the
 // folder). A failure writes "ERR <why>" instead. Bounded: REQ_MAX in, ANS_MAX out, and the whole
 // exchange inside the firmware's KOS_FILE_TIMEOUT_MS (10 s): CONNECT_MS + REPLY_MS + the write.
@@ -20,9 +20,11 @@ pub const QUIET_MS = 800; // after the first reply bytes: this long with nothing
 /// The request a .REQ file holds.
 pub const Req = struct { addr: [4]u8, port: u16, payload: []const u8 };
 
-/// True for C:\NET\<name>.REQ: the writes kos_file.zig hands to `serve`.
+/// True for a <name>.REQ in any folder of C: (C:\NET\ is the convention; the root and any folder work,
+/// 9 Nov: the board's selector could not list C: yet): the writes kos_file.zig hands to `serve`.
 pub fn isRequest(parent: []const []const u8, name: []const u8) bool {
-    return parent.len == 1 and std.mem.eql(u8, parent[0], FOLDER) and std.mem.endsWith(u8, name, ".REQ");
+    _ = parent;
+    return std.mem.endsWith(u8, name, ".REQ");
 }
 
 /// "a.b.c.d port\r?\n<payload>", or null.

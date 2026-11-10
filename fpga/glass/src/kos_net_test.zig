@@ -20,11 +20,12 @@ test "a malformed request line is refused" {
         try t.expect(net.parse(s) == null);
 }
 
-test "only C:\\NET\\*.REQ is a request" {
+test "a .REQ in any folder is a request, nothing else is" {
     try t.expect(net.isRequest(&.{"NET"}, "ECHO.REQ"));
+    try t.expect(net.isRequest(&.{}, "ECHO.REQ"));
+    try t.expect(net.isRequest(&.{ "A", "B" }, "ECHO.REQ"));
     try t.expect(!net.isRequest(&.{"NET"}, "ECHO.TXT"));
-    try t.expect(!net.isRequest(&.{}, "ECHO.REQ"));
-    try t.expect(!net.isRequest(&.{ "A", "NET" }, "ECHO.REQ"));
+    try t.expect(!net.isRequest(&.{"NET"}, "REQ"));
 }
 
 /// A loopback listener on an ephemeral port: its fd and port.
