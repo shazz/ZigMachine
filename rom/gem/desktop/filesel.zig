@@ -102,7 +102,8 @@ pub const FileSel = struct {
         g.text("Selection:", fx, grid.y(6), gui.BLACK, gui.WHITE);
         drawField(g, &self.name, fx, grid.y(8), !self.on_path);
         if (reread or moved) return self.relist();
-        if (g.edge and g.hit(dir_line)) self.on_path = true;
+        // A bare mask (ST Replay's `*.RAW`) has no folder to edit: its caller never re-lists.
+        if (g.edge and g.hit(dir_line) and fpath.dir(self.path.text()).len > 0) self.on_path = true;
         if (g.edge and g.hit(.{ .x = fx, .y = grid.y(8), .w = 12 * 8, .h = 8 })) self.on_path = false;
 
         if (g.buttonThick(.{ .x = dx + 221, .y = dy + 101, .w = 86, .h = 14 }, "OK", false, 3)) return self.close(.ok);

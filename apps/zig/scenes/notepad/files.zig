@@ -19,11 +19,7 @@ const FA_DIR: u8 = 0x10;
 
 pub const Fail = union(enum) { dos: i32, too_big, too_many_lines };
 
-/// The folder part of a path spec, its last backslash included: `C:\NET\` of `C:\NET\*.TXT`.
-pub fn dirOf(spec: []const u8) []const u8 {
-    const i = std.mem.lastIndexOfScalar(u8, spec, '\\') orelse return spec[0..0];
-    return spec[0 .. i + 1];
-}
+pub const dirOf = @import("names.zig").dirOf;
 
 /// What the ITEM SELECTOR lists for `spec`, as TOS's did: the folder's sub-folders (each with
 /// a trailing backslash: the ROM draws it as a folder), then the files the mask matches, each
@@ -103,9 +99,3 @@ pub fn save(p: []const u8, io: []u8, t: *const Text) ?Fail {
 }
 
 pub const txtName = @import("names.zig").txtName;
-
-test "a spec's folder" {
-    try std.testing.expectEqualStrings("C:\\NET\\", dirOf("C:\\NET\\*.TXT"));
-    try std.testing.expectEqualStrings("C:\\", dirOf("C:\\*.TXT"));
-    try std.testing.expectEqualStrings("", dirOf("*.TXT"));
-}
