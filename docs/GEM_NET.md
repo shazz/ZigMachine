@@ -109,7 +109,7 @@ yield through Asyncify, `SSL_*`-like TLS through `tlsOpen` (a small shim, not Op
 | N4 | TLS sockets (glass `std.crypto.tls`) and DNS; **NETINFO** GEM program (address, DNS, ping, an HTTPS fetch of a page's title) | board: NETINFO pings and fetches over HTTPS |
 | N5 | **TELNET** GEM program (VT52/ANSI in a GEM window) | board: telnet to the dev laptop / a BBS |
 | N6 | The BSD sockets shim + a curses-on-SDL text layer for C ports | a small C test cart: `getaddrinfo` + `connect` + `select` |
-| N7 | Ports (each its own cart, licence checked first): **SyncTERM** (ANSI/PETSCII BBS client, SDL), an **IRC** client, a **Gopher** client, **Lynx** or **Links** (web over TLS sockets) | each on the board against a live server |
+| N7 | Ports (each its own cart, licence checked first): **SyncTERM** first (GPLv2 C, SDL backend; ANSI-BBS, Atari ST VT52, ATASCII, PETSCII, RIP; X/Y/ZModem to C:; no SSH at first; in the **desk mode**: 80x25 x 8x16 CP437 = 640x400 at 1:1 in 640x480, status line below), an **IRC** client, a **Gopher** client, **Lynx** or **Links** (web over TLS sockets) | each on the board against a live server |
 | N7b (option) | A FujiNet-style **URL mode**: `Sn_MODE` URL, `Sn_HOST` = `https://...` / `tcp://...` / `ssh://...`; the card does HTTP(S) (GET/POST, redirects, chunking) and SSH itself, the cart reads the body or the session bytes | NETINFO fetches a page by URL; an SSH session to the dev laptop |
 | N8 (option) | A second address for the card (a TAP + NAT or a bridge on the RJ45) and raw-frame mode, for programs that want their own stack | GEM's address differs from the board's |
 
