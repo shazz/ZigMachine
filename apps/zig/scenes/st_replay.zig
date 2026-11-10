@@ -25,6 +25,7 @@ const hw = @import("hardware");
 const rom = @import("rom_sdk");
 const ui = @import("st_replay_ui.zig");
 const draw = @import("st_replay_draw.zig");
+const files = @import("st_replay_files.zig"); // C: and the other GEMDOS drives
 const Replay = @import("st_replay_play.zig").Replay;
 const Rect = rom.Rect;
 
@@ -104,6 +105,23 @@ pub const App = struct {
     // the page.
     fn openSelector(self: *App) void {
         self.fsel.show("*.RAW");
+        rom.aes.fileSelDrivesSet(self.fsel, files.drives()); // the DRIVE: buttons: C: too (10 Nov)
+        self.fillFloppy();
+    }
+
+    // The selector went to another drive or folder (`relist`): A: off the floppy, else GEMDOS.
+    fn relist(self: *App) void {
+        var buf: [files.MAX_SPEC]u8 = undefined;
+        const spec = rom.aes.fileSelSpecOf(self.fsel, &buf);
+        if (files.onFloppy(spec)) return self.fillFloppy();
+        files.list(spec, self, addName);
+    }
+
+    fn addName(self: *App, name: []const u8) void {
+        self.fsel.add(name);
+    }
+
+    fn fillFloppy(self: *App) void {
         const lay = disk.mount() orelse return self.dlg("Load from disc", "No disc in drive A:.");
         var i: u16 = 0;
         while (i < lay.count) : (i += 1) {
@@ -127,6 +145,20 @@ pub const App = struct {
         self.high = self.bytes;
         self.buildView();
         if (n < ent.len) self.dlg("Load from disc", "Sample truncated to fit RAM.");
+    }
+
+    // The same off a GEMDOS drive (C: …): Fopen / Fread straight into machine RAM.
+    fn loadFromDrive(self: *App, dir: []const u8, name: []const u8) void {
+        self.stop();
+        const r = files.load(dir, name, pcm);
+        if (r < 0) return self.dlg("Load from disc", "File not found.");
+        const n: usize = @intCast(r);
+        @memset(pcm[n..], SILENCE);
+        self.bytes = @intCast(n);
+        self.low = 0;
+        self.high = self.bytes;
+        self.buildView();
+        if (n == pcm.len) self.dlg("Load from disc", "Sample truncated to fit RAM.");
     }
 
     fn dlg(self: *App, title: []const u8, msg: []const u8) void {
@@ -360,8 +392,11 @@ pub const App = struct {
                 // needs anyway, since that reopens dialogs.
                 var pick: [16]u8 = undefined;
                 const name = self.fsel.chosen(&pick);
-                if (name.len > 0) self.loadFromDisc(name);
+                var buf: [files.MAX_SPEC]u8 = undefined;
+                const spec = rom.aes.fileSelSpecOf(self.fsel, &buf);
+                if (name.len > 0) if (files.onFloppy(spec)) self.loadFromDisc(name) else self.loadFromDrive(files.dirOf(spec), name);
             },
+            .relist => self.relist(),
             else => {},
         }
         g.endFrame();

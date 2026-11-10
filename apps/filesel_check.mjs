@@ -20,10 +20,12 @@ import { parseDisk } from "../docs/zmdisk.js";
 // branch's ZigOS made ST Replay's wasm bigger): against main's cart, 66 pixels differ, all in
 // x 509..530, y 10..16 of the screen, which is that figure; the selector is unchanged. Re-pinned
 // 10 Nov 2026 on purpose (GEM 5 S2, G21): the selector is TOS 4's now, on the GEM 5 engine.
+// Re-pinned 10 Nov again with the "bytes free" figure masked out of the hash (ST Replay grew by its
+// C: loader and moved it a third time); the selector's pixels are unchanged.
 const PINS = {
-    open: "0e747f18fdcebd35867704dd111a0445232008bf5a470f233da1e0a080a9db37",
-    drumloop: "f7dbd0444b3c54ba970ac5fdf59d73433dc3fd6d37143d5d57bbdfeae17c5bd4",
-    short: "c7d339c00faae4c9ccae005f8211c44993bc97dc16e472bc50afe40bee77930d",
+    open: "d3ee1352ad02819b62c19b7968f68dea0c876ef0f70fda6690375cc53808210b",
+    drumloop: "85365cfdaf235823eb970749d68e658e57c63d456afb2b196a5fde48de29cb0e",
+    short: "967a2c7117b38f46dc191fef125e8cf430416050b4b3a4a44ab030241189e86f",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
 const DX = 164, DY = 11;                 // TOS 4's 312 x 178 box, centred in 640 x 200 (fsel_tree.zig)
@@ -85,7 +87,12 @@ async function boot() {
         }
     };
     const px = (x, y) => comp[(y + by) * W + x + bx];
-    const hash = () => createHash("sha256").update(new Uint8Array(comp.buffer)).digest("hex");
+    // The "bytes free" figure (x 480..560, y 8..18) left out: it moves with the cart's size, not the selector.
+    const hash = () => {
+        const c = comp.slice();
+        for (let y = 8; y <= 18; y++) c.fill(0, (y + by) * W + 480 + bx, (y + by) * W + 560 + bx);
+        return createHash("sha256").update(new Uint8Array(c.buffer)).digest("hex");
+    };
     const click = (x, y) => { for (const b of [0, 1, 0]) { demo.pointer(x, y, b); frame(); } frame(); };
     return { demo, frame, px, hash, click, refused: () => machine.hwRamAllocFailures() };
 }
