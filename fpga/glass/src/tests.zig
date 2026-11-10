@@ -12,6 +12,7 @@ test {
     _ = @import("pad.zig");
     _ = @import("pad_test.zig");
     _ = @import("mouse_test.zig");
+    _ = @import("mouse_box_test.zig");
     _ = @import("osd.zig");
     _ = @import("menu.zig");
     _ = @import("menu_test.zig");

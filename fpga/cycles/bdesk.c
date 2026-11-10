@@ -2,6 +2,7 @@
 #include "bdesk.h"
 
 #include "bmailbox.h" /* mb_presenting */
+#include "bptrbox.h"  /* the pointer's box: where the planes draw */
 #include "glass_cart.h" /* VMODE_*: the mode word glass reads for the pointer */
 #include "glass_map.h"  /* CART_CPU_BASE, DDR_CART_BYTES */
 #include "host_desk.h"
@@ -13,7 +14,12 @@
 _Static_assert(KOS_FILE_FROM_TOP <= VMODE_FROM_TOP - 4, "the mode word is over the C: file block");
 _Static_assert(VMODE_FROM_TOP <= KOS_CGEN_FROM_TOP - 4, "the mode word is over the C: generation word");
 
+#define VBOX_ADDR (CART_CPU_BASE + DDR_CART_BYTES - VBOX_FROM_TOP)
+_Static_assert(KOS_BOOT_FROM_TOP <= VBOX_FROM_TOP - 4, "the box word is over KOS's boot words");
+_Static_assert(VBOX_FROM_TOP <= BOOTSEC_SKIP_FROM_TOP - 4, "the box word is over the boot sector's skip word");
+
 static uint32_t g_vmode; /* the word last stored: one store a change, not one a frame */
+static uint32_t g_vbox;  /* the same for the box word */
 static uint32_t g_base0; /* plane 0's FB_BASE at the last desk frame: a change is a flip */
 
 static volatile uint8_t* region(struct w2c_env* e) { return e->memory.data + ZM_HW_VIDEO_BASE; }
@@ -31,6 +37,7 @@ static void publish(int on) {
 void bdesk_boot(struct w2c_env* e) {
     w2c_machine_hwSetDeskAvailable(&e->machine, (zmv_status() & ZMV_BIT(DESK)) != 0);
     g_vmode = 0; /* a load zeroed the word: the first frame stores it */
+    g_vbox = 0;
     g_base0 = 0;
 }
 
@@ -41,6 +48,19 @@ int bdesk_clear(struct w2c_env* e) {
     volatile uint32_t* frame = (volatile uint32_t*)(region(e) + ZM_REG_FRAME);
     *frame = *frame + 1; /* video.zig's clear() in desk mode; the snoop carries it to the compositor */
     return 1;
+}
+
+void bdesk_planes(struct w2c_env* e, unsigned on) {
+    uint8_t mode[4];
+    uint16_t stride[4];
+    for (uint32_t p = 0; p < 4; p++) {
+        mode[p] = region(e)[ZM_REG_FB_MODE + p];
+        stride[p] = *(volatile uint16_t*)(region(e) + ZM_REG_FB_STRIDE + 2u * p);
+    }
+    uint32_t w = bptrbox_word(on, mode, stride);
+    if (w == g_vbox) return;
+    g_vbox = w;
+    *(volatile uint32_t*)(uintptr_t)VBOX_ADDR = w;
 }
 
 void bdesk_leave(struct w2c_env* e) {

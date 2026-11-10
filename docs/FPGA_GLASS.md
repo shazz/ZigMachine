@@ -176,6 +176,14 @@ The browser (`docs/sealed-loader.js`, "Pointer input") calls
   full rate (square pixels), so the firmware's unchanged border subtraction gives
   the cart 0..639 by 0..479. A change of mode clamps the position into the new
   box. An untagged word (an older firmware) is the plane modes.
+- **Where the planes draw** (Matt, 9 Nov): in the plane modes the position is held
+  to the union of the cart's enabled planes' rectangles, which the firmware stores
+  beside it (`map_cart.zig` `VBOX_*`, `cycles/bptrbox.h`, written by `bdesk.c` when it
+  changes; each plane is the whole raster or the visible window, `cycles/vwhole.h`).
+  GEM's one 640x200 plane keeps the arrow out of the borders; pt2-clone's and
+  klystrack's 400x280 planes reach the top and bottom rows. No box word (an older
+  firmware, no frame yet) is the whole raster; a box that shrinks under the pointer
+  pulls it in (`mouse.planeBox`, `Mouse.setPlaneBox`).
 - **Buttons:** any mouse button is bit 0. A double-click is a one-off pulse of
   bit 1, sent after the second release's state and before the release itself
   (`gem_desktop.zig` opens the item under the pointer on it). There is no wheel.

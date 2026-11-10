@@ -147,6 +147,28 @@ pub const VMODE_TAG: u32 = 0x5600_0000; // "V"
 pub const VMODE_TAG_MASK: u32 = 0xFF00_0000;
 pub const VMODE_DESK: u32 = 1 << 0;
 
+// --- the pointer's box, at window end - VBOX_FROM_TOP (CPU 0x41FF_FC24) -----
+// Where the cart draws, so the pointer stops there in the plane modes (Matt, 9 Nov): GEM's one
+// 640x200 plane is the visible window (the arrow never goes into the borders), pt2-clone's and
+// klystrack's 400x280 planes are the whole raster (their top and bottom rows are reachable).
+// ZIGGY's firmware (cycles/bptrbox.h, bdesk.c) writes the union of its enabled planes' rectangles
+// (each the whole raster or the visible window: vwhole.h) at each frame it changes; glass reads it
+// at each mouse report (mouse.zig planeBox). One word, so a report never sees half a box: VBOX_TAG
+// | x0, x1 in VBOX_X_UNIT medium-res pixels | y0, y1 in VBOX_Y_UNIT rows, raster coordinates,
+// ends exclusive (every plane edge is on that grid: bptrbox.h asserts it). No tag (an older
+// firmware, no frame yet: a load zeroes it) is the whole raster, as before the box. The desk
+// mode ignores it (its 640x480 picture). Between the boot sector's skip word and KOS's boot words.
+pub const VBOX_FROM_TOP: u32 = 0x3DC;
+pub const VBOX_TAG: u32 = 0x4200_0000; // "B"
+pub const VBOX_TAG_MASK: u32 = 0xFF00_0000;
+pub const VBOX_X_UNIT: u32 = 16;
+pub const VBOX_Y_UNIT: u32 = 8;
+pub const VBOX_FIELD_MASK: u32 = 0x3F;
+pub const VBOX_X0_SHIFT: u32 = 0;
+pub const VBOX_X1_SHIFT: u32 = 6;
+pub const VBOX_Y0_SHIFT: u32 = 12;
+pub const VBOX_Y1_SHIFT: u32 = 18;
+
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk
 // hands it the listing). DISK_MAGIC_PROGRAM: the cart is a program GEM launched off

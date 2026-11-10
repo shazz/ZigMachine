@@ -181,7 +181,8 @@ pub const PTR_BTN_DOUBLE: u32 = 1 << 1;
 // The coordinate space of the WORD: the whole physical raster (hwPhysWidth x
 // hwPhysHeight = 800 x 280, borders included, x in medium-res pixels), so the
 // pointer reaches a cart drawn over the borders (pt2: 320x255 in a 400x280
-// plane). The cart CPU's firmware subtracts the borders (glass_input.c), so
+// plane); glass stops it where the cart's planes draw (map_cart.zig VBOX_*,
+// mouse.zig planeBox). The cart CPU's firmware subtracts the borders (glass_input.c), so
 // demo.pointer() gets what the browser sends: physical-visible coordinates,
 // negative or past 640x200 over the border (sealed-loader.js "Pointer input").
 // A low-res cart halves x itself. mouse_test.zig checks these against

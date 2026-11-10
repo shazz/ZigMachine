@@ -45,20 +45,20 @@ test "relative motion sums into an absolute position, y at half rate" {
     try std.testing.expectEqual(@as(?u32, null), one(&mo)); // nothing new since
 }
 
-test "the position clamps to the visible window's edge, never into the borders" {
+test "with no box word the position clamps to the raster's edge, over the borders" {
     var mo = m.Mouse{};
     mo.update(m.EV_REL, m.REL_X, -100_000, 0);
     mo.update(m.EV_REL, m.REL_Y, std.math.maxInt(i32), 0); // saturates, never wraps
     var w = one(&mo).?;
-    try std.testing.expectEqual(map.PTR_BORDER_X, x(w));
-    try std.testing.expectEqual(map.PTR_HEIGHT - map.PTR_BORDER_Y - 1, y(w));
+    try std.testing.expectEqual(@as(u32, 0), x(w));
+    try std.testing.expectEqual(map.PTR_HEIGHT - 1, y(w));
     mo.update(m.EV_REL, m.REL_X, 3, 0); // no debt piled up past the edge
     w = one(&mo).?;
-    try std.testing.expectEqual(map.PTR_BORDER_X + 3, x(w));
+    try std.testing.expectEqual(@as(u32, 3), x(w));
     mo.update(m.EV_REL, m.REL_X, 100_000, 0);
-    try std.testing.expectEqual(map.PTR_WIDTH - map.PTR_BORDER_X - 1, x(one(&mo).?));
+    try std.testing.expectEqual(map.PTR_WIDTH - 1, x(one(&mo).?));
     mo.update(m.EV_REL, m.REL_Y, -100_000, 0);
-    try std.testing.expectEqual(map.PTR_BORDER_Y, y(one(&mo).?));
+    try std.testing.expectEqual(@as(u32, 0), y(one(&mo).?));
 }
 
 test "the sensitivity scale keeps sub-pixel motion" {
@@ -129,6 +129,17 @@ test "REG_POINTER: a click shorter than a poll is still seen, then released" {
     try std.testing.expectEqual(p, g.pointer());
 }
 
+/// GEM's plane box (mouse_box_test.zig decodes it from the firmware's word): the visible window.
+fn gemBox() m.Box {
+    const s = m.SCALE_ONE;
+    return .{
+        .x0 = @as(i32, map.PTR_BORDER_X) * s,
+        .y0 = @as(i32, map.PTR_BORDER_Y) * s,
+        .x1 = @as(i32, map.PTR_WIDTH - map.PTR_BORDER_X) * s - 1,
+        .y1 = @as(i32, map.PTR_HEIGHT - map.PTR_BORDER_Y) * s - 1,
+    };
+}
+
 // The desk mode (HW 1.17.0, map_cart.zig VMODE_*): the picture is 640x480 at 1:1, so the word
 // covers it at the border offset, y at full rate, and the firmware's border subtraction
 // (glass_input.c) hands the cart 0..639 x 0..479.
@@ -146,7 +157,9 @@ test "the desk mode: y at full rate, the position held to the 640x480 picture" {
     const w = one(&mo).?;
     try std.testing.expectEqual(map.PTR_BORDER_X, x(w)); // the desk's x 0, not the black side bar
     try std.testing.expectEqual(map.PTR_BORDER_Y + map.PTR_DESK_HEIGHT - 1, y(w)); // its row 479
-    mo.setDesk(false); // back to a plane mode: clamped into the visible window
+    mo.setPlaneBox(gemBox()); // the desk ignores the planes' box
+    try std.testing.expectEqual(@as(?u32, null), one(&mo));
+    mo.setDesk(false); // back to a plane mode: clamped into the planes' box
     try std.testing.expectEqual(map.PTR_HEIGHT - map.PTR_BORDER_Y - 1, y(one(&mo).?));
     mo.update(m.EV_REL, m.REL_Y, -10, 0);
     try std.testing.expectEqual(map.PTR_HEIGHT - map.PTR_BORDER_Y - 1 - 5, y(one(&mo).?)); // half rate again

@@ -122,6 +122,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
      * a plane has an HBL handler (vplan.h). Only the lines that changed are composited. */
     unsigned on = 0;
     for (u32 p = 0; p < planes; p++) on |= HOST_CART_PLANE_ON(e, p) ? 1u << p : 0u;
+    bdesk_planes(e, on); /* where the pointer may go: where these planes draw */
     int handler = vplan_frame(e, on, h != NULL); /* a hashed frame composites every line: its PFB */
     if (h) bplanes_check_pre(e, on, planes, handler);
     g_h = h, g_pfb_size = size; /* a hashed frame is plane-major: its PFB after each plane */

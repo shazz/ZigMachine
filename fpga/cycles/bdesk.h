@@ -16,6 +16,9 @@ int bdesk_clear(struct w2c_env* e);
  * browser's desk hash (host_desk.h): "desk", the bars, then the two 614,400-byte halves. The
  * picture is paced: the swap is waited for before PRESENT. */
 int bdesk_frame(struct w2c_env* e, sha256_ctx* h);
+/* A plane frame, once its enabled planes `on` are known: the pointer's box word (bptrbox.h,
+ * map_cart.zig VBOX_*), stored only when it changes. */
+void bdesk_planes(struct w2c_env* e, unsigned on);
 /* A frame that began in desk mode and ends in another: the clear bdesk_clear skipped, now, so
  * the planes have a CLEAR colour and fill state to start from. FRAME was already counted, so the
  * clear's own count is taken back. The browser's PFB keeps the desk's pixels on this frame: this

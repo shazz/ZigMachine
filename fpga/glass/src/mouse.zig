@@ -2,8 +2,9 @@
 // (docs/sealed-loader.js, "Pointer input"). A mouse reports relative motion,
 // the browser an absolute position on the canvas, so the motion is summed into
 // a position on the whole physical raster (map.PTR_WIDTH x PTR_HEIGHT, borders
-// included, as the browser's canvas) and clamped to it, as a pointer stops at
-// the edge of a screen. The firmware makes it the browser's coordinates.
+// included, as the browser's canvas) and clamped to where the cart draws (the
+// firmware's box word, planeBox), as a pointer stops at the edge of a screen.
+// The firmware makes it the browser's coordinates.
 //
 // The browser's buttons are not the mouse's: ANY button is bit 0, and a
 // double-click is a one-off pulse of bit 1. Linux has no double-click, so it
@@ -42,16 +43,37 @@ pub fn isMouse(ev_type: u16, code: u16) bool {
     return ev_type == EV_REL or (ev_type == EV_KEY and code >= BTN_LEFT and code <= BTN_MOUSE_LAST);
 }
 
-// Where the position may go, in 1/SCALE_ONE pixels: the visible window in the plane modes (Matt,
-// 9 Nov: the pointer stops at the screen's visible edge, it never goes into the borders), the
+// Where the position may go, in 1/SCALE_ONE pixels: where the cart draws in the plane modes
+// (the firmware's box word, map_cart.zig VBOX_*: GEM's visible window, pt2's whole raster), the
 // 640x480 picture in the desk mode (map.zig PTR_DESK_*), where nothing is drawn round it.
-const Box = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
-const PLANES = Box{
-    .x0 = @as(i32, map.PTR_BORDER_X) * SCALE_ONE,
-    .y0 = @as(i32, map.PTR_BORDER_Y) * SCALE_ONE,
-    .x1 = @as(i32, map.PTR_WIDTH - map.PTR_BORDER_X) * SCALE_ONE - 1,
-    .y1 = @as(i32, map.PTR_HEIGHT - map.PTR_BORDER_Y) * SCALE_ONE - 1,
-};
+pub const Box = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
+/// No box word (an older firmware, no frame yet): the whole raster, as before the box, so a cart
+/// drawn over the borders is never cut off.
+pub const WHOLE = pixels(0, 0, map.PTR_WIDTH, map.PTR_HEIGHT);
+
+fn pixels(x0: u32, y0: u32, x1: u32, y1: u32) Box { // ends exclusive, in pixels
+    return .{
+        .x0 = @as(i32, @intCast(x0)) * SCALE_ONE,
+        .y0 = @as(i32, @intCast(y0)) * SCALE_ONE,
+        .x1 = @as(i32, @intCast(x1)) * SCALE_ONE - 1,
+        .y1 = @as(i32, @intCast(y1)) * SCALE_ONE - 1,
+    };
+}
+
+/// The firmware's box word (cycles/bptrbox.h): where the cart's enabled planes draw, or null
+/// for an untagged word or a box that is empty or off the raster.
+pub fn planeBox(ddr: bus.Ddr) ?Box {
+    if (ddr.bytes() < mc.VBOX_FROM_TOP) return null;
+    const w = ddr.words[(ddr.bytes() - mc.VBOX_FROM_TOP) / 4];
+    if (w & mc.VBOX_TAG_MASK != mc.VBOX_TAG) return null;
+    const x0 = (w >> mc.VBOX_X0_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_X_UNIT;
+    const x1 = (w >> mc.VBOX_X1_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_X_UNIT;
+    const y0 = (w >> mc.VBOX_Y0_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_Y_UNIT;
+    const y1 = (w >> mc.VBOX_Y1_SHIFT & mc.VBOX_FIELD_MASK) * mc.VBOX_Y_UNIT;
+    if (x0 >= x1 or y0 >= y1 or x1 > map.PTR_WIDTH or y1 > map.PTR_HEIGHT) return null;
+    return pixels(x0, y0, x1, y1);
+}
+
 const DESK = Box{
     .x0 = @as(i32, map.PTR_BORDER_X) * SCALE_ONE,
     .y0 = @as(i32, map.PTR_BORDER_Y) * SCALE_ONE,
@@ -71,6 +93,7 @@ pub const Mouse = struct {
     dirty: bool = false,
     sent: ?u32 = null, // the last word written, to skip a sub-pixel nudge
     desk: bool = false, // the cart is in the desk mode (map_cart.zig VMODE_DESK): 640x480 at 1:1
+    planes: Box = WHOLE, // where the plane modes draw (planeBox)
 
     pub fn x(self: Mouse) u32 {
         return @intCast(@divFloor(self.fx, SCALE_ONE));
@@ -89,6 +112,19 @@ pub const Mouse = struct {
     pub fn setDesk(self: *Mouse, on: bool) void {
         if (on == self.desk) return;
         self.desk = on;
+        self.clampIn();
+    }
+
+    /// Where the cart's planes draw (planeBox; null: the whole raster): a change pulls a pointer
+    /// left outside the new box in, at the next report, as a mode change does.
+    pub fn setPlaneBox(self: *Mouse, b: ?Box) void {
+        const nb = b orelse WHOLE;
+        if (std.meta.eql(nb, self.planes)) return;
+        self.planes = nb;
+        if (!self.desk) self.clampIn();
+    }
+
+    fn clampIn(self: *Mouse) void {
         const b = self.box();
         self.fx = std.math.clamp(self.fx, b.x0, b.x1);
         self.fy = std.math.clamp(self.fy, b.y0, b.y1);
@@ -96,7 +132,7 @@ pub const Mouse = struct {
     }
 
     fn box(self: Mouse) Box {
-        return if (self.desk) DESK else PLANES;
+        return if (self.desk) DESK else self.planes;
     }
 
     /// Fold one mouse event in; the words to write come out at the next SYN_REPORT (`flush`).
