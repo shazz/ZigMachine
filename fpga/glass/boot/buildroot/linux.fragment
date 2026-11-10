@@ -55,3 +55,15 @@ CONFIG_NET_VENDOR_CADENCE=y
 CONFIG_MACB=y
 CONFIG_PHYLIB=y
 CONFIG_REALTEK_PHY=y
+# Wi-Fi through a USB dongle on the hub (fpga/docs/PREREQUISITES.md, "Wi-Fi"). Built in, as
+# everything here: post-build.sh drops the module tree, and built in, brcmfmac's vendor
+# part (brcmfmac-wcc) needs no modprobe. Tested on the board 9 Nov 2026 with a Broadcom
+# BCM43143 dongle (USB 0a5c:bd1e, the Raspberry Pi one), firmware 6.10.198.66.
+# multi_v7 has these =m and BRCMFMAC_USB off.
+CONFIG_WIRELESS=y
+CONFIG_CFG80211=y
+CONFIG_WLAN=y
+CONFIG_WLAN_VENDOR_BROADCOM=y
+CONFIG_BRCMUTIL=y
+CONFIG_BRCMFMAC=y
+CONFIG_BRCMFMAC_USB=y

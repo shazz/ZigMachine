@@ -36,6 +36,7 @@ test {
     _ = @import("app_floppy_rv.zig");
     _ = @import("kos_drive.zig");
     _ = @import("kos_file_test.zig");
+    _ = @import("kos_net_test.zig");
     _ = @import("app_drive_ui_test.zig");
     _ = @import("app_stats_test.zig");
     _ = @import("budget_test.zig");

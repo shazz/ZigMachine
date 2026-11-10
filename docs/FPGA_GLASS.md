@@ -1525,6 +1525,8 @@ work on this board:
    (a register/FIFO interface in the machine, mirrored in the wasm machine
    first); the ARM bridges it over the wired Ethernet first, Wi-Fi optional
    later through a USB dongle on a hub with its kernel driver in the fragment.
+   **Wi-Fi works** (9 Nov 2026, BCM43143 dongle, `fpga/docs/PREREQUISITES.md`): the SD card's
+   `KESTREL/wifi.conf` names the network and `S99wifi` joins it at boot.
 
 The NICE-TO-HAVE list:
 
