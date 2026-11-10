@@ -10,6 +10,7 @@
 // click in the list re-reads it); OK (or Return) and Cancel close. A button
 // fires on the frame the press starts, as every ROM button does.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const gui = @import("../gui.zig");
 const obj = @import("../engine/obj.zig");
 const draw = @import("../engine/draw.zig");
@@ -73,8 +74,56 @@ pub fn frame(f: *FileSel, g: *gui.Gui) Result {
     const res = act(f, g, at, slider);
     v = view(f, &tx); // drawn as the press left it
     if (g.down and (at == Id.OK or at == Id.CANCEL)) v.pressed = at;
+    if (!f.active) return res; // closed: the caller repaints what was under it
+    const sig = signature(f, g, &tx, &v);
+    const box = boxOf(g, &s, &v);
+    if (sig == f.painted and probe(g, box) == f.probe) { // the same box, still on screen: no repaint
+        gui.clip.record(g, .{ .x = box.x, .y = box.y, .w = box.w, .h = box.h }); // (the board shows a repaint half drawn: it flashed, 10 Nov)
+        return res;
+    }
     paint(f, g, &s, &v);
+    f.painted = sig;
+    f.probe = probe(g, box);
     return res;
+}
+
+// The box's middle row and middle column as they are on screen: a program that painted over the
+// box (its windows behind, a mode change) changes them, so the box is drawn again. ~500 reads.
+fn probe(g: *const gui.Gui, r: Rect) u64 {
+    var hs = std.hash.Wyhash.init(0xF5E1);
+    const h: i32 = @min(@as(i32, g.screen.h), @as(i32, g.fb.fb_h));
+    const x0: i32 = @max(r.x, 0);
+    const x1: i32 = @min(@as(i32, r.x) + r.w, @as(i32, g.screen.w));
+    const y0: i32 = @max(r.y, 0);
+    const y1: i32 = @min(@as(i32, r.y) + r.h, h);
+    if (x1 <= x0 or y1 <= y0) return 0;
+    const st: usize = g.fb.stride;
+    const ym: usize = @intCast(@divTrunc(y0 + y1, 2));
+    hs.update(g.fb.fb[ym * st + @as(usize, @intCast(x0)) ..][0..@intCast(x1 - x0)]);
+    const xm: usize = @intCast(@divTrunc(x0 + x1, 2));
+    var y: i32 = y0;
+    while (y < y1) : (y += 1) hs.update(&[_]u8{g.fb.fb[@as(usize, @intCast(y)) * st + xm]});
+    return hs.final();
+}
+
+// Everything the box's pixels depend on: its texts, list position, pressed button, caret, look,
+// screen and clip. A frame with the same signature would draw the same pixels.
+fn signature(f: *const FileSel, g: *const gui.Gui, tx: *const Texts, v: *const T.View) u64 {
+    var h = std.hash.Wyhash.init(0x5E1);
+    h.update(v.title);
+    h.update(std.mem.asBytes(tx));
+    h.update(std.mem.asBytes(&v.folder));
+    const nums = [_]i64{ v.picked, @intCast(v.top), @intCast(v.n), v.drives, v.drive, v.pressed, @intFromBool(f.on_path), f.path.caret, f.name.caretCol(), @intFromBool(proglook.three_d), g.screen.w, g.screen.h };
+    h.update(std.mem.asBytes(&nums));
+    if (g.clip) |c| h.update(std.mem.asBytes(&[_]i32{ c.x, c.y, c.w, c.h }));
+    return h.final() | 1; // never 0: 0 is "not painted yet"
+}
+
+fn boxOf(g: *gui.Gui, s: *T.Store, v: *const T.View) Rect {
+    const t = T.build(s, v, g.screen.w, g.screen.h);
+    const lk = proglook.look(g);
+    const e = draw.extent(&lk, &t[0], obj.offset(t, 0).?);
+    return .{ .x = e.x, .y = e.y, .w = e.w, .h = e.h };
 }
 
 fn act(f: *FileSel, g: *gui.Gui, at: i16, slider_y: i16) Result {

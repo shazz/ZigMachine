@@ -6,6 +6,8 @@
 //   absent   B: (no such drive: DISABLED) does nothing
 //   looks    the selector flat and 3D are two looks; an idle frame draws the same screen
 //   cancel   Cancel (TOS 4's place) closes it
+//   still    an idle frame does not draw the box again (the board showed every repaint half drawn: a flash,
+//            Matt 10 Nov), and a program painting over the box gets it drawn again
 //   node apps/gemtest_fsel_check.mjs [--break drive]
 //     drive: the drive buttons do nothing (deskSetEngine's mutant bit 25)
 import { readFile } from "node:fs/promises";
@@ -63,6 +65,25 @@ async function sweep(mode, three_d) {
     return onC;
 }
 
+// A pixel of video memory, in the program's coordinates.
+function poke(d, x, y, f) {
+    const v = new DataView(d.m.memory.buffer, d.m.machine.hwVideoBase()), r = d.res();
+    const st = r === 3 ? 640 : v.getUint16(0x34, true), a = d.m.machine.hwVideoBase() + v.getUint32(0x44, true) + y * st + x;
+    const u = new Uint8Array(d.m.memory.buffer);
+    u[a] = f(u[a]);
+}
+async function still(mode) {
+    const [d] = await opened(mode, false, 31), [bx, by] = box(mode), { W } = d.indices();
+    const at = (by + 100) * W + bx + 100, was = d.indices().idx[at];
+    poke(d, bx + 100, by + 100, (p) => p ^ 5);
+    d.frames(2);
+    check(`${MODES[mode]}: an idle frame leaves the box alone (no repaint)`, d.indices().idx[at] === (was ^ 5));
+    for (let y = by - 4; y < by + 184; y++) for (let x = bx - 4; x < bx + 318; x++) poke(d, x, y, () => (x ^ y) & 1);
+    d.frames(2);
+    check(`${MODES[mode]}: painted over, the box is drawn again`, d.indices().idx[at] === was);
+}
+
+for (const mode of [0, 1, 2]) await still(mode);
 for (const mode of [0, 1, 2]) {
     const flat = await sweep(mode, false), deep = await sweep(mode, true);
     check(`${MODES[mode]}: the selector flat and 3D are two looks`, flat !== deep);

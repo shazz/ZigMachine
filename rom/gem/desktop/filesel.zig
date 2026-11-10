@@ -33,6 +33,8 @@ pub const FileSel = struct {
     list: list_mod.List = .{},
     name: NameField = .{}, // the Selection: field
     drives: u16 = 0, // the program's drive map (bit 0 = A:), 0: not given
+    painted: u64 = 0, // fsel_draw.zig's signature of the box last drawn, 0: draw it
+    probe: u64 = 0, // and eight of its pixels as drawn
 
     pub fn open(self: *FileSel, start: []const u8) void {
         const d = self.drives;
