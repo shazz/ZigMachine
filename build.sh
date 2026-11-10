@@ -213,6 +213,7 @@ NATIVE_TESTS="
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
     machine/arena_test.zig
+    machine/astro_test.zig
     libs/zig/mem_test.zig
     libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig

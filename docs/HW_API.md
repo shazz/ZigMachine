@@ -286,7 +286,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_1100 (1.17.0)
+hwVersion() u32          // 0x0001_1200 (1.18.0)
 hwDeskActive() u32       // 1.17.0: RESOLUTION is RES_DESK (the host shows the desk picture)
 hwRenderDesk(half) void  // 1.17.0: desk rows 240 half .. 240 half + 239 as 640x240 RGBA in the PFB
 hwDeskBars() u32         // 1.17.0 (9 Nov): the desk's bars, BACKGROUND as RGBA with alpha 255

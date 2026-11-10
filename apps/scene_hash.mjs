@@ -69,7 +69,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
         hwRamRelease: machine.hwRamRelease, hwRamAllocFailures: machine.hwRamAllocFailures,
         hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
         hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
-        hwRomRamFree: machine.hwRomRamFree, hwDeskAvailable: machine.hwDeskAvailable,
+        hwRomRamFree: machine.hwRomRamFree, hwDeskAvailable: machine.hwDeskAvailable, hwAstro: machine.hwAstro,
         ...rom,
     };
     if (cImage) env.kosDriveRead = makeCDrive(memory, cImage);
