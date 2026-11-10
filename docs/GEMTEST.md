@@ -23,7 +23,7 @@ runs, in the desktop's resolution; ^Q (or Test > Quit) goes back. It uses ONLY t
 
 | Area | Window(s) | What it checks |
 |---|---|---|
-| Windows (^W) | GADGETS, OVERLAP A, OVERLAP B, LARGER THAN THE SCREEN | every gadget (closer, title/mover, fuller, info line, sizer, both sliders with arrows and tracks); a numbered grid to scroll both ways; overlapping windows, a click tops one; each window shows its stack position and how many moves, sizes, tops and scrolls it got; the last is larger than the screen. Any change of the stack repaints every window back to front |
+| Windows (^W) | GADGETS, OVERLAP A, OVERLAP B, LARGER THAN THE SCREEN | every gadget (closer, title/mover, fuller, info line, sizer, both sliders with arrows and tracks); a numbered grid to scroll both ways; overlapping windows, a click tops one; each window shows its stack position and how many moves, sizes, tops and scrolls it got; the last is larger than the screen. A change of the stack redraws only the ROM's WM_REDRAW rectangles, clipped (G17) |
 | Menus (^E) | MENUS | what the Menus title did: the two checks, the last pick, picks and shortcuts counted |
 | Dialogs (^D) | DIALOGS (OBJECTS) | the ROM's buttons (default border 3: Return fires it; exit 2; plain 1); a radio group, two check boxes, an editable field (template `__/__/__`, digits only, a caret), boxes with insets 1 2 3, an 11-stop slider: these four built by the program from the ROM's button, frame and fill |
 | Alerts (^A) | ALERTS (FORM_ALERT) | a button per icon x buttons; the last answer (form_alert's 1-based return); the malformed alert's answer (nothing opened: right) |
@@ -36,9 +36,13 @@ runs, in the desktop's resolution; ^Q (or Test > Quit) goes back. It uses ONLY t
 
 Each is a grey line in its window.
 
-1. **Windows**: no WM_REDRAW rectangle list and no wind_get WF_FIRSTXYWH / WF_NEXTXYWH, and no stack
-   query beyond WF_TOP: a program keeps its own order from EV_TOPPED and repaints every window back to
-   front after any change, unclipped.
+1. **Windows**: done in S3 (G17, system table 1.22, `rom.aes.redraw`): per window the frame's WM_REDRAW
+   rectangles (`winRects(id, 0)`; id 0 the desk) and its visible ones (`winRects(id, 1)`, WF_FIRSTXYWH /
+   WF_NEXTXYWH), the stack back to front (`winStack`), and a clip (`guiClip`, vs_clip). GEMTEST redraws
+   only those rectangles, clipped (gemtest/redraws.zig): a top redraws what the windows above hid, a move
+   or a size the old and new places, a close what was under it; no window is repainted whole, no flash.
+   A size drag stops at the screen's edge (G22) and at the size that holds every gadget (G23), the
+   desktop's windows too (gui/winsize.zig).
 2. **Dialogs**: no disabled button state; no radio buttons (RBUTTON / objc_change); no check boxes; no
    editable text (G_FTEXT, form_do, objc_edit); no slider object; no popup menus (menu_popup); no 3D
    (TOS 4) look for a program's objects (its Gui is TOS 1's flat path: the engine is the desktop's).
@@ -104,3 +108,9 @@ redraws the same screen, Alerts > Malformed alert opens nothing and the Alerts w
 `apps/gemtest_fsel_check.mjs` (gate `gemtest`, + `--break drive`): the TOS 4 ITEM SELECTOR, flat and 3D, in
 the three modes: opened on C:\*.*, the A: button gives the selector opened on A:\*.* pixel for pixel, C:
 brings C:\*.* back, B: (absent) does nothing, an idle frame redraws the same, Cancel closes it.
+
+`apps/gemtest_redraw_check.mjs` (gate `gemtest`, + `--break whole|clamp|min`): in the three modes a top, a
+move and a close of GADGETS keep a poisoned desk pixel and a poisoned back-window pixel (only the WM_REDRAW
+rectangles were redrawn) and the screen then equals a whole repaint; its sizer dragged past the corner
+stops at the screen's edge; dragged far up-left it stops where every gadget fits; there, and after a
+larger size and back, the screen equals a whole repaint.

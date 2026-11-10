@@ -7,6 +7,7 @@ const glyphs = @import("../gem_glyphs.zig");
 const types = @import("types.zig");
 const chrome = @import("chrome.zig");
 const scrollpage = @import("scrollpage.zig");
+const winsize = @import("winsize.zig");
 const Gui = @import("core.zig").Gui;
 const Rect = types.Rect;
 const Window = types.Window;
@@ -187,15 +188,13 @@ pub const Wm = struct {
         var r = w.r;
         // GEM resizes in whole CHARACTER CELLS, so a window's contents stay on
         // the 8px grid they were laid out on instead of drifting a pixel at a time.
-        r.w = cells(@max(w.min_w, @as(i16, @intCast(@as(i32, g.px) + self.grab_dx - w.r.x))));
-        r.h = cells(@max(w.min_h, @as(i16, @intCast(@as(i32, g.py) + self.grab_dy - w.r.y))));
+        // Never past the screen's right or bottom edge (G22), never under the gadgets' room (G23).
+        const want_w: i16 = @intCast(@as(i32, g.px) + self.grab_dx - w.r.x);
+        const want_h: i16 = @intCast(@as(i32, g.py) + self.grab_dy - w.r.y);
+        r.w = winsize.fit(want_w, winsize.minW(w.min_w), g.screen.w - w.r.x);
+        r.h = winsize.fit(want_h, winsize.minH(w.min_h, types.topBarsH(w)), g.screen.h - w.r.y);
         self.gesture(g, w, r, &self.resize);
         return true;
-    }
-
-    // Round up to a whole 8px character cell.
-    fn cells(v: i16) i16 {
-        return @divTrunc(v + types.CELL - 1, types.CELL) * types.CELL;
     }
 
     // One frame of a move or a resize: show `r` as the dotted outline while the

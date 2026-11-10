@@ -13,9 +13,8 @@
 //   EV_SCROLLED  an arrow, a slider or a track page moved vscroll / hscroll
 //   EV_TOPPED    another window came to the front
 //
-// The dotted move/size outline is drawn by the ROM with the screen under it kept
-// (saveunder.zig), so the program redraws nothing until the gesture ends. The arrows
-// repeat while held (TOS's did; the desktop's step once a click).
+// The move/size outline is drawn save-under (saveunder.zig): nothing to redraw until the
+// gesture ends, then only the WM_REDRAW rectangles (appwin_damage.zig). Arrows repeat held.
 // --------------------------------------------------------------------------
 const types = @import("types.zig");
 const window = @import("window.zig");
@@ -23,6 +22,8 @@ const chrome = @import("chrome.zig");
 const frame = @import("appwin_frame.zig");
 const Gui = @import("core.zig").Gui;
 const saveunder = @import("saveunder.zig");
+const winsize = @import("winsize.zig");
+pub const dmg = @import("appwin_damage.zig");
 const Rect = types.Rect;
 const MAX_WIN = types.MAX_WIN;
 
@@ -50,9 +51,11 @@ pub const AppWin = struct {
     held: u16 = 0,
     held_win: ?u8 = null,
     outline: saveunder.Outline = .{}, // its buffers are lent (guiScratch)
+    dirty: dmg.RectList = .{}, // the damage since the last process() (appwin_damage.zig: WM_REDRAW)
 
     pub fn reset(self: *AppWin) void {
         self.wm = .{};
+        self.dirty = .{};
         self.events = [_]u32{0} ** MAX_WIN;
         self.top = null;
         self.held_win = null;
@@ -70,15 +73,18 @@ pub const AppWin = struct {
         self.shown[id] = snap(&self.wm.wins[id]);
         self.events[id] = 0;
         self.top = self.wm.topOpen();
+        self.dirty.add(coverOf(&self.wm.wins[id]));
         return id;
     }
 
     pub fn close(self: *AppWin, id: u32) void {
         if (!self.valid(id)) return;
+        self.dirty.add(coverOf(&self.wm.wins[id])); // what was under it is exposed
         self.wm.wins[id].open = false;
         _ = self.wm.takeClosed();
         self.shown[id].open = false;
         self.top = self.wm.topOpen();
+        self.titleDirt(self.top); // the window under it may be the top now: its title hatched
     }
 
     pub fn setTitle(self: *AppWin, id: u32, s: []const u8) void {
@@ -116,10 +122,37 @@ pub const AppWin = struct {
         }
     }
 
-    pub fn setRect(self: *AppWin, id: u32, r: Rect) void {
+    /// wind_set WF_CURRXYWH: as a size drag, never past the screen's edge nor under the gadgets'
+    /// room (winsize.zig: G22, G23); the move part is the program's.
+    pub fn setRect(self: *AppWin, id: u32, r: Rect, screen_w: i16, screen_h: i16) void {
         if (id >= self.wm.n) return;
-        self.wm.wins[id].r = r;
-        self.shown[id].r = r;
+        const w = &self.wm.wins[id];
+        self.dirty.add(coverOf(w));
+        var c = r;
+        c.w = @max(winsize.minW(w.min_w), @min(r.w, screen_w - r.x));
+        c.h = @max(winsize.minH(w.min_h, types.topBarsH(w)), @min(r.h, screen_h - r.y));
+        w.r = c;
+        self.shown[id].r = c;
+        self.dirty.add(coverOf(w));
+    }
+
+    /// Window `id`'s title bar is stale (it became, or stopped being, the top window).
+    pub fn titleDirt(self: *AppWin, id: ?u8) void {
+        const i = id orelse return;
+        const w = &self.wm.wins[i];
+        if (w.open) self.dirty.add(.{ .x = w.r.x, .y = w.r.y, .w = w.r.w, .h = types.TITLE_H });
+    }
+
+    /// The windows as the damage pass sees them: covers by id, the open ones back to front.
+    pub fn stack(self: *const AppWin) dmg.Stack {
+        var s: dmg.Stack = .{};
+        for (self.wm.order[0..self.wm.n]) |id| {
+            if (!self.wm.wins[id].open) continue;
+            s.cover[id] = coverOf(&self.wm.wins[id]);
+            s.order[s.n] = id;
+            s.n += 1;
+        }
+        return s;
     }
 
     pub fn window_(self: *AppWin, id: u32) ?*types.Window {
@@ -153,6 +186,10 @@ pub const AppWin = struct {
         return if (id < self.wm.n) self.wm.contentRect(@intCast(id)) else .{ .x = 0, .y = 0, .w = 0, .h = 0 };
     }
 };
+
+fn coverOf(w: *const types.Window) dmg.Rect {
+    return dmg.cover(w.r.x, w.r.y, w.r.w, w.r.h);
+}
 
 pub fn snap(w: *const types.Window) Snap {
     return .{ .r = w.r, .v = w.vscroll, .h = w.hscroll, .open = w.open };

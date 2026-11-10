@@ -21,10 +21,10 @@ pub fn windows(p: *Pen, app: *App, i: u8) void {
     p.gap();
     if (s.part == 0) return grid(p);
     if (s.part == 3) p.line("Larger than the screen: the ROM clips it.");
-    p.missing("WM_REDRAW rectangles");
-    p.missing("wind_get WF_FIRSTXYWH");
-    p.line("(the program repaints every window,");
-    p.line(" back to front, after any change)");
+    p.line("Redrawn: only the ROM's WM_REDRAW");
+    p.line(" rectangles (aes.redraw), clipped:");
+    p.line(" the desk's, then each window's,");
+    p.line(" back to front (winStack)");
 }
 
 // 40 rows of 24 cells, "r00c00": the sliders' size and position show the scroll.

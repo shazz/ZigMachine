@@ -23,6 +23,17 @@ const REPEAT_EVERY = 3;
 
 pub fn process(self: *AppWin, g: *Gui) u32 {
     self.events = [_]u32{0} ** MAX_WIN;
+    self.dirty = .{}; // a frame's damage (WM_REDRAW): what the gestures below change
+    const was = self.stack();
+    const was_top = self.wm.topOpen();
+    defer {
+        const now = self.stack();
+        appwin.dmg.damage(&was, &now, &self.dirty);
+        if (self.wm.topOpen() != was_top) { // the old top's title goes plain, the new one's hatched
+            self.titleDirt(was_top);
+            self.titleDirt(self.wm.topOpen());
+        }
+    }
     if (workPress(self, g)) |id| {
         self.events[id] = EV_WORK;
         return EV_WORK;

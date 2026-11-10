@@ -7,6 +7,8 @@
 // --------------------------------------------------------------------------
 const rom = @import("rom.zig");
 const Rect = rom.Rect;
+/// WM_REDRAW rectangle lists, the window stack, the clip (system table 1.22).
+pub const redraw = @import("aes_redraw.zig");
 
 pub extern fn guiKey(h: u32, cp: u32) void;
 pub extern fn guiScratch(h: u32, ptr: u32, len: u32) u32;

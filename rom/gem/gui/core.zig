@@ -50,9 +50,11 @@ pub const Gui = struct {
         bandfill.fill(self.blit, self.fb, x, y, w, h, color);
     }
     pub fn rect(self: *Gui, r: Rect, color: u8) void {
+        if (r.w <= 0 or r.h <= 0) return; // a box squeezed to nothing (G23: it was cast to a huge width)
         self.fill(r.x, r.y, @intCast(r.w), @intCast(r.h), color);
     }
     pub fn frame(self: *Gui, r: Rect, color: u8) void {
+        if (r.w <= 0 or r.h <= 0) return;
         self.fill(r.x, r.y, @intCast(r.w), 1, color);
         self.fill(r.x, r.y + r.h - 1, @intCast(r.w), 1, color);
         self.fill(r.x, r.y, 1, @intCast(r.h), color);

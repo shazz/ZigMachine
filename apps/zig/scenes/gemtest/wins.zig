@@ -1,15 +1,15 @@
 // --------------------------------------------------------------------------
 // GEMTEST's windows: the area on show (one at a time; the Windows area opens
-// four), their stacking order and their scroll. The API reports only the TOP
-// window (wind_get WF_TOP) and has no WM_REDRAW rectangle list, so the program
-// keeps its own back-to-front order from the EV_TOPPED events, and any change of
-// the stack (a top, a move, a size) repaints every window back to front: the
-// desk, then each window's chrome and content. Content only for a scroll of the
-// top window or a control in it: drawing a lower window would cover the top one.
+// four), their stacking order and their scroll. A change of the stack (a top, a
+// move, a size, a close) redraws only the ROM's WM_REDRAW rectangles (aes.redraw,
+// G17): the desk's, then each window's back to front, clipped to each one. A
+// scroll redraws the window's work area where it is visible (WF_FIRSTXYWH ..).
+// The program still keeps its own order from EV_TOPPED for its counters.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const rom = @import("rom_sdk");
 const aes = rom.aes;
+const redraws = @import("redraws.zig");
 const Rect = rom.Rect;
 const Pen = @import("pen.zig").Pen;
 const areas = @import("areas.zig");
@@ -29,6 +29,7 @@ pub const Slot = struct {
     sized: u16 = 0,
     topped: u16 = 0,
     scrolled: u16 = 0,
+    depth_shown: usize = 0, // the stack position its content last showed
     open: bool = true,
 };
 
@@ -118,6 +119,7 @@ pub fn paintContent(app: *App, i: u8) void {
     const s = &app.wins.slots[i];
     const wk = s.win.work();
     app.g.rect(wk, rom.WHITE);
+    s.depth_shown = app.wins.depth(i);
     var p = Pen.init(app.g, wk, s.top, s.left);
     areas.draw(&p, app, app.wins.area.?, i);
     sliders(app, s, p.extent(), wk);
@@ -157,14 +159,10 @@ pub fn frame(app: *App) bool {
             s.slots[i].top = s.slots[i].win.vscroll();
             s.slots[i].left = s.slots[i].win.hscroll();
             s.slots[i].scrolled += 1;
-            if (s.topSlot() != i) all = true;
         }
     }
-    if (all) {
-        paintAll(app);
-    } else if (ev & aes.EV_SCROLLED != 0) {
-        if (s.topSlot()) |t| paintContent(app, t);
-    }
+    if (all) redraws.paintDamage(app);
+    redraws.paintShown(app);
     return ev & aes.EV_WORK != 0;
 }
 
@@ -179,6 +177,7 @@ fn closed(app: *App, i: u8) bool {
         out += 1;
     };
     s.live = @intCast(out);
-    paintAll(app);
+    redraws.paintDamage(app); // what was under it (winClose's damage)
+    redraws.paintShown(app); // the others' stack positions moved
     return false;
 }

@@ -4,4 +4,6 @@ test {
     _ = @import("gui/alert_art.zig");
     _ = @import("gui/alert_tree.zig");
     _ = @import("desktop/fsel_tree.zig");
+    _ = @import("gui/appwin_damage.zig");
+    _ = @import("gui/winsize.zig");
 }

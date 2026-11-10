@@ -532,6 +532,7 @@ export fn deskSetBuffers(a: u32, b: u32) void {
 export fn deskSetEngine(v: u32) void {
     gui.proglook.three_d = v & 0xFF == 2; // a program's objects follow (gui/proglook.zig), desktop or not
     gui.proglook.breaks = v & ~@as(u32, 0xFF);
+    gui.winsize.breaks = v & ~@as(u32, 0xFF); // G22 / G23's mutants, the desktop's windows too
     if (desk_ready) desk_eng.setMode(&desk, v);
 }
 /// The engine's counters (engine.zig Stats: u32s), for the harness and the perf probe.
