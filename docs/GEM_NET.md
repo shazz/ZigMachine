@@ -1,6 +1,6 @@
 # GEM networking: ZIGNIC, a socket-offload network card (spec)
 
-Status: **spec**, 9 Nov 2026. Comes after GEMTEST and the GEM 5 file selector / low-res icon fixes
+Status: **N1 built** (9 Nov 2026, branch feat/zignic): the ABI, the page's card over a scripted LAN, zg.net. N2 (the board: glass) next. Comes after GEMTEST and the GEM 5 file selector / low-res icon fixes
 (docs/ROADMAP.md). Matt, 9 Nov: "can gem have a virtual TCP/IP stack with an ip address and so on?", then:
 "the goal is to handle most of the network on the ARM and just to get a virtual card on the kestrel, but the
 heavy communication is done by the arm" — the way the C64 and Atari 8-bit get networked today: a small
@@ -77,6 +77,24 @@ split over sockets). UDP frames in the RX ring carry a small header (sender IP, 
   stream over one WebSocket to the relay (`tools/net_relay.py`, run locally; it opens the real TCP/UDP
   connections). No relay: `NIC_ID` 0 and programs say "no network card".
 - **Native host:** `fpga/host/net_card.c` on the dev machine's sockets; the harness peer for tests.
+
+### As built (N1): one call and a request block
+
+The card's registers are realised as **one host import, `env.netOp(req) i32`** (the `kosFileOp` pattern): the cart
+fills a 16-word `Req` (machine/sdk/net_abi.zig: op, socket, two args, buffer, host name; written back: state,
+events, error, peer, local port) and the host answers at once. Data moves by copy on send/recv (≤ 16 KB a call)
+instead of rings in cart RAM: simpler for every host, and the cart polls each frame anyway. Ops: info, open,
+connect (TLS: the host name for SNI), listen, accept, send, recv, sendto, poll, close, resolve (on a Mode.resolve
+socket). Errors are the Err enum (no_card ... denied); no host answers anything but these.
+
+- **The page:** docs/net-host.js (the 8 sockets) over docs/net-peer.js (a deterministic scripted LAN 10.77.0.0/24:
+  echo.zig TCP 7/5555, UDP/ICMP echo, TLS 443; bbs.zig:23 a banner + echo; slow.zig times out; listen 2323 gets an
+  inbound call), mounted by `?net=peer`. Default: no card (-1). A WebSocket relay is the next transport.
+- **Carts:** `zg.net` (libs/zig/net.zig): `Socket.open/connect/connectTls/resolve/send/sendTo/recv/listen/accept/
+  poll/close`, `info()`, Zig errors. Native tests swap the transport for a fake card.
+- **Board / native host:** `HOST_NET_OP` answers no_card until N2 (fpga/tools/host_bridges.py NET); the system
+  table gains `netOp` when the first cart imports it.
+- **Proof:** apps/net_check.mjs (gate `net`, 3 --break mutants), machine/sdk/net_abi.zig layout test, zg.net tests.
 
 ## 3. The program API (STinG-style, rom/sdk/net.zig)
 

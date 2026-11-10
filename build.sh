@@ -217,6 +217,7 @@ NATIVE_TESTS="
     libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig
     libs/zig/sndh_call_test.zig
+    machine/sdk/net_abi.zig
     libs/zig/shapes_test.zig
     libs/zig/wireframe_test.zig
     libs/zig/tvnoise/tvnoise.zig
@@ -414,6 +415,11 @@ gate gemtest node apps/gemtest_check.mjs --break click   # ...and a pointer not 
 gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
 gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
 gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught
+gate net node apps/net_check.mjs   # ZIGNIC N1 (docs/GEM_NET.md): the page's card over the scripted LAN, driven as a cart does (16-word Reqs): info, TCP echo after a non-blocking connect, the BBS banner, refused/unreachable/timeout, resolve, UDP and ICMP echo, TLS needs a name, listen denied/allowed + accept, 8 sockets then no_socket, bad socket/buffer, no card
+gate net node apps/net_check.mjs --break noecho   # ...and a peer that swallows the bytes is caught
+gate net node apps/net_check.mjs --break writeback   # ...and a card that never writes the state back is caught
+gate net node apps/net_check.mjs --break blocking   # ...and a connect that pretends to be done is caught
+gate net zig test --dep hardware -Mroot=libs/zig/net.zig -Mhardware=machine/sdk/hardware.zig   # zg.net: the Req a Socket fills, Err -> error
 gate notepad node apps/desk_rez_check.mjs   # the desktop's mode across a program load (docs/GEM_DESK_MODE.md §5; Matt on the board 9 Nov: Notepad opened in medium over the desk): a fresh ROM told the mode (deskSetScreenMode, as the board's firmware does) opens Notepad in low / medium / the desk, told nothing in medium (Getrez 0xFF); the shell back from a program comes up in the mode it launched it in, a boot in DESKTOP.INF's; a mode past the desk is ignored; the page's launch remembers the return mode
 gate notepad node apps/desk_rez_check.mjs --break carry   # ...and a firmware that never hands the mode over (the board before the fix) is caught
 gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
