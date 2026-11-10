@@ -51,6 +51,10 @@ Each is a grey line in its window.
    no other fonts (vst_font, GDOS).
 7. **Icons**: no icon call (G_ICON, objc_draw) and no access to the desktop's icon table.
 8. **Screen modes**: no Setscreen for a program (it switches its own plane).
+9. **The look**: a ROM built with Matt's TOS 4 set (`-Dgem_assets`, `-Dgem_trees`, `-Dgem_engine=true`)
+   draws every GEMTEST component byte for byte as the TOS 1.0 ROM does (the shots, 9 Nov: 56 of 57
+   PNGs identical; only GEM's own desktop in the desk mode differs, by its drive icon). A program's
+   windows, menus, alerts and ITEM SELECTOR do not take the set at all.
 
 ## The known board bugs it shows
 
