@@ -24,7 +24,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const RING = 32768; // STREAM_RING (audio-worklet-sealed.js streamFeed)
 const BLOCK = 512, DUR = 30;
-const K_ENTER_FIELD = "SAMPLE.RAW", OK_BUTTON = [416, 127]; // filesel.zig: OK spans dx 160 + 221 .. +306, dy 24 + 101 .. +114
+const K_ENTER_FIELD = "SAMPLE.RAW", OK_BUTTON = [264, 176]; // fsel_tree.zig (TOS 4's): OK spans 164 + 64 .. +136, 11 + 160 .. +170
 
 const argv = process.argv.slice(2);
 function flag(name) {

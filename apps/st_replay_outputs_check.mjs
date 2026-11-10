@@ -84,9 +84,9 @@ async function checkCart() {
     demo.key(0x6c); // L: the ITEM SELECTOR, the name typed, OK clicked
     frames(3);
     for (const ch of "SAMPLE.RAW") demo.key(ch.charCodeAt(0));
-    demo.pointer(416, 127, 1);
+    demo.pointer(264, 176, 1); // OK: TOS 4's selector (fsel_tree.zig), its box at (164, 11)
     frames(3);
-    demo.pointer(416, 127, 0);
+    demo.pointer(264, 176, 0);
     frames(3);
     demo.key(0x20); // SPACE: INTERNAL
     const q1 = frames(30);

@@ -1,7 +1,7 @@
-// GEM's ITEM SELECTOR (rom/gem/desktop/filesel.zig) as ST Replay opens it, against the
-// real TOS one (TOS 1.02 in Hatari, prototypes/gem_filesel_re/tos102):
-//   - the box is 320 wide, so a full 8.3 Selection (DRUMLOOP.RAW) ends 16 px inside the
-//     frame: on the board it ran into the frame when the box was 304;
+// GEM's ITEM SELECTOR (rom/gem/desktop/fsel_tree.zig, TOS 4's layout since GEM 5 S2) as ST Replay
+// opens it (TOS 1.02's, prototypes/gem_filesel_re/tos102, was the reference before):
+//   - a full 8.3 Selection (DRUMLOOP.RAW) stays clear of DRIVE: (it ran into the frame on the board
+//     once, when the TOS 1.02 box was 304 wide);
 //   - every one of the nine list rows is drawn: a file as NAME    .EXT (dots in one
 //     column), an empty slot as the `________.___` template;
 //   - pinned picture hashes for the open selector, a row picked, a short name picked.
@@ -18,17 +18,18 @@ import { parseDisk } from "../docs/zmdisk.js";
 // Re-pinned for HW 1.13.0: only ST Replay's "bytes free" figure (top right) moved, the
 // cart window being 3 MiB; the selector's pixels are unchanged. Again 9 Nov 2026 (the desk
 // branch's ZigOS made ST Replay's wasm bigger): against main's cart, 66 pixels differ, all in
-// x 509..530, y 10..16 of the screen, which is that figure; the selector is unchanged.
+// x 509..530, y 10..16 of the screen, which is that figure; the selector is unchanged. Re-pinned
+// 10 Nov 2026 on purpose (GEM 5 S2, G21): the selector is TOS 4's now, on the GEM 5 engine.
 const PINS = {
-    open: "16f46d5a528c48bc525ae2ebd2c532161ef0368b0e35e8420e467cfc37283cf4",
-    drumloop: "f71dd0c5c17b5a9a10243a3ec3293fc3c7e1b08f88020fdd94b67dae1a23a690",
-    short: "ece8de007057e46acd3b47edf9651db9a5f8094b5ab48599f4f7f55a7390c7b6",
+    open: "0e747f18fdcebd35867704dd111a0445232008bf5a470f233da1e0a080a9db37",
+    drumloop: "f7dbd0444b3c54ba970ac5fdf59d73433dc3fd6d37143d5d57bbdfeae17c5bd4",
+    short: "c7d339c00faae4c9ccae005f8211c44993bc97dc16e472bc50afe40bee77930d",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
-const DX = 160, DY = 24;                 // the 320 x 152 box, centred in 640 x 200
-const LIST_X = DX + 24, ROW0_Y = DY + 45 + 11 + 8; // list window, then title bar + padding
-const FIELD_X = DX + 208, FIELD_Y = DY + 64;
-const row = (i) => [LIST_X + 80, ROW0_Y + 8 * i + 3];
+const DX = 164, DY = 11;                 // TOS 4's 312 x 178 box, centred in 640 x 200 (fsel_tree.zig)
+const LIST_X = DX + 24, ROW0_Y = DY + 58 + 4; // the list box, its first row 4 px in
+const FIELD_X = DX + 96, FIELD_Y = DY + 40;
+const row = (i) => [LIST_X + 80, ROW0_Y + 10 * i + 3];
 
 let failed = 0;
 const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
@@ -123,23 +124,23 @@ const got = { open: m.hash() };
 // has no underscore line at all.
 for (let i = 4; i < 9; i++) {
     const y = row(i)[1] + 3; // = the row's top + 6
-    expect(cells(m, LIST_X + 32, y, 12, ink) === "############" && cells(m, LIST_X + 32, y - 1, 12, ink) === "........#...",
+    expect(cells(m, LIST_X + 24, y, 12, ink) === "############" && cells(m, LIST_X + 24, y - 1, 12, ink) === "........#...",
         `empty row ${i + 1} shows ________.___`);
 }
-expect(cells(m, LIST_X + 32, row(0)[1] + 3, 12, ink) !== "############", "a file row has no underscores");
+expect(cells(m, LIST_X + 24, row(0)[1] + 3, 12, ink) !== "############", "a file row has no underscores");
 
 m.click(...row(1)); // DRUMLOOP.RAW (FAT order: SAMPLE, DRUMLOOP, A, BASSLINE)
 got.drumloop = m.hash();
 let past = 0; // between the field's last cell and the box's inner frame, on the field's rows
 for (let y = FIELD_Y - 1; y < FIELD_Y + 8; y++)
-    for (let x = FIELD_X + 96 + 2; x < DX + 318; x++) if (m.px(x, y) !== paper) past++;
+    for (let x = FIELD_X + 96 + 2; x < DX + 224; x++) if (m.px(x, y) !== paper) past++; // up to DRIVE:
 expect(past === 0, `DRUMLOOP.RAW ends inside the frame (${past} pixels past the field)`);
 expect(cellsIn(m, FIELD_X, FIELD_Y, FIELD_Y + 5, 12, ink) === "############", "the Selection shows all 12 cells of DRUMLOOP.RAW");
-expect(cells(m, LIST_X + 32, row(1)[1] + 3, 12, paper) === "############", "the picked row is drawn in inverse");
+expect(cells(m, LIST_X + 24, row(1)[1] + 3, 12, paper) === "############", "the picked row is drawn in inverse");
 
 m.click(...row(2)); // A.RAW: listed as A       .RAW
 got.short = m.hash();
-expect(cells(m, LIST_X + 32, row(2)[1] + 3, 12, paper) === "#.......####", "A.RAW is listed as A       .RAW");
+expect(cells(m, LIST_X + 24, row(2)[1] + 3, 12, paper) === "#.......####", "A.RAW is listed as A       .RAW");
 
 for (const [k, h] of Object.entries(got)) {
     if (process.argv.includes("--print")) console.log(`    ${k}: "${h}",`);
