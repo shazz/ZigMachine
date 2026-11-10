@@ -34,7 +34,7 @@ pub fn gestures(c: *Ctx) void {
     if (d.grow_drawn) |r| dots(&t, r);
     if (d.file_drag >= 0 and d.file_moved) {
         if (desksel.rowGhost(d)) |r| dots(&t, r) else { // text view: the row's outline
-            const bmp = dirview.fileBmp(d, @intCast(d.file_drag));
+            const bmp = dirview.dragBmp(d);
             ghost(&t, @intCast(@as(i32, d.g.px) - d.file_gx), @intCast(@as(i32, d.g.py) - d.file_gy), bmp);
         }
     }

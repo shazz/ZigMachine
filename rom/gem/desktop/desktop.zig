@@ -9,6 +9,8 @@
 //   deskmenu.zig   the menu bar and the dialogs it opens
 //   deskops.zig    the File / Options commands those menus run
 //   desk_icons.zig desktop icons: select / drag / open; deskdrive.zig A: and C: (KOS)
+//   deskdrop.zig   where a window item's drag lands; fileop*.zig C:'s copy / move / delete /
+//                  rename / New Folder, done by the shell (docs/GEM_FILEOPS.md); deskkey.zig keys
 // --------------------------------------------------------------------------
 const zsrc = @import("zigos");
 const gui = @import("../gui.zig");
@@ -30,6 +32,8 @@ const deskmenu = @import("deskmenu.zig");
 const deskdirty = @import("deskdirty.zig");
 const deskmode = @import("deskmode.zig");
 const deskeng = @import("eng/engine.zig");
+const deskkey = @import("deskkey.zig");
+const fileop = @import("fileop.zig");
 
 const Rect = gui.Rect;
 const Icon = icon_mod.Icon;
@@ -110,6 +114,7 @@ pub const Desktop = struct {
     eng_rec: ?Rect = null, // engine frame: the box the dialogs painted (deskmenu.runDialogs)
     no_enter: bool = false, // gem_engine_check's --break: Return ignored (the bug Matt saw on the board)
     breaks: u32 = 0, // gem_desk_bugs_check's --break mutants (deskbreak.zig), set by deskSetEngine
+    fop: fileop.State = .{}, // C:'s file operations (fileop.zig): the shell's mailbox, the boxes' state
 
     pub fn init(self: *Desktop, os: *zsrc.ZigOS, fb: *zsrc.LogicalFB, blit: *zsrc.Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen = gui.Screen.of(.medium) };
@@ -139,7 +144,7 @@ pub const Desktop = struct {
     // runDialogs: two copies once drifted and left the menu bar live under the COPY box.
     pub fn isModal(self: *const Desktop) bool {
         return self.dlg.active or self.prefs.active or self.about.active or
-            self.trash.active or self.info.active or self.copy.active;
+            self.trash.active or self.info.active or self.copy.active or self.fop.busy();
     }
 
     // Draw the desktop (res-adaptive) + windows; handle icon drag/click; return action.
@@ -190,6 +195,7 @@ pub const Desktop = struct {
         desk_icons.requestOpenAt(self, x, y);
     }
     pub fn beginFrame(self: *Desktop) void {
+        fileop.watch(self); // the shell's progress repaints; a finished operation ends before C: is drawn
         self.g.beginFrame();
     }
     pub fn endFrame(self: *Desktop) void {
@@ -199,20 +205,11 @@ pub const Desktop = struct {
         deskmode.setScreen(self, s); // the screen was re-bound (deskSetScreen): every pixel moved
     }
 
-    // Character keyboard: the Show Info name field; Return fires an open dialog's default.
+    // The keyboard: name fields, Return, Control (deskkey.zig).
     pub fn key(self: *Desktop, cp: u32) void {
-        deskdirty.touch(self);
-        if (self.info.active) return self.info.key(cp); // its name field takes Return itself
-        if ((cp == 13 or cp == 10) and self.isModal() and !self.no_enter) self.g.enter = true; // the DEFAULT button (TOS form_do)
+        deskkey.key(self, cp);
     }
-    // Directional input (0 up 1 down 2 left 3 right): left/right walk the name field's caret.
     pub fn input(self: *Desktop, dir: u32) void {
-        deskdirty.touch(self);
-        if (!self.info.active) return;
-        switch (dir) {
-            2 => self.info.moveCaret(-1),
-            3 => self.info.moveCaret(1),
-            else => {},
-        }
+        deskkey.input(self, dir);
     }
 };

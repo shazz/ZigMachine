@@ -35,6 +35,11 @@ pub fn fileBmp(d: *const Desktop, fidx: u8) icons.Icon {
     return if (d.dir.kind(fidx) == 0) icons.PROGRAM else icons.DOCUMENT;
 }
 
+/// The icon a drag out of a window carries: the dragged file's, or a folder's.
+pub fn dragBmp(d: *const Desktop) icons.Icon {
+    return if (d.fop.drag_folder) icons.FOLDER else fileBmp(d, @intCast(d.file_drag));
+}
+
 // Lay an item on the icon grid by DISPLAY SLOT (so sorting reorders the layout),
 // its ART (not the sometimes padded bitmap) centred in the cell on the baseline.
 fn slotIcon(slot: usize, v: View, bmp: icons.Icon, label: []const u8, is_app: bool) Icon {

@@ -3,8 +3,10 @@
 // buttons: open, show info, new folder, rename, delete, Save Desktop. They act
 // on the selection and the directory model; the menus only route to them.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const gui = @import("../gui.zig");
 const dt = @import("desktop.zig");
+const fileop = @import("fileop.zig");
 const dirmodel = @import("dirmodel.zig");
 const deskwin = @import("deskwin.zig");
 const desknav = @import("desknav.zig");
@@ -53,7 +55,7 @@ pub fn showInfo(d: *Desktop) void {
 // File > New Folder: TOS asks for the name first (NEW FOLDER box with an 8.3
 // field); the folder is only created when that dialog is confirmed.
 pub fn newFolder(d: *Desktop) void {
-    if (d.dir.n_folders >= dirmodel.MAX_FOLDERS) {
+    if (d.drv.cur != deskdrive.C and d.dir.n_folders >= dirmodel.MAX_FOLDERS) { // C:'s folders are the card's
         d.dlg.alert("Too many folders.", "Delete one and try again.");
         return;
     }
@@ -61,20 +63,39 @@ pub fn newFolder(d: *Desktop) void {
 }
 
 // OK on the NEW FOLDER box: create it under the top window's directory.
+// On C: the shell makes it (Dcreate, fileop.zig); C:'s model only follows the re-read.
 pub fn createFolder(d: *Desktop) void {
     const parent: i16 = if (deskwin.topFloppy(d)) |w| w.dir else dirmodel.ROOT;
+    if (d.drv.cur == deskdrive.C) return fileop.mkdir(d, parent, autoName(d));
     d.dir.addFolder(parent, d.info.name.text());
+}
+
+// An empty name is TOS's auto-name on drive A (dirmodel.addFolder); on C: the same NEWDIRn.
+fn autoName(d: *Desktop) []const u8 {
+    const typed = d.info.name.text();
+    if (typed.len > 0) return typed;
+    d.dir.new_seq += 1;
+    return std.fmt.bufPrint(&d.info.name.buf, "NEWDIR{d}", .{d.dir.new_seq}) catch "NEWDIR";
 }
 
 // OK on Show Info...: apply the (keyboard-edited) name to the selection.
 pub fn applyRename(d: *Desktop) void {
     const nm = d.info.name.text();
     if (nm.len == 0) return;
+    if (d.drv.cur == deskdrive.C) return renameOnC(d, nm);
     if (d.sel_folder >= 0) {
         d.dir.renameFolder(@intCast(d.sel_folder), nm);
     } else if (d.sel_file >= 0) {
         d.dir.renameFile(@intCast(d.sel_file), nm);
     }
+}
+
+// Show Info's rename on C: Frename through the shell, the window re-read after it.
+fn renameOnC(d: *Desktop, nm: []const u8) void {
+    const dir: i16 = if (deskwin.topFloppy(d)) |w| w.dir else dirmodel.ROOT;
+    const old = if (d.sel_folder >= 0) d.dir.folderName(@intCast(d.sel_folder)) else if (d.sel_file >= 0) d.dir.name(@intCast(d.sel_file)) else return;
+    if (std.mem.eql(u8, old, nm)) return; // unchanged: nothing to write
+    fileop.rename(d, dir, old, nm);
 }
 
 // OK on DELETE FILE(S): the file leaves the in-memory FAT (the disk is read-only).

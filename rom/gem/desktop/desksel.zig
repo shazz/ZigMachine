@@ -11,6 +11,7 @@ const dirview = @import("dirview.zig");
 const deskwin = @import("deskwin.zig");
 const desk_icons = @import("desk_icons.zig");
 const deskbreak = @import("deskbreak.zig");
+const deskdrop = @import("deskdrop.zig");
 const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 const View = dirview.View;
@@ -57,15 +58,16 @@ fn pressInWindow(d: *Desktop, x: i16, y: i16) void {
     const w = deskwin.topFloppy(d) orelse return;
     switch (dirview.dirHitAt(d, w.dir, w.view, x, y)) {
         .file => |a| {
-            clearSel(d);
+            if (!fileSelected(d, a)) clearSel(d); // a press on the selection drags all of it (deskdrop)
             d.sel_file = a;
-            d.file_drag = a; // arm a drag (TRASH = delete, folder = copy)
-            d.file_moved = false;
+            armDrag(d, a, false);
             armFileGrab(d, a, w.view, x, y);
         },
         .folder => |f| {
-            clearSel(d);
+            if (!folderSelected(d, f)) clearSel(d);
             d.sel_folder = f;
+            armDrag(d, f, true);
+            armFolderGrab(d, f, w, x, y);
         },
         .none => {
             clearSel(d);
@@ -76,6 +78,31 @@ fn pressInWindow(d: *Desktop, x: i16, y: i16) void {
             }
         },
     }
+}
+
+// Arm a drag of item `i` (TRASH = delete, a folder / drive / window = copy, Control = move).
+fn armDrag(d: *Desktop, i: u8, folder: bool) void {
+    d.file_drag = i;
+    d.file_moved = false;
+    d.fop.drag_folder = folder;
+}
+
+// A folder's grab offset, as armFileGrab's: inside its icon, or its text row.
+fn armFolderGrab(d: *Desktop, f: u8, w: deskwin.DirWin, x: i16, y: i16) void {
+    const nf = d.dir.fileCount(w.dir);
+    var rank: usize = 0;
+    while (rank < d.dir.folderCount(w.dir) and d.dir.nthFolder(w.dir, rank) != f) : (rank += 1) {}
+    d.file_gw = 0;
+    if (d.view == .icons) {
+        const ic = dirview.folderIconSlot(d, nf + rank, f, w.view);
+        d.file_gx = x - ic.x;
+        d.file_gy = y - ic.y;
+        return;
+    }
+    const r = dirview.fileRowRect(nf + rank, w.view);
+    d.file_gx = x - r.x;
+    d.file_gy = y - r.y;
+    d.file_gw = r.w;
 }
 
 // Record where inside the dragged file's icon the pointer grabbed it, so the
@@ -149,23 +176,18 @@ fn updateFileDrag(d: *Desktop, g: *gui.Gui) void {
         if (!g.edge) d.file_moved = true;
         return;
     }
-    dropFileDrag(d, @intCast(g.px), @intCast(g.py));
+    if (d.file_moved) deskdrop.drop(d, @intCast(g.px), @intCast(g.py)) else collapse(d);
     d.file_drag = -1;
     d.file_moved = false;
+    d.fop.drag_folder = false;
 }
 
-// Resolve a file drag's drop: TRASH = delete, a folder = copy (COPY dialog).
-fn dropFileDrag(d: *Desktop, x: i16, y: i16) void {
-    if (d.items[desk_icons.IC_TRASH].hitAt(x, y)) {
-        d.trash_target = d.file_drag;
-        d.trash.open(0, 1);
-        return;
-    }
-    const w = deskwin.topFloppy(d) orelse return;
-    switch (dirview.dirHitAt(d, w.dir, w.view, x, y)) {
-        .folder => d.copy.openCopy(0, 1), // COPY FOLDERS / ITEMS (cosmetic: disk read-only)
-        else => {},
-    }
+// A click (no drag) on an item of the selection: that item alone stays selected.
+fn collapse(d: *Desktop) void {
+    const i = d.file_drag;
+    const folder = d.fop.drag_folder;
+    clearSel(d);
+    if (folder) d.sel_folder = i else d.sel_file = i;
 }
 
 fn overlap(a: Rect, b: Rect) bool {

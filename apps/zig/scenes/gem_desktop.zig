@@ -155,6 +155,7 @@ pub const Demo = struct {
             },
             .none => {},
         }
+        @import("gem_fileop.zig").tick(); // C:'s file operations the desktop posted: a step a frame
     }
 
     // Ask the host to run the program the desktop picked. A disk with no program
@@ -217,3 +218,13 @@ pub const Demo = struct {
         rom.Desktop.setFileCount(n);
     }
 };
+
+// keyUp: a key's release. demo_main forwards none, so the shell exports its own (notepad.zig's
+// pattern), guarded so only the GEM shell's cart carries it: the desktop needs Control's release,
+// since a drag MOVES while it is held (rom/gem/desktop/deskkey.zig).
+fn keyUp(cp: u32) callconv(.c) void {
+    rom.Desktop.key(cp | rom.deskop.KEY_RELEASE);
+}
+comptime {
+    if (@import("../cart.zig").Cart == Demo) @export(&keyUp, .{ .name = "keyUp" });
+}

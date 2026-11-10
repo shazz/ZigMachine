@@ -49,7 +49,7 @@ fn up(d: *Desktop, id: u8) void {
 
 /// Window `id` shows directory `dir` of its drive (d.dir): its path as the title, scrolled to
 /// the top, nothing selected. Its rect and frozen icon grid stay: it is the same window.
-fn show(d: *Desktop, id: u8, dir: i16) void {
+pub fn show(d: *Desktop, id: u8, dir: i16) void {
     d.win_dir[id] = dir;
     const w = &d.wm.wins[id];
     w.title = if (dir == dirmodel.ROOT) rootTitle(d) else blk: {
