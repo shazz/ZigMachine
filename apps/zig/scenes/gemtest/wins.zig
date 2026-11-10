@@ -105,7 +105,7 @@ fn rectOf(mode: aes.ScreenMode, area: Area, part: u8) Rect {
 /// The desk, every window back to front, the menu bar.
 pub fn paintAll(app: *App) void {
     const s = &app.wins;
-    screen.desk(app.g, app.mode);
+    @import("desk.zig").paint(app.g, app.mode, .{ .x = 0, .y = 0, .w = screen.width(app.mode), .h = screen.height(app.mode) });
     for (s.order[0..s.live]) |i| {
         s.slots[i].win.draw();
         s.slots[i].shown = .{ -1, -1, -1, -1 };

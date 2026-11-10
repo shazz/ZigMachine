@@ -14,6 +14,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const obj = @import("../engine/obj.zig");
+const wire_icon = @import("wire_icon.zig");
 
 pub const Obj = extern struct { next: i16, head: i16, tail: i16, ty: u16, flags: u16, state: u16, spec: u32, x: i16, y: i16, w: i16, h: i16 };
 pub const Ted = extern struct { text: u32, tmplt: u32, valid: u32, font: i16, fontid: i16, just: i16, color: i16, fontsize: i16, thickness: i16, txtlen: i16, tmplen: i16 };
@@ -61,12 +62,16 @@ pub const Store = struct {
     teds: [MAX_TED]obj.Ted = undefined,
     shown: [MAX_TED][SHOWN]u8 = undefined,
     nted: usize = 0,
+    icons: [wire_icon.MAX_ICON]obj.IconBlk = undefined,
+    nicon: usize = 0,
+    sys: []const wire_icon.Art = &.{}, // the ROM's own icons a G_ICON may name (wire_icon.zig)
 };
 
 /// The engine's copy of the `n` objects at `addr`, null for a tree outside the window.
 pub fn load(m: Mem, addr: u32, n: u32, s: *Store) ?[]obj.Object {
     const w = m.objs(addr, n) orelse return null;
     s.nted = 0;
+    s.nicon = 0;
     for (w, 0..) |o, i| s.objs[i] = .{ .next = o.next, .head = o.head, .tail = o.tail, .ty = @truncate(o.ty), .flags = o.flags, .state = o.state, .spec = spec(m, o, s), .x = o.x, .y = o.y, .w = o.w, .h = o.h };
     return s.objs[0..n];
 }
@@ -76,8 +81,16 @@ fn spec(m: Mem, o: Obj, s: *Store) obj.Spec {
         obj.G_BOX, obj.G_IBOX, obj.G_BOXCHAR => .{ .box = o.spec },
         obj.G_STRING, obj.G_BUTTON, obj.G_TITLE => .{ .str = m.str(o.spec) },
         obj.G_TEXT, obj.G_BOXTEXT, obj.G_FTEXT, obj.G_FBOXTEXT => tedSpec(m, o, s),
+        obj.G_ICON => iconSpec(m, o, s),
         else => .none,
     };
+}
+
+fn iconSpec(m: Mem, o: Obj, s: *Store) obj.Spec {
+    if (s.nicon == wire_icon.MAX_ICON) return .none;
+    if (!wire_icon.load(m, o.spec, s.sys, &s.icons[s.nicon])) return .none;
+    s.nicon += 1;
+    return .{ .icon = &s.icons[s.nicon - 1] };
 }
 
 fn tedSpec(m: Mem, o: Obj, s: *Store) obj.Spec {

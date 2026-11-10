@@ -20,6 +20,27 @@ const Gui = @import("core.zig").Gui;
 var store: wire.Store = undefined;
 const BREAK_RADIO: u32 = 1 << 29; // deskSetEngine's mutant (gemtest_obj_check --break radio)
 
+const wire_icon = @import("wire_icon.zig");
+const BREAK_ICONS: u32 = 1 << 30; // deskSetEngine's mutant: the ROM's icons lost (gemtest_icon_check)
+var sys: [6]wire_icon.Art = undefined; // the ROM's icons a program's G_ICON may name, by number
+var sys_ok = false;
+
+// The desktop's icon set (proglook's: the asset set's, else TOS 1.0's), once.
+fn ensureSys(g: *const Gui) void {
+    if (sys_ok) return;
+    for (&sys, proglook.setOf(g).icons) |*s, a| s.* = .{ .w = a.w, .h = a.h, .bpr = a.bpr, .mask = a.mask, .data = a.data };
+    sys_ok = true;
+}
+
+fn loadTree(addr: u32, n: u32) ?[]obj.Object {
+    store.sys = if (!sys_ok or proglook.breaks & BREAK_ICONS != 0) &.{} else &sys;
+    return wire.load(mem(), addr, n, &store);
+}
+
+/// WF_NEWDESK: the program's desktop tree (its root the desk, icons its children), 0 none.
+pub var desk_addr: u32 = 0;
+pub var desk_n: u32 = 0;
+
 pub fn mem() wire.Mem {
     const p: [*]u8 = @ptrFromInt(hw.CART_RAM_BASE);
     return .{ .base = hw.CART_RAM_BASE, .bytes = p[0 .. hw.CART_RAM_TOP - hw.CART_RAM_BASE] };
@@ -27,7 +48,8 @@ pub fn mem() wire.Mem {
 
 /// objc_draw: `start` and `depth` levels, clipped to `within` (and the context's clip).
 pub fn draw(g: *Gui, addr: u32, n: u32, start: i16, depth: u8, within: R.Rect) void {
-    const tree = wire.load(mem(), addr, n, &store) orelse return;
+    ensureSys(g);
+    const tree = loadTree(addr, n) orelse return;
     if (!obj.valid(tree, start)) return;
     paint(g, tree, start, depth, within);
 }
@@ -49,7 +71,7 @@ fn extentOf(g: *const Gui, tree: []const obj.Object, i: i16) R.Rect {
 
 /// objc_find: the object under (x, y), -1 for none (or a bad tree).
 pub fn find(addr: u32, n: u32, start: i16, depth: u8, x: i32, y: i32) i32 {
-    const tree = wire.load(mem(), addr, n, &store) orelse return -1;
+    const tree = loadTree(addr, n) orelse return -1;
     if (!obj.valid(tree, start)) return -1;
     return find_mod.find(tree, start, depth, x, y);
 }
@@ -64,14 +86,15 @@ pub fn change(g: *Gui, addr: u32, n: u32, i: i16, state: u16, redraw: bool) void
 
 /// An object repainted where it can paint, the tree from its root (what is under it first).
 pub fn redrawObj(g: *Gui, addr: u32, n: u32, i: i16) void {
-    const tree = wire.load(mem(), addr, n, &store) orelse return;
+    ensureSys(g);
+    const tree = loadTree(addr, n) orelse return;
     if (!obj.valid(tree, i)) return;
     paint(g, tree, 0, draw_mod.MAX_DEPTH, extentOf(g, tree, i));
 }
 
 /// form_button: bit 0 an EXIT / TOUCHEXIT object, bit 1 some state changed (redraw the tree).
 pub fn button(addr: u32, n: u32, i: i16) u32 {
-    const tree = wire.load(mem(), addr, n, &store) orelse return 0;
+    const tree = loadTree(addr, n) orelse return 0;
     const w = mem().objs(addr, n).?;
     if (proglook.breaks & BREAK_RADIO != 0) for (tree) |*o| { // the mutant: radio groups forgotten
         o.flags &= ~obj.RBUTTON;
@@ -101,7 +124,7 @@ pub fn edit(g: *Gui, addr: u32, n: u32, i: i16, kind: u32, key: u32, idx: u32) i
 
 // The caret: two pixels wide, a cell high, before template column `col` of the shown text.
 fn caret(g: *Gui, addr: u32, n: u32, i: i16, col: usize) void {
-    const tree = wire.load(mem(), addr, n, &store) orelse return;
+    const tree = loadTree(addr, n) orelse return;
     const r = obj.offset(tree, i).?;
     const lk = proglook.look(g);
     const t = switch (tree[@intCast(i)].spec) {

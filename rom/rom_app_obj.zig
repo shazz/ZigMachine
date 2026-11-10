@@ -37,6 +37,21 @@ export fn formButton(h: u32, tree: u32, n: u32, obj: u32) u32 {
     _ = main.guiAt(h) orelse return 0;
     return objects.button(tree, n, idx(obj));
 }
+/// wind_set(0, WF_NEWDESK): the program's desktop is the tree at `tree` (`n` objects, 0: none,
+/// the plain desk again). Drawn by winDeskDraw wherever the desk shows (its WM_REDRAW rectangles).
+export fn winDesk(h: u32, tree: u32, n: u32) void {
+    _ = main.guiAt(h) orelse return;
+    objects.desk_addr = if (n == 0) 0 else tree;
+    objects.desk_n = n;
+}
+/// The program's desktop drawn inside (x, y, w, h): the registered tree, or nothing (0) when none.
+export fn winDeskDraw(h: u32, cx: i32, cy: i32, cw: i32, ch: i32) u32 {
+    const g = main.guiAt(h) orelse return 0;
+    if (objects.desk_n == 0) return 0;
+    const r = main.rectOf(cx, cy, cw, ch);
+    objects.draw(g, objects.desk_addr, objects.desk_n, 0, 8, .{ .x = r.x, .y = r.y, .w = r.w, .h = r.h });
+    return 1;
+}
 /// objc_edit: `kind` 1 ED_INIT, 2 ED_CHAR (`key`), 3 ED_END, the caret at `idx`; its new index.
 export fn objcEdit(h: u32, tree: u32, n: u32, obj: u32, kind: u32, key: u32, at: u32) i32 {
     const g = main.guiAt(h) orelse return -1;

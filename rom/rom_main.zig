@@ -264,6 +264,7 @@ export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
         };
         used.* = true;
         @import("rom_app.zig").resetSlot(i); // a fresh program: no windows, no menu bar
+        gui.objects.desk_n = 0; // ...and no desktop tree of the last one (WF_NEWDESK)
         return @intCast(i + 1);
     }
     return 0;

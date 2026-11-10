@@ -29,7 +29,7 @@ runs, in the desktop's resolution; ^Q (or Test > Quit) goes back. It uses ONLY t
 | Alerts (^A) | ALERTS (FORM_ALERT) | a button per icon x buttons; the last answer (form_alert's 1-based return); the malformed alert's answer (nothing opened: right) |
 | File selector (^F) | FILE SELECTOR (FSEL_INPUT) | the ITEM SELECTOR on `A:\*.*`, `C:\*.*`, `C:\*.TXT`, its list from Fsfirst / Fsnext (KOS GEMDOS); shows how many names, Fsfirst's code, the button and the name returned |
 | Text and fonts (^T) | TEXT AND FONTS | the system font's cell (guiCell), a 200-column ruler (horizontal scroll), 100 lines (vertical scroll) |
-| Icons (^I) | ICONS | none: the API cannot draw an icon (the shots tool shoots the desktop's instead) |
+| Icons (^I) | ICONS | G_ICONs drawn by the ROM: the desktop's six by number, one of the program's own; which desk icon a double-click opened |
 | Screen modes (^R) | SCREEN MODES | Getrez at launch (deskScreenMode), the mode now, whether the desk mode exists; Low / Medium / Desk buttons |
 
 ## Not in the API yet (the findings)
@@ -64,7 +64,12 @@ Each is a grey line in its window.
    click re-roots the spec at `X:\` + the mask and answers `relist`), OK and Cancel; flat or 3D.
 6. **Text**: one size (no vst_height), no 8x16 system font through the API, no styles (vst_effects),
    no other fonts (vst_font, GDOS).
-7. **Icons**: no icon call (G_ICON, objc_draw) and no access to the desktop's icon table.
+7. **Icons**: done in S5 (G16, system table 1.24). A G_ICON's ICONBLK (the AES's 34 bytes) points at the
+   program's own 1 bpp images, or, ib_pmask 0, names one of the ROM's icons by number (`SYS_FLOPPY` ..
+   `SYS_DOCUMENT`: the desktop's set, the asset set's where built in; gui/wire_icon.zig). `winDesk` is
+   WF_NEWDESK: the program's desktop tree, drawn by `winDeskDraw` in the desk's WM_REDRAW rectangles.
+   GEMTEST's desktop (gemtest/desk.zig) is such a tree with four icons: a click selects, a drag moves,
+   a double-click opens (the Icons area names it).
 8. **Screen modes**: no Setscreen for a program (it switches its own plane).
 9. **The look**: a ROM built with Matt's TOS 4 set (`-Dgem_assets`, `-Dgem_trees`, `-Dgem_engine=true`)
    draws every GEMTEST component byte for byte as the TOS 1.0 ROM does (the shots, 9 Nov: 56 of 57
@@ -124,3 +129,7 @@ larger size and back, the screen equals a whole repaint.
 desk, flat and 3D: a radio group (pressed twice it stays; Low brings the first look back), a check box
 twice, the disabled button inert, digits into the date field and letters refused, Backspace, the
 slider's track; and the Test menu's shortcuts ending in one column in low.
+
+`apps/gemtest_icon_check.mjs` (gate `gemtest`, + `--break icons`): GEMTEST's desktop in low and the desk with
+its windows closed: the four icons drawn, select / reselect / deselect, a drag (= a whole repaint after),
+a double-click opening the Icons area.

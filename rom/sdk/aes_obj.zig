@@ -15,6 +15,29 @@ pub extern fn objcFind(h: u32, tree: u32, n: u32, start: u32, depth: u32, x: i32
 pub extern fn objcChange(h: u32, tree: u32, n: u32, obj: u32, state: u32, redraw: u32) void;
 pub extern fn formButton(h: u32, tree: u32, n: u32, obj: u32) u32;
 pub extern fn objcEdit(h: u32, tree: u32, n: u32, obj: u32, kind: u32, key: u32, idx: u32) i32;
+pub extern fn winDesk(h: u32, tree: u32, n: u32) void; // WF_NEWDESK (1.24)
+pub extern fn winDeskDraw(h: u32, cx: i32, cy: i32, cw: i32, ch: i32) u32;
+
+/// An ICONBLK (the AES's 34 bytes; this struct pads to 36). `pmask` 0: `pdata` names one of the ROM's
+/// own icons (SYS_*), the desktop's set; else both point at the program's 1 bpp images, rows
+/// word-padded. `char`'s high byte: data colour (bits 15..12), mask colour (11..8).
+pub const Iconblk = extern struct { pmask: u32 = 0, pdata: u32 = 0, ptext: u32 = 0, char: u16 = 0x1000, xchar: i16 = 0, ychar: i16 = 0, xicon: i16 = 0, yicon: i16 = 0, wicon: i16 = 32, hicon: i16 = 32, xtext: i16 = 0, ytext: i16 = 32, wtext: i16 = 72, htext: i16 = 8 };
+pub const G_ICON: u16 = 31;
+pub const SYS_FLOPPY: u32 = 0;
+pub const SYS_HARD: u32 = 1;
+pub const SYS_TRASH: u32 = 2;
+pub const SYS_FOLDER: u32 = 3;
+pub const SYS_PROGRAM: u32 = 4;
+pub const SYS_DOCUMENT: u32 = 5;
+
+/// WF_NEWDESK: `objs` is the program's desktop (root: the desk, children: its icons); empty: none.
+pub fn setDesk(g: rom.Gui, objs: []Object) void {
+    winDesk(g.h, addr(objs.ptr), @intCast(objs.len));
+}
+/// The program's desktop inside `r` (a desk WM_REDRAW rectangle); false: none registered.
+pub fn drawDesk(g: rom.Gui, r: Rect) bool {
+    return winDeskDraw(g.h, r.x, r.y, r.w, r.h) != 0;
+}
 
 /// The AES's OBJECT and TEDINFO, byte for byte (24 and 28 bytes).
 pub const Object = extern struct { next: i16 = -1, head: i16 = -1, tail: i16 = -1, ty: u16 = G_IBOX, flags: u16 = 0, state: u16 = 0, spec: u32 = 0, x: i16 = 0, y: i16 = 0, w: i16 = 0, h: i16 = 0 };

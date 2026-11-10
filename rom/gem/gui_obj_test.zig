@@ -8,4 +8,5 @@ test {
     _ = @import("gui/winsize.zig");
     _ = @import("gui/wire.zig");
     _ = @import("gui/objedit.zig");
+    _ = @import("gui/wire_icon.zig");
 }

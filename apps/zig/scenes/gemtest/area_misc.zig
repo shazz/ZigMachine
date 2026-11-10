@@ -68,18 +68,6 @@ pub fn files(p: *Pen, app: *App) void {
     p.missing("fsel_exinput's own title line");
 }
 
-pub fn icons(p: *Pen) void {
-    p.line("The desktop's icons (drives, folders,");
-    p.line("files, programs, the trash) are the");
-    p.line("ROM's; a program cannot draw them:");
-    p.gap();
-    p.missing("an icon call (G_ICON, objc_draw)");
-    p.missing("the desktop's icon table");
-    p.gap();
-    p.line("gemtest_shots.mjs shoots the desktop in");
-    p.line("each mode for them (component 'desktop').");
-}
-
 pub fn modes(p: *Pen, app: *App) void {
     var b: [48]u8 = undefined;
     const names = [_][]const u8{ "low 320x200", "medium 640x200", "desk 640x480" };

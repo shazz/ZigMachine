@@ -5,7 +5,7 @@
 // --------------------------------------------------------------------------
 const rom = @import("rom_sdk");
 const redraw = rom.aes.redraw;
-const screen = @import("../notepad/screen.zig");
+const desk = @import("desk.zig");
 const wins = @import("wins.zig");
 const App = @import("../gemtest.zig").App;
 const paintContent = wins.paintContent;
@@ -18,7 +18,7 @@ pub fn paintDamage(app: *App) void {
     var it = redraw.rects(g, 0, .redraw);
     while (it.next()) |r| {
         redraw.clip(g, r);
-        screen.desk(g, app.mode);
+        desk.paint(g, app.mode, r); // the WF_NEWDESK tree (G16)
     }
     var k: u32 = 0;
     while (redraw.stackAt(g, k)) |id| : (k += 1) {
