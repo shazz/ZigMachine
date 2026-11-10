@@ -24,6 +24,7 @@ SDL_bool SDL_SetHint(const char *n, const char *v) { (void)n; (void)v; return SD
 void SDL_Delay(Uint32 ms) { (void)ms; } /* the cart never blocks: frame() returns instead */
 __attribute__((import_module("env"), import_name("consoleLogJS"))) extern void consoleLogJS(const char *p, int len);
 __attribute__((import_module("env"), import_name("hwVideoBase"))) extern int hwVideoBase(void);
+void kestrel_ptrbox_plane(int full, int px, int py, int w, int h); /* kestrel_sdl2/src/kestrel_ptrbox.c */
 void kestrel_log(const char *m) { consoleLogJS(m, (int)strlen(m)); }
 int SDL_ShowSimpleMessageBox(Uint32 f, const char *t, const char *m, SDL_Window *w) { (void)f; (void)w; kestrel_log(t); kestrel_log(m); return 0; }
 
@@ -93,6 +94,7 @@ void kestrel_video_init(void)
     vbase[REG_FB_MODE] = FB_MODE_FULLSCREEN;
     memset(vbase + OFF_VRAM, 0, PW * PH);
     (void)colour_index(0xFF000000u); /* index 0 = black: the plane's margins around pt2's 320x255 */
+    kestrel_ptrbox_plane(1, OX, OY, SW, SH); /* the board's pointer stops at the picture's edge */
 }
 
 static Uint8 colour_index(Uint32 c)
