@@ -245,6 +245,8 @@ int main(void) {
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM ZMXEMU %lu\n", (unsigned long)zm_zmx_emulated);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
+    printf("ZM ASTRO %lu %lu %lu %lu %lu\n", (unsigned long)bastro.calls, (unsigned long)bastro.served, (unsigned long)bastro.untaken,
+           (unsigned long)bastro.timeouts, (unsigned long)bastro.cycles); /* calls served untaken timeouts cycles (bastro.h) */
     vplan_report();
     bplanes_report();
     AUDIO(baudio_report());

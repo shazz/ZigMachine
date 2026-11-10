@@ -85,6 +85,7 @@ def make_soc(
     read_bypass: bool = zm_board_mem.READ_BYPASS,
     sound_core: Path | None = None,
     sound_tcm: int = 0,
+    astro: bool = False,
 ) -> ZigMachineSoC:
     platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
     hp0, hp1, hp2, hp3 = hp_interface(), hp_interface(), hp_interface(), hp_interface()
@@ -102,6 +103,10 @@ def make_soc(
     platform.sources = [s for s in platform.sources if not s[0].endswith("zm_glass_osd.v")]
     soc.crg = _CRG({name: platform.request(f"{name}_clk") for name in ("sys", "comp", "pix")})
     add_blitter(soc, platform, hp2, blit_break)  # the board's `--blit`: zm_blit on HP2 (soc/zm_blit_soc.py)
+    if astro:  # the board's `--astro` (SPIKE): the mailbox, with no ARM behind it here (MAGIC 0: ZIGGY's fallback)
+        from soc.zm_astro import add_astro
+
+        add_astro(soc, platform)
     hps = (hp0, hp1, hp2, hp3)  # as the board: HP1's video DMA throttles RREADY, the others hold it
     ps = [zm_board_mem.hp_slice(soc, f"hp{i}", hp, always_ready=i != 1) for i, hp in enumerate(hps)]
     soc.ddr = ZMSimAXIRAM(WINDOW, ps, latency=HP_LATENCY, wr32=True, reads=HP_READS)  # the board: WRCHAN 32-bit
@@ -125,12 +130,13 @@ def main() -> None:
     ap.add_argument("--sound-cpu", action="store_true", help="the players on the sound CPU (soc/zm_sound_cpu.py)")
     ap.add_argument("--sound-core", type=Path, help="the sound CPU's netlist (default: zm_sound_cpu.SOUND_CORE)")
     ap.add_argument("--sound-tcm", type=int, default=0, help="bytes of BRAM on a `tcm` sound core (zm_sound_tcm.py)")
+    ap.add_argument("--astro", action="store_true", help="ASTROLABE's mailbox (soc/zm_astro.py, SPIKE), no ARM behind it")
     a = ap.parse_args()
     out = a.out if a.out.is_absolute() else FPGA / a.out
     litex_compat.install()
     soc = make_soc(
         a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu, a.hp_probe, not a.no_read_bypass,
-        a.sound_core.resolve() if a.sound_core else None, a.sound_tcm,
+        a.sound_core.resolve() if a.sound_core else None, a.sound_tcm, a.astro,
     )
     sim_config = SimConfig()
     for name, hz in (("sys_clk", SYS_CLK), ("pix_clk", PIX_CLK), ("comp_clk", COMP_CLK)):
