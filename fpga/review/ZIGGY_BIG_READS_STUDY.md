@@ -147,3 +147,23 @@ register `cont` a clock earlier.
 - hp_sim of the bench cart: its RAM job runs after the CPU jobs, past 6 frames; and this box's build
   lock was the lead's while the images would have been built. The core harness is the real core on the
   real bridge and slices; what hp_sim would add is the rest of the SoC around them.
+
+## Board fit attempts (10 Nov 2026): PARKED
+
+The 7010 is full (desk-border build: 16,958 LUT after synthesis, 4,400/4,400 slices). Every attempt below starts
+from combo16's command line (`build/board_reads_pf.sh`, ignored build dir; scripts recorded here).
+
+| Build | Synth LUT | Result |
+|---|---:|---|
+| prefetch | 16,999 | placement failed (unplaced instances) |
+| prefetch, retry `AltSpreadLogic_high` | 16,999 | placed, WNS -3.73 ns, 3,334 failing |
+| prefetch + `bus_timeout=None` (`ZM_BUS_TIMEOUT=0`, soc/zm_z7.py) | 16,987 | placement failed: the timeout cut is only -12 LUT |
+| fast + `bus_timeout=None` | 16,880 | placement failed, though smaller than the build that fits |
+| fast + `bus_timeout=None`, retry: placer `Explore` (first of Explore / ExtraPostPlacementOpt / WLDrivenBlockPlacement / EarlyBlockPlacement / SpreadLogic_medium / Default) | 16,880 | placed, WNS -3.35 ns (clkout0 -1.84, clkout1 -1.91), 3,147 failing, 83 % route delay: congestion |
+
+Conclusion: at 100 % slices, fit is placer luck; cuts of tens of LUT do not change it. Only a few hundred LUT
+(and their slices) freed would. Matt (10 Nov) rejected the CHISEL QUEUE ring and pixel-queue (LQ 5 -> 4) cuts and
+parked the RAM-read hardware: revisit with a real cut (POKEY ~270, hardware PCM ~650 if unused) or a 7020.
+The retry Tcl: from `board_reads_fast_nto/gateware/platform_z7_synth.dcp`, `opt_design -directive ExploreArea`,
+`opt_design -control_set_merge -merge_equivalent_drivers`, then each placer directive until one places,
+`phys_opt AggressiveExplore`, `route NoTimingRelaxation`, `phys_opt AggressiveExplore`.

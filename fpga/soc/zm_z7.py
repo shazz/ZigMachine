@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import os
 import argparse
 import time
 from pathlib import Path
@@ -157,6 +158,9 @@ def _board_soc(
         platform, sys_hz, "pipe", glass=True, video_hp=hp1, uart_name="stub",
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3, "sound": sound, "sound_core": Path(sound_core) if sound_core else None},
         hp_probe=hp_probe,
+        # LUT diet A/B (10 Nov): ZM_BUS_TIMEOUT=0 drops LiteX's 20-bit bus timeout (a hung slave then hangs
+        # ZIGGY instead of erroring; the seal traps bad addresses first). TIMING_FABLE P1-5.
+        bus_timeout=None if os.environ.get("ZM_BUS_TIMEOUT") == "0" else 1e6,
     )  # fmt: skip
     # ZIGGY's stores posted (soc/zm_io_fence.py), 0 = blocking; refills bypass them (soc/zm_hp_bypass.py)
     zm_board_mem.add_cpu_memory(soc, hp0, posted, read_bypass=read_bypass, reads=reads)
