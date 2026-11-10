@@ -15,7 +15,9 @@ const L = @import("../engine/look.zig");
 const Rect = @import("../engine/rect.zig").Rect;
 
 pub const MAX_LINES = 5; // form_alert's (formalert.zig)
-pub const MAX_OBJ = 1 + 1 + MAX_LINES + 3;
+pub const MAX_OBJ = 2 + 1 + MAX_LINES + 3;
+/// TOS 4's rim round the alert: 3 px black, 2 px white, then the box's own 1 px line.
+pub const RIM: i16 = 5;
 pub const ICON: i16 = 32; // the icon's box (every set's alert art is 32 x 32)
 
 pub const Tree = struct {
@@ -62,31 +64,34 @@ pub fn build(t: *Tree, s: Spec, look: *const L.Look, art: ?obj.BitBlk, sw: i16, 
     for (s.buttons) |b| bwidest = @max(bwidest, b.len);
     const tx: i16 = if (art != null) 2 * cw + ICON else 2 * cw;
     const text_h: i16 = ch * @as(i16, @intCast(s.lines.len));
-    const by = @max(ch + text_h, if (art != null) ch + ICON else 0) + ch;
+    const ty = @divTrunc(ch, 2) - 1; // the first line a little above the icon's top (TOS 4)
+    const by = @max(ty + text_h, if (art != null) ch + ICON else 0) + 4;
     const bw: i16 = @as(i16, @intCast(bwidest + 2)) * cw;
     const bh: i16 = ch + 6;
     const nb: i16 = @intCast(s.buttons.len);
     const row = nb * bw + (nb - 1) * cw;
-    const w = @min(@max(tx + @as(i16, @intCast(widest)) * cw + 2 * cw, row + 4 * cw), sw - 8);
+    const w = @min(@max(tx + @as(i16, @intCast(widest)) * cw + 2 * cw, row + 4 * cw), sw - 8 - 2 * RIM);
     const h = by + bh + ch;
     t.* = .{};
-    const box = obj.boxSpec(0, 1, obj.colorWord(L.BLACK, L.BLACK, true, 7, L.WHITE));
-    _ = t.add(.{ .ty = obj.G_BOX, .flags = obj.FL3DBAK, .state = obj.OUTLINED, .spec = .{ .box = box }, .x = @divTrunc(sw - w, 2), .y = @divTrunc(sh - h, 2), .w = w, .h = h });
+    const rim = obj.boxSpec(0, 3, obj.colorWord(L.BLACK, L.BLACK, true, 7, L.WHITE));
+    const line = obj.boxSpec(0, 1, obj.colorWord(L.BLACK, L.BLACK, false, 0, L.WHITE));
+    _ = t.add(.{ .ty = obj.G_BOX, .flags = obj.FL3DBAK, .spec = .{ .box = rim }, .x = @divTrunc(sw - w, 2) - RIM, .y = @divTrunc(sh - h, 2) - RIM, .w = w + 2 * RIM, .h = h + 2 * RIM });
+    _ = t.add(.{ .ty = obj.G_BOX, .spec = .{ .box = line }, .x = RIM, .y = RIM, .w = w, .h = h });
     if (art) |a| {
         t.image = a;
-        _ = t.add(.{ .ty = obj.G_IMAGE, .spec = .{ .image = &t.image }, .x = cw, .y = ch, .w = a.w, .h = a.h });
+        _ = t.add(.{ .ty = obj.G_IMAGE, .spec = .{ .image = &t.image }, .x = RIM + cw, .y = RIM + ch, .w = a.w, .h = a.h });
     }
     for (s.lines, 0..) |l, i| {
-        const y = ch + ch * @as(i16, @intCast(i));
-        _ = t.add(.{ .ty = obj.G_STRING, .spec = .{ .str = l }, .x = tx, .y = y, .w = @as(i16, @intCast(l.len)) * cw, .h = ch });
+        const y = RIM + ty + ch * @as(i16, @intCast(i));
+        _ = t.add(.{ .ty = obj.G_STRING, .spec = .{ .str = l }, .x = RIM + tx, .y = y, .w = @as(i16, @intCast(l.len)) * cw, .h = ch });
     }
     t.first_btn = @intCast(t.n);
     t.nbtn = @intCast(s.buttons.len);
-    var x = @divTrunc(w - row, 2);
+    var x = RIM + @divTrunc(w - row, 2);
     for (s.buttons, 0..) |b, i| {
         var fl: u16 = obj.SELECTABLE | obj.EXIT | obj.FL3DACT;
         if (s.default == i + 1) fl |= obj.DEFAULT;
-        _ = t.add(.{ .ty = obj.G_BUTTON, .flags = fl, .spec = .{ .str = b }, .x = x, .y = by, .w = bw, .h = bh });
+        _ = t.add(.{ .ty = obj.G_BUTTON, .flags = fl, .spec = .{ .str = b }, .x = x, .y = RIM + by, .w = bw, .h = bh });
         x += bw + cw;
     }
     t.link();
@@ -101,16 +106,17 @@ test "TOS 4's layout: icon, lines beside it, the buttons centred under them" {
     var t: Tree = .{};
     const art: obj.BitBlk = .{ .data = &.{}, .w = 32, .h = 32 };
     build(&t, .{ .icon = 1, .lines = &.{ "The disk is", "write-protected." }, .buttons = &.{ "Cancel", "Retry" }, .default = 2 }, &lk, art, 640, 400);
-    try expect(t.n == 1 + 1 + 2 + 2);
+    try expect(t.n == 2 + 1 + 2 + 2);
     const root = t.objs[0];
-    try expect(t.objs[2].x == 48 and t.objs[2].y == 8); // the first line beside the icon
+    try expect(t.objs[3].x == RIM + 48 and t.objs[3].y == RIM + 3); // the first line beside the icon, above its top
+    try expect(t.objs[1].x == RIM and t.objs[0].w == t.objs[1].w + 2 * RIM); // the rim round the box's line
     const a = t.buttonBox(0);
     const b = t.buttonBox(1);
     try expect(a.w == b.w and a.w == 64); // equal: the widest label + a cell each side
     try expect(b.x - (a.x + a.w) == 8); // a cell apart
-    try expect(a.x - root.x == root.x + root.w - (b.x + b.w)); // centred
+    try expect(a.x - root.x == root.x + root.w - (b.x + b.w)); // centred in the rim
     try expect(t.objs[t.n - 1].flags & obj.DEFAULT != 0 and t.objs[t.n - 1].flags & obj.LASTOB != 0);
-    try expect(a.y >= root.y + 8 + 32 + 8); // under the icon
+    try expect(a.y == root.y + RIM + 8 + 32 + 4); // just under the icon
 }
 
 test "no icon, one long line: the box is clamped to the screen" {
@@ -119,10 +125,10 @@ test "no icon, one long line: the box is clamped to the screen" {
     var t: Tree = .{};
     const long = "x" ** 40;
     build(&t, .{ .icon = 0, .lines = &.{long}, .buttons = &.{"OK"}, .default = 1 }, &lk, null, 320, 200);
-    try expect(t.objs[0].w == 312 and t.objs[0].x == 4);
-    try expect(t.objs[1].ty == obj.G_STRING and t.objs[1].x == 16);
+    try expect(t.objs[0].w == 312 and t.objs[0].x == 4); // clamped, the rim included
+    try expect(t.objs[2].ty == obj.G_STRING and t.objs[2].x == RIM + 16);
     var it = obj.children(t.objs[0..t.n], 0);
     var kids: usize = 0;
     while (it.next()) |_| kids += 1;
-    try expect(kids == 2);
+    try expect(kids == 3);
 }

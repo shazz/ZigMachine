@@ -34,8 +34,8 @@ async function rig(mode, three_d) {
 function secondButton(mode) {
     const [sw, sh] = SIZE[mode], cw = 8, ch = 8;
     const widest = "with 2 button(s), the first".length, tx = 2 * cw + 32;
-    const by = Math.max(ch + 3 * ch, ch + 32) + ch, bw = (3 + 2) * cw, bh = ch + 6, row = 2 * bw + cw;
-    const w = Math.min(Math.max(tx + widest * cw + 2 * cw, row + 4 * cw), sw - 8), h = by + bh + ch;
+    const by = Math.max(3 + 3 * ch, ch + 32) + 4, bw = (3 + 2) * cw, bh = ch + 6, row = 2 * bw + cw;
+    const w = Math.min(Math.max(tx + widest * cw + 2 * cw, row + 4 * cw), sw - 18), h = by + bh + ch; // the box inside its 5-px rim
     const x = ((sw - w) >> 1) + ((w - row) >> 1) + bw + cw, y = ((sh - h) >> 1) + by;
     return [x + (bw >> 1), y + (bh >> 1)];
 }
@@ -43,7 +43,7 @@ function secondButton(mode) {
 // The icon's 32 x 32 box of gemtestShow 13 / 16 / 19 (icon 1..3, one button, a 27-cell widest line):
 // a cell in from the box's top-left. Its pixels, and how many are black (the ROM's palette 0).
 function iconBox(d, mode) {
-    const [sw, sh] = SIZE[mode], w = 48 + 27 * 8 + 16, h = 48 + 14 + 8;
+    const [sw, sh] = SIZE[mode], w = 48 + 27 * 8 + 16, h = 44 + 14 + 8;
     const x0 = ((sw - w) >> 1) + 8, y0 = ((sh - h) >> 1) + 8, { W, idx } = d.indices();
     const px = [];
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) px.push(idx[(y0 + y) * W + x0 + x]);
