@@ -84,6 +84,7 @@ def emit(d: dict, src_name: str) -> str:
         f"pub const busy: ?Mouse = {mouse(d['busy'])};",
         "pub const icons: []const Icon = &[_]Icon{" + ",".join(icon(i) for i in d["icons"]) + "};",
         "pub const cicons: []const Icon = &[_]Icon{" + ",".join(icon(i) for i in d["cicons"]) + "};",
+        "pub const images: []const Icon = &[_]Icon{" + ",".join(icon(i) for i in d.get("images", [])) + "};",
         f"pub const patterns: []const [16]u16 = &[_][16]u16{{{pats}}};",
         f"pub const palette: ?[16][3]u8 = {palette(d['palette'])};",
         "pub const trees: []const Tree = &[_]Tree{",

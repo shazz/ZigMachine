@@ -28,18 +28,18 @@ const SEP = Entry{ .label = "-", .cmd = .none, .flags = aes.MENU_DISABLED };
 
 const DESK = [_]Entry{.{ .label = "  About GEMTEST...", .cmd = .about }};
 const TEST = [_]Entry{
-    .{ .label = "  Windows        ^W", .cmd = .{ .area = .windows }, .key = 'w' },
-    .{ .label = "  Menus          ^E", .cmd = .{ .area = .menus }, .key = 'e' },
-    .{ .label = "  Dialogs        ^D", .cmd = .{ .area = .dialogs }, .key = 'd' },
-    .{ .label = "  Alerts         ^A", .cmd = .{ .area = .alerts }, .key = 'a' },
-    .{ .label = "  File selector  ^F", .cmd = .{ .area = .files }, .key = 'f' },
-    .{ .label = "  Text and fonts ^T", .cmd = .{ .area = .text }, .key = 't' },
-    .{ .label = "  Icons          ^I", .cmd = .{ .area = .icons }, .key = 'i' },
-    .{ .label = "  Screen modes   ^R", .cmd = .{ .area = .modes }, .key = 'r' },
+    .{ .label = "  Windows\t^W", .cmd = .{ .area = .windows }, .key = 'w' },
+    .{ .label = "  Menus\t^E", .cmd = .{ .area = .menus }, .key = 'e' },
+    .{ .label = "  Dialogs\t^D", .cmd = .{ .area = .dialogs }, .key = 'd' },
+    .{ .label = "  Alerts\t^A", .cmd = .{ .area = .alerts }, .key = 'a' },
+    .{ .label = "  File selector\t^F", .cmd = .{ .area = .files }, .key = 'f' },
+    .{ .label = "  Text and fonts\t^T", .cmd = .{ .area = .text }, .key = 't' },
+    .{ .label = "  Icons\t^I", .cmd = .{ .area = .icons }, .key = 'i' },
+    .{ .label = "  Screen modes\t^R", .cmd = .{ .area = .modes }, .key = 'r' },
     SEP,
-    .{ .label = "  Close windows  ^K", .cmd = .close_all, .key = 'k' },
+    .{ .label = "  Close windows\t^K", .cmd = .close_all, .key = 'k' },
     SEP,
-    .{ .label = "  Quit           ^Q", .cmd = .quit, .key = 'q' },
+    .{ .label = "  Quit\t^Q", .cmd = .quit, .key = 'q' },
 };
 const PROBE = [_]Entry{
     .{ .label = "  Plain item", .cmd = .{ .probe = 0 } },
@@ -48,14 +48,14 @@ const PROBE = [_]Entry{
     .{ .label = "  Checked item", .cmd = .{ .probe = 1 }, .flags = aes.MENU_CHECKED },
     .{ .label = "  Second check", .cmd = .{ .probe = 2 } },
     SEP,
-    .{ .label = "  Shortcut       ^L", .cmd = .{ .probe = 3 }, .key = 'l' },
-    .{ .label = "  Disabled short ^U", .cmd = .none, .key = 'u', .flags = aes.MENU_DISABLED },
+    .{ .label = "  Shortcut\t^L", .cmd = .{ .probe = 3 }, .key = 'l' },
+    .{ .label = "  Disabled short\t^U", .cmd = .none, .key = 'u', .flags = aes.MENU_DISABLED },
 };
 const ALERTS = alertEntries();
 const MODE = [_]Entry{
-    .{ .label = "  Low    320x200  1", .cmd = .{ .mode = 0 } },
-    .{ .label = "  Medium 640x200  2", .cmd = .{ .mode = 1 } },
-    .{ .label = "  Desk   640x480  3", .cmd = .{ .mode = 2 } },
+    .{ .label = "  Low 320x200\t1", .cmd = .{ .mode = 0 } },
+    .{ .label = "  Medium 640x200\t2", .cmd = .{ .mode = 1 } },
+    .{ .label = "  Desk 640x480\t3", .cmd = .{ .mode = 2 } },
 };
 const MENUS = [_]struct { title: []const u8, items: []const Entry }{
     .{ .title = "Desk", .items = &DESK },
@@ -76,7 +76,7 @@ fn alertEntries() [13]Entry {
         const nb = k % 3 + 1;
         out[k] = .{ .label = "  " ++ ICONS[k / 3] ++ ", " ++ [_]u8{'0' + nb} ++ (if (nb == 1) " button" else " buttons"), .cmd = .{ .alert = k } };
     }
-    out[12] = .{ .label = "  Malformed string", .cmd = .{ .alert = 12 } };
+    out[12] = .{ .label = "  Malformed alert (must open nothing)", .cmd = .{ .alert = 12 } };
     return out;
 }
 

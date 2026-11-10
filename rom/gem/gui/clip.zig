@@ -32,7 +32,7 @@ fn meet(a: Rect, b: Rect) Rect {
     return .{ .x = x0, .y = y0, .w = @intCast(x1 - x0), .h = @intCast(y1 - y0) };
 }
 
-fn record(g: *Gui, r: Rect) void {
+pub fn record(g: *Gui, r: Rect) void {
     const was = g.rec orelse return;
     if (r.w <= 0 or r.h <= 0) return;
     if (was.w <= 0) {

@@ -7,4 +7,5 @@ test {
     _ = @import("canvas_test.zig");
     _ = @import("draw_test.zig");
     _ = @import("compose_test.zig");
+    _ = @import("tree.zig");
 }

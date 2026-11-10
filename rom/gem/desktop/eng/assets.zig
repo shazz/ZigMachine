@@ -6,7 +6,9 @@
 // whatever it lacks falls back to the built-in piece, one id at a time. The icons
 // are chosen in ../../iconset.zig, which every screen mode draws from.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const ga = @import("gem_assets");
+const alert_art = @import("../../gui/alert_art.zig");
 const iconset = @import("../../iconset.zig");
 const deskarrow = @import("../deskarrow.zig");
 const canvas = @import("../../engine/canvas.zig");
@@ -25,8 +27,20 @@ pub const Set = struct {
     tall: ?Font, // the 8x16 system font, when the set has one
     arrow: Mouse,
     icons: [6]Art,
+    alerts: [3]Art, // form_alert's icons 1 NOTE, 2 QUES, 3 STOP (1 bpp, drawn as BITBLKs: `data` only)
     pens: [16][3]u8, // the VDI pens 0..15 in hardware order (assets' palette_16)
 };
+
+const ALERT_IDS = [3][]const u8{ "NOTE", "QUES", "STOP" };
+
+// The set's alert image `k`, else our own (gui/alert_art.zig).
+fn alertArt(k: usize) Art {
+    for (ga.images) |im| if (std.mem.eql(u8, im.id, ALERT_IDS[k])) {
+        return .{ .w = im.w, .h = im.h, .bpr = @intCast((@as(usize, @intCast(im.w)) + 7) / 8), .mask = im.data, .data = im.data };
+    };
+    const b = alert_art.of(@intCast(k + 1)).?;
+    return .{ .w = alert_art.W, .h = alert_art.H, .bpr = alert_art.BPR, .mask = b, .data = b };
+}
 
 /// The set this ROM was built with; `sys8` / `small6` are ZigOS's raw fonts (a byte a pixel).
 pub fn load(sys8: []const u8, small6: []const u8) Set {
@@ -37,6 +51,7 @@ pub fn load(sys8: []const u8, small6: []const u8) Set {
         .tall = null,
         .arrow = .{ .mask = deskarrow.MASK, .data = deskarrow.DATA, .hx = 0, .hy = 0 },
         .icons = ICONS,
+        .alerts = .{ alertArt(0), alertArt(1), alertArt(2) },
         .pens = pens(),
     };
     if (ga.font_8x8) |f| s.sys = .{ .w = f.w, .h = f.h, .data = f.data };

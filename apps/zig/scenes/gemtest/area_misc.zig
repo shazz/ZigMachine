@@ -23,8 +23,8 @@ pub fn menus(p: *Pen, app: *App) void {
     p.line(fmt(&b, "Last pick: {s}", .{app.lastPick()}));
     p.line(fmt(&b, "Picks: {d}, shortcuts: {d}", .{ app.picks, app.shortcuts }));
     p.gap();
-    p.missing("a shortcut field (the ^key is");
-    p.missing("  part of the label: menu_keys)");
+    p.line("Shortcuts: their own column, right-aligned");
+    p.line(" (a TAB in the label: \"Quit\\t^Q\")");
     p.missing("submenus, menu_tnormal");
 }
 
@@ -41,10 +41,10 @@ pub fn alerts(p: *Pen, app: *App) void {
         p.endRow();
     }
     p.row(16);
-    p.button(12, "Malformed", false, 1);
+    p.button(12, "Malformed alert (must open nothing)", false, 1);
     p.endRow();
     const last = app.alert_last;
-    if (last == 0xFF) p.line("Last: none") else if (last == 12) p.line(fmt(&b, "Last: malformed, refused: {s}", .{yesNo(!app.alert_ok)})) else p.line(fmt(&b, "Last: icon {d}, {d} buttons: chose {d}", .{ last / 3, last % 3 + 1, app.alert_choice }));
+    if (last == 0xFF) p.line("Last: none") else if (last == 12) p.line(if (app.alert_ok) "Last: malformed: an alert OPENED (wrong)" else "Last: malformed: nothing opened (right)") else p.line(fmt(&b, "Last: icon {d}, {d} buttons: chose {d}", .{ last / 3, last % 3 + 1, app.alert_choice }));
     p.missing("custom icons; form_error");
 }
 
@@ -64,22 +64,8 @@ pub fn files(p: *Pen, app: *App) void {
         p.line(fmt(&b, "Name: \"{s}\"", .{f.name[0..f.name_len]}));
     }
     p.gap();
-    p.missing("the path (drive and folder)");
-    p.missing("  the selector edits: the program");
-    p.missing("  lists the names, Directory is");
-    p.missing("  only the mask (fsel_exinput)");
-}
-
-pub fn icons(p: *Pen) void {
-    p.line("The desktop's icons (drives, folders,");
-    p.line("files, programs, the trash) are the");
-    p.line("ROM's; a program cannot draw them:");
-    p.gap();
-    p.missing("an icon call (G_ICON, objc_draw)");
-    p.missing("the desktop's icon table");
-    p.gap();
-    p.line("gemtest_shots.mjs shoots the desktop in");
-    p.line("each mode for them (component 'desktop').");
+    p.line("DRIVE: the drives GEMDOS answers (Dsetdrv)");
+    p.missing("fsel_exinput's own title line");
 }
 
 pub fn modes(p: *Pen, app: *App) void {
@@ -94,8 +80,7 @@ pub fn modes(p: *Pen, app: *App) void {
     p.button(2, "Desk", app.mode == .desk, 1);
     p.endRow();
     p.line("Keys 1 2 3 and the Mode menu switch too.");
-    p.missing("Setscreen for a program (it");
-    p.missing("  switches its own plane)");
+    p.line("The switch: Setscreen, the ROM's (keys 1 2 3)");
 }
 
 pub fn press(app: *App, a: Area, id: u8) void {

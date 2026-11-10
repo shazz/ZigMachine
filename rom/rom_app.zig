@@ -19,6 +19,7 @@ const main = @import("rom_main.zig");
 comptime {
     _ = @import("rom_app_win.zig"); // the window calls (win*)
     _ = @import("rom_app_fsel.zig"); // the ITEM SELECTOR's folders (fileSelSpec, 1.18)
+    _ = @import("rom_app_redraw.zig"); // WM_REDRAW rectangle lists, the stack, guiClip (1.22)
 }
 const hw = @import("hardware");
 const gui = @import("rom").gui;

@@ -46,8 +46,9 @@ console.log(`notepad_fsel_check: NOTEPAD's ITEM SELECTOR over a card-like C:${br
 const d = await fromGem(img, "", patch);
 d.frames(3);
 
-// The selector in low res (320 x 200): the 320 x 152 box at y 24 (filesel.zig), its list at (24, 45).
-const BX = 0, BY = 24, LX = BX + 24, LY = BY + 45, ROW0 = LY + 11 + 8;
+// The selector in low res (320 x 200): TOS 4's 312 x 178 box at (4, 11) (fsel_tree.zig): its closer at
+// (24, 48), the list at (24, 58), nine rows 10 px apart from 4 px in, the names 16 px into a row.
+const BX = 4, BY = 11, LX = BX + 24, LY = BY + 48, ROW0 = BY + 62, PITCH = 10;
 function pixel(x, y) {
     const v = new DataView(d.m.memory.buffer, d.m.machine.hwVideoBase());
     const base = v.getUint32(0x44, true), stride = v.getUint16(0x34, true);
@@ -57,10 +58,10 @@ function pixel(x, y) {
 function rows() {
     const out = [];
     for (let i = 0; i < 9; i++) {
-        const y = ROW0 + i * 8;
+        const y = ROW0 + i * PITCH;
         let ink = false;
-        for (let yy = y; yy < y + 6; yy++) for (let x = LX + 32; x < LX + 40; x++) ink ||= pixel(x, yy) === 0;
-        out.push(!ink ? "" : pixel(LX + 16 + 3, y + 3) === 0 ? "dir" : "file");
+        for (let yy = y; yy < y + 6; yy++) for (let x = LX + 24; x < LX + 32; x++) ink ||= pixel(x, yy) === 0;
+        out.push(!ink ? "" : pixel(LX + 8 + 3, y + 3) === 0 ? "dir" : "file");
     }
     return out;
 }
@@ -71,7 +72,7 @@ d.ctrl("o"); d.frames(2); shot("root");
 let r = rows();
 check("^O on C:\\*.TXT: the four folders, no file", count(r, "dir") === 4 && count(r, "file") === 0, r.join(","));
 
-d.click(BX + 40, BY + 34); // the Directory: line
+d.click(BX + 48, BY + 31); // the Directory: line
 for (let i = 0; i < 3; i++) d.key(8);
 d.type("*"); d.key(13); d.frames(2); shot("mask");
 r = rows();
@@ -80,14 +81,14 @@ const up = () => [1, 2].some((h) => d.m.rom.fileSelActive(h) === 1); // rom_main
 check("Return re-read the list: the selector is still up", up());
 
 // NET is the folder GEMDOS lists last (made last): the fourth row.
-d.click(LX + 50, ROW0 + 3 * 8 + 3); d.frames(2); shot("net");
+d.click(LX + 50, ROW0 + 3 * PITCH + 3); d.frames(2); shot("net");
 r = rows();
 check("a click on NET opens it: INNET.TXT, no folder", count(r, "dir") === 0 && count(r, "file") === 1, r.join(","));
 d.click(LX + 3, LY + 3); d.frames(2);
 r = rows();
 check("the close box goes back to C:\\", count(r, "dir") === 4 && count(r, "file") === 1, r.join(","));
 
-d.click(LX + 50, ROW0 + 3 * 8 + 3); d.frames(2);
+d.click(LX + 50, ROW0 + 3 * PITCH + 3); d.frames(2);
 d.click(LX + 50, ROW0 + 3); d.frames(1); // INNET.TXT into the Selection field
 d.key(13); d.frames(3);
 d.type("X"); d.ctrl("s"); d.frames(3);

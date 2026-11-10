@@ -43,7 +43,7 @@ pub fn info(a: Area, part: u8) []const u8 {
         .alerts => "Each icon with 1, 2 and 3 buttons",
         .files => "A: and C:, the result below",
         .text => "Scroll both ways: long and wide text",
-        .icons => "The desktop's icon set",
+        .icons => "G_ICON: the ROM's icons, and ours",
         .modes => "Getrez, and keys 1 2 3",
     };
 }
@@ -57,7 +57,7 @@ pub fn draw(p: *Pen, app: *App, a: Area, i: u8) void {
         .menus => misc.menus(p, app),
         .alerts => misc.alerts(p, app),
         .files => misc.files(p, app),
-        .icons => misc.icons(p),
+        .icons => @import("area_icons.zig").draw(p, app),
         .modes => misc.modes(p, app),
     }
 }

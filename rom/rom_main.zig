@@ -28,6 +28,8 @@ comptime {
     _ = @import("kos/kos.zig");
     _ = @import("zmx_exports.zig"); // ZM-X v1's twins (rom/sdk/zmx.zig)
     _ = @import("rom_app.zig"); // GEM 5's program API: windows, menu bar, form_alert (rom/sdk/aes.zig)
+    _ = @import("rom_app_obj.zig"); // ...and object trees: objc_draw, form_button, objc_edit (1.23)
+    _ = @import("rom_app_screen.zig"); // ...and Setscreen (1.25)
     _ = @import("rom_deskmode.zig"); // the desktop's mode across a program launch: Getrez, the return
 }
 
@@ -205,7 +207,7 @@ pub fn slice(ptr: u32, len: u32) []const u8 {
 // its own LogicalFB per context. One LogicalFB PER SLOT, not one shared: a second
 // caller used to silently repoint the first one's framebuffer.
 var raw_os: zg.ZigOS = .{};
-var raw_fbs: [MAX_GUI]zg.LogicalFB = undefined;
+pub var raw_fbs: [MAX_GUI]zg.LogicalFB = undefined;
 
 // Point `fb` at a plane by reading the SEALED registers. FB_BASE is where the VRAM
 // allocator actually put it and FB_STRIDE is what the machine reads per row — the
@@ -216,7 +218,7 @@ var raw_fbs: [MAX_GUI]zg.LogicalFB = undefined;
 // The desk mode (HW 1.17.0) IGNORES FB_STRIDE: plane 0 is 640 a row whatever the register holds
 // (ZigOS's setDeskPlane leaves it as the last mode wrote it, 320 after low res), so the stride
 // comes from RESOLUTION there, or a desk entered from low res draws at pitch 320.
-fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
+pub fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
     if (plane >= hw.NB_PLANES) return false;
     const base: usize = @intCast(hw.hwVideoBase());
     const regs: [*]u8 = @ptrFromInt(base);
@@ -235,14 +237,14 @@ fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
     return true;
 }
 
-fn resolution() u8 {
+pub fn resolution() u8 {
     return @as(*const u8, @ptrFromInt(@as(usize, @intCast(hw.hwVideoBase())) + hw.REG_RESOLUTION)).*;
 }
 fn deskPlane(plane: u32) bool {
     return plane == 0 and resolution() == hw.RES_DESK;
 }
 // The Screen a context bound over `plane` lays out on: the caller's size, the machine's mode.
-fn screenOf(fb: *const zg.LogicalFB, w: i32, h: i32) gui.Screen {
+pub fn screenOf(fb: *const zg.LogicalFB, w: i32, h: i32) gui.Screen {
     return .{ .w = i16Of(w), .h = i16Of(h), .stride = @intCast(fb.stride), .mode = gui.modeOfResolution(resolution()) };
 }
 
@@ -263,6 +265,7 @@ export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
         };
         used.* = true;
         @import("rom_app.zig").resetSlot(i); // a fresh program: no windows, no menu bar
+        gui.objects.desk_n = 0; // ...and no desktop tree of the last one (WF_NEWDESK)
         return @intCast(i + 1);
     }
     return 0;
@@ -380,7 +383,7 @@ export fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
 export fn dialogOpen() u32 {
     for (&dialog_used, 0..) |*used, i| {
         if (used.*) continue;
-        dialogs[i] = .{};
+        dialogs[i] = .{ .engine = true }; // a program's: its alerts on the GEM 5 engine (gui/alert_obj.zig)
         used.* = true;
         return @intCast(i + 1);
     }
@@ -486,6 +489,7 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     desk_eng.init(raw_os.system_font, raw_os.system_font_6);
     desk.eng = &desk_eng;
     if (desk_eng.mode != .old) desk_eng.setMode(&desk, @intFromEnum(desk_eng.mode)); // -Dgem_engine: its pens too
+    gui.proglook.three_d = desk_eng.mode == .three_d;
     desk_ready = true;
     desk_seen = true;
     @import("rom_deskmode.zig").deskBound();
@@ -529,6 +533,9 @@ export fn deskSetBuffers(a: u32, b: u32) void {
 /// GEM 5 (system table 1.16): the desk mode's painter. 0 the old ZigGEM path, 1 the engine with
 /// the flat TOS 1 look, 2 with the TOS 4 3D look; bits 8.. are the harness's mutants (engine.zig).
 export fn deskSetEngine(v: u32) void {
+    gui.proglook.three_d = v & 0xFF == 2; // a program's objects follow (gui/proglook.zig), desktop or not
+    gui.proglook.breaks = v & ~@as(u32, 0xFF);
+    gui.winsize.breaks = v & ~@as(u32, 0xFF); // G22 / G23's mutants, the desktop's windows too
     if (desk_ready) desk_eng.setMode(&desk, v);
 }
 /// The engine's counters (engine.zig Stats: u32s), for the harness and the perf probe.

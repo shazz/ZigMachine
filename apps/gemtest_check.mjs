@@ -107,19 +107,19 @@ pick();
 check("picked twice the check is back (only the counters moved)", m.plane() !== m2);
 same(m, "menus");
 
-// --- dialogs (the desk: the controls by the layout in area_dialogs.zig, work-area relative) ---
+// --- dialogs (the desk: the objects where area_dialogs.zig lays them out, work-area relative) ---
 const dl = await rig(2); // the desk: the whole dialog fits (low and medium cut it at the field)
 dl.ctrl("d");
 const at = (x, y) => [dl.win(1, 0) + x, dl.win(1, 1) + y];
 const press = (x, y, what) => { const b = dl.plane(); dl.click(...at(x, y)); check(`dialogs: ${what}`, dl.plane() !== b); };
 press(24, 20, "OK (the default button) pressed");
-press(88, 68, "a radio button selected");
-dl.point(...at(13, 105)); // the desk draws its arrow into the plane: the pointer where the clicks will be
+press(80, 57, "a radio button selected (RBUTTON, form_button)");
+dl.point(...at(13, 85)); // the desk draws its arrow into the plane: the pointer where the clicks will be
 const cb = dl.plane();
-press(13, 105, "a check box toggled");
-dl.click(...at(13, 105));
+press(13, 85, "a check box toggled (SELECTABLE)");
+dl.click(...at(13, 85));
 check("dialogs: toggled twice, the box is back", dl.plane() === cb);
-press(96, 140, "the field takes the focus");
+press(96, 112, "the G_FBOXTEXT takes the focus (objc_edit's caret)");
 const f0 = dl.plane(); dl.type("0911");
 check("dialogs: digits type into the field, letters do not", dl.plane() !== f0);
 same(dl, "dialogs");
@@ -135,8 +135,9 @@ check("the malformed string opens no alert (only the line changes)", al.plane() 
 const fa = await rig(0); fa.show(30); const ha = fa.plane();
 const fc = await rig(0); fc.show(31); const hc = fc.plane();
 check("the ITEM SELECTOR on A:\\*.* and on C:\\*.* lists different names", ha !== hc);
-fc.click(264, 148); fc.frames(2);
-check("its Cancel closes it", fc.plane() !== hc);
+fc.click(216, 176); fc.frames(2); // Cancel, TOS 4's box at (4, 11) in low res (fsel_tree.zig)
+const ok = await rig(0); ok.show(31); ok.key(13); ok.frames(2); // Return: OK (the window then says "Button: OK")
+check("its Cancel closes it, answering Cancel (not OK: the button left of it)", fc.plane() !== hc && fc.plane() !== ok.plane());
 
 // --- quit ---
 const q = await rig(0);

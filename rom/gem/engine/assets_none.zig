@@ -40,6 +40,7 @@ pub const arrow: ?Mouse = null;
 pub const busy: ?Mouse = null;
 pub const icons: []const Icon = &.{};
 pub const cicons: []const Icon = &.{};
+pub const images: []const Icon = &.{}; // form_alert's NOTE / QUES / STOP (TOS 4's BITBLKs)
 pub const patterns: []const [16]u16 = &.{};
 pub const palette: ?[16][3]u8 = null;
 pub const trees: []const Tree = &.{};

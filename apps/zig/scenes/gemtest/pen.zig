@@ -122,6 +122,15 @@ pub const Pen = struct {
         self.x += w + self.cw;
     }
 
+    /// Room for an object `w` x the row: its place in CONTENT pixels (the tree's root sits at the
+    /// content's origin, ox / oy), the cursor moved past it.
+    pub fn at(self: *Pen, w: i32) [2]i32 {
+        const p = [2]i32{ self.x, self.y };
+        self.grow(self.x + w, self.y + self.row_h);
+        self.x += w + self.cw;
+        return p;
+    }
+
     /// A control the program draws itself out of the ROM's frame and fill: a box `w` x the row,
     /// and its rect on screen (null: not drawn this pass, or out of the work area).
     pub fn own(self: *Pen, id: u8, w: i32) ?Rect {

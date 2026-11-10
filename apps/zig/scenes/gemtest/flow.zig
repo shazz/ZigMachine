@@ -75,26 +75,43 @@ pub fn alert(app: *App, k: u8) void {
     app.alert_ok = aes.formAlert(app.dialog, 1, if (k < 12) SPECS[k] else "[7][no such icon][OK");
     if (app.alert_ok) {
         app.modal = .alert;
-    } else if (app.wins.area == .alerts) if (app.wins.topSlot()) |t| wins.paintContent(app, t);
+    } else if (app.wins.area != .alerts) {
+        app.showArea(.alerts); // the answer is shown in the Alerts window (Matt, 9 Nov: G18)
+    } else if (app.wins.topSlot()) |t| wins.paintContent(app, t);
 }
 
 /// The ITEM SELECTOR on mask `k`, its list from Fsfirst / Fsnext.
 pub fn selector(app: *App, k: u8) void {
     const f = &app.fs;
     f.* = .{ .mask = k };
+    const dos = gemdos.dos();
+    aes.fileSelDrivesSet(app.fsel, @bitCast(dos.Dsetdrv(dos.Dgetdrv()))); // the DRIVE: buttons (G21)
     app.fsel.show(MASKS[k]);
+    fill(app, MASKS[k]);
+    aes.fileSelName(app.fsel, "");
+    app.modal = .fsel;
+}
+
+// The list from Fsfirst / Fsnext on `spec` (files only: GEMTEST counts them).
+fn fill(app: *App, spec: []const u8) void {
+    const f = &app.fs;
     const dos = gemdos.dos();
     var dta: gemdos.Dta = .{};
     dos.Fsetdta(&dta);
-    var r = dos.Fsfirst(MASKS[k], 0);
+    var r = dos.Fsfirst(spec, 0);
     f.first = r;
+    f.count = 0;
     while (r == 0 and f.count < MAX_LIST) : (r = dos.Fsnext()) {
         const len = std.mem.indexOfScalar(u8, &dta.name, 0) orelse dta.name.len;
         app.fsel.add(dta.name[0..@min(len, 13)]);
         f.count += 1;
     }
-    aes.fileSelName(app.fsel, "");
-    app.modal = .fsel;
+}
+
+/// The selector moved (a drive button, a folder, the Directory: line): its list again, still up.
+pub fn relist(app: *App) void {
+    var buf: [64]u8 = undefined;
+    fill(app, aes.fileSelSpecOf(app.fsel, &buf));
 }
 
 /// The modal's answer, once it has one: recorded, then the whole screen again.

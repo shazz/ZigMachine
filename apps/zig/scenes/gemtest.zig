@@ -1,14 +1,9 @@
 // --------------------------------------------------------------------------
-// GEMTEST: every GEM 5 component on one disk, to SEE them (and their bugs) on the
-// board, in low, medium and the desk. A GEM program as NOTEPAD is: BOOT.WSM on a
-// data disk, double-clicked in the desktop, opened in the desktop's resolution,
-// ^Q back. It uses ONLY the program API (rom_sdk + rom_sdk.aes); what that lacks
-// is shown as a grey "not in the API yet" line (docs/GEMTEST.md has the list).
-//
-// The Test menu (or ^W ^E ^D ^A ^F ^T ^I ^R) shows an area's window: Windows (four,
-// every gadget, overlapping, one larger than the screen), Menus, Dialogs, Alerts,
-// File selector, Text and fonts, Icons, Screen modes. Keys 1 2 3 switch the mode.
-// gemtestShow(id) opens a component for apps/gemtest_shots.mjs (ids in docs/GEMTEST.md).
+// GEMTEST: every GEM 5 component on one disk, to SEE them (and their bugs) on the board, in low,
+// medium and the desk: a GEM program as NOTEPAD is (BOOT.WSM on a data disk, ^Q back), on the program
+// API only (rom_sdk + rom_sdk.aes); a gap is a grey "not in the API yet" line (docs/GEMTEST.md). The
+// Test menu (^W ^E ^D ^A ^F ^T ^I ^R) shows an area; keys 1 2 3 switch the mode; its own desktop
+// carries icons (G16); gemtestShow(id) opens a component for apps/gemtest_shots.mjs.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const rom = @import("rom_sdk");
@@ -21,6 +16,8 @@ const inp = @import("gemtest/input.zig");
 const dialogs = @import("gemtest/area_dialogs.zig");
 const screen = @import("notepad/screen.zig");
 const pen = @import("gemtest/pen.zig");
+const desk = @import("gemtest/desk.zig");
+const desk_input = @import("gemtest/desk_input.zig");
 
 const PLANE: u32 = 0;
 
@@ -52,6 +49,9 @@ pub const App = struct {
     alert_choice: u32 = 0,
     alert_ok: bool = false,
     fs: flow.FileState = .{},
+    desk: desk.Desk = .{}, // its WF_NEWDESK tree, icons on it (G16)
+    btn: bool = false, // the pointer's button, and the page's double-click pulse
+    dbl: bool = false,
 
     pub fn init(self: *App, os: *zg.ZigOS) void {
         self.g.close(); // memory reused across a cart swap may hold stale handles (sysinfo's rule)
@@ -73,6 +73,7 @@ pub const App = struct {
         const at = (4 - @intFromPtr(scratch.ptr) % 4) % 4;
         _ = aes.lendScratch(self.g, @alignCast(scratch[at..][0..aes.SCRATCH_BYTES]));
         self.bar = .{ .g = self.g };
+        self.desk.init(self.g, self.mode);
         _ = menu.build(self.bar);
         self.syncMenu();
         self.showArea(.windows);
@@ -89,8 +90,7 @@ pub const App = struct {
         self.repaint = true;
     }
 
-    pub fn ownsKeyboard(self: *App) u32 {
-        _ = self;
+    pub fn ownsKeyboard(_: *App) u32 {
         return 1;
     }
     pub fn pollCart(self: *App) i32 {
@@ -98,21 +98,23 @@ pub const App = struct {
     }
     pub fn pointer(self: *App, x: i32, y: i32, buttons: u32) void {
         aes.hostPointer(self.g, x, y, buttons);
-        if (buttons & 2 != 0) return; // the page's double-click pulse is not a press
+        self.dbl = self.dbl or buttons & 2 != 0; // the page's double-click pulse (G16): not a press
+        if (buttons & 2 != 0) return;
+        self.btn = buttons & 1 != 0;
         self.px = if (self.mode == .low) @divTrunc(x, 2) else x;
         self.py = y;
     }
     pub fn key(self: *App, cp: u32) void {
         inp.down(self, cp);
     }
-    /// 0 low, 1 medium, 2 the desk (keys 1 2 3, the Mode menu, the harness): the area is laid
-    /// out again for the new screen.
+    /// 0 low, 1 medium, 2 the desk (keys 1 2 3, the Mode menu): the area laid out again.
     pub fn setShadeMode(self: *App, m: u32) void {
         if (m > 2) return;
         const was = self.mode;
-        self.mode = screen.switchTo(self.fb, @enumFromInt(m), self.desk_ok);
-        self.g.resize(screen.width(self.mode), screen.height(self.mode));
+        const want: aes.ScreenMode = if (m == 2 and !self.desk_ok) .medium else @enumFromInt(m);
+        self.mode = aes.setscreen(self.g, want, @intCast(self.fb.desk_off)) orelse was; // Setscreen: the ROM's (S6)
         if (self.mode != was) if (self.wins.area) |a| self.wins.show(self.g, a, self.mode); // the same mode: a repaint
+        if (self.mode != was) self.desk.init(self.g, self.mode);
         self.syncMenu();
         self.repaint = true;
     }
@@ -139,10 +141,12 @@ pub const App = struct {
         if (self.bar.process(false)) |p| flow.run(self, menu.ofPick(p), false);
         if (self.modal != .none or self.bar.busy()) return;
         if (wins.frame(self)) self.press();
+        desk_input.frame(self);
     }
 
     fn modalFrame(self: *App) void {
         const r: rom.Result = if (self.modal == .fsel) self.fsel.process(self.g) else self.dialog.process(self.g);
+        if (r == .relist) return flow.relist(self); // a drive button or a folder: the selector stays up
         if (r != .none) flow.answered(self, r);
     }
 
