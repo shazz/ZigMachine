@@ -53,8 +53,9 @@ Each is a grey line in its window.
 8. **Screen modes**: no Setscreen for a program (it switches its own plane).
 9. **The look**: a ROM built with Matt's TOS 4 set (`-Dgem_assets`, `-Dgem_trees`, `-Dgem_engine=true`)
    draws every GEMTEST component byte for byte as the TOS 1.0 ROM does (the shots, 9 Nov: 56 of 57
-   PNGs identical; only GEM's own desktop in the desk mode differs, by its drive icon). A program's
-   windows, menus, alerts and ITEM SELECTOR do not take the set at all.
+   PNGs identical; only GEM's own desktop in the desk mode differs, by its drive icon, the same with
+   the engine's 3D look asked for explicitly, `ZM_ENGINE=2`). A program's windows, menus, alerts and
+   ITEM SELECTOR do not take the set at all.
 
 ## The known board bugs it shows
 
