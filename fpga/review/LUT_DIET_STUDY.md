@@ -190,7 +190,9 @@ and the fps probe below reads the same comp/pass as before.)
 | demo-gem.zmd | not measured | SystemRefused | the stale GEM disk's table against system.rv32 1.23 (software, not the bitstream) |
 
 No trap, no err, no stall on any cart; the compositor's probe (`comp/pass`, `ready/pass`) reads the
-same as before on every cart. **The diet bitstream stays installed.** Rollback, over the serial
+same as before on every cart. **The diet bitstream stays installed.** The reboot dropped the board's RAM-only Wi-Fi: until
+someone runs the rejoin over the serial console (ttyUSB1, 921600, login `root`), the board is reached
+over serial only, as the tools above were. Rollback, over the serial
 console: `mount -o remount,rw /mnt/sd; cp /mnt/sd/KESTREL/rollback/lutdiet_prev/zigmachine.bit
 /mnt/sd/zigmachine.bit; sync; reboot`.
 
@@ -209,8 +211,10 @@ The placer failed where the 10 Nov builds did: phase 4.1.1.2 Post Placement Timi
 -0.721 before it, then "Unplaced instances found" (`u_pcm/gr_reg[1,2,6,17]`), "failed to commit all
 instances". One pair of builds is one pair of seeds too, but the pair is controlled: with the LUT count
 unchanged, 27 fewer RAMB18s in the compositor turned a placer failure into a first-route close with
-+0.011 ns. The block RAMs were a wall of their own: 106 of the 120 RAMB18 sites held 2 Kbit each, and
-the placer's post-placement optimisation had nowhere to move the logic around them.
++0.011 ns. The block RAMs were a wall of their own: of the desk build's 75 RAMB18, the compositor's 30 held
+512 bit to 8 Kbit each (fbuf 8 x 2 Kbit, acc 6 x 4 Kbit, the line buffers 8 x 4 Kbit, the palette 4 x
+8 Kbit, the beam table 4 x 512 bit) and the repack removed 27 of them; the placer's post-placement
+optimisation had nowhere to move the logic around them.
 
 ## 6. Conclusion
 
@@ -219,7 +223,8 @@ the placer's post-placement optimisation had nowhere to move the logic around th
   are exhausted, and the behaviour-neutral RTL cuts measured are worth -8 (taken) to ~-230 LUT (the
   queues into block RAM, a study of their own). Each real diet is a decision Matt has not taken (§4).
 - **The fit was not only LUTs.** The compositor's block RAMs, split into byte lanes for a toolchain the
-  board no longer uses, filled 88 % of the RAMB18 sites at 11 % capacity. Packing them (zero behaviour
+  board no longer uses, took 30 RAMB18 for what fits in 3: a quarter of the device's RAMB18 sites at
+  3-44 % capacity. Packing them (zero behaviour
   change, 17.5 -> 7 tiles in zm_video_out) is what let desk + `fast` + `prefetch` place and close on the
   first route, against a control that fails like every 10 Nov attempt. The board now reads cart RAM at
   100 MB/s sequential (was 55) and copies at 78 (was 40), with every cart measured clean.
