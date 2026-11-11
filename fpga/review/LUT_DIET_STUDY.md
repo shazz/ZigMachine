@@ -92,3 +92,39 @@ audio scheduler's queue (`zm_audio_sched u_q`, 2,048 x 64) keeps its 8 RAMB18: a
 fills one. On the SoC that is about 10 tiles of the 60 freed (54.5 -> ~44) and 27 fewer RAMB18s, each
 with 36 data pins, in the compositor's routing. Behaviour: the same RTL semantics (a registered read,
 byte enables); proof: the video, mix, desk, tube, line-major and audio testbenches below.
+
+### 3.3 Candidates looked at and not taken (why, with the numbers)
+
+| candidate | block | LUT it would touch | why not (or not yet) |
+|---|---|---:|---|
+| `opt_design -resynth_seq_area` / `-aggressive_remap` / `-resynth_area` | all | -22 / +39 / +34 | §3.1: the build's ExploreArea + control-set merge already take the gain |
+| `-control_set_opt_threshold` higher | all | +LUT | converts the 193 byte-lane register enables (fanout 8-10) into LUT logic: more LUT cells, not fewer; the slice wall is LUT sites |
+| the copper's checks on both halves of the fetch word (`zm_video_copchk`, 202 LUT) | FRESCO | ~-100 | made on both halves on purpose: the half mux moved after the adders gained -0.77 ns on comp (board_combo7); comp's post-route slack is +0.11 ns, so the saving would re-open timing |
+| the blitter's answer flags `got_a/b/c` (195 LUT, 96 FF: a 5->32 decode and a 32:1 read a channel) | CHISEL pixel queue | ~-100 | a per-channel in-order pointer would need the HP read path proven to answer in slot order per channel; the pixel queue is the unit the fast builds failed to place in, and its enables were tuned to -0.53 ns on sys (combo7): not without its own study |
+| the pixel queue's slots and the three CDC data queues in block RAM (100 + ~130 LUTRAM) | CHISEL, FRESCO CDC | ~-230 | both read asynchronously (the head's bytes, the compositor's beat the clock they land): a block RAM's synchronous read adds a clock to each and changes the units' throughput; now that the compositor leaves ~10 tiles free (§3.2) the room exists, the proof (blitter tb + mutants, video sim) does not fit one night |
+| wide adders into the 8 free DSP48s (`use_dsp`, as `zm_blit_regs.cycles` and the top counters already are) | CHISEL rows (3 x 23-bit `nxt`/`addr`), LINE's `err`, the snoops' `off` | ~-30 a chain, 8 chains | the chains that are not already in DSPs sit on combinational paths into registers that close sys with +0.038 ns (a DSP ALU without its pipeline registers is ~3.5 ns against ~1.5 ns for a 23-bit CARRY4 chain); the accumulators that tolerate the latency (counters) are in DSPs already |
+| the glass register block's 16-way 32-bit readback mux (~150 LUT) | ZWINDOW | ~-100 | half the registers read live values (keys level, pointer, cart state/beat, status), so no RAM shadow; the mux already selects on 4 address bits |
+| LiteX CSR banks (video 111 LUT, zm_cycles 67, glass, uart) | glue | ~-150 with an 8-bit CSR bus | changes the CSR map: the firmware's csr.h, glass, every board tool. Not "the same register ABI" |
+| the stub UART and its CSR bank | glue | ~-1 | measured on `perf/lut-zero-cuts`: 17,606 -> 17,605 |
+| the HP register slices' skid halves | glue (3,640 FF) | -- | already cut on 2026-11-01 (`hp_slice always_ready`): what is left is one flop a PS7 pin, the reason the PS7 paths close |
+| Gemini's #7/#9: FpuSqrt (139) / FpuDiv (275) trapping to software | ZIGGY FPU | -414 | bit-identical results but not the same speed: the `_f32` carts (raytrace_f32, polkadots_f32) are the FPU's benchmarks; "the FPU stays" |
+| Gemini's #2 (PCM channel arrays in flip-flops), #3 (the audio queue's write enables), #5 (BARD without prediction) | CHORUS, BARD | | #2 measured worse (982 -> 1,351), #3 is the misattribution of §2, #5 slows BARD's players (wow_scroller runs at 130 % on a smaller core already, memory `zigmachine-bard-real-load`) |
+
+## 4. What a real diet would take (the options Matt decides)
+
+Nothing in the netlist is dead; the 16,958 cells are the features, the big ones being the blitter's
+arithmetic (4.2 k), the cart CPU with its FPU (4.3 k), the compositor (2.8 k), BARD (1.8 k) and the
+audio chips (1.7 k). The behaviour-neutral cuts measured tonight are worth tens of LUT, and the fit
+stays placer luck. The options that free hundreds to thousands each change something Matt has ruled
+out so far, listed with their size so the decision is a number:
+
+| option | frees (est.) | what changes |
+|---|---:|---|
+| **a 7020** (xc7z020: 53,200 LUT, 140 BRAM, 220 DSP) | everything | the board (Z7-Lite 7020 exists, same footprint); every bitstream rebuilt once; CHISEL v3, the desk mode, prefetch, the hardware dirty bitmap all fit with room |
+| the compositor on the sys clock (comp = sys = 100 MHz; `zm_z7.py` already handles `comp_hz == sys_hz`) | ~300-400 LUT, ~500 FF (the three 64 x 16 CDC queues, ReqCross, the bus synchronisers) | the compositor loses 20 % of its clocks a frame: the planes budget (0.59 Mc a plane) and the heavy multi-plane scenes' fps |
+| a smaller, slower FPU (iterative multiply/add, same IEEE results) | ~800-1,000 LUT | f32 ops take several clocks instead of one a cycle: the `_f32` carts' fps |
+| FPU div/sqrt in software (the trap Gemini proposed) | 414 LUT | same results, slower divides |
+| BARD's D$ 16 KB 2-way -> direct-mapped, or 8 KB | ~150-250 LUT | BARD's players' load (some already > 100 %) |
+| ZIGGY's D$ 16 KB 2-way -> 1-way | ~150 LUT | the way mux and the second tag compare; roto/voxel carts' hit rate |
+| the ARM runs BARD's players (the ARM-side offload) | ~1,800 LUT (ZmSnd) | a new sound path (the glass feeds CHORUS's queue); sample-exactness to re-prove |
+| the pixel queue and the CDC queues in block RAM (§3.3) | ~230 LUT | behaviour-neutral in pixels, +1 clock in two units; a proper study with the blitter tb and the video sim |

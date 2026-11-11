@@ -12,7 +12,15 @@ export PATH=/opt/vivado/2026.1/Vivado/bin:$PATH LD_LIBRARY_PATH=/home/matt/.loca
 ok=0
 for i in $(seq 1 360); do
     avail=$(free -g | awk '/^Mem:/ {print $7}')
-    if [ "$avail" -ge 8 ] && ! pgrep -f "[z]ig build|[b]uild.sh|[v]erilator|[v]ivado -mode" >/dev/null; then ok=1; break; fi
+    # Real processes only: other agents' idle waiter shells carry "zig build" in their command lines
+    # (memory: pgrep self-match), so match the binaries, not the words.
+    busy=0
+    pgrep -x zig >/dev/null && busy=1
+    pgrep -x vivado >/dev/null && busy=1
+    pgrep -x verilator_bin >/dev/null && busy=1
+    pgrep -f "obj_dir/V[A-Za-z_]+( |$)" >/dev/null && busy=1
+    pgrep -f "^(/bin/)?(ba)?sh \./build\.sh" >/dev/null && busy=1
+    if [ "$avail" -ge 8 ] && [ $busy = 0 ]; then ok=1; break; fi
     sleep 30
 done
 [ $ok = 1 ] || { echo "GAVE UP: no 8 GB / quiet box in 3 h"; exit 1; }
