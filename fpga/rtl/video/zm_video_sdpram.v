@@ -3,13 +3,16 @@
 // block RAM (or LUT RAM when small), so every buffer in the compositor costs
 // what the synthesis report says and nothing hides in flip-flops.
 //
-// BOARD (2026-10-04): built as one 8-bit array per byte lane, each its own block
-// RAM. On the Z7-Lite (openXC7 / prjxray bitstream) wider shapes lost data: a 48/64-bit
-// array (one RAMB36 in SDP x72 mode) lost bits 0-35; 32-bit SDP x36 and 16-bit TDP x18
-// slices with per-byte write enables lost whole byte lanes at fixed positions. The
-// shapes proven on the board write one enable per primitive (the scanout's u_disp, the
-// CPU's I$ banks) or are byte-wide (the CPU's D$ symbols): byte-wide it is here.
-// docs/FPGA_STEPS.md has the measurements.
+// Two shapes, the same behaviour (the testbenches see no difference):
+// - ONE array with byte write enables (the default since the LUT diet, 2026-11-11): Vivado maps
+//   it to the fewest block RAMs the geometry allows (a 256 x 64 buffer is one RAMB36, not eight
+//   RAMB18 holding 2 Kbit each). Vivado is the board toolchain (fpga/README.md).
+// - `ZM_SDPRAM_LANES`: one 8-bit array per byte lane, each its own block RAM. BOARD (2026-10-04,
+//   openXC7 / prjxray bitstream): wider shapes lost data there: a 48/64-bit array (one RAMB36 in
+//   SDP x72 mode) lost bits 0-35; 32-bit SDP x36 and 16-bit TDP x18 slices with per-byte write
+//   enables lost whole byte lanes at fixed positions. The shapes proven on the board under openXC7
+//   write one enable per primitive or are byte-wide (docs/FPGA_STEPS.md). An openXC7 build
+//   defines ZM_SDPRAM_LANES (soc/openxc7.py).
 `default_nettype none
 
 module zm_video_sdpram #(
@@ -23,6 +26,7 @@ module zm_video_sdpram #(
     input  wire [AW-1:0]     raddr,
     output wire [DW-1:0]     rdata
 );
+`ifdef ZM_SDPRAM_LANES
     localparam integer SW = 8;                     // the slice width: one byte lane per array
     localparam integer NS = (DW + SW - 1) / SW;    // slices (the last may be narrower)
 
@@ -42,6 +46,17 @@ module zm_video_sdpram #(
             assign rdata[LO +: W] = q;
         end
     endgenerate
+`else
+    (* ram_style = "block" *) reg [DW-1:0] mem [0:(1 << AW) - 1];
+    reg [DW-1:0] q;
+    integer i;
+    always @(posedge clk) begin
+        for (i = 0; i < DW / 8; i = i + 1)
+            if (we[i]) mem[waddr][i*8 +: 8] <= wdata[i*8 +: 8];
+        q <= mem[raddr];
+    end
+    assign rdata = q;
+`endif
 endmodule
 
 `default_nettype wire

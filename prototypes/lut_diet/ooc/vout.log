@@ -1,0 +1,22 @@
+== /home/matt/projects/ZigMachine/.claude/worktrees/agent-aa95258577a000a38/prototypes/lut_diet/ooc/vout_lanes (ZM_SDPRAM_LANES)
+| Slice LUTs                 | 2809 |     0 |          0 |     17600 | 15.96 |
+| Slice Registers            | 2615 |     0 |          0 |     35200 |  7.43 |
+| Slice Registers                            | 2615 |     0 |          0 |     35200 |  7.43 |
+| Block RAM Tile    | 17.5 |     0 |          0 |        60 | 29.17 |
+|   RAMB36/FIFO*    |    2 |     0 |          0 |        60 |  3.33 |
+|   RAMB18          |   31 |     0 |          0 |       120 | 25.83 |
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+      0.534        0.000                      0                 6725        0.040        0.000                      0                 6725        2.750        0.000                       0                  3074  
+
+== /home/matt/projects/ZigMachine/.claude/worktrees/agent-aa95258577a000a38/prototypes/lut_diet/ooc/vout_wide ()
+| Slice LUTs                 | 2801 |     0 |          0 |     17600 | 15.91 |
+| Slice Registers            | 2600 |     0 |          0 |     35200 |  7.39 |
+| Slice Registers                            | 2600 |     0 |          0 |     35200 |  7.39 |
+| Block RAM Tile    |    7 |     0 |          0 |        60 | 11.67 |
+|   RAMB36/FIFO*    |    5 |     0 |          0 |        60 |  8.33 |
+|   RAMB18          |    4 |     0 |          0 |       120 |  3.33 |
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+      0.630        0.000                      0                 6317        0.051        0.000                      0                 6317        2.750        0.000                       0                  3011  
+

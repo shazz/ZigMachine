@@ -21,6 +21,16 @@ def test_seed_replaces_litexs_own_and_keeps_one(tmp_path: Path) -> None:
     assert text.endswith("--seed 8\n")
 
 
+def test_byte_lane_rams_defines_the_openxc7_ram_shape_once(tmp_path: Path) -> None:
+    ys = tmp_path / "platform_z7.ys"
+    ys.write_text("read_verilog a.v\nsynth_xilinx -top platform_z7\n")
+    openxc7.byte_lane_rams(ys)
+    openxc7.byte_lane_rams(ys)
+    text = ys.read_text()
+    assert text.startswith("verilog_defines -DZM_SDPRAM_LANES\n")
+    assert text.count("ZM_SDPRAM_LANES") == 1
+
+
 def test_seed_refuses_a_script_without_one(tmp_path: Path) -> None:
     script = tmp_path / "build.sh"
     script.write_text("nextpnr-xilinx --json x.json\n")

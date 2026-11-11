@@ -1,0 +1,51 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2026.1 (lin64) Build 6511674 Tue Jun 16 11:01:26 MDT 2026
+| Date         : Wed Nov 11 00:18:41 2026
+| Host         : matt-ThinkPad-T480s running 64-bit Linux Mint 22.3
+| Command      : report_utilization -hierarchical -hierarchical_depth 3 -file /home/matt/projects/ZigMachine/.claude/worktrees/agent-aa95258577a000a38/prototypes/lut_diet/ooc/vout_lanes/hier.rpt
+| Design       : zm_video_out
+| Device       : xc7z010clg400-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++------------------+---------------------------------+------------+------------+---------+------+------+--------+--------+------------+
+|     Instance     |              Module             | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++------------------+---------------------------------+------------+------------+---------+------+------+--------+--------+------------+
+| zm_video_out     |                           (top) |       2809 |       2617 |     176 |   16 | 2615 |      2 |     31 |         16 |
+|   (zm_video_out) |                           (top) |         46 |          1 |      44 |    1 |   55 |      0 |      0 |          0 |
+|   u_comp         |                   zm_video_comp |       2400 |       2256 |     132 |   12 | 2175 |      0 |     30 |         16 |
+|     u_wb         |                  zm_video_palwb |         79 |         79 |       0 |    0 |   81 |      0 |      0 |          0 |
+|     u_bg         |                     zm_video_bg |        215 |        215 |       0 |    0 |  179 |      0 |      0 |          0 |
+|     u_cop        |                 zm_video_copper |        691 |        643 |      48 |    0 |  331 |      0 |      0 |          0 |
+|       (u_cop)    |                 zm_video_copper |        487 |        439 |      48 |    0 |  272 |      0 |      0 |          0 |
+|       u_chk      |                 zm_video_copchk |        206 |        206 |       0 |    0 |   59 |      0 |      0 |          0 |
+|     u_fbuf       | zm_video_sdpram__parameterized1 |        122 |        122 |       0 |    0 |    0 |      0 |      8 |          0 |
+|     u_mix        |                    zm_video_mix |        167 |        162 |       0 |    5 |   89 |      0 |      6 |         12 |
+|       (u_mix)    |                    zm_video_mix |        130 |        125 |       0 |    5 |   89 |      0 |      0 |         12 |
+|     u_pass       |                   zm_video_pass |        153 |        153 |       0 |    0 |   88 |      0 |      0 |          0 |
+|     u_pp         |              zm_video_planepath |        480 |        433 |      40 |    7 |  612 |      0 |      0 |          4 |
+|       u_plane    |                  zm_video_plane |        243 |        243 |       0 |    0 |  360 |      0 |      0 |          1 |
+|       u_latch    |                  zm_video_latch |         68 |         28 |      40 |    0 |    8 |      0 |      0 |          0 |
+|       u_paint    |                  zm_video_paint |        152 |        145 |       0 |    7 |  213 |      0 |      0 |          3 |
+|     u_regs       |                   zm_video_regs |        358 |        358 |       0 |    0 |  696 |      0 |      0 |          0 |
+|     u_row        |                  zm_video_rowio |        122 |         78 |      44 |    0 |   46 |      0 |      0 |          0 |
+|   u_desk         |                   zm_video_desk |         74 |         74 |       0 |    0 |  130 |      0 |      1 |          0 |
+|     (u_desk)     |                   zm_video_desk |         70 |         70 |       0 |    0 |  130 |      0 |      0 |          0 |
+|   u_fetch        |              zm_video_scanfetch |         86 |         86 |       0 |    0 |   63 |      0 |      0 |          0 |
+|   u_scan         |                   zm_video_scan |         53 |         50 |       0 |    3 |  105 |      0 |      0 |          0 |
+|   u_timing       |                      zm_vtiming |        125 |        125 |       0 |    0 |   67 |      0 |      0 |          0 |
++------------------+---------------------------------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+
