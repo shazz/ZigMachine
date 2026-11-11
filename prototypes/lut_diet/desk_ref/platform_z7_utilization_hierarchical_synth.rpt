@@ -1,0 +1,117 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2026.1 (lin64) Build 6511674 Tue Jun 16 11:01:26 MDT 2026
+| Date         : Mon Nov  9 18:23:10 2026
+| Host         : matt-ThinkPad-T480s running 64-bit Linux Mint 22.3
+| Command      : report_utilization -hierarchical -file platform_z7_utilization_hierarchical_synth.rpt
+| Design       : platform_z7
+| Device       : xc7z010clg400-1
+| Speed File   : -1
+| Design State : Synthesized
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++----------------------------+---------------------------------+------------+------------+---------+------+-------+--------+--------+------------+
+|          Instance          |              Module             | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs  | RAMB36 | RAMB18 | DSP Blocks |
++----------------------------+---------------------------------+------------+------------+---------+------+-------+--------+--------+------------+
+| platform_z7                |                           (top) |      16958 |      15961 |     888 |  109 | 15884 |     17 |     75 |         72 |
+|   (platform_z7)            |                           (top) |        974 |        722 |     252 |    0 |  3640 |      6 |      0 |         13 |
+|   VexRiscv                 |                        VexRiscv |       4295 |       4275 |      20 |    0 |  3194 |      4 |     17 |          6 |
+|     (VexRiscv)             |                        VexRiscv |       1338 |       1338 |       0 |    0 |  1309 |      0 |      2 |          4 |
+|     FpuPlugin_fpu          |                         FpuCore |       1909 |       1889 |      20 |    0 |  1703 |      0 |      3 |          2 |
+|       (FpuPlugin_fpu)      |                         FpuCore |       1491 |       1471 |      20 |    0 |  1514 |      0 |      3 |          2 |
+|       div_divider          |                          FpuDiv |        280 |        280 |       0 |    0 |   107 |      0 |      0 |          0 |
+|       sqrt_sqrt            |                         FpuSqrt |        138 |        138 |       0 |    0 |    82 |      0 |      0 |          0 |
+|     IBusCachedPlugin_cache |                InstructionCache |        614 |        614 |       0 |    0 |   114 |      4 |      2 |          0 |
+|     dataCache_1            |                       DataCache |        434 |        434 |       0 |    0 |    68 |      0 |     10 |          0 |
+|   ZmSnd_VexRiscv           |                  ZmSnd_VexRiscv |       1766 |       1766 |       0 |    0 |  1203 |      5 |     14 |          4 |
+|     (ZmSnd_VexRiscv)       |                  ZmSnd_VexRiscv |        807 |        807 |       0 |    0 |  1054 |      1 |      2 |          4 |
+|     IBusCachedPlugin_cache |          ZmSnd_InstructionCache |        484 |        484 |       0 |    0 |    83 |      4 |      2 |          0 |
+|     dataCache              |                 ZmSnd_DataCache |        475 |        475 |       0 |    0 |    66 |      0 |     10 |          0 |
+|   zm_audio_soc             |                    zm_audio_soc |       1749 |       1470 |     276 |    3 |  1111 |      0 |      9 |          8 |
+|     (zm_audio_soc)         |                    zm_audio_soc |          2 |          2 |       0 |    0 |    64 |      0 |      0 |          0 |
+|     u_core                 |                   zm_audio_core |       1499 |       1220 |     276 |    3 |   983 |      0 |      1 |          5 |
+|       u_ym                 |                     zm_audio_ym |        253 |        253 |       0 |    0 |   262 |      0 |      1 |          0 |
+|         u_psg              |                            jt49 |        232 |        232 |       0 |    0 |   232 |      0 |      1 |          0 |
+|           (u_psg)          |                            jt49 |         77 |         77 |       0 |    0 |   131 |      0 |      0 |          0 |
+|       u_mix                |                    zm_audio_mix |        114 |        114 |       0 |    0 |    35 |      0 |      0 |          2 |
+|       u_pcm                |                    zm_audio_pcm |        756 |        480 |     276 |    0 |   384 |      0 |      0 |          3 |
+|       u_pokey              |                  zm_audio_pokey |        290 |        287 |       0 |    3 |   241 |      0 |      0 |          0 |
+|         (u_pokey)          |                  zm_audio_pokey |        115 |        115 |       0 |    0 |    76 |      0 |      0 |          0 |
+|         u_pokey            |                        zm_pokey |        175 |        172 |       0 |    3 |   165 |      0 |      0 |          0 |
+|           (u_pokey)        |                        zm_pokey |         69 |         69 |       0 |    0 |    98 |      0 |      0 |          0 |
+|           u_34             |                zm_pokey_pair_18 |         54 |         54 |       0 |    0 |    22 |      0 |      0 |          0 |
+|     u_sched                |                  zm_audio_sched |        248 |        248 |       0 |    0 |    64 |      0 |      8 |          3 |
+|       (u_sched)            |                  zm_audio_sched |        116 |        116 |       0 |    0 |    64 |      0 |      0 |          3 |
+|       u_q                  | zm_video_sdpram__parameterized4 |        132 |        132 |       0 |    0 |     0 |      0 |      8 |          0 |
+|   zm_blit                  |                         zm_blit |       4232 |       4033 |     176 |   23 |  2883 |      0 |      1 |         24 |
+|     seq                    |                       zm_blit_q |        192 |        192 |       0 |    0 |   122 |      0 |      1 |          0 |
+|     core                   |                    zm_blit_core |       3014 |       2875 |     116 |   23 |  2228 |      0 |      0 |         23 |
+|       (core)               |                    zm_blit_core |         14 |         14 |       0 |    0 |    98 |      0 |      0 |          2 |
+|       chk                  |                     zm_blit_chk |        662 |        662 |       0 |    0 |   202 |      0 |      0 |          8 |
+|       pxu                  |                      zm_blit_px |        736 |        622 |     114 |    0 |   599 |      0 |      0 |          0 |
+|         (pxu)              |                      zm_blit_px |         71 |         65 |       6 |    0 |   269 |      0 |      0 |          0 |
+|         q                  |                     zm_blit_pxq |        665 |        557 |     108 |    0 |   330 |      0 |      0 |          0 |
+|       rd                   |                     zm_blit_row |        124 |        124 |       0 |    0 |   136 |      0 |      0 |          3 |
+|       sb                   |                    zm_blit_blit |        371 |        371 |       0 |    0 |   292 |      0 |      0 |          6 |
+|         (sb)               |                    zm_blit_blit |         72 |         72 |       0 |    0 |    38 |      0 |      0 |          0 |
+|         ra                 |                  zm_blit_row_14 |        153 |        153 |       0 |    0 |   138 |      0 |      0 |          3 |
+|         rb                 |                  zm_blit_row_15 |        146 |        146 |       0 |    0 |   116 |      0 |      0 |          3 |
+|       sl                   |                    zm_blit_line |        158 |        158 |       0 |    0 |    99 |      0 |      0 |          0 |
+|       st3                  |                     zm_blit_tri |        321 |        321 |       0 |    0 |   378 |      0 |      0 |          0 |
+|         (st3)              |                     zm_blit_tri |        205 |        205 |       0 |    0 |   244 |      0 |      0 |          0 |
+|         wl                 |                   zm_blit_twalk |         59 |         59 |       0 |    0 |    67 |      0 |      0 |          0 |
+|         ws                 |                zm_blit_twalk_13 |         65 |         65 |       0 |    0 |    67 |      0 |      0 |          0 |
+|       sx_                  |                     zm_blit_tex |        633 |        610 |       0 |   23 |   412 |      0 |      0 |          4 |
+|         (sx_)              |                     zm_blit_tex |        364 |        341 |       0 |   23 |   291 |      0 |      0 |          3 |
+|         f                  |                  zm_blit_tfetch |        277 |        277 |       0 |    0 |   121 |      0 |      0 |          1 |
+|     regs                   |                    zm_blit_regs |       1062 |       1002 |      60 |    0 |   533 |      0 |      0 |          1 |
+|   zm_glass_osd             |                    zm_glass_osd |        108 |         75 |       8 |   25 |   121 |      0 |      2 |          0 |
+|     (zm_glass_osd)         |                    zm_glass_osd |         89 |         56 |       8 |   25 |   121 |      0 |      1 |          0 |
+|   zm_glass_regs            |                   zm_glass_regs |        491 |        467 |      24 |    0 |   429 |      0 |      0 |          0 |
+|     (zm_glass_regs)        |                   zm_glass_regs |        286 |        262 |      24 |    0 |   393 |      0 |      0 |          0 |
+|     pointer                |                    zm_glass_ptr |        205 |        205 |       0 |    0 |    36 |      0 |      0 |          0 |
+|   zm_hdmi_out              |                     zm_hdmi_out |        574 |        540 |       0 |   34 |   768 |      0 |      1 |          0 |
+|     u_tx                   |                      zm_hdmi_tx |        541 |        507 |       0 |   34 |   683 |      0 |      0 |          0 |
+|       u_packets            |                 zm_hdmi_packets |        111 |        111 |       0 |    0 |   151 |      0 |      0 |          0 |
+|       u_acr                |                     zm_hdmi_acr |         37 |         37 |       0 |    0 |    70 |      0 |      0 |          0 |
+|       u_enc                |                     zm_hdmi_enc |        130 |        130 |       0 |    0 |   139 |      0 |      0 |          0 |
+|         (u_enc)            |                     zm_hdmi_enc |          1 |          1 |       0 |    0 |    62 |      0 |      0 |          0 |
+|       u_island             |                  zm_hdmi_island |        237 |        229 |       0 |    8 |   287 |      0 |      0 |          0 |
+|   zm_video_out             |                    zm_video_out |       2769 |       2613 |     132 |   24 |  2535 |      2 |     31 |         17 |
+|     (zm_video_out)         |                    zm_video_out |          3 |          2 |       0 |    1 |    55 |      0 |      0 |          0 |
+|     u_comp                 |                   zm_video_comp |       2457 |       2304 |     132 |   21 |  2135 |      0 |     30 |         17 |
+|       u_wb                 |                  zm_video_palwb |         84 |         84 |       0 |    0 |    81 |      0 |      0 |          0 |
+|       u_bg                 |                     zm_video_bg |        194 |        194 |       0 |    0 |   179 |      0 |      0 |          0 |
+|       u_cop                |                 zm_video_copper |        687 |        639 |      48 |    0 |   331 |      0 |      0 |          0 |
+|         (u_cop)            |                 zm_video_copper |        485 |        437 |      48 |    0 |   272 |      0 |      0 |          0 |
+|         u_chk              |                 zm_video_copchk |        202 |        202 |       0 |    0 |    59 |      0 |      0 |          0 |
+|       u_fbuf               | zm_video_sdpram__parameterized1 |        127 |        127 |       0 |    0 |     0 |      0 |      8 |          0 |
+|       u_mix                |                    zm_video_mix |        206 |        197 |       0 |    9 |    89 |      0 |      6 |         12 |
+|         (u_mix)            |                    zm_video_mix |        140 |        131 |       0 |    9 |    89 |      0 |      0 |         12 |
+|         u_acc              | zm_video_sdpram__parameterized3 |         66 |         66 |       0 |    0 |     0 |      0 |      6 |          0 |
+|       u_pass               |                   zm_video_pass |        147 |        147 |       0 |    0 |    68 |      0 |      0 |          0 |
+|       u_pp                 |              zm_video_planepath |        485 |        433 |      40 |   12 |   598 |      0 |      0 |          5 |
+|         u_plane            |                  zm_video_plane |        234 |        234 |       0 |    0 |   346 |      0 |      0 |          2 |
+|         u_latch            |                  zm_video_latch |         67 |         27 |      40 |    0 |     8 |      0 |      0 |          0 |
+|         u_paint            |                  zm_video_paint |        166 |        154 |       0 |   12 |   213 |      0 |      0 |          3 |
+|           (u_paint)        |                  zm_video_paint |         99 |         87 |       0 |   12 |   188 |      0 |      0 |          0 |
+|           u_fade           |                 zm_video_tcfade |         67 |         67 |       0 |    0 |    25 |      0 |      0 |          3 |
+|       u_regs               |                   zm_video_regs |        327 |        327 |       0 |    0 |   696 |      0 |      0 |          0 |
+|       u_row                |                  zm_video_rowio |        170 |        126 |      44 |    0 |    46 |      0 |      0 |          0 |
+|     u_desk                 |                   zm_video_desk |         61 |         61 |       0 |    0 |   123 |      0 |      1 |          0 |
+|       (u_desk)             |                   zm_video_desk |         55 |         55 |       0 |    0 |   123 |      0 |      0 |          0 |
+|     u_fetch                |              zm_video_scanfetch |         69 |         69 |       0 |    0 |    55 |      0 |      0 |          0 |
+|     u_scan                 |                   zm_video_scan |         44 |         42 |       0 |    2 |    80 |      0 |      0 |          0 |
+|     u_timing               |                      zm_vtiming |        110 |        110 |       0 |    0 |    67 |      0 |      0 |          0 |
++----------------------------+---------------------------------+------------+------------+---------+------+-------+--------+--------+------------+
+
+
