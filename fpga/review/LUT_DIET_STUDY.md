@@ -128,3 +128,75 @@ out so far, listed with their size so the decision is a number:
 | ZIGGY's D$ 16 KB 2-way -> 1-way | ~150 LUT | the way mux and the second tag compare; roto/voxel carts' hit rate |
 | the ARM runs BARD's players (the ARM-side offload) | ~1,800 LUT (ZmSnd) | a new sound path (the glass feeds CHORUS's queue); sample-exactness to re-prove |
 | the pixel queue and the CDC queues in block RAM (§3.3) | ~230 LUT | behaviour-neutral in pixels, +1 clock in two units; a proper study with the blitter tb and the video sim |
+
+## 5. The bitstreams
+
+### 5.1 (a) desk + diet + `fast` + `prefetch`: built, closed, on the board
+
+`prototypes/lut_diet/build_board.sh board_diet_pf --ziggy-reads prefetch` (combo16's command line,
+`fit_timing`, this tree: desk-border RTL + the RAM repack + study/ziggy-big-reads). Artefacts in
+`prototypes/lut_diet/bit_a/` (md5 1296f36f106a75aefd654439be1c60a3).
+
+| | desk build (9 Nov) | (a) diet + prefetch |
+|---|---:|---:|
+| synth LUT | 16,958 (96.35 %) | 17,014 (96.67 %): +58 the prefetch, -2 the repack |
+| placed LUT sites / slices | 15,716 (89.30 %) / 4,400 | 15,739 (89.43 %) / 4,400 |
+| FF | 15,953 | 15,978 |
+| BRAM tiles | 54.5 (90.8 %) | **44 (73.3 %)** |
+| DSP | 72 | 72 |
+| control sets | 730 | 747 |
+| placer (ExtraTimingOpt) | placed | placed, post-place WNS -0.558 -> phys_opt +0.004 |
+| route | -0.041, closed by a re-route | **first route: sys +0.011 / hold +0.018**, comp +0.179, pix +1.178, pix5x +0.582; 0 routing errors, DRC clean |
+| CSR map | csr.json | identical (no firmware change) |
+| build time (2 threads, quiet box) | | 42 min |
+
+LUT cells did not go down: the behaviour-neutral diet is -8 LUT, +58 for the reads. What changed is
+the block-RAM count (-10.5 tiles, -27 RAMB18 in the compositor, each with 36 data pins into the
+logic) and with it the routing load around the BRAM columns. Whether that is what let this netlist
+place where the 10 Nov `prefetch` builds failed, or a seed, is what §5.2's control build answers.
+
+**On the board** (11 Nov, 01:35; the desk bitstream 58374d06 kept at `KESTREL/rollback/lutdiet_prev/`,
+system.rv32 6aa96b5d / glass fd4e886b unchanged, the card's `zigmachine.bit` = 1296f36f, md5 checked
+over Wi-Fi before the reboot and over serial after). Everything measured before the swap was measured
+again after it, with the same tools (`bench_before/`, `bench_after/`, `fps_before/`, `fps_after/`):
+
+| ZIGGY bench (`bench_collect`, cycles an op) | desk | (a) |
+|---|---:|---:|
+| `ld.seq.64K` (a word of a sequential read) | 7.23 (55 MB/s) | **3.99 (100 MB/s)** |
+| `ld.miss.64K` (a line miss) | 42.2 | **30.7** |
+| `ld.chase.miss` | 46.2 | 32.7 |
+| `mc.lib.64K` (memcpy, a byte) | 2.51 (40 MB/s) | **1.28 (78 MB/s)** |
+| `mc.word.64K` | 2.35 | 1.25 |
+| `ic.over.24K` (I$ refills) | 4.67 | 2.95 |
+| `cn.ld.alone` / `cn.ld.fill` | 36.2 / 36.4 | 26.6 / 31.6 |
+| every store line (`st.*`), D$ hits, CHISEL copies | same to 0.01 c | same |
+
+The study's harness predicted 46.9 -> 87.2 MB/s for a 192 KB read and 38.6 -> 66.1 for a copy; the
+board gives 55 -> 100 and 40 -> 78. (`fr.static.p0/p1` read 0 for `comp` in the after-run's first
+frames and normal values from p2 on: the frame probe's window moved with the faster memory benches,
+and the fps probe below reads the same comp/pass as before.)
+
+| cart (`board_fps`, 12 s) | desk fps / missed | (a) fps / missed | sound, state |
+|---|---:|---:|---|
+| GEMTEST | 60.2 / 0 | 60.4 / 0 | running |
+| union_l16 | 60.4 / 0 | 60.4 / 0 | SNDH level_16, BARD 1/2, running |
+| stcs_css3 | 60.2 / 0 | 60.2 / 0 | SNDH thrust, running |
+| polkadots | 60.2 / 0 | 60.2 / 0 | running |
+| chisel_v2 (QUEUE, AFFINE, MAP, mirror, COLL) | 60.2 / 0 | 60.2 / 0 | running |
+| raytrace | 60.2 / 0 | 60.2 / 0 | running |
+| polkadots_f32 (FPU) | 34.8 / 124 | 35.2 / 122 | running |
+| stniccc (disk stream, MOD) | not measured | 55.9 / 20 | MOD chcknbnk, running |
+| notepad (GEM 5, KOS GEMDOS) | not measured | 60.2 / 0 | running |
+| demo-gem.zmd | not measured | SystemRefused | the stale GEM disk's table against system.rv32 1.23 (software, not the bitstream) |
+
+No trap, no err, no stall on any cart; the compositor's probe (`comp/pass`, `ready/pass`) reads the
+same as before on every cart. **The diet bitstream stays installed.** Rollback, over the serial
+console: `mount -o remount,rw /mnt/sd; cp /mnt/sd/KESTREL/rollback/lutdiet_prev/zigmachine.bit
+/mnt/sd/zigmachine.bit; sync; reboot`.
+
+### 5.2 (b) CHISEL v2: already in (a)
+
+The brief's "CHISEL v2 never in a bitstream" is stale: the desk build and (a) carry `zm_blit_q`
+(QUEUE), `zm_blit_tex` + `zm_blit_tfetch` (AFFINE, MAP), `zm_blit_twalk` (the TRIANGLE edge walk)
+and the collision/mirror/fill paths (the hierarchical report of `bit_a/`), HW version 1.17.0 >=
+1.11.0 (`gen/memmap.vh`), and `demo-chisel_v2.zmd` runs at 60 fps on both. (b) is (a).
