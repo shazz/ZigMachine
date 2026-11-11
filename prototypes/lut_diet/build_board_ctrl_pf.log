@@ -1,0 +1,10 @@
+== start Wed 11 Nov 2026 01:36:28 AM EST avail=11 GB args: --ziggy-reads prefetch
+VIVADO_FAILED
+== end Wed 11 Nov 2026 02:06:22 AM EST
+ERROR: [Place 30-99] Placer failed with error: 'failed to commit all instances'
+Please review all ERROR, CRITICAL WARNING, and WARNING messages during placement to understand the cause for failure.
+ERROR: [Common 17-69] Command failed: Placer could not place all instances
+| Slice LUTs*                | 17014 |     0 |          0 |     17600 | 96.67 |
+| Slice Registers            | 15928 |     0 |          0 |     35200 | 45.25 |
+| Block RAM Tile    | 54.5 |     0 |          0 |        60 | 90.83 |
+CSR-SAME-AS-DESK

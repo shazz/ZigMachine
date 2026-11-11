@@ -200,3 +200,31 @@ The brief's "CHISEL v2 never in a bitstream" is stale: the desk build and (a) ca
 (QUEUE), `zm_blit_tex` + `zm_blit_tfetch` (AFFINE, MAP), `zm_blit_twalk` (the TRIANGLE edge walk)
 and the collision/mirror/fill paths (the hierarchical report of `bit_a/`), HW version 1.17.0 >=
 1.11.0 (`gen/memmap.vh`), and `demo-chisel_v2.zmd` runs at 60 fps on both. (b) is (a).
+
+### 5.3 The control build: the same netlist with the byte-lane RAMs fails in the placer
+
+`board_ctrl_pf`: the same command, the same tree, `zm_video_sdpram.v` as before the repack (the
+byte-lane shape; `prototypes/lut_diet/ctrl/`). Synth **17,014 LUT, the same count**, BRAM 54.5 tiles.
+The placer failed where the 10 Nov builds did: phase 4.1.1.2 Post Placement Timing Optimization, WNS
+-0.721 before it, then "Unplaced instances found" (`u_pcm/gr_reg[1,2,6,17]`), "failed to commit all
+instances". One pair of builds is one pair of seeds too, but the pair is controlled: with the LUT count
+unchanged, 27 fewer RAMB18s in the compositor turned a placer failure into a first-route close with
++0.011 ns. The block RAMs were a wall of their own: 106 of the 120 RAMB18 sites held 2 Kbit each, and
+the placer's post-placement optimisation had nowhere to move the logic around them.
+
+## 6. Conclusion
+
+- **No LUT miracle.** The 7010's 16,958 cells are KESTREL's features; nothing is dead, duplicated or
+  debug-only, the two "anomalies" in the hierarchical report are attribution, the implementation knobs
+  are exhausted, and the behaviour-neutral RTL cuts measured are worth -8 (taken) to ~-230 LUT (the
+  queues into block RAM, a study of their own). Each real diet is a decision Matt has not taken (§4).
+- **The fit was not only LUTs.** The compositor's block RAMs, split into byte lanes for a toolchain the
+  board no longer uses, filled 88 % of the RAMB18 sites at 11 % capacity. Packing them (zero behaviour
+  change, 17.5 -> 7 tiles in zm_video_out) is what let desk + `fast` + `prefetch` place and close on the
+  first route, against a control that fails like every 10 Nov attempt. The board now reads cart RAM at
+  100 MB/s sequential (was 55) and copies at 78 (was 40), with every cart measured clean.
+- **Room left:** BRAM 44/60 tiles (16 free), DSP 72/80, LUT sites 89.4 %, slices 100 %. The LUT wall
+  stands: the next feature of a few hundred LUT (the hardware dirty bitmap, a CRT look, CHISEL v3) is
+  back to placer luck, and the honest options for it are §4's, the 7020 first.
+- Pre-existing, not from this branch: `test_rtl_linemajor`'s four truecolor cases fail on this tree with
+  either RAM shape; the omarchy clone needs `fpga/.tools` (wabt) and the built carts for the video tests.
