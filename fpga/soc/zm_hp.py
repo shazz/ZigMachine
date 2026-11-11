@@ -42,10 +42,13 @@ from typing import Any
 
 from litex.gen import LiteXModule
 from litex.soc.interconnect import axi
-from migen import Array, Cat, Constant as Const, If, Mux, Signal
+from migen import Cat, If, Signal
+from migen import Constant as Const
 
+from soc import zm_hp_prefetch, zm_hp_read
 from soc.zm_hp_bypass import StoreTags
 from soc.zm_hp_posted import PostedStores
+from soc.zm_hp_read import CTI_CLASSIC
 
 CPU_BASE = 0x40000000
 DDR_BASE = 0x04000000
@@ -55,8 +58,6 @@ assert DDR_BASE % WINDOW == 0 and 1 << WINDOW_LOG2 == WINDOW
 BURST_INCR, SIZE_4, SIZE_8 = 0b01, 2, 3
 CACHE = 0b0011  # reads: bufferable, modifiable (a 64-bit read channel passes them as is)
 AW_CACHE = 0b0000  # writes: [1] clear, so a 32-bit write channel never upsizes (soc/zm_video_axi.py)
-CTI_CLASSIC, CTI_END = 0b000, 0b111
-LINE_BEATS = 4  # VexRiscv's 32-byte lines (vexgen GenZm.scala bytePerLine) in 64-bit beats
 
 # A LiteX wishbone.Interface: untyped, its signals are attributes made at runtime.
 Bus = Any
@@ -87,10 +88,13 @@ class WishboneHP(LiteXModule):
     """`bus` (32-bit, word-addressed Wishbone slave) -> `hp` (64-bit AXI3 master)."""
 
     def __init__(self, bus: Bus, hp: axi.AXIInterface, posted: int = 0, read_bypass: bool = False,
-                 break_: str = "") -> None:  # fmt: skip
-        """`read_bypass` (needs `posted`): soc/zm_hp_bypass.py; `break_`: its break test's mutant."""
-        if read_bypass and not posted:
-            raise ValueError("zm_hp: read_bypass needs posted stores")
+                 break_: str = "", *, fast_burst: bool = False, prefetch: bool = False,
+                 read_break: str = "") -> None:  # fmt: skip
+        """`read_bypass` (needs `posted`): soc/zm_hp_bypass.py; `break_`: its break test's mutant.
+        `fast_burst`: a refill's words one a clock (soc/zm_hp_read.py line_buffer); `prefetch`
+        (needs `posted`): the next line read ahead (soc/zm_hp_prefetch.py, `io_kill` its IO input). `read_break`: their mutants."""
+        if (read_bypass or prefetch) and not posted:
+            raise ValueError(f"zm_hp: {'read_bypass' if read_bypass else 'prefetch'} needs posted stores")
         self.bus, self.hp = bus, hp
         self.idle = Signal(reset=1)  # every acknowledged store is in DDR (always, without `posted`)
         self.ack = ack = Signal()
@@ -101,9 +105,11 @@ class WishboneHP(LiteXModule):
         self.rbusy, self.wbusy = Signal(), Signal()  # an AXI read / write is in flight
         self.rwait = Signal()  # what a read miss waits for: the drain, or (bypass) a same-line store
         self.comb += [bus.ack.eq(ack), *fixed_fields(hp.ar), *fixed_fields(hp.aw)]
-        self._line_buffer()
-        self._read()
+        zm_hp_read.line_buffer(self, fast_burst, read_break)
+        start = zm_hp_read.axi_read(self, ddr_addr)
         self._posted(posted) if posted else self._write()
+        if prefetch:
+            zm_hp_prefetch.prefetch(self, ddr_addr, start, read_break)
         self.comb += self.rwait.eq(self._bypass(posted, break_) if read_bypass else self.wbusy)
 
     def _posted(self, depth: int) -> None:
@@ -125,41 +131,6 @@ class WishboneHP(LiteXModule):
         self.sync += [clash.eq(self.tags.clash), waited.eq(self.req & ~self.bus.we)]
         single = 0 if break_ == "classic_too" else self.bus.cti == CTI_CLASSIC
         return self.wbusy & (single | (0 if break_ == "nowait" else ~waited) | clash)
-
-    def _line_buffer(self) -> None:
-        """The beats of the line being refilled, valid until its burst ends."""
-        bus = self.bus
-        self.buf = Array(Signal(64, name=f"hp_line{i}") for i in range(LINE_BEATS))
-        self.valid, self.tag, self.live = Signal(LINE_BEATS), Signal(len(self.line)), Signal()
-        idx = self.beat[:2]
-        self.hit = self.live & (self.tag == self.line) & (self.valid >> idx)[0]
-        word = self.buf[idx]
-        last = (bus.cti == CTI_CLASSIC) | (bus.cti == CTI_END)
-        self.sync += [
-            self.ack.eq(self.req & ~bus.we & self.hit),
-            If(self.req & ~bus.we & self.hit, bus.dat_r.eq(Mux(self.lane_hi, word[32:], word[:32]))),
-            # A burst's last beat (or a single access) closes the buffer: the next one refetches.
-            If(self.ack & last, self.live.eq(0)),
-        ]
-
-    def _read(self) -> None:
-        """A miss: one AXI read, the whole line for a burst beat, the one beat otherwise."""
-        bus, hp = self.bus, self.hp
-        busy, fill = self.rbusy, Signal(2)
-        burst = bus.cti != CTI_CLASSIC
-        start = self.req & ~bus.we & ~self.hit & ~busy & ~self.rwait
-        first = Mux(burst, Cat(Const(0, 2), self.line), self.beat)
-        self.sync += [
-            If(start,
-               hp.ar.valid.eq(1), hp.ar.addr.eq(ddr_addr(first)), hp.ar.len.eq(Mux(burst, LINE_BEATS - 1, 0)),
-               busy.eq(1), fill.eq(Mux(burst, 0, self.beat[:2])),
-               self.tag.eq(self.line), self.valid.eq(0), self.live.eq(1)),
-            If(hp.ar.valid & hp.ar.ready, hp.ar.valid.eq(0)),
-            If(hp.r.valid & hp.r.ready,
-               self.buf[fill].eq(hp.r.data), self.valid.eq(self.valid | (1 << fill)), fill.eq(fill + 1),
-               If(hp.r.last, busy.eq(0))),
-        ]  # fmt: skip
-        self.comb += hp.r.ready.eq(1)
 
     def _write(self) -> None:
         """A store: one 1-beat AXI write, acknowledged on its response."""
