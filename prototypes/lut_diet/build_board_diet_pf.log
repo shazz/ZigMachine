@@ -1,0 +1,15 @@
+== start Wed 11 Nov 2026 12:50:45 AM EST avail=11 GB args: --ziggy-reads prefetch
+== end Wed 11 Nov 2026 01:32:40 AM EST
+INFO: [Vivado 12-1842] Bitgen Completed Successfully.
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+      0.011        0.000                      0                46975        0.018        0.000                      0                46687        2.000        0.000                       0                 17754  
+
+| Slice LUTs*                | 17014 |     0 |          0 |     17600 | 96.67 |
+| Slice Registers            | 15932 |     0 |          0 |     35200 | 45.26 |
+| Block RAM Tile    |   44 |     0 |          0 |        60 | 73.33 |
+| Slice LUTs                 | 15739 |     0 |          0 |     17600 | 89.43 |
+| Slice Registers            | 15978 |     0 |          0 |     35200 | 45.39 |
+| Slice                                      |  4400 |     0 |          0 |      4400 | 100.00 |
+| Slice Registers                            | 15978 |     0 |          0 |     35200 |  45.39 |
+CSR-SAME-AS-DESK
