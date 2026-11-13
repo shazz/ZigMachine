@@ -20,6 +20,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import make_host
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
@@ -35,7 +36,7 @@ XM, HIP = (ROOT / "docs/music/keygen_9000.xm").stat().st_size, (ROOT / "docs/mus
 
 @pytest.fixture(scope="module")
 def run(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, Path]:
-    subprocess.run(["make", "-s", "memmap", str(HOST.relative_to(FPGA))], cwd=FPGA, check=True, capture_output=True)
+    make_host("memmap", str(HOST.relative_to(FPGA)))
     log = tmp_path_factory.mktemp("song_bytes") / "a"
     calls = [a for k in KEYS for a in ("--call", k)]
     out = subprocess.run(
@@ -82,8 +83,7 @@ def test_each_is_heard_until_s_stops_it(run: tuple[str, Path]) -> None:
 
 
 def test_the_bridge_refuses_an_image_outside_the_carts_memory(tmp_path: Path) -> None:
-    subprocess.run(["make", "-s", "memmap", "build/host/common/aplayer.h", "build/host/tutorial/cart.h"],
-                   cwd=FPGA, check=True, capture_output=True)  # fmt: skip
+    make_host("memmap", "build/host/common/aplayer.h", "build/host/tutorial/cart.h")
     exe = tmp_path / "audio_bridge_test"
     inc = ["-Ihost", "-Ibuild/host/common", "-Ibuild/host/tutorial", f"-I{WABT}/share/wabt/wasm2c", f"-I{WABT}/include"]
     subprocess.run(["cc", "-std=gnu11", "-O1", "-Wall", "-Werror", *inc,
