@@ -22,6 +22,7 @@ const host_song_bridge host_songs = {.sfx_poll = sfx_poll, .sfx_entries = sfx_en
 void audio_play(const char* name, uint32_t tune) { (void)name, (void)tune; }
 void audio_sndh_call(const char* name, uint32_t d0) { (void)name, (void)d0; }
 int audio_live(void) { return 1; }
+void audio_bard_frame(struct w2c_env* e) { (void)e; } /* the BARD queue: not this test's */
 void audio_effects(const audio_fx* fx, uint32_t n) {
     for (uint32_t i = 0; i < n && g_ngot < 8; i++) g_got[g_ngot++] = fx[i];
 }
