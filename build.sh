@@ -161,6 +161,15 @@ NATIVE_TESTS="
     libs/zig/players/xm_ring_test.zig
     libs/zig/players/kt_core_test.zig
     libs/zig/sfx_queue_test.zig
+    libs/zig/zigdemo/zigdemo_test.zig
+    libs/zig/zigdemo/clock_test.zig
+    libs/zig/zigdemo/timeline_test.zig
+    libs/zig/zigdemo/curve_test.zig
+    libs/zig/zigdemo/part_test.zig
+    libs/zig/zigdemo/demo_test.zig
+    libs/zig/zigdemo/debug_test.zig
+    libs/zig/zigdemo/assets_test.zig
+    libs/zig/zigdemo/audio_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
     libs/zig/depackers/depack_fx.zig

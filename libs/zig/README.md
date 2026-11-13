@@ -10,6 +10,9 @@ reach it with `@import("zigos")`; the audio players with `@import("players")`.
   and 2D `Grid` maps with `drawGrid`, a collision `cellAt`, melonJS-style camera
   `followAxis` and `RatioScroll` parallax — pure parts in `tilegrid.zig`), bobs,
   starfields, fades, dots3d, mandelbrot, boot effect, …
+- `zigdemo/` — the demo engine (from TBL's Suicide Barbie, MIT): master clock, timeline
+  of parts, integer curves, the part union and the per-frame flow; mocks for assets,
+  audio and 3D. See `zigdemo/README.md`.
 - `players/` — MOD / YM / sample players (link `@import("players")` +
   `@import("audio_hw")`).
 - `utils/` — loaders, debug `Console`, obj loader, zalgebra.
