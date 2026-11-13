@@ -108,6 +108,15 @@ def no_srl(ys: Path) -> None:
         ys.write_text(text.replace("synth_xilinx", "synth_xilinx -nosrl", 1))
 
 
+def byte_lane_rams(ys: Path) -> None:
+    """Define ZM_SDPRAM_LANES for Yosys: rtl/video/zm_video_sdpram.v keeps one block RAM per byte
+    lane under openXC7, the only shape its bitstreams got right on the board (2026-10-04). Vivado
+    builds (the board's toolchain) take the wide shape, the fewest block RAMs."""
+    text = ys.read_text()
+    if "ZM_SDPRAM_LANES" not in text:
+        ys.write_text("verilog_defines -DZM_SDPRAM_LANES\n" + text)
+
+
 def run_build(gateware_dir: str, build_name: str, gen_s: float = 0.0) -> None:
     """Run LiteX's generated build_<name>.sh inside the openXC7 container, timed stage by
     stage (tools/build_times.py prints them and appends build/build_times.txt). gen_s: the
@@ -118,6 +127,7 @@ def run_build(gateware_dir: str, build_name: str, gen_s: float = 0.0) -> None:
     add_pnr_opts(script, f"{PNR_OPTS} {fast} {openxc7_fast.pnr_outputs(build_name)}".replace("  ", " ").strip())
     set_seed(script)
     no_srl(ys)
+    byte_lane_rams(ys)
     if not KEEP_ABC9:
         drop_abc9(ys)
     openxc7_fast.time_stages(script)

@@ -1,0 +1,5 @@
+58374d06fde3dd98327594e66f63b778  /mnt/sd/zigmachine.bit
+6aa96b5d2482be1fcddf130ee9d7d104  /mnt/sd/KESTREL/system.rv32
+fd4e886b7d90c4c79a28b5f3de794aec  /mnt/sd/KESTREL/glass
+6a6aa4f7e0d0be7c0ada5cf72ceaa78d  /usr/bin/glass
+ZMSTAT cart=demo-polkadots_f32.zmd fps=38.8 frame_ms=25.7 bard=- player=BARD:idle state=running frames=35 secs=0.9 misse

@@ -1,0 +1,7 @@
+INFO: [Place 30-746] Post Placement Timing Summary WNS=-0.721. For the most accurate timing information please run report_timing.
+ERROR: [Place 30-433] Unplaced instances found. If the tcl command place_design -verbose is used, all unplaced instances will be shown below. Otherwise, only 5 example instance(s) will be shown.
+Instance zm_audio_soc/u_core/u_pcm/gr_reg[17], 
+Instance zm_audio_soc/u_core/u_pcm/gr_reg[1], 
+Instance zm_audio_soc/u_core/u_pcm/gr_reg[2], 
+Instance zm_audio_soc/u_core/u_pcm/gr_reg[6], 
+ERROR: [Place 30-99] Placer failed with error: 'failed to commit all instances'
