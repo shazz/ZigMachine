@@ -1,7 +1,7 @@
 #!/bin/bash
 # build_board.sh NAME [EXTRA ARGS...]: the board bitstream of this worktree, combo16's command line
 # (--blit --sound-cpu --posted 8 --no-read-bypass, VexRiscv_I16w2D16w2SealFpuZmxE, BARD SndNdD16Dyn8Sx,
-# fit_timing) plus EXTRA (e.g. --ziggy-reads prefetch), into fpga/build/NAME. Waits for a quiet box
+# fit_timing) plus EXTRA (e.g. --ziggy-reads base; prefetch is the default since v1.3), into fpga/build/NAME. Waits for a quiet box
 # (no Vivado, >= 8 GB free, no zig build / build.sh / verilator), then takes the build and Vivado locks.
 set -u
 name=$1; shift

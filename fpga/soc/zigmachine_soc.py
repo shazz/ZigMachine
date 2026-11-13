@@ -213,7 +213,7 @@ def main() -> None:
         "--no-read-bypass", action="store_true", help="z7: every ZIGGY read waits for the drain (soc/zm_hp_bypass.py)"
     )
     p.add_argument(
-        "--ziggy-reads", choices=("base", "fast", "prefetch"), default="base",
+        "--ziggy-reads", choices=("base", "fast", "prefetch"), default="prefetch",
         help="z7: ZIGGY's refill path (soc/zm_board_mem.py READ_MODES; review/ZIGGY_BIG_READS_STUDY.md)",
     )  # fmt: skip
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")

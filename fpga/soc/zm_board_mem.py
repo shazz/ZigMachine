@@ -46,7 +46,7 @@ READ_MODES: dict[str, dict[str, bool]] = {
     "fast": {"fast_burst": True},
     "prefetch": {"fast_burst": True, "prefetch": True},
 }
-READS = "base"
+READS = "prefetch"  # KESTREL v1.3 (11 Nov): fits since the FRESCO RAM repack
 
 
 def add_cpu_memory(
