@@ -10,7 +10,7 @@ const map = @import("map.zig");
 const osd = @import("osd.zig");
 const keymap = @import("keymap.zig");
 
-pub const Group = enum { global, shelf, console, debug, budget, help };
+pub const Group = enum { global, shelf, console, debug, budget, help, wifi };
 
 /// How the test proves the key is handled where the table says.
 pub const Check = union(enum) {
@@ -51,10 +51,14 @@ pub const table = [_]Entry{
     .{ .group = .help, .keys = "Up/Down", .what = "scroll", .check = .{ .menu = &.{ K.KEY_ARROW_UP, K.KEY_ARROW_DOWN } } },
     .{ .group = .help, .keys = "PgUp/PgDn", .what = "scroll a screenful", .check = .{ .menu = &.{ K.KEY_PAGE_UP, K.KEY_PAGE_DOWN } } },
     .{ .group = .help, .keys = "Left/Esc", .what = "back to console", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
+    .{ .group = .wifi, .keys = "Up/Down", .what = "select an item", .check = .{ .menu = &.{ K.KEY_ARROW_UP, K.KEY_ARROW_DOWN } } },
+    .{ .group = .wifi, .keys = "Enter", .what = "scan, forget; in", .check = .{ .menu = &.{ K.KEY_ENTER, ' ' } } },
+    .{ .group = .wifi, .keys = "", .what = "the list: join", .check = .{ .menu = &.{K.KEY_ENTER} } },
+    .{ .group = .wifi, .keys = "Left/Esc", .what = "back to console", .check = .{ .menu = &.{ K.KEY_ARROW_LEFT, K.KEY_ESCAPE, K.KEY_BACKSPACE } } },
 };
 
 const KEYS_W = 11;
-const headings = [_][]const u8{ "GLOBAL", "SHELF", "CONSOLE", "DEBUG", "BUDGET", "HELP" };
+const headings = [_][]const u8{ "GLOBAL", "SHELF", "CONSOLE", "DEBUG", "BUDGET", "HELP", "WI-FI" };
 
 /// The page's lines: a ruled heading before each group, then "<keys><what>".
 pub const lines = build();

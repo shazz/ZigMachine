@@ -72,6 +72,7 @@ pub const App = struct {
     prev_cart: ?usize = null, // the cart that asked for this one (REQ_LOAD_CART), for REQ_BACK
     req_polls: u32 = 0, // polls of a request whose block did not check yet
     ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)
+    wifi: @import("app_wifi.zig").State = .{}, // the Wi-Fi page's jobs (app_wifi.zig)
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dirs: @import("layout.zig").Dirs) !App {
@@ -88,6 +89,7 @@ pub const App = struct {
     }
 
     pub fn deinit(self: *App) void {
+        @import("app_wifi.zig").deinit(self);
         if (self.opt.system) |s| s.deinit(self.gpa);
         self.disks.deinit();
     }
@@ -208,11 +210,16 @@ pub const App = struct {
         @import("app_ctl.zig").tick(self);
         self.ticks +%= 1;
         budget_page.sample(self);
+        @import("app_wifi.zig").tick(self); // a job's result lands with the OSD closed too
         if (!self.open) return overlay.draw(self);
         switch (self.menu.page) {
             .debug, .budget => if (self.ticks % 5 == 0) self.redraw(),
             .shelf => if (self.ticks % 3 == 0) {
                 self.menu.list.phase +%= 1;
+                self.redraw();
+            },
+            .wifi => if (self.ticks % 3 == 0) {
+                self.menu.wifi.phase +%= 1; // the busy screen's spinner
                 self.redraw();
             },
             .console, .help => {},

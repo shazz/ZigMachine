@@ -7,6 +7,7 @@
 //         > debug   versions, live stats, the board      (page_debug.zig)
 //             > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
 //         > help    every shortcut, from one table       (page_help.zig)
+//         > wifi    the network: scan, join, forget      (page_wifi.zig, app_wifi.zig)
 const std = @import("std");
 const map = @import("map.zig");
 const osd = @import("osd.zig");
@@ -17,16 +18,18 @@ const page_console = @import("page_console.zig");
 const page_debug = @import("page_debug.zig");
 const page_budget = @import("page_budget.zig");
 const page_help = @import("page_help.zig");
+const page_wifi = @import("page_wifi.zig");
 const strip = @import("strip.zig");
 
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
 /// `load`: Enter, insert + reset; `insert` / `eject`: drive A without a reset (app_drive.zig).
-pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source };
-pub const Page = enum { shelf, console, debug, budget, help };
+/// `wifi`: a Wi-Fi job to start (app_wifi.zig).
+pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source, wifi: page_wifi.Cmd };
+pub const Page = enum { shelf, console, debug, budget, help, wifi };
 
 pub const HINT = "ENTER boot  I/E disk  F floppy >";
-const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > budget       Esc back", "Shift+F11 close  < debug  Esc", "Up/Dn PgUp/PgDn scroll  Esc" };
+const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > budget       Esc back", "Shift+F11 close  < debug  Esc", "Up/Dn PgUp/PgDn scroll  Esc", "" };
 
 pub const Menu = struct {
     disks: []const shelf.Disk,
@@ -35,6 +38,7 @@ pub const Menu = struct {
     console: page_console.State = .{},
     settings: config.Settings = .{},
     help_top: usize = 0, // the help page's first line shown
+    wifi: page_wifi.State = .{},
     loaded: ?usize = null, // the disk in the cart window, marked '*'
     drive: ?usize = null, // the disk in KOS's drive A, marked 'A' (app_drive.zig)
     floppy: bool = false, // the carts come from the floppy (app_source.zig): the title says so
@@ -53,6 +57,7 @@ pub const Menu = struct {
             .debug => self.debugKey(code),
             .budget => self.budgetKey(code),
             .help => self.helpKey(code),
+            .wifi => self.wifiKey(code),
         };
     }
 
@@ -107,6 +112,22 @@ pub const Menu = struct {
             .settings => .settings,
             .debug => self.go(.debug),
             .help => self.go(.help),
+            .wifi => blk: {
+                self.wifi.open();
+                self.status = null; // the page's own hints, not the last page's message
+                _ = self.go(.wifi);
+                break :blk .{ .wifi = .status };
+            },
+        };
+    }
+
+    fn wifiKey(self: *Menu, code: u32) Action {
+        return switch (self.wifi.key(code)) {
+            .none => .none,
+            .back => self.go(.console),
+            .scan => .{ .wifi = .scan },
+            .join => .{ .wifi = .join },
+            .forget => .{ .wifi = .forget },
         };
     }
 
@@ -149,6 +170,7 @@ pub const Menu = struct {
             .debug => "DEBUG",
             .budget => "BUDGET",
             .help => "HELP",
+            .wifi => "WIFI",
         };
     }
 
@@ -167,8 +189,10 @@ pub const Menu = struct {
             .debug => page_debug.draw(o, view),
             .budget => page_budget.draw(o, bview),
             .help => page_help.draw(o, self.help_top),
+            .wifi => @import("page_wifi_draw.zig").draw(&self.wifi, o),
         }
         strip.draw(o, self.section(), self.rotated);
-        o.line(osd.ROWS - 1, self.status orelse hints[@intFromEnum(self.page)], false);
+        const hint = if (self.page == .wifi) @import("page_wifi_draw.zig").hint(&self.wifi) else hints[@intFromEnum(self.page)];
+        o.line(osd.ROWS - 1, self.status orelse hint, false);
     }
 };
