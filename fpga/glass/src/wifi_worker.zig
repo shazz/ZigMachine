@@ -73,8 +73,8 @@ pub const Spawn = struct {
         const r = std.process.run(self.gpa, self.io, .{
             .argv = argv,
             .environ_map = &env,
-            .stdout_limit = .limited(SCRATCH),
-            .stderr_limit = .limited(SCRATCH),
+            .stdout_limit = .unlimited, // a crowded scan past SCRATCH is cut below, not refused (StreamTooLong)
+            .stderr_limit = .unlimited,
             .timeout = .{ .duration = .{ .raw = .fromSeconds(self.timeout_s), .clock = .awake } },
         }) catch |err| {
             std.log.warn("wifi: {s}: {t}", .{ std.fs.path.basename(argv[0]), err });
