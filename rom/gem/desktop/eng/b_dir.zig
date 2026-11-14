@@ -29,7 +29,7 @@ pub fn build(c: *Ctx, t: *Tree, id: u8) void {
         const sel = desksel.fileSelected(d, a);
         if (d.view == .icons) {
             const ic = dirview.fileIconSlot(d, p, a, v);
-            _ = t.add(area, b_desk.iconObject(c, &ic, d.g.screen.w, sel, v.clip.x, v.clip.y));
+            if (dirview.shown(d, &ic)) _ = t.add(area, b_desk.iconObject(c, &ic, d.g.screen.w, sel, v.clip.x, v.clip.y));
         } else _ = row(t, area, v, p, fileRow(c, a), sel);
     }
     const fc = d.dir.folderCount(dir);
@@ -38,7 +38,7 @@ pub fn build(c: *Ctx, t: *Tree, id: u8) void {
         const sel = desksel.folderSelected(d, f);
         if (d.view == .icons) {
             const ic = dirview.folderIconSlot(d, nf + rank, f, v);
-            _ = t.add(area, b_desk.iconObject(c, &ic, d.g.screen.w, sel, v.clip.x, v.clip.y));
+            if (dirview.shown(d, &ic)) _ = t.add(area, b_desk.iconObject(c, &ic, d.g.screen.w, sel, v.clip.x, v.clip.y));
         } else if (row(t, area, v, nf + rank, c.d.dir.folderName(f), sel)) |bar| {
             // <DIR> where the old path draws it (dirview.drawFolderRow): scrolled with the row.
             text(t, bar, v.org.x - v.clip.x + v.clip.w - 6 * 8 - 2, "<DIR>", sel);

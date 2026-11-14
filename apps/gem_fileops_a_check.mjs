@@ -4,6 +4,8 @@
 //          C:\ (NET) must be copied byte for byte (it raised "The disk cannot be read": KOS GEMDOS does
 //          not mount A: over a .zmd, so the shell's count answered EDRIVE), then KEYGEN.XM (18 KB) too.
 //          A Control-drag (a move) copies and keeps the write-protected source, and says so.
+//   grafx2 A: demo-grafx2.zmd, the disk of Matt's board copy (14 Nov): BOOT.WSM (480 KB: 15 requests, FIRST,
+//          middle, LAST) and ZIGPLASM.PI1 (one request) onto C:\NET, byte for byte
 //   big    A: a FAT floppy holding a 70 KB file: copied whole (GEMDOS's direct 64-sector runs over A:)
 //   sel    A:\ and C:\ both open: a file selected in one window paints NOTHING selected in the other
 //          (the desktop's one selection was kept by index only: A:'s first file lit C:'s first too)
@@ -85,6 +87,29 @@ async function big() {
     ui.save();
     check("LARGE.DAT (70,000 bytes) from the FAT floppy onto C:\\NET, byte for byte", r.status === 0 && same(read(c, "HD/NET/LARGE.DAT"), data), JSON.stringify(r));
 }
+// Matt on the board, 14 Nov: "copy panel shows up but nothing is copied from A to C", A: holding demo-grafx2.zmd
+// (SHOT0017). Its BOOT.WSM is 479,929 bytes: FIRST, 13 middle and a LAST request (15 x 32 KB, the tail
+// unaligned), the only multi-request copy off a .zmd here; ZIGPLASM.PI1 one request, a GrafX2 save's shape.
+async function grafx2() {
+    console.log("grafx2 (A: demo-grafx2.zmd, Matt's disk on the board)");
+    const img = "docs/demo-grafx2.zmd", z = new Uint8Array(readFileSync(img)), files = parseDisk(z, "demo-grafx2.zmd").mounted.files;
+    const c = card(DIR, "grafx2", 2880);
+    const ui = await desktop(c, brk === "zmd" ? null : img, "low", null, bits);
+    ui.gem.mount(Object.entries(files).map(([name, f]) => ({ name, type: f.type & 0xff, size: f.len, date: 20261114 })));
+    ui.open(20, 30);
+    ui.drag([150, 28], [150, 128]);
+    ui.open(20, 70);
+    ui.click(150, 180);
+    // A:\'s rows by name: BOOT.WSM ZIGPLASM.GIF ZIGPLASM.NEO ZIGPLASM.PI1 ... (rows 0 and 3)
+    for (const [i, name] of [[0, "BOOT.WSM"], [3, "ZIGPLASM.PI1"]]) {
+        const r = op(ui, [X, row(i, 124)], [X, row(3, CY)]);
+        ui.save();
+        const want = z.subarray(files[name].start, files[name].start + files[name].len), got = read(c, `HD/NET/${name}`);
+        check(`${name} (${files[name].len} bytes) from A:\\ (demo-grafx2.zmd) onto C:\\NET, byte for byte`, r.status === 0 && same(got, want), `${JSON.stringify(r)} ${got?.length}`);
+        ui.click(150, 180);
+    }
+    check("no ~KOS?.TMP left, fsck.fat -n clean", temps(c).length === 0 && fsck(c) === "", fsck(c));
+}
 function require_put(img, name, data) {
     const tmp = `${DIR}/put.bin`;
     execFileSync("sh", ["-c", 'cat > "$0"', tmp], { input: data });
@@ -112,7 +137,7 @@ async function sel() {
 }
 
 console.log(`gem_fileops_a_check: drive A in the desktop's file operations${brk ? ` (--break ${brk})` : ""}`);
-for (const s of brk === "sel" ? [sel] : brk === "zmd" ? [zmd] : [zmd, big, sel]) await s();
+for (const s of brk === "sel" ? [sel] : brk === "zmd" ? [zmd, grafx2] : [zmd, grafx2, big, sel]) await s();
 rmSync(DIR, { recursive: true, force: true });
 if (brk) {
     console.log(fails ? `\ngem_fileops_a_check: PASS (--break ${brk} was caught)` : `\ngem_fileops_a_check: FAILED - --break ${brk} was not caught`);
