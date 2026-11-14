@@ -9,27 +9,36 @@
 // 2026-10-10: a benchmark aid only, never a screen's choreography.
 //
 // With a clock, a frame traces until BUDGET_US of it is spent, reading the
-// clock every CHECK_EVERY pixels, so the frame rate holds on a fast machine and
-// on a slow one alike; the rate is pixels traced over microseconds spent
-// tracing (painting the blocks included, the machine's compositing not).
+// clock after every chunk of samples (app.zig: 16 on ZIGGY, one ASTROLABE batch),
+// so the frame rate holds on a fast machine and on a slow one alike.
+//
+// Two numbers, both from hostMicros alone, both summed over the frames' TRACING
+// time (painting included, the machine's compositing and idle frames not):
+//   - the RATE: first-picture pixels over the first picture's time; the
+//     refinement passes are booked apart and never enter it;
+//   - the time to CONVERGE: the first picture's time plus every pass's.
 extern fn hostMicros() u32;
 
 pub const BUDGET_US: u32 = 8000; // half a 60 Hz tick: the rest is the machine's
-pub const CHECK_EVERY: u32 = 16;
 pub const FIXED_PIXELS: u32 = 512; // a frame's work when the host has no clock
-
-/// Whether a frame begun at `t0` has used its budget, booking nothing (the
-/// f32 cart's refinement passes, which are not part of the benchmark).
-pub fn over(t0: u32) bool {
-    return hostMicros() -% t0 >= BUDGET_US;
-}
 
 pub const Bench = struct {
     clocked: bool, // the host's clock has answered non-zero at least once
-    trace_us: u64,
+    trace_us: u64, // the first picture's
+    refine_us: u64, // the refinement passes'
 
     pub fn reset(self: *Bench) void {
         self.trace_us = 0;
+        self.refine_us = 0;
+    }
+
+    /// Microseconds of work over all passes so far: the time to converge once they are done.
+    pub fn totalMicros(self: *const Bench) u64 {
+        return self.trace_us + self.refine_us;
+    }
+
+    fn book(self: *Bench, first: bool, dt: u32) void {
+        if (first) self.trace_us += dt else self.refine_us += dt;
     }
 
     /// The frame's start time, or null when the host has no clock.
@@ -39,26 +48,22 @@ pub const Bench = struct {
         return if (self.clocked) t else null;
     }
 
-    /// Whether the frame begun at `t0` has used its budget; books the time spent.
-    pub fn spent(self: *Bench, t0: u32) bool {
+    /// Whether the frame begun at `t0` has used its budget; books the time spent
+    /// to the first picture or to the refinement.
+    pub fn spent(self: *Bench, t0: u32, first: bool) bool {
         const dt = hostMicros() -% t0;
         if (dt < BUDGET_US) return false;
-        self.trace_us += dt;
+        self.book(first, dt);
         return true;
     }
 
-    /// Books a frame that ended for another reason (the picture completed).
-    pub fn finish(self: *Bench, t0: u32) void {
-        self.trace_us += hostMicros() -% t0;
+    /// Books a frame that ended for another reason (its pass completed).
+    pub fn finish(self: *Bench, t0: u32, first: bool) void {
+        self.book(first, hostMicros() -% t0);
     }
 
     pub fn pixelsPerSecond(self: *const Bench, pixels: u32) u32 {
         if (self.trace_us == 0) return 0;
         return @intCast(@min(@as(u64, pixels) * 1_000_000 / self.trace_us, 0xFF_FFFF));
-    }
-
-    pub fn nanosPerPixel(self: *const Bench, pixels: u32) u32 {
-        if (pixels == 0) return 0;
-        return @intCast(@min(self.trace_us * 1000 / pixels, 999_999));
     }
 };

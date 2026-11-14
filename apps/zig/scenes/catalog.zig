@@ -97,8 +97,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "SWEDISH NEW YEAR 90", .tag = "snyd_90" }, // atari st
     .{ .name = "DUNE GEN4 DEMO", .tag = "dune_gen4" }, // atari st
     .{ .name = "NAOS NITROWAVE DEMO", .tag = "naos_nitrowave" }, // atari st
-    .{ .name = "RAYTRACE FIXED", .tag = "raytrace" }, // zigmachine
-    .{ .name = "RAYTRACE F32", .tag = "raytrace_f32" }, // zigmachine
+    .{ .name = "RAYTRACE", .tag = "raytrace" }, // zigmachine
     .{ .name = "SAP TEST", .tag = "sap_test" }, // zigmachine
     .{ .name = "FUJI HOBBYTRONIC", .tag = "fuji_hobbytronic" }, // zigmachine
     .{ .name = "REPLICANTS EMLYN F32", .tag = "replicants_emlyn_f32" }, // atari st

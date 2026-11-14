@@ -1,20 +1,31 @@
-// The tracer: one primary ray per pixel, then at most one hard-shadow ray and
-// (for the chrome sphere) one reflection ray, each shaded to a P.Shade (a ramp
-// and its 0..256 intensities) that P.index dithers to a palette index. Generic
-// over the number back-end, so fixed-point and f32 carts are the same source.
-// No float appears here in the fixed-point build: constants go through M.k at
-// compile time, everything else through M's operators.
+// The tracer of modes 1 and 2: one primary ray per sample, then at most one
+// hard-shadow ray and (for the chrome sphere) one reflection ray, each shaded to
+// a Shade (shade.zig) that colour.zig turns into RGB. Generic over the number
+// back-end, so the fixed-point and the f32 modes are the same source. No float
+// appears here in the fixed-point build: constants go through M.k at compile
+// time, everything else through M's operators. Mode 3 (astro/) is the same
+// maths as arrays, from the f64 constants below.
 //
-// centre() is the one-sample picture both carts draw first. sample() is the same
-// ray through a sub-pixel offset under a given light direction, for the f32
-// cart's refinement passes (refine.zig), which average the Shades.
+// sample(j) is the ray through a sub-pixel offset under one of the light disc's
+// directions (samples.zig); sample 0 is the pixel's centre under the sun, the
+// first picture's.
 const Vec = @import("vec.zig").Vec;
 const Sdf = @import("sdf.zig").Sdf;
-const P = @import("palette.zig");
+const P = @import("shade.zig");
+const samples = @import("samples.zig");
 
 pub const IMG_W: u32 = 320;
 pub const IMG_H: u32 = 176; // rows 176..199 are the HUD
-const HORIZON_ROW: i32 = 62;
+pub const HORIZON_ROW: i32 = 62;
+// The scene's constants as f64, for every back-end (M.k) and for mode 3's arrays.
+pub const CAM_F = [3]f64{ 0.0, 1.7, -6.5 };
+pub const PIXEL_F: f64 = 1.0 / 240.0; // image-plane units per pixel (focal length 1)
+pub const AMB_F: f64 = 0.16;
+pub const DIFFUSE_F: f64 = 0.78; // a material's light at full diffuse, the rest is highlight
+pub const SPEC_F: f64 = 0.3;
+pub const SKY_F: f64 = 2.2; // sky ramp position per unit of the ray's height
+pub const FOG_F: f64 = 1.0 / 30.0; // fog per unit of floor distance
+pub const SHADOW_Q: u16 = 80; // a shadowed floor tile's intensity, of 256
 
 pub const Stats = struct { rays: u32 };
 
@@ -26,32 +37,16 @@ pub fn Tracer(comptime M: type) type {
     const V = Vec(M);
     const S = Sdf(M);
     return struct {
-        const CAM = V.of(M.k(0.0), M.k(1.7), M.k(-6.5));
-        const PIXEL = M.k(1.0 / 240.0); // image-plane units per pixel (focal length 1)
-        const AMB = M.k(0.16);
-        // Unit vector TOWARD the light.
-        const LIGHT = blk: {
-            const x = SUN_DIR[0];
-            const y = SUN_DIR[1];
-            const z = SUN_DIR[2];
-            const n = @sqrt(x * x + y * y + z * z);
-            break :blk V.of(M.k(x / n), M.k(y / n), M.k(z / n));
-        };
+        const CAM = V.of(M.k(CAM_F[0]), M.k(CAM_F[1]), M.k(CAM_F[2]));
+        const PIXEL = M.k(PIXEL_F);
+        const AMB = M.k(AMB_F);
+        const Smp = samples.Samples(M, V);
 
-        pub const Vec3 = V;
-
-        /// The pixel at (x, y), not yet dithered (P.index); counts every ray.
-        pub fn centre(st: *Stats, x: u32, y: u32) P.Shade {
-            const u = M.mul(M.fromInt(@as(i32, @intCast(x)) - 160), PIXEL);
-            const v = M.mul(M.fromInt(HORIZON_ROW - @as(i32, @intCast(y))), PIXEL);
-            return trace(st, CAM, V.of(u, v, M.ONE).unit(), LIGHT, 0);
-        }
-
-        /// The ray through (x + jx, y + jy) lit from `light`, not yet dithered.
-        pub fn sample(st: *Stats, x: u32, y: u32, jx: T, jy: T, light: V) P.Shade {
-            const u = M.mul(M.fromInt(@as(i32, @intCast(x)) - 160) + jx, PIXEL);
-            const v = M.mul(M.fromInt(HORIZON_ROW - @as(i32, @intCast(y))) - jy, PIXEL);
-            return trace(st, CAM, V.of(u, v, M.ONE).unit(), light, 0);
+        /// Sample j (samples.zig) of the pixel at (x, y); counts every ray.
+        pub fn sample(st: *Stats, x: u32, y: u32, j: u32) P.Shade {
+            const u = M.mul(M.fromInt(@as(i32, @intCast(x)) - 160) + Smp.JX[j], PIXEL);
+            const v = M.mul(M.fromInt(HORIZON_ROW - @as(i32, @intCast(y))) - Smp.JY[j], PIXEL);
+            return trace(st, CAM, V.of(u, v, M.ONE).unit(), Smp.LIGHTS[j], 0);
         }
 
         fn trace(st: *Stats, o: V, d: V, light: V, depth: u8) P.Shade {
@@ -65,15 +60,15 @@ pub fn Tracer(comptime M: type) type {
         }
 
         fn sky(d: V) P.Shade {
-            return .{ .cls = P.CLS_SKY, .q = @intCast(M.toQ8(M.mul(d.y, M.k(2.2)))), .fog = 0 };
+            return .{ .cls = P.CLS_SKY, .q = @intCast(M.toQ8(M.mul(d.y, M.k(SKY_F)))), .fog = 0 };
         }
 
         fn floor(st: *Stats, p: V, t: T, light: V) P.Shade {
             const tone: u8 = @intCast((M.toInt(p.x) + M.toInt(p.z)) & 1);
             st.rays += 1;
             const lit = !S.occluded(V.of(p.x, S.SELF, p.z), light);
-            const fog = M.toQ8(M.mul(t, M.k(1.0 / 30.0)));
-            return .{ .cls = P.CLS_FLOOR + tone, .q = if (lit) 256 else 80, .fog = @intCast(fog) };
+            const fog = M.toQ8(M.mul(t, M.k(FOG_F)));
+            return .{ .cls = P.CLS_FLOOR + tone, .q = if (lit) 256 else SHADOW_Q, .fog = @intCast(fog) };
         }
 
         fn sphere(st: *Stats, o: V, d: V, h: S.Hit, light: V, depth: u8) P.Shade {
@@ -92,11 +87,11 @@ pub fn Tracer(comptime M: type) type {
         /// Diffuse + Phong intensity 0..1 at a surface point (one shadow ray).
         fn lightAt(st: *Stats, po: V, n: V, d: V, light: V) T {
             const diff = n.dot(light);
-            var lit = M.mul(AMB, M.k(0.78));
+            var lit = M.mul(AMB, M.k(DIFFUSE_F));
             if (diff <= 0) return lit;
             st.rays += 1;
             if (S.occluded(po, light)) return lit;
-            lit = M.mul(AMB + M.mul(diff, M.ONE - AMB), M.k(0.78));
+            lit = M.mul(AMB + M.mul(diff, M.ONE - AMB), M.k(DIFFUSE_F));
             const refl = n.scale(M.mul(diff, M.k(2.0))).sub(light);
             var sp = -refl.dot(d);
             if (sp <= 0) return lit;
@@ -104,7 +99,7 @@ pub fn Tracer(comptime M: type) type {
             sp = M.mul(sp, sp);
             sp = M.mul(sp, sp);
             sp = M.mul(sp, sp); // ^16
-            return lit + M.mul(sp, M.k(0.3));
+            return lit + M.mul(sp, M.k(SPEC_F));
         }
     };
 }

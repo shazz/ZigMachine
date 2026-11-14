@@ -1,5 +1,5 @@
-// Q16.16 fixed-point arithmetic for the ray tracer: the number back-end the
-// FPGA cart uses (VexRiscv rv32im has no FPU, so float would be soft-float).
+// Q16.16 fixed-point arithmetic for the ray tracer (mode 1): integers only, for
+// ZIGGY (rv32im, no FPU: float would be soft-float).
 //
 // Contract shared with float.zig (the tracer is generic over it): T, k, fromInt,
 // mul, div, len3, toInt, toQ8, plus add/sub/compare which are plain operators
@@ -12,7 +12,6 @@
 //
 // Ranges: the scene lives inside |v| < 64, so sums of products never overflow
 // the i64 intermediates and a Q16.16 result never overflows an i32.
-pub const NAME = "FIXED 16.16";
 pub const T = i32;
 pub const ONE: T = 1 << 16;
 

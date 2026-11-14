@@ -509,7 +509,7 @@ FPU's rounding, NaN and subnormal handling change no result in these 8 carts.
   would trim it further (measured below, with raytrace_f32: it trims 325 LUT and
   throws away most of the gain).
 
-### The smallest useful FPU (raytrace_f32, 2026-10-10)
+### The smallest useful FPU (raytrace_f32, 2026-10-10; that cart is `raytrace`'s mode 2 since 14 Nov)
 
 *Why: raytrace_f32 is the first cart written in f32 (on the board, soft-float, it
 traces 580 px/s against 2,992 for its Q16.16 twin `raytrace`), so the call above is

@@ -207,7 +207,7 @@ cart cycles, `ZM QF` plane passes):
 | fuji_hobbytronic | 0.76 | 0.77 |
 | music_debug (perf/music-board) | 1.82 | 1.95 |
 | tsl_hybridglenz | 1.24 | 1.27 |
-| raytrace_f32 (frames 2-7) | 6.1 | 4.8 |
+| raytrace_f32 (frames 2-7; retired 14 Nov: now `raytrace` mode 2) | 6.1 | 4.8 |
 
 What it cannot see: D$ misses (a column walk over a row-major picture), the I$ beyond a
 working-set estimate, DDR contention, BARD (music runs there, not in the cart). stcs before perf/board-slow-carts

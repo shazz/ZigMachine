@@ -1,7 +1,8 @@
-// f32 number back-end for the ray tracer: the same interface as fixed.zig, so
-// the tracer source is shared and only this file changes. On the FPGA (no FPU)
-// every operation here is a soft-float library call: that is the comparison.
-pub const NAME = "FLOAT F32";
+// f32 number back-end for the ray tracer (mode 2): the same interface as
+// fixed.zig, so the tracer source is shared and only this file changes. Per-frame
+// float ON PURPOSE (the CLAUDE.md exception of the `_f32` FPU twins, which this
+// mode replaced): mode 2 IS the f32 benchmark. On the FPGA without an FPU every
+// operation here is a soft-float library call; on the FPU build it is hardware.
 pub const T = f32;
 pub const ONE: T = 1.0;
 
@@ -35,4 +36,3 @@ pub fn toQ8(a: T) u32 {
     if (v >= 256.0) return 256;
     return @intFromFloat(v);
 }
-pub const REFINE = true; // progressive refinement after the first picture (refine.zig)

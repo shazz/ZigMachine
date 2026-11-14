@@ -215,3 +215,35 @@ SOFT (a board without the ARM: hwAstro's fallback, W_CYCLES set), HOST (the page
 ZIGGY's soft f64 at ~1.4 k cycles an op (section 5's bench): the zoom ~31 k ops a frame (~45 Mc: ~2 fps on
 ZIGGY), the cloth ~17 k (~25 Mc: ~4 fps), estimated; the board's HUD gives the real figures on each side.
 `apps/copro_astro_check.mjs` holds both sides to the same pixels and level 0 of the zoom to JavaScript's doubles.
+
+## 9. RAYTRACE mode 3: a ray tracer in batches (cart 84, 14 Nov)
+
+RAYTRACE (`apps/zig/scenes/raytrace/`, key 3) traces its SDF scene with every number an f64 on ASTROLABE:
+the same 16 samples a pixel as its Q16.16 and f32 modes, pinned per mode by `apps/raytrace_headless.mjs`.
+A chunk of 64 samples is one batch of rays (`astro/engine.zig`); `astro/rays.zig` traces it as vectors.
+
+- **The march** (`astro/march.zig`): all live rays step in lockstep, ONE call a step. Set up once per ray and
+  sphere (60 descriptors): dd = |d|², b2 = 2 d·(o − c), qq = |o − c|², so a step is t += m (AXPY), dd t² (2 VMUL),
+  per sphere sqrt(b2 t + dd t² + qq) − r (VMUL, 2 VADD, MAP SQRT, AXPY), and the union's min: exactly 48.
+  Between calls ZIGGY reads t and m by their bits: past tmax = a miss, m < EPS = a hit (the sphere is the last
+  merge that left an exact 0), the rest compacted to the front for the next call.
+- **What the ABI lacks, and what stands in** (expressed in descriptors, never per-op calls):
+
+  | missing | used instead | cost now | with the op |
+  |---|---|---|---|
+  | `VMIN` C = min(A, B) | b + (d − \|d\|)/2, d = a − b, \|d\| = MAP SQRT of d² (exact) | 5 descriptors a merge, 20 a step | 4 a step: 48 → 32 |
+  | `VDIV` / `VRCP` | 1/x = exp(−log x): the floor's oy / −dy, a primary ray's 1/\|d\| | 3 (two MAPs) | 1 |
+  | compare / select / convert | ZIGGY reads the f64 bits between calls (`astro/bits.zig`) | a scan a step | (a mask op would let the ARM freeze rays) |
+
+  Proposed for the ABI: **VMIN / VMAX** (`OP 0x26/0x27`, C = min/max(A, B)) and **VDIV** (`0x28`, C = A / B):
+  three loops in `astro_blas.zig`, no new descriptor field.
+- **Traffic, measured in node** (`hwAstro` wrapped, a whole first picture): 47 calls a 64-ray batch (0.74 a
+  sample), 878 element-ops a sample (137 of them MAP), **4,930 f64 words staged a sample** (each descriptor's
+  inputs and output, as glass stages them, §4).
+- **Board estimate** (*est.*, to be read off the HUD): calls 0.74 × 18 µs = 13 µs a sample; the ARM's
+  arithmetic ~15 µs; ZIGGY's scans and gathers ~20 µs; staging 4,930 words × 100-200 ns uncached = **0.5-1 ms a
+  sample**. So ~1,000-1,800 px/s, slower than mode 2's f32 on ZIGGY (8,783 px/s, SHOT0018): the DDR staging is
+  ~95 % of it, not the round trip and not the FPU. The levers, in order: (1) glass stages each array ONCE a call
+  (in on first use, out after the last descriptor): a march step touches 21 arrays, not 48 × 2-3, ~6x fewer words
+  (~5-9 k px/s); (2) a cached or ACP-coherent view of the cart's memory, no staging at all (compute-bound,
+  ~20 k px/s); (3) VMIN (a third fewer descriptors a step).

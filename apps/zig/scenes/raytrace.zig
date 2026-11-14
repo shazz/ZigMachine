@@ -1,7 +1,7 @@
-// RAYTRACE: an old-school SDF ray-traced scene (chrome, red, gold, blue and
-// green spheres on a checker floor, one light, hard shadows, a sky gradient)
-// that doubles as the FPGA CPU benchmark. This cart is the FIXED-POINT one:
-// Q16.16 integers and an integer square root, no float in the hot path, for
-// the VexRiscv rv32im core that has no FPU. raytrace_f32.zig is the same
-// source on f32. Details: raytrace/app.zig, raytrace/fixed.zig.
-pub const Demo = @import("raytrace/app.zig").Demo(@import("raytrace/fixed.zig"));
+// RAYTRACE: an old-school SDF ray-traced scene (chrome, red, gold, blue and green
+// spheres on a checker floor, one light, soft shadows, a sky gradient) in true colour,
+// and the FPGA CPU benchmark: the same 16-sample picture in three maths, keys 1..3:
+// Q16.16 integers and f32 on ZIGGY, f64 on ASTROLABE (the ARM). It replaced the
+// raytrace_f32 twin (cart 85, retired 14 Nov 2026: its f32 is mode 2).
+// Details: raytrace/app.zig.
+pub const Demo = @import("raytrace/app.zig").Demo;

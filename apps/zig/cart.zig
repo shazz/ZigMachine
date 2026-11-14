@@ -94,8 +94,8 @@ const scene = switch (opts.index) {
     81 => @import("scenes/snyd_90.zig"), // OMEGA / SYNC / TCB, Swedish New Year Demo 89-90 (original disk)
     82 => @import("scenes/dune_gen4.zig"), // DUNE / GEN4 DEMO 1990 (original ST disk): intro, main part, title, menu, F1, F2
     83 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, menu + F1 + F2 + F3 (ported from the ST disk)
-    84 => @import("scenes/raytrace.zig"), // SDF ray tracer, Q16.16 fixed point (FPGA CPU benchmark)
-    85 => @import("scenes/raytrace_f32.zig"), // the same ray tracer on f32
+    84 => @import("scenes/raytrace.zig"), // SDF ray tracer, true colour: fixed / f32 / ASTROLABE f64 (FPGA CPU benchmark)
+    // 85: raytrace_f32, excluded in build.zig (its f32 maths is raytrace's mode 2).
     86 => @import("scenes/sap_test.zig"), // SAP TEST: Atari 8-bit SAP tunes on the POKEY, a jukebox
     87 => @import("scenes/fuji_hobbytronic.zig"), // FUJI HOBBYTRONIC: a 3D Fuji with rasters, to an ASMA SAP tune on the POKEY
     88 => @import("scenes/replicants_emlyn_f32.zig"), // Emlyn Hughes on the CODEF algorithm in f32 (62 is fixed point)
