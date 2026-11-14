@@ -52,6 +52,9 @@ pub const Show = struct {
     rg: strobe.Strobe = .{},
     frames50: u32 = 0, // the greetings' frame counter (a Falcon frame = a tick)
     smeared: bool = false, // 825 works once (the Falcon's state $16)
+    smear_t: u8 = 0, // 50 Hz ticks since 825 started its smear
+    smear_passes: u8 = 0, // feedback passes made so far
+    band_frames: u8 = 0, // 829: 824's white band painted into both buffers first
     ticked: bool = false, // a 50 Hz tick ran since the last frame (the feedback passes run at the Falcon's rate)
     on8: bool = false, // the flames' 8-bit plane is the one up: a flash draws there
     clear_frames: u8 = 0, // the ball-oid after a flash: both buffers cleared first (it only clears its box)
@@ -92,7 +95,10 @@ pub const Show = struct {
             .noise => self.noise = .{},
             .flames => self.flame.command(v),
             .strobe => self.rg.restart(),
-            .grey_obj => self.ball = balloid.Balloid.start(.grey, ripped(art.env_grey, env_grey)),
+            .grey_obj => {
+                self.ball = balloid.Balloid.start(.grey, ripped(art.env_grey, env_grey));
+                self.band_frames = 2;
+            },
             .thanks => {
                 if (self.part_was != .thanks and self.part_was != .grey_obj) self.ball = balloid.Balloid.start(.grey, ripped(art.env_grey, env_grey));
                 self.thanks = .{ .which = @intFromBool(v == 0x3A) };
@@ -116,6 +122,8 @@ pub const Show = struct {
                 self.part = .hold;
             } else {
                 self.smeared = true;
+                self.smear_t = 0;
+                self.smear_passes = 0;
                 self.shake(&scr.JOLT, .x);
             },
             .jolt => self.shake(&scr.JOLT, .x),
@@ -139,6 +147,7 @@ pub const Show = struct {
         self.timerSlot();
         switch (self.part) {
             .blob_fade => self.fade.tick(),
+            .smear => self.smear_t +|= 1,
             .text => self.txt.blurFrame(),
             .credits => self.cred.tick(),
             .grey_obj, .orange, .thanks => self.ball.advance(4), // the ball-oid's clock is 200 Hz
@@ -214,9 +223,34 @@ pub const Show = struct {
         self.screen.flip();
     }
 
+    // The border outside the flashes: the colour the picture's empty area shows. The Falcon's
+    // true-colour border is its colour 0, never written, so black throughout; but the blobs'
+    // 821 (inverted LUT) and 822 (pushed to the LUT's top) turn the whole picture white, and a
+    // white picture in a black border reads as a flash whose border missed it (Matt, 13 Nov).
+    // So the border follows the blob LUT's entry for an empty sum: black for every other blob
+    // picture, as before. A held frame keeps the border it had.
+    fn backdrop(self: *const Show) u16 {
+        return switch (self.part) {
+            .blobs => self.blob.backdrop(),
+            .blob_fade => self.fade.backdrop(),
+            .hold => if (self.border == 1) 0 else self.border,
+            else => 0,
+        };
+    }
+
+    // 825's feedback pass: one every SMEAR_EVERY ticks, SMEAR_PASSES in all, then the frame holds.
+    // The Hatari capture shows the picture change every 6th frame from 40.68 s to 41.88 s:
+    // 11 passes (a 64,000-pixel pass costs the 030 ~6 VBLs on the Falcon's bus). One pass a
+    // KESTREL frame blurred 36 times in 0.6 s: far too strong, then frozen (Matt, 13 Nov).
+    const SMEAR_EVERY = 6;
+    const SMEAR_PASSES = 11;
+    fn smearDue(self: *const Show) bool {
+        return self.smear_passes < SMEAR_PASSES and self.smear_t >= SMEAR_EVERY * @as(u16, self.smear_passes);
+    }
+
     pub fn render(self: *Show) void {
         if (self.flashColour()) |c| return self.drawFlash(c);
-        self.setBorder(0);
+        self.setBorder(self.backdrop());
         const p8 = self.screen.eightBit(self.planes, self.part == .flames);
         if (self.part == .flames) return self.flame.draw(p8);
         const fb = self.screen.back();
@@ -227,7 +261,8 @@ pub const Show = struct {
         switch (self.part) {
             .hold, .jolt => return self.screen.commit(),
             .smear => {
-                if (!self.screen.shake.running()) return self.screen.commit();
+                if (!self.smearDue()) return self.screen.commit();
+                self.smear_passes += 1;
                 accents.smear(fb, self.screen.front());
             },
             .black, .other => {
@@ -246,7 +281,17 @@ pub const Show = struct {
             .flames => unreachable, // drawn on plane 1 above
             .chosneck => self.chos.draw(fb),
             .credits => self.cred.draw(fb, self.screen.front()),
-            .grey_obj => self.ball.draw(fb.pixels, fb.stride),
+            .grey_obj => {
+                // 829 clears only the ball's box (x 160..319, lines 25..175): the white on its left
+                // is 824's band, left in the Falcon's buffers. 824 drew on the flames' 8-bit plane
+                // here, so the true-colour buffers get the band before the first ball.
+                if (self.band_frames > 0) {
+                    fb.fill(0);
+                    accents.white(fb, 25, 175);
+                    self.band_frames -= 1;
+                }
+                self.ball.draw(fb.pixels, fb.stride);
+            },
             .thanks => {
                 self.thanks.draw(fb);
                 self.ball.draw(fb.pixels, fb.stride);

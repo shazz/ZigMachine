@@ -19,48 +19,12 @@
 //   node apps/falcon_ays_headless.mjs --break script   the blob checkpoints moved 3 s early must fail
 //   node apps/falcon_ays_headless.mjs --break art      the ship compared one pixel off must fail
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { boot, at, W, H } from "./falcon_ays_boot.mjs";
 
-const PAGES = 128, RW = 800, W = 320, H = 200, X0 = 40, Y0 = 40, REG_FB_MODE = 0x54;
+const REG_FB_MODE = 0x54;
 const ART = "apps/zig/assets/screens/falcon_ays";
-const CART = "docs/demo-falcon_ays.wasm";
 const BRK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const outdir = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--break");
-
-async function boot() {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, {
-        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
-    })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile(CART);
-    const env = { memory, ...rom };
-    for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
-    for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
-        if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
-    demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    return { memory, machine, demo, video: machine.hwVideoBase(), frame: 0 };
-}
-
-// Run the cart to song second `t` (60 Hz frames), then composite plane 0 and return the 320x200
-// window as 0xRRGGBB (the raster doubles each logical pixel horizontally).
-function at(m, t) {
-    const target = Math.round(t * 60);
-    while (m.frame < target) { m.machine.hwClear(); m.demo.frame(1000 / 60); m.frame++; }
-    m.machine.hwClear();
-    for (let p = 0; p < 8; p++) if (m.demo.isPlaneEnabled(p)) m.machine.hwRenderPlane(p);
-    const px = new Uint32Array(m.memory.buffer, m.machine.hwPhysicalPtr(), RW * 280);
-    return Uint32Array.from({ length: W * H }, (_, i) => px[(Y0 + Math.floor(i / W)) * RW + (X0 + (i % W)) * 2] & 0xFFFFFF);
-}
 
 const lit = (img) => img.reduce((n, v) => n + (v !== 0), 0);
 const colours = (img) => new Set(img).size;

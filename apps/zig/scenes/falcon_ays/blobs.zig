@@ -113,6 +113,11 @@ pub const Blobs = struct {
         self.v.pb = (self.v.pb + 2) & 0x3FF;
     }
 
+    /// The colour of an empty sum (no blob there): the picture's background, for the border.
+    pub fn backdrop(self: *const Blobs) u16 {
+        return @truncate(luts[@intFromEnum(self.v.lut)][0]);
+    }
+
     /// 160 pixel pairs a row into rows 0..99 of a 320-wide buffer (mode 805 doubles the lines).
     pub fn draw(self: *const Blobs, fb: zg.tc.Fb) void {
         const lut = &luts[@intFromEnum(self.v.lut)];
@@ -138,6 +143,7 @@ var frozen: *[VW * VH]u8 = undefined;
 pub const Fade = struct {
     up: bool,
     lut: Lut,
+    floor: u8 = 0, // where an empty sum (0 at the command) has been pushed to: the background
 
     pub fn start(b: *const Blobs, up: bool) Fade {
         const f = &fields[b.v.field];
@@ -151,11 +157,19 @@ pub const Fade = struct {
         return .{ .up = up, .lut = b.v.lut };
     }
 
-    pub fn tick(self: *const Fade) void {
-        for (frozen) |*i| {
-            if (self.up and i.* <= 0xF8) i.* += 6;
-            if (!self.up and i.* >= 6) i.* -= 6;
-        }
+    pub fn tick(self: *Fade) void {
+        for (frozen) |*i| push(i, self.up);
+        push(&self.floor, self.up);
+    }
+
+    fn push(i: *u8, up: bool) void {
+        if (up and i.* <= 0xF8) i.* += 6;
+        if (!up and i.* >= 6) i.* -= 6;
+    }
+
+    /// The background's colour now (the border follows it).
+    pub fn backdrop(self: *const Fade) u16 {
+        return @truncate(luts[@intFromEnum(self.lut)][self.floor]);
     }
 
     pub fn draw(self: *const Fade, fb: zg.tc.Fb) void {

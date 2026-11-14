@@ -9,7 +9,9 @@
 //
 // The shakes: the Falcon's VBL added a table entry a frame to the Videl's display window
 // (HDB/HDE: sideways, VDB/VDE: up and down, in half-lines). Here the same entries move every
-// line's LBASE: a shake costs no pixel. A frame: draw into back(), flip(); a frame that draws
+// line's LBASE: a shake costs no pixel. A sideways one would wrap (a line starting early shows
+// the row above's last pixels): the Falcon showed its border there, so a mask plane covers
+// those columns in black while the shake is off zero (maskColumns). A frame: draw into back(), flip(); a frame that draws
 // nothing calls commit() so a running shake still moves.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -46,8 +48,12 @@ pub const Shake = struct {
 
 var lines: [H]zg.linelist.Line = undefined;
 
+const MASK_INK: u8 = 1; // the mask plane's opaque black; every other entry is transparent
+
 pub const Screen = struct {
     plane: *zg.LogicalFB,
+    mask: *zg.LogicalFB, // plane 2: 8-bit, over the picture, enabled only during a sideways shake
+    mask_dx: i32 = 0, // the columns it covers: dx > 0 the left dx, dx < 0 the right -dx
     back_fb: tc.Fb,
     list: ?[]u32 = null,
     mode: Mode = .full,
@@ -61,7 +67,10 @@ pub const Screen = struct {
         plane.is_enabled = true;
         const second = zg.truecolorBuffer(.window) orelse front_fb;
         second.fill(0);
-        var s = Screen{ .plane = plane, .back_fb = second };
+        const mask = &os.lfbs[2];
+        mask.clearFrameBuffer(0);
+        mask.palette[MASK_INK] = 0xFF00_0000;
+        var s = Screen{ .plane = plane, .mask = mask, .back_fb = second };
         s.list = zg.linelist.install(plane, H, false);
         s.commit();
         return s;
@@ -110,5 +119,26 @@ pub const Screen = struct {
             ln.* = .{ .base = @intCast(base) };
         }
         _ = zg.linelist.build(l, &lines, .{ .plane = 0, .stride = 2 * W, .first_row = zg.VERTICAL_BORDERS_HEIGHT, .colour_entry = null }) catch {};
+        self.maskColumns(dx);
+    }
+
+    // A line moved dx pixels right starts dx pixels early in memory, so its first dx pixels are
+    // the row above's last ones (left: its last are the next row's first): the "rot" Matt saw on
+    // the credits' CODE plaque. The Falcon moved its display window instead, its border showing
+    // in the gap, so those columns are covered black, the shifted-out ones lost (an asl). Only
+    // the changed columns are stored; the plane costs the board a plane pass only while on.
+    fn maskColumns(self: *Screen, dx: i32) void {
+        if (dx == self.mask_dx) return;
+        paintColumns(self.mask, self.mask_dx, 0);
+        paintColumns(self.mask, dx, MASK_INK);
+        self.mask_dx = dx;
+        self.mask.is_enabled = dx != 0;
     }
 };
+
+fn paintColumns(p: *zg.LogicalFB, dx: i32, ink: u8) void {
+    if (dx == 0) return;
+    const n: usize = @min(W, @abs(dx));
+    const x0: usize = if (dx > 0) 0 else W - n;
+    for (0..H) |y| @memset(p.fb[y * W + x0 ..][0..n], ink);
+}
