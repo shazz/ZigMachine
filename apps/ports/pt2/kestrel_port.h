@@ -14,4 +14,7 @@ void kestrel_fb_dirty(int32_t x, int32_t y, int32_t w, int32_t h);
  * patches/pt2_{keyboard,mouse}.c.sed). Quitting goes back to the GEM desktop (kestrel_sdl2's kestrel_quit). */
 int kestrel_confirm_quit(void);
 void kestrel_quit(void);
+/* The PATH field's text as typed: a leading "/c" becomes C: ("/C"), the one name wasi-libc matches exactly
+ * (kestrel_cpath.c). Sets the path in place. */
+void kestrel_cpath(char *path);
 #endif
