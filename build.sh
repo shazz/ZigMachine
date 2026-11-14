@@ -849,6 +849,7 @@ gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear
 gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 40   # SYNC's self-modifying 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
 gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 20 --break   # ...and the ends play patches frozen at arming (mutant 5) are caught
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
+gate sca_karatekid2 node apps/sca_karatekid2_headless.mjs "$SHOTS/sca_karatekid2"   # SCA THE KARATE KID PART II (CODEF 495): bar in the full-width border, scroller ink = fontraster per line, logo exact, stars in the open bottom border
 gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
 gate_timed big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
 gate_timed big_demo node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
