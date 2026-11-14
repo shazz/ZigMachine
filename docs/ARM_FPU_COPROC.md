@@ -192,3 +192,26 @@ the UART is the result.
 - `fpga/glass` `zig build test`: the server (served once, staged AXPY, refusals, withdrawn).
 - `apps/astro_bench_headless.mjs` (gated, `--break result|batch|clock`): the bench cart in the page's
   binding: 0 ulp, LINPACK same bits, reference bits vs JavaScript, no clock, rerun, screen.
+
+## 8. COPRO's pages 5 and 6 (cart 130, 14 Nov)
+
+The COPRO cart (`apps/zig/scenes/copro.zig`) shows ASTROLABE beside BARD, each page an A/B (Space): ZIGGY's
+soft f64 (`copro/soft64.zig`: the same descriptors, run in the cart op for op as `astro_blas.zig` /
+`astro_linpack.zig` run them, so the same bits) against `hwAstro`. The HUD names who served: ARM (SERVED_ARM),
+SOFT (a board without the ARM: hwAstro's fallback, W_CYCLES set), HOST (the page, the native host).
+
+- **5 F64 ZOOM**: Seahorse Valley to ~1e-13, 64 x 35 cells. There is no per-element compare or select in the
+  ABI, so the iteration is batched for every cell (z = z^2 + c as 3 VMUL, an AXPY, 3 VADD; 2 iterations, 14
+  descriptors, one call a frame) and ZIGGY decides escape between calls from the f64 BITS, integer ops only:
+  |re| or |im| >= 2 is a biased exponent >= 1024; the colour is the iteration count less log2 of the exponent
+  (a smooth estimate from the bits); an escaped cell is frozen (z = c = 0 stays 0). Fixed iterations a level
+  (32 + 6 a level, at most 400), then x0.8.
+- **6 F64 CLOTH**: 16 x 16 heights pinned at the edges, poked by a point circling over them, an implicit step
+  a frame split in alternating directions: rows by GESL with the factors GEFA made once (I + aL, order 16), columns
+  by GEMV with that matrix's inverse (16 GESLs at the page's entry), velocity and heights by SCAL / AXPY: 39
+  descriptors, one call. (A 256 x 256 GEFA on ZIGGY's soft f64 would take minutes; order 16 keeps the fallback
+  usable on a board without the ARM.)
+
+ZIGGY's soft f64 at ~1.4 k cycles an op (section 5's bench): the zoom ~31 k ops a frame (~45 Mc: ~2 fps on
+ZIGGY), the cloth ~17 k (~25 Mc: ~4 fps), estimated; the board's HUD gives the real figures on each side.
+`apps/copro_astro_check.mjs` holds both sides to the same pixels and level 0 of the zoom to JavaScript's doubles.

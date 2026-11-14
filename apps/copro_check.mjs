@@ -2,7 +2,7 @@
 // on the page. The cart boots over the real machine + ROM with the loader's OWN hostBardJob / bardJobFrame
 // (docs/sealed-loader.js, lifted from its source as apps/bard_queue_lib.mjs lifts bardDrain), and:
 //   same      each page draws the same pixels (rows 0..175, the effect), frame for frame, with its jobs on
-//             ZIGGY (switch 4: the cart serves them inside its frame) and on the coprocessor (the page
+//             ZIGGY (switch 6: the cart serves them inside its frame) and on the coprocessor (the page
 //             serves them after the cart's frame, or when the cart waits)
 //   served    on the coprocessor every job the cart posted was answered by the page's server, and the cart
 //             never gave up on it (no hostBardJob(OPEN, 0), the fallback to ZIGGY); on ZIGGY none was kicked
@@ -16,9 +16,10 @@
 //             still agree, and every "served" check must fail (then exit 0)
 import { readFile } from "node:fs/promises";
 import { crc32 } from "node:zlib";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { boot as bootWith } from "./copro_boot.mjs";
 
-const PAGES = 128, W = 320, ROWS = 176, REG_FB_BASE = 0x44, SHADE = 16;
+const W = 320, ROWS = 176, SHADE = 16;
+const boot = (switches) => bootWith(switches, BRK);
 const BRK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (BRK !== null && BRK !== "answer" && BRK !== "stale") throw new Error(`--break answer | stale, not ${BRK}`);
 const fails = { same: 0, served: 0, other: 0 };
@@ -27,87 +28,13 @@ const ok = (kind, c, m) => {
     if (!c) fails[kind]++;
 };
 
-/** The loader's BARD jobs functions, over the cart `box.demo`; `log` records every call and serve. */
-async function loaderJobs(box, log) {
-    const src = await readFile("docs/sealed-loader.js", "utf8");
-    const fn = (name) => {
-        const m = src.match(new RegExp(`^function ${name}\\([^)]*\\) \\{[\\s\\S]*?^\\}\\n`, "m"));
-        if (!m) throw new Error(`docs/sealed-loader.js has no function ${name}`);
-        return m[0];
-    };
-    let body = fn("hostBardJob") + fn("bardJobFrame");
-    if (BRK === "stale") body = body.replace("if (op === 3) { demo.bardJobServe(); return 1; }", "if (op === 3) return 1;")
-        .replace("if (jobCart) demo.bardJobServe();", "");
-    const demo = { bardJobServe: () => serve(box, log) };
-    const f = new Function("demo", `let jobCart = false; ${body}; return { hostBardJob, bardJobFrame };`)(demo);
-    return {
-        hostBardJob: (op, arg) => {
-            log.calls.push([op, arg >>> 0]);
-            if (op === 0 && arg) log.block = arg >>> 0;
-            return f.hostBardJob(op, arg);
-        },
-        bardJobFrame: f.bardJobFrame,
-    };
-}
-
-/** The cart's server, counting the jobs it answers (--break answer: then spoils one word of each). */
-function serve(box, log) {
-    const u = new Uint32Array(box.memory.buffer), b = log.block >>> 2;
-    const slot = (t) => b + 8 + 16 * (t & 7);
-    const before = [...Array(8).keys()].map((i) => u[b + 8 + 16 * i + 2]);
-    box.demo.bardJobServe();
-    for (let i = 0; i < 8; i++) {
-        const s = b + 8 + 16 * i;
-        if (u[s + 2] === before[i] || u[s + 2] !== u[s + 1]) continue;
-        log.served++;
-        if (BRK === "answer") spoil(u, u.subarray(slot(u[s + 1]), slot(u[s + 1]) + 16));
-    }
-}
-
-// One word of the job's output: zx0 a shown pixel (row 12), xform/particles point 0, crc32 chunk 0.
-function spoil(u, j) {
-    const a = j.subarray(6);
-    const at = { 1: a[2] + 12 * W + 100, 2: a[5], 3: a[4], 4: a[3] }[j[0]];
-    if (at !== undefined) u[at >>> 2] = j[0] === 1 ? u[at >>> 2] ^ 0x01010101 : j[0] === 4 ? u[at >>> 2] ^ 1 : 5 * W + 5;
-}
-
-async function boot(switches) {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    const box = { memory, demo: null }, log = { calls: [], served: 0, block: 0 };
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => box.demo.hblDispatch(id, p, l, x) },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-copro.wasm");
-    const jobs = await loaderJobs(box, log);
-    const env = { memory, ...rom, hostBardJob: jobs.hostBardJob };
-    for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
-    for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
-        if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => 0; // hostMicros: no clock
-    box.demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    box.demo.boot();
-    box.demo.skipBoot();
-    for (const s of switches) box.demo.setShadeMode(s);
-    const frame = () => { box.demo.frame(16.6); jobs.bardJobFrame(); };
-    const plane = () => {
-        const base = machine.hwVideoBase();
-        const off = new DataView(memory.buffer).getUint32(base + REG_FB_BASE, true);
-        return new Uint8Array(memory.buffer, base + off, W * 200).slice();
-    };
-    return { box, log, frame, plane };
-}
-
 const eq = (a, b) => { for (let i = 0; i < W * ROWS; i++) if (a[i] !== b[i]) return false; return true; };
 const NAMES = ["ZX0 DEPACK", "3D MORPH", "PARTICLES", "CRC-32"];
 const FRAMES = [320, 120, 120, 90]; // page 1: two swaps (150 frames a picture)
 
 console.log("copro");
 for (let p = 0; p < 4; p++) {
-    const z = await boot([4, p]), c = await boot([p]);
+    const z = await boot([6, p]), c = await boot([p]);
     let same = true, at = -1;
     for (let f = 0; f < FRAMES[p] && same; f++) {
         z.frame();

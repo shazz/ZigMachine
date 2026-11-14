@@ -642,7 +642,7 @@ pub fn build(b: *std.Build) void {
         "demo-notepad", // 127 — NOTEPAD: a GEM program on GEM 5's program API (rom/sdk/aes.zig: a window with every gadget, a menu bar, form_alert, the ITEM SELECTOR), editing C:\*.TXT through KOS GEMDOS; low, medium and the desk
         "demo-gemtest", // 128 — GEMTEST: every GEM 5 component on one disk (windows, menus, dialog objects, form_alert, the ITEM SELECTOR on A: and C:, text, icons, screen modes), the API's gaps shown as "not in the API yet"; docs/GEMTEST.md
         "demo-sca_karatekid2", // 129 — SCA THE KARATE KID PART II, the Swiss Cracking Association crack intro (Amiga 1987; CODEF screen 495)
-        "demo-copro", // 130 — COPRO: BARD as a coprocessor (zg.bard.job, table 1.24): the cart posts jobs (a ZX0 depack, a 3D morph of 4096 dots, 4096 particles, a CRC-32 of 64 KB) that BARD serves between its audio renders, the same kernels on ZIGGY for the A/B; an SNDH plays all along
+        "demo-copro", // 130 — COPRO: BARD as a coprocessor (zg.bard.job, table 1.24): the cart posts jobs (a ZX0 depack, a 3D morph of 4096 dots, 4096 particles, a CRC-32 of 64 KB) that BARD serves between its audio renders, and two f64 pages on ASTROLABE (hwAstro: a Mandelbrot zoom, a 16x16 LINPACK cloth); the same kernels on ZIGGY for every A/B; an SNDH plays all along
         "demo-kestrel_boot", // 131 — KESTREL BOOT (WINDHOVER): the console's boot screen, a kestrel stooping into a dawn sky on the true-colour plane (TC fade), CHISEL AFFINE dive, copper highlight, palette wordmark, a YM call + strummed chord; 4.8 s then black (prototypes/boot_screen/STUDY.md)
     };
     for (cart_names, 0..) |name, idx| {

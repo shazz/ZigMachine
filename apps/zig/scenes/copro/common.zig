@@ -27,6 +27,9 @@ pub const Ctx = struct {
     fb: *zg.LogicalFB,
     frame: u32 = 0,
     where: job.Where = .coprocessor,
+    /// What the A/B asks for (the ASTROLABE pages read it: no BARD needed), and whether the ARM served.
+    asked: job.Where = .coprocessor,
+    astro_arm: bool = false,
     /// Microseconds ZIGGY spent this frame posting (on .ziggy: serving) jobs, and waiting for them.
     post_us: u32 = 0,
     wait_us: u32 = 0,
@@ -73,6 +76,34 @@ pub fn shades(fb: *zg.LogicalFB, from: [3]u8, to: [3]u8) void {
 /// The effect's rows to colour `v` (a page's entry).
 pub fn clearRows(fb: *zg.LogicalFB, v: u8) void {
     @memset(fb.fb[0 .. ROWS * W], v);
+}
+
+pub fn clearRowsPx(px: [*]u8, v: u8) void {
+    @memset(px[0 .. ROWS * W], v);
+}
+
+/// A line in the effect's rows (Bresenham, clipped point by point): integers only.
+pub fn line(px: [*]u8, x0: i32, y0: i32, x1: i32, y1: i32, v: u8) void {
+    const dx: i32 = @intCast(@abs(x1 - x0));
+    const dy: i32 = -@as(i32, @intCast(@abs(y1 - y0)));
+    const sx: i32 = if (x0 < x1) 1 else -1;
+    const sy: i32 = if (y0 < y1) 1 else -1;
+    var x = x0;
+    var y = y0;
+    var err = dx + dy;
+    while (true) {
+        if (x >= 0 and y >= 0 and x < W and y < ROWS) px[@as(u32, @intCast(y)) * W + @as(u32, @intCast(x))] = v;
+        if (x == x1 and y == y1) return;
+        const e2 = 2 * err;
+        if (e2 >= dy) {
+            err += dy;
+            x += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y += sy;
+        }
+    }
 }
 
 /// A u32 array in the cart's RAM arena: word-aligned, as every job array must be (BARD traps a misaligned word).

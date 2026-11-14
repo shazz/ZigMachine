@@ -109,7 +109,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "TRI TEST", .tag = "tri_test" }, // zigmachine — CHISEL TRIANGLE edge cases, OK / BAD against the model
     .{ .name = "SID TEST", .tag = "sid_test" }, // zigmachine — a C64 PSID on the .sid player (cRSID: BARD native, machine-audio.wasm)
     .{ .name = "BARD SID", .tag = "bard_sid" }, // zigmachine — the BARD queue: the cart writes the SID live, raw cRSID plays it
-    .{ .name = "COPRO", .tag = "copro" }, // zigmachine — BARD as a coprocessor: a depack, a 3D morph, particles and a CRC on the sound CPU, A/B with ZIGGY alone
+    .{ .name = "COPRO", .tag = "copro" }, // zigmachine — the coprocessors: BARD (a depack, a 3D morph, particles, a CRC) and ASTROLABE (an f64 zoom, a LINPACK cloth), A/B with ZIGGY alone
     .{ .name = "SYSINFO", .tag = "sysinfo" }, // system
     .{ .name = "DMA SHRINKING SPHERE", .tag = "lockbuster2" }, // atari st — DMA "Incredible Shrinking Sphere Cracktro" (demozoo 79466)
     .{ .name = "KICK OFF 2", .tag = "kickoff2" }, // amiga

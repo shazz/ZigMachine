@@ -17,7 +17,7 @@ const C = @import("common.zig");
 
 const COLS = 40;
 const Line = [COLS]u8;
-pub const PAGES = 4;
+pub const PAGES = 6;
 
 pub const Hud = struct {
     shown: [3]Line = .{[_]u8{0} ** COLS} ** 3,
@@ -64,14 +64,14 @@ pub const Hud = struct {
         }
     }
 
-    pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, page: u32, name: []const u8, side: []const u8) void {
+    pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, page: u32, name: []const u8, side: []const u8, copro: []const u8) void {
         var l: [3]Line = .{[_]u8{' '} ** COLS} ** 3;
         put(&l[0], 0, "{d} {s}", .{ page + 1, name });
-        put(&l[0], 31, "1-4 SPACE", .{});
+        put(&l[0], 31, "1-6 SPACE", .{});
         var a: [8]u8 = undefined;
         var b: [8]u8 = undefined;
         put(&l[1], 0, "{s}", .{side});
-        put(&l[1], 6, "JOB  ZIGGY {s}  BARD {s}", .{ mc(&a, self.job_ziggy[page]), mc(&b, self.job_copro[page]) });
+        put(&l[1], 6, "JOB  ZIGGY {s}  {s} {s}", .{ mc(&a, self.job_ziggy[page]), copro, mc(&b, self.job_copro[page]) });
         var c: [8]u8 = undefined;
         var d: [8]u8 = undefined;
         if (self.fps10 != 0) {
