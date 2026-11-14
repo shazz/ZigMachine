@@ -1,9 +1,9 @@
 // The console page: the machine itself rather than a cart.
 //
 //   row 0       title bar (rows 1..14 right of the section strip, 30 wide)
-//   rows 2..8   Cold reset, Warm reset, Volume, Mute, Debug, Help, Back
-//   row 9       a rule
-//   rows 10..13 what the selected item does
+//   rows 2..9   Cold reset, Warm reset, Volume, Mute, Debug, Help, Wi-Fi, Back
+//   row 10      a rule
+//   rows 11..14 what the selected item does
 //   row 15      status
 //
 // Up/Down select, Enter (or a pad's fire) acts, Left/Right change the volume
@@ -15,14 +15,14 @@ const osd = @import("osd.zig");
 const text = @import("text.zig");
 const config = @import("config.zig");
 
-pub const Item = enum { cold, warm, volume, mute, debug, help, back };
+pub const Item = enum { cold, warm, volume, mute, debug, help, wifi, back };
 const ITEMS = std.enums.values(Item);
 pub const FIRST = 2;
-const RULE = 9;
-const HELP = 10;
+const RULE = 10;
+const HELP = 11;
 pub const VOL_STEP = 16;
 
-pub const Key = enum { none, back, cold, warm, settings, debug, help };
+pub const Key = enum { none, back, cold, warm, settings, debug, help, wifi };
 
 const help = [_][]const u8{
     "Reload the cart from the SD card, clear all its memory and boot it: a power cycle. (R on the shelf)",
@@ -31,6 +31,7 @@ const help = [_][]const u8{
     "Silence the console. Enter or Left/Right toggle it; saved with the volume.",
     "Versions, live stats of the running cart, and the board.",
     "Every shortcut: the keys of each page, the hotkeys, the pad.",
+    "The board's Wi-Fi: its network and address; scan, join one with its password, forget it.",
     "Back to the shelf.",
 };
 
@@ -51,6 +52,7 @@ pub const State = struct {
                 .mute => adjust(.mute, true, s),
                 .debug => .debug,
                 .help => .help,
+                .wifi => .wifi,
                 .back => .back,
             },
             else => {},
@@ -71,6 +73,7 @@ pub const State = struct {
                 .mute => if (s.mute) " Mute    on" else " Mute    off",
                 .debug => " Debug...",
                 .help => " Help...",
+                .wifi => " Wi-Fi...",
                 .back => " Back",
             };
             o.body(row, t, i == self.cursor);
