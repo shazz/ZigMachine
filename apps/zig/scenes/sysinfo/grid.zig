@@ -16,13 +16,21 @@ pub const COL2: usize = 41;
 /// "LABEL<pad>: value": the colon sits at this offset from the column.
 pub const LABEL_W: usize = 16;
 
-/// Underlined text is HWAM's section heading ("SYSTEM INFO:", "MEMORY:");
-/// inverse marks the speed test that is running.
-pub const Attr = enum(u8) { plain, under, inverse };
+/// Underlined text is HWAM's section heading ("SYSTEM INFO:", "MEMORY:"), in the
+/// small font as the program line and the prompt (small); inverse marks the speed
+/// test that is running and the sound file selected.
+pub const Attr = enum(u8) { plain, under, inverse, small };
+
+/// A run drawn in the small font: its glyphs are narrower than the cells, so it is
+/// always redrawn whole (screen.zig widens a changed span over it).
+pub fn isSmall(a: Attr) bool {
+    return a == .under or a == .small;
+}
 
 pub const Span = struct { c0: usize, c1: usize }; // columns [c0, c1)
 
-pub const Grid = struct {
+/// extern: the attributes follow the characters in memory, where the harness reads both.
+pub const Grid = extern struct {
     ch: [ROWS][COLS]u8,
     at: [ROWS][COLS]Attr,
 
@@ -80,6 +88,17 @@ pub fn diff(want: *const Grid, shown: *const Grid, row: usize) ?Span {
         c1 = c + 1;
     }
     return if (c0 < c1) .{ .c0 = c0, .c1 = c1 } else null;
+}
+
+/// `sp` widened over every small-font run it touches, in either grid: such a run is
+/// laid out from its first cell, so part of one cannot be redrawn alone.
+pub fn widen(want: *const Grid, shown: *const Grid, row: usize, sp: Span) Span {
+    var s = sp;
+    for ([2]*const Grid{ want, shown }) |g| {
+        while (s.c0 > 0 and isSmall(g.at[row][s.c0]) and g.at[row][s.c0 - 1] == g.at[row][s.c0]) s.c0 -= 1;
+        while (s.c1 < COLS and s.c1 > 0 and isSmall(g.at[row][s.c1 - 1]) and g.at[row][s.c1] == g.at[row][s.c1 - 1]) s.c1 += 1;
+    }
+    return s;
 }
 
 /// After drawing `sp`, the glass holds what `want` says there.
@@ -155,6 +174,18 @@ test "a formatted field longer than the row is cut" {
     a.clear();
     a.fieldf(1, COL2, "LONG", "{s}", .{"X" ** 60});
     try std.testing.expectEqual(@as(u8, 'X'), a.ch[1][COLS - 1]);
+}
+
+test "a change inside a small-font heading redraws the whole heading" {
+    var a: Grid = undefined;
+    var b: Grid = undefined;
+    a.clear();
+    b.clear();
+    a.put(2, 4, "MEMORY:", .under);
+    b.put(2, 4, "MEMORX:", .under);
+    const sp = widen(&a, &b, 2, diff(&a, &b, 2).?);
+    try std.testing.expectEqual(@as(usize, 4), sp.c0);
+    try std.testing.expectEqual(@as(usize, 11), sp.c1);
 }
 
 test "runEnd stops where the attribute changes" {

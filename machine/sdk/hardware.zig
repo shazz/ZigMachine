@@ -29,6 +29,8 @@ pub const OFF_VRAM = memmap.OFF_VRAM;
 pub const OFF_PFB = memmap.OFF_PFB;
 pub const PAL_BYTES = memmap.PAL_BYTES;
 pub const VRAM_BYTES = memmap.VRAM_BYTES;
+/// The machine version this SDK describes (the running machine's is hwVersion(), not in the system table).
+pub const ZM_HW_VERSION = memmap.ZM_HW_VERSION;
 pub const NORMAL_FB_BYTES = memmap.NORMAL_FB_BYTES;
 pub const FULLSCREEN_FB_BYTES = memmap.FULLSCREEN_FB_BYTES;
 pub const CART_RAM_BASE = memmap.CART_RAM_BASE;

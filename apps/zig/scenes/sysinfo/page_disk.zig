@@ -2,9 +2,11 @@
 // SysInfo page 4 — DRIVE A: and its FILES (HWAM's Keyboard & Disk / Drives).
 // The mounted disk's descriptor and boot sector, read through the drive at
 // start (probe.readDisk), and its FAT (zg.disk). The shelf the host picked the
-// disk from is the host's: a cart cannot see it, so it reads n/a.
+// disk from is the host's: a cart cannot see it, so it reads n/a. Under it, the
+// network card (ZIGNIC), as ident.zig found it.
 // --------------------------------------------------------------------------
 const hw = @import("hardware");
+const zg = @import("zigos");
 const grid = @import("grid.zig");
 const pages = @import("pages.zig");
 const diskinfo = @import("diskinfo.zig");
@@ -19,7 +21,18 @@ pub fn fill(g: *grid.Grid, c: *const pages.Ctx) void {
     g.field(13, L, "SHELF", N_A);
     pages.heading(g, 15, L, "THIS CART:");
     pages.kbField(g, 16, L, "RAM USED", hw.hwRamUsed());
+    network(g, c);
     files(g, c);
+}
+
+/// ZIGNIC, the network card (zg.net.info, asked once at start): the board's glass or the
+/// page's relay answers; a host without one has no card.
+fn network(g: *grid.Grid, c: *const pages.Ctx) void {
+    pages.heading(g, 18, L, "NETWORK (ZIGNIC):");
+    const n = c.id.net orelse return g.field(19, L, "CARD", "NONE ON THIS HOST");
+    g.field(19, L, "CARD", if (n.flags & zg.net.abi.INFO_LINK != 0) "PRESENT, LINK UP" else "PRESENT, NO LINK");
+    g.fieldf(20, L, "ADDRESS", "{d}.{d}.{d}.{d}", .{ n.ip >> 24, n.ip >> 16 & 0xFF, n.ip >> 8 & 0xFF, n.ip & 0xFF });
+    g.field(21, L, "TLS", if (n.flags & zg.net.abi.INFO_TLS != 0) "AVAILABLE" else "NOT AVAILABLE");
 }
 
 fn drive(g: *grid.Grid, d: *const diskinfo.Info) void {

@@ -6,8 +6,8 @@
 //
 // hwVersion(), hwPlanesNumber() and the hwPhys* calls are NOT used: they are
 // machine exports outside the system table, so a cart importing them could
-// not link lean for the board (fpga/tools/host_split.py refuses it). Their
-// values show as n/a; the report proposes them as table entries.
+// not link lean for the board (fpga/tools/host_split.py refuses it). The
+// machine's identity beyond this (host, coprocessors, KOS) is ident.zig's.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -53,13 +53,17 @@ pub fn plane(os: *const zg.ZigOS, i: usize) Plane {
     };
 }
 
-pub fn modeName(mode: u8) []const u8 {
+/// A plane's mode; `res` (the RESOLUTION register) says when plane 0 is in the desk mode.
+pub fn modeName(mode: u8, res: u8) []const u8 {
+    if (res == hw.RES_DESK) return "DESK 640*480";
     return switch (mode) {
         hw.FB_MODE_NORMAL => "LOW 320*200",
         hw.FB_MODE_FULLSCREEN => "LOW 400*280 FULL",
         hw.FB_MODE_SCROLL => "LOW SCROLL",
         hw.FB_MODE_MEDIUM => "MEDIUM 640*200",
         hw.FB_MODE_OVERSCAN => "LOW OVERSCAN",
+        hw.FB_MODE_TRUECOLOR => "TRUE COLOUR RGB565",
+        hw.FB_MODE_TRUECOLOR_FULL => "TRUE COLOUR FULL",
         else => "UNKNOWN",
     };
 }

@@ -1945,3 +1945,30 @@ the kick on the page (it would land in the cart's own frame and the A/B would sh
 **Consequences:** +6 KB in snd.bin (the server, ZX0 and the CRC table), a system-table bump (1.24): carts built
 before it run unchanged; a cart that posts jobs needs a 1.24 system. ZigOS now imports the `depackers` module
 (build.zig, sdk/build_cart.zig). New ops are added in one place (server.zig + kernels.zig) and reach every host.
+
+## 2026-11-14 — SysInfo 2: what a cart can tell about its host, and reference machines from CoreMark
+
+**Status:** accepted
+**Context:** Matt (14 Nov) wanted SysInfo's "n/a" lines filled (host, CPU, clock, coprocessor, versions) and the
+speed tests set against an ST, STE, Mega STE, TT030, Falcon030 or CT60, each figure sourced. The system table has
+no hwVersion, no table version and no "which host" entry, and a table bump makes every new cart need a new board
+system image.
+**Decision:**
+- No ABI change. The host is read from what the table already gives: the board's hwAstro wrapper writes a
+  descriptor's W_CYCLES (ZIGGY's cycles of the call; 0 on every other host, machine/sdk/astro.zig), so cycles != 0
+  is the board; else a host clock (hostMicros) is the page; else the native host or a harness. The board's clock
+  is MEASURED: ASTRO calls' cycles over hostMicros. HW VERSION is the SDK's ZM_HW_VERSION, labelled "(SDK)" (now
+  re-exported by machine/sdk/hardware.zig); KOS's version, boot device and RAM come from kos.vars(); SYSTEM TABLE
+  on the board is ">= the newest entry the cart imports" (a board refuses a cart built for a newer table).
+- Reference machines: the ST's time per test stays the 68000 cycle count of its loop (stref.zig); every other
+  machine is the ST's time scaled by published CoreMark results (github.com/czietz/coremark/wiki/Results, real
+  machines), one factor for all tests, so their figures are shown as estimated (sysinfo/refs.zig).
+- Headings, the program line and the prompt are drawn by the ROM as a G_TEXT in the small font (objc_draw,
+  table 1.23): a KOS ROM built with the local GEM 5.0 set shows its small font, the repo's ZigOS's 6x6.
+**Alternatives considered:** appending hwVersion / a table-version getter / a ROM font export to the table
+(exact values and the 8x16 tall font, but table 1.26: this cart would then need a new board system, and other
+branches bump the table too); a per-test cycle model of the 68030/68060 (cache and bus behaviour would be guessed,
+not sourced); GB6 tables (no per-machine integer/memory split found).
+**Consequences:** the running machine's version and the system's table version stay unreadable (n/a in spirit,
+shown as the SDK's and a lower bound). A host that someday writes W_CYCLES elsewhere would read as the board.
+The desk mode shows the 8x8 system font doubled to 8x16 cells, not the ROM's tall font (not exported).

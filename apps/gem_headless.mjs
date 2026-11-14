@@ -76,6 +76,9 @@ export async function bootGem(opts = {}) {
             kosDriveRead: opts.cImage ? makeCDrive(memory, opts.cImage) : () => 0,
             kosFileOp: opts.cFileOp ? opts.cFileOp(memory) : opts.cImage ? makeCFile(memory, opts.cImage) : () => -46,
             hostMicros: () => 0, // ST Replay's BOOT.WSM imports it (decisions.md 2026-10-17); 0 = frame time
+            // SYSINFO's BOOT.WSM asks what the machine is (sysinfo/ident.zig): ASTROLABE computed by the
+            // machine, no job coprocessor (the cart serves its own), no network card
+            hwAstro: machine.hwAstro, hostBardJob: () => 0, netOp: () => -1,
         },
     };
     const gemBytes = await readFile("docs/demo-gem.wasm");

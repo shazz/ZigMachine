@@ -7,21 +7,26 @@
 //            the .zmd's own descriptor; page 3's player and YM lines follow what the host mirrors in
 //   idle     a frame between two refreshes draws nothing, and a refresh redraws only what changed
 //   speed    with no host clock every test runs once and reads n/a; with one, every test has a
-//            time, six a ratio to the ST, f32 a ratio to the integer multiply-add
+//            time, six a percentage of the ST, f32 a ratio to the integer multiply-add
+//   sysinfo2 apps/sysinfo_modes.mjs: the host, CPU, clock, coprocessors and versions as each host
+//            answers (no n/a left where one does), the reference machine switch, the screen modes
 //   menu     Space opens the GEM dialog over the page, a click on F4 shows the disk page, and the
 //            page comes back whole; Q asks the host to go back to the OS (request 4)
 //   sound    page 3's sound files are the disk's, each plays off the disk (apps/sysinfo_sound.mjs)
-//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound]
+//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound|ref]
+//     ref: the Mega STE's percentages expected at 1.92 / 3.60, so the reference check must fail
 //     free: the FREE line expected 4 KB off what hwRamFree() says, so the check must fail
 //     sound: the drive serves JINKS.SND with one byte changed, so the bytes check must fail
 import { mkdir } from "node:fs/promises";
-import { boot, frames, page, field, glassMismatches, glass, K } from "./sysinfo_machine.mjs";
+import { boot, frames, page, field, glassMismatches, glass, mode, K } from "./sysinfo_machine.mjs";
 import { grab, png } from "./skystrike_zig_frame.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
 import { soundPage } from "./sysinfo_sound.mjs";
+import { ident, pagesTwoThree, reference, modes } from "./sysinfo_modes.mjs";
 
-const BROKE = process.argv.includes("--break") ? (process.argv.includes("sound") ? "sound" : "free") : null;
-const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && a !== "free" && a !== "sound");
+const BREAKS = ["free", "sound", "ref"];
+const BROKE = process.argv.includes("--break") ? (BREAKS.find((b) => process.argv.includes(b)) ?? "free") : null;
+const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && !BREAKS.includes(a));
 const errors = [];
 const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) errors.push(what); };
 const hex = (v) => "$" + v.toString(16).toUpperCase().padStart(6, "0");
@@ -29,6 +34,10 @@ const kb = (v) => `${String(Math.floor(v / 1024)).padStart(9)} Kbytes`;
 
 async function shot(s, name) {
     if (!OUT) return;
+    if (mode(s) === "desk") { // the desk is not the raster grab() composes: plane 0's 640x480 through palette 0
+        const g = glass(s), pal = new Uint32Array(s.memory.buffer, s.machine.hwVideoBase() + 0x100, 256);
+        return png(`${OUT}/sysinfo_${name}.png`, Uint32Array.from(g, (i) => pal[i] | 0xff000000), 640, 480, 1);
+    }
     const f = grab(s), px = new Uint32Array(640 * 200);
     for (let y = 0; y < 200; y++) px.set(f.subarray((y + 40) * 800 + 80, (y + 40) * 800 + 720), y * 640);
     await png(`${OUT}/sysinfo_${name}.png`, px, 640, 200, 2);
@@ -55,8 +64,6 @@ async function memoryPage(s) {
     expect(field(rows, "ROM WINDOW") === `${hex(m.hwRomRamBase())}-${hex(m.hwRomRamTop())}`, "ROM WINDOW is the ROM chip's");
     expect(field(rows, "VIDEO REGISTERS") === hex(m.hwVideoBase()), "VIDEO REGISTERS is hwVideoBase()");
     expect(field(rows, "PLANES") === "4" && field(rows, "RESOLUTION") === "MEDIUM 640*200", "4 planes, plane 0 in medium res");
-    for (const l of ["HOST", "PROCESSOR", "FREQUENCY", "CO-PROCESSOR", "HW VERSION", "ROM/GEM VERSION", "SYSTEM TABLE"])
-        expect(field(rows, l) === "n/a", `${l} reads n/a: no cart can read it`);
 }
 
 async function idle(s) {
@@ -103,7 +110,7 @@ async function speed(s, clocked) {
         return;
     }
     expect(tests.every((r) => / US /.test(r.substr(36, 18) + " ")), "a host clock: every test has a time a rep");
-    expect(tests.filter((r) => / x ST\s*$/.test(r)).length === 6, "six tests against the stock ST");
+    expect(tests.filter((r) => /^\s*\d+ % OF ST\s*$/.test(r.substr(54))).length === 6, "six tests in % of the stock ST");
     expect(/^\d+\.\d\d x INT MUL-ADD/.test(tests[2].substr(54)), "f32 against the integer multiply-add");
     for (const r of tests) console.log("     " + r.trimEnd());
 }
@@ -131,18 +138,31 @@ if (OUT) await mkdir(OUT, { recursive: true });
 let s = await boot("none", BROKE === "sound" ? "JINKS.SND" : null);
 frames(s, 2);
 await memoryPage(s);
+await ident(s, expect, "unclocked");
+await pagesTwoThree(s, expect, "unclocked");
+await s.demo.key(0xe001);
+frames(s, 2);
 await idle(s);
 await videoSoundDisk(s);
 await soundPage(s, expect);
 await speed(s, false);
 await menu(s);
-s = await boot("host");
+s = await boot("host", null, { pageJobs: true });
 frames(s, 2);
 await speed(s, true);
+await reference(s, expect, BROKE === "ref");
+await ident(s, expect, "browser");
+await pagesTwoThree(s, expect, "browser");
+await modes(s, expect, shot);
+s = await boot("host", null, { board: true });
+frames(s, 2);
+await ident(s, expect, "board");
+await pagesTwoThree(s, expect, "board");
+await show(s, 1, "system_board");
 
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
-    const hit = errors.find((e) => e.startsWith(BROKE === "free" ? "FREE" : "JINKS.SND: the bytes"));
+    const hit = errors.find((e) => e.startsWith({ free: "FREE", sound: "JINKS.SND: the bytes", ref: "the Mega STE's" }[BROKE]));
     console.log(hit ? `sysinfo_check: PASS (--break ${BROKE} caught: ${hit})` : `sysinfo_check: FAILED -- --break ${BROKE} not caught`);
     process.exitCode = hit ? 0 : 1;
 } else {
