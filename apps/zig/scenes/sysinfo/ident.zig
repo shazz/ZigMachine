@@ -41,7 +41,7 @@ pub const Ident = struct {
 };
 
 const astro_abi = hw.astro;
-const BATCH: usize = 16;
+const BATCH: usize = 96;
 const FREQ_BUDGET_US: u32 = 2000;
 
 /// Ask everything once. `spare` is a hidden plane for the QUEUE's read-back.
@@ -65,22 +65,24 @@ fn astro(id: *Ident) void {
     id.host = if (d[0].cycles != 0) .board else if (bench.micros() != 0) .browser else .unclocked;
 }
 
-/// ZIGGY's cycles a microsecond, x10: ASTRO calls (each reports its own cycles) until the
-/// host clock has run FREQ_BUDGET_US. The calls' gaps are not counted: it reads a hair low.
+/// ZIGGY's cycles a microsecond, x10: each ASTRO call bracketed by the host clock, its own
+/// cycle count (W_CYCLES) over its own microseconds, so the loop's gaps count in neither. A call
+/// is BATCH descriptors long, so the clock's 1 us grain is well under 1 % of it.
 fn frequency() u32 {
     var d: [BATCH]zg.astro.Desc = undefined;
-    const t0 = bench.micros();
-    if (t0 == 0) return 0; // no clock to divide by
+    const start = bench.micros();
+    if (start == 0) return 0; // no clock to divide by
     var cycles: u64 = 0;
-    var us: u32 = 0;
-    while (us < FREQ_BUDGET_US) {
+    var us: u64 = 0;
+    while (bench.micros() -% start < FREQ_BUDGET_US) {
         for (&d) |*x| x.* = .{ .op = astro_abi.OP_SQRT, .s0 = 2.0 };
+        const t0 = bench.micros();
         _ = zg.astro.run(&d);
-        cycles += d[0].cycles;
-        us = bench.micros() -% t0;
+        us += bench.micros() -% t0;
         if (d[0].cycles == 0) return 0;
+        cycles += d[0].cycles;
     }
-    return @intCast(cycles * 10 / us);
+    return if (us == 0) 0 else @intCast(cycles * 10 / us);
 }
 
 var job_buf: [1024]u8 align(4) = undefined;
