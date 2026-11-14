@@ -51,6 +51,7 @@ _BY_CATEGORY = {
         # KESTREL's own feature showcases, not converted demos (Matt, 3 Nov)
         "ziggy", "chisel_v2", "blitter", "mpp_truecolor", "polkadots", "raytrace", "shapes",
         "kestrel_boot",  # the boot screen prototype (prototypes/boot_screen/STUDY.md)
+        "sb_spike",  # Suicide Barbie mix3 feasibility spike (textured triangles on CHISEL AFFINE)
     ),
     "demos": (  # the "zigmachine" screens that are shows, not tests
         "scroll", "obj", "fullscreen", "maxi", "medium_overscan", "res_switch",

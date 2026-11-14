@@ -410,14 +410,14 @@
   "type": "zigmachine"
  },
  {
-  "tag": "sca_karatekid2",
-  "title": "SCA KARATE KID II",
-  "type": "amiga"
-  },
-  {
   "tag": "sb_spike",
   "title": "SB SPIKE",
   "type": "unknown"
+ },
+ {
+  "tag": "sca_karatekid2",
+  "title": "SCA KARATE KID II",
+  "type": "amiga"
  },
  {
   "tag": "scroll",
