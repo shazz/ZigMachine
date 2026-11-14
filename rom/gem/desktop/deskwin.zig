@@ -107,7 +107,8 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
     r.w = @min(r.w, d.g.screen.w - 4);
     r.x = @max(0, @min(r.x, d.g.screen.w - r.w - 2));
     const min_w = icon_mod.CELL_W + 2 + gui.SCROLL;
-    const min_h = gui.TITLE_H + gui.INFO_H + icon_mod.CELL_H + gui.SCROLL;
+    const min_h = gui.TITLE_H + gui.INFO_H + gui.SCROLL + if (d.breaks & deskbreak.MIN_ROW != 0) icon_mod.CELL_H else dirview.ICON_ROW_H; // icons WITH names (Matt, 13 Nov)
+    r.h = @max(r.h, min_h); // a rect remembered (or read from DESKTOP.INF) under the old, lower minimum
     const id = d.wm.tryAdd(.{ .r = r, .title = title, .min_w = min_w, .min_h = min_h }) orelse {
         d.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         return;

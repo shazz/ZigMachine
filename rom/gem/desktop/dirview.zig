@@ -28,6 +28,9 @@ pub const Hit = union(enum) { none, file: u8, folder: u8 };
 // Icon BOTTOMS sit on this line inside a cell, so every label in a row lines
 // up regardless of how tall (or how padded) the bitmap is.
 const ICON_BASELINE: i16 = 4 + icon_mod.BASELINE; // top margin + tallest icon of the set
+/// A window's first row of icons with their names, from the top of its work area: the top margin
+/// makes it 4 px taller than an icon cell (the smallest icon window shows it whole, deskwin.zig).
+pub const ICON_ROW_H: i16 = ICON_BASELINE + 1 + icon_mod.LABEL_H;
 pub const TROW_H: i16 = 10;
 pub const TOS_COLS: i16 = 37; // NAME(8) EXT(3) SIZE DATE TIME — see drawFileRow
 

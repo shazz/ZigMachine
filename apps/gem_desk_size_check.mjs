@@ -3,16 +3,19 @@
 //   clamp    past the screen's bottom-right corner: the window ends AT the edge, its frame is the screen's last
 //            column and row (G22: in low it grew past the screen)
 //   minimum  far up-left: it stops where every gadget fits (its own floor: an icon cell, above TOS's gadget
-//            minimum; a vertical track of at least one gadget)
-//   node apps/gem_desk_size_check.mjs [--break clamp]   (deskSetEngine's bit 27, gui/winsize.zig; a desktop window's
-//   own floor (an icon cell) is above the old 44 px, so the min mutant shows on program windows only)
+//            minimum; a vertical track of at least one gadget), and its first row of icons shows WHOLE, names
+//            too, pixel for pixel as in the tall window (Matt, 13 Nov: one icon cell dropped the names in low
+//            and medium and cut them in half in the desk: a window's icon row starts 4 px down)
+//   node apps/gem_desk_size_check.mjs [--break clamp|minrow]   (deskSetEngine's bit 27, gui/winsize.zig; bit 21,
+//   desktop/deskbreak.zig: the minimum one icon cell again. A desktop window's own floor is above the old 44 px,
+//   so winsize's min mutant shows on program windows only)
 import { bootGem } from "./gem_headless.mjs";
 import { res, settle, pickRes, fbBase, bufferAt } from "./gem_desk_lib.mjs";
 
 const args = process.argv.slice(2);
 const brk = args.includes("--break") ? args[args.indexOf("--break") + 1] : "";
-const BRK = { clamp: 1 << 27 };
-if (brk && !(brk in BRK)) throw new Error(`--break ${brk}: clamp`);
+const BRK = { clamp: 1 << 27, minrow: 1 << 21 }; // gui/winsize.zig BREAK_NOCLAMP, desktop/deskbreak.zig MIN_ROW
+if (brk && !(brk in BRK)) throw new Error(`--break ${brk}: clamp or minrow`);
 let failures = 0;
 const check = (name, ok, detail = "") => { if (!ok) failures++; console.log(`  ${ok ? "ok  " : "FAIL"}  ${name}${detail ? ": " + detail : ""}`); };
 const MODES = { low: [320, 200], medium: [640, 200], desk: [640, 480] };
@@ -41,6 +44,7 @@ async function run(mode) {
     const x = sw === 320 ? 2 : R.x, y = R.y, from = sw === 320 ? 316 : 320; // low: A:\ opened clamped
     const drag = (a, b) => { gem.drag(...host(gem, ...a), ...host(gem, ...b), 8); settle(gem, 6); };
     drag([x + from - 6, y + R.h - 5], [x + R.w - 6, y + R.h - 5]); // to R's size first (gem_desk_bugs_check's)
+    const tall = firstRow(blackAt(gem, sw, sh), x, y); // the first icon row with its names, at R's size
     drag([x + R.w - 6, y + R.h - 5], [sw + 40, sh + 40]); // past the corner
     let black = blackAt(gem, sw, sh), col = true, row = true;
     for (let yy = y + 30; yy < sh - 30; yy++) col &&= black(sw - 1, yy);
@@ -52,6 +56,28 @@ async function run(mode) {
     while (y + h < sh && black(x, y + h)) h++;
     const track = h - 21 - 3 * 11 + 2; // title + info line; up, down and the sizer share frame lines
     check(`${mode}: sized far up-left, it stops where every gadget fits: a track >= one gadget (G23)`, track >= 11, `${h} px high`);
+    // Matt, 13 Nov: at the minimum the names under the icons were dropped (low, medium) or cut in half (the desk).
+    const small = firstRow(black, x, y, tall.rows);
+    check(`${mode}: at its minimum, the first icon row shows whole, its names too (= the tall window's ${tall.rows} rows)`,
+        tall.rows > 0 && small.bits === tall.bits, `${h} px high`);
+}
+
+// The first icon cell of the window at (x, y), from the top of its work area (under the title and info
+// lines) to the last row of the first icon's name (`rows`; else found: the end of the second run of ink,
+// the icon's art being the first, its name the second).
+const CELL_W = 72, TOP = 21;
+function firstRow(black, x, y, rows = 0) {
+    let bits = "", runs = 0, inRun = false, n = 0;
+    for (; rows ? n < rows : n < 120; n++) {
+        let line = "";
+        for (let xx = x + 1; xx < x + 1 + CELL_W; xx++) line += black(xx, y + TOP + n) ? "1" : "0";
+        const ink = line.includes("1");
+        if (!rows && inRun && !ink && runs === 2) return { bits, rows: n };
+        bits += line;
+        if (ink && !inRun) runs++;
+        inRun = ink;
+    }
+    return { bits, rows: rows ? n : 0 };
 }
 
 for (const mode of Object.keys(MODES)) await run(mode);

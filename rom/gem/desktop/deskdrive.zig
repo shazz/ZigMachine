@@ -17,6 +17,7 @@ pub const State = struct {
     cur: u1 = A, // the drive in focus: d.dir is drives[cur]
     c_mounted: bool = false, // the shell read the SD card: C:'s icon shows
     win: [gui.MAX_WIN]u1 = [_]u1{A} ** gui.MAX_WIN, // each directory window's drive
+    sel: u1 = A, // the drive whose model the file/folder selection's indices are (desksel.zig)
 };
 
 /// A cart's unit (the drive ABI's: 0 drive A, 2 C:) as a drive, or null.
@@ -44,6 +45,17 @@ pub fn reset(d: *Desktop) void {
 pub fn use(d: *Desktop, drv: u1) void {
     d.drv.cur = drv;
     d.dir = &d.drives[drv];
+}
+
+/// The selection is indices into ONE drive's model: a window of the other drive, drawn with its
+/// model in focus (deskdraw.zig), shows none of it (Matt, 13 Nov: A:'s first file lit C:'s first).
+pub fn selHere(d: *const Desktop) bool {
+    return d.drv.cur == d.drv.sel or d.breaks & @import("deskbreak.zig").SEL_DRIVE != 0;
+}
+
+/// A selection made now is the focused drive's.
+pub fn ownSel(d: *Desktop) void {
+    d.drv.sel = d.drv.cur;
 }
 
 /// Focus the top directory window's drive (A: with none open); a change drops the selection.
