@@ -82,6 +82,38 @@ const SPECS = {
     },
 };
 
+// ChipNomad: its keys (README): X = A, SELECT (Left Shift) + Up = PROJECT, arrows move the browser's selection.
+const X = 0x78, SELECT = 0xe015;
+const tapKey = (f, k) => [[f, (d) => d.key(k)], [f + 2, (d) => d.keyUp(k)]];
+const tapDir = (f, dir) => [[f, (d) => d.input(dir)], [f + 2, (d) => d.inputRelease(dir)]];
+const selectUp = (f) => [[f, (d) => d.key(SELECT)], ...tapDir(f + 2, 0), [f + 6, (d) => d.keyUp(SELECT)]];
+const UP = 0, DOWN = 1;
+const CNM = "apps/ports/chipnomad/songs/MICROEGG.CNM"; // the floppy's MICROEGG.CNM: the card carries these bytes too
+
+SPECS.chipnomad = {
+    cart: "docs/demo-chipnomad.wasm", disk: "docs/demo-chipnomad.zmd",
+    card: async (img, sabotage) => {
+        await copyFile(GEMDOS_IMG, img);
+        const proj = `${img}.cnm`;
+        const bytes = Buffer.from(await readFile(CNM));
+        if (sabotage) bytes[41] = 0x58; // "MICROEGG" in the title line becomes "XICROEGG"
+        await writeFile(proj, bytes);
+        execFileSync("mmd", ["-i", img, "::HD/PROJECTS"]);
+        execFileSync("mcopy", ["-i", img, "-o", proj, "::HD/PROJECTS/MICROEGG.CNM"]);
+    },
+    // PROJECT (SELECT + Up), Load (X), the browser at "/" lists "C" first (patches/corelib_file.cpp.sed):
+    // X enters it; C's rows are "..", PICTURES, PROJECTS, TEXTS: two Downs and X enter PROJECTS; its rows are
+    // "..", MICROEGG.CNM: one Down and X load it
+    viaC: (broke) => [...selectUp(100), ...tapKey(120, X),
+        ...(broke === "list" ? [] : [...tapKey(160, X), ...tapDir(180, DOWN), ...tapDir(186, DOWN), ...tapKey(195, X),
+            ...tapDir(235, DOWN), ...tapKey(245, X)])],
+    viaCShots: { root: 150, listed: 225, loaded: 300 },
+    // the same file off the floppy's root, its first row
+    oracle: [...selectUp(100), ...tapKey(120, X), ...tapKey(160, X)],
+    oracleShot: 300,
+    at: null, park: null,
+};
+
 const args = process.argv.slice(2);
 const tag = args[0];
 const spec = SPECS[tag];
@@ -115,8 +147,9 @@ const img = `${dir}/card.img`;
 if (broke !== "c") await spec.card(img, broke === "bytes");
 const image = broke === "c" ? null : new Uint8Array(await readFile(img));
 console.log(`ports_cdrive ${tag}: ${spec.disk} off GEM, C: = ${GEMDOS_IMG} + its song${broke ? ` (--break ${broke})` : ""}`);
-const viaC = await session(spec.disk, [...spec.viaC(broke), spec.park(spec.at)], spec.viaCShots, image);
-const viaFloppy = await session(spec.disk, [...spec.oracle, spec.park(spec.at)], { loaded: spec.oracleShot }, null);
+const parked = (events) => (spec.park ? [...events, spec.park(spec.at)] : events); // a program that draws its own pointer
+const viaC = await session(spec.disk, parked(spec.viaC(broke)), spec.viaCShots, image);
+const viaFloppy = await session(spec.disk, parked(spec.oracle), { loaded: spec.oracleShot }, null);
 const h = Object.fromEntries(Object.entries(viaC.pics).map(([k, p]) => [k, sha(p.px)]));
 const hf = sha(viaFloppy.pics.loaded.px);
 check("the browser reaches /C: its listing is not the floppy's root", h.listed !== h.root, `root ${h.root.slice(0, 12)} vs listed ${h.listed.slice(0, 12)}`);

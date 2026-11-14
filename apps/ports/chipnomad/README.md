@@ -40,6 +40,21 @@ is reproducible.
 
 Keys are ChipNomad's desktop mapping (A = X, B = Z, START = Space, SELECT = Left Shift, arrows).
 
+## C: (the card's HD, KOS GEMDOS)
+
+Built with `-DKESTREL_CDRIVE` and GEMDOS's object (`Makefile`, as `../grafx2`). The floppy is `/`; C: is `/C`
+when the card has an HD folder (docs/KOS_GEMDOS.md §5). Path convention:
+
+- `/` is the floppy's root. `/C` is C:, the card's HD folder; `/C/PROJECTS` its PROJECTS folder.
+- The LOAD PROJECT browser (PROJECT screen: SELECT + Up, then Load) lists a folder `[C]` first at `/` when C:
+  mounts (`patches/corelib_file.cpp.sed`). X enters a folder or loads a project; `[..]` goes up, and from
+  `/C` it leads back to `/`.
+- Projects load off C: as off the floppy. Saving to C: is not proven yet: the SAVE PROJECT browser is the same
+  browser over fopen for writing (the floppy is read-only).
+- `node apps/ports_cdrive_check.mjs chipnomad`: a copy of docs/gemdos-c.img with `HD/PROJECTS/MICROEGG.CNM` (the
+  floppy's bytes); the browser opens C, PROJECTS, MICROEGG.CNM, and the frame equals the floppy's MICROEGG.CNM
+  loaded the same way (`--break c|bytes|list` must fail).
+
 ## Status (2 Nov 2026)
 
 - A fresh project's instruments are type None (silent): a note plays once its instrument has a type (on the
