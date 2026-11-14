@@ -763,6 +763,10 @@ gate ports_cdrive node apps/ports_cdrive_check.mjs pt2   # KOS C: in pt2-clone (
 gate ports_cdrive node apps/ports_cdrive_check.mjs pt2 --break c   # ...and C: answering nothing is caught
 gate ports_cdrive node apps/ports_cdrive_check.mjs pt2 --break bytes   # ...and a changed title on C: is caught
 gate ports_cdrive node apps/ports_cdrive_check.mjs pt2 --break list   # ...and no path typed (the browser never reaches C:) is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack   # KOS C: in klystrack: Open song lists C (a folder at the floppy root); C > SONGS > STARPORT.KT loads, and the frame equals the floppy's STARPORT2.KT opened the same way
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack --break c   # ...and C: answering nothing is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack --break bytes   # ...and a changed title on C: is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack --break list   # ...and the box never asked for C: is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels; Q + Discard quits back to GEM
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break quit   # ...and no quit is caught

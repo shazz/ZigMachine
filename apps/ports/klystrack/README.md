@@ -115,6 +115,22 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
   ports build byte-identical without it).
 - `third_party/stb/stb_image.h`: v2.30, nothing/stb commit 013ac3b (2024-05-31), unmodified; see `VERSION` there.
 
+## C: (the card's HD, KOS GEMDOS)
+
+Built with `-DKESTREL_CDRIVE` and GEMDOS's object (`Makefile`, as `../grafx2`). The floppy is `/`; C: is `/C`
+when the card has an HD folder (docs/KOS_GEMDOS.md §5). Path convention:
+
+- `/` is the floppy. `/C` is C:, the card's HD folder; `/C/SONGS` its SONGS folder. C:'s names are GEMDOS's.
+- The Open song / Save song box (Ctrl+O, Ctrl+S, or File) lists a folder `C` first at the floppy's root when C:
+  mounts (`patches/filebox.c.sed`). Double-click it, then the folder inside, then the file (a single click
+  selects). `..` leads back up; from C:'s root it leads to `/` (`kestrel_port.h` maps getcwd to the folding
+  `kestrel_getcwd`, as grafx2).
+- Songs and instruments open off C: as off the floppy. Saving to C: is not built yet (klystrack's save goes
+  through the same fopen; to be proven with the write calls, docs/KOS_GEMDOS_WRITES.md).
+- `node apps/ports_cdrive_check.mjs klystrack`: a copy of docs/gemdos-c.img with `HD/SONGS/STARPORT.KT` (the
+  floppy's STARPORT2.KT bytes); the box opens C, SONGS, STARPORT.KT, and the frame equals the floppy's
+  STARPORT2.KT opened the same way (`--break c|bytes|list` must fail).
+
 ## Status (1 Nov 2026)
 
 - Builds from a clean tree: all 72 klystron + klystrack sources, no warnings that matter (K&R prototypes only).

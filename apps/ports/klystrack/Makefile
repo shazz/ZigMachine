@@ -18,7 +18,7 @@ KINC   := ../kestrel_sdl2/include
 # vsnprintf to size it, a malloc, the vsnprintf and a free for every label of every repaint.
 DEFS   := -DNOSDL_MIXER -DUSESDLMUTEXES -DSTEREOOUTPUT -DUSESDL_IMAGE -DUSESDL_RWOPS -DCONFIG_DEFAULT_DISABLE_RENDER_TO_TEXTURE \
           -DLOWRESWAVETABLE -DRES_PATH= -DCONFIG_PATH=/klystrack.cfg -DKLYSTRON=klystron -D__KESTREL__ -DKESTREL_SDL_IMAGE -DKESTREL_HEAP_ROVER \
-          -DUSESTATICTEMPSTRINGS -DKESTREL_HEAP_PRESSURE
+          -DUSESTATICTEMPSTRINGS -DKESTREL_HEAP_PRESSURE -DKESTREL_CDRIVE
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I$(KINC) -I$(KINC)/SDL2 \
           -I$(GEN)/src -I$(GEN)/klystron -I. -include kestrel_port.h $(DEFS) \
           -Wno-unused-parameter -Wno-unused-but-set-variable \
@@ -33,10 +33,13 @@ KLY_C  := $(patsubst $(UP)/klystron/src/%,klystron/%,$(wildcard $(UP)/klystron/s
 APP_C  := $(filter-out src/midi.c,$(patsubst $(UP)/%,%,$(wildcard $(UP)/src/*.c $(UP)/src/import/*.c $(UP)/src/view/*.c)))
 UP_H   := $(patsubst $(UP)/klystron/src/%,klystron/%,$(wildcard $(UP)/klystron/src/*.h $(UP)/klystron/src/*/*.h)) \
           $(patsubst $(UP)/%,%,$(wildcard $(UP)/src/*.h $(UP)/src/*/*.h))
-# not the GEMDOS C: drive (kestrel_wasi_c*.c: GrafX2's opt-in, docs/KOS_GEMDOS.md): klystrack reads its floppy only
-KOPT   := $(filter-out %/kestrel_wasi_c.c %/kestrel_wasi_cdir.c,$(wildcard $(KSDL)/opt/*.c))
+# C: (KOS GEMDOS, docs/KOS_GEMDOS.md §5): "/C" = the card's HD, built as ../grafx2 does (-DKESTREL_CDRIVE above).
+# The floppy's own opt-in modules are the rest of src/opt/.
+KOPT   := $(filter-out %/kestrel_wasi_c.c %/kestrel_wasi_cdir.c %/kestrel_wasi_cfile.c,$(wildcard $(KSDL)/opt/*.c))
+CDRIVE := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o $(OUT)/ksdl/opt/kestrel_wasi_cfile.o $(OUT)/gemdos.o
+GEMDOS := ../../../rom/kos
 OBJS   := $(addprefix $(OUT)/,$(KLY_C:.c=.o) $(APP_C:.c=.o)) $(patsubst %.c,$(OUT)/%.o,$(wildcard kestrel_*.c)) \
-          $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c) $(KOPT))
+          $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c) $(KOPT)) $(CDRIVE)
 GENALL := $(addprefix $(GEN)/,$(KLY_C) $(APP_C) $(UP_H)) $(GEN)/src/version.h $(GEN)/src/version_number.h $(GEN)/klystron/version.h
 SHIMH  := $(wildcard $(KINC)/*.h $(KINC)/SDL2/* $(KSDL)/opt/*.h)
 KHDR   := $(wildcard kestrel_*.h)   # ours: kestrel_view.h is included by patched sources too (pattern.c)
@@ -72,6 +75,12 @@ $(OUT)/ksdl/%.o: $(KSDL)/%.c $(SHIMH)
 $(OUT)/kestrel_%.o: kestrel_%.c $(KHDR) $(SHIMH)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
+$(OUT)/ksdl/opt/%.o: $(KSDL)/opt/%.c $(SHIMH)
+	@mkdir -p $(dir $@)
+	$(ZIG) cc $(CFLAGS) -c $< -o $@
+$(OUT)/gemdos.o: $(wildcard $(GEMDOS)/gemdos*.zig $(GEMDOS)/fat*.zig)
+	@mkdir -p $(dir $@)
+	$(ZIG) build-obj -target wasm32-wasi -OReleaseSmall -fno-stack-check $(GEMDOS)/gemdos_c.zig -femit-bin=$@
 $(OUT)/%.o: $(GEN)/%.c $(GENALL) $(KHDR) $(SHIMH)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
