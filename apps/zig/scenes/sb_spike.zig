@@ -9,7 +9,8 @@
 //   1-4    the LOD: 12,147 / 6,100 / 4,097 / 3,082 triangles (tools/sb_mix3/decimate.py)
 //   E      the env-mapped meshes (redENV, silverENV, addENV) on / off
 //   A      CHISEL's lazy wait on / off (on: AFFINE runs while the CPU sets up the next spans)
-//   C      the per-frame CHISEL clear on / off (the backdrop covers the view)
+//   C      the per-frame CHISEL clear on / off (on: the PSP cleared every frame, and the backdrop
+//          is open at the top: from ~8 s the camera sees up to 3,600 px of sky)
 //   P      pause the clip;  Esc back to the menu
 //
 // Per frame (integers only): keys -> model-view (anim.zig), vertices -> screen
@@ -39,7 +40,7 @@ pub const Demo = struct {
     lod: usize = 0,
     env: bool = true,
     async_: bool = true,
-    clear: bool = false,
+    clear: bool = true, // a 320x180 CHISEL fill, lazy: drawn while ZIGGY transforms
     paused: bool = false,
     back: usize = 0, // the plane this frame is drawn into (the other one is on screen)
     wants_quit: bool = false,
