@@ -1,0 +1,5 @@
+#!/bin/sh
+# The kernel's module helper for the Wi-Fi driver (brcmfmac asks for brcmfmac-wcc at probe):
+# insmod the named module from /usr/lib/kwifi; anything else is ignored.
+for a; do case $a in -*) ;; *) n=$(echo $a | tr _ -); [ -f /usr/lib/kwifi/$n.ko ] && insmod /usr/lib/kwifi/$n.ko;; esac; done
+exit 0
