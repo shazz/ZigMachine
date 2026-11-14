@@ -4,6 +4,8 @@
 //   node apps/ports/chipnomad/tools/bard_compare.mjs [seconds=20] [--script]
 // --script: the shipped cart (docs/) and the gate's C-4 on an AY Classic instrument (ports_headless.mjs), BARD
 // against the same cart on a host with no queue (its fallback, the stream).
+// --dump <file> [--from <s>]: BARD's commands for snd-bench SND_BARDQ=1 (BARDQ_LOG): each chip's set-up and registers
+// as they stand at <s> seconds into the song (default 10), at t 0, then the song's commands from there, rebased.
 // Both builds play the song from boot on the page's machine (its floppy in the drive). ZIGGY's output is the stream
 // the cart feeds: 22050 Hz, 8-bit, mono ((L + R) / 2 >> 8). BARD's is the audio modules' 44.1 kHz stereo (the hi/lo
 // Paula path, x >> 1). BARD's is folded the stream's way (mono, pairs averaged to 22050, 8 bits), aligned by
@@ -14,7 +16,7 @@ import { cartRam, romRam } from "../../../../docs/wasm_hiwater.js";
 import { pageSound } from "../../../bard_queue_lib.mjs";
 
 const SCRIPTED = process.argv.includes("--script");
-const SECONDS = +(process.argv.find((a, i) => i > 1 && /^\d/.test(a)) ?? 20), FRAMES = Math.ceil(SECONDS * 60) + (SCRIPTED ? 200 : 120);
+const SECONDS = +(process.argv.find((a, i) => i > 1 && /^\d/.test(a) && !/^--(from|dump)$/.test(process.argv[i - 1])) ?? 20), FRAMES = Math.ceil(SECONDS * 60) + (SCRIPTED ? 200 : 120);
 const KEY_X = 0x78, KEY_SPACE = 0x20, SHIFT_LEFT = 0xe015, RIGHT = 3;
 const tap = (f, name, arg) => [[f, name, arg], [f + 2, name === "key" ? "keyUp" : "inputRelease", arg]];
 const next = (f) => [[f, "key", SHIFT_LEFT], ...tap(f + 2, "input", RIGHT), [f + 6, "keyUp", SHIFT_LEFT]];
@@ -51,13 +53,15 @@ async function run(cart, attach = true) {
     const stream = new Int8Array(fed.reduce((s, a) => s + a.length, 0));
     let o = 0;
     for (const a of fed) { stream.set(a, o); o += a.length; }
-    return { stream, left: sound.left(), right: sound.right(), stats: sound.stats(), log };
+    return { stream, left: sound.left(), right: sound.right(), stats: sound.stats(), log, commands: sound.commands };
 }
 
 const rms = (a, from = 0, n = a.length - from) => { let s = 0; for (let i = 0; i < n; i++) s += a[from + i] * a[from + i]; return Math.sqrt(s / n); };
 const first = (a) => a.findIndex((v) => v !== 0);
 const crossings = (a, from, n) => { let c = 0; for (let i = from + 1; i < from + n; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) c++; return c; };
 
+const di = process.argv.indexOf("--dump"), fi = process.argv.indexOf("--from");
+const FROM = fi > 0 ? +process.argv[fi + 1] : 10;
 const bard = await run(SCRIPTED ? "docs/demo-chipnomad.wasm" : "apps/ports/chipnomad/build_autoplay/demo-chipnomad.wasm");
 const ziggy = SCRIPTED ? await run("docs/demo-chipnomad.wasm", false) : await run("apps/ports/chipnomad/build_autoplay_ziggy/demo-chipnomad.wasm");
 console.log(`bard: ${bard.log.filter((l) => /autoplay|BARD|ZIGGY/.test(l)).join(" | ")}; ${JSON.stringify(bard.stats)}, stream ${bard.stream.length} B`);
@@ -91,3 +95,17 @@ console.log(`  rms BARD ${rms(m8, b0, N).toFixed(2)}, ZIGGY ${rms(z, zs, N).toFi
 console.log(`  zero crossings BARD ${crossings(m8, b0, N)}, ZIGGY ${crossings(z, zs, N)}`);
 const L0 = first(bard.left), n44 = Math.min(N * 2, bard.left.length - L0);
 console.log(`  BARD stereo (16-bit, x >> 1): rms L ${rms(bard.left, L0, n44).toFixed(0)}, R ${rms(bard.right, L0, n44).toFixed(0)}`);
+
+if (di > 0) { // the commands for snd-bench (cycles/sound/sbardq_bench.c plays a log from t 0, a frame's lead)
+    const c = bard.commands(), w = Array.from({ length: c.length / 4 }, (_, i) => [c[4 * i], c[4 * i + 1], c[4 * i + 2]]);
+    const t0 = w[0][0] + Math.round(FROM * 44100), state = new Map();
+    let i = 0;
+    for (; i < w.length && w[i][0] < t0; i++) { // configure (reg 14) is a fresh chip: what came before it is gone
+        const [, a, v] = w[i];
+        if (a < 0xa080 && (a & 15) === 14) for (const k of [...state.keys()]) if ((k & 0xfff0) === (a & 0xfff0) && (k & 15) !== 14) state.delete(k);
+        state.delete(a); state.set(a, v);
+    }
+    const out = [...[...state].flatMap(([a, v]) => [0, a, v, 0]), ...w.slice(i).flatMap(([t, a, v]) => [t - t0 + 1, a, v, 0])];
+    await (await import("node:fs/promises")).writeFile(process.argv[di + 1], new Uint8Array(Uint32Array.from(out).buffer));
+    console.log(`dump: ${out.length / 4} commands (the song from ${FROM} s, ${state.size} set-up writes at t 0) to ${process.argv[di + 1]}`);
+}
