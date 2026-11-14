@@ -1145,6 +1145,7 @@ dependent-read path); 1.10.0 (taken by LBASE).
 context; over the "LUT-neutral" wish, cuts ranked in docs/ROADMAP.md's CHISEL v2 row and BLITTER_HW_SPEC
 10.4. stniccc queues every fill (painter's order) against its CPU path: the board decides. 88 mutants,
 cart 112 and its harness prove the ops.
+
 ## 2026-10-19 — ZIGGY's cache-line refills overtake posted stores to other lines
 
 **Status:** accepted (pending the board measurement)
@@ -1400,6 +1401,7 @@ already does); `CYD_PAUSED` when stopped (klystrack plays note previews and keyj
 the picture with no event, timer or song after 15 identical repaints would not be drawn until the next event; none
 is known in klystrack. `apps/ports_headless.mjs klystrack` moves the pointer over the idle UI (`--break pointer`) and
 presses F5 only after cyd has gone quiet, so both new paths are gated.
+
 ## 2026-11-02 — True-colour plane: RGB565 through FRESCO's painter (HW 1.15.0)
 
 **Status:** accepted (feat/truecolor-plane; the study and Matt's decisions of 1 Nov in
@@ -1685,6 +1687,7 @@ inside at ~30 % speed (songs play slow) until the SID moves to BARD (`kestrel_sw
 feat/bard-queue) and/or a smaller 6502 core (ROADMAP). Every cart that owns the keyboard may now receive
 0xE019..0xE01D: the ports and GEM ignore them (ports_headless presses them before each port's pin; gem_headless
 "owner-keys-ignored").
+
 ## 2026-11-08 — GEM desk mode: plane 0 shown 640x480 1:1 by the scanout, the compositor bypassed (HW 1.17.0)
 
 **Status:** accepted (phase 1: RTL, machine model, firmware, tests; not yet on a bitstream)
@@ -1722,6 +1725,7 @@ clocks (the picture underruns there) and underruns at 32. The frame that switche
 hash-stable (the browser's PFB keeps the other mode's pixels); the hash rule is "desk" + the two halves. Phase 2:
 ZigOS `setDeskPlane` + the `vramAlloc` guard, the page / scene_hash / native host branch, `desk_check.mjs` and a
 test cart, ZigGEM's five abstractions, glass's mouse mapping, board bring-up.
+
 ## 2026-11-08 — CHISEL TRIANGLE: a Bresenham edge walk, no divider
 
 **Status:** accepted (bitstream and board A/B pending, the lead's; TRI TEST, cart 125, compares them)
@@ -1883,6 +1887,7 @@ their stamps one 44.1 kHz sample apart. The bottom border carries a status line 
 **Decision:** rom/gem/iconset.zig picks each desktop icon once, at comptime: the set's colour icon, else its mono icon, else the TOS 1.0 bitmap. The old path (icon.zig, dirview.zig, desktop.zig) and the engine's asset table (eng/assets.zig) both read it. Following real TOS 4 (its AES draws ib_wicon x ib_hicon unscaled and takes a colour icon's image only for the screen's planes or fewer): the icon is drawn 1:1 in every mode (twice as wide on ST low's 2:1 pixel), in colour on low (4 planes), mono on medium (2 planes), a selected colour icon as the mono one inverted. The icon cell's baseline is the set's tallest art (30 for TOS 1.0, so nothing moves in the committed build).
 **Alternatives considered:** Scaling the icon to half width in low (not what TOS 4 does, and the 2:1 look is the ST's). Colour on medium too (ZigMachine's planes are chunky, so it could, but TOS 4 cannot on 2 planes). Leaving the engine's own lookup and adding a second one for the old path (the drift the bug came from).
 **Consequences:** The committed build is unchanged (TOS 1.0 art both sides). With Matt's set the cell is 72x42 in every mode and low shows the TOS 4 icons, the floppy in colour; the old path installs the 16 VDI pens at palette 48..63 when the set has a colour icon. tools/gem_iconset_test.py proves the selection on a made-up set and that no old-path file imports gem_icons.zig (2 breaks).
+
 ## 2026-11-09 — Threaded C ports: their threads as fibers on Asyncify, in the shared layer
 
 **Status:** accepted
@@ -1953,6 +1958,7 @@ before it run unchanged; a cart that posts jobs needs a 1.24 system. ZigOS now i
 **Decision:** a new glass player id `PLAYER_AY = 12` (after PLAYER_SID = 11), shown as "AY", song "aylive". The queue knows its chip from its commands: `bq_pump` (host/bardq_pump.c, shared by BARD, ZIGGY and the host) tells the page `audio_backend_bard(2)` on the first command with an AY address (`0xA000..`, bard.zig AY_BASE); `bq_open` still says 1 (SID) until then.
 **Alternatives considered:** a chip word in the queue header (an ABI change for a label); reading the engine's state (the device is picked inside demo-audio.wasm, out of BARD's page code).
 **Consequences:** ids 0..12 are in map_cart.zig. A queue that opened and has written nothing yet reads "SID" for a moment. Needs glass and system.rv32 (snd firmware) to be reinstalled on the board.
+
 ## 2026-11-14 — The Paula scopes on the board: BARD rebuilds the engine's capture and writes it into the cart (sys table 1.26)
 
 **Status:** accepted
@@ -2001,3 +2007,23 @@ every 4th output sample x volume into a 128-entry ring per channel and the loade
 **Decision:** one cart (84; 85 retired, its build.zig slot left empty as slot 2's): keys 1/2/3 = Q16.16 / f32 on ZIGGY / f64 on ASTROLABE. An RGB565 window plane; every mode takes the same 16 samples a pixel (sample 0 = the first picture) and sums integer RGB per pixel (colour.zig: the old ramps made continuous), showing the mean with a 4x4 ordered dither on the bits 565 drops. Mode 3 traces 64-ray batches as vectors: the floor, the shading and the reflection in a few calls, and each lockstep sphere-trace step in ONE call of exactly 48 descriptors (the march's distance as dd t² + b2 t + qq per sphere, set up once per ray); ZIGGY decides hit / miss / which sphere between calls from the f64 bits and compacts finished rays out. Missing ops are expressed, not faked: the union's min as b + (d − |d|)/2 with |d| = sqrt(d²) (5 descriptors a merge), 1/x as exp(−log x).
 **Alternatives considered:** a per-ray scalar call (the round trip ×100s of ops a pixel); a smooth (log-sum-exp) union (approximate, and 6 transcendentals a step); analytic sphere intersection (fast, but no longer the SDF benchmark the other modes run); a second 8-bit plane for the HUD (each enabled plane costs the board ~0.6 Mc: the HUD is drawn into the true-colour plane).
 **Consequences:** the converged picture is pinned per mode and does not depend on frame slicing. Mode 3's board cost is dominated by glass staging every descriptor's arrays through uncached DDR (docs/ARM_FPU_COPROC.md §9 has the estimate and the proposed ops: VMIN, VDIV, a per-call staging cache). The 450 KB of sums stay in the cart's RAM.
+
+## 2026-11-14 — The ITEM SELECTOR's layout: our cells-of-the-font geometry, TOS 4's only from a local asset build
+
+**Status:** accepted
+**Context:** Matt's board shot of ST Replay's selector (medium) looked "twice too tall, 8x16, TOS-1 rows". Measured:
+it was the 8x8 font line-doubled by medium on a 400-line glass, 178 of 200 lines as TOS 4's own box; what differed
+was the layout (rows 10 px apart where TOS 4 puts them one font height apart, loose labels), and the desk drew it
+with 8-pixel cells where TOS 4 on 640x400 (falcon16, st_high) uses its 8x16 font. The exact TOS 4 tree exists only
+in Matt's LOCAL reconstruction (decisions.md 2026-11-09: never committed).
+**Decision:** fsel_geom.zig lays the selector out in cells of the font height (8 below 400 lines, 16 from 400) with
+OUR numbers; the 16-pixel case draws the asset set's 8x16 font, else ZigOS's 8x8 with each row twice (canvas Font
+`tall`). A `-Dgem_assets` build replaces the geometry with the reconstruction's own SELECTOR rects per font height:
+tools/gem_assets_fsel.py reads them from the manifest by object NAME into the generated module's `selectors`
+(rom/gem/engine/assets_none.zig `Selector`), fsel_look.zig picks them. The committed tool holds names, not numbers.
+**Alternatives considered:** pasting TOS's tree into fsel_tree.zig (licence); deriving the 16-pixel tree from the
+st_medium zig_extract (its pixel offsets are ambiguous: chars x 8 + px does not decompose uniquely); switching the
+program look's font to 8x16 in the desk (every dialog and alert would move; another branch's area).
+**Consequences:** the harnesses click and check the committed layout through apps/fsel_geom.mjs (a JS copy of
+`ours`: keep the two in step); a board ROM built with Matt's assets draws TOS 4's exact geometry, which no gate
+sees (it is local), so a converter mutant (`--break fsel`) guards the extraction instead.

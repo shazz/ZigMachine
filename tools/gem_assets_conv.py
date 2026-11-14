@@ -200,6 +200,9 @@ def main(argv=None) -> int:
     data = collect(a.assets)
     data["trees"] = collect_trees(a.trees) if a.trees else []
     from gem_assets_emit import emit  # beside this file
+    from gem_assets_fsel import selectors
+
+    data["selectors"] = selectors(read_manifest(a.assets))
     a.out.mkdir(parents=True, exist_ok=True)
     (a.out / "gem_assets.zig").write_text(emit(data, a.assets.name))
     return 0

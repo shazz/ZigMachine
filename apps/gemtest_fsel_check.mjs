@@ -12,6 +12,8 @@
 //     drive: the drive buttons do nothing (deskSetEngine's mutant bit 25)
 import { readFile } from "node:fs/promises";
 import { afterDesktop, C_IMAGE, MODES } from "./gemtest_lib.mjs";
+import { fselGeom } from "./fsel_geom.mjs";
+import { layout } from "./fsel_layout.mjs";
 
 const args = process.argv.slice(2);
 const brk = args.includes("--break") ? args[args.indexOf("--break") + 1] : "";
@@ -28,15 +30,17 @@ async function rig(mode, three_d) {
     d.frames(3);
     return d;
 }
-// fsel_tree.zig: the 312 x 178 box centred; drive k at (224 + (k % 2) * 40, 52 + (k / 2) * 13), 32 x 10.
-function box(mode) { const [sw, sh] = SIZE[mode]; return [(sw - 312) >> 1, (sh - 178) >> 1]; }
-function drive(mode, k) { const [bx, by] = box(mode); return [bx + 224 + (k % 2) * 40 + 16, by + 52 + (k >> 1) * 13 + 5]; }
+// fsel_geom.zig's layout (apps/fsel_geom.mjs): the box centred, the drive buttons, Cancel.
+const geom = (mode) => fselGeom(...SIZE[mode]);
+function box(mode) { const b = geom(mode).box; return [b.x, b.y]; }
+function drive(mode, k) { const g = geom(mode); return g.mid(g.drive(k)); }
 // The selector's box and its outline, the pointer (the desk's arrow) aside: the window behind shows what the
 // program wrote when it opened (Mask A: or C:), so only the box is compared.
 const rest = (d) => {
     d.point(2, 190); d.frames(2);
-    const { W, H, idx } = d.indices(), [bx, by] = box(d.mode()), out = [];
-    for (let y = Math.max(0, by - 4); y < Math.min(H, by + 182); y++) out.push(idx.subarray(y * W + bx - 4, y * W + bx + 316).join());
+    const { W, H, idx } = d.indices(), b = geom(d.mode()).box, out = [];
+    // the box and its 3-px outline (one more pixel is the window behind, which the program rewrites)
+    for (let y = Math.max(0, b.y - 3); y < Math.min(H, b.y + b.h + 3); y++) out.push(idx.subarray(y * W + b.x - 3, y * W + b.x + b.w + 3).join());
     return out.join("|");
 };
 
@@ -59,8 +63,8 @@ async function sweep(mode, three_d) {
     check(`${tag}: the A: button re-roots at A:\\*.*, re-listed: = the selector opened there`, rest(d) === onA);
     d.click(...drive(mode, 2));
     check(`${tag}: ...and C: brings back C:\\*.*`, rest(d) === onC);
-    const [bx, by] = box(mode);
-    d.click(bx + 212, by + 165); // Cancel
+    const g = geom(mode);
+    d.click(...g.mid(g.cancel)); // Cancel
     check(`${tag}: Cancel closes it`, [1, 2].every((h) => d.m.rom.fileSelActive(h) !== 1));
     return onC;
 }
@@ -78,12 +82,14 @@ async function still(mode) {
     poke(d, bx + 100, by + 100, (p) => p ^ 5);
     d.frames(2);
     check(`${MODES[mode]}: an idle frame leaves the box alone (no repaint)`, d.indices().idx[at] === (was ^ 5));
-    for (let y = by - 4; y < by + 184; y++) for (let x = bx - 4; x < bx + 318; x++) poke(d, x, y, () => (x ^ y) & 1);
+    const b = geom(mode).box;
+    for (let y = by - 4; y < by + b.h + 6; y++) for (let x = bx - 4; x < bx + b.w + 6; x++) poke(d, x, y, () => (x ^ y) & 1);
     d.frames(2);
     check(`${MODES[mode]}: painted over, the box is drawn again`, d.indices().idx[at] === was);
 }
 
 for (const mode of [0, 1, 2]) await still(mode);
+for (const mode of [0, 1, 2]) await layout(mode, await opened(mode, false, 31), "C:\\*.*", check);
 for (const mode of [0, 1, 2]) {
     const flat = await sweep(mode, false), deep = await sweep(mode, true);
     check(`${MODES[mode]}: the selector flat and 3D are two looks`, flat !== deep);
