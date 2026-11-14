@@ -3,8 +3,9 @@
 // (vendor/zest/vivado/zest_z7lite.tcl): UART0 on MIO 14/15 at 921600, SD0 on
 // MIO 40..45 without card detect, USB0 ULPI on MIO 28..39 with its PHY reset on
 // MIO 46. The glass needs nothing else from Linux: it reaches the PL and the
-// cart window through /dev/mem (fpga/glass/src/devmem.zig). GEM0 is for the
-// remote shell: through EMIO (as zeST routes it) to the RTL8201F on PL pins.
+// cart window through /dev/mem (fpga/glass/src/devmem.zig). GEM0 is for a future
+// remote shell over the RJ45 (EMIO to the RTL8201F on PL pins): disabled below
+// until the bitstream wires it.
 //
 // Unverified until Buildroot builds it (docs/FPGA_GLASS.md, "What needs the board").
 /dts-v1/;
@@ -73,11 +74,18 @@
 	phys = <&usb_phy0>;
 };
 
-// GEM0 through EMIO to the RTL8201F (10/100, MII; zeST's z7lite.xdc has the
-// pins). No phy-handle: the PHY's MDIO address depends on its strapping, so
-// macb scans the bus and takes the PHY it finds. The bitstream must route the
-// PS7's ENET0 EMIO ports (GMII nibble, MDIO) to those pins.
+// GEM0 is OFF until the bitstream routes the PS7's ENET0 EMIO ports (MII nibble,
+// MDIO) to the RTL8201F's PL pins (docs/FPGA_GLASS.md, "Remote shell"). With it
+// on and nothing wired, the unwired EMIO MDIO input reads 0, so every one of the
+// 32 addresses answers with PHY ID 0x00000000 (not the 0xffffffff of an empty
+// bus): macb's bus scan registered 32 phantom PHYs (each ~1.2 s, most likely
+// the synchronous request_module("mdio:...") per PHY), and the probe took
+// 39 s of a 51 s boot (prototypes/zest_splash_re/bootlogs/boot_card14n.txt,
+// 14 Nov 2026; /sys/bus/mdio_bus/devices listed 32 PHYs, all ID 0). The board's
+// network is the Wi-Fi dongle. When the EMIO wiring lands: status "okay",
+// phy-mode "mii", ideally a phy-handle to the strapped address (no scan), and
+// BR2_SYSTEM_DHCP="eth0" back in the Buildroot defconfig.
 &gem0 {
-	status = "okay";
+	status = "disabled";
 	phy-mode = "mii";
 };
