@@ -12,6 +12,7 @@ const deskwin = @import("deskwin.zig");
 const desk_icons = @import("desk_icons.zig");
 const deskbreak = @import("deskbreak.zig");
 const deskdrop = @import("deskdrop.zig");
+const deskdrive = @import("deskdrive.zig");
 const Desktop = dt.Desktop;
 const Rect = gui.Rect;
 const View = dirview.View;
@@ -22,12 +23,13 @@ pub fn clearSel(d: *Desktop) void {
     d.sel_icon = -1;
     d.sel_files = 0;
     d.sel_folders = 0;
+    deskdrive.ownSel(d); // every selection starts here: what is picked next is this drive's
 }
 pub fn fileSelected(d: *const Desktop, a: u8) bool {
-    return d.sel_file == @as(i16, @intCast(a)) or (d.sel_files >> @intCast(a)) & 1 != 0;
+    return deskdrive.selHere(d) and (d.sel_file == @as(i16, @intCast(a)) or (d.sel_files >> @intCast(a)) & 1 != 0);
 }
 pub fn folderSelected(d: *const Desktop, f: u8) bool {
-    return d.sel_folder == @as(i16, @intCast(f)) or (d.sel_folders >> @intCast(f)) & 1 != 0;
+    return deskdrive.selHere(d) and (d.sel_folder == @as(i16, @intCast(f)) or (d.sel_folders >> @intCast(f)) & 1 != 0);
 }
 
 // This frame's pointer, after the windows had first go at it. `busy` = something

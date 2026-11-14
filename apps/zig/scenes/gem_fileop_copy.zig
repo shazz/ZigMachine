@@ -8,8 +8,17 @@
 // --------------------------------------------------------------------------
 const gemdos = @import("kos_gemdos");
 const fp = @import("gem_fileop_path.zig");
+const zmd = @import("gem_fileop_zmd.zig");
 
 pub const CHUNK: i32 = 32 * 1024;
+// The source "handle" of a file read off a .zmd in drive A (gem_fileop_zmd.zig): never a GEMDOS
+// one (those are 6 .. 6 + MAX_FILES), so it is never Fclosed.
+const ZMD_H: i32 = 0x7FFF;
+
+fn zmdOpen(from: []const u8) i32 {
+    const r = zmd.open(from);
+    return if (r < 0) r else ZMD_H;
+}
 pub const MORE: i32 = 1; // chunk(): more to come; 0 the file is whole; < 0 GEMDOS's error
 
 var buf: [CHUNK]u8 align(4) = undefined;
@@ -26,7 +35,7 @@ pub fn active() bool {
 /// Open `from`, create `to`: 0, or GEMDOS's error (nothing left open).
 pub fn start(from: []const u8, to: []const u8, bytes: u32) i32 {
     const dos = gemdos.dos();
-    in_h = dos.Fopen(from, 0);
+    in_h = if (zmd.owns(from)) zmdOpen(from) else dos.Fopen(from, 0);
     if (in_h < 0) return drop(in_h);
     out_h = dos.Fcreate(to, 0);
     if (out_h < 0) return drop(out_h);
@@ -39,7 +48,7 @@ pub fn start(from: []const u8, to: []const u8, bytes: u32) i32 {
 /// The next chunk: MORE, 0 (the file is whole: committed at Fclose), or the error that dropped it.
 pub fn chunk() i32 {
     const dos = gemdos.dos();
-    const n = dos.Fread(in_h, CHUNK, &buf);
+    const n = if (in_h == ZMD_H) zmd.read(&buf) else dos.Fread(in_h, CHUNK, &buf);
     if (n < 0) return drop(n);
     if (n > 0) {
         const w = dos.Fwrite(out_h, n, &buf);
@@ -48,7 +57,7 @@ pub fn chunk() i32 {
     if (n == CHUNK) return MORE;
     const c = dos.Fclose(out_h); // the save: the last bytes and the commit
     out_h = -1;
-    _ = dos.Fclose(in_h);
+    if (in_h != ZMD_H) _ = dos.Fclose(in_h);
     in_h = -1;
     return c;
 }
@@ -57,7 +66,7 @@ pub fn chunk() i32 {
 pub fn drop(code: i32) i32 {
     const dos = gemdos.dos();
     if (out_h >= 0) _ = dos.Fclose(out_h);
-    if (in_h >= 0) _ = dos.Fclose(in_h);
+    if (in_h >= 0 and in_h != ZMD_H) _ = dos.Fclose(in_h);
     out_h = -1;
     in_h = -1;
     return code;

@@ -6,6 +6,7 @@
 const std = @import("std");
 const gemdos = @import("kos_gemdos");
 const op = @import("rom_sdk").deskop;
+const zmd = @import("gem_fileop_zmd.zig");
 
 pub const FA_DIR: u8 = 0x10;
 pub const ANY: i32 = 0x16; // folders, hidden and system files too: everything a copy carries
@@ -60,6 +61,7 @@ var scratch: gemdos.Dta = .{};
 
 /// The entry at `path` (file or folder), or null (GEMDOS's error in `code`).
 pub fn stat(path: []const u8, code: *i32) ?Entry {
+    if (zmd.owns(path)) return zmd.stat(path, code); // drive A holds a .zmd: no FAT for GEMDOS
     const dos = gemdos.dos();
     dos.Fsetdta(&scratch);
     code.* = dos.Fsfirst(path, ANY);

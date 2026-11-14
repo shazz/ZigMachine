@@ -363,6 +363,9 @@ gate gem node apps/gem_fileops_check.mjs   # GEM5_PLAN P1.1 (docs/GEM_FILEOPS.md
 gate gem node apps/gem_fileops_check.mjs --break copy   # ...and a host that answers 0 to the writes without writing is caught (the bytes)
 gate gem node apps/gem_fileops_check.mjs --break delete   # ...and one that answers 0 to the deletes without deleting (the TRASH)
 gate gem node apps/gem_fileops_check.mjs --break rename   # ...and one that answers 0 to the renames without renaming (the move, Show Info)
+gate gem node apps/gem_fileops_a_check.mjs   # drive A in the file operations (Matt on the board, 13 Nov, GEM 5.0): BOOT.WSM, KEYGEN.XM dragged from A:\ holding a .zmd data disk onto C:\NET are copied byte for byte (they raised "The disk cannot be read": KOS GEMDOS does not mount A: over a .zmd, EDRIVE), a Control-drag keeps the source; a 70 KB file from a FAT floppy copied whole; with A:\ and C:\ open, a file selected in one window lights nothing in the other
+gate gem node apps/gem_fileops_a_check.mjs --break zmd   # ...and a .zmd listed with no disk behind it (the bytes must come off the drive) is caught
+gate gem node apps/gem_fileops_a_check.mjs --break sel   # ...and a selection kept by index only (A:'s first file lit C:'s first) is caught
 gate gem node apps/gem_fileops_check.mjs --break click   # ...and a desktop where any held press is a drag and icons under a window take drops (Matt, 10 Nov: a click on BOOT.WSM in A: raised "The disk cannot be read") is caught
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent

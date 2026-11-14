@@ -77,7 +77,7 @@ export async function desktop(cImg, aImg, mode = "low", hook = null, bits = 0) {
         return 512;
     };
     const gem = await bootGem({ cImage: img, cFileOp, diskReadBlock, deskAvailable: 1 });
-    if (a) { gem.demo.insertDisk(2); settle(gem, 4); }
+    if (a && !aImg.endsWith(".zmd")) { gem.demo.insertDisk(2); settle(gem, 4); } // a .zmd: the caller hands its listing (gem.mount)
     const low = () => gem.machine.hwPhysWidth() && new DataView(gem.memory.buffer, gem.machine.hwVideoBase()).getUint8(0) === 0;
     const host = (x, y) => [low() ? 2 * x : x, y];
     const ui = {
