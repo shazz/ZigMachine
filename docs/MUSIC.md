@@ -416,9 +416,19 @@ the 64 KiB input ring, half the 4 s of a 128 kbps stream), a decode of 576 sampl
 channel a frame, and under 11 kHz of audio bandwidth (the stream's Nyquist). Song RAM is the same for every format, 214 KB of the player's window: the
 64 KiB input ring, 32 KiB feed staging, a 2 KiB frame, the PCM (4.75 KB, of which a 22.05 mono
 frame uses 1.1 KB), the decoder state (about 28 KB of the 48 KB reserved), then the four Paula
-rings. BARD cost: 44.1 kHz stereo 128 kbps is 52.4 % (`make snd-bench SONG=TONES44.MP3
-MUSIC=$PWD/../apps/zig/assets/mp3 SND_MP3=1`); the 22.05 mono figure is on the roadmap row
-(`LSF22M.MP3`, same command), not yet measured.
+rings. BARD cost (`make snd-bench SONG=<file> MUSIC=$PWD/../apps/zig/assets/mp3 SND_MP3=1 ZM_FRAMES=6`,
+cycles a 1.67 Mc frame; measured 14 Nov 2026 on the `soc_hp_snd_dyn8sx` model, steady frames 2-5):
+
+| Stream | average | peak (a frame that decodes) | frame without a decode |
+|---|---|---|---|
+| 44.1 kHz mono (MONO44) | 373k = 22 % | 601k = 36 % | 147k = 9 % |
+| 22.05 kHz mono 64k (LSF22M) | 332k = 20 % | 452k = 27 % | 212k = 13 % |
+| 44.1 kHz stereo 128k (TONES44, the earlier combo16 core) | 52.4 % | | |
+
+Mono is the big saving. 22.05 kHz halves the decode (576 samples a frame: the peak drops from 36
+to 27 %) and the file, but the general linear 22.05 -> 44.1 conversion adds ~65k cycles a frame
+(~4 %); an exact x2 path (repeat and average) would recover most of it. (TONES44 no longer fits
+the bench image's 2 MiB flash beside the players: 46 KB over.)
 
 Test files: `apps/zig/assets/mp3/LSF*.MP3` (a 1000 Hz sine, self-generated, `make.sh` there).
 
