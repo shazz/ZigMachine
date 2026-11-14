@@ -19,7 +19,7 @@ const art = @import("art.zig");
 const BW = 320;
 const BH = 42;
 const BLUR_FROM = BW + 1; // row 1, column 1
-const BLUR_LEN = 10140; // bytes, as $691E
+const BLUR_LEN = 1014 * 12; // bytes, as $691E: dbra 1013 over 12 unrolled bytes (rows 1..38 + 8)
 const GW = 16;
 const GH = 32;
 
