@@ -258,6 +258,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
+    apps/zig/scenes/sb_spike/raster_test.zig
     apps/zig/scenes/bard_sid/tune.zig
     libs/zig/players/mp3_frame_test.zig
     libs/zig/players/mp3_in_test.zig
@@ -574,6 +575,9 @@ gate obj node apps/obj_headless.mjs --break res     # ...and + / - that never ar
 gate obj node apps/obj_headless.mjs --break shade   # ...and an S that never arrives is caught
 gate obj node apps/obj_headless.mjs --break erase   # ...and a stale pixel left in the object rows is caught
 gate obj node apps/obj_headless.mjs --break pin     # ...and one pixel off a pinned picture is caught
+gate sb_spike node apps/sb_spike_headless.mjs "$SHOTS/sb_spike"   # SB SPIKE (cart 132, Suicide Barbie mix3 on CHISEL AFFINE, the port's feasibility spike): two planes flip, exactly one on a frame; the backdrop covers the 320x180 view, the letterbox rows stay index 0; 1x submits 12,147 triangles and draws 4,000+ in 3+ AFFINE ops, none dropped; keys 2-4 give 6,100 / 4,097 / 3,082 with fewer drawn and the HUD follows; E hides the env meshes, P freezes; frame 60 pinned at 1x and 4x
+gate sb_spike node apps/sb_spike_headless.mjs --break lod   # ...and LOD keys that never arrive are caught
+gate sb_spike node apps/sb_spike_headless.mjs --break pin   # ...and one view pixel off a pin is caught
 gate scrolllab node apps/scrolllab_headless.mjs "$SHOTS/scrolllab"   # SCROLLTEXT LAB: the ten distortions over one text (codef_fx siny/sinx/zoomy, a 2D path with a loop, screen 345's table) all render and all differ from FLAT, and Escape leaves
 gate_timed polkadots node apps/polkadots_headless.mjs "$SHOTS/polkadots"   # POLKA DOTS: the flat-shaded torus reaches the dot grid (100-700 cells stamped, never the whole grid), the light still makes big dots as well as small ones, all FOUR render modes draw a different picture at the op count the cart itself reports, and every one of them holds 60 fps; this fixed-point cart's dots match the f32 cart's (under 1% of lit cells, never more than one dot size apart); F switches the maths live: pressed before frame 1 the cart IS the f32 cart pixel for pixel, twice it is itself again, mid-turn it keeps the pose
 gate_timed polkadots node apps/polkadots_headless.mjs "$SHOTS/polkadots_break" --break fixed   # ...and a fixed-point cart a frame off the f32 one (the dots the two number systems draw no longer agree) is caught

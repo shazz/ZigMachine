@@ -644,6 +644,7 @@ pub fn build(b: *std.Build) void {
         "demo-sca_karatekid2", // 129 — SCA THE KARATE KID PART II, the Swiss Cracking Association crack intro (Amiga 1987; CODEF screen 495)
         "demo-copro", // 130 — COPRO: BARD as a coprocessor (zg.bard.job, table 1.24): the cart posts jobs (a ZX0 depack, a 3D morph of 4096 dots, 4096 particles, a CRC-32 of 64 KB) that BARD serves between its audio renders, and two f64 pages on ASTROLABE (hwAstro: a Mandelbrot zoom, a 16x16 LINPACK cloth); the same kernels on ZIGGY for every A/B; an SNDH plays all along
         "demo-kestrel_boot", // 131 — KESTREL BOOT (WINDHOVER): the console's boot screen, a kestrel stooping into a dawn sky on the true-colour plane (TC fade), CHISEL AFFINE dive, copper highlight, palette wordmark, a YM call + strummed chord; 4.8 s then black (prototypes/boot_screen/STUDY.md)
+        "demo-sb_spike", // 132 — SB SPIKE: Suicide Barbie's heaviest scene (mix3, TBL PSP 2007, MIT) textured on one 8-bit plane: Q16 geometry on ZIGGY, CHISEL AFFINE spans, LOD keys 1-4; data from tools/sb_mix3/convert.py
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
