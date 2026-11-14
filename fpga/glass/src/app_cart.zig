@@ -38,6 +38,7 @@ pub fn act(app: *App, action: menu.Action) void {
         .settings => applySettings(app),
         .save => saveSettings(app),
         .source => @import("app_source.zig").toggle(app),
+        .wifi => |what| @import("app_wifi.zig").act(app, what),
     }
     app.redraw();
 }

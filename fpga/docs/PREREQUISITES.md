@@ -42,7 +42,9 @@ wireless wiki (wireless.docs.kernel.org) names the driver for an id.
 
 ### Setting the network
 
-Put a file `KESTREL/wifi.conf` on the SD card's FAT partition, in wpa_supplicant's format:
+From the board itself: F12, Console > `Wi-Fi...`, Scan networks, pick one, type its password
+(docs/FPGA_GLASS.md, "The Wi-Fi page"). Glass writes the file below for you, hashed key only,
+once the join worked. Or by hand: put a file `KESTREL/wifi.conf` on the SD card's FAT partition, in wpa_supplicant's format:
 
 ```
 network={
