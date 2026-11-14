@@ -75,6 +75,7 @@ pub const App = struct {
     ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)
     wifi: @import("app_wifi.zig").State = .{}, // the Wi-Fi page's jobs (app_wifi.zig)
     shot: @import("app_shot.zig").State = .{}, // a screenshot under way (app_shot.zig)
+    reboot: @import("app_reboot.zig").State = .{}, // a reboot under way (app_reboot.zig)
     toast: overlay.Toast = .{}, // a message shown with the menu closed (app_stats.toast)
     card_dir: []const u8, // the SD card's root: screenshots/ goes there (layout.Dirs.card)
     splash: splash.State = .{}, // the boot screen at power-on (app_splash.zig)
@@ -225,6 +226,7 @@ pub const App = struct {
         budget_page.sample(self);
         @import("app_wifi.zig").tick(self); // a job's result lands with the OSD closed too
         @import("app_shot.zig").tick(self); // and a screenshot's
+        @import("app_reboot.zig").tick(self); // a reboot asked for
         if (!self.open) return overlay.draw(self);
         switch (self.menu.page) {
             .debug, .budget => if (self.ticks % 5 == 0) self.redraw(),

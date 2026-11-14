@@ -34,7 +34,7 @@ test "every command parses, with its defaults" {
 test "a malformed command says which way it is wrong" {
     const E = ctl.Error;
     try std.testing.expectError(E.Empty, ctl.parse("  \n"));
-    try std.testing.expectError(E.UnknownCommand, ctl.parse("reboot"));
+    try std.testing.expectError(E.UnknownCommand, ctl.parse("poweroff"));
     try std.testing.expectError(E.MissingArgument, ctl.parse("load"));
     try std.testing.expectError(E.TooManyArguments, ctl.parse("load a.zmd B c"));
     try std.testing.expectError(E.TooManyArguments, ctl.parse("stats 5 6"));
@@ -132,4 +132,9 @@ test "the socket carries a line in and the reply out; no glass is NoGlass" {
     t.join();
     try std.testing.expectEqual(@as(?ctl_sock.Error, null), c.err);
     try std.testing.expectEqualStrings("ok got [stats 5]\n", c.got);
+}
+
+test "reboot takes no argument" {
+    try std.testing.expectEqual(ctl.Cmd.reboot, try ctl.parse("reboot"));
+    try std.testing.expectError(error.TooManyArguments, ctl.parse("reboot now"));
 }

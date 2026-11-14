@@ -144,7 +144,47 @@ test "the debug page opens from the console and any back key leaves it" {
     _ = m.key(down(map.KEY_ARROW_DOWN)); // Take screenshot
     try std.testing.expectEqual(Action.shot, m.key(down(map.KEY_ENTER)));
     try std.testing.expectEqual(menu.Page.console, m.page); // the menu stays: the shot leaves the OSD out
+    _ = m.key(down(map.KEY_ARROW_DOWN)); // Reboot...: asks first, see "Reboot asks"
     _ = m.key(down(map.KEY_ARROW_DOWN)); // Back: a pad has no Esc
     try std.testing.expectEqual(Action.save, m.key(down(map.KEY_ENTER)));
     try std.testing.expectEqual(menu.Page.shelf, m.page);
+}
+
+fn toReboot(m: *menu.Menu) void {
+    m.page = .console;
+    m.console.cursor = @intFromEnum(page_console.Item.reboot);
+}
+
+test "Reboot asks first: the item exists, No is the default, No and Esc do nothing, only Yes acts" {
+    const d = disks(&.{"a"});
+    var m = menu.Menu{ .disks = &d };
+    toReboot(&m);
+    var o = osd.Osd{};
+    m.draw(&o, &View{}, &BView{});
+    try std.testing.expectEqualStrings(" Reboot...", body(&o, page_console.FIRST + @intFromEnum(page_console.Item.reboot)));
+    try std.testing.expectEqual(Action.none, m.key(down(map.KEY_ENTER))); // the question, not the reboot
+    try std.testing.expect(m.console.ask and !m.console.yes);
+    m.draw(&o, &View{}, &BView{});
+    try std.testing.expectEqualStrings(" Reboot the board?", body(&o, 1));
+    try std.testing.expectEqual(Action.none, m.key(down(map.KEY_ENTER))); // Enter on the default: No
+    try std.testing.expect(!m.console.ask);
+    _ = m.key(down(map.KEY_ENTER)); // again
+    try std.testing.expectEqual(Action.none, m.key(down(map.KEY_ESCAPE)));
+    try std.testing.expect(!m.console.ask);
+    try std.testing.expectEqual(menu.Page.console, m.page);
+    _ = m.key(down(map.KEY_ENTER));
+    _ = m.key(down(map.KEY_ARROW_DOWN)); // Yes
+    try std.testing.expect(m.console.yes);
+    try std.testing.expectEqual(Action.reboot, m.key(down(map.KEY_ENTER)));
+    _ = m.key(down(map.KEY_ENTER)); // asked again: No is the default again
+    try std.testing.expect(!m.console.yes);
+}
+
+test "every console help text fits its three rows" {
+    for (page_console.help) |h| {
+        var rows: [3][]const u8 = undefined;
+        var last: [osd.COLS]u8 = undefined;
+        const n = @import("text.zig").wrap(h, osd.BODY_W, &rows, &last);
+        try std.testing.expect(n <= 3 and !std.mem.endsWith(u8, rows[n - 1], "~"));
+    }
 }

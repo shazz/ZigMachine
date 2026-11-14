@@ -1,9 +1,12 @@
 // The console page: the machine itself rather than a cart.
 //
 //   row 0       title bar (rows 1..14 right of the section strip, 30 wide)
-//   rows 1..9   Cold reset, Warm reset, Volume, Mute, Debug, Help, Wi-Fi, Take screenshot, Back
-//   row 10      a rule
-//   rows 11..14 what the selected item does
+//   rows 1..10  Cold reset, Warm reset, Volume, Mute, Debug, Help, Wi-Fi, Take screenshot, Reboot, Back
+//   row 11      a rule
+//   rows 12..14 what the selected item does
+//
+// Reboot... asks first (`ask`): Yes / No, No selected, Up/Down/Left/Right choose, Enter acts, Esc or
+// Backspace cancel. Only Yes leaves the page's Key.reboot (app_reboot.zig does it).
 //   row 15      status
 //
 // Up/Down select, Enter (or a pad's fire) acts, Left/Right change the volume
@@ -15,31 +18,36 @@ const osd = @import("osd.zig");
 const text = @import("text.zig");
 const config = @import("config.zig");
 
-pub const Item = enum { cold, warm, volume, mute, debug, help, wifi, shot, back };
+pub const Item = enum { cold, warm, volume, mute, debug, help, wifi, shot, reboot, back };
 const ITEMS = std.enums.values(Item);
 pub const FIRST = 1;
-const RULE = 10;
-const HELP = 11;
+const RULE = 11;
+const HELP = 12;
+const HELP_ROWS = 3;
 pub const VOL_STEP = 16;
 
-pub const Key = enum { none, back, cold, warm, settings, debug, help, wifi, shot };
+pub const Key = enum { none, back, cold, warm, settings, debug, help, wifi, shot, reboot };
 
-const help = [_][]const u8{
-    "Reload the cart from the SD card, clear all its memory and boot it: a power cycle. (R on the shelf)",
+pub const help = [_][]const u8{
+    "Reload the cart from the SD card, clearing its memory: a power cycle. (R on the shelf)",
     "Restart the cart CPU and keep its memory: the ST's reset button. (W on the shelf)",
     "Master volume. Left/Right change it; saved to glass.cfg when you leave this page.",
     "Silence the console. Enter or Left/Right toggle it; saved with the volume.",
     "Versions, live stats of the running cart, and the board.",
     "Every shortcut: the keys of each page, the hotkeys, the pad.",
-    "The board's Wi-Fi: its network and address; scan, join one with its password, forget it.",
+    "The board's Wi-Fi: its address; scan, join a network, forget it.",
     "The picture on the TV, as a PNG in screenshots/ on the card. PrintScreen too.",
+    "Restart the whole board (Linux and all), after a Yes/No. Stops the cart.",
     "Back to the shelf.",
 };
 
 pub const State = struct {
     cursor: usize = 0,
+    ask: bool = false, // the Reboot Yes/No question is up
+    yes: bool = false, // ...and Yes is selected (never at first)
 
     pub fn key(self: *State, code: u32, s: *config.Settings) Key {
+        if (self.ask) return self.answer(code);
         const item = ITEMS[self.cursor];
         switch (code) {
             map.KEY_ARROW_UP => self.cursor -|= 1,
@@ -55,6 +63,7 @@ pub const State = struct {
                 .help => .help,
                 .wifi => .wifi,
                 .shot => .shot,
+                .reboot => self.question(),
                 .back => .back,
             },
             else => {},
@@ -62,7 +71,43 @@ pub const State = struct {
         return .none;
     }
 
+    fn question(self: *State) Key {
+        self.ask = true;
+        self.yes = false;
+        return .none;
+    }
+
+    fn answer(self: *State, code: u32) Key {
+        switch (code) {
+            map.KEY_ARROW_UP, map.KEY_ARROW_DOWN, map.KEY_ARROW_LEFT, map.KEY_ARROW_RIGHT => self.yes = !self.yes,
+            map.KEY_ENTER, ' ' => {
+                self.ask = false;
+                const go = self.yes;
+                self.yes = false;
+                return if (go) .reboot else .none;
+            },
+            map.KEY_ESCAPE, map.KEY_BACKSPACE => {
+                self.ask = false;
+                self.yes = false;
+            },
+            else => {},
+        }
+        return .none;
+    }
+
+    fn drawAsk(self: *const State, o: *osd.Osd) void {
+        o.line(0, " ZIGMACHINE  REBOOT        < Esc", true);
+        o.body(FIRST, " Reboot the board?", false);
+        o.body(FIRST + 2, " Yes", self.yes);
+        o.body(FIRST + 3, " No", !self.yes);
+        o.body(RULE, "-" ** osd.BODY_W, false);
+        o.body(HELP, "The cart stops and the board", false);
+        o.body(HELP + 1, "restarts. Enter chooses, Esc", false);
+        o.body(HELP + 2, "cancels.", false);
+    }
+
     pub fn draw(self: *const State, o: *osd.Osd, s: config.Settings) void {
+        if (self.ask) return self.drawAsk(o);
         o.line(0, " ZIGMACHINE  CONSOLE       < Esc", true);
         var buf: [osd.COLS]u8 = undefined;
         var cells: [16]u8 = undefined;
@@ -77,12 +122,13 @@ pub const State = struct {
                 .help => " Help...",
                 .wifi => " Wi-Fi...",
                 .shot => " Take screenshot",
+                .reboot => " Reboot...",
                 .back => " Back",
             };
             o.body(row, t, i == self.cursor);
         }
         o.body(RULE, "-" ** osd.BODY_W, false);
-        var rows: [4][]const u8 = undefined;
+        var rows: [HELP_ROWS][]const u8 = undefined;
         var last: [osd.COLS]u8 = undefined;
         const n = text.wrap(help[self.cursor], osd.BODY_W, &rows, &last);
         for (rows[0..n], 0..) |r, k| o.body(HELP + @as(u32, @intCast(k)), r, false);
