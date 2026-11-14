@@ -24,6 +24,7 @@ The study notes are `prototypes/suicide_barbie_re/ANALYSIS.md` §7 (a local, git
 | `debug.zig` | 71 | Scrub keys (pause, ±1 s, ±10 s, next/prev item, A-B marks) and `formatTime` (mm:ss.cc). |
 | `assets.zig` | 68 | **MOCK**: two slots and a prefetch queue; loads at once from a table. |
 | `audio.zig` | 36 | **MOCK**: a 60 Hz sample counter, exact at rate/60. No sound. |
+| `mp3.zig`, `mp3_music.zig` | 106 + 149 | **REAL** music backend: an MP3 file fed to the host's MP3 player (`zg.mp3Ctl/Feed/Status`) a chunk at a time, the clock's source from the frames it decoded, a seek by byte offset (exact on CBR files), a VBL fallback when no player answers. The cart passes its Host (three forwards to zigos) and Input (`SliceInput`, or KOS GEMDOS). |
 | `r3d.zig` | 32 | **MOCK**: 3D types only (`Vec3`, `Mesh`, `Material`, `Actor`, `Camera`). No maths. |
 | `zigdemo.zig` | 14 | Umbrella: re-exports the modules and `Demo`. |
 
@@ -39,6 +40,8 @@ Mocked, each marked in its file:
 - **assets**: the disk streaming (64 KB a frame) and the zx0 step-depack. The mock keeps the
   queue and the slots and loads at once.
 - **audio**: the ADPCM/PCM stream and the re-seek of the ring. The mock keeps a sample counter.
+  An MP3 soundtrack is real: `mp3.Music(Host, Input)` (its tests in `mp3_test.zig` run it
+  against a fake player).
 - **r3d**: types only. The renderer is the next step (ANALYSIS §7 (3)).
 - **Trs curves**: a compile error if called, so no cart ships an identity pose by accident.
 - The overlay drawing (`debug.formatTime` gives the text; the cart draws it).
@@ -86,6 +89,24 @@ if (audio_reader.changed(&demo.clock)) music.seekMs(demo.clock.t);
 demo.update(music.source(), &ctx);
 demo.render(&ctx);
 ```
+
+With an MP3 (mp3.zig), the Host is three forwards to zigos and the source falls back to the
+VBL where no player answers:
+
+```zig
+const Host = struct {
+    pub fn ctl(op: zigdemo.mp3.Op, arg: u32) void { zg.mp3Ctl(@enumFromInt(@intFromEnum(op)), arg); }
+    pub fn feed(b: []const u8) void { zg.mp3Feed(b); }
+    pub fn status(s: zigdemo.mp3.Stat) u32 { return zg.mp3Status(@enumFromInt(@intFromEnum(s))); }
+};
+var music = zigdemo.mp3.Music(Host, zigdemo.mp3.SliceInput){ .input = &file, .buf = chunk };
+if (!music.open()) ...;               // not an MP3
+music.seekMs(0);                      // starts the player
+// per frame: music.pump(); then as above, with music.source(vbl_count)
+```
+
+The players have no seek of their own: `seekMs` restarts the stream on the frame the time
+falls in (by its sync word), so scrubbing re-syncs the sound, with at most a click.
 
 The loop wrap happens inside `update`, so the sound re-seeks one frame after the wrap: the
 clock holds `a` on that frame and then follows the re-seeked source. That lag is correct; do
