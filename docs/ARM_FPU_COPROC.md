@@ -1,7 +1,9 @@
 # ASTROLABE: an f64 coprocessor for KESTREL (SPIKE)
 
 Status: **spike, 9 Nov 2026**, branch `spike/arm-fpu-coproc`. Built and tested off the board (machine,
-RTL, firmware protocol, glass, a bench cart); **nothing here is measured on the board yet**: every board
+RTL, firmware protocol, glass, a bench cart); the board bitstream is built (14 Nov: KESTREL v1.3's command
+`prototypes/lut_diet/build_board.sh NAME --astro --vivado-directives fit`, system table 1.24) and **nothing here is
+measured on the board yet**: every board
 figure below marked *est.* is an estimate to be replaced by `glass astro-bench` and the ASTRO BENCH cart.
 Codename ASTROLABE, ASTRO in registers and the API (Matt, 9 Nov). It joins the chip family tables only
 once proven on the board.
@@ -139,7 +141,7 @@ Board figures are *est.* until measured (§6). ZIGGY at 100 MHz; GP0 single-beat
 | 4096-element sin | ~4 ms | ~150 ms *est.* | ~2.5 ms *est.* (DDR staging dominates) | |
 | LINPACK 100 (0.69 MFLOP) | | ~0.5-1 s *est.* | ~15-20 ms *est.* | |
 | latency jitter | none | none | Linux: a tick when core 1 is busy; isolcpus fixes it | none |
-| cost | LUTs already spent | none | 1 RAMB36, a handful of LUTs, core 1 at 100 % while busy | none |
+| cost | LUTs already spent | none | 1 RAMB36, +164 LUT placed (v1.3 + `--astro`, 14 Nov: 15,903 / 4,400 slices at 100 %, BRAM 45/60, sys WNS +0.088 with the `fit` preset), core 1 at 100 % while busy | none |
 | when absent | | | the machine's code on ZIGGY (same bits, soft-float speed) | |
 
 What decides it is the ARM's access cost: every word it reads over GP0 (the mailbox) or from uncached
