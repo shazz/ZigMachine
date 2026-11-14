@@ -67,7 +67,14 @@ reprobe() {
     log "re-probe: $1"
     [ -f $RUN/udhcpc.pid ] && kill "$(cat $RUN/udhcpc.pid)" 2>/dev/null
     killall -q wpa_supplicant 2>/dev/null
-    for m in brcmfmac_wcc brcmfmac brcmutil; do rmmod $m 2>/dev/null; done
+    # A wedged USB driver can hang rmmod (in D state, unkillable): waited for 20 s at most, so the
+    # watchdog lives on and says so (the board's busybox has no `timeout`).
+    for m in brcmfmac_wcc brcmfmac brcmutil; do
+        rmmod $m 2>/dev/null &
+        p=$! i=0
+        while kill -0 $p 2>/dev/null && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+        kill -0 $p 2>/dev/null && log "rmmod $m: no answer in 20 s"
+    done
     for d in $SYS/bus/usb/devices/*; do
         [ "$(cat $d/idVendor 2>/dev/null)" = $BRCM_VENDOR ] || continue
         log "USB ${d##*/} ($BRCM_VENDOR:$(cat $d/idProduct 2>/dev/null)) re-authorized"
@@ -82,32 +89,23 @@ reprobe() {
 # The gateway DHCP gave, if any.
 gateway() { ip route 2>/dev/null | awk '$1 == "default" { print $3; exit }'; }
 
-# One look (`watch` calls it every TICK s). State in $RUN: miss (silent ticks), eio (the -5 count
-# last seen), reprobe.at (the last re-probe's uptime).
-tick() {
-    [ -f "$CONF" ] || return 0 # forgotten from the OSD: nothing to keep up
-    # An OSD join owns wpa_supplicant for ~30 s (wifi_job.zig): not this tick.
-    if [ -n "$(find $RUN -maxdepth 1 -name osd.log -newer $RUN/tick.at 2>/dev/null)" ]; then
-        touch $RUN/tick.at
-        return 0
-    fi
-    touch $RUN/tick.at
-    last=$(cat $RUN/reprobe.at 2>/dev/null || echo -$REPROBE_GAP)
-    may=$(( $(now) - last >= REPROBE_GAP ))
-    eio=$(dmesg 2>/dev/null | grep -c -E 'brcmf.*-5([^0-9]|$)')
+# The driver's -5 (EIO) lines in the kernel log, counted.
+eio_count() { dmesg 2>/dev/null | grep -c -E 'brcmf.*-5([^0-9]|$)'; }
+
+# A new -5 since the last look: true when it re-probed.
+check_driver() {
+    eio=$(eio_count)
     seen=$(cat $RUN/eio 2>/dev/null || echo 0)
     echo $eio > $RUN/eio
-    if ! have_wlan; then
-        [ $may = 1 ] && reprobe "no wlan0"
-        return 0
-    fi
-    if [ "$eio" -gt "$seen" ]; then
-        log "the driver logged -5 ($eio lines)"
-        [ $may = 1 ] && { reprobe "driver -5"; echo 0 > $RUN/miss; return 0; }
-    fi
-    case "$(iw dev wlan0 get power_save 2>/dev/null)" in
-    *on*) iw dev wlan0 set power_save off 2>/dev/null && log "power save was on again: off" ;;
-    esac
+    [ "$eio" -gt "$seen" ] || return 1
+    log "the driver logged -5 ($eio lines)"
+    [ $may = 1 ] || return 1
+    reprobe "driver -5"
+    echo 0 > $RUN/miss
+}
+
+# The gateway: answered, or one more silent look (a rejoin at MISS, a re-probe at 2 x MISS).
+check_gateway() {
     gw=$(gateway)
     if [ -n "$gw" ] && ping -c 1 -W 2 "$gw" >/dev/null 2>&1; then
         echo 0 > $RUN/miss
@@ -124,6 +122,27 @@ tick() {
     fi
 }
 
+# One look (`watch` calls it every TICK s). State in $RUN: miss (silent ticks), eio (the -5 count
+# last seen, seeded at start), reprobe.at (the last re-probe's uptime), tick.at (the last look).
+tick() {
+    [ -f "$CONF" ] || return 0 # forgotten from the OSD: nothing to keep up
+    # An OSD join owns wpa_supplicant for ~30 s (wifi_job.zig): not this tick.
+    busy=$(find $RUN -maxdepth 1 -name osd.log -newer $RUN/tick.at 2>/dev/null)
+    touch $RUN/tick.at
+    [ -z "$busy" ] || return 0
+    last=$(cat $RUN/reprobe.at 2>/dev/null || echo -$REPROBE_GAP)
+    may=$(( $(now) - last >= REPROBE_GAP ))
+    if ! have_wlan; then
+        [ $may = 1 ] && reprobe "no wlan0"
+        return 0
+    fi
+    check_driver && return 0
+    case "$(iw dev wlan0 get power_save 2>/dev/null)" in
+    *"save: on"*) iw dev wlan0 set power_save off 2>/dev/null && log "power save was on again: off" ;;
+    esac
+    check_gateway
+}
+
 case "$1" in
 start)
     [ -f "$CONF" ] || exit 0
@@ -137,6 +156,7 @@ start)
     fi
     rm -f $RUN/watch.stop
     touch $RUN/tick.at
+    eio_count > $RUN/eio # a -5 from before the watch (a probe that then came up) is not news
     "$0" watch </dev/null >/dev/null 2>&1 &
     echo $! > $RUN/watch.pid
     ;;

@@ -115,6 +115,22 @@ def test_start_joins_turns_power_save_off_and_watches(fake: Path) -> None:
     assert (fake / "run/watch.stop").exists()
 
 
+def test_a_minus_5_already_in_the_boot_log_is_not_news_to_the_watchdog(fake: Path) -> None:
+    (fake / "dmesg").write_text("[ 5.3] brcmfmac: brcmf_usb_dl_cmd: err -5, then the probe came up\n")
+    (fake / "power_save").write_text("Power save: off\n")
+    run(fake, "start")
+    assert (fake / "run/eio").read_text().strip() == "1"  # seeded at start
+    run(fake, "tick")
+    assert "re-probe" not in syslog(fake) and "-5" not in syslog(fake)
+    assert not any(c.startswith("rmmod") for c in calls(fake))
+
+
+def test_not_connected_is_not_power_save_on(fake: Path) -> None:
+    (fake / "power_save").write_text("Not connected.\n")
+    run(fake, "tick")
+    assert "iw dev wlan0 set power_save off" not in calls(fake)
+
+
 def test_start_without_wifi_conf_does_nothing(fake: Path) -> None:
     (fake / "wifi.conf").unlink()
     r = run(fake, "start")
@@ -177,6 +193,7 @@ def test_a_driver_eio_reprobes_and_an_unrelated_minus_52_does_not(fake: Path) ->
     (fake / "dmesg").write_text("[ 14.1] ieee80211 phy0: brcmf_inetaddr_changed: fail to get arp ip table err:-52\n")
     run(fake, "tick")
     assert "re-probe" not in syslog(fake)
+    assert (fake / "run/eio").read_text().strip() == "0"
     (fake / "insmod_brings_wlan0").write_text("")
     with (fake / "dmesg").open("a") as f:
         f.write("[ 9999.0] brcmfmac: brcmf_usb_tx_ctlpkt: err -5\n")

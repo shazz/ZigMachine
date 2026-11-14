@@ -1687,7 +1687,8 @@ work on this board:
    every 30 s: wlan0 gone or a brcmfmac `-5` (EIO) in dmesg re-probes (wpa_supplicant and udhcpc
    stopped, the modules out, the dongle's USB `authorized` 0 then 1, the modules in, a join);
    the gateway silent 4 looks running joins again, 8 re-probes; re-probes are 5 min apart at
-   least; power save found on again goes off. Every action is logged (`logger -t kwifi`:
+   least (a hung `rmmod` is waited for 20 s, then logged); power save found on again goes off; a
+   `-5` already in the boot log is counted at start, not news. Every action is logged (`logger -t kwifi`:
    `logread`, `/tmp/messages`; and `/tmp/wifi/watch.log`); it never reboots. An OSD join under way
    (`/tmp/wifi/osd.log` newer than the last look) is left alone, a Forget (no `wifi.conf`) stops
    it. `fpga/tests/test_s99wifi.py` runs it against stubs. It ships in the rootfs's appended
