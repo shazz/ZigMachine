@@ -6,7 +6,7 @@
 //   sky       the sky is up by frame 80 (a bright, many-coloured picture), on the true-colour plane
 //   stoop     frames 50..95 all differ (the bird moves), then 170..249 are one still picture
 //   raster    while the highlight runs (frame 100) plane 1's copper list changes colours on
-//             many lines; once it is over (frame 200) only its first line has a record
+//             many lines; once it is over (frame 200) only its first row sets them (4 writes)
 //   black end the picture is black from frame 290 and stays black to the end (no loop)
 //   length    first light to black between 3 and 6 s
 //   jingle    the YM stream (zg.ymWrite entries): the call on C at 20 / 28 / 36, R13 written
@@ -71,19 +71,22 @@ function frame(m, f, brk) {
     return { comp, ym: brk === "silent" ? [] : ym, fx: n, copper: copperHeads(m) };
 }
 
-// Plane 1's copper list: how many line records (HEAD words) it holds this frame.
+// Plane 1's copper list: how many colour writes (PAL records) it holds this frame. A row is a
+// HEAD (0xF << 28 | row << 19 | the count of words after it), a FLICK (every row: the borders
+// open), then a PAL op + its colour per entry that changed (libs/zig/effects/copper.zig build).
 function copperHeads(m) {
     const dv = new DataView(m.memory.buffer);
     const v = dv.getUint16(m.video + REG_FB_COPPER + 2, true);
     if (!v) return 0;
-    let heads = 0;
-    // HEAD = 0xF << 28 | row << 19 | the count of words after it (libs/zig/effects/copper.zig build)
-    for (let a = m.video + OFF_VRAM + v * 16; heads <= 400; heads++) {
+    let pal = 0;
+    for (let a = m.video + OFF_VRAM + v * 16, rows = 0; rows <= 400; rows++) {
         const w = dv.getUint32(a, true);
-        if (w >>> 28 !== 0xF || ((w >>> 19) & 511) === 511) return heads;
-        a += 4 * (1 + (w & 0x7FFFF));
+        if (w >>> 28 !== 0xF || ((w >>> 19) & 511) === 511) return pal;
+        const n = w & 0x7FFFF;
+        pal += (n - 1) >> 1;
+        a += 4 * (1 + n);
     }
-    return heads;
+    return pal;
 }
 
 const rgbSum = (c) => (c & 255) + ((c >>> 8) & 255) + ((c >>> 16) & 255);
@@ -128,8 +131,8 @@ function checks({ shots, ym, fxMax }) {
     need(moved >= 40, `stoop: the bird moved on ${moved} of 45 frames`);
     need(at(shots, 50).hash !== at(shots, 49).hash, "stoop: the bird did not enter at frame 50");
     for (let k = 171; k <= 249; k++) need(at(shots, k).hash === at(shots, 170).hash, `hold: frame ${k} differs from 170`);
-    need(at(shots, 100).copper > 20, `raster: ${at(shots, 100).copper} copper lines at frame 100`);
-    need(at(shots, 200).copper === 1, `raster: ${at(shots, 200).copper} copper lines at frame 200 (1 expected)`);
+    need(at(shots, 100).copper > 20, `raster: ${at(shots, 100).copper} copper colour writes at frame 100`);
+    need(at(shots, 200).copper === 4, `raster: ${at(shots, 200).copper} copper colour writes at frame 200 (4 expected: the first row)`);
     for (let k = 290; k < FRAMES; k++) need(at(shots, k).lit === 0, `black end: frame ${k} is not black`);
     let first = -1, last = -1;
     for (let k = 0; k < FRAMES; k++) if (at(shots, k).lit) { if (first < 0) first = k; last = k; }

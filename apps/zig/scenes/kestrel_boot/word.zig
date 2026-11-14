@@ -12,10 +12,10 @@ pub const SUB_INK: u8 = 24;
 pub const CELL_W: u16 = 4;
 pub const CELL_H: u16 = 3;
 const ADVANCE: u16 = 5 * CELL_W + 6;
-pub const X: u16 = 160 - (LETTERS * ADVANCE - 6) / 2;
-pub const Y: u16 = 128; // visible line of the letters' top
+pub const X: u16 = 200 - (LETTERS * ADVANCE - 6) / 2;
+pub const Y: u16 = 168; // physical line of the letters' top (plane 1 is an overscan plane)
 const SUB = "Z I G M A C H I N E";
-const SUB_Y: i16 = 162;
+const SUB_Y: i16 = 202;
 
 // One u8 a row, bit 4 = the leftmost column.
 const K = [7]u8{ 0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001 };
@@ -39,5 +39,5 @@ pub fn paint(os: *zg.ZigOS, fb: *zg.LogicalFB) void {
             }
         }
     }
-    os.printText(fb, SUB, 160 - SUB.len * 4, SUB_Y, SUB_INK, 0);
+    os.printText(fb, SUB, 200 - SUB.len * 4, SUB_Y, SUB_INK, 0);
 }

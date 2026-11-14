@@ -8,7 +8,7 @@
 //
 //   plane 0  RGB565 true colour, 400x280 (the Falcon's hi-colour): the sky, drawn once;
 //            its fade in, the flash and the fade out are TC_FADE / TC_OFS (sky.zig)
-//   plane 1  8-bit: the bird (CHISEL AFFINE during the stoop only, stoop.zig), the
+//   plane 1  8-bit overscan (borders opened by the copper list's FLICK): the bird (CHISEL AFFINE during the stoop only, stoop.zig), the
 //            highlight (a copper list), the wordmark (palette only) (marks.zig, word.zig)
 //   sound    the YM2149 through zg.ymWrite, a register stream (jingle.zig)
 //
@@ -44,9 +44,10 @@ pub const Demo = struct {
         sky.paint(back.setTruecolorPlane(.full));
         const front = &os.lfbs[1];
         front.is_enabled = true;
+        front.setOverscanBuffer(); // 400x280: the stoop runs into the borders; the copper list opens them
         self.marks = marks.Marks.init(front);
         const tex = zg.mem.alloc(u8, bird.SIDE * bird.SIDE) orelse return;
-        const spans = zg.mem.alloc(zg.chisel_v2.Span, 200) orelse return;
+        const spans = zg.mem.alloc(zg.chisel_v2.Span, 280) orelse return;
         bird.paint(tex);
         const m: u16 = bird.SIDE - 1;
         self.stoop = .{ .spans = spans, .tex = .{ .pixels = tex, .stride = bird.SIDE, .umask = m, .vmask = m, .wrap = false } };

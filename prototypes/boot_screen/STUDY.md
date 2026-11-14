@@ -62,7 +62,8 @@ stoops. The concept is that one gesture: the bird stoops into frame and stops de
 - Palette: the bird in the kestrel's own colours (rufous back, slate-blue head and tail, black wing
   tips and tail band, a cream rim), sky indigo (#080A1E) to ember (#F0A060), wordmark cream.
 - Hardware: plane 0 is an **RGB565 true-colour plane** (400x280, borders open: the Falcon's
-  hi-colour) holding the sky, drawn once at init; its fade in, flash and fade out are the
+  hi-colour) holding the sky, drawn once at init; plane 1 is an 8-bit OVERSCAN plane whose borders the
+  copper list opens (FLICK every line), so the stooping bird runs into them too; the sky's fade in, flash and fade out are the
   **TC_FADE / TC_OFS registers**, one write a frame, no pixel touched. Plane 1 is an 8-bit plane: the
   bird is a 128x128 texture drawn by **CHISEL AFFINE** (a span a row, only the rows the bird covers)
   during the 45-frame stoop and never again; the highlight sweep is a **copper list** (four palette

@@ -12,12 +12,12 @@ const v2 = zg.chisel_v2;
 const tl = @import("timeline.zig");
 const bird = @import("bird.zig");
 
-const SW: i32 = 320;
-const SH: i32 = 200;
-pub const REST_X: i32 = 160; // where texel CENTRE lands, visible pixels
-pub const REST_Y: i32 = 66;
-const FROM_X: i32 = 300;
-const FROM_Y: i32 = -20;
+const SW: i32 = 400; // plane 1 is an overscan plane: physical pixels
+const SH: i32 = 280;
+pub const REST_X: i32 = 200; // where texel CENTRE lands, physical pixels
+pub const REST_Y: i32 = 106;
+const FROM_X: i32 = 340;
+const FROM_Y: i32 = 20;
 const FROM_SCALE: i32 = 3 * tl.ONE;
 const FROM_ANGLE: i64 = -(1 << 32) / 11; // about -33 degrees: banked into the dive
 

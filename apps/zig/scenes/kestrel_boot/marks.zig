@@ -35,20 +35,19 @@ const SUB_FRAMES: u32 = 20;
 /// The copper's four entries: the bird's lighter colours, where a highlight shows.
 pub const GLINT = [4]u8{ bird.RUFOUS_LIGHT, bird.RUFOUS, bird.SLATE, bird.RIM };
 const PLAIN = [4]u8{ bird.RUFOUS_DARK, bird.SLATE_DARK, bird.TIPS, bird.SPOT };
-const VISIBLE_TOP: usize = 40; // physical row of visible line 0
 
 var tables: [GLINT.len]zg.copper.Table = undefined;
 
 pub const Marks = struct {
     behind: Rgb, // the sky behind the wordmark: where its letters fade in from
-    glint_row: i32 = -1000, // the highlight's centre line last built (visible lines)
+    glint_row: i32 = -1000, // the highlight's centre line last built (physical rows)
     coef: u8 = 255, // the fade last built (255: never)
 
     pub fn init(fb: *zg.LogicalFB) Marks {
         for (0..256) |i| fb.palette[i] = 0; // alpha 0: transparent until a colour is set
         for (GLINT) |e| fb.palette[e] = rgba(BIRD[e], 31);
-        zg.copper.install(fb, &GLINT, &tables, .{});
-        return .{ .behind = sky.colourAt(sky.W / 2, VISIBLE_TOP + word.Y + word.CELL_H * 3) };
+        zg.copper.install(fb, &GLINT, &tables, .{ .flicker = true }); // FLICK every line: all borders open
+        return .{ .behind = sky.colourAt(sky.W / 2, word.Y + word.CELL_H * 3) };
     }
 
     /// Plane 1's colours at frame `f`.
@@ -61,7 +60,7 @@ pub const Marks = struct {
         if (g == m.glint_row and c == m.coef) return;
         m.glint_row = g;
         m.coef = c;
-        for (GLINT, 0..) |e, s| buildTable(zg.copper.visible(fb, @intCast(s)), BIRD[e], g, c);
+        for (GLINT, 0..) |e, s| buildTable(zg.copper.table(fb, @intCast(s)), BIRD[e], g, c);
     }
 
     fn letter(m: *const Marks, i: usize, f: u32, c: u5) u32 {
@@ -91,14 +90,14 @@ fn rgba(x: Rgb, c: u5) u32 {
     return col.toRGBA();
 }
 
-/// The highlight's centre line at frame `f` (visible lines), or far away when there is none.
+/// The highlight's centre row at frame `f` (physical), or far away when there is none.
 fn glintRow(f: u32) i32 {
     if (f < tl.ARRIVE or f >= tl.ARRIVE + tl.GLINT_FRAMES) return -1000;
-    return 12 + @as(i32, @intCast((f - tl.ARRIVE) * 108 / tl.GLINT_FRAMES));
+    return 52 + @as(i32, @intCast((f - tl.ARRIVE) * 108 / tl.GLINT_FRAMES));
 }
 
-/// One copper table: `base` on every visible line, lightened toward white near line `g`.
-fn buildTable(t: *[200]u32, base: Rgb, g: i32, c: u5) void {
+/// One copper table: `base` on every row, lightened toward white near row `g`.
+fn buildTable(t: *zg.copper.Table, base: Rgb, g: i32, c: u5) void {
     for (t, 0..) |*v, row| {
         const d: i32 = @intCast(@abs(@as(i32, @intCast(row)) - g));
         const a: u32 = @intCast(@max(0, 10 - d) * 22); // 0..220 of 256
