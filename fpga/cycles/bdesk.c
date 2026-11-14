@@ -2,6 +2,8 @@
 #include "bdesk.h"
 
 #include "bmailbox.h" /* mb_presenting */
+#include "bptrbox.h"  /* the pointer's box: where the picture is */
+#include "bptrhost.h" /* bdesk_pointer_box: env.hostPointerBox */
 #include "glass_cart.h" /* VMODE_*: the mode word glass reads for the pointer */
 #include "glass_map.h"  /* CART_CPU_BASE, DDR_CART_BYTES */
 #include "host_desk.h"
@@ -13,7 +15,17 @@
 _Static_assert(KOS_FILE_FROM_TOP <= VMODE_FROM_TOP - 4, "the mode word is over the C: file block");
 _Static_assert(VMODE_FROM_TOP <= KOS_CGEN_FROM_TOP - 4, "the mode word is over the C: generation word");
 
+#define VBOX_X_ADDR (CART_CPU_BASE + DDR_CART_BYTES - VBOX_X_FROM_TOP)
+#define VBOX_Y_ADDR (CART_CPU_BASE + DDR_CART_BYTES - VBOX_Y_FROM_TOP)
+_Static_assert(KOS_FILE_FROM_TOP <= VBOX_X_FROM_TOP - 4 && VBOX_X_FROM_TOP <= VMODE_FROM_TOP - 4,
+               "the box's x word is over the C: file block or the mode word");
+_Static_assert(KOS_BOOT_FROM_TOP <= VBOX_Y_FROM_TOP - 4 && VBOX_Y_FROM_TOP <= BOOTSEC_SKIP_FROM_TOP - 4,
+               "the box's y word is over KOS's boot words or the boot sector's skip word");
+
 static uint32_t g_vmode; /* the word last stored: one store a change, not one a frame */
+static uint32_t g_vbox_x, g_vbox_y; /* the same for the box's words */
+static bptrbox_rect g_cart_box;     /* env.hostPointerBox's rectangle, when g_cart_set */
+static int g_cart_set;
 static uint32_t g_base0; /* plane 0's FB_BASE at the last desk frame: a change is a flip */
 
 static volatile uint8_t* region(struct w2c_env* e) { return e->memory.data + ZM_HW_VIDEO_BASE; }
@@ -31,6 +43,8 @@ static void publish(int on) {
 void bdesk_boot(struct w2c_env* e) {
     w2c_machine_hwSetDeskAvailable(&e->machine, (zmv_status() & ZMV_BIT(DESK)) != 0);
     g_vmode = 0; /* a load zeroed the word: the first frame stores it */
+    g_vbox_x = g_vbox_y = 0;
+    g_cart_set = 0; /* a new image: no cart has said where its picture is */
     g_base0 = 0;
 }
 
@@ -41,6 +55,26 @@ int bdesk_clear(struct w2c_env* e) {
     volatile uint32_t* frame = (volatile uint32_t*)(region(e) + ZM_REG_FRAME);
     *frame = *frame + 1; /* video.zig's clear() in desk mode; the snoop carries it to the compositor */
     return 1;
+}
+
+void bdesk_pointer_box(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1) {
+    g_cart_set = bptrbox_cart(x0, y0, x1, y1, &g_cart_box);
+}
+
+void bdesk_planes(struct w2c_env* e, unsigned on) {
+    bptrbox_rect r = g_cart_box;
+    if (!g_cart_set) {
+        uint8_t mode[4];
+        uint16_t stride[4];
+        for (uint32_t p = 0; p < 4; p++) {
+            mode[p] = region(e)[ZM_REG_FB_MODE + p];
+            stride[p] = *(volatile uint16_t*)(region(e) + ZM_REG_FB_STRIDE + 2u * p);
+        }
+        r = bptrbox_planes(on, mode, stride);
+    }
+    uint32_t x = bptrbox_xword(r), y = bptrbox_yword(r);
+    if (y != g_vbox_y) *(volatile uint32_t*)(uintptr_t)VBOX_Y_ADDR = g_vbox_y = y; /* y first: map_cart.zig */
+    if (x != g_vbox_x) *(volatile uint32_t*)(uintptr_t)VBOX_X_ADDR = g_vbox_x = x;
 }
 
 void bdesk_leave(struct w2c_env* e) {

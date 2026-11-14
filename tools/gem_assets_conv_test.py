@@ -3,7 +3,7 @@
 an icon, a colour icon and an object tree land in the generated Zig where the directory
 says, and the module compiles against the stub's declarations (a zig test over it).
 
-    uv run --with pillow python tools/gem_assets_conv_test.py [--break arrow|glyph|tree]
+    uv run --with pillow python tools/gem_assets_conv_test.py [--break arrow|glyph|image|tree]
 
 --break: the converter is made to lose that item; the test must then fail (exit 1).
 """
@@ -72,6 +72,9 @@ def make(root: Path) -> None:
     icon.putpixel((0, 0), BLACK)
     icon.putpixel((1, 0), WHITE)
     icon.save(root / "a/floppy_disk.png")
+    note = Image.new("RGBA", (16, 2), WHITE)
+    note.putpixel((2, 1), BLACK)
+    note.save(root / "a/notebb.png")
     cicon = Image.new("RGBA", (8, 2), (255, 0, 0, 255))
     cicon.save(root / "a/cicons_diskcc_4planes.png")
     pal = ["#ffffff", "#ff0000"] + ["#00ff00"] * 13 + ["#000000"]
@@ -81,13 +84,14 @@ def make(root: Path) -> None:
         {"file": "a/mice0_arrow.png", "kind": "mouse_form", "hotspot": [3, 5], "x": "aes340"},
         {"file": "a/floppy_disk.png", "kind": "icon"},
         {"file": "a/cicons_diskcc_4planes.png", "kind": "color_icon"},
+        {"file": "a/notebb.png", "kind": "bitblk"},
         {"file": "a/pal.png", "kind": "palette", "colors": pal},
     ]
     for e in man:  # the converter takes TOS 4's mouse forms and icons (aes340_*) only
-        if e["kind"] in ("mouse_form", "icon"):
+        if e["kind"] in ("mouse_form", "icon", "bitblk"):
             e["file"] = e["file"].replace("a/", "aes340_tos4/")
     (root / "aes340_tos4").mkdir()
-    for n in ("mice0_arrow.png", "floppy_disk.png"):
+    for n in ("mice0_arrow.png", "floppy_disk.png", "notebb.png"):
         shutil.move(root / "a" / n, root / "aes340_tos4" / n)
     (root / "manifest.json").write_text(json.dumps(man))
     trees = root / "trees"
@@ -117,6 +121,10 @@ test "the synthetic set lands where its directory says" {
     try eq(@as(u8, 0x80), ga.icons[0].data[0]); // black: data
     try eq(@as(u8, 0xC0), ga.icons[0].mask[0]); // black + white: mask
     try eq(@as(u8, 48 + 1), ga.cicons[0].col.?[0]); // red: pen slot 48 + hardware 1
+    try eq(@as(usize, 1), ga.images.len);
+    try std.testing.expectEqualStrings("NOTE", ga.images[0].id);
+    try eq(@as(u8, 0x20), ga.images[0].data[2]); // row 1, pixel 2: the only black one
+    try eq(@as(u8, 0), ga.images[0].data[0]);
     try eq(@as(usize, 1), ga.trees.len);
     try std.testing.expectEqualStrings("MADE_UP", ga.trees[0].name);
     try std.testing.expectEqualStrings("ZIGGY", ga.trees[0].objs[1].str);
@@ -132,6 +140,8 @@ def sabotage(brk: str) -> None:
     elif brk == "glyph":
         real = conv.font
         conv.font = lambda path, cw, ch: [b ^ 1 for b in real(path, cw, ch)]
+    elif brk == "image":
+        conv.IMAGE_IDS.clear()
     elif brk == "tree":
         conv.collect_trees = lambda root, group="aes340_tos4": []
 

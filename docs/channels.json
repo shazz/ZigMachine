@@ -165,6 +165,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "gemtest",
+  "title": "GEMTEST",
+  "type": "system"
+ },
+ {
   "tag": "grafx2",
   "title": "GRAFX2 (C)",
   "type": "pc"
@@ -453,6 +458,11 @@
   "tag": "snyd_90",
   "title": "SWEDISH NEW YEAR 90",
   "type": "atari st"
+ },
+ {
+  "tag": "syncterm",
+  "title": "SYNCTERM (C)",
+  "type": "pc"
  },
  {
   "tag": "tc_test",

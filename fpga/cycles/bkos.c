@@ -6,7 +6,8 @@
 
 #include "bboard.h"
 #include "bdisk.h"
-#include "bmailbox.h"
+#include "bmailbox.h" /* before bdeskrez.h: its glass_cart.h #defines MB_MAGIC, an enum name here */
+#include "bdeskrez.h"
 #include "bplanes.h"
 #include "csr_addr.h"
 #include "disk.h"
@@ -18,6 +19,7 @@
 #include "zm_memmap.h"
 
 #define KOS_AT (CART_CPU_BASE + DDR_CART_BYTES - KOS_BOOT_FROM_TOP)
+#define DESK_REZ_AT (CART_CPU_BASE + DDR_CART_BYTES - DESK_REZ_FROM_TOP)
 #define CSR(name) (*(volatile uint32_t*)CSR_GLASS_##name##_ADDR)
 
 /* rom/kos/kos.zig's: what boots. */
@@ -31,6 +33,8 @@
 
 _Static_assert(KOS_BOOT_FROM_TOP <= BOOTSEC_SKIP_FROM_TOP - 4, "the KOS words are over the skip word");
 _Static_assert(KOS_BOOT_FROM_TOP - KOS_BOOT_WORDS * 4 >= CART_REQ_FROM_TOP, "the KOS words are over the request block");
+_Static_assert(DESK_REZ_FROM_TOP > CART_REQ_FROM_TOP && DESK_REZ_FROM_TOP <= KOS_DRIVE_FROM_TOP - KOS_DRIVE_WORDS * 4,
+               "the desk mode word is over the request block or C:'s sector block");
 
 static uint32_t kos_flags(void) {
     const volatile uint32_t* w = (const volatile uint32_t*)(uintptr_t)KOS_AT;
@@ -45,6 +49,13 @@ uint32_t bkos_boot(struct w2c_env* e, int bootable) {
     uint32_t dev = present && bootable ? DEV_DRIVE_A : DEV_DESKTOP;
     w2c_rom_kosSetBoot(&e->rom, f & KOS_WARM, dev, present, w2c_machine_hwRamFree(&e->machine));
     w2c_machine_hwInit(&e->machine);
+    /* Getrez across a program load (bdeskrez.h), before the cart's init reads it. */
+    int reset = ((const volatile uint32_t*)(uintptr_t)KOS_AT)[0] == KOS_BOOT_MAGIC;
+    uint32_t rez = bdeskrez_take((volatile uint32_t*)(uintptr_t)DESK_REZ_AT, reset);
+    if (rez != BDESKREZ_NONE) {
+        w2c_rom_deskSetScreenMode(&e->rom, rez);
+        printf("ZM DESKREZ %lu\n", (unsigned long)rez);
+    }
     uint32_t post = w2c_rom_kosPostFrames(&e->rom, asked_frames());
     printf("ZM KOS boot %lu %lu %lu %lu\n", (unsigned long)(f & KOS_WARM), (unsigned long)dev, (unsigned long)present,
            (unsigned long)post);

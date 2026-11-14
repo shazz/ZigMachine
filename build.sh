@@ -218,11 +218,13 @@ NATIVE_TESTS="
     libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig
     libs/zig/sndh_call_test.zig
+    machine/sdk/net_abi.zig
     libs/zig/shapes_test.zig
     libs/zig/wireframe_test.zig
     libs/zig/tvnoise/tvnoise.zig
     apps/zig/scene_tests.zig
     rom/gem/desktop/namefield.zig
+    rom/gem/desktop/filesel_path.zig
     rom/gem/desktop/stamp.zig
     rom/gem/desktop/dirmodel_test.zig
     rom/kos/fat_test.zig
@@ -239,6 +241,7 @@ NATIVE_TESTS="
     rom/gem/desktop/deskflip.zig
     rom/gem/desktop/deskarrow.zig
     rom/gem/engine/engine_test.zig
+    rom/gem/gui_obj_test.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
@@ -299,7 +302,9 @@ python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CS
 python3 tools/kos_c_image.py --check   # docs/kos-c.img (KOS's C: on the page, ?c=kos-c.img) is what its generator writes
 python3 tools/gemdos_c_image.py --check   # docs/gemdos-c.img (KOS GEMDOS's C: with pictures in folders, ?c=gemdos-c.img) is what its generator writes
 uv run --quiet --with pillow python tools/gem_assets_conv_test.py   # -Dgem_assets's converter (GEM 5, decisions.md 2026-11-09): a made-up asset directory's arrow, glyphs, icons and tree land in the generated Zig where it says (nothing of the TOS sources)
-for _b in arrow glyph tree; do ! uv run --quiet --with pillow python tools/gem_assets_conv_test.py --break $_b > /dev/null || { echo "gem_assets_conv_test --break $_b: not caught"; exit 1; }; done   # ...and a converter that loses the arrow, a glyph or a tree is caught
+for _b in arrow glyph image tree; do ! uv run --quiet --with pillow python tools/gem_assets_conv_test.py --break $_b > /dev/null || { echo "gem_assets_conv_test --break $_b: not caught"; exit 1; }; done   # ...and a converter that loses the arrow, a glyph, an alert image or a tree is caught
+uv run --quiet --with pillow python tools/gem_iconset_test.py   # low and medium draw the icon set the desk mode draws (rom/gem/iconset.zig, Matt 9 Nov), over the same made-up set
+for _b in select oldpath; do ! uv run --quiet --with pillow python tools/gem_iconset_test.py --break $_b > /dev/null || { echo "gem_iconset_test --break $_b: not caught"; exit 1; }; done   # ...an iconset that ignores the set, or an old path back on gem_icons.zig, is caught
 python3 tools/mp3_c_image.py --check   # docs/mp3-c.img (the MP3 PLAYER's C:, C:\MUSIC's CC0 test files, ?c=mp3-c.img) is what its generator writes
 python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 python3 tools/gen_tutorial.py --check   # TUTORIAL.html regenerated from TUTORIAL.md
@@ -352,7 +357,14 @@ gate gem node apps/gem_engine_check.mjs   # GEM 5 step 1 (docs/GEM5_ENGINE.md): 
 gate gem node apps/gem_engine_check.mjs --break   # ...and an engine that repaints everything, paints unclipped, keeps one snapshot for two buffers, loses a damage box, or never switches on is each caught
 gate gem node apps/gem_desk_bugs_check.mjs   # Matt's five desktop bugs (board, 9 Nov), in low, medium, the desk's old path and the engine's two looks: a resized window re-flows its icons (= opened at that size), a track click pages (= that many arrow clicks), text view scrolls sideways whole (folder rows too; damage = a whole repaint), a text row drags as its row's outline; Save Desktop writes C:\DESKTOP.INF and both the returning shell and a fresh boot read it (the desk, C:\ where it was)
 gate gem node apps/gem_desk_bugs_check.mjs --break   # ...and a grid frozen at open, no track paging, folder rows that stay put, damage blind to a clipped row that moved, the icon ghost in text view and a host that drops C:'s writes are each caught
+gate gem node apps/gem_desk_size_check.mjs   # the desktop's windows sized as TOS (G22 / G23, gui/winsize.zig): A:\ sized past the corner ends at the screen's edge (its frame the last column and row), sized far up-left keeps every gadget (a track >= one gadget); low, medium, the desk
+gate gem node apps/gem_desk_size_check.mjs --break clamp   # ...and a size past the screen's edge is caught
 gate gem node apps/kos_desk_check.mjs   # KOS's desktop on the board (4 Nov): repainting only what changed is pixel-exact (a session hashed every frame = the every-frame repaint's pin) and a C: window costs < 1.7 Mc (the old repaint: 2.5, caught); A:\ with C: mounted lists the floppy, not the card; a folder opens INSIDE its drive's window as on TOS 1.00 (its close box and File > Close go up a level, Close Window leaves an empty desktop: main 0e47697e's window-per-folder ROM fails that)
+gate gem node apps/gem_fileops_check.mjs   # GEM5_PLAN P1.1 (docs/GEM_FILEOPS.md): C:'s file operations through the desktop over an mtools card: a file and a folder with contents dragged onto NET (TOS's counted box, its live count-down), Control-drag MOVES (one Frename), NAME CONFLICT (Skip; a rename in the desk on the engine), Show Info rename, New Folder, a folder on the TRASH; a Control-drag from the FAT floppy copies and keeps the write-protected source (alert); a drop on drive A: the write-protect alert; a full card stops with the alert and no partial file; a host that refuses the rename keeps the source; the card re-read with mtools: exact bytes, no ~KOS?.TMP, fsck.fat -n clean (low, medium, the desk on the engine)
+gate gem node apps/gem_fileops_check.mjs --break copy   # ...and a host that answers 0 to the writes without writing is caught (the bytes)
+gate gem node apps/gem_fileops_check.mjs --break delete   # ...and one that answers 0 to the deletes without deleting (the TRASH)
+gate gem node apps/gem_fileops_check.mjs --break rename   # ...and one that answers 0 to the renames without renaming (the move, Show Info)
+gate gem node apps/gem_fileops_check.mjs --break click   # ...and a desktop where any held press is a drag and icons under a window take drops (Matt, 10 Nov: a click on BOOT.WSM in A: raised "The disk cannot be read") is caught
 gate sndh node apps/sndh_headless.mjs
 gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent
 gate sndh node apps/ste_dma_check.mjs --break latch    # ...and a tune that never writes its next frame fails the latch check
@@ -401,8 +413,36 @@ gate notepad node apps/notepad_check.mjs   # NOTEPAD (docs/NOTEPAD.md) on GEM 5'
 gate notepad node apps/notepad_check.mjs --break write   # ...and a host that refuses every write is caught
 gate notepad node apps/notepad_check.mjs --break bytes   # ...and a byte changed on its way to C: is caught
 gate notepad node apps/notepad_check.mjs --break ctrl   # ...and Control never sent (^S types an s) is caught
+gate gemtest node apps/gemtest_check.mjs   # GEMTEST (docs/GEMTEST.md): every GEM 5 component through the program API, launched from GEM off its data disk; each area drawn, distinct, deterministic, idle frames paint nothing, incremental = whole repaint, in low, medium and the desk; windows topped/moved/sized/scrolled/closed, the menu test, dialog controls, form_alert, the ITEM SELECTOR on A: and C:, ^Q
+gate gemtest node apps/gemtest_check.mjs --break ctrl   # ...and Control never sent (^W types a w) is caught
+gate gemtest node apps/gemtest_check.mjs --break click   # ...and a pointer not mapped to low res (controls missed) is caught
+gate gemtest node apps/gemtest_alert_check.mjs   # a program's form_alert on the GEM 5 engine (G19 / G18, docs/GEMTEST.md): icons 0-3 four alerts, icons 1-3 their own art in the icon box, flat and 3D (deskSetEngine 2) two looks, TOS 4's layout (the second button where it puts it answers 2, Return the default 1), an alert left up draws the same screen, Alerts > Malformed alert opens nothing and the Alerts window says so; low, medium, the desk
+gate gemtest node apps/gemtest_alert_check.mjs --break icon   # ...and a ROM that loses the icon art is caught
+gate gemtest node apps/gemtest_fsel_check.mjs   # the ITEM SELECTOR as TOS 4's on the GEM 5 engine (G21, docs/GEMTEST.md): opened on C:\*.*, the A: drive button = the selector opened on A:\*.* pixel for pixel, C: back, B: (absent) does nothing, idle frames draw the same, Cancel closes it; flat and 3D; low, medium, the desk
+gate gemtest node apps/gemtest_fsel_check.mjs --break drive   # ...and drive buttons that do nothing are caught
+gate gemtest node apps/gemtest_redraw_check.mjs   # a program's window redraws (G17 / G22 / G23, docs/GEMTEST.md): a top, a move and a close of GADGETS keep a poisoned desk pixel and back-window pixel (only the WM_REDRAW rectangles redrawn, clipped) and then equal a whole repaint; a size past the corner stops at the screen's edge; far up-left it stops where every gadget fits, and equals a whole repaint there and after a larger size and back; low, medium, the desk
+gate gemtest node apps/gemtest_redraw_check.mjs --break whole   # ...and redraw lists that are whole windows (the flash) are caught
+gate gemtest node apps/gemtest_redraw_check.mjs --break clamp   # ...and a size past the screen's edge is caught
+gate gemtest node apps/gemtest_redraw_check.mjs --break min   # ...and the old 44-px minimum (no room for the gadgets) is caught
+gate gemtest node apps/gemtest_obj_check.mjs   # a program's object tree on the engine (G20, docs/GEMTEST.md): the Dialogs area's radio group (RBUTTON stays, Low back), a check box twice, the DISABLED button inert, the G_FBOXTEXT takes digits and refuses letters, Backspace, the slider's track; flat and 3D in the desk; the Test menu's shortcuts a right-aligned column in low
+gate gemtest node apps/gemtest_obj_check.mjs --break radio   # ...and a form_button that forgets radio groups is caught
+gate gemtest node apps/gemtest_icon_check.mjs   # a program's icons and desktop (G16, docs/GEMTEST.md): GEMTEST's WF_NEWDESK tree of G_ICONs naming the ROM's icons, drawn where the desk shows; a click selects, the next moves the selection, the empty desk deselects all; a drag moves an icon (= a whole repaint after); a double-click opens the Icons area; low and the desk
+gate gemtest node apps/gemtest_icon_check.mjs --break icons   # ...and a ROM that loses its icons is caught
+gate gemtest node apps/gemtest_screen_check.mjs   # Setscreen for a program (GEM 5 S6, docs/GEMTEST.md): GEMTEST's keys 1 2 3 through the ROM: RESOLUTION follows (low, medium, the desk, low) and each screen through the re-bound context = a whole repaint; an unknown mode and the desk without a buffer are refused
+gate gemtest node apps/gemtest_screen_check.mjs --break switch   # ...and a Setscreen that answers yes and does nothing is caught
+gate notepad node apps/notepad_fsel_check.mjs   # NOTEPAD's ITEM SELECTOR over a C: laid out as Matt's card (MUSIC\ PICTURES\ NET\ ECHO.REQ, no .TXT): the folders listed under *.TXT, the Directory: line edited to *.* (Return re-reads), NET opened and left by the close box, NET\INNET.TXT opened and saved back in NET\ (mtools)
+gate notepad node apps/notepad_fsel_check.mjs --break spec   # ...and a program that cannot read the selector's spec is caught
+gate notepad node apps/notepad_fsel_check.mjs --break relist   # ...and a lost relist answer is caught
+gate net node apps/net_check.mjs   # ZIGNIC N1 (docs/GEM_NET.md): the page's card over the scripted LAN, driven as a cart does (16-word Reqs): info, TCP echo after a non-blocking connect, the BBS banner, refused/unreachable/timeout, resolve, UDP and ICMP echo, TLS needs a name, listen denied/allowed + accept, 8 sockets then no_socket, bad socket/buffer, no card
+gate net node apps/net_check.mjs --break noecho   # ...and a peer that swallows the bytes is caught
+gate net node apps/net_check.mjs --break writeback   # ...and a card that never writes the state back is caught
+gate net node apps/net_check.mjs --break blocking   # ...and a connect that pretends to be done is caught
+gate net zig test --dep hardware -Mroot=libs/zig/net.zig -Mhardware=machine/sdk/hardware.zig   # zg.net: the Req a Socket fills, Err -> error
+gate notepad node apps/desk_rez_check.mjs   # the desktop's mode across a program load (docs/GEM_DESK_MODE.md §5; Matt on the board 9 Nov: Notepad opened in medium over the desk): a fresh ROM told the mode (deskSetScreenMode, as the board's firmware does) opens Notepad in low / medium / the desk, told nothing in medium (Getrez 0xFF); the shell back from a program comes up in the mode it launched it in, a boot in DESKTOP.INF's; a mode past the desk is ignored; the page's launch remembers the return mode
+gate notepad node apps/desk_rez_check.mjs --break carry   # ...and a firmware that never hands the mode over (the board before the fix) is caught
 gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
 gate mp3_player uv run --project fpga python -m pytest -q fpga/tests/test_mp3_native.py   # ...and on the native host (host_audio, --c-image docs/mp3-c.img, the glass's key router): Down Down Return plays TONES44.MP3, the machine's 16-bit out = the reference >> 1; no key, no sound
+gate song_bytes uv run --project fpga python -m pytest -q fpga/tests/test_song_bytes.py   # the native host's song bridge (host/audio_bridge.c, sysinfo): requestSongBytes plays what the cart hands it, and refuses an image outside the cart's memory (was ungated: its stub missed audio_bard_frame for weeks)
 gate sid node apps/sid_check.mjs   # .sid player (libs/zig/players/sid.zig, cRSID libs/c/crsid): the engine in machine-audio.wasm renders hermini.sid's first 10 s to the same samples, 0.1 s block for block, as the same C built natively by the host's cc (fpga/tools/sid_render.c on patch.sh's tree: what BARD runs, host/crsid.c), local study tunes too when present; the player's 44.1 kHz output a side = the engine upsampled (midpoints) >> 1, mode 1, heard; an RSID refused (status 2) and garbage (1), silent
 gate sid node apps/sid_check.mjs --break seed   # ...and the native build's dither seed one off fails parity
 gate sid node apps/sid_check.mjs --break rsid   # ...and an RSID let through as a PSID fails the refusal check
@@ -717,6 +757,7 @@ gate c_astro_bench uv run --project fpga python -m pytest -q fpga/tests/test_ast
 gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): its GEM data disk runs the SDL boot sector (request 2), GEM lists its files, a double-click runs BOOT.WSM = the committed cart with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard; Esc, Esc quits back to the desktop exactly as it was (request 4)
 gate ports_pt2 node apps/ports_headless.mjs pt2 --break load   # ...and the file never clicked (nothing loaded, nothing heard) is caught
 gate ports_pt2 node apps/ports_headless.mjs pt2 --break quit   # ...and the quit never asked for (no desktop) is caught
+gate ports_pt2 node apps/ports_headless.mjs pt2 --break ptrbox   # ...and the picture's rectangle never reaching the host (env.hostPointerBox: where the board's mouse stops, 320x255 at (40,12)) is caught
 gate ports_pt2 node apps/ports_headless.mjs pt2 --clock 33333   # ...and with the board's clock (hostMicros 33 ms a frame, dt 16.6): the audio fed follows the clock, not dt (kestrel_audio.h)
 gate ports_pt2 node apps/pt2_paula_headless.mjs   # ...and on the machine's hardware Paula channels (HW 1.14.0, env.hostPaula*, the real worklet): pt2 claims them and stops its stream, RONKEN.MOD plays with every write landed at its sample, its loudness and semitone spectrum follow the software mixer's, a song request while it holds them is refused
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break pitch   # ...and every period doubled on the way (an octave down) is caught
@@ -738,6 +779,7 @@ gate ports_klystrack node apps/ports_headless.mjs klystrack --break silent   # .
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break edit   # ...and no edit while it plays (nothing re-sent) is caught
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break pointer   # ...and a pointer that never moves is caught
 gate ports_klystrack node apps/ports_headless.mjs klystrack --break quit   # ...and no quit is caught
+gate ports_klystrack node apps/ports_headless.mjs klystrack --break ptrbox   # ...and the picture's rectangle (320x240 at (40,20)) never reaching the host is caught
 gate ports_klystrack node apps/klystrack_cost.mjs   # KLYSTRACK repaint cost (apps/frame_cost.mjs est. Mc, deterministic): playing STARPRT2 median repaint <= 1.8, worst row change <= 9.5, mean <= 2.3 a frame; the menu bar open with the pointer moving <= 1.25; both mean <= 2.9; the instrument tab while playing mean <= 1.35, worst <= 1.9; File > Import's sub-menu, over one item <= 1.7, crossing its items while playing mean <= 10 (round 4: 41-48, the command list overflowed); Edit > Pattern's sub-menu over the instrument tab, over one item <= 1.6, crossing its items while playing mean <= 4.5 (round 5: 39.6 / 40.1, the list overflowed again; round 6: a bevel's uniform parts one copy each) (round 5: the menu a layer over a snapshot, occluded tiles, scrolled caches name only their changed tiles, the instrument tab skipped; round 4 was 1.47 / 9.3 / 2.03, instrument tab 2.0 / 3.2)
 gate ports_klystrack node apps/klystrack_cost.mjs --break cost   # ...and ceilings of ~0 are caught
 gate ports_klystrack make -s -C apps/ports/klystrack printf-test   # KLYSTRACK labels: kestrel_printf.c (the conversions it does itself, the rest handed to libc) equals the host C library's vsnprintf over 3,834 format/value/buffer-size cases (native zig cc)
@@ -757,6 +799,9 @@ gate ports_sidwizard node apps/sidwizard_bard_check.mjs --break stamp   # ...and
 gate ports_sidwizard node apps/sidwizard_bard_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
 gate ports_sidwizard node apps/sidwizard_cpu_check.mjs   # SID-WIZARD's fast 6502 (kestrel_sw_cpu.c, the registers in locals) = libcRSID's own, byte for byte: every opcode on 48 random C64s (the whole 275 KB machine compared after one instruction) and 4,000 C64 samples of random code (interrupts, the wait, I/O)
 gate ports_sidwizard node apps/sidwizard_cpu_check.mjs --break   # ...and a wrong ADC carry is caught
+gate ports_syncterm node apps/syncterm_headless.mjs   # SYNCTERM (C, GPLv2, the spike: apps/ports/syncterm, fibers on Asyncify, the network MOCKED): launched from GEM over its data disk, it enters the desk mode (640x480), dials telnet://fakebbs.zig (the in-cart BBS), the telnet options are negotiated and WELCOME.ANS is drawn (rows pinned), typed keys come back as the BBS's echo (pinned), Alt+X + No quits back to the desktop as it was
+gate ports_syncterm node apps/syncterm_headless.mjs --break type   # ...and keys never typed (no echo) are caught
+gate ports_syncterm node apps/syncterm_headless.mjs --break quit   # ...and no quit is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
@@ -773,7 +818,7 @@ gate_timed union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   #
 gate_timed stream_pacing node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps, 144 Hz and across a 3 s stall
 gate st_replay_outputs node apps/st_replay_outputs_check.mjs   # ST Replay's Alt: INTERNAL feeds the stream ring every frame, EXTERNAL hands the whole sample over once (zg.samplePlay) and the worklet plays it as the fed bytes would sound
 gate st_replay_outputs node apps/st_replay_outputs_check.mjs --break refill   # ...and a worklet that never refills the ring is caught
-gate st_replay_filesel node apps/filesel_check.mjs   # GEM's ITEM SELECTOR as ST Replay opens it is TOS 1.02's: the 320-wide box keeps a full 8.3 Selection (DRUMLOOP.RAW) inside its frame, empty list rows show ________.___, files list as NAME    .EXT; three pinned pictures
+gate st_replay_filesel node apps/filesel_check.mjs   # GEM's ITEM SELECTOR as ST Replay opens it is TOS 4's (GEM 5 S2): a full 8.3 Selection (DRUMLOOP.RAW) stays clear of DRIVE:, empty list rows show ________.___, files list as NAME    .EXT; three pinned pictures
 gate_timed union_deltaforce node apps/union_deltaforce_headless.mjs "$SHOTS"   # DELTA FORCE: TEX loader depack, screen.js replayed pixel for pixel, the SNDH plays
 gate_timed union_texcopier node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, screen.js replay incl. Chrome's blends, Scoop plays
 gate union_texcopier node apps/depack_align_check.mjs   # the depack loaders (TEX, Union: texcopier, tnt2, multifake, deltaforce) make no misaligned wide access while they load: each traps on the board (~210 cycles); the TEX loader's glyph copy made ~440 a frame until 2026-10-24

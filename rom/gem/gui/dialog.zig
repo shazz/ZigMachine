@@ -35,6 +35,8 @@ pub const Dialog = struct {
     choice: u8 = 0, // the button that closed it, 1-based (form_alert's return value)
     want_w: i16 = 0,
     want_h: i16 = 0,
+    icon: u8 = 0, // form_alert's icon (0 none, 1 note, 2 question, 3 stop)
+    engine: bool = false, // a PROGRAM's dialog (rom_main dialogOpen): its alerts on the GEM 5 engine (alert_obj.zig)
 
     const MAX_LINE: usize = 48; // a GEM alert line; longer is truncated, not kept
     const ROW_H: i16 = 8; // one char cell per list row (GEM item selector)
@@ -48,7 +50,7 @@ pub const Dialog = struct {
     }
     // A multi-line GEM alert, optionally with the warning sign on the left.
     pub fn alertLines(self: *Dialog, lines: []const []const u8, warn: bool) void {
-        self.* = .{ .active = true, .filesel = false, .warn = warn };
+        self.* = .{ .active = true, .filesel = false, .warn = warn, .engine = self.engine };
         var widest: i16 = 0;
         for (lines, 0..) |l, i| {
             if (i >= MAX_LINES) break;
@@ -65,6 +67,7 @@ pub const Dialog = struct {
     pub fn formAlert(self: *Dialog, spec: []const u8, default: u8) bool {
         const a = formalert.parse(spec) orelse return false;
         self.alertLines(a.lines[0..a.nlines], a.icon != 0);
+        self.icon = a.icon;
         var widest: usize = 0;
         for (a.buttons[0..a.nbuttons], 0..) |b, i| {
             @memcpy(self.btn_buf[i][0..b.len], b);
@@ -84,7 +87,7 @@ pub const Dialog = struct {
     }
 
     pub fn openFiles(self: *Dialog, title: []const u8, items: []const []const u8) void {
-        self.* = .{ .active = true, .filesel = true, .title = title, .items = items };
+        self.* = .{ .active = true, .filesel = true, .title = title, .items = items, .engine = self.engine };
         self.nlines = 0;
         self.want_w = 220;
         self.want_h = @as(i16, @intCast(items.len)) * ROW_H + 44;
@@ -100,6 +103,7 @@ pub const Dialog = struct {
 
     pub fn process(self: *Dialog, g: *Gui) DlgResult {
         if (!self.active) return .none;
+        if (self.engine and !self.filesel) return self.engineAlert(g);
         // A dialog never hangs off the screen, however long its text is.
         const bw = @min(self.want_w, g.screen.w - 8);
         const b = Rect{ .x = @divTrunc(g.screen.w - bw, 2), .y = @divTrunc(g.screen.h - self.want_h, 2), .w = bw, .h = self.want_h };
@@ -108,6 +112,19 @@ pub const Dialog = struct {
         const res = if (self.filesel) self.fileList(g, b) else self.alertBody(g, b);
         if (res != .none) self.active = false;
         return res;
+    }
+
+    // The program's alert as an object tree (alert_obj.zig); alert()'s one OK is the default.
+    fn engineAlert(self: *Dialog, g: *Gui) DlgResult {
+        var btns: [formalert.MAX_BUTTONS][]const u8 = undefined;
+        for (0..self.nbtn) |i| btns[i] = self.btn_buf[i][0..self.btn_len[i]];
+        const one_ok = self.nbtn == 0;
+        if (one_ok) btns[0] = "OK";
+        const s: @import("alert_tree.zig").Spec = .{ .icon = self.icon, .lines = self.lines[0..self.nlines], .buttons = btns[0..@max(self.nbtn, 1)], .default = if (one_ok) 1 else self.default_btn };
+        const k = @import("alert_obj.zig").frame(g, s) orelse return .none;
+        if (!one_ok) self.choice = k + 1;
+        self.active = false;
+        return .{ .ok = k };
     }
 
     fn alertBody(self: *Dialog, g: *Gui, b: Rect) DlgResult {

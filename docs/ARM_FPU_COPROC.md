@@ -173,7 +173,7 @@ the UART is the result.
 1. `glass astro-bench` (any bitstream, beside a running glass): ns per GP0 register read/write, mailbox
    read/write (0 on a bitstream without it: the page reads 0), uncached DDR read, f64 add/div/sqrt/sin
    on the A9, as min / median / p99 / max.
-2. The ASTROLABE bitstream + the new glass + `KESTREL/system.rv32` (table 1.18) + the ASTRO BENCH cart:
+2. The ASTROLABE bitstream + the new glass + `KESTREL/system.rv32` (table 1.24) + the ASTRO BENCH cart:
    the screen shows `roundtrip ns=… cycles=min/med/p99/max served=n/n`, each op's
    `astro1 astro48 soft64 f32` ns per op, LINPACK KFLOPS soft vs astro, the 4096 sin batch.
    `served` = the ARM answered (0 = fallback). The same cart on the old bitstream is the soft baseline.

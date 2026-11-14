@@ -19,3 +19,12 @@ STRIP=$(ls "$HOST_DIR"/bin/*-buildroot-linux-*-strip | head -n 1)
 # everything the glass needs is =y in linux.fragment. (CONFIG_MODULES=n is not
 # the fix: Kconfig then turns every =m into =y, and the zImage grew 11.9 -> 18.3 MB.)
 rm -rf "$TARGET_DIR/lib/modules"
+# Wi-Fi firmware: linux-firmware's BCM43XXX set is ~20 chips; the board's dongle is the
+# BCM43143 (fpga/docs/PREREQUISITES.md). Keep only the files named in WIFI_FW_KEEP (one
+# basename a word, under brcm/); add another dongle's file there.
+WIFI_FW_KEEP="brcmfmac43143.bin"
+if [ -d "$TARGET_DIR/lib/firmware/brcm" ]; then
+    for f in "$TARGET_DIR"/lib/firmware/brcm/*; do
+        case " $WIFI_FW_KEEP " in *" $(basename "$f") "*) ;; *) rm -rf "$f" ;; esac
+    done
+fi

@@ -8,6 +8,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from host_make import make_host
+
 FPGA = Path(__file__).resolve().parent.parent
 WORK = FPGA / "build" / "tests" / "audio_pcm"
 WABT = FPGA / ".tools/wabt"
@@ -15,8 +17,7 @@ WABT = FPGA / ".tools/wabt"
 
 def test_the_ring_is_refilled_ahead_looped_fed_and_stopped_as_the_worklet_does() -> None:
     # The headers: wasm2c's aplayer.h, machine.h, rom.h, and a cart's (host.h wants one: tutorial's).
-    subprocess.run(["make", "-s", "memmap", "build/host/common/aplayer.h", "build/host/tutorial/cart.h"],
-                   cwd=FPGA, check=True, capture_output=True)  # fmt: skip
+    make_host("memmap", "build/host/common/aplayer.h", "build/host/tutorial/cart.h")
     WORK.mkdir(parents=True, exist_ok=True)
     exe = WORK / "audio_pcm_test"
     inc = ["-Ihost", "-Ibuild/host/common", "-Ibuild/host/tutorial", f"-I{WABT}/share/wabt/wasm2c", f"-I{WABT}/include"]

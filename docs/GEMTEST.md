@@ -1,0 +1,137 @@
+# GEMTEST: every GEM 5 component on one disk
+
+Status: **built on `feat/gem5-gemtest`** (9 Nov 2026). Matt: "did you create a GEM test cart to show all
+the GEM 5.0 components? so I can see the bugs". Cart `gemtest` (index 128), `apps/zig/scenes/gemtest.zig`
++ `gemtest/`; proof `apps/gemtest_check.mjs` (gate `gemtest`); shots `apps/gemtest_shots.mjs`.
+
+A GEM program as [NOTEPAD](NOTEPAD.md) is: a data disk (`demo-gemtest.zmd`) whose `BOOT.WSM` the desktop
+runs, in the desktop's resolution; ^Q (or Test > Quit) goes back. It uses ONLY the program API
+(`rom/sdk/rom.zig` + `rom/sdk/aes.zig`). What the API lacks is shown in the window as a grey line
+"not in the API yet: ..." instead of being faked by reaching into the ROM: those lines are findings.
+
+## The menu bar
+
+| Title | Items |
+|---|---|
+| Desk | About GEMTEST... (form_alert) |
+| Test | the eight areas, each with its ^key (W E D A F T I R); Close windows ^K; Quit ^Q |
+| Menus | the menu test: a plain item, a disabled one, separators, two checked items that toggle (menu_icheck), Shortcut ^L, a disabled ^U (must do nothing) |
+| Alerts | form_alert with each icon (0 none, 1 note, 2 wait, 3 stop) and 1, 2, 3 buttons; Malformed alert (must open nothing): the Alerts window shows the answer (G18) |
+| Mode | Low, Medium, Desk (the current one checked; Desk greyed where the machine has no desk mode). Keys 1 2 3 do the same |
+
+## The areas (one shown at a time: the API has 7 windows)
+
+| Area | Window(s) | What it checks |
+|---|---|---|
+| Windows (^W) | GADGETS, OVERLAP A, OVERLAP B, LARGER THAN THE SCREEN | every gadget (closer, title/mover, fuller, info line, sizer, both sliders with arrows and tracks); a numbered grid to scroll both ways; overlapping windows, a click tops one; each window shows its stack position and how many moves, sizes, tops and scrolls it got; the last is larger than the screen. A change of the stack redraws only the ROM's WM_REDRAW rectangles, clipped (G17) |
+| Menus (^E) | MENUS | what the Menus title did: the two checks, the last pick, picks and shortcuts counted |
+| Dialogs (^D) | DIALOGS (OBJECTS) | the ROM's buttons (default border 3: Return fires it; exit 2; plain 1); a radio group, two check boxes, an editable field (template `__/__/__`, digits only, a caret), boxes with insets 1 2 3, an 11-stop slider: these four built by the program from the ROM's button, frame and fill |
+| Alerts (^A) | ALERTS (FORM_ALERT) | a button per icon x buttons; the last answer (form_alert's 1-based return); the malformed alert's answer (nothing opened: right) |
+| File selector (^F) | FILE SELECTOR (FSEL_INPUT) | the ITEM SELECTOR on `A:\*.*`, `C:\*.*`, `C:\*.TXT`, its list from Fsfirst / Fsnext (KOS GEMDOS); shows how many names, Fsfirst's code, the button and the name returned |
+| Text and fonts (^T) | TEXT AND FONTS | the system font's cell (guiCell), a 200-column ruler (horizontal scroll), 100 lines (vertical scroll) |
+| Icons (^I) | ICONS | G_ICONs drawn by the ROM: the desktop's six by number, one of the program's own; which desk icon a double-click opened |
+| Screen modes (^R) | SCREEN MODES | Getrez at launch (deskScreenMode), the mode now, whether the desk mode exists; Low / Medium / Desk buttons |
+
+## Not in the API yet (the findings)
+
+Each is a grey line in its window.
+
+1. **Windows**: done in S3 (G17, system table 1.22, `rom.aes.redraw`): per window the frame's WM_REDRAW
+   rectangles (`winRects(id, 0)`; id 0 the desk) and its visible ones (`winRects(id, 1)`, WF_FIRSTXYWH /
+   WF_NEXTXYWH), the stack back to front (`winStack`), and a clip (`guiClip`, vs_clip). GEMTEST redraws
+   only those rectangles, clipped (gemtest/redraws.zig): a top redraws what the windows above hid, a move
+   or a size the old and new places, a close what was under it; no window is repainted whole, no flash.
+   A size drag stops at the screen's edge (G22) and at the size that holds every gadget (G23), the
+   desktop's windows too (gui/winsize.zig).
+2. **Dialogs**: no popup menus (menu_popup), no form_do loop (a program runs form_button / objc_edit a
+   frame at a time). Since S4 (G20, system table 1.23, `rom.aes.obj`) a program lays out an AES OBJECT
+   tree (and TEDINFOs, strings) in its own memory and the ROM draws it on the engine in the program look
+   (`objcDraw`), finds the object under a point (`objcFind`), applies a click (`formButton`: RBUTTON
+   groups, SELECTABLE toggles, DISABLED), changes a state (`objcChange`) and edits a G_FTEXT /
+   G_FBOXTEXT by its template and validation (`objcEdit`, ED_INIT / ED_CHAR / ED_END, the caret).
+   GEMTEST's Dialogs area is such a tree (gemtest/dlg_tree.zig): buttons incl. a disabled one, a radio
+   group, check boxes, a date field, a slider made of a TOUCHEXIT track and its knob.
+3. **Menus**: no submenus, no menu_tnormal. Shortcuts are a right-aligned column since S4: a TAB in a
+   label ("Quit\t^Q") puts what follows at the drop-down's right edge (gui/menu.zig).
+4. **Alerts**: no custom icons (a program's own art), no form_error. Since `feat/gem5-program-objects`
+   (S1, G19) a program's form_alert is an object tree drawn by the GEM 5 engine: TOS 4's layout, the
+   icons NOTE / QUESTION / STOP (the asset set's, else our own TOS 1-style drawings in
+   rom/gem/gui/alert_art.zig), the flat look or TOS 4's 3D rules (gui/proglook.zig).
+5. **File selector**: no title of the program's own (fsel_exinput). Since `feat/gem5-program-objects`
+   (S2, G21) the ITEM SELECTOR is TOS 4's on the GEM 5 engine: the path as its title, Directory: (editable)
+   and Selection:, the list window (closer, mask, nine rows, arrows, track, slider), DRIVE: A..P (the
+   program's GEMDOS map through `fileSelDrives`, system table 1.21; A: and the spec's drive always; a
+   click re-roots the spec at `X:\` + the mask and answers `relist`), OK and Cancel; flat or 3D.
+6. **Text**: one size (no vst_height), no 8x16 system font through the API, no styles (vst_effects),
+   no other fonts (vst_font, GDOS).
+7. **Icons**: done in S5 (G16, system table 1.24). A G_ICON's ICONBLK (the AES's 34 bytes) points at the
+   program's own 1 bpp images, or, ib_pmask 0, names one of the ROM's icons by number (`SYS_FLOPPY` ..
+   `SYS_DOCUMENT`: the desktop's set, the asset set's where built in; gui/wire_icon.zig). `winDesk` is
+   WF_NEWDESK: the program's desktop tree, drawn by `winDeskDraw` in the desk's WM_REDRAW rectangles.
+   GEMTEST's desktop (gemtest/desk.zig) is such a tree with four icons: a click selects, a drag moves,
+   a double-click opens (the Icons area names it).
+8. **Screen modes**: done in S6 (system table 1.25, `rom.aes.setscreen`): Setscreen through the ROM, which
+   writes the plane's mode registers (the desk on the program's own 640 x 480 buffer, as XBIOS Setscreen
+   took the screen's address) and re-binds the program's context; GEMTEST's keys 1 2 3 use it.
+9. **The look**: a ROM built with Matt's TOS 4 set (`-Dgem_assets`, `-Dgem_trees`, `-Dgem_engine=true`)
+   draws every GEMTEST component byte for byte as the TOS 1.0 ROM does (the shots, 9 Nov: 56 of 57
+   PNGs identical; only GEM's own desktop in the desk mode differs, by its drive icon, the same with
+   the engine's 3D look asked for explicitly, `ZM_ENGINE=2`). A program's windows, menus and ITEM
+   SELECTOR do not take the set at all; its ALERTS do since S1 (the set's NOTE / QUES / STOP images,
+   3D when the desk's engine is: `-Dgem_engine=true` with a set, or deskSetEngine(2)).
+
+## The known board bugs it shows
+
+- The ITEM SELECTOR lists nothing on C: (File selector area: `C:\*.*` shows the count, and Fsfirst's code).
+- A click on the selector's path / wildcard line did nothing and the selector was TOS 1.02's: both fixed
+  (the folder selector, then S2's TOS 4 layout with drive buttons).
+- The desktop's icons in low res differ from the desk mode's (the shots' `desktop` row).
+- A program launched from the desk mode opens in medium (Screen modes area: Getrez and the mode now;
+  fixed on `fix/board-prog-deskmode`, not merged).
+
+## Component ids (gemtestShow, for the shots)
+
+`gemtestShow(id)` (a cart export, GEMTEST's only) opens a component at the next frame: 1..8 the areas
+(Windows, Menus, Dialogs, Alerts, File selector, Text, Icons, Screen modes); 10..21 form_alert icon
+(id-10)/3 with (id-10)%3+1 buttons over the Alerts area; 22 the malformed string; 30..32 the ITEM
+SELECTOR on `A:\*.*`, `C:\*.*`, `C:\*.TXT` over the File selector area.
+
+## Shots
+
+`node apps/gemtest_shots.mjs <outdir> [--assets <dir>]` writes each component (and the menu drop-downs,
+and GEM's own desktop with A:\ open) in low, medium and the desk: `<component>_<mode>.png` at 1:1
+framebuffer pixels, `_2x.png` for low and medium as the screen shows them (640x400), and `index.html`, a
+contact sheet. `--assets prototypes/gem_reconstructed/gem_assets` (Matt's LOCAL TOS 4 page) puts that
+mode's reference (st_low / st_medium / st_high) under each shot. `ZM_ROM=<rom.wasm>` runs another ROM (a
+`-Dgem_assets` build into a scratch prefix). Shots made with Matt's set are local only: write them under
+`prototypes/` (git-ignored), never commit them.
+
+## Proof
+
+`apps/gemtest_check.mjs` (gate `gemtest`, + `--break ctrl|click`): see its header. Each area drawn,
+distinct, deterministic over two runs, an idle frame painting nothing and the incremental screen equal to
+a whole repaint, in the three modes; a click on each kind of control does what it should.
+
+`apps/gemtest_alert_check.mjs` (gate `gemtest`, + `--break icon`): a program's form_alert on the engine,
+flat and 3D, in the three modes: four icons four alerts, icons 1-3 inked in the icon's box, TOS 4's
+layout (the second button where the layout puts it answers 2), Return the default, an alert left up
+redraws the same screen, Alerts > Malformed alert opens nothing and the Alerts window says so.
+
+`apps/gemtest_fsel_check.mjs` (gate `gemtest`, + `--break drive`): the TOS 4 ITEM SELECTOR, flat and 3D, in
+the three modes: opened on C:\*.*, the A: button gives the selector opened on A:\*.* pixel for pixel, C:
+brings C:\*.* back, B: (absent) does nothing, an idle frame redraws the same, Cancel closes it.
+
+`apps/gemtest_redraw_check.mjs` (gate `gemtest`, + `--break whole|clamp|min`): in the three modes a top, a
+move and a close of GADGETS keep a poisoned desk pixel and a poisoned back-window pixel (only the WM_REDRAW
+rectangles were redrawn) and the screen then equals a whole repaint; its sizer dragged past the corner
+stops at the screen's edge; dragged far up-left it stops where every gadget fits; there, and after a
+larger size and back, the screen equals a whole repaint.
+
+`apps/gemtest_obj_check.mjs` (gate `gemtest`, + `--break radio`): the Dialogs area's object tree in the
+desk, flat and 3D: a radio group (pressed twice it stays; Low brings the first look back), a check box
+twice, the disabled button inert, digits into the date field and letters refused, Backspace, the
+slider's track; and the Test menu's shortcuts ending in one column in low.
+
+`apps/gemtest_icon_check.mjs` (gate `gemtest`, + `--break icons`): GEMTEST's desktop in low and the desk with
+its windows closed: the four icons drawn, select / reselect / deselect, a drag (= a whole repaint after),
+a double-click opening the Icons area.

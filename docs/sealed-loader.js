@@ -137,6 +137,15 @@ async function kosMountCWrites() {
         (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate());
 }
 function kosFileOp(req) { return kosCOp ? kosCOp(req) : -46; }
+// ZIGNIC, the network card (docs/GEM_NET.md, machine/sdk/net_abi.zig): env.netOp(req) answers from docs/net-host.js.
+// The page has a card only when asked: ?net=peer (the scripted LAN, docs/net-peer.js); a WebSocket relay later.
+// Without one every op answers no_card (-1), and a cart says "no network card".
+let netCard = null;
+function netMount() {
+    const want = typeof location !== "undefined" ? new URLSearchParams(location.search).get("net") : null;
+    if (want === "peer" && typeof ZMNet !== "undefined") netCard = ZMNet.make(() => memory.buffer, ZMNetPeer.make());
+}
+function netOp(req) { return netCard ? netCard(req) : -1; }
 function kosDriveRead(unit, sector, count, dst) {
     const n = (count >>> 0) * 512, from = (sector >>> 0) * 512;
     if (!kosC || unit !== 2 || count === 0 || count > 64 || (dst >>> 0) % 4) return 0;
@@ -527,6 +536,10 @@ async function boot() {
             hostPaulaRelease: () => hostPaulaRelease(),
             // The BARD queue (table 1.12, libs/zig/bard.zig): the cart's ring of timed commands.
             hostBardAttach: (block, lead) => hostBardAttach(block, lead),
+            // The pointer's box (table 1.21, HW_API "The pointer's box"): where the cart's picture is,
+            // for the board's mouse. The page's pointer is the host's own: nothing to do here.
+            hostPointerBox: () => {},
+            netOp: (req) => netOp(req), // ZIGNIC, the network card (table 1.22, docs/GEM_NET.md)
             // Free-running microseconds, u32 (wraps every ~71 min). A BENCHMARK aid
             // (the raytrace carts): carts stay frame-locked, never time-driven.
             // decisions.md 2026-10-10.
@@ -610,6 +623,7 @@ async function kosPowerOn(url, params) {
         kosMountC(new Uint8Array(await fetch(cUrl + BUST).then((r) => r.arrayBuffer())));
         await kosMountCWrites();
     }
+    netMount(); // ?net=peer: ZIGNIC over the scripted LAN (docs/GEM_NET.md)
     kosDrive = url ? { url, ...(await mountDisk(url)) } : null;
     if (!url) mountedDisk = null;
     ZMKos.power(rom, machine, kosDrive, mountedDisk, params.get("warm") === "1"); // ?warm=1: the reset button

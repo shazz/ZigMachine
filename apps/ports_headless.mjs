@@ -48,7 +48,8 @@ const F_KEY5 = 0xe005, KEY_X = 0x78, KEY_SPACE = 0x20, SHIFT_LEFT = 0xe015, ESC 
 const click = (x, y, b, dy = 0) => (d) => d.pointer(x * 2, y + dy, b);
 const SPECS = {
     pt2: {
-        cart: "docs/demo-pt2.wasm", disk: "docs/demo-pt2.zmd", frames: 300, minColours: 10, breaks: ["load", "quit"],
+        cart: "docs/demo-pt2.wasm", disk: "docs/demo-pt2.zmd", frames: 300, minColours: 10, breaks: ["load", "quit", "ptrbox"],
+        ptrBox: [0, -28, 640, 227], // its 320x255 at (40, 12) of the 400x280 plane, in pointer() coordinates
         pinAt: 90, pin: "0dda0e9b1204ccf6338165770335f77684ec7d0c3ed527584773c85e6bd2aa41",
         // ProTracker blocks input for a second after boot (an error pointer from its startup); then:
         // DISK OP (182..243, 33..43), the first row of the file list (rows of 6 from y 34), PLAY (120..181, 0..10)
@@ -72,7 +73,8 @@ const SPECS = {
         use: useGrafx2,
     },
     klystrack: {
-        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer", "edit", "quit"],
+        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer", "edit", "quit", "ptrbox"],
+        ptrBox: [0, -20, 640, 220], // its 320x240 at (40, 20) of the 400x280 plane
         pinAt: 20, pin: "c535877893c812bf1cb6e491a9e6ebe27c5aecf5258c8e661d630fe6e9608d5b",
         // the UI is idle by frame 70 (no repaints: kestrel_sdl.c) and the pointer must still move; F5 at 160,
         // after cyd went quiet (QUIET_AFTER_MS 2.2 s of silence in kestrel_sdl.c = frame ~133 here), so playing also
@@ -174,6 +176,7 @@ async function run() {
     let trap = "", m = { demo: { isPlaneEnabled: () => 0 }, audio, songs: [] }, gem = null, plane0 = 0, last = "";
     try {
         m = await machine(await readFile(spec.disk), clockUs);
+        if (broke === "ptrbox") m.env.hostPointerBox = () => {}; // the host never hears where the picture is
         if (spec.bard) { // the cart's SID plays on the sound side: the page's (apps/bard_queue_lib.mjs pageSound)
             m.sound = await pageSound(m.memory, { frames: spec.frames + QUIT_FRAMES + 8 });
             m.env.hostBardAttach = m.sound.hostBardAttach;
@@ -211,6 +214,10 @@ function useGem(r) {
 function useCommon(r) {
     check("boot and frames", !r.trap, r.trap || `${spec.frames} frames, no trap`);
     check("plane 0 enabled", r.plane0 === 1);
+    if (spec.ptrBox) { // env.hostPointerBox (HW_API "The pointer's box"): where the board's mouse stops
+        const got = JSON.stringify(r.m.ptrBoxes || []), want = JSON.stringify([spec.ptrBox]);
+        check("the picture's rectangle told to the host, once", got === want, `${got} (want ${want})`);
+    }
     const ui = r.shots.get(spec.pinAt);
     if (!ui) return check("ui", false, `no picture at frame ${spec.pinAt}`);
     const n = colours(ui), h = sha(ui.px);

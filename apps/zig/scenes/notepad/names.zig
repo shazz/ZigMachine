@@ -18,6 +18,18 @@ pub fn txtName(typed: []const u8, buf: *[13]u8) []const u8 {
     return buf[0..n];
 }
 
+/// The folder part of a path spec, its last backslash included: `C:\NET\` of `C:\NET\*.TXT`.
+pub fn dirOf(spec: []const u8) []const u8 {
+    const i = std.mem.lastIndexOfScalar(u8, spec, '\\') orelse return spec[0..0];
+    return spec[0 .. i + 1];
+}
+
+test "a spec's folder" {
+    try std.testing.expectEqualStrings("C:\\NET\\", dirOf("C:\\NET\\*.TXT"));
+    try std.testing.expectEqualStrings("C:\\", dirOf("C:\\*.TXT"));
+    try std.testing.expectEqualStrings("", dirOf("*.TXT"));
+}
+
 test "a typed name becomes an 8.3 .TXT name" {
     var b: [13]u8 = undefined;
     try std.testing.expectEqualStrings("NOTES.TXT", txtName("notes", &b));

@@ -37,9 +37,11 @@ async function rig(img, brk) {
     return m;
 }
 
-/** GEM boots over Notepad's data disk and runs BOOT.WSM, as on the page. */
-export async function fromGem(img, brk = "") {
+/** GEM boots over Notepad's data disk and runs BOOT.WSM, as on the page. `patch(m)` may change the
+ *  env the cart links against first (a harness's break: a ROM export sabotaged). */
+export async function fromGem(img, brk = "", patch = null) {
     const m = await rig(img, brk);
+    patch?.(m);
     m.launch = await launchFromGem(m, CART);
     return driver(m);
 }
@@ -54,6 +56,17 @@ export async function afterDesktop(img, mode, brk = "") {
         m.rom.deskInitPlane(0, mode === 0 ? 320 : 640, mode === 2 ? 480 : 200);
     }
     startCart(m, await readFile(CART), CART);
+    return driver(m);
+}
+
+/** A fresh machine + ROM (the board loads each program as a new image) told the desktop's `mode`
+ *  as the board's firmware tells it (cycles/bkos.c: deskSetScreenMode before the cart's init; null:
+ *  nothing carried), then `cart` started. brk "carry": the mode is never handed over. */
+export async function afterBoardLoad(img, mode, cart = CART, brk = "") {
+    const m = await rig(img, brk);
+    m.machine.hwInit();
+    if (mode !== null && brk !== "carry") m.rom.deskSetScreenMode(mode);
+    startCart(m, await readFile(cart), cart);
     return driver(m);
 }
 

@@ -34,6 +34,17 @@ decision: decisions.md 2026-11-09 "GEM 5 step 1". Matt: "look and speed first, f
   with the flat TOS 1 look, 2 with the TOS 4 3D look; bits 8.. are the harness's mutants.
   `-Dgem_engine=true` makes the engine the boot default (3D when a local asset set is built in).
   Low and medium never use it.
+- **The icons are one set in every mode** (Matt, 9 Nov: "in low resolution, the same icons should be
+  used as in desk mode"). `rom/gem/iconset.zig` picks each desktop icon once: the asset set's colour
+  icon, else its mono icon, else the TOS 1.0 bitmap in `gem_icons.zig`. The engine (desk) and the old
+  path (low, medium: icon.zig, dirview.zig) both draw from it, so with Matt's set low shows the TOS 4
+  icons too. As real TOS 4 does, an icon is drawn 1:1 in every mode, never scaled: in low the 32 px wide
+  icon looks twice as wide (the ST low pixel is 2:1), and in medium half as tall. A colour icon shows its
+  colour image where the screen has the planes for it (TOS 4 takes the 4-plane image on ST low's 4
+  planes; ST medium has 2, so the mono icon there), and a selected colour icon is the mono one inverted.
+  The old path installs the VDI pens at palette 48..63 only when the set has a colour icon. The icon
+  cell follows the set's tallest art (`icon.zig` BASELINE: 30 for TOS 1.0, unchanged; 32 for TOS 4, so
+  the cell is 72x42 there, in every mode). Proof: `tools/gem_iconset_test.py` (a made-up set, 2 breaks).
 
 ## The assets: `-Dgem_assets=<dir>` (local only)
 
@@ -100,7 +111,20 @@ TOS's grey mover, no drop shadow. Still different: the reference's gadgets are w
 - The layout metrics stay TOS 1's (8x8 cells, 12x11 gadgets, an 11-row menu bar): the 8x16 font is
   converted and loaded, not yet the desk's system font. That needs the menu / window metrics read from
   `Screen.metrics()` in gui/menu.zig and gui/window.zig (low and medium must stay 8x8).
-- Dialogs (alerts, Show Info, Set Preferences, Desktop Info) keep the old flat look and the old code.
+- The desktop's dialogs (alerts, Show Info, Set Preferences, Desktop Info) keep the old flat look and
+  the old code. A PROGRAM's form_alert is on the engine since `feat/gem5-program-objects` (S1, G19):
+  gui/alert_tree.zig builds TOS 4's tree (icon a cell in, the lines beside it, equal buttons centred
+  under them), gui/alert_obj.zig draws it in the program look (gui/proglook.zig: the asset set, flat
+  or 3D following deskSetEngine; mutant bit 24 loses the icon art). The built-in icons are ours
+  (gui/alert_art.zig, generated shapes); `-Dgem_assets` brings the set's NOTE / QUES / STOP BITBLKs
+  (the converter's `images`).
+- The ITEM SELECTOR (programs' fsel_input) is on the engine since S2 (G21): desktop/fsel_tree.zig is TOS
+  4's layout as a tree (engine/tree.zig builds it), desktop/fsel_draw.zig hit-tests it by object index
+  and draws it in the program look; filesel.zig keeps the state (path, list, Selection, drive map).
+- A program's windows get WM_REDRAW rectangle lists since S3 (G17): gui/appwin_damage.zig computes a
+  frame's damage and each window's visible region with the engine's RectList (rect.zig), the program
+  redraws only those rectangles through a clip (guiClip). The engine's G_BOXCHAR draws a DISABLED
+  object's character grey (the selector's absent drives).
 - The TOS 4 trees are compiled in with `--trees` but nothing draws them yet: the desk's own menus,
   windows and icons are built from ZigGEM's state.
 - The engine is not the default: it does not have every old feature's look (the icon drag ghost is two

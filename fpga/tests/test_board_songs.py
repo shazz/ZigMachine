@@ -17,6 +17,7 @@ ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 
 import song_pack
+from host_make import make_host
 
 CART = "sap_test"
 HOST = FPGA / f"build/host/{CART}/host_audio"
@@ -31,7 +32,7 @@ def press(frame: int, code: int) -> str:
 @pytest.fixture(scope="module")
 def started(tmp_path_factory: pytest.TempPathFactory) -> list[str]:
     """The songs the native host starts: Warhawk, then Up (to BMX Simulator), Enter, Right (its song 2)."""
-    subprocess.run(["make", "-s", "memmap", f"build/host/{CART}/host_audio"], cwd=FPGA, check=True, capture_output=True)
+    make_host("memmap", f"build/host/{CART}/host_audio")
     log = tmp_path_factory.mktemp("songs") / "keys"
     keys = ",".join([press(100, UP), press(110, ENTER), press(120, RIGHT)])
     env = dict(os.environ, ZM_GLASS_KEYS=keys, ZM_AUDIO_LOG=str(log))

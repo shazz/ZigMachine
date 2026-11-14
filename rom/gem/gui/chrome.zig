@@ -42,8 +42,13 @@ fn titleBar(g: *Gui, w: *const Window, active: bool) void {
     g.fill(w.r.x, w.r.y + TITLE_H - 1, @intCast(w.r.w), 1, BLACK); // underline
     const tw: i16 = @as(i16, @intCast(w.title.len)) * 8;
     const tx = w.r.x + @divTrunc(w.r.w - tw, 2);
-    g.rect(.{ .x = tx - 8, .y = bar.y, .w = tw + 16, .h = bar.h }, WHITE); // clear patch
-    g.text(w.title, tx, w.r.y + 2, BLACK, WHITE);
+    // The clear patch and the title stay inside the mover: a title longer than a narrow window
+    // used to spill over its frame onto the screen around it (seen at the minimum size, G23).
+    const inner = Rect{ .x = bar.x + 1, .y = bar.y, .w = bar.w - 2, .h = bar.h };
+    const px0 = @max(tx - 8, inner.x);
+    const px1 = @min(tx + tw + 8, inner.x + inner.w);
+    if (px1 > px0) g.rect(.{ .x = px0, .y = bar.y, .w = px1 - px0, .h = bar.h }, WHITE); // clear patch
+    if (inner.w > 0) g.textClipped(w.title, tx, w.r.y + 2, BLACK, WHITE, inner);
     g.gadget(w.r.x, w.r.y, glyphs.CLOSE, BLACK, WHITE);
     g.gadget(w.r.x + w.r.w - glyphs.GW, w.r.y, glyphs.FULL, BLACK, WHITE);
 }

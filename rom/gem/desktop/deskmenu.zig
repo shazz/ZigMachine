@@ -8,6 +8,7 @@ const dt = @import("desktop.zig");
 const deskwin = @import("deskwin.zig");
 const desknav = @import("desknav.zig");
 const deskops = @import("deskops.zig");
+const fileop_ui = @import("fileop_ui.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
@@ -44,19 +45,26 @@ pub fn runDialogs(d: *Desktop, g: *gui.Gui, action: *Action) void {
     };
     _ = d.dlg.process(g);
     _ = d.about.process(g); // Desktop Info... (modal while active)
-    switch (d.trash.process(g)) { // DELETE FILE(S) confirm
-        .ok => {
+    switch (d.trash.process(g)) { // DELETE FILE(S) confirm: C:'s file operation, or drive A's in-memory delete
+        .ok => if (fileop_ui.owns(d)) fileop_ui.go(d) else {
             if (d.trash_target >= 0) deskops.removeFile(d, @intCast(d.trash_target));
             d.trash_target = -1;
         },
-        .cancel => d.trash_target = -1,
+        .cancel => if (fileop_ui.owns(d)) fileop_ui.cancel(d) else {
+            d.trash_target = -1;
+        },
         .none => {},
     }
     switch (d.info.process(g)) { // Show Info... + NEW FOLDER share the box
         .ok => if (d.info.kind == .new_folder) deskops.createFolder(d) else deskops.applyRename(d),
         else => {},
     }
-    _ = d.copy.process(g); // COPY FOLDERS / ITEMS (cosmetic; disk is read-only)
+    switch (d.copy.process(g)) { // COPY / MOVE FOLDERS / ITEMS: the counted operation on C:
+        .ok => fileop_ui.go(d),
+        .cancel => fileop_ui.cancel(d),
+        .none => {},
+    }
+    fileop_ui.run(d, g); // its live count-down and NAME CONFLICT
     if (d.prefs.active) runPrefs(d, g, action);
 }
 

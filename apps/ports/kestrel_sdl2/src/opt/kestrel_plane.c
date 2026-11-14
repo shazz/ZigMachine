@@ -16,6 +16,7 @@
 
 void kestrel_log(const char *m);
 const Uint32 *kestrel_cursor_image(int *w, int *h, int *hx, int *hy);
+void kestrel_ptrbox_plane(int full, int px, int py, int w, int h);
 __attribute__((import_module("env"), import_name("hwVideoBase"))) extern int hwVideoBase(void);
 
 #define REG_BACKGROUND 0x04
@@ -185,6 +186,7 @@ void kestrel_plane_present8(const Uint8 *src, int w, int h)
     if (h > 280) h = 280;
     plane_size(w, h);
     kestrel_plane_origin(w, h, &ox, &oy);
+    kestrel_ptrbox_plane(pw > 320, ox, oy, w, h); /* the board's pointer stops at the picture's edge */
     if (!shown_size(w, h)) return;
     cursor_resolve(w, h);
     if (kestrel_palette_compacted) full = 1;

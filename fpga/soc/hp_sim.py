@@ -85,6 +85,7 @@ def make_soc(
     read_bypass: bool = zm_board_mem.READ_BYPASS,
     sound_core: Path | None = None,
     sound_tcm: int = 0,
+    reads: str = zm_board_mem.READS,
     astro: bool = False,
 ) -> ZigMachineSoC:
     platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
@@ -97,7 +98,7 @@ def make_soc(
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=audio,
         hp_probe=hp_probe,
     )  # fmt: skip
-    zm_board_mem.add_cpu_memory(soc, hp0, posted, read_bypass=read_bypass)
+    zm_board_mem.add_cpu_memory(soc, hp0, posted, read_bypass=read_bypass, reads=reads)
     zm_timing.use_core(soc, platform, core)
     # No OSD without a wire; and its `inside` net is a SystemVerilog keyword to Verilator.
     platform.sources = [s for s in platform.sources if not s[0].endswith("zm_glass_osd.v")]
@@ -130,13 +131,15 @@ def main() -> None:
     ap.add_argument("--sound-cpu", action="store_true", help="the players on the sound CPU (soc/zm_sound_cpu.py)")
     ap.add_argument("--sound-core", type=Path, help="the sound CPU's netlist (default: zm_sound_cpu.SOUND_CORE)")
     ap.add_argument("--sound-tcm", type=int, default=0, help="bytes of BRAM on a `tcm` sound core (zm_sound_tcm.py)")
+    ap.add_argument("--ziggy-reads", choices=list(zm_board_mem.READ_MODES), default=zm_board_mem.READS,
+                    help="ZIGGY's refill path (zm_board_mem.READ_MODES)")  # fmt: skip
     ap.add_argument("--astro", action="store_true", help="ASTROLABE's mailbox (soc/zm_astro.py, SPIKE), no ARM behind it")
     a = ap.parse_args()
     out = a.out if a.out.is_absolute() else FPGA / a.out
     litex_compat.install()
     soc = make_soc(
         a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu, a.hp_probe, not a.no_read_bypass,
-        a.sound_core.resolve() if a.sound_core else None, a.sound_tcm, a.astro,
+        a.sound_core.resolve() if a.sound_core else None, a.sound_tcm, a.ziggy_reads, a.astro,
     )
     sim_config = SimConfig()
     for name, hz in (("sys_clk", SYS_CLK), ("pix_clk", PIX_CLK), ("comp_clk", COMP_CLK)):

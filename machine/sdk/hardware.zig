@@ -14,6 +14,7 @@
 const memmap = @import("memmap.zig");
 
 // --- geometry (re-exported under the names ZigOS/effects already use) ---
+pub const net_abi = @import("net_abi.zig"); // ZIGNIC, the network card (docs/GEM_NET.md): the Req a cart hands env.netOp
 pub const PHYSICAL_WIDTH = memmap.PHYSICAL_WIDTH;
 pub const PHYSICAL_HEIGHT = memmap.PHYSICAL_HEIGHT;
 pub const WIDTH = memmap.WIDTH;

@@ -12,6 +12,7 @@ test {
     _ = @import("pad.zig");
     _ = @import("pad_test.zig");
     _ = @import("mouse_test.zig");
+    _ = @import("mouse_box_test.zig");
     _ = @import("osd.zig");
     _ = @import("menu.zig");
     _ = @import("menu_test.zig");
@@ -29,12 +30,16 @@ test {
     _ = @import("devmem.zig");
     _ = @import("app_test.zig");
     _ = @import("app_request_test.zig");
+    _ = @import("app_desk_rez_test.zig");
     _ = @import("app_drive_test.zig");
     _ = @import("app_floppy_a_test.zig");
     _ = @import("app_floppy_prog_test.zig");
     _ = @import("app_floppy_rv.zig");
     _ = @import("kos_drive.zig");
     _ = @import("kos_file_test.zig");
+    _ = @import("kos_net_test.zig");
+    _ = @import("net_card_test.zig");
+    _ = @import("net_dns.zig");
     _ = @import("app_drive_ui_test.zig");
     _ = @import("app_stats_test.zig");
     _ = @import("budget_test.zig");

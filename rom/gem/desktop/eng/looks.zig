@@ -29,7 +29,8 @@ pub fn look(set: *const assets.Set, three_d: bool) L.Look {
     return .{ .three_d = three_d, .pal = pens(), .font = &set.sys, .small = &set.small, .grey = 3, .face = L.WHITE };
 }
 
-/// The palette entries the VDI pens use: (index, r, g, b) for each slot.
-pub fn penEntry(set: *const assets.Set, i: usize) struct { idx: u8, rgb: [3]u8 } {
-    return .{ .idx = PEN_BASE + @as(u8, @intCast(i)), .rgb = set.pens[i] };
+/// The 16 VDI pens into the plane's palette at PEN_BASE (a colour icon's bytes index them):
+/// the engine on entry, the old path too when its icon set has a colour icon (desktop.zig).
+pub fn installPens(fb: anytype, rgb: [16][3]u8) void {
+    for (rgb, 0..) |c, i| fb.setPaletteEntry(PEN_BASE + @as(u8, @intCast(i)), .{ .r = c[0], .g = c[1], .b = c[2], .a = 255 });
 }

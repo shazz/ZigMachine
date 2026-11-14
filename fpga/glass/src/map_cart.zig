@@ -28,6 +28,18 @@ pub const CART_REQ_MAGIC: u32 = 0x5152_4D5A; // "ZMRQ"
 pub const CART_REQ_HEAD_WORDS: u32 = 4;
 pub const CART_REQ_NAME_MAX: u32 = 48;
 
+// --- the desktop's mode word, at window end - DESK_REZ_FROM_TOP (CPU 0x41FF_FCFC) --------
+// Getrez across a program load (rom/rom_deskmode.zig): a program GEM launched, and the desktop
+// it quits back to, are each a new image whose ROM starts fresh. The firmware writes DESK_REZ_TAG
+// | the mode (0 low, 1 medium, 2 desk; rom deskReturnMode) BEFORE the request block; for
+// REQ_RUN_PROGRAM and REQ_BACK_TO_OS the glass reads it before the load and writes it again after
+// the window is verified (loader.zig Options.desk_rez). Every other load leaves it zero; the
+// firmware zeroes it once read, and ignores it on a reset (KOS's boot words: cycles/bkos.c).
+// Between the C: sector block and the request block.
+pub const DESK_REZ_FROM_TOP: u32 = 0x304;
+pub const DESK_REZ_TAG: u32 = 0x5200_0000; // "R"
+pub const DESK_REZ_TAG_MASK: u32 = 0xFF00_0000;
+
 // --- the boot sector's skip word, at window end - BOOTSEC_SKIP_FROM_TOP (CPU 0x41FF_FC20) ----
 // A disk's executable boot sector (fpga/cycles/bbootsec.c) runs when the disk goes in, as in
 // the browser; not when a program quits back to the OS over the same disk (swapCart req 4),
@@ -123,6 +135,29 @@ pub const KOS_FILE_PATH_MAX: u32 = 127; // kfs_abi.zig PATH_MAX
 pub const KOS_FILE_TIMEOUT_MS: u32 = 10000;
 pub const KOS_CGEN_FROM_TOP: u32 = 0x3CC; // CPU 0x41FF_FC34: the C: generation: glass bumps it after each write it made
 
+// --- ZIGNIC's request block, at window end - NET_FROM_TOP (CPU 0x41FF_FB80) ------------------
+// env.netOp on the board (docs/GEM_NET.md N2, machine/sdk/net_abi.zig): the firmware (cycles/bnet.c) copies
+// the cart's Req into NB_OP..NB_HOST_LEN (buf and host as WINDOW OFFSETS, checked against the cart's memory),
+// then NB_CHECK, then NB_MAGIC last, and spins; glass (src/net_card.zig, polled by the C: thread) copies the
+// block, checks it, runs the op on Linux's sockets (never blocking), writes NB_OUT.. (state, events, err,
+// peer_ip, peer_port, local_port) and NB_DONE (the op's i32), then NB_ACK = the sequence last. Data moves
+// in place in the cart's memory (glass reads buf for send, writes it for recv). Below the disk descriptor
+// (map.zig DISK_DESC_FROM_TOP 0x400), in the top 4 KiB the link keeps free.
+pub const NET_FROM_TOP: u32 = 0x480;
+pub const NET_MAGIC: u32 = 0x4E4E_4D5A; // "ZMNN"
+pub const NET_WORDS: u32 = 20;
+pub const NB_MAGIC: u32 = 0;
+pub const NB_SEQ: u32 = 1;
+pub const NB_OP: u32 = 2; // op, sock, a0, a1, buf, len, host, host_len: the Req's first 8 words
+pub const NB_HOST_LEN: u32 = 9;
+pub const NB_CHECK: u32 = 10; // ~(NET_MAGIC ^ seq ^ every word NB_OP..NB_HOST_LEN)
+pub const NB_TAKEN: u32 = 11;
+pub const NB_DONE: u32 = 12; // the op's answer (an i32)
+pub const NB_ACK: u32 = 13;
+pub const NB_OUT: u32 = 14; // state, events, err, peer_ip, peer_port, local_port: the Req's words 8..13
+pub const NB_OUT_WORDS: u32 = 6;
+pub const NET_TIMEOUT_MS: u32 = 100; // the firmware's wait: glass's ops never block, so it answers in < 1 ms
+
 // --- the video mode word, at window end - VMODE_FROM_TOP (CPU 0x41FF_FC38) -----
 // The pointer's geometry depends on the cart's screen mode (docs/GEM_DESK_MODE.md §4): the
 // desk mode (RESOLUTION = RES_DESK, HW 1.17.0) is 640x480 at 1:1, the plane modes 640x200 on
@@ -134,6 +169,29 @@ pub const VMODE_FROM_TOP: u32 = 0x3C8;
 pub const VMODE_TAG: u32 = 0x5600_0000; // "V"
 pub const VMODE_TAG_MASK: u32 = 0xFF00_0000;
 pub const VMODE_DESK: u32 = 1 << 0;
+
+// --- the pointer's box: two words, at window end - VBOX_X_FROM_TOP / VBOX_Y_FROM_TOP -----
+// Where the cart's picture is, so the pointer stops there in the plane modes (Matt, 9 Nov): GEM's
+// one 640x200 plane is the visible window (the arrow never goes into the borders); pt2-clone's
+// 320x255 and klystrack's 320x240, centred in 400x280 planes, reach their top and bottom rows and
+// no further (their own cursor is drawn only over the picture: past it, it vanished). ZIGGY's
+// firmware (cycles/bptrbox.h, bdesk.c) writes the rectangle the cart published with
+// env.hostPointerBox (the SDL layer: kestrel_sdl2/src/kestrel_ptrbox.c), else the union of its
+// enabled planes' rectangles (each the whole raster or the visible window: vwhole.h), whenever
+// it changes; glass reads both words at each mouse report (mouse.zig planeBox). Raster
+// coordinates, medium-res x, ends exclusive, exact: VBOX_X = VBOX_X_TAG | x0 | x1 << VBOX_HI_SHIFT
+// (CPU 0x41FF_FC3C, between VMODE and the C: file block), VBOX_Y = VBOX_Y_TAG | y0 | y1 <<
+// VBOX_HI_SHIFT (CPU 0x41FF_FC24, between the boot sector's skip word and KOS's boot words). The
+// firmware stores y then x; a report between the two sees a box that is still on the raster, and
+// the next one sees the whole of it. Either word untagged (an older firmware, no frame yet: a load
+// zeroes them) is the whole raster. The desk mode ignores them (its 640x480 picture).
+pub const VBOX_X_FROM_TOP: u32 = 0x3C4;
+pub const VBOX_Y_FROM_TOP: u32 = 0x3DC;
+pub const VBOX_X_TAG: u32 = 0x5800_0000; // "X"
+pub const VBOX_Y_TAG: u32 = 0x5900_0000; // "Y"
+pub const VBOX_TAG_MASK: u32 = 0xFF00_0000;
+pub const VBOX_FIELD_MASK: u32 = 0x3FF;
+pub const VBOX_HI_SHIFT: u32 = 12;
 
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk

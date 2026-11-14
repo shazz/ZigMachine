@@ -18,6 +18,8 @@
 const main = @import("rom_main.zig");
 comptime {
     _ = @import("rom_app_win.zig"); // the window calls (win*)
+    _ = @import("rom_app_fsel.zig"); // the ITEM SELECTOR's folders (fileSelSpec, 1.18)
+    _ = @import("rom_app_redraw.zig"); // WM_REDRAW rectangle lists, the stack, guiClip (1.22)
 }
 const hw = @import("hardware");
 const gui = @import("rom").gui;
@@ -138,8 +140,9 @@ export fn guiMouse(h: u32, on: u32) void {
 /// Getrez for a program GEM launched: the desktop's screen when it ran (0 low, 1 medium, 2 the
 /// desk), 0xFF when no desktop ran on this machine since power-on (a cart booted directly).
 /// The machine's RESOLUTION cannot say: every cart swap resets it (hwInit).
+/// On the board the mode comes in with the program's image (rom_deskmode.zig).
 export fn deskScreenMode() u32 {
-    if (!main.desk_seen) return 0xFF;
+    if (!main.desk_seen) return @import("rom_deskmode.zig").carried;
     return @intFromEnum(main.desk.g.screen.mode);
 }
 

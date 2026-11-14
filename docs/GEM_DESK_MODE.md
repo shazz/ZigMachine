@@ -186,6 +186,26 @@ output coordinates. Only `tools/board_pic.py` reads the pictures (§6).
   307,200 B 64-aligned, writes all 256 entries of palette 0 (which also refreshes the mirror after any
   copper use), and clears the plane. `setDeskPlane` / `setResMedium` switch back and forth.
 
+### The desktop's mode across a program launch (Getrez, and the way back)
+
+A program cannot read the desktop's mode off the machine (every load resets `RESOLUTION`), so the ROM
+answers it (`deskScreenMode`, Getrez: 0 low, 1 medium, 2 the desk, 0xFF when no desktop ran since
+power-on). When the program quits, the shell comes back in the mode it launched the program in
+(`deskReturnMode`, read before `deskInitPlane`, which forgets it); a boot keeps DESKTOP.INF's.
+`rom/rom_deskmode.zig`, system table 1.18.
+
+- **The page**: rom.wasm outlives every swap, so its own state answers (`deskLaunchName` remembers the
+  mode to come back in).
+- **The board** (Matt, 9 Nov: "i ran notepad from deskmode but it seems it switched to medium res"):
+  a program, and the desktop it quits back to, are each a new image whose ROM starts fresh. The
+  firmware writes `DESK_REZ_TAG | mode` at window end - `DESK_REZ_FROM_TOP` before its request block
+  (`cycles/bdiskapp.c`: Getrez for request 3, the return mode for 4); the glass reads it before the
+  load and writes it again after the window is verified (`app_request.zig`, `loader.zig`); the next
+  image's firmware hands it to its ROM before the cart's init (`cycles/bkos.c`, `deskSetScreenMode`)
+  and zeroes it. A reset (KOS's boot words) drops it; every other load leaves none.
+- Proofs: `apps/desk_rez_check.mjs` (+ `--break carry`), `glass/src/app_desk_rez_test.zig`,
+  `fpga/tests/test_board_deskrez.py`.
+
 ### The VRAM pool and a `vramAlloc` guard
 
 The plane takes 307,200 of the 1 MiB pool (`VRAM_BYTES`). That leaves ~740 KB, enough for a second

@@ -7,17 +7,32 @@
 // --------------------------------------------------------------------------
 const rom = @import("rom.zig");
 const Rect = rom.Rect;
+/// WM_REDRAW rectangle lists, the window stack, the clip (system table 1.22).
+pub const redraw = @import("aes_redraw.zig");
+/// Object trees in the program's memory: objc_draw / objc_find / form_button / objc_edit (1.23).
+pub const obj = @import("aes_obj.zig");
 
 pub extern fn guiKey(h: u32, cp: u32) void;
 pub extern fn guiScratch(h: u32, ptr: u32, len: u32) u32;
 pub extern fn guiHostPointer(h: u32, x: i32, y: i32, buttons: u32) void;
 pub extern fn guiTextClip(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u32, cx: i32, cy: i32, cw: i32, ch: i32) void;
 pub extern fn guiCell(h: u32) u32;
+pub extern fn guiSetscreen(h: u32, rez: u32, desk_off: u32) u32; // system table 1.25 (rom_app_screen.zig)
+
+/// Setscreen: the program's screen switched by the ROM, the context with it; `desk_off` is the
+/// plane's 640 x 480 buffer (its LogicalFB.desk_off) for the desk. The mode set, null refused.
+pub fn setscreen(g: rom.Gui, mode: ScreenMode, desk_off: u32) ?ScreenMode {
+    const r = guiSetscreen(g.h, @intFromEnum(mode), desk_off);
+    return if (r > 2) null else @enumFromInt(r);
+}
 pub extern fn guiMouse(h: u32, on: u32) void;
 pub extern fn deskScreenMode() u32;
+pub extern fn deskReturnMode() u32; // table 1.18 (rom/rom_deskmode.zig)
 pub extern fn dialogFormAlert(h: u32, default: u32, ptr: u32, len: u32) u32;
 pub extern fn dialogChoice(h: u32) u32;
 pub extern fn fileSelSetName(h: u32, ptr: u32, len: u32) void;
+pub extern fn fileSelSpec(h: u32, out: u32, out_cap: u32) u32; // system table 1.18
+pub extern fn fileSelDrives(h: u32, map: u32) void; // system table 1.21 (rom_app_fsel.zig)
 pub extern fn menuReset(h: u32) void;
 pub extern fn menuTitle(h: u32, ptr: u32, len: u32) u32;
 pub extern fn menuItem(h: u32, ptr: u32, len: u32, flags: u32) u32;
@@ -59,6 +74,11 @@ pub fn screenMode() ?ScreenMode {
     const m = deskScreenMode();
     return if (m > 2) null else @enumFromInt(m);
 }
+/// The shell's start after a program quit: the mode the desktop launched it in (else null: a boot).
+pub fn returnMode() ?ScreenMode {
+    const m = deskReturnMode();
+    return if (m > 2) null else @enumFromInt(m);
+}
 
 /// The scratch a program lends the ROM for its save-unders (rom_app.zig SCRATCH_BYTES, rounded up).
 pub const SCRATCH_BYTES: usize = 44 * 1024;
@@ -97,6 +117,15 @@ pub fn choice(d: rom.Dialog) u32 {
 pub fn fileSelName(f: rom.FileSel, name: []const u8) void {
     fileSelSetName(f.h, p(name), n(name));
 }
+/// The selector's path spec (`C:\NET\*.TXT`) into `out`: the folder its list shows, then the mask.
+/// After a `relist` answer, the program adds that folder's names (folders with a trailing `\`).
+pub fn fileSelSpecOf(f: rom.FileSel, out: []u8) []const u8 {
+    return out[0..fileSelSpec(f.h, p(out), n(out))];
+}
+/// The ITEM SELECTOR's DRIVE: buttons: the drives present (GEMDOS Dsetdrv's map, bit 0 = A:).
+pub fn fileSelDrivesSet(f: rom.FileSel, map: u32) void {
+    fileSelDrives(f.h, map);
+}
 
 pub const MENU_DISABLED: u32 = 1;
 pub const MENU_CHECKED: u32 = 2;
@@ -131,62 +160,7 @@ pub const MenuBar = struct {
     }
 };
 
-/// A program's window (wind_create/wind_open/wind_set/wind_get).
-pub const Window = struct {
-    g: rom.Gui,
-    id: u32 = 0,
-
-    pub fn open(g: rom.Gui, r: Rect, title_: []const u8) ?Window {
-        const id = winOpen(g.h, r.x, r.y, r.w, r.h, p(title_), n(title_));
-        return if (id == 0) null else .{ .g = g, .id = id };
-    }
-    pub fn close(self: Window) void {
-        winClose(self.g.h, self.id);
-    }
-    pub fn title(self: Window, s: []const u8) void {
-        winTitle(self.g.h, self.id, p(s), n(s));
-    }
-    pub fn info(self: Window, s: []const u8) void {
-        winInfo(self.g.h, self.id, p(s), n(s));
-    }
-    pub fn scroll(self: Window, vertical: bool, size: i32, pos: i32, max: i32, page: i32) void {
-        winScroll(self.g.h, self.id, @intFromBool(vertical), size, pos, max, page);
-    }
-    pub fn set(self: Window, r: Rect) void {
-        winSet(self.g.h, self.id, r.x, r.y, r.w, r.h);
-    }
-    pub fn events(self: Window) u32 {
-        return winEvents(self.g.h, self.id);
-    }
-    pub fn draw(self: Window) void {
-        winDraw(self.g.h, self.id);
-    }
-    /// The scrollbars only (after scroll() moved or resized a slider).
-    pub fn drawBars(self: Window) void {
-        winDrawBars(self.g.h, self.id);
-    }
-    pub fn work(self: Window) Rect {
-        return self.rectAt(0);
-    }
-    pub fn outer(self: Window) Rect {
-        return self.rectAt(4);
-    }
-    fn rectAt(self: Window, at: u32) Rect {
-        return .{
-            .x = @intCast(winGet(self.g.h, self.id, at)),
-            .y = @intCast(winGet(self.g.h, self.id, at + 1)),
-            .w = @intCast(winGet(self.g.h, self.id, at + 2)),
-            .h = @intCast(winGet(self.g.h, self.id, at + 3)),
-        };
-    }
-    pub fn vscroll(self: Window) i32 {
-        return winGet(self.g.h, self.id, 8);
-    }
-    pub fn hscroll(self: Window) i32 {
-        return winGet(self.g.h, self.id, 9);
-    }
-};
-
+pub const Window = @import("aes_window.zig").Window; // wind_create .. wind_get (aes_window.zig)
 /// A frame of every window's input (winProcess): the OR of their EV_* bits.
 pub fn processWindows(g: rom.Gui) u32 {
     return winProcess(g.h);

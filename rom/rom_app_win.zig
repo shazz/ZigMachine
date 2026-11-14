@@ -42,7 +42,8 @@ export fn winScroll(h: u32, id: u32, vertical: u32, size: i32, pos: i32, max: i3
 /// wind_set WF_CURRXYWH: the window's outer box.
 export fn winSet(h: u32, id: u32, x: i32, y: i32, w: i32, hh: i32) void {
     const o = winOf(h, id) orelse return;
-    o.w.setRect(o.i, main.rectOf(x, y, w, hh));
+    const s = main.guiAt(h).?.screen;
+    o.w.setRect(o.i, main.rectOf(x, y, w, hh), s.w, s.h); // sized as a drag would be (G22, G23)
 }
 /// A frame of input for every window: the OR of their event bits (appwin.zig EV_*).
 export fn winProcess(h: u32) u32 {

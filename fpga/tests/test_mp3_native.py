@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import make_host
 
 FPGA = Path(__file__).resolve().parent.parent
 HOST = FPGA / "build/host/mp3_player/host_audio"
@@ -25,7 +26,7 @@ FRAMES = 600
 
 @pytest.fixture(scope="module", autouse=True)
 def built() -> None:
-    subprocess.run(["make", "-s", "memmap", str(HOST.relative_to(FPGA))], cwd=FPGA, check=True, capture_output=True)
+    make_host("memmap", str(HOST.relative_to(FPGA)))
 
 
 def pcm(tmp: Path, keys: str) -> bytes:

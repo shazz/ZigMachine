@@ -176,6 +176,17 @@ The browser (`docs/sealed-loader.js`, "Pointer input") calls
   full rate (square pixels), so the firmware's unchanged border subtraction gives
   the cart 0..639 by 0..479. A change of mode clamps the position into the new
   box. An untagged word (an older firmware) is the plane modes.
+- **Where the picture is** (Matt, 9 Nov): in the plane modes the position is held to
+  a box the firmware stores beside the mode word (`map_cart.zig` `VBOX_*`, two exact
+  words, `cycles/bptrbox.h`, written by `bdesk.c` when it changes): the rectangle the
+  cart published with `env.hostPointerBox` (HW_API "The pointer's box"; the SDL layer
+  does it, `kestrel_sdl2/src/kestrel_ptrbox.c`), else the union of its enabled planes'
+  rectangles (each the whole raster or the visible window, `cycles/vwhole.h`). GEM's
+  one 640x200 plane keeps the arrow out of the borders; pt2-clone's 320x255 and
+  klystrack's 320x240, centred in 400x280 planes, reach their top and bottom rows and
+  stop there (their cursor is drawn only over the picture: past it, it vanished). No
+  box words (an older firmware, no frame yet) are the whole raster; a box that shrinks
+  under the pointer pulls it in (`mouse.planeBox`, `Mouse.setPlaneBox`).
 - **Buttons:** any mouse button is bit 0. A double-click is a one-off pulse of
   bit 1, sent after the second release's state and before the release itself
   (`gem_desktop.zig` opens the item under the pointer on it). There is no wheel.
@@ -309,6 +320,7 @@ Offsets are from the window's start; the cart CPU (ZIGGY) sees offset 0 at
 | `0x01C0_0000` | `0x41C0_0000` | to `0x01FE_F000` | the sound CPU's RAM (`snd` only) | BARD |
 | `0x01FE_F000` | `0x41FE_F000` | 64 KiB | the sound CPU's console ring (`snd` only) | BARD |
 | `0x01FF_FC00` | `0x41FF_FC00` | 16 B | **the disk descriptor** (`DISK_DESC_*`) | ZWINDOW (load) |
+| `0x01FF_FCFC` | `0x41FF_FCFC` | 4 B | **the desktop's mode** (`DESK_REZ_*`): Getrez across a program load (docs/GEM_DESK_MODE.md §5) | ZIGGY, carried by ZWINDOW on requests 3 and 4 |
 | `0x01FF_FD00` | `0x41FF_FD00` | 64 B | **the cart-swap request block** (`CART_REQ_*`, "Programs off a data disk") | ZIGGY |
 | `0x01FF_FE00` | `0x41FF_FE00` | 12 B | the write-path diagnostic's control (`cycles/bdiag.h`) | the ARM, on request |
 | `0x01FF_FF00` | `0x41FF_FF00` | 256 B | the debug mailbox (`cycles/bmailbox.h`) | ZIGGY |
@@ -1524,6 +1536,8 @@ work on this board:
    (a register/FIFO interface in the machine, mirrored in the wasm machine
    first); the ARM bridges it over the wired Ethernet first, Wi-Fi optional
    later through a USB dongle on a hub with its kernel driver in the fragment.
+   **Wi-Fi works** (9 Nov 2026, BCM43143 dongle, `fpga/docs/PREREQUISITES.md`): the SD card's
+   `KESTREL/wifi.conf` names the network and `S99wifi` joins it at boot.
 
 The NICE-TO-HAVE list:
 

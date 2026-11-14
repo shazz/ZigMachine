@@ -241,6 +241,16 @@ sides, 60-line bars in `BACKGROUND`'s colour). Nothing is composited.
   reference program: `docs/GEM_DESK_MODE.md` §8.
 - The design, the RTL and its LUT bill: `docs/GEM_DESK_MODE.md`, `decisions.md` 2026-11-08 "GEM desk mode".
 
+### The pointer's box (`env.hostPointerBox`, system table 1.21)
+
+`void hostPointerBox(i32 x0, i32 y0, i32 x1, i32 y1)`: where the cart's picture is, in `demo.pointer()`'s
+coordinates (the visible window's origin, x in medium-res pixels, negative over the borders, ends
+exclusive). The board's mouse stops there (FPGA_GLASS "The mouse"): a cart that draws a smaller picture in a
+400x280 plane (pt2-clone's 320x255) says so, and the pointer neither leaves the picture nor misses its edge
+rows. The page's pointer is the host's own, so the browser ignores it; a cart that never calls it gets the
+union of its enabled planes. Call it when the picture moves or changes size, not every frame. The SDL layer
+does it for every port (`apps/ports/kestrel_sdl2/src/kestrel_ptrbox.c`).
+
 ### Opening the borders (overscan) — the ST timing trick
 
 Overscan is not a flag — you **earn** it, the way real ST demos do, by abusing the

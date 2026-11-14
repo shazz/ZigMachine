@@ -175,6 +175,7 @@ pub const App = struct {
     pub fn sync(self: *App) void {
         var words: [2]u32 = undefined;
         self.mouse.setDesk(mouse.deskMode(self.ddr)); // the pointer's geometry follows the cart's mode
+        self.mouse.setPlaneBox(mouse.planeBox(self.ddr)); // and stops where its planes draw
         const n = self.mouse.flush(&words);
         if (self.open) return;
         for (words[0..n]) |w| self.regs.write(map.REG_POINTER, w);

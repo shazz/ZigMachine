@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import make_host
 
 FPGA = Path(__file__).resolve().parent.parent
 HOST = FPGA / "build/host/union_beatdis/host_audio"
@@ -32,9 +33,7 @@ Write = tuple[int, str, str]
 
 @pytest.fixture(scope="module", autouse=True)
 def built() -> None:
-    subprocess.run(
-        ["make", "-s", "memmap", str(HOST.relative_to(FPGA)), "sndh-oracle"], cwd=FPGA, check=True, capture_output=True
-    )
+    make_host("memmap", str(HOST.relative_to(FPGA)), "sndh-oracle")
 
 
 def song_writes(log: Path) -> list[Write]:

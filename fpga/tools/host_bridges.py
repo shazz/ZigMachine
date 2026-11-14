@@ -162,9 +162,29 @@ BARD_DEFAULTS = """/* The BARD queue's hook: none here (0). host/hstream.h (-inc
 #endif
 """
 
-HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3, **BARD}
+# The pointer's box (Matt, 9 Nov; glass/src/map_cart.zig VBOX_*, table 1.21): the cart says where its
+# picture is, in pointer() coordinates (the SDL layer: kestrel_sdl2/src/kestrel_ptrbox.c), so the board's
+# pointer stops there. A no-op unless cycles/bptrhost.h (-include, the board) defines it.
+POINTER_BOX = {"hostPointerBox": ("void", ["u32", "u32", "u32", "u32"], "HOST_POINTER_BOX")}
+POINTER_BOX_DEFAULTS = """/* The pointer's box: a no-op unless cycles/bptrhost.h (-include, the board firmware) defines it. */
+#ifndef HOST_POINTER_BOX
+#define HOST_POINTER_BOX(e, x0, y0, x1, y1) ((void)(e), (void)(x0), (void)(y0), (void)(x1), (void)(y1))
+#endif
+"""
+
+# ZIGNIC, the network card (docs/GEM_NET.md, machine/sdk/net_abi.zig, table 1.22): netOp(req) hands the host a
+# 16-word socket request in the cart's memory and answers at once (>= 0 a value, < 0 an Err). Until glass
+# serves it on the board (N2: cycles/bnet.h, -include), every host answers no_card (-1).
+NET = {"netOp": ("u32", ["u32"], "HOST_NET_OP")}
+NET_DEFAULTS = """/* ZIGNIC: no network card (Err.no_card) unless cycles/bnet.h (-include, the board) defines it. */
+#ifndef HOST_NET_OP
+#define HOST_NET_OP(e, req) ((void)(e), (void)(req), (uint32_t)-1)
+#endif
+"""
+
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3, **BARD, **POINTER_BOX, **NET}
 HOST_DEFAULTS = (STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS + KOS_FILE_DEFAULTS + MP3_DEFAULTS
-                 + BARD_DEFAULTS)
+                 + BARD_DEFAULTS + POINTER_BOX_DEFAULTS + NET_DEFAULTS)
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:

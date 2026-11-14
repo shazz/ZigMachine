@@ -10,11 +10,13 @@ import os
 import subprocess
 from pathlib import Path
 
+from host_make import make_host
+
 FPGA = Path(__file__).resolve().parent.parent
 
 
 def test_a_stream_started_in_the_carts_init_plays_once_the_players_are_up(tmp_path: Path) -> None:
-    subprocess.run(["make", "-s", "memmap", "build/host/stream/host_audio"], cwd=FPGA, check=True, capture_output=True)
+    make_host("memmap", "build/host/stream/host_audio")
     env = dict(os.environ, ZM_AUDIO_LOG=str(tmp_path / "log"))
     run = subprocess.run([str(FPGA / "build/host/stream/host_audio"), "stream", "10", "10"], env=env,
                          capture_output=True, text=True, check=False)  # fmt: skip

@@ -97,7 +97,7 @@ shot("file_menu", a);
 a.click(72, 23); a.frames(2); // Open...
 shot("open_selector", a);
 const selector = a.plane();
-a.click(264, 148); a.frames(2); // Cancel (the ITEM SELECTOR's, low res: 222..306 x 142..154 in a box at 0,24)
+a.click(216, 176); a.frames(2); // Cancel (the ITEM SELECTOR's, low res: 180..252 x 171..181, TOS 4's box at 4,11)
 check("File > Open... by the pointer opens the ITEM SELECTOR, Cancel closes it", selector !== a.plane());
 same(a, "menu");
 

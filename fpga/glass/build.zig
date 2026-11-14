@@ -27,6 +27,8 @@ pub fn build(b: *std.Build) void {
     const kfs_path = b.createModule(.{ .root_source_file = b.path("../../rom/kos/kfs_path.zig") });
     // ASTROLABE's kernels (SPIKE): the machine's own (machine/astro_ops.zig), run here on the ARM's VFP.
     const astro_ops = b.createModule(.{ .root_source_file = b.path("../../machine/astro_ops.zig") });
+    // ZIGNIC's request (machine/sdk/net_abi.zig): the one definition glass's network card serves (src/net_card.zig).
+    const net_abi = b.createModule(.{ .root_source_file = b.path("../../machine/sdk/net_abi.zig") });
 
     // The glass program's version and the commit it was built from, for the OSD's debug page.
     const info = b.addOptions();
@@ -40,7 +42,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat }, .{ .name = "kos_kfs_path", .module = kfs_path }, .{ .name = "astro_ops", .module = astro_ops } },
+            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat }, .{ .name = "kos_kfs_path", .module = kfs_path }, .{ .name = "net_abi", .module = net_abi }, .{ .name = "astro_ops", .module = astro_ops } },
         }),
     });
     b.installArtifact(exe);
@@ -65,6 +67,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "kos_fat", .module = kos_fat },
                 .{ .name = "kos_kfs_path", .module = kfs_path },
                 .{ .name = "astro_ops", .module = astro_ops },
+                .{ .name = "net_abi", .module = net_abi },
             },
         }),
     });

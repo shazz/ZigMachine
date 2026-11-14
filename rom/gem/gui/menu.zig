@@ -8,6 +8,7 @@
 // work area starts at MENU_H + 1. Titles are laid out as " Desk  File " (one
 // space each side), items are dense 8px char rows.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const types = @import("types.zig");
 const Gui = @import("core.zig").Gui;
 const Rect = types.Rect;
@@ -94,8 +95,19 @@ pub const MenuBar = struct {
 
     fn dropWidth(m: Menu) i16 {
         var w: i16 = 0;
-        for (m.items) |it| w = @max(w, @as(i16, @intCast(it.label.len)));
+        for (m.items) |it| {
+            const p = shortcut(it.label);
+            const n = p[0].len + if (p[1].len > 0) p[1].len + 2 else 0; // two cells between the columns
+            w = @max(w, @as(i16, @intCast(n)));
+        }
         return w * 8 + LMARGIN + RMARGIN;
+    }
+
+    /// A label's text and its shortcut: TOS 4 shows the key right-aligned in its own column; a
+    /// program writes it after a TAB ("Quit\t^Q", G20). No TAB: the whole label, no shortcut.
+    pub fn shortcut(label: []const u8) [2][]const u8 {
+        const t = std.mem.indexOfScalar(u8, label, '\t') orelse return .{ label, "" };
+        return .{ label[0..t], label[t + 1 ..] };
     }
     fn dropRect(m: Menu, dx: i16) Rect {
         return .{ .x = dx, .y = MENU_H, .w = dropWidth(m), .h = @as(i16, @intCast(m.items.len)) * ITEM_H + 2 };
@@ -131,7 +143,9 @@ pub const MenuBar = struct {
             const ink: u8 = if (it.disabled) MGRAY else if (hover) WHITE else BLACK;
             const paper: u8 = if (hover) BLACK else WHITE;
             if (it.tick) drawCheck(g, d.x + 4, row.y, ink);
-            g.text(it.label, d.x + LMARGIN, row.y, ink, paper);
+            const parts = shortcut(it.label);
+            g.text(parts[0], d.x + LMARGIN, row.y, ink, paper);
+            if (parts[1].len > 0) g.text(parts[1], d.x + d.w - RMARGIN - @as(i16, @intCast(parts[1].len * 8)), row.y, ink, paper);
             if (g.edge and hover) pick = .{ .menu = @intCast(mi), .item = @intCast(j) };
         }
         return pick;

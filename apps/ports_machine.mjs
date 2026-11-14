@@ -31,13 +31,13 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => live.demo?.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile(process.env.ZM_ROM || "docs/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const log = [], audio = { rate: 0, n: 0, peak: 0, keep: extraEnv.keepAudio ? [] : null }, clock = { us: 0, perFrame: usPerFrame };
-    const drive = { disk };
+    const drive = { disk }, ptrBoxes = []; // ptrBoxes: every env.hostPointerBox call, in order
     const text = (p, n) => new TextDecoder().decode(new Uint8Array(memory.buffer, p, n));
     const env = {
         memory, ...rom,
@@ -59,12 +59,14 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
         // The Paula channels (HW 1.14.0): none here unless extraEnv lends them (claim 0: software mix).
         hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
         hostBardAttach: () => 0, // table 1.12: no BARD queue here
+        hostPointerBox: (x0, y0, x1, y1) => ptrBoxes.push([x0 | 0, y0 | 0, x1 | 0, y1 | 0]), // table 1.21: recorded
+        netOp: () => -1, // table 1.22: ZIGNIC, no card in the harness (SyncTERM falls back to its in-cart BBS)
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5)
         kosFileOp: () => -46, // C:'s writes (docs/KOS_GEMDOS.md §7): EDRIVE, no C: here
         ...extraEnv,
     };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
-    return { memory, machine, rom, env, live, drive, demo: null, log, audio, clock };
+    return { memory, machine, rom, env, live, drive, demo: null, log, audio, clock, ptrBoxes };
 }
 
 // Start a cart as the loader does: link it (strictly: an import no host provides fails here, as in the

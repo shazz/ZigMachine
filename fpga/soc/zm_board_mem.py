@@ -39,18 +39,35 @@ POSTED = 8
 # A refill skips the drain unless its line has a pending store (soc/zm_hp_bypass.py, 2026-10-19):
 # a memcpy line no longer waits for the last line's stores. Needs POSTED; off = every read drains.
 READ_BYPASS = True
+# ZIGGY's read path (review/ZIGGY_BIG_READS_STUDY.md): "fast" answers a refill a word a clock
+# (soc/zm_hp_read.py), "prefetch" also reads the next line ahead (soc/zm_hp_prefetch.py).
+READ_MODES: dict[str, dict[str, bool]] = {
+    "base": {},
+    "fast": {"fast_burst": True},
+    "prefetch": {"fast_burst": True, "prefetch": True},
+}
+READS = "prefetch"  # KESTREL v1.3 (11 Nov): fits since the FRESCO RAM repack
 
 
 def add_cpu_memory(
-    soc: SoC, hp0: axi.AXIInterface, posted: int = POSTED, break_: str = "", read_bypass: bool = READ_BYPASS
+    soc: SoC,
+    hp0: axi.AXIInterface,
+    posted: int = POSTED,
+    break_: str = "",
+    read_bypass: bool = READ_BYPASS,
+    reads: str = READS,
 ) -> None:
     """main_ram at CPU_BASE on HP0, and the firmware's cycle counter. `posted`: the bridge's
     store buffer (soc/zm_hp_posted.py), 0 = blocking stores; its `idle` drives the SoC's
     `stores_idle`, which the video's `drained` and the blitter's start wait for, and holds the
     CPU's IO stores (soc/zm_io_fence.py; `break_` = "nofence" is that guard's break test).
-    `read_bypass` (only with `posted`): refills overtake stores to other lines (soc/zm_hp_bypass.py)."""
+    `read_bypass` (only with `posted`): refills overtake stores to other lines (soc/zm_hp_bypass.py).
+    `reads`: a READ_MODES key, ZIGGY's refill path."""
     bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
-    soc.main_ram_hp = WishboneHP(bus, hp0, posted, read_bypass and posted > 0)
+    soc.main_ram_hp = WishboneHP(bus, hp0, posted, read_bypass and posted > 0, **READ_MODES[reads])
+    if hasattr(soc.main_ram_hp, "io_kill"):  # the prefetch's rule: the CPU touches IO, or an IRQ is pending
+        dbus = soc.cpu.dbus
+        soc.comb += soc.main_ram_hp.io_kill.eq((dbus.cyc & dbus.stb & dbus.adr[29]) | (soc.cpu.interrupt != 0))
     soc.comb += soc.stores_idle.eq(soc.main_ram_hp.idle)
     soc.bus.add_slave("main_ram", bus, SoCRegion(origin=CPU_BASE, size=WINDOW, mode="rwx"))
     if posted:
