@@ -87,6 +87,10 @@ demo.update(music.source(), &ctx);
 demo.render(&ctx);
 ```
 
+The loop wrap happens inside `update`, so the sound re-seeks one frame after the wrap: the
+clock holds `a` on that frame and then follows the re-seeked source. That lag is correct; do
+not move the wrap out of `update`.
+
 `update` moves the clock from the source, fires the once items crossed (or replays the load
 track after a seek or a loop wrap), starts and ends the draw parts whose item changed, and
 updates the active ones at their local time (`now - item.start_ms`). `render` draws the active

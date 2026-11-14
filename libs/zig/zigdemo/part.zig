@@ -12,6 +12,8 @@
 //! A transition is a part whose render calls the render of two other parts.
 //!
 //! The dispatch is an `inline else` switch over the tag: no vtable, no allocation.
+//! Every part struct needs defaults for all its fields (a part is made with `.{}`);
+//! a field without one is an error at the `make` call, not at the part.
 
 const std = @import("std");
 

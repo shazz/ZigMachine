@@ -12,6 +12,9 @@
 //! the new time, so a seek lands with the same assets loaded as playing to it.
 //!
 //! No allocation: gather and jump report `once` items through a sink.
+//!
+//! A `once` hook must be idempotent: a seek back to a time still past a load
+//! item replays it, so the hook may run twice for one asset.
 
 const std = @import("std");
 
