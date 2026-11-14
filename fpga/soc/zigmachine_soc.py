@@ -222,6 +222,7 @@ def main() -> None:
         "--cpu-netlist", help="z7: a vexgen VexRiscv netlist (default soc/zm_z7.py BOARD_CORE), or `standard`"
     )
     p.add_argument("--out", help="z7: the build directory (default fpga/build/soc_z7)")
+    p.add_argument("--astro", action="store_true", help="z7: ASTROLABE's mailbox (soc/zm_astro.py, SPIKE)")
     p.add_argument("--hp-probe", action="store_true", help="z7: the read path's debug probe (cycles/bdiag.c mode 4)")
     p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: --vivado-directives explore")
     p.add_argument(

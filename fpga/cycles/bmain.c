@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "bastro.h"
 #include "baudio.h"
 #include "bblit.h"
 #include "bbootsec.h"
@@ -200,6 +201,7 @@ static uint32_t boot(void) {
     int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
     host_boot_machine(&g_env);
     bdesk_boot(&g_env); /* the bitstream's desk capability, for hwDeskAvailable() */
+    bastro_boot(g_env.memory.data, g_env.memory.size); /* ASTROLABE's mailbox, if the bitstream has it */
     uint32_t post = bkos_boot(&g_env, bdiskapp_bootable); /* the variables, hwInit; KOS's POST before both */
     if (!sector && !post) host_boot_cart(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
@@ -244,6 +246,8 @@ int main(void) {
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM ZMXEMU %lu\n", (unsigned long)zm_zmx_emulated);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
+    printf("ZM ASTRO %lu %lu %lu %lu %lu\n", (unsigned long)bastro.calls, (unsigned long)bastro.served, (unsigned long)bastro.untaken,
+           (unsigned long)bastro.timeouts, (unsigned long)bastro.cycles); /* calls served untaken timeouts cycles (bastro.h) */
     vplan_report();
     bplanes_report();
     AUDIO(baudio_report());

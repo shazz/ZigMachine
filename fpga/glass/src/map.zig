@@ -45,6 +45,12 @@ pub const OSD_ROWS: u32 = 16;
 pub const OSD_CHARS: u32 = OSD_COLS * OSD_ROWS; // 512
 pub const OSD_INVERSE: u32 = 0x100; // bit 8 of a character word: swap ink and paper
 
+// ASTROLABE's mailbox (SPIKE, docs/ARM_FPU_COPROC.md): a 4 KiB block RAM, ZIGGY's other side at
+// ASTRO_WINDOW (soc/zm_astro.py). Its words are glass/src/astro_box.zig's. Reads take a clock
+// more than a register's; a PL without it reads the page as 0 (glass then never serves it).
+pub const OFF_ASTRO: u32 = 0x2000;
+pub const ASTRO_WORDS: u32 = 1024;
+
 // The OSD's place on the 800x600 output: 8x8 glyphs drawn 2x, centred.
 pub const OSD_SCALE: u32 = 2;
 pub const OSD_WIDTH: u32 = OSD_COLS * 8 * OSD_SCALE; // 512

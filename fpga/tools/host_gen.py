@@ -48,6 +48,7 @@ MACHINE_ENV = [
     "hwRomRamUsed",
     "hwRomRamFree",
     "hwDeskAvailable",
+    "hwAstro",
 ]
 
 # Imports whose time is NOT the machine's when the cycles build (fpga/cycles/)

@@ -68,7 +68,8 @@ module osd_test_core (
         .cpu_run(), .osd_en(osd_en), .osd_stats(osd_stats), .osd_x0(osd_x0), .osd_y0(osd_y0), .osd_fg(osd_fg), .osd_bg(osd_bg), .load_base(), .load_size(), .joy(),
         .osd_we(regs_we), .osd_waddr(regs_waddr), .osd_wdata(regs_wdata),
         .key_valid(), .key_data(), .key_pop(1'b0), .cart_state_we(1'b0), .cart_state_in(32'd0),
-        .cart_beat_we(1'b0), .cart_beat_in(32'd0), .ptr(), .ptr_ack(1'b0), .ptr_ack_seq(8'd0)
+        .cart_beat_we(1'b0), .cart_beat_in(32'd0), .ptr(), .ptr_ack(1'b0), .ptr_ack_seq(8'd0),
+        .mb_we(), .mb_re(), .mb_waddr(), .mb_raddr(), .mb_wdata(), .mb_wstrb(), .mb_rdata(32'd0)
     );
 
     osd_banner u_banner (.clk(clk), .rst(rst), .we(banner_we), .waddr(banner_waddr), .wdata(banner_wdata),

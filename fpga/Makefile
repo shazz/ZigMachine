@@ -312,7 +312,7 @@ hdmi-audio-test: build/hdmi_audio/hdmi_audio_top.bit
 #   make osd-test-sim  its logic in CXXRTL through the demo's steps, every pixel checked -> build/osd_test/osd_*.png
 # The PS7 needs the congestion-driven placer (soc/openxc7.py PNR_OPTS). Takes the container lock like hdmi-test.
 OSD_TEST_V := rtl/board/osd_test_top.v rtl/board/osd_test_core.v rtl/board/osd_banner.v rtl/board/hdmi_pattern.v \
-	rtl/glass/zm_glass_regs.v rtl/glass/zm_glass_ptr.v rtl/glass/zm_glass_osd.v rtl/video/zm_video_dcram.v \
+	rtl/glass/zm_glass_regs.v rtl/glass/zm_glass_keys.v rtl/glass/zm_glass_ptr.v rtl/glass/zm_glass_osd.v rtl/video/zm_video_dcram.v \
 	rtl/video/zm_vtiming.v $(HDMI_SER_V)
 
 .PHONY: osd-test osd-test-sim

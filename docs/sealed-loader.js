@@ -511,6 +511,7 @@ async function boot() {
             hwRomRamUsed: machine.hwRomRamUsed,
             hwRomRamFree: machine.hwRomRamFree,
             hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0: the desk mode exists here
+            hwAstro: machine.hwAstro, // 1.18.0: ASTROLABE, the f64 coprocessor (SPIKE): the machine computes it here
             // The ROM chip's flat ABI (rom/sdk/rom.zig). Spread, not listed: the
             // ROM's exports ARE the surface, so a new entry point needs no host
             // change — and the host cannot silently omit one and leave an app

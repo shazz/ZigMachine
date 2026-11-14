@@ -13,6 +13,7 @@
 //                                   to OUT, the placed disk to OUT.disk and its descriptor
 //                                   to OUT.desc; exit 1 unless
 //                                   the window is image, disk, descriptor and zeros
+//   glass astro-bench               the board: ASTROLABE's GP0 / mailbox / DDR / f64 costs (astro_bench.zig)
 //   glass sim-menu CARD_DIR [PAGE]  desktop: the menu the OSD would show, as text;
 //                                   PAGE = shelf (default), console or debug
 const std = @import("std");
@@ -67,6 +68,7 @@ pub fn main(init: std.process.Init) !u8 {
         const win = if (args.next()) |w| try std.fmt.parseInt(u32, w, 0) else map.DDR_CART_BYTES;
         return simLoad(init, disk, out, win);
     }
+    if (std.mem.eql(u8, cmd, "astro-bench")) return @import("astro_bench.zig").run(); // ASTROLABE (SPIKE)
     if (std.mem.eql(u8, cmd, "sim-menu")) {
         const dir = args.next() orelse return usage();
         const page = std.meta.stringToEnum(menu.Page, args.next() orelse "shelf") orelse return usage();
@@ -76,7 +78,7 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu CARD_DIR [shelf|console|debug]\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu CARD_DIR [shelf|console|debug] | astro-bench\n", .{});
     return 2;
 }
 
@@ -144,6 +146,7 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     defer app.deinit();
     app.opt.fw_opt = fw_opt;
     @import("kos_drive.zig").startThread(board.ddr().words); // KOS's C: (docs/KOS_FAT.md F5)
+    @import("astro.zig").startThread(board.regs_words, board.ddr().words); // ASTROLABE (SPIKE, docs/ARM_FPU_COPROC.md)
     app.opt.idle = devmem.napMs;
     app.opt.wait_boot = opt.wait;
     app.mouse.scale = @max(1, opt.mouse_scale);

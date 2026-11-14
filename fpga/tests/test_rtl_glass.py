@@ -29,15 +29,19 @@ DCRAM = "rtl/video/zm_video_dcram.v"
 
 # (top, sources, testbench, arguments)
 TESTS = [
-    ("zm_glass_regs", ["rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_ptr.v"], "tests/tb/zm_glass_regs_tb.cpp", []),
+    ("zm_glass_regs", ["rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_keys.v", "rtl/glass/zm_glass_ptr.v"], "tests/tb/zm_glass_regs_tb.cpp", []),
+    # ASTROLABE's mailbox (SPIKE) behind the glass block: the ARM over GP0 and ZIGGY over Wishbone
+    ("zm_astro_top", ["tests/tb/zm_astro_top.v", "rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_keys.v",
+                      "rtl/glass/zm_glass_ptr.v", "rtl/glass/zm_astro_mbox.v"], "tests/tb/zm_astro_tb.cpp", []),
     ("zm_glass_osd", ["rtl/glass/zm_glass_osd.v", DCRAM], "tests/tb/zm_glass_osd_tb.cpp", [str(FONT)]),
 ]
 
 R, O, P = "rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_osd.v", "rtl/glass/zm_glass_ptr.v"
+K, M = "rtl/glass/zm_glass_keys.v", "rtl/glass/zm_astro_mbox.v"
 # (id, top, file, text, broken text)
 MUTANTS = [
-    ("regs_fifo_order", "zm_glass_regs", R, "assign key_data = fifo[rd];", "assign key_data = fifo[wr];"),
-    ("regs_full_drop", "zm_glass_regs", R, "if (push && !full) begin", "if (push) begin"),
+    ("regs_fifo_order", "zm_glass_regs", K, "assign key_data = fifo[rd];", "assign key_data = fifo[wr];"),
+    ("regs_full_drop", "zm_glass_regs", K, "if (push && !full) begin", "if (push) begin"),
     ("regs_aw_first", "zm_glass_regs", R, "aw_have ? aw_addr : s_awaddr", "s_awaddr"),
     ("regs_run_reset", "zm_glass_regs", R, "ctrl <= CTRL_INIT;", "ctrl <= CTRL_INIT | 32'd1;"),
     ("regs_bid_echo", "zm_glass_regs", R, "s_bid <= s_awid;", "s_bid <= 12'd0;"),
@@ -60,6 +64,15 @@ MUTANTS = [
     ("ptr_held_kept", "zm_glass_regs", P, "(latch & ~held)", "latch"),
     ("ptr_readback", "zm_glass_regs", R, "rmux = ptr;", "rmux = {8'd0, ptr[23:0]};"),
     ("ptr_decode", "zm_glass_regs", R, "== ZG_REG_POINTER[11:2];", "== ZG_REG_SCRATCH[11:2];"),
+    ("astro_raddr_live", "zm_astro_top", R, "assign mb_raddr = r_addr[11:2];", "assign mb_raddr = s_araddr[11:2];"),
+    ("astro_no_wait", "zm_astro_top", R, "else if (mb_re) r_wait <= 1'b1;", "else if (mb_re) {s_rvalid, s_rdata} <= {1'b1, mb_rdata};"),
+    ("astro_read_vs_write", "zm_astro_top", R, "&& !s_rvalid && !mb_we;", "&& !s_rvalid;"),
+    ("astro_page", "zm_astro_top", R, "waddr[15:12] == ZG_OFF_ASTRO[15:12];", "waddr[15:12] != 4'd0;"),
+    ("astro_read_page", "zm_astro_top", R, "s_araddr[15:12] == ZG_OFF_ASTRO[15:12], 1'b0", "1'b0, 1'b0"),
+    ("astro_wb_lanes", "zm_astro_top", M, "if (a_we && wb_sel[i])", "if (a_we)"),
+    ("astro_arm_lanes", "zm_astro_top", M, "if (arm_we && arm_wstrb[i])", "if (arm_we)"),
+    ("astro_wb_port", "zm_astro_top", M, "wb_dat_r <= mem[wb_adr];", "wb_dat_r <= mem[b_adr];"),
+    ("astro_ack_late", "zm_astro_top", M, "wb_ack <= !rst && a_go;", "wb_ack <= !rst && wb_cyc && wb_stb;"),
     ("osd_msb_left", "zm_glass_osd", O, "glyph_row[3'd7 - col2]", "glyph_row[col2]"),
     ("osd_inverse", "zm_glass_osd", O, "^ inv2;", ";"),
     ("osd_window", "zm_glass_osd", O, "ox[10:0] < ZG_OSD_WIDTH[10:0]", "ox[10:0] <= ZG_OSD_WIDTH[10:0]"),

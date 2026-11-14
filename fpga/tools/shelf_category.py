@@ -40,7 +40,7 @@ HUB_PREFIX = "union_"  # tools/channels.py UNION_PREFIX: every one a Union Demo 
 
 _BY_CATEGORY = {
     "games": ("north_south", "joust", "rick_dangerous", "skystrike", "kickoff2", "bubblebobble"),
-    "tools": ("st_replay", "sysinfo", "c-bench", "notepad", "gemtest"),  # the sampler, the system-information tool, the Hatari benchmark suite (apps/c/bench), the GEM 5 programs (NOTEPAD, GEMTEST: data disks, BOOT.WSM)
+    "tools": ("st_replay", "sysinfo", "c-bench", "notepad", "gemtest", "c-astro_bench"),  # the sampler, the system-information tool, the Hatari benchmark suite (apps/c/bench), the GEM 5 programs (NOTEPAD, GEMTEST: data disks, BOOT.WSM), ASTROLABE's bench (SPIKE)
     "system": ("gem",),  # KOS's desktop
     "tutorials": ("tutorial", "tutorial_steps"),
     "tests": (

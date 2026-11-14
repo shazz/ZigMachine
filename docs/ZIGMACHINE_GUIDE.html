@@ -43,7 +43,7 @@
   <main>
     <section class="hero" id="top">
       <h1>Programmer's guide</h1>
-      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>27</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>125</b>library methods</a></li><li><a href="#geometry-resolution"><b>117</b>constants / registers</a></li></ul>
+      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>28</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>125</b>library methods</a></li><li><a href="#geometry-resolution"><b>117</b>constants / registers</a></li></ul>
       <div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
@@ -253,7 +253,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>MT_CLEAR</code></td><td><code>0x00</code></td><td class="meaning"></td></tr>
 <tr><td><code>MT_SET</code></td><td><code>0xFF</code></td><td class="meaning"></td></tr>
 </tbody></table></section>
-<section class="ref" id="hw-abi-machine-exports"><header class="sec-h"><span class="eyebrow">Machine</span><h2>HW ABI<small>what machine-*.wasm exports</small></h2><span class="count">27 exports</span></header><article class="api" id="hwVideoBase"><code class="sig"><b class="fn">hwVideoBase</b>() <span class="ret">i32</span></code><a class="anchor" href="#hwVideoBase" aria-label="Link to hwVideoBase">#</a><p class="doc">base of the video hardware region</p></article>
+<section class="ref" id="hw-abi-machine-exports"><header class="sec-h"><span class="eyebrow">Machine</span><h2>HW ABI<small>what machine-*.wasm exports</small></h2><span class="count">28 exports</span></header><article class="api" id="hwVideoBase"><code class="sig"><b class="fn">hwVideoBase</b>() <span class="ret">i32</span></code><a class="anchor" href="#hwVideoBase" aria-label="Link to hwVideoBase">#</a><p class="doc">base of the video hardware region</p></article>
 <article class="api" id="hwInit"><code class="sig"><b class="fn">hwInit</b>() <span class="ret">void</span></code><a class="anchor" href="#hwInit" aria-label="Link to hwInit">#</a><p class="doc">reset registers/planes</p></article>
 <article class="api" id="hwClear"><code class="sig"><b class="fn">hwClear</b>() <span class="ret">void</span></code><a class="anchor" href="#hwClear" aria-label="Link to hwClear">#</a><p class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</p></article>
 <article class="api" id="hwRenderPlane"><code class="sig"><b class="fn">hwRenderPlane</b>(plane: u32) <span class="ret">void</span></code><a class="anchor" href="#hwRenderPlane" aria-label="Link to hwRenderPlane">#</a><p class="doc">composite one enabled LFB -&gt; PFB</p></article>
@@ -266,6 +266,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <article class="api" id="hwPhysHeight"><code class="sig"><b class="fn">hwPhysHeight</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwPhysHeight" aria-label="Link to hwPhysHeight">#</a></article>
 <article class="api" id="hwVersion"><code class="sig"><b class="fn">hwVersion</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwVersion" aria-label="Link to hwVersion">#</a><p class="doc">ZM_HW_VERSION</p></article>
 <article class="api" id="hwDeskAvailable"><code class="sig"><b class="fn">hwDeskAvailable</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwDeskAvailable" aria-label="Link to hwDeskAvailable">#</a><p class="doc">1.17.0: 1 where RES_DESK shows (0 on an older board bitstream)</p></article>
+<article class="api" id="hwAstro"><code class="sig"><b class="fn">hwAstro</b>(desc: u32, count: u32) <span class="ret">u32</span></code><a class="anchor" href="#hwAstro" aria-label="Link to hwAstro">#</a></article>
 <article class="api" id="hwRamBase"><code class="sig"><b class="fn">hwRamBase</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamBase" aria-label="Link to hwRamBase">#</a><p class="doc">first byte of the cart&#x27;s window (0x100000)</p></article>
 <article class="api" id="hwRamTop"><code class="sig"><b class="fn">hwRamTop</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamTop" aria-label="Link to hwRamTop">#</a><p class="doc">first byte ABOVE it (= the video region)</p></article>
 <article class="api" id="hwRamSize"><code class="sig"><b class="fn">hwRamSize</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamSize" aria-label="Link to hwRamSize">#</a><p class="doc">the whole window, in bytes (3 MiB since HW 1.13.0)</p></article>

@@ -65,6 +65,7 @@ pub const spanfont = @import("effects/spanfont.zig"); // big 1-bit font as ink r
 const glyph_line = @import("effects/glyph_line.zig");
 pub const linepal = @import("effects/linepal.zig"); // rgb(); LinePalette below
 pub const tc = @import("truecolor.zig"); // HW 1.15.0 RGB565 planes: Fb, rgb565 (LogicalFB.setTruecolorPlane)
+pub const astro = @import("astro.zig"); // HW 1.18.0 SPIKE: ASTROLABE, f64 and batches on the ARM (docs/ARM_FPU_COPROC.md)
 /// Up to `n` palette entries per visible line, allocated per pixel colour, replayed by an HBL.
 pub fn LinePalette(comptime n: usize) type {
     return linepal.LinePalette(LogicalFB, ZigOS, .{ .rows = HEIGHT, .visible_top = VERTICAL_BORDERS_HEIGHT }, n);

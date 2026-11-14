@@ -222,6 +222,7 @@ NATIVE_TESTS="
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
     machine/arena_test.zig
+    machine/astro_test.zig
     libs/zig/mem_test.zig
     libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig
@@ -772,6 +773,11 @@ gate c_bench node apps/bench_headless.mjs --break crc   # ...and a corrupted Cor
 gate c_bench node apps/bench_headless.mjs --break dhry   # ...a corrupted Dhrystone final value
 gate c_bench node apps/bench_headless.mjs --break resid   # ...a corrupted LINPACK solution
 gate c_bench node apps/bench_headless.mjs --break clock   # ...and a no-clock run that is expected to print numbers
+gate c_astro_bench node apps/astro_bench_headless.mjs   # ASTRO BENCH (C, SPIKE: docs/ARM_FPU_COPROC.md): ASTROLABE's hwAstro (HW 1.18.0) as the page binds it: the round trip, ADD/MUL/DIV/SQRT/SIN one call an op and 48 a call against the cart's own f64 and f32, LINPACK 100 as GEFA+GESL against the cart's netlib dgefa/dgesl, sin over 4096 elements (f64 and f32 out); every result 0 ulp from the cart's own (one kernel source, compiler_rt both sides), LINPACK's two solutions the same bits, the reference bits against JavaScript (IEEE exact, libm <= 1 ulp), served=0 (no ARM in a browser), each job logged once, no clock = no times, key 1 reruns
+gate c_astro_bench node apps/astro_bench_headless.mjs --break result   # ...a result one ulp off is caught
+gate c_astro_bench node apps/astro_bench_headless.mjs --break batch   # ...array descriptors answered OK with nothing computed
+gate c_astro_bench node apps/astro_bench_headless.mjs --break clock   # ...a no-clock run expected to print numbers
+gate c_astro_bench uv run --project fpga python -m pytest -q fpga/tests/test_astro_box.py   # ...and the board's mailbox protocol: cycles/bastro_box.h = glass/src/astro_box.zig = machine/sdk/astro.zig = soc/zm_astro.py, and cycles/bastro_post.h against a scripted glass (served, words per op class, no worker, withdrawn when not taken, dead until the BEAT moves, TIMEOUT never rerun, a late worker serves nothing)
 gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): its GEM data disk runs the SDL boot sector (request 2), GEM lists its files, a double-click runs BOOT.WSM = the committed cart with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard; Esc, Esc quits back to the desktop exactly as it was (request 4)
 gate ports_pt2 node apps/ports_headless.mjs pt2 --break load   # ...and the file never clicked (nothing loaded, nothing heard) is caught
 gate ports_pt2 node apps/ports_headless.mjs pt2 --break quit   # ...and the quit never asked for (no desktop) is caught

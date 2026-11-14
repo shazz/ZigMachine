@@ -115,6 +115,8 @@ static unsigned axi_read(unsigned addr) {
     CHECK(top.p_s__arready.get<bool>(), "AR not ready for 0x%x", addr);
     tick();
     top.p_s__arvalid.set(false);
+    // zm_glass_regs answers a register the clock after it took the address (since the ASTRO page).
+    for (int guard = 0; guard < 3 && !top.p_s__rvalid.get<bool>(); guard++) tick();
     CHECK(top.p_s__rvalid.get<bool>() && top.p_s__rid.get<unsigned>() == 9 && top.p_s__rlast.get<bool>(),
           "no R for 0x%x", addr);
     unsigned v = top.p_s__rdata.get<unsigned>();

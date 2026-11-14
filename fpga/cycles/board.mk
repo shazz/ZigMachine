@@ -29,11 +29,11 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 # never have it, so its no-drain mutants stay as sharp as they were.
 HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen -DZM_VSTAT $(HRV_CFLAGS_EXTRA)
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bchisel.c cycles/bdisk.c cycles/bkosdrive.c cycles/bkosfile.c cycles/bnet.c \
-	host/glass_router.c
+	cycles/bastro.c host/glass_router.c
 # The glass's input into the cart, and GEM's data disk (bdiskapp.c): per cart, as env.c (they see
 # the cart's w2c_env through host.h).
 HIN_SRC := cycles/binput.c cycles/bcursor.c cycles/bdesk.c host/input_bridge.c cycles/bdiskapp.c
-HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bkosdrive.c cycles/bkosdrive.h cycles/bkosreq.h cycles/bkosfile.c cycles/bkosfile.h cycles/bnet.c cycles/bnet.h cycles/bnetreq.h cycles/bkosfreq.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bchisel.c cycles/bchisel.h cycles/bdinval.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h cycles/vstat.c cycles/vstat.h cycles/bvstat.h cycles/vseq_wait.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
+HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bastro.c cycles/bastro.h cycles/bastro_box.h cycles/bastro_post.h cycles/bkosdrive.c cycles/bkosdrive.h cycles/bkosreq.h cycles/bkosfile.c cycles/bkosfile.h cycles/bnet.c cycles/bnet.h cycles/bnetreq.h cycles/bkosfreq.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bchisel.c cycles/bchisel.h cycles/bdinval.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h cycles/vstat.c cycles/vstat.h cycles/bvstat.h cycles/vseq_wait.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
 	cycles/binput.c cycles/binput.h cycles/bcursor.c cycles/bcursor.h cycles/bdesk.c cycles/bdesk.h host/host_desk.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
 	cycles/bdiskapp.c cycles/bdiskapp.h cycles/bcartreq.h cycles/bdeskrez.h host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h gen/glass_cart.h \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
@@ -47,9 +47,9 @@ BOOTSEC_DEPS := $(BOOTSEC_SRC) cycles/bbootsec.c cycles/bbootsec.h cycles/bkos.c
 	host/wint_exec.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.
-HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit $(L_$(HV))
+HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit -Wl,--wrap=w2c_machine_hwAstro $(L_$(HV))
 # ZM_AUDIO=snd: the cart's data ends at 28 MiB, the sound CPU's starts there (cycles/sound.mk).
-HRV_LDFLAGS_snd := $(subst __ram_size=0x01000000,__ram_size=0x00C00000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit $(L_$(HV))
+HRV_LDFLAGS_snd := $(subst __ram_size=0x01000000,__ram_size=0x00C00000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit -Wl,--wrap=w2c_machine_hwAstro $(L_$(HV))
 B_hw     := -DZM_BLIT_HW
 B_sw     :=
 # sim: hash and end; board: run forever, report to the glass, print nothing.

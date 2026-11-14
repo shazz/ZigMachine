@@ -15,6 +15,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "c-astro_bench",
+  "title": "ASTRO BENCH (C)",
+  "type": "zigmachine"
+ },
+ {
   "tag": "automation442",
   "title": "AUTOMATION 442",
   "type": "atari st"
