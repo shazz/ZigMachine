@@ -63,6 +63,7 @@ pub fn viewOf(d: *Desktop, id: u8) View {
         .clip = c,
         .org = .{ .x = c.x - w.hscroll * hStep(d), .y = c.y - w.vscroll * vStep(d), .w = c.w, .h = c.h },
         .cols = colsOf(d, id),
+        .cw = dirview.colW(d),
     };
 }
 
@@ -74,7 +75,7 @@ pub fn viewOf(d: *Desktop, id: u8) View {
 pub fn colsOf(d: *const Desktop, id: u8) i16 {
     if (d.breaks & deskbreak.REFLOW != 0) return d.win_cols[id]; // the mutant: frozen at open
     const c = d.wm.wins[id].r.w - 2 - gui.SCROLL; // Wm.contentRect's width
-    return @max(1, @divTrunc(c, icon_mod.CELL_W));
+    return @max(1, @divTrunc(c, dirview.colW(d)));
 }
 
 // One click of a scroll arrow moves the content by exactly one ITEM: an icon
@@ -83,7 +84,7 @@ fn vStep(d: *const Desktop) i16 {
     return if (d.view == .icons) icon_mod.CELL_H else dirview.TROW_H;
 }
 fn hStep(d: *const Desktop) i16 {
-    return if (d.view == .icons) icon_mod.CELL_W else gui.CELL;
+    return if (d.view == .icons) dirview.colW(d) else gui.CELL;
 }
 
 // Open a NEW window on a folder: only when no directory window is open to show it
@@ -106,7 +107,7 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
     // content must stay wide enough for the text view's last column.
     r.w = @min(r.w, d.g.screen.w - 4);
     r.x = @max(0, @min(r.x, d.g.screen.w - r.w - 2));
-    const min_w = icon_mod.CELL_W + 2 + gui.SCROLL;
+    const min_w = dirview.colW(d) + 2 + gui.SCROLL;
     const min_h = gui.TITLE_H + gui.INFO_H + gui.SCROLL + if (d.breaks & deskbreak.MIN_ROW != 0) icon_mod.CELL_H else dirview.ICON_ROW_H; // icons WITH names (Matt, 13 Nov)
     r.h = @max(r.h, min_h); // a rect remembered (or read from DESKTOP.INF) under the old, lower minimum
     const id = d.wm.tryAdd(.{ .r = r, .title = title, .min_w = min_w, .min_h = min_h }) orelse {
@@ -116,8 +117,7 @@ pub fn addFloppyWindow(d: *Desktop, title: []const u8, dir: i16) void {
     d.win_dir[id] = dir;
     d.drv.win[id] = d.drv.cur; // the drive in focus: the icon opened, or the folder's window's
     d.sel_icon = -1; // the window, not the icon, is now the selection
-    // The width it opens with: only the --break reflow mutant keeps reading it (colsOf).
-    d.win_cols[id] = @max(1, @divTrunc(d.wm.contentRect(id).w, icon_mod.CELL_W));
+    d.win_cols[id] = @max(1, @divTrunc(d.wm.contentRect(id).w, dirview.colW(d))); // read by the --break reflow mutant only
     d.sel_file = -1;
     d.sel_folder = -1;
     deskdraw.startGrow(d, d.open_src, r); // GEM zoom-box: dotted frame grows icon -> window
@@ -165,7 +165,7 @@ pub fn updateChrome(d: *Desktop, id: u8) void {
     w.info = std.fmt.bufPrint(&d.win_info[id], "{d} bytes used in {d} items.", .{ used, n }) catch "";
     // The info line changes topBarsH, so measure the content AFTER setting it.
     const c = d.wm.contentRect(id);
-    const shown = @divTrunc(c.h, vStep(d));
+    const shown = @max(1, @divTrunc(c.h - if (d.view == .icons) dirview.ICON_ROW_H - icon_mod.CELL_H else 0, vStep(d))); // whole rows, names too: the grid's top margin off
     const rows = contentRows(d, id, n);
     w.vslide = permille(shown, rows);
     w.vmax = @max(0, rows - shown);
@@ -194,7 +194,7 @@ fn contentRows(d: *const Desktop, id: u8, n: usize) i16 {
 fn contentWidth(d: *const Desktop, id: u8, n: usize) i16 {
     if (n == 0) return 0;
     if (d.view != .icons) return dirview.TOS_COLS * 8;
-    return @min(colsOf(d, id), @as(i16, @intCast(n))) * icon_mod.CELL_W;
+    return @min(colsOf(d, id), @as(i16, @intCast(n))) * dirview.colW(d);
 }
 
 // What fraction of `total` is visible, in per mille, clamped to a full track.

@@ -17,6 +17,11 @@ const LABEL_FW: i16 = 6;
 const LABEL_CHARS: i16 = 11;
 const LABEL_MARGIN: i16 = 2;
 pub const LABEL_W: i16 = LABEL_CHARS * LABEL_FW + 2 * LABEL_MARGIN;
+/// A directory window's column pitch: the widest 8.3 name (12 characters, the dot too: 72 px) in
+/// its box (labelW: 74) and a pixel between boxes, so two such names side by side never touch
+/// (Matt on the board, 14 Nov: "ZIGPLASM.GIFZIGPLASM.NEO" in a 72 px column). 75, not more: a
+/// full-width low-res window (302 px of work area) keeps its 4 columns.
+pub const NAME_W: i16 = 12 * LABEL_FW + 3;
 // TOS sets an icon name down from the top of its box: TWO blank rows above the
 // 6px glyph and one below. The box sits 1px under the icon so the whole unit
 // still fits one CELL_H row of the desktop grid.
@@ -39,6 +44,11 @@ pub const GRID_X0: i16 = 0;
 pub const GRID_Y0: i16 = gui.MENU_H + 1;
 
 pub const artBox = @import("iconbox.zig").artBox;
+
+/// A name's box: the fixed field, or a name longer than 11 characters whole, a pixel each side.
+pub fn labelW(label: []const u8) i16 {
+    return @max(LABEL_W, @as(i16, @intCast(label.len)) * LABEL_FW + 2);
+}
 
 pub const Icon = struct {
     x: i16,
@@ -68,9 +78,18 @@ pub const Icon = struct {
     pub fn labelBox(self: *const Icon, screen_w: i16) Rect {
         const art = self.artRect();
         const cx = art.x + @divTrunc(art.w, 2); // centred on the ART, not the bitmap
-        var bx = cx - @divTrunc(LABEL_W, 2);
-        if (self.bounds == null) bx = @max(0, @min(bx, screen_w - LABEL_W));
-        return .{ .x = bx, .y = art.y + art.h + 1, .w = LABEL_W, .h = LABEL_H };
+        const lw = labelW(self.label);
+        var bx = cx - @divTrunc(lw, 2);
+        if (self.bounds == null) bx = @max(0, @min(bx, screen_w - lw));
+        return .{ .x = bx, .y = art.y + art.h + 1, .w = lw, .h = LABEL_H };
+    }
+
+    /// The whole unit, art AND name, fits its window's height (always, on the desktop): a row of
+    /// a window is shown whole or not at all, never icons with their names cut off below them.
+    pub fn rowFits(self: *const Icon) bool {
+        const b = self.bounds orelse return true;
+        const box = self.labelBox(0);
+        return box.y >= b.y and box.y + box.h <= b.y + b.h;
     }
 
     // Pointer hit-test on the icon bitmap (uses the live Gui pointer).

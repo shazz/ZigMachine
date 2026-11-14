@@ -34,7 +34,9 @@ const MAX_MC = 1.7; // the board's 60 fps band starts at ~1.75 Mc (CLAUDE.md, Bo
 // must not move a pixel. First from main ef337055 (before deskdirty.zig); re-taken 6 Nov 2026 when
 // GAMES started opening inside A:\'s window (desknav.zig) instead of a window of its own, from this
 // ROM with deskdirty.mustDraw forced true; the skipping ROM gives the same total.
-const PIN = "06930a66389eaf65ffa0c0f50079229eac7288db7104039c51cec24d4ae4aa1c";
+// Re-taken 14 Nov 2026 (fix/gem-board-copy): a window's icon column is 75 px (12-character names), so the
+// icons moved; forced (mustDraw true) and skipping ROMs both give it.
+const PIN = "c64845fbd84d5a5c3da362c55bba6dd1169dd622c845e16d3e385393842da661";
 
 const ptr = (f, x, y, b) => ["--call", `${f}:pointer:${x},${y},${b}`];
 const click = (f, x, y) => [...ptr(f, x, y, 0), ...ptr(f + 5, x, y, 1), ...ptr(f + 6, x, y, 0)];

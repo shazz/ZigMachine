@@ -20,8 +20,19 @@ const Icon = icon_mod.Icon;
 // A directory window's layout frame. `clip` is the real content rectangle (all
 // that may be painted); `org` is where item (0,0) is placed — `clip` shifted by
 // the window's scroll offset; `cols` is the icon grid's width in cells, as many
-// as the window is wide NOW (deskwin.colsOf), so a resize re-flows the icons as TOS does.
-pub const View = struct { clip: Rect, org: Rect, cols: i16 };
+// as the window is wide NOW (deskwin.colsOf), so a resize re-flows the icons as TOS does;
+// `cw` its column pitch (colW).
+pub const View = struct { clip: Rect, org: Rect, cols: i16, cw: i16 = icon_mod.NAME_W };
+
+/// A window's icon column: as wide as a whole 8.3 name in its box, so neighbours never touch.
+pub fn colW(d: *const Desktop) i16 {
+    return if (d.breaks & deskbreak.NAME_COL != 0) icon_mod.CELL_W else icon_mod.NAME_W;
+}
+
+/// An icon of a window is drawn, and takes clicks, only when its row fits whole, names too.
+pub fn shown(d: *const Desktop, ic: *const Icon) bool {
+    return d.breaks & deskbreak.ROW_CUT != 0 or ic.rowFits();
+}
 
 pub const Hit = union(enum) { none, file: u8, folder: u8 };
 
@@ -49,7 +60,7 @@ fn slotIcon(slot: usize, v: View, bmp: icons.Icon, label: []const u8, is_app: bo
     const s: i16 = @intCast(slot);
     const a = icon_mod.artBox(bmp);
     return .{
-        .x = v.org.x + @mod(s, v.cols) * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - a.w, 2) - a.x,
+        .x = v.org.x + @mod(s, v.cols) * v.cw + @divTrunc(v.cw - a.w, 2) - a.x,
         .y = v.org.y + @divTrunc(s, v.cols) * icon_mod.CELL_H + ICON_BASELINE - a.y - a.h,
         .bmp = bmp,
         .label = label,
@@ -76,7 +87,7 @@ pub fn dirHitAt(d: *const Desktop, dir: i16, v: View, x: i16, y: i16) Hit {
         var p: usize = 0;
         while (p < o.n) : (p += 1) {
             const a = o.ord[p];
-            const hit = if (d.view == .icons) fileIconSlot(d, p, a, v).hitAt(x, y) else gui.inRect(fileRowRect(p, v), x, y);
+            const hit = if (d.view == .icons) iconHit(d, fileIconSlot(d, p, a, v), x, y) else gui.inRect(fileRowRect(p, v), x, y);
             if (hit) return .{ .file = a };
         }
     }
@@ -84,10 +95,14 @@ pub fn dirHitAt(d: *const Desktop, dir: i16, v: View, x: i16, y: i16) Hit {
     var rank: usize = 0;
     while (rank < fc) : (rank += 1) {
         const fidx = d.dir.nthFolder(dir, rank);
-        const hit = if (d.view == .icons) folderIconSlot(d, nf + rank, fidx, v).hitAt(x, y) else gui.inRect(fileRowRect(nf + rank, v), x, y);
+        const hit = if (d.view == .icons) iconHit(d, folderIconSlot(d, nf + rank, fidx, v), x, y) else gui.inRect(fileRowRect(nf + rank, v), x, y);
         if (hit) return .{ .folder = fidx };
     }
     return .none;
+}
+
+fn iconHit(d: *const Desktop, ic: Icon, x: i16, y: i16) bool {
+    return shown(d, &ic) and ic.hitAt(x, y);
 }
 
 pub fn drawDir(d: *const Desktop, g: *gui.Gui, dir: i16, v: View) void {
@@ -98,8 +113,8 @@ pub fn drawDir(d: *const Desktop, g: *gui.Gui, dir: i16, v: View) void {
         while (p < o.n) : (p += 1) {
             const a = o.ord[p];
             if (d.view == .icons) {
-                var ic = fileIconSlot(d, p, a, v);
-                ic.draw(g, desksel.fileSelected(d, a));
+                const ic = fileIconSlot(d, p, a, v);
+                if (shown(d, &ic)) ic.draw(g, desksel.fileSelected(d, a));
             } else drawFileRow(d, g, p, a, v);
         }
     }
@@ -109,8 +124,8 @@ pub fn drawDir(d: *const Desktop, g: *gui.Gui, dir: i16, v: View) void {
         const fidx = d.dir.nthFolder(dir, rank);
         const sel = desksel.folderSelected(d, fidx);
         if (d.view == .icons) {
-            var ic = folderIconSlot(d, nf + rank, fidx, v);
-            ic.draw(g, sel);
+            const ic = folderIconSlot(d, nf + rank, fidx, v);
+            if (shown(d, &ic)) ic.draw(g, sel);
         } else drawFolderRow(d, g, nf + rank, fidx, v, sel);
     }
 }

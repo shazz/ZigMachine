@@ -125,6 +125,28 @@ test "a save through the temp name, an overwrite, delete, rename, folders, attri
     try c.outsideUntouched();
 }
 
+test "a file of several requests (the desktop's copy of a 480 KB BOOT.WSM): FIRST, middle ones, LAST" {
+    var c = try Card.init();
+    defer c.deinit();
+    var buf: [64]u8 = undefined;
+    const parts = [_][]const u8{ "one ", "two ", "three ", "four" };
+    var off: u32 = 0;
+    for (parts, 0..) |p, i| {
+        const flags: u32 = (if (i == 0) @as(u32, 1) else 0) | (if (i == parts.len - 1) @as(u32, 2) else 0);
+        const r = kf.Req{ .op = .write, .flags = flags, .slot = 3, .attr = 0, .offset = off, .path = "PICS\\BOOT.WSM", .path2 = "", .data = p };
+        try t.expectEqual(@as(i32, 0), try kf.run(c.hd, &r));
+        if (i < parts.len - 1) try t.expectError(error.FileNotFound, get(c.hd, "PICS/BOOT.WSM", &buf)); // whole at LAST only
+        off += @intCast(p.len);
+    }
+    try t.expectEqualStrings("one two three four", try get(c.hd, "PICS/BOOT.WSM", &buf));
+    try t.expectError(error.FileNotFound, get(c.hd, "PICS/~KOS3.TMP", &buf));
+    const gap = kf.Req{ .op = .write, .flags = 1, .slot = 3, .attr = 0, .offset = 0, .path = "PICS\\GAP.DAT", .path2 = "", .data = "x" };
+    _ = try kf.run(c.hd, &gap);
+    const past = kf.Req{ .op = .write, .flags = 0, .slot = 3, .attr = 0, .offset = 5, .path = "PICS\\GAP.DAT", .path2 = "", .data = "y" };
+    try t.expectEqual(fs.ERANGE, kf.run(c.hd, &past) catch |e| fs.code(e)); // a middle one past the end: refused
+    try c.outsideUntouched();
+}
+
 /// The block as cycles/bkosfile.c writes it, the magic last.
 fn ask(win: []volatile u32, seq: u32, f: [11]u32) void {
     const at = (win.len * 4 - mc.KOS_FILE_FROM_TOP) / 4;
