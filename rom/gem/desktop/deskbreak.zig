@@ -11,3 +11,4 @@ pub const ROW_SCROLL: u32 = 1 << 16; // text view: folder rows do not scroll sid
 pub const ROW_GHOST: u32 = 1 << 17; // text view: a dragged file shows the icon ghost
 pub const CLICK: u32 = 1 << 18; // a click is a drag (no slop) and drops on the icons under a window
 pub const SEL_DRIVE: u32 = 1 << 20; // the selection lights its indices in EVERY drive's windows (by index only)
+pub const MIN_ROW: u32 = 1 << 21; // a directory window's minimum holds one icon CELL, not the row with its names
