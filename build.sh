@@ -777,6 +777,18 @@ gate ports_pt2 node apps/pt2_paula_headless.mjs --break pitch   # ...and every p
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break latch   # ...and LC/LEN taken at once, not at the wrap (paula.zig mutant 2), is caught
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break upload   # ...and no sample uploaded to chip RAM is caught
 gate ports_pt2 node apps/pt2_paula_headless.mjs --break owner   # ...and the worklet's refusal bypassed (a song let in over chip RAM) is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs pt2   # KOS C: in pt2-clone (docs/KOS_GEMDOS.md §5): C: = a card copy with HD/MODS/GLENZ.MOD; DISK OP types /C/MODS (lower-cased by the field: kestrel_cpath.c), loads row 1, and the frame equals the floppy HYBRID.MOD loaded; it plays
+gate ports_cdrive node apps/ports_cdrive_check.mjs pt2 --break c   # ...and C: answering nothing is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs pt2 --break bytes   # ...and a changed title on C: is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs pt2 --break list   # ...and no path typed (the browser never reaches C:) is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack   # KOS C: in klystrack: Open song lists C (a folder at the floppy root); C > SONGS > STARPORT.KT loads, and the frame equals the floppy's STARPORT2.KT opened the same way
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack --break c   # ...and C: answering nothing is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack --break bytes   # ...and a changed title on C: is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs klystrack --break list   # ...and the box never asked for C: is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs chipnomad   # KOS C: in ChipNomad: LOAD PROJECT lists [C] at /; C > PROJECTS > MICROEGG.CNM loads, and the frame equals the floppy's MICROEGG.CNM loaded the same way
+gate ports_cdrive node apps/ports_cdrive_check.mjs chipnomad --break c   # ...and C: answering nothing is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs chipnomad --break bytes   # ...and a changed title on C: is caught
+gate ports_cdrive node apps/ports_cdrive_check.mjs chipnomad --break list   # ...and the browser never asked for C: is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2   # GRAFX2 (C, GPLv2, Asyncify): boots on its skin + font off the floppy, the read-only warning pinned, OK closes it (a modal loop resumed across frames), the tool bar and palette shown, a freehand stroke paints 46 pixels; Q + Discard quits back to GEM
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break stroke   # ...and no stroke is caught
 gate ports_grafx2 node apps/ports_headless.mjs grafx2 --break quit   # ...and no quit is caught

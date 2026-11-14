@@ -25,15 +25,18 @@ UP_ALL := $(foreach d,$(DIRS),$(patsubst $(UP)/%,%,$(wildcard $(UP)/$(d)/*.c $(U
 # ayumi.cpp is replaced by kestrel_ayumi.cpp (the same chip in integers, a box filter for the resampling)
 UP_SRC := $(filter-out chipnomad_lib/external/ayumi/ayumi.cpp,$(filter %.c %.cpp,$(UP_ALL)))
 INCS   := $(addprefix -I$(GEN)/,$(DIRS) tracker/platforms/shared tracker/platforms/sdl2) -I$(KINC) -I$(KINC)/SDL2 -I$(AYC)
-FLAGS  := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory $(INCS) -include kestrel_port.h -D__KESTREL__ -Wno-unused-parameter -Wno-date-time \
+FLAGS  := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory $(INCS) -include kestrel_port.h -D__KESTREL__ -DKESTREL_CDRIVE -Wno-unused-parameter -Wno-date-time \
           -Wno-builtin-macro-redefined '-D__DATE__="$(BUILD_DATE)"'
 CXXFLAGS := $(FLAGS) -std=c++17 -fno-exceptions -fno-rtti
 CFLAGS := $(FLAGS) -std=gnu11
 MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=262144 -Wl,--strip-debug
+# C: (KOS GEMDOS, docs/KOS_GEMDOS.md §5): "/C" = the card's HD, as ../grafx2 (-DKESTREL_CDRIVE in FLAGS).
+CDRIVE := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o $(OUT)/ksdl/opt/kestrel_wasi_cfile.o $(OUT)/gemdos.o
+GEMDOS := ../../../rom/kos
 OBJS   := $(patsubst %,$(OUT)/up/%.o,$(UP_SRC)) $(patsubst %,$(OUT)/%.o,$(wildcard kestrel_*.cpp)) \
-          $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c)) $(OUT)/ayc/zm_ay.o $(OUT)/ayc/zm_ay_cfg.o
+          $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c)) $(OUT)/ayc/zm_ay.o $(OUT)/ayc/zm_ay_cfg.o $(CDRIVE)
 GENALL := $(addprefix $(GEN)/,$(UP_ALL))
 
 .PHONY: link objs clean install
@@ -58,6 +61,12 @@ $(OUT)/ayc/%.o: $(AYC)/%.c $(wildcard $(AYC)/*.h)
 $(OUT)/ksdl/%.o: $(KSDL)/%.c
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
+$(OUT)/ksdl/opt/%.o: $(KSDL)/opt/%.c $(KSDL)/opt/kestrel_wasi_c.h
+	@mkdir -p $(dir $@)
+	$(ZIG) cc $(CFLAGS) -c $< -o $@
+$(OUT)/gemdos.o: $(wildcard $(GEMDOS)/gemdos*.zig $(GEMDOS)/fat*.zig)
+	@mkdir -p $(dir $@)
+	$(ZIG) build-obj -target wasm32-wasi -OReleaseSmall -fno-stack-check $(GEMDOS)/gemdos_c.zig -femit-bin=$@
 
 link: $(OUT)/demo-chipnomad.wasm
 $(OUT)/demo-chipnomad.wasm: $(OBJS)

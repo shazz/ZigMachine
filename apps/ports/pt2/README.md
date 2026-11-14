@@ -42,6 +42,24 @@ cart that opens a module at boot; the shipped cart is built without it.
 
 The shared layer `../kestrel_sdl2` gives the heap, WASI over the floppy (read-only) and the input queue.
 
+## C: (the card's HD, KOS GEMDOS)
+
+Built with `-DKESTREL_CDRIVE` (`Makefile`, the same wiring as `../grafx2`): the floppy is `/`, C: is `/C`
+when the card has an HD folder (docs/KOS_GEMDOS.md §5). Path convention:
+
+- `/` is the floppy (its root; the floppy is flat, so any folder typed on it lists the root).
+- `/C` is C:, the card's HD folder; `/C/MODS` is its MODS folder. C:'s names are GEMDOS's: any case, 8.3.
+- Type it in DISK OP's PATH field (click it, type, Return). The field types lower case, so `/c/mods` is the
+  same folder: `kestrel_cpath.c` makes a leading `/c` the C: preopen (`patches/pt2_textedit.c.sed`). Without
+  it the path fell to the floppy and listed its root (Matt, 13 Nov).
+- The DISK OP list shows the folder's modules and folders; a row (`(y - 34) / 6`) loads that module.
+  Row 0 of a folder is `..` (it leads up to `/C`, or to `/` from C:'s root).
+- Modules and samples are read from C: as from the floppy. Saving to C: is not built yet: SAVE MODULE and
+  SAVE SAMPLE go through `askBox`, whose modal loop never returns on a cart.
+- `node apps/ports_cdrive_check.mjs pt2`: a copy of docs/gemdos-c.img with `HD/MODS/GLENZ.MOD` (the
+  floppy's HYBRID.MOD bytes); DISK OP types `/C/MODS`, row 1 loads GLENZ.MOD, and the frame equals the floppy's
+  HYBRID.MOD loaded (`--break c|bytes|list` must fail).
+
 ## Status (2 Nov 2026)
 
 - Loads modules off the floppy since the bigger cart window (4 MiB at HW 1.12.0, 3 MiB since 1.13.0). pt2
