@@ -5,15 +5,19 @@ mirror's fields. The monolithic env.c makes the same call through host_audio_mir
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA / "tools"))
-import host_bridges
-import host_split
-import split_image
-import sys_abi
+# A clean tree has no gen/ (the gate's fresh worktree): the memmap split_image imports, made first.
+if not (FPGA / "gen" / "glass_cart.py").exists():
+    subprocess.run(["make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
+import host_bridges  # noqa: E402  (after gen/ exists)
+import host_split  # noqa: E402
+import split_image  # noqa: E402
+import sys_abi  # noqa: E402
 from host_scopes import SCOPES
 from sys_abi_c import env_rows
 from sys_abi_manifest import parse
