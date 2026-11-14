@@ -137,6 +137,7 @@ const scene = switch (opts.index) {
     126 => @import("scenes/desk_test.zig"), // DESK TEST: the desk mode (HW 1.17.0), plane 0 at 640x480 1:1: a known picture, key 1 desk, key 2 low res
     127 => @import("scenes/notepad.zig"), // NOTEPAD: a windowed text editor on GEM 5's program API (windows, menu bar, form_alert), C:\*.TXT through KOS GEMDOS
     128 => @import("scenes/gemtest.zig"), // GEMTEST: every GEM 5 component on one disk, through the program API only (docs/GEMTEST.md)
+    129 => @import("scenes/sca_karatekid2.zig"), // SCA THE KARATE KID PART II (CODEF 495): starfield, copper raster bar, scroller, logo
     else => @compileError("bad cart index"),
 };
 
