@@ -1,7 +1,8 @@
 // KESTRAMP (cart 133, apps/zig/scenes/kestramp.zig) end to end: the cart over the real machine + ROM,
 // C: = docs/mp3-c.img through KOS GEMDOS, its env.hostMp3* wired to the audio modules a frame at a time
 // (as apps/mp3_player_check.mjs). C:\MUSIC in name order: MONO44, TONES32, TONES44, TONES48. The window is
-// read back from the plane and checked by region: draws; X starts MONO44 (time and status move); B / Z
+// read back from the plane and checked by region: draws; X starts MONO44 (time and status move, the LCD
+// reads the real elapsed seconds, decoded off its segments, never past the track's length); B / Z
 // start TONES32 and back (the title box changes); V stops (time back at 00:00); L draws the list; a track
 // that ends starts the next; Esc asks for request 4.   node apps/kestramp_check.mjs [--shots DIR]
 import { readFile, mkdir } from "node:fs/promises";
@@ -105,6 +106,24 @@ function colours(px, [x, y, w, h]) {
     for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) set.add(win[(y + r) * W + x + c]);
     return set.size;
 }
+// The time box's seven-segment digits (lcd.zig drawTime): a segment is lit when its centre is the colon's colour.
+const DIGIT_X = [10, 28, 52, 70], DIGIT_Y = 17;
+const SEG_CENTRE = [[7, 1], [13, 6], [13, 15], [7, 20], [1, 15], [1, 6], [7, 11]]; // a..g
+const SEGS = [0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F];
+/** The elapsed seconds the LCD shows (mm:ss read back off the picture); throws on a pattern that is no digit. */
+function lcdSecs(px) {
+    const win = windowOf(px), lit = win[22 * W + 46];
+    const d = DIGIT_X.map((x0) => {
+        let m = 0;
+        SEG_CENTRE.forEach(([sx, sy], k) => { if (win[(DIGIT_Y + sy) * W + x0 + sx] === lit) m |= 1 << k; });
+        const v = SEGS.indexOf(m);
+        if (v < 0) throw new Error(`the time box shows a segment pattern 0x${m.toString(16)} that is no digit`);
+        return v;
+    });
+    return (d[0] * 10 + d[1]) * 60 + d[2] * 10 + d[3];
+}
+/** Seconds of music in `frames` decoded MPEG-1 frames at 44.1 kHz (the test files' rate). */
+const secsOf = (frames) => Math.floor((frames * 1152) / 44100);
 const errors = [], notes = [];
 const check = (ok, msg) => { if (!ok) errors.push(msg); };
 const asset = async (name) => new Uint8Array(await readFile(join("apps/zig/assets/mp3", name)));
@@ -124,6 +143,7 @@ check(colours(idle, [0, 0, W, H]) >= 6, `draws: the window has ${colours(idle, [
 check(colours(idle, REGION.logo) >= 2, "draws: the logo is not on the picture");
 check(colours(idle, REGION.list) === 1, "draws: the list shows with the list closed");
 const idleTime = region(idle, REGION.time), idleStatus = region(idle, REGION.status);
+check(lcdSecs(idle) === 0, `draws: the stopped time box reads ${lcdSecs(idle)} s, not 00:00`);
 notes.push(`window: ${colours(idle, [0, 0, W, H])} colours, logo and panel drawn, list closed`);
 if (SHOTS) {
     await mkdir(SHOTS, { recursive: true });
@@ -141,6 +161,9 @@ check(log.starts.length === 1 && fedIs(log, 0, MONO, 1000), "X: the bytes fed ar
 check(region(playing, REGION.time) !== idleTime, "X: the time box did not advance from 00:00");
 check(region(playing, REGION.status) !== idleStatus, "X: the status line did not change to PLAYING");
 const playingTitle = region(playing, REGION.title);
+// The LCD is the track's elapsed time: frames decoded x 1152 / 44100 (it read 16:58 a second in, 1000x too much).
+const playFrames = snd.a.audioMp3Status(2) >>> 0, playSecs = lcdSecs(playing);
+check(Math.abs(playSecs - secsOf(playFrames)) <= 1, `X: the time box reads ${playSecs} s after ${playFrames} frames (${secsOf(playFrames)} s of music)`);
 notes.push(`X: MONO44.MP3 fed in order, ${log.fed.length} bytes so far; the time box moved off 00:00`);
 if (SHOTS) writePng(join(SHOTS, "playing.png"), new Uint8Array(windowOf(playing).buffer), W, H);
 // B: the next track, TONES32; Z: back to MONO44
@@ -149,6 +172,7 @@ run(cart, snd, 5, log.out, () => startedSince(1));
 check(startedSince(1) && log.ctl.at(-1) === CTL_START, "B: next did not start a track");
 check(log.starts.length >= 2 && fedIs(log, log.starts[1], TONES32, 1000), "B: the track after MONO44 is not TONES32.MP3");
 const nextPic = picture(cart);
+check(lcdSecs(nextPic) <= 1, `B: the time box reads ${lcdSecs(nextPic)} s as the new track starts, not 00:00`);
 check(region(nextPic, REGION.title) !== playingTitle, "B: the title box did not change");
 cart.demo.key("z".charCodeAt(0));
 run(cart, snd, 5, log.out, () => startedSince(2));
@@ -176,12 +200,24 @@ run(cart, snd, 2, log.out);
 const base = log.starts.length; // starts before this X
 const ctlBase = log.ctl.length;
 cart.demo.key("x".charCodeAt(0));
-const frames = run(cart, snd, 4000, log.out, () => startedSince(base + 1));
+// While MONO44 plays to its end the LCD is read every 5 frames: it never runs past the track's real length.
+let calls = 0, maxFrames = 0;
+const shown = [];
+const frames = run(cart, snd, 4000, log.out, () => {
+    if (startedSince(base + 1)) return true;
+    maxFrames = Math.max(maxFrames, snd.a.audioMp3Status(2) >>> 0);
+    if (++calls % 5 === 0) shown.push(lcdSecs(picture(cart)));
+    return false;
+});
+const trackSecs = Math.ceil((maxFrames * 1152) / 44100);
+check(shown.length > 0 && Math.max(...shown) <= trackSecs, `end: the time box read up to ${Math.max(...shown)} s on a ${trackSecs} s track (${maxFrames} frames)`);
+check(shown.every((s, i) => i === 0 || s >= shown[i - 1]), `end: the time box went backwards within a track (${shown.join(" ")})`);
 run(cart, snd, 5, log.out); // the new file's first chunk is fed a frame after its start
 const tail = log.ctl.slice(ctlBase);
 check(tail.includes(CTL_END) && tail.indexOf(CTL_START, tail.indexOf(CTL_END)) > 0, "end: the track ended and the next start did not follow");
 check(startedSince(base + 1) && fedIs(log, log.starts[base + 1], TONES32, 1000), "end: the track after the one that ended is not TONES32.MP3");
 notes.push(`end: MONO44 ended after ${frames} frames, the next track (TONES32) started by itself`);
+notes.push(`time: ${playSecs} s at ${playFrames} decoded frames; MONO44 (${trackSecs} s) read ${[...new Set(shown)].join(" ")} s while it played`);
 // Esc: stop, and the host gets the request to go back
 cart.demo.key(K_ESC);
 run(cart, snd, 2, log.out);

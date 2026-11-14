@@ -71,6 +71,11 @@ pub const Stream = struct {
         return if (self.age <= TRUST) (w & ~@as(u32, 3)) | 1 else w;
     }
 
+    /// MP3 frames decoded since this stream's start: 0 while the status may still be the last stream's.
+    pub fn decoded(self: *const Stream) u32 {
+        return if (!self.live or self.age <= TRUST) 0 else zg.mp3Status(.frames);
+    }
+
     /// Once a frame: feed what fits, read the next chunk when this one is spent.
     pub fn pump(self: *Stream) void {
         if (!self.live) return;

@@ -112,7 +112,9 @@ pub const Demo = struct {
     fn snapshot(self: *Demo) panel.Shown {
         const word = if (self.p.playing != null) self.p.stream.state() else 0;
         const rate = RATES[@min((word >> 4) & 15, 4)];
-        const secs: u32 = if (rate == 0) 0 else @intCast(@as(u64, zg.mp3Status(.frames)) * 1152 * 10 / rate);
+        // The track's elapsed time: frames x 1152 samples / Hz, rate being tenths of a kHz (441 = 44100 Hz).
+        // decoded() is 0 for the first frames of a track, while the status may still be the last one's.
+        const secs: u32 = if (rate == 0) 0 else @intCast(@as(u64, self.p.stream.decoded()) * 1152 / (@as(u64, rate) * 100));
         const size: u32 = if (self.p.playing) |i| self.p.list.items[i].size else 0;
         const st = self.p.status(word);
         return .{
