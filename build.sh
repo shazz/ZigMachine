@@ -258,6 +258,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill_test.zig
     apps/zig/scenes/mp3_player/id3_test.zig
+    apps/zig/scenes/kestramp/order_test.zig
     apps/zig/scenes/bard_sid/tune.zig
     libs/zig/players/mp3_frame_test.zig
     libs/zig/players/mp3_in_test.zig
@@ -459,6 +460,7 @@ gate notepad node apps/desk_rez_check.mjs   # the desktop's mode across a progra
 gate notepad node apps/desk_rez_check.mjs --break carry   # ...and a firmware that never hands the mode over (the board before the fix) is caught
 gate mp3_player node apps/mp3_player_check.mjs --break byte   # ...and one fed byte changed fails both the bytes and the audio check
 gate mp3_player uv run --project fpga python -m pytest -q fpga/tests/test_mp3_native.py   # ...and on the native host (host_audio, --c-image docs/mp3-c.img, the glass's key router): Down Down Return plays TONES44.MP3, the machine's 16-bit out = the reference >> 1; no key, no sound
+gate kestramp node apps/kestramp_check.mjs   # KESTRAMP (cart 132, apps/zig/scenes/kestramp.zig) over the machine + ROM, C: = docs/mp3-c.img through KOS GEMDOS: X starts MONO44.MP3 (the bytes fed are its file's), the time and status move; B starts TONES32 and Z brings MONO44 back (the title box changes); V stops (the time back at 00:00); L draws the list; a track that ends starts the next; Esc asks for request 4
 gate song_bytes uv run --project fpga python -m pytest -q fpga/tests/test_song_bytes.py   # the native host's song bridge (host/audio_bridge.c, sysinfo): requestSongBytes plays what the cart hands it, and refuses an image outside the cart's memory (was ungated: its stub missed audio_bard_frame for weeks)
 gate sid node apps/sid_check.mjs   # .sid player (libs/zig/players/sid.zig, cRSID libs/c/crsid): the engine in machine-audio.wasm renders hermini.sid's first 10 s to the same samples, 0.1 s block for block, as the same C built natively by the host's cc (fpga/tools/sid_render.c on patch.sh's tree: what BARD runs, host/crsid.c), local study tunes too when present; the player's 44.1 kHz output a side = the engine upsampled (midpoints) >> 1, mode 1, heard; an RSID refused (status 2) and garbage (1), silent
 gate sid node apps/sid_check.mjs --break seed   # ...and the native build's dither seed one off fails parity
