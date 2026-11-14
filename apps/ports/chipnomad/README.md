@@ -141,9 +141,23 @@ That cut is the work; the boundary above says where it goes.
   correlation 1.0000, 98.2 % of the samples equal, difference rms 0.14 LSB, rms ratio 1.001, zero crossings 25,832 vs
   25,818. The gate's C-4 (AY Classic), 6 s: 0.9997, 96.4 %, 0.60 LSB, the crossings equal. Not bit-exact by
   construction (two output formats, the 0.6 gain in Q15 against float).
-- **ZIGGY** (`apps/frame_cost.mjs --bard`, MICROEGG playing, frames 121-180): 1.38 Mc a frame (p95 1.8, max 2.44; cart
-  0.55) on ZIGGY -> 0.86 Mc (p95 0.91, max 0.92; cart 0.15) with the AY on BARD. FRESCO's 0.7 is most of what is left.
-- **BARD**: BARD_LOAD_PLACEHOLDER
+- **ZIGGY** (`apps/frame_cost.mjs --bard`, MICROEGG.CNM playing 20 s, frames 121-1320): 1.59 Mc a frame (p95 2.16,
+  max 3.46; cart 0.61 + I$ misses 0.28) on ZIGGY -> 0.87 Mc (p95 0.94, max 1.03; cart 0.15, I$ 0.01) with the AY on
+  BARD: the AY and its mixer were ~0.73 Mc (44 % of a 60 Hz frame). FRESCO's 0.7 is most of what is left. MICROEGG
+  (like MICROPIZ and WB7) is one chip of AY Classic (type 1) instruments only: no software oscillator (SFT acts on AY2
+  only), ~520 register writes a second.
+- **Software oscillators** (still on ZIGGY): the gate's C-4 made AY Sample instead of AY Classic costs cart 2.94 Mc a
+  frame against 0.41 (frame_cost, no queue): ~2.5 Mc for one oscillator, ~680 cycles a chip tick (221,675 ticks a
+  second at 1.7734 MHz: the model goes tick by tick and calls the tracker's timer each tick). Neither CPU runs that in
+  real time (~150 Mc a second; BARD and ZIGGY are 100 MHz). Timed writes instead: a PWM or sync oscillator is 2 writes a
+  period (a C-4 ~520 a second, C-7 ~4,200), a sample one volume write a sample (8-16 k a second): the ring takes 256 a
+  cart frame (~2,800 a second at ChipNomad's ~11 fps on the board), so only low PWM / sync notes would fit. The way to
+  BARD is the oscillators in the core, stepped event to event like the tone counters (their next edge computed, not
+  each tick), driven by their parameters over the queue: a v2 with the .cnm player.
+- **BARD** (`make snd-bench SND_BARDQ=1 ZM_FRAMES=6`, MICROEGG from 10 s in, `tools/bard_compare.mjs --dump`; the
+  combo16 sound model soc_hp_snd_dyn8sx): frames 1-5 0.78, 0.71, 0.71, 0.70, 0.70 Mc: **mean 0.72 Mc, 43 % of BARD**
+  (peak 46 %; SID live's tune was 58 %); 80 commands applied, none refused, no re-anchor. No divide a sample (the
+  AY object's divides are its set-up's). snd.bin 2,075,372 bytes (21,780 left of 2 MiB).
 - **Not done**: the software oscillators stay on ZIGGY, whole cart (`kestrel_chip.cpp`: the stream and the queue's
   player share the Paula channels, so one chip cannot play on each); a sample preview (`previewSource`) is not heard
   while the AY is on BARD; a clock or chip type change restarts the chip's counters on BARD; one device an open (SID or
