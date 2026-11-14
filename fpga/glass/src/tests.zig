@@ -56,4 +56,10 @@ test {
     _ = @import("ctl_test.zig");
     _ = @import("app_ctl_test.zig");
     _ = @import("vstat_test.zig");
+    _ = @import("wifi_conf_test.zig");
+    _ = @import("wifi_parse_test.zig");
+    _ = @import("wifi_job_test.zig");
+    _ = @import("wifi_join_test.zig");
+    _ = @import("app_wifi_test.zig");
+    _ = @import("page_wifi_test.zig");
 }

@@ -535,9 +535,10 @@ picture. It is the same OSD, put in another mode rather than a second block:
   91 LUT and 154 FF (Yosys). Vivado out of context, placed and routed at the
   40 MHz pixel clock: 71 LUT, 159 FF, 1 BRAM tile, WNS +19.1 ns (the worst path
   is font ROM → pixel mux, 3 logic levels).
-- **The menu** has five pages (`menu.zig`, one file a page): shelf > console > debug > budget,
+- **The menu** has six pages (`menu.zig`, one file a page): shelf > console > debug > budget,
   `>`/Right going deeper and `<`/Esc back, and the help page from the console's `Help...` item
-  (below `Debug...`; Esc/Left back to the console; Matt, 2026-10-31). Row 15 is always
+  (below `Debug...`; Esc/Left back to the console; Matt, 2026-10-31), and the Wi-Fi page from
+  its `Wi-Fi...` item (below `Help...`; Matt, 2026-11-13; see "The Wi-Fi page"). Row 15 is always
   the status line: the page's hint, `loading…`, or the last error. A joypad
   works everywhere: the d-pad is the arrows and fire is Enter; Back is an item,
   as a pad has no Esc. `glass sim-menu DIR [shelf|console|debug]` prints any
@@ -657,6 +658,43 @@ ENTER do  <> change  Esc back
 A volume or mute change reaches `AUDIO_VOL` at once and is saved to `glass.cfg`
 when you leave the page (Esc, Back, or closing the OSD), so holding ← does not
 write the card sixteen times.
+
+### The Wi-Fi page (`page_wifi.zig`, `app_wifi.zig`)
+
+Console > `Wi-Fi...`: the board's network, picked and joined from the OSD with the keyboard,
+no serial console (Matt, 2026-11-13). Four screens:
+
+```
+ ZIGMACHINE  WI-FI         < Esc        home: the state the last job read
+  Status  connected
+  Network Metaverse
+  Address 192.168.0.16
+  Saved   Metaverse                     the network the card's KESTREL/wifi.conf names
+  Scan networks...                      Up/Down select, Enter does it
+  Forget saved network                  wifi.conf deleted, wpa_supplicant stopped
+  Back
+```
+
+- **list** (after a scan, `iw dev wlan0 scan`): one row a network, strongest first, `*` when
+  it is secured, 0..4 `#` of signal, its SSID (bytes the OSD cannot show as `?`). Enter on a
+  secured one opens **password**, on an open one joins at once; R scans again; Esc back.
+- **password**: every printable key types (no letter is a shortcut there), shown as `*` only;
+  Backspace deletes, Enter joins (8..63 characters, WPA2's rule), Esc wipes it.
+- **busy**: a job runs on its own thread (`wifi_worker.zig`); the cart and the OSD keep going.
+  Esc leaves the page and the job goes on; its result shows on the status line.
+
+A join (`wifi_join.zig`) hashes the password into the WPA2 PSK in glass (PBKDF2-HMAC-SHA1,
+wpa_passphrase's), zeroes it, stops the running `wpa_supplicant` (S99wifi's), starts its own on
+`/tmp/wifi/osd.conf` (0600), reads its log (`/tmp/wifi/osd.log`) for CONNECTED or WRONG_KEY
+(20 s), then `udhcpc -q -n`. Only when it has an address does glass write `KESTREL/wifi.conf`
+(the card remounted read-write for the write and the rename, as for `glass.cfg`): the same
+`network={...}` S99wifi reads at boot, `psk=` the 64-hex key, never the password; an SSID that
+is not printable ASCII is written as hex. A failed join (wrong password, timeout, no DHCP)
+saves nothing and restarts `wpa_supplicant` on the card's file, as S99wifi would. No command
+goes through a shell, and neither the SSID nor the key is ever an argument. The tools come from
+PATH, or from `/tmp/up` (the RAM copies, run with `LD_LIBRARY_PATH=/tmp/up`) until the image
+with them is installed; none found says "Wi-Fi tools not found: <name>", no `wlan0` "no Wi-Fi
+dongle".
 
 ### The debug page (`page_debug.zig`)
 
