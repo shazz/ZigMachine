@@ -396,3 +396,25 @@ All four showed in the browser too (none was a board-vs-browser difference). Pin
   still in the Falcon's buffers. The port drew 824 on the flames' 8-bit plane (the flames were
   up), so the true-colour buffers held black. Now 829 paints the band (black, white on lines
   25..174) into both buffers before its first ball.
+
+## 9. Matt's board run of 14 Nov: the flashes' border a frame apart
+
+"The on beat flashes (white then fast fade to black) not sync between borders and visible screen."
+Two causes, both in show.zig, both in the browser too:
+- **The border is a frame late.** Both hosts paint the border from `BACKGROUND` before the cart's
+  frame (the browser's `hwClear`, sealed-loader.js; the board's BG passes in `vseq_clear`,
+  fpga/cycles/bmain.c, before `HOST_CART_FRAME`) and composite the planes after it (palettes live
+  at the PLANE pass, `FB_BASE` latched at LATCH), into the same picture PRESENT shows. So a
+  `setBorder` in `render()` reached the border one frame after the screen: the first white frame in
+  a black border, the grey fade a level apart on every frame, the last grey border around the
+  next part. Now `render()` sets the border for the NEXT frame and paints the flash in the colour
+  the border shows now (one frame of latency, stcs_css3's rule); a border change holds the picture
+  one frame while the border catches up. The 822/836 blob fade is not held (it pushes its LUT in
+  place each tick): its border still trails it by a frame.
+- **The 565 -> RGBA rounding differed.** The border and the 8-bit flash entry used `* 255 / 31`,
+  the true-colour plane expands by bit replication (machine/video_tc.zig `expand`, the RTL's
+  wiring): `e6cad5` beside `e7cbd6`. `rgbaOf` now replicates bits.
+- Why the 13 Nov proof missed it: falcon_ays_boot.mjs `raster()` clears AFTER the last frame, so
+  its border is the one the next frame shows. apps/falcon_ays_flash.mjs steps in the hosts' order
+  and checks every frame around the 25 flash commands (old cart: fails at 19.60 s, screen `e7cbd6`,
+  border black).

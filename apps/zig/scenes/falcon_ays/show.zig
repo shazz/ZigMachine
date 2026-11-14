@@ -34,6 +34,7 @@ pub const Show = struct {
     screen: scr.Screen,
     os: *zg.ZigOS,
     border: u16 = 1, // (1: not set yet) the colour the border (the machine's BACKGROUND) shows, 565
+    border_flash: bool = false, // the border this frame shows is a flash's colour (set last frame)
     planes: []zg.LogicalFB, // the machine's planes: plane 1 is the flames' 8-bit one
     font: []const u8,
     part: fx.Part = .black,
@@ -176,21 +177,20 @@ pub const Show = struct {
 
     // On the Falcon the flashes cover the whole raster, border included (the border shows the
     // Videl's colour 0 next to the true-colour picture): here the machine's BACKGROUND register,
-    // one store, only when the colour changes.
+    // one store, only when the colour changes. 565 -> RGBA by bit replication, the true-colour
+    // plane's own expansion (machine/video_tc.zig expand, the RTL's wiring): the border, the
+    // 8-bit plane's flash entry and a true-colour fill of one 565 colour are the same RGBA.
     fn rgbaOf(c: u16) u32 {
-        const r: u32 = (c >> 11) * 255 / 31;
-        const g: u32 = ((c >> 5) & 63) * 255 / 63;
-        const b: u32 = (c & 31) * 255 / 31;
-        return 0xFF00_0000 | b << 16 | g << 8 | r;
+        const r: u32 = c >> 11;
+        const g: u32 = (c >> 5) & 63;
+        const b: u32 = c & 31;
+        return 0xFF00_0000 | ((b << 3) | (b >> 2)) << 16 | ((g << 2) | (g >> 4)) << 8 | ((r << 3) | (r >> 2));
     }
 
     fn setBorder(self: *Show, c: u16) void {
         if (c == self.border) return;
         self.border = c;
-        const r: u8 = @intCast((c >> 11) * 255 / 31);
-        const g: u8 = @intCast(((c >> 5) & 63) * 255 / 63);
-        const b: u8 = @intCast((c & 31) * 255 / 31);
-        self.os.setBackgroundColor(.{ .r = r, .g = g, .b = b, .a = 255 });
+        self.os.setBackgroundColor(zg.Color.fromRGBA(rgbaOf(c)));
     }
 
     // The flashes (823 white, 824 white, 81A/81B the grey ramp): the colour this frame, or null.
@@ -205,13 +205,14 @@ pub const Show = struct {
     // EVERY flash goes through here: the whole raster in one colour, the screen and the border
     // together (the Falcon's flash covers both: the border shows its colour 0). The screen side
     // stays on the plane that is up: on the flames' 8-bit plane, one palette entry filled once and
-    // then only recoloured (a store a frame, no double-buffer frame of lag behind the border); on
-    // the true-colour plane, a fill. 824 fills the 200 lines too: its letterbox-only band left a
-    // black frame inside the white border.
+    // then only recoloured (a store a frame); on the true-colour plane, a fill. 824 fills the 200
+    // lines too: its letterbox-only band left a black frame inside the white border. `c` is the
+    // colour the border shows THIS frame (render). The frame after a flash ends paints it once
+    // more, for a part that does not count it as its own (painted stays 0).
     fn drawFlash(self: *Show, c: u16) void {
-        self.setBorder(c);
-        const first = self.painted == 0;
-        self.painted +|= 1;
+        const own = self.flashColour() != null;
+        const first = self.painted == 0 or !own;
+        if (own) self.painted +|= 1;
         if (self.on8) {
             const p8 = self.screen.eightBit(self.planes, true);
             p8.palette[FLASH_INDEX] = rgbaOf(c);
@@ -248,9 +249,26 @@ pub const Show = struct {
         return self.smear_passes < SMEAR_PASSES and self.smear_t >= SMEAR_EVERY * @as(u16, self.smear_passes);
     }
 
+    // The border lags the picture by a frame on both machines: the host paints it from
+    // BACKGROUND (hwClear, the board's BG passes) BEFORE the cart's frame runs, while the planes
+    // (FB_BASE latched, palettes live) are composited AFTER it. So render() sets the border for
+    // the NEXT frame and draws the picture the border shows now: during a flash, the colour
+    // stored last frame (the fade one frame late, border and screen on the same level); where
+    // the border changes (a flash starts, a blob backdrop turns white) the picture holds one
+    // frame while the border catches up. Matt, board, 14 Nov: the flashes' white-to-black fade
+    // ran a frame apart between the border and the screen. Not 822/836's blob fade: it pushes
+    // its LUT in place every tick, so a hold would stall it; its border trails it by a frame.
+    // A hold touches nothing (no commit): the command may have changed the screen mode, and the
+    // old picture under the new mode's line list would be a frame of garbage; a shake catches up.
     pub fn render(self: *Show) void {
-        if (self.flashColour()) |c| return self.drawFlash(c);
-        self.setBorder(self.backdrop());
+        const shown = self.border; // what this frame's border was painted with
+        const flash = self.flashColour();
+        const was_flash = self.border_flash;
+        self.border_flash = flash != null;
+        self.setBorder(flash orelse self.backdrop());
+        if (was_flash) return self.drawFlash(shown);
+        if (self.border != shown and self.part != .blob_fade) return; // hold: the border catches up next frame
+        if (flash) |c| return self.drawFlash(c);
         const p8 = self.screen.eightBit(self.planes, self.part == .flames);
         if (self.part == .flames) return self.flame.draw(p8);
         const fb = self.screen.back();
