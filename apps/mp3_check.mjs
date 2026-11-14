@@ -6,13 +6,16 @@
 //             no underrun, nothing dropped, ended, then silence
 //   rates     32 and 48 kHz (TONES32, TONES48): converted to 44.1 (linear, not bit-exact: its output pinned): the rate
 //             code, the length in output samples, and > 40 dB against the reference interpolated
+//   lsf       MPEG-2 / 2.5 streams, 576 samples a frame (apps/mp3_lsf.mjs): 22.05 stereo and mono, 24, 16, 11.025 kHz
 //   truncated half the file, then end: the frames decoded are the reference's first frames exactly
 //   starved   fed at half speed: underruns counted, every frame still decoded, the stream ends
-//   node apps/mp3_check.mjs [--break lowbyte|overfeed|noend]
+//   node apps/mp3_check.mjs [--break lowbyte|overfeed|noend|lsfpitch|lsfmono]
 //     lowbyte: the low-byte channels silenced fail exact; overfeed: no flow control fails (dropped);
 //     noend: never telling the player the input ended fails (it never ends)
+//     lsfpitch: the LSF output read at twice the step fails (length, pitch); lsfmono: a mono stream's right side silenced fails
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { LSF, lsf } from "./mp3_lsf.mjs";
 
 const DIR = "apps/zig/assets/mp3";
 const RING = 64 * 1024, FEED = 32 * 1024, BLOCK = 735;
@@ -22,7 +25,7 @@ const PINS = { // sha256 of the reference decode >> 1 (s16le, interleaved; mono:
     "TONES32.MP3": { pin: "0e2a505aa6ff835cd915d423d8ebfe6c76141e5409e89be9a0b4f43e08bdbf7d", frames: 113, ch: 2, rate: 32000, code: 1, out: "7e7c32a4a05693e44a429793df9e0ed9bf7293f37cb04b6ea5d1e57cdf5a8450" },
     "TONES48.MP3": { pin: "8a203ce6c992cf0e96c6249fcc1372dd0c6eb700a0eece00135fd6e0842e31af", frames: 168, ch: 2, rate: 48000, code: 3, out: "e2adfc7ee992bc03aef79b8c04042aa538064cc638e5dfecff7b422c9d71df06" },
 };
-const BREAKS = ["lowbyte", "overfeed", "noend"];
+const BREAKS = ["lowbyte", "overfeed", "noend", "lsfpitch", "lsfmono"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -142,16 +145,20 @@ async function starved(errors, notes) {
 }
 
 const errors = [], notes = [];
-for (const n of ["TONES44.MP3", "MONO44.MP3"]) await exact(n, errors, notes);
+if (!broke || !broke.startsWith("lsf")) for (const n of ["TONES44.MP3", "MONO44.MP3"]) await exact(n, errors, notes);
 if (!broke) {
     for (const n of ["TONES32.MP3", "TONES48.MP3"]) await rates(n, errors, notes);
     await truncated(errors, notes);
     await starved(errors, notes);
 }
+if (!broke || broke.startsWith("lsf")) {
+    const ctx = { play, modules, sha, DIR, BLOCK, broke };
+    for (const n of broke ? ["LSF22M.MP3", "LSF22S.MP3"] : Object.keys(LSF)) await lsf(n, ctx, errors, notes);
+}
 for (const n of notes) console.log(`  ${n}`);
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (broke) {
-    const want = { lowbyte: "exact:", overfeed: "flow:", noend: "end:" }[broke];
+    const want = { lowbyte: "exact:", overfeed: "flow:", noend: "end:", lsfpitch: "lsf:", lsfmono: "lsf:" }[broke];
     const hit = errors.find((e) => e.startsWith(want));
     console.log(hit ? `mp3_check: PASS (--break ${broke} caught: ${hit})` : `mp3_check: FAILED -- --break ${broke} not caught (${errors.length} other errors)`);
     process.exitCode = hit ? 0 : 1;

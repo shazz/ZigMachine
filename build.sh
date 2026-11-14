@@ -425,6 +425,8 @@ gate mp3 node apps/mp3_check.mjs   # MP3 player (libs/zig/players/mp3.zig, pvmp3
 gate mp3 node apps/mp3_check.mjs --break lowbyte   # ...and the low-byte channels silenced fail the exact check
 gate mp3 node apps/mp3_check.mjs --break overfeed   # ...and feeding past the ring (no flow control) fails (bytes dropped)
 gate mp3 node apps/mp3_check.mjs --break noend   # ...and never telling the player the input ended fails (it never ends)
+gate mp3 node apps/mp3_check.mjs --break lsfpitch   # ...and the MPEG-2 / 2.5 streams (22.05 stereo and mono, 24, 16, 11.025 kHz: apps/mp3_lsf.mjs: rate code, 576-sample frames, length, every 2nd / 4th output sample = the host decode, pitch) read at the wrong step fail
+gate mp3 node apps/mp3_check.mjs --break lsfmono   # ...and a mono LSF stream with one side silenced fails
 gate mp3_player node apps/mp3_player_check.mjs   # MP3 PLAYER cart over the machine + ROM, C: = docs/mp3-c.img through KOS GEMDOS: Down Down Return plays TONES44.MP3; the bytes it fed are the file's in order, never past the ring, the end told; the audio out = the reference >> 1; the next file starts at the end, N past the last stops, Esc again asks for request 4
 gate notepad node apps/notepad_check.mjs   # NOTEPAD (docs/NOTEPAD.md) on GEM 5's program API over the machine + ROM, C: = a copy of docs/gemdos-c.img: launched from GEM off its data disk; typed, ^S to C:\NOTE.TXT (mtools: the bytes, CR LF; fsck clean), reopened in a new session pixel for pixel; "Save changes?" Cancel / Yes; the menu by the pointer; 60 lines, PgUp, a held arrow; the sizer; in low, medium and the desk; the screen as drawn = a whole repaint after every step
 gate notepad node apps/notepad_check.mjs --break write   # ...and a host that refuses every write is caught

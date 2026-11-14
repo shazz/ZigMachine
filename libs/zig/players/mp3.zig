@@ -10,8 +10,9 @@
 // Paula sound effects while an MP3 plays.
 //
 // 44.1 kHz streams go out sample for sample (bit-exact against a host decode
-// of the same bytes); 32 and 48 kHz are converted linearly (mp3_resample.zig),
-// which is not. Song RAM: the input ring, the feed's staging, one frame, the
+// of the same bytes); every other rate (32, 48 kHz and MPEG-2 / 2.5's 24, 22.05,
+// 16, 12, 11.025, 8, all 576-sample frames) is converted linearly
+// (mp3_resample.zig), which is not: 22.05 and 11.025 kHz are exact x2 / x4. Song RAM: the input ring, the feed's staging, one frame, the
 // decoded PCM, the decoder's state, then the Paula rings (xm_chip BUF_OFFSET).
 // --------------------------------------------------------------------------
 const audio = @import("audio_hw");

@@ -59,11 +59,11 @@ fn status(buf: []u8, s: Shown) []const u8 {
     if (s.playing == null) return "STOPPED";
     if (s.word == 0) return "NO MP3 PLAYER HERE (SOUND OFF?)";
     const st = [_][]const u8{ "IDLE", "PLAYING", "PAUSED", "ENDED" };
-    const rate = [_][]const u8{ "--", "32", "44.1", "48", "?" };
+    const rate = [_][]const u8{ "--", "32", "44.1", "48", "?", "22.05", "24", "16", "12", "11.025", "8" };
     var lb: [16]u8 = undefined;
     const ls = if (s.load == 0) "BARD   --%" else std.fmt.bufPrint(&lb, "BARD {d:>3}.{d}%", .{ s.load / 10, s.load % 10 }) catch "?";
     return fmt(buf, "{s} {d:0>2}:{d:0>2} {s}K {s} {s}", .{
-        st[s.word & 3],     s.secs / 60, s.secs % 60, rate[@min((s.word >> 4) & 15, 4)],
+        st[s.word & 3],     s.secs / 60, s.secs % 60, rate[@min((s.word >> 4) & 15, rate.len - 1)],
         if (s.word & 0x100 != 0) "ST" else "MONO", ls,
     });
 }

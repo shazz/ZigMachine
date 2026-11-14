@@ -27,6 +27,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.mod` | ProTracker 4-channel on the Paula channels: tags `M.K.`, `M!K!`, `4CHN`, `FLT4` only (a 6CHN / 8CHN file is **refused**, see below) | no |
 | `.xm` | FastTracker 2, up to 12 channels, mixed in software onto the four Paula channels (two voices a channel up to 8 channels, three a channel for 9..12; `libs/zig/players/xm.zig`, see [XM](#xm-fasttracker-2) below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
+| `.mp3` | streamed by the cart (`zg.mp3Ctl/Feed/Status`), see [MP3](#mp3-mpeg-1-mpeg-2-and-mpeg-25-layer-iii) | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 | `.kt` | a klystrack song: klystron's cyd synth and music.c sequencer in integer Zig (`libs/zig/players/kt.zig`), bit-exact against upstream, its 16-bit stereo on the four Paula channels (see [KT](#kt-klystrack) below) | no: `tune` is the sequence row to start at (0 = the start) |
 | `.sid` | a Commodore 64 **PSID** (HVSC): its 6502 code and the SID on cRSID (Hermit, `libs/c/crsid`), 22.05 kHz mono on the four Paula channels (see [SID](#sid-commodore-64) below). An RSID is refused: "RSID not supported" | yes: `tune` counts from 1, 0 = the file's default |
@@ -389,6 +390,37 @@ start ~0.5 Mc once. No Paula sound effect while a SID plays.
 | File | What | md5 |
 |---|---|---|
 | `hermini.sid` | HerMiniSID by Hermit, cRSID's own test tune (379 B, 8580) | `537f693740ed05502fc23151381082d9` |
+
+## MP3 (MPEG-1, MPEG-2 and MPEG-2.5 Layer III)
+
+`zg.mp3Ctl` / `mp3Feed` / `mp3Status` (the MP3 PLAYER cart, `C:\MUSIC`): a cart streams the
+file's bytes in, pvmp3 (`libs/c/pvmp3`, integer) decodes them on the sound side and the 16-bit
+PCM plays on the four Paula channels (`x >> 1`, 15 bits). Not a file kind the host fetches by
+name: the cart owns the bytes. The status word's rate code (bits 4-7): 1 = 32 kHz, 2 = 44.1,
+3 = 48, 4 = another, 5 = 22.05, 6 = 24, 7 = 16, 8 = 12, 9 = 11.025, 10 = 8 kHz.
+
+| Stream | Samples a frame | To the chip's 44.1 kHz | Proof (`apps/mp3_check.mjs`) |
+|---|---|---|---|
+| MPEG-1 44.1 kHz, stereo or mono | 1152 | sample for sample, **bit-exact** against a host decode | pinned hash of the reference >> 1 |
+| MPEG-1 32 / 48 kHz | 1152 | linear, not bit-exact | output pinned |
+| MPEG-2 22.05 / 24 / 16 kHz, MPEG-2.5 11.025 kHz, stereo or mono | **576** | 22.05 is an exact x2 and 11.025 an exact x4 (every 2nd / 4th output sample IS a decoded source sample, the ones between the linear midpoints); 24 and 16 kHz linear, the position counted in 1/44100ths so nothing drifts | the decimated output = the host decode >> 1 (pinned), midpoints within 1, length, rate code, a 1000 Hz tone read back by Goertzel, mono on both sides, output pinned |
+
+A mono stream plays on both sides. The player's own decode never assumed 1152: it takes the
+sample count from pvmp3 per frame; only the cart's clock did (it showed `--` and 00:00 for any
+rate under 32 kHz, fixed with the rate codes above). The last source sample of a stream is not
+played (the player ends as the converter asks for the one after it): at 22.05 kHz that is one
+sample of 45 microseconds.
+
+**For a long soundtrack, 22.05 kHz mono at 64 kbps** (MPEG-2): 8 KB of file a second (8 s fill
+the 64 KiB input ring, half the 4 s of a 128 kbps stream), a decode of 576 samples of one
+channel a frame, and under 11 kHz of audio bandwidth (the stream's Nyquist). Song RAM is the same for every format, 214 KB of the player's window: the
+64 KiB input ring, 32 KiB feed staging, a 2 KiB frame, the PCM (4.75 KB, of which a 22.05 mono
+frame uses 1.1 KB), the decoder state (about 28 KB of the 48 KB reserved), then the four Paula
+rings. BARD cost: 44.1 kHz stereo 128 kbps is 52.4 % (`make snd-bench SONG=TONES44.MP3
+MUSIC=$PWD/../apps/zig/assets/mp3 SND_MP3=1`); the 22.05 mono figure is on the roadmap row
+(`LSF22M.MP3`, same command), not yet measured.
+
+Test files: `apps/zig/assets/mp3/LSF*.MP3` (a 1000 Hz sine, self-generated, `make.sh` there).
 
 ## Rules and limits
 

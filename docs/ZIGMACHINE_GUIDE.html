@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-11-13 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-11-14 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -889,7 +889,7 @@ tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>s
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
-<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sid-commodore-64">SID (Commodore 64)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-kt-klystrack">KT (klystrack)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sid-commodore-64">SID (Commodore 64)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-mp3-mpeg-1-mpeg-2-and-mpeg-2-5-layer-iii">MP3 (MPEG-1, MPEG-2 and MPEG-2.5 Layer III)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -935,6 +935,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 <tr>
 <td><code>.raw</code></td>
 <td>8-bit PCM at 12517 Hz</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>.mp3</code></td>
+<td>streamed by the cart (<code>zg.mp3Ctl/Feed/Status</code>), see <a href="#mp3-mpeg-1-mpeg-2-and-mpeg-25-layer-iii">MP3</a></td>
 <td>no</td>
 </tr>
 <tr>
@@ -1331,6 +1336,56 @@ start ~0.5 Mc once. No Paula sound effect while a SID plays.</p>
 </tr>
 </tbody>
 </table>
+<h4 id="music-sndh-player-zig-c-rust-mp3-mpeg-1-mpeg-2-and-mpeg-2-5-layer-iii">MP3 (MPEG-1, MPEG-2 and MPEG-2.5 Layer III)</h4>
+<p><code>zg.mp3Ctl</code> / <code>mp3Feed</code> / <code>mp3Status</code> (the MP3 PLAYER cart, <code>C:\MUSIC</code>): a cart streams the
+file's bytes in, pvmp3 (<code>libs/c/pvmp3</code>, integer) decodes them on the sound side and the 16-bit
+PCM plays on the four Paula channels (<code>x &gt;&gt; 1</code>, 15 bits). Not a file kind the host fetches by
+name: the cart owns the bytes. The status word's rate code (bits 4-7): 1 = 32 kHz, 2 = 44.1,
+3 = 48, 4 = another, 5 = 22.05, 6 = 24, 7 = 16, 8 = 12, 9 = 11.025, 10 = 8 kHz.</p>
+<table>
+<thead>
+<tr>
+<th>Stream</th>
+<th>Samples a frame</th>
+<th>To the chip's 44.1 kHz</th>
+<th>Proof (<code>apps/mp3_check.mjs</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MPEG-1 44.1 kHz, stereo or mono</td>
+<td>1152</td>
+<td>sample for sample, <strong>bit-exact</strong> against a host decode</td>
+<td>pinned hash of the reference &gt;&gt; 1</td>
+</tr>
+<tr>
+<td>MPEG-1 32 / 48 kHz</td>
+<td>1152</td>
+<td>linear, not bit-exact</td>
+<td>output pinned</td>
+</tr>
+<tr>
+<td>MPEG-2 22.05 / 24 / 16 kHz, MPEG-2.5 11.025 kHz, stereo or mono</td>
+<td><strong>576</strong></td>
+<td>22.05 is an exact x2 and 11.025 an exact x4 (every 2nd / 4th output sample IS a decoded source sample, the ones between the linear midpoints); 24 and 16 kHz linear, the position counted in 1/44100ths so nothing drifts</td>
+<td>the decimated output = the host decode &gt;&gt; 1 (pinned), midpoints within 1, length, rate code, a 1000 Hz tone read back by Goertzel, mono on both sides, output pinned</td>
+</tr>
+</tbody>
+</table>
+<p>A mono stream plays on both sides. The player's own decode never assumed 1152: it takes the
+sample count from pvmp3 per frame; only the cart's clock did (it showed <code>--</code> and 00:00 for any
+rate under 32 kHz, fixed with the rate codes above). The last source sample of a stream is not
+played (the player ends as the converter asks for the one after it): at 22.05 kHz that is one
+sample of 45 microseconds.</p>
+<p><strong>For a long soundtrack, 22.05 kHz mono at 64 kbps</strong> (MPEG-2): 8 KB of file a second (8 s fill
+the 64 KiB input ring, half the 4 s of a 128 kbps stream), a decode of 576 samples of one
+channel a frame, and under 11 kHz of audio bandwidth (the stream's Nyquist). Song RAM is the same for every format, 214 KB of the player's window: the
+64 KiB input ring, 32 KiB feed staging, a 2 KiB frame, the PCM (4.75 KB, of which a 22.05 mono
+frame uses 1.1 KB), the decoder state (about 28 KB of the 48 KB reserved), then the four Paula
+rings. BARD cost: 44.1 kHz stereo 128 kbps is 52.4 % (<code>make snd-bench SONG=TONES44.MP3
+MUSIC=$PWD/../apps/zig/assets/mp3 SND_MP3=1</code>); the 22.05 mono figure is on the roadmap row
+(<code>LSF22M.MP3</code>, same command), not yet measured.</p>
+<p>Test files: <code>apps/zig/assets/mp3/LSF*.MP3</code> (a 1000 Hz sine, self-generated, <code>make.sh</code> there).</p>
 <h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no
