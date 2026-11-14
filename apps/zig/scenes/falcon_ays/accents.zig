@@ -7,7 +7,8 @@
 //   809 $3172  TV static in lines 75..124: 160x25 cells of 2x2, a PRNG byte indexing a window
 //              of a 768-entry grey table that slides 6 entries a tick from black to the ramps
 //   825 $72A0  a feedback blur: the back buffer = the shown frame, each pixel averaged with its
-//              right neighbour, (a>>1 & $7BEF) + (b>>1 & $7BEF), so the smear grows every frame
+//              right neighbour, (a>>1 & $7BEF) + (b>>1 & $7BEF), so the smear grows every pass
+//              (one every 6 ticks, 11 in all: show.zig)
 // The tables are arithmetic ramps; only the flash's (lilac-tinted) one comes from the rip.
 // --------------------------------------------------------------------------
 const std = @import("std");

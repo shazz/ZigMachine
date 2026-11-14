@@ -364,3 +364,35 @@ Hatari's own screenshots, so compare against Hatari screenshots, not the AVI, fo
   (43.96 s) clears it (capture frames 40.6-44.0, port 41-44.0 black). Not reproduced; needs the
   board time Matt saw it at.
 
+
+## 8. Matt's board run of 13 Nov: four bugs
+
+All four showed in the browser too (none was a board-vs-browser difference). Pinned by
+`apps/falcon_ays_board.mjs` (+ `--break smear|flash|shake|band`).
+
+- **825's smear too strong, then frozen** (SHOT0006). The port ran a feedback pass every KESTREL
+  frame while the jolt ran: 36 passes in 0.6 s, then the hold. The Hatari capture (frame by frame,
+  50 fps) shows the picture change every 6th frame from 40.68 to 41.88 s: **11 passes, one every
+  6 VBLs** (a 64,000-pixel pass costs the 030 ~6 VBLs on the Falcon's bus), each shifting the
+  ship ~half a pixel right, so it blurs lightly and drifts for 1.2 s; then the hold until 807.
+  `$72A0` itself is right; only its rate was wrong. The jolt (HDB/HDE) does not show in Hatari's
+  capture. Now one pass every 6 ticks, 11 in all (show.zig `smearDue`).
+- **White screens in a black border** (SHOT0007 = 821's inverted blobs at ~64.8 s; 822's push
+  to white looks the same). The flashes (823, 824, 81A/B) already hit the border in one path
+  (§7). Note: on the Falcon the true-colour border is Videl colour 0 (`$FF9800`, Hatari videl.c),
+  which the intro never writes (the only store, `not.l $FF9800` at `$CD32`, is the credits'
+  particle allocator's failure path): **the original's border is black throughout, flashes
+  included**. Matt reads a white picture in a black border as a flash out of sync, so the border
+  now follows the blob LUT's entry for an empty sum (the picture's background): white for 821,
+  rising with 822, black for every other blob picture (show.zig `backdrop`).
+- **The sideways shakes wrapped** (SHOT0011, the credits' 833 jolt). A shake moves each line's
+  LBASE; a line starting dx pixels early shows the row above's last dx pixels (the CODE plaque's
+  edge down the left). The Falcon moved its display window, its border showing in the gap. Now
+  plane 2, an 8-bit mask over the picture (palette 1 opaque black, the rest transparent), covers
+  the uncovered columns, enabled only while a sideways shake is off zero (~0.6 s a jolt; +1 plane
+  pass, ~0.6 Mc, only then): screen.zig `maskColumns`.
+- **829's white band missing on the left** (SHOT0013 is the 839 frame for reference). 829 clears
+  only the ball's box (x 160..319, lines 25..175, `$7A5E`); the white left of it is 824's band,
+  still in the Falcon's buffers. The port drew 824 on the flames' 8-bit plane (the flames were
+  up), so the true-colour buffers held black. Now 829 paints the band (black, white on lines
+  25..174) into both buffers before its first ball.
