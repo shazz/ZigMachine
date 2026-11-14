@@ -10,8 +10,12 @@
 //   equal    the two outputs are the same samples from the first heard one, both sides, >= 5 s
 //   queue    the cart says it opened the queue; the stream is never started (the AY is not rendered on ZIGGY); heard on
 //            the page (mode 1), in stereo (the project's ABC pans), nothing refused, dropped or re-anchored
-//   node apps/chipnomad_bard_check.mjs [--break stamp|reg]
-//     stamp: the loader delays every AY register write two samples; reg: it writes the next register: both fail `equal`
+//   soft     the same script with instrument 00 made AY Sample (Right three times: a software oscillator, stepped per
+//            chip tick, no register stream): the cart goes back to ZIGGY (it says so, the queue closes: mode 0, the
+//            stream starts and is fed)
+//   node apps/chipnomad_bard_check.mjs [--break stamp|reg|soft]
+//     stamp: the loader delays every AY register write two samples; reg: it writes the next register: both fail `equal`;
+//     soft: the `soft` run's instrument left AY2 (Right twice: no oscillator) must fail `soft`
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,7 +26,7 @@ import { pageSound } from "./bard_queue_lib.mjs";
 const CART = "docs/demo-chipnomad.wasm", DISK = "docs/demo-chipnomad.zmd";
 const FRAMES = 560, MIN_SAMPLES = 44100 * 5;
 const KEY_X = 0x78, KEY_SPACE = 0x20, SHIFT_LEFT = 0xe015, RIGHT = 3;
-const BREAKS = ["stamp", "reg"];
+const BREAKS = ["stamp", "reg", "soft"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -30,17 +34,19 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 // ports_headless.mjs's chipnomad script, as [frame, export, arg] (SELECT + Right: the next screen)
 const tap = (f, name, arg) => [[f, name, arg], [f + 2, name === "key" ? "keyUp" : "inputRelease", arg]];
 const next = (f) => [[f, "key", SHIFT_LEFT], ...tap(f + 2, "input", RIGHT), [f + 6, "keyUp", SHIFT_LEFT]];
-const SCRIPT = [...tap(30, "key", KEY_X), ...next(40), ...tap(55, "key", KEY_X), ...next(65), ...tap(80, "key", KEY_X), ...next(90),
-    [105, "key", KEY_X], ...tap(108, "input", RIGHT), [113, "keyUp", KEY_X], ...tap(130, "key", KEY_SPACE)];
+const script = (rights) => [...tap(30, "key", KEY_X), ...next(40), ...tap(55, "key", KEY_X), ...next(65), ...tap(80, "key", KEY_X), ...next(90),
+    [105, "key", KEY_X], ...Array.from({ length: rights }, (_, i) => tap(108 + 4 * i, "input", RIGHT)).flat(), [121, "keyUp", KEY_X],
+    ...tap(130, "key", KEY_SPACE)];
+const SCRIPT = script(1); // None -> AY Classic
 
-async function pageRun() {
+async function pageRun(events = SCRIPT, frames = FRAMES) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
     const romBytes = await readFile("docs/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const disk = await readFile(DISK), cartBytes = await readFile(CART);
-    const sound = await pageSound(memory, { brk: broke, frames: FRAMES + 4 });
+    const sound = await pageSound(memory, { brk: broke === "soft" ? null : broke, frames: frames + 4 });
     const log = [], stream = { starts: 0, fed: 0 };
     const env = {
         memory, ...rom, hostBardAttach: sound.hostBardAttach, hostMicros: () => 0,
@@ -55,8 +61,8 @@ async function pageRun() {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    for (let f = 1; f <= FRAMES; f++) {
-        for (const [cf, name, arg] of SCRIPT) if (cf === f) demo[name](arg);
+    for (let f = 1; f <= frames; f++) {
+        for (const [cf, name, arg] of events) if (cf === f) demo[name](arg);
         demo.frame(16.6);
         sound.frame(732); // 16.6 ms at 44.1 kHz, as the cart's clock (kestrel_frame_us)
     }
@@ -89,10 +95,20 @@ function same(name, a, b, errors, notes) {
     notes.push(`${name}: ${n} samples (${(n / 44100).toFixed(1)} s) a side from the first heard one are the same (heard from ${a0} and ${b0})`);
 }
 
+// The soft-oscillator fallback: AY Sample (None -> AY1 -> AY2 -> AY Sample), or AY2 under --break soft.
+async function soft(errors, notes) {
+    const r = await pageRun(script(broke === "soft" ? 2 : 3), 200);
+    const said = r.log.some((l) => l.includes("software oscillator")), s = r.stats;
+    if (!said || s.mode !== 0 || !r.stream.starts || !r.stream.fed) errors.push(`soft: said ${said}, mode ${s.mode}, stream ${JSON.stringify(r.stream)}`);
+    else notes.push(`soft: AY Sample's oscillator sent the cart back to ZIGGY: the queue closed (mode ${s.mode}), the stream fed ${r.stream.fed} bytes`);
+}
+
 const errors = [], notes = [];
-const page = await pageRun();
-same("equal", page, await nativeRun(), errors, notes);
+if (broke === "soft") await soft(errors, notes);
+const page = broke === "soft" ? null : await pageRun();
+if (page) same("equal", page, await nativeRun(), errors, notes);
 if (!broke) {
+    await soft(errors, notes);
     const s = page.stats, peak = page.left.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
     const stereo = page.left.some((v, i) => v !== page.right[i]);
     if (s.mode !== 1 || peak < 500 || !stereo || s.refused || s.dropped || s.resyncs) errors.push(`queue: ${JSON.stringify(s)}, peak ${peak}, stereo ${stereo}`);
@@ -103,7 +119,7 @@ if (!broke) {
 }
 for (const n of notes) console.log(`  ${n}`);
 if (broke) {
-    const hit = errors.find((e) => e.startsWith("equal:"));
+    const hit = errors.find((e) => e.startsWith(broke === "soft" ? "soft:" : "equal:"));
     console.log(hit ? `chipnomad_bard_check: PASS (--break ${broke} caught: ${hit})` : `chipnomad_bard_check: FAILED -- --break ${broke} not caught`);
     process.exitCode = hit ? 0 : 1;
 } else {
