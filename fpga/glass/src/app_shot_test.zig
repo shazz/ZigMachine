@@ -101,6 +101,58 @@ test "no cart, a firmware that never stops, a shot under way: each said, nothing
     try std.testing.expectError(error.FileNotFound, r.tmp.dir.access(io, "screenshots", .{}));
 }
 
+/// The card's changes as they happen: 'w' writable, 's' sync(2), 'r' read-only, '!' a status line
+/// that says "Saved" already when the card went read-only.
+var trail: [8]u8 = undefined;
+var n_trail: usize = 0;
+var watched: ?*const App = null;
+fn note(c: u8) void {
+    trail[n_trail] = c;
+    n_trail += 1;
+}
+fn trailRw(rw: bool) bool {
+    if (!rw and watched != null and std.mem.startsWith(u8, status(watched.?), "Saved")) note('!');
+    note(if (rw) 'w' else 'r');
+    return true;
+}
+fn trailSync() void {
+    note('s');
+}
+
+test "a screenshot is synced and the card read-only again BEFORE the OSD says Saved" {
+    // Matt, 14 Nov: board users power-cycle freely; a "Saved" must mean on the card.
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try running(r);
+    defer a.deinit();
+    n_trail = 0;
+    watched = &a;
+    defer watched = null;
+    a.sd_writable = trailRw;
+    a.reboot.sync_fn = trailSync;
+    press(&a, keymap.SHOT_HOTKEY);
+    settle(&a);
+    try std.testing.expectEqualStrings("Saved screenshots/SHOT0001.PNG", status(&a));
+    try std.testing.expectEqualStrings("wsr", trail[0..n_trail]); // writable, sync, read-only, then "Saved"
+    const png = try saved(r, "SHOT0001.PNG");
+    defer std.testing.allocator.free(png);
+    try std.testing.expectError(error.FileNotFound, r.tmp.dir.access(io, "screenshots/SHOT0001.TMP", .{}));
+}
+
+test "a settings save is synced and the card read-only before it says so" {
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try r.app();
+    defer a.deinit();
+    n_trail = 0;
+    a.sd_writable = trailRw;
+    a.reboot.sync_fn = trailSync;
+    a.settings_dirty = true;
+    @import("app_cart.zig").saveSettings(&a);
+    try std.testing.expectEqualStrings("settings saved", status(&a));
+    try std.testing.expectEqualStrings("wsr", trail[0..n_trail]);
+}
+
 fn readOnly(rw: bool) bool {
     return !rw; // the remount to rw fails; back to ro works
 }

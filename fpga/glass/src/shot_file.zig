@@ -56,14 +56,8 @@ pub fn save(io: std.Io, card: []const u8, png: []const u8) Error!u16 {
     const n = try p.pick();
     const tmp = name(n, "TMP");
     const final = name(n, "PNG");
-    dir.writeFile(io, .{ .sub_path = &tmp, .data = png }) catch |e| {
-        dir.deleteFile(io, &tmp) catch {};
-        return fsError(e);
-    };
-    dir.rename(&tmp, dir, &final, io) catch |e| {
-        dir.deleteFile(io, &tmp) catch {};
-        return fsError(e);
-    };
+    // Written, fsynced, renamed, the directory fsynced (card_file.zig): on the card when this returns.
+    @import("card_file.zig").replace(io, dir, &tmp, &final, png) catch |e| return fsError(e);
     return n;
 }
 

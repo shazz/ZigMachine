@@ -41,6 +41,7 @@ pub const Glass = struct {
     warm_boots: u32 = 0,
     stuck: bool = false, // a CPU that never leaves RUNNING: the loader's WontStop
     request: u32 = 0, // a booted stand-in asks for a cart swap: CART_REQUEST (map_cart.zig)
+    osd_seen: u32 = 0, // every CTRL_OSD / CTRL_OSD_STATS bit ever written since the test cleared it
 
     pub fn regs(self: *Glass) bus.Regs {
         return .{ .ctx = self, .read_fn = readThunk, .write_fn = writeThunk };
@@ -147,6 +148,7 @@ pub const Glass = struct {
         const was = self.running();
         const stats = if (self.version >= map.VERSION_OSD_STATS) map.CTRL_OSD_STATS else 0;
         self.ctrl = value & (map.CTRL_RUN | map.CTRL_OSD | map.CTRL_WARM | stats);
+        self.osd_seen |= self.ctrl & (map.CTRL_OSD | stats);
         if (was and !self.running()) self.resets += 1;
         if (!self.running()) {
             self.cart_state = map.CART_RESET;

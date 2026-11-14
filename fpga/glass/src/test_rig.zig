@@ -51,9 +51,17 @@ pub const Rig = struct {
     }
 
     pub fn app(r: *Rig) !App {
-        return App.init(gpa, io, r.glass.regs(), .{ .words = &r.words }, .flat(r.dir));
+        var a = try App.init(gpa, io, r.glass.regs(), .{ .words = &r.words }, .flat(r.dir));
+        a.reboot.sync_fn = countSync; // never the host's sync(2)
+        return a;
     }
 };
+
+/// sync(2) calls made by the apps the rig built (card_file.release, the Reboot item).
+pub var syncs: u32 = 0;
+fn countSync() void {
+    syncs += 1;
+}
 
 /// verifyParts with KOS's words (map_cart.zig: the boot words and the media word after them) left
 /// out: a reset writes them after the window is verified, a media change later (app_drive.zig).

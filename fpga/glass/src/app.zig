@@ -112,6 +112,7 @@ pub const App = struct {
 
     /// The menu while it is open; the frame-rate overlay (if on) while closed.
     pub fn redraw(self: *App) void {
+        if (splash.hidesOsd(self)) return; // the boot splash plays alone (app_splash.zig)
         if (!self.open) return overlay.draw(self);
         self.menu.disks = self.disks.disks;
         self.menu.fps_x10 = if (self.running) self.stats.fps_x10 else null;
