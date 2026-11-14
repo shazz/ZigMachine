@@ -38,6 +38,8 @@ export function raster(m, t) {
     while (m.frame < target) { m.machine.hwClear(); m.demo.frame(1000 / 60); m.frame++; }
     // The browser stacks each enabled plane's snapshot on its own canvas: a pixel is the topmost
     // snapshot's that is not transparent (alpha 0), as apps/scene_hash.mjs composites.
+    // NB: this clear runs AFTER the cart's last frame, so the border here is the one the NEXT frame
+    // shows (the hosts clear before it): not for border timing (apps/falcon_ays_flash.mjs is).
     m.machine.hwClear();
     const comp = new Uint32Array(RW * RH);
     for (let p = 0; p < 8; p++) {
