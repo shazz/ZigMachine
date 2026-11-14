@@ -3,7 +3,7 @@
 // drawing: nothing here touches a register.
 //
 //   shelf    the carts, the selected one's details      (page_shelf.zig)
-//     > console   cold/warm reset, volume, mute, debug   (page_console.zig)
+//     > console   cold/warm reset, volume, mute, screenshot (page_console.zig)
 //         > debug   versions, live stats, the board      (page_debug.zig)
 //             > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
 //         > help    every shortcut, from one table       (page_help.zig)
@@ -24,8 +24,8 @@ const strip = @import("strip.zig");
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
 /// `load`: Enter, insert + reset; `insert` / `eject`: drive A without a reset (app_drive.zig).
-/// `wifi`: a Wi-Fi job to start (app_wifi.zig).
-pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source, wifi: page_wifi.Cmd };
+/// `wifi`: a Wi-Fi job to start (app_wifi.zig). `shot`: a screenshot (app_shot.zig).
+pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source, wifi: page_wifi.Cmd, shot };
 pub const Page = enum { shelf, console, debug, budget, help, wifi };
 
 pub const HINT = "ENTER boot  I/E disk  F floppy >";
@@ -110,6 +110,7 @@ pub const Menu = struct {
             .cold => .cold,
             .warm => .warm,
             .settings => .settings,
+            .shot => .shot,
             .debug => self.go(.debug),
             .help => self.go(.help),
             .wifi => blk: {

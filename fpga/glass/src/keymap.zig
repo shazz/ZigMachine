@@ -43,6 +43,10 @@ pub const OSD_HOTKEY = KEY_F12;
 /// The frame-rate overlay's toggle (app_stats.zig); never reaches a cart either
 /// (the browser has no F11 code, so event() has none to send).
 pub const STATS_HOTKEY = KEY_F11;
+/// PrintScreen (KEY_SYSRQ): a screenshot onto the card (app_shot.zig), the OSD open or closed.
+/// The browser sends no code for it either, so a cart never had it.
+pub const KEY_SYSRQ = 99;
+pub const SHOT_HOTKEY = KEY_SYSRQ;
 
 // Printable rows by evdev code: codes 2..13, 16..27, 30..41, 43..53.
 const Row = struct { first: u16, plain: []const u8, shifted: []const u8 };

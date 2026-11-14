@@ -62,4 +62,8 @@ test {
     _ = @import("wifi_join_test.zig");
     _ = @import("app_wifi_test.zig");
     _ = @import("page_wifi_test.zig");
+    _ = @import("shot_png_test.zig");
+    _ = @import("shot_grab_test.zig");
+    _ = @import("shot_file_test.zig");
+    _ = @import("app_shot_test.zig");
 }

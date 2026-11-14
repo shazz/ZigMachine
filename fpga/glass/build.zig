@@ -27,6 +27,9 @@ pub fn build(b: *std.Build) void {
     const kfs_path = b.createModule(.{ .root_source_file = b.path("../../rom/kos/kfs_path.zig") });
     // ZIGNIC's request (machine/sdk/net_abi.zig): the one definition glass's network card serves (src/net_card.zig).
     const net_abi = b.createModule(.{ .root_source_file = b.path("../../machine/sdk/net_abi.zig") });
+    // The machine's memory map: a desk-mode screenshot reads plane 0 and palette 0 by it (src/shot_grab.zig),
+    // and the tests check the pointer's coordinate space against it.
+    const memmap = b.createModule(.{ .root_source_file = b.path("../../machine/sdk/memmap.zig") });
 
     // The glass program's version and the commit it was built from, for the OSD's debug page.
     const info = b.addOptions();
@@ -40,7 +43,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat }, .{ .name = "kos_kfs_path", .module = kfs_path }, .{ .name = "net_abi", .module = net_abi } },
+            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info }, .{ .name = "kos_fat", .module = kos_fat }, .{ .name = "kos_kfs_path", .module = kfs_path }, .{ .name = "net_abi", .module = net_abi }, .{ .name = "memmap", .module = memmap } },
         }),
     });
     b.installArtifact(exe);
@@ -51,8 +54,6 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/zx0_shim.zig"),
         .imports = &.{.{ .name = "zx0_pack", .module = zx0_pack }},
     });
-    // The machine's memory map: the tests check the pointer's coordinate space against it.
-    const memmap = b.createModule(.{ .root_source_file = b.path("../../machine/sdk/memmap.zig") });
     const tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/tests.zig"),

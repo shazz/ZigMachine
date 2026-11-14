@@ -10,6 +10,7 @@
 //   osd open|close               the menu, as F12 opens and closes it
 //   quit-cart                    stop the cart CPU and bring the menu up
 //   list                         the shelf: one disk a line
+//   shot                         a screenshot onto the card (app_shot.zig), as PrintScreen takes it
 const std = @import("std");
 const map = @import("map.zig");
 
@@ -23,6 +24,7 @@ pub const Cmd = union(enum) {
     osd: bool, // open
     quit_cart,
     list,
+    shot,
     help,
 };
 
@@ -51,6 +53,7 @@ pub fn parse(line: []const u8) Error!Cmd {
     if (a1 != null) return error.TooManyArguments;
     if (eq(word, "quit-cart")) return .quit_cart;
     if (eq(word, "list")) return .list;
+    if (eq(word, "shot")) return .shot;
     if (eq(word, "help")) return .help;
     return error.UnknownCommand;
 }
@@ -115,6 +118,6 @@ pub const JOY_ALL: u32 = map.JOY_UP | map.JOY_DOWN | map.JOY_LEFT | map.JOY_RIGH
 
 pub const HELP =
     \\load <file.zmd> [PROGRAM] | key <char|name|f1..f10|0xCODE> [down|up|tap] | joy <bits|up+fire>
-    \\stats [SECONDS] | osd open|close | quit-cart | list | help
+    \\stats [SECONDS] | osd open|close | quit-cart | list | shot | help
     \\
 ;

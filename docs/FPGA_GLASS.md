@@ -80,7 +80,7 @@ without `~` are measured (Yosys `synth_xilinx`, `tools/util.py`); figures with
 | Scanlines / scaling / 50-60 Hz / border | display options | core | future | M | ~200–800 / 0–2 / 0–2 |
 | Key and pad remap | which key or button is which | ARM | future | S | — |
 | Favourites / recent / folders | shelf organisation | ARM | future | S | — |
-| Screenshot to SD | the ARM reads the physical framebuffer from DDR | ARM | future | S | — |
+| Screenshot to SD | PrintScreen / console > Take screenshot: the front picture as a PNG in `screenshots/` ("Screenshots" below) | ARM | done (13 Nov) | S | — |
 | Save states | freeze the cart's memory and the machine's state | both | future | L | ~0 (the ARM copies DDR while the CPU is held) |
 | Settings beyond volume | everything else in `glass.cfg` | ARM | future | S | — |
 
@@ -474,6 +474,8 @@ whose S99glass runs `glass run /mnt/sd/zigmachine`); `--dry-run` only prints.
   F12 it never reaches a cart; with the menu open it does nothing.
 - **Shift+F11** opens the frame-budget page straight from the game (`app_budget.zig`,
   below), and closes it when it is showing. It never reaches a cart either.
+- **PrintScreen** takes a screenshot (`app_shot.zig`, "Screenshots" below), the menu open or
+  closed. It never reaches a cart (the browser has no code for it either).
 - **Page Up / Page Down** move the shelf's cursor a screenful (9 carts), stopping
   on the first and last cart. They are the glass's own keys (`map.osdOnly`): with
   the menu closed they are dropped, never sent to a cart.
@@ -639,12 +641,14 @@ not list shows `no shelf.txt entry` and its file name in the details.
 
 ```
  ZIGMACHINE  CONSOLE       < Esc
-                                
  Cold reset                         cursor row inverse
  Warm reset
  Volume  ################ 100%      ←/→ change it, 16 steps
  Mute    off                        Enter or ←/→ toggle
  Debug...
+ Help...
+ Wi-Fi...
+ Take screenshot                    the picture as a PNG on the card (PrintScreen too)
  Back
 
 --------------------------------
@@ -658,6 +662,42 @@ ENTER do  <> change  Esc back
 A volume or mute change reaches `AUDIO_VOL` at once and is saved to `glass.cfg`
 when you leave the page (Esc, Back, or closing the OSD), so holding ← does not
 write the card sixteen times.
+
+### Screenshots (`app_shot.zig`)
+
+PrintScreen (anywhere, the menu open or closed; the cart never sees it), console > `Take
+screenshot`, or `glass ctl shot`: the picture the TV shows, as `screenshots/SHOTnnnn.PNG` at the
+card's root (`/mnt/sd/screenshots/`), so Matt can show the lead what he sees (Matt, 2026-11-13).
+
+- **What it copies** (`shot_grab.zig`): nothing is composited in glass. FRESCO already builds
+  each frame into one of two 800x280 `{0, B, G, R}` pictures in the cart window and scans out
+  the other (`fpga/rtl/video/README.md`, "The pictures"), so the front picture holds every
+  enabled plane through its palette and mode, the scroll, the borders, true-colour planes, and
+  every per-line change (HBL handlers, copper, linepal, BEAM), plus GEM's arrow
+  (`cycles/bcursor.c`). The OSD is laid over the scanout by the PL, so it is never in the shot,
+  even when the menu is open. ZIGGY's debug mailbox (`cycles/bmailbox.h`, the window's last 256
+  bytes; `fpga/tools/board_shot.py` reads the same from U-Boot) says where the pictures are;
+  glass asks it to freeze, the firmware stops after its next whole frame and names the picture
+  on screen, glass copies it (an aligned word at a time), and lets go. The cart is held only for
+  the copy (~900 KB of uncached reads, estimated 20-40 ms: a frame or two; the log says
+  `the cart held N ms`); the music on BARD goes on. No answer in 2 s: "cart did not stop".
+- **The desk mode** has no picture (the scanout shows plane 0 itself, `zm_video_desk.v`): glass
+  copies plane 0's 640x480 bytes from `FB_BASE[0] & ~7` and palette 0 instead, an indexed PNG.
+  The coloured bars round the desk are not in it.
+- **Its size**: a picture whose every column pair is equal (low res everywhere) is saved
+  undoubled, **400x280**, square pixels as on the TV (which doubles the lines); one with any
+  1:1 detail (a medium plane, an arrow at an odd column) keeps its 800 columns and has its lines
+  doubled, **800x560**. Lossless both ways; the borders are in it (they are what the TV shows).
+- **Off the loop** (`shot_worker.zig`, shaped as `wifi_worker.zig`): the freeze, the copy and
+  the PNG encode (`shot_png.zig`: std's deflate, RGB or indexed, filter 0) run on a thread; the
+  main thread writes the file, the card remounted read-write for the write and the rename only,
+  as for `glass.cfg` (`shot_file.zig`: `SHOTnnnn.TMP` renamed, the next number after the
+  highest, gaps left alone, past 9999 the lowest free one, never one that exists).
+- **What it says**: the status line with the menu open; with it closed a 3 s toast in the
+  corner window (`app_stats.toast`, under the F11 overlay if that is on): `Saved
+  screenshots/SHOT0007.PNG`, or `not saved: card read-only` / `card full` / `no card` /
+  `write failed` / `screenshots/ full`, `screenshot: no cart running` / `busy, wait` /
+  `cart did not stop` / `old firmware` (no mailbox).
 
 ### The Wi-Fi page (`page_wifi.zig`, `app_wifi.zig`)
 
@@ -778,6 +818,7 @@ The glass serves it from its main loop, between two input events, as it would a 
 | `stats [N]` | one `ZMSTAT` line over the last N seconds (default 5, up to 50) |
 | `osd open\|close` | F12 |
 | `quit-cart` | the cart CPU held in reset, the menu up |
+| `shot` | a screenshot, as PrintScreen takes it ("Screenshots" above): `ok` when it started, the file's name in the log and on the OSD a moment later |
 | `list`, `help` | the shelf (`file<TAB>title<TAB>folder` a line, the folder a path, `demos/atari_st`, empty for a disk at the top), the commands |
 
 The `stats` line, one `key=value` a field, never a space in a value (`_` stands in), `-` for
@@ -1582,7 +1623,7 @@ The NICE-TO-HAVE list:
 - **Display:** scanlines, scaling, 50/60 Hz, border on or off.
 - **Key and joypad remap**; **mouse speed** in the menu (today `--mouse-scale`).
 - **Shelf:** favourites, recently played, folders.
-- **Screenshot to SD:** the ARM copies the physical framebuffer out of DDR.
+- **Screenshot to SD:** done, "Screenshots (`app_shot.zig`)" below.
 - **Save states:** hold the CPU, copy the cart window and the PL's state out;
   restore the same way. Needs every PL register a cart can set to be readable.
 - **Settings beyond volume** in `glass.cfg` (the parser already skips unknown

@@ -33,6 +33,11 @@ pub const Dirs = struct {
         return .{ .sys = dir, .carts = dir };
     }
 
+    /// The card's root (where screenshots/ goes): sys's parent, or a flat directory itself.
+    pub fn card(d: Dirs) []const u8 {
+        return if (d.kind == .flat) d.sys else std.fs.path.dirname(d.sys) orelse d.sys;
+    }
+
     /// Free what detect() allocated (nothing for a flat one).
     pub fn deinit(d: Dirs, gpa: std.mem.Allocator) void {
         switch (d.kind) {

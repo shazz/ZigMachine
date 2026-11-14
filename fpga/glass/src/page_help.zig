@@ -28,6 +28,7 @@ pub const table = [_]Entry{
     .{ .group = .global, .keys = "Shift+F12", .what = "rescan shelf/floppy", .check = .{ .evdev = .{ .code = keymap.OSD_HOTKEY, .shift = true } } },
     .{ .group = .global, .keys = "F11", .what = "fps overlay on/off", .check = .{ .evdev = .{ .code = keymap.STATS_HOTKEY } } },
     .{ .group = .global, .keys = "Shift+F11", .what = "frame budget page", .check = .{ .evdev = .{ .code = keymap.STATS_HOTKEY, .shift = true } } },
+    .{ .group = .global, .keys = "PrtSc", .what = "screenshot to card", .check = .{ .evdev = .{ .code = keymap.SHOT_HOTKEY } } },
     .{ .group = .global, .keys = "Pad d-pad", .what = "the arrow keys", .check = .{ .pad = K.JOY_DOWN } },
     .{ .group = .global, .keys = "Pad fire", .what = "Enter", .check = .{ .pad = K.JOY_FIRE } },
     .{ .group = .shelf, .keys = "Up/Down", .what = "select a cart", .check = .{ .menu = &.{ K.KEY_ARROW_UP, K.KEY_ARROW_DOWN } } },
