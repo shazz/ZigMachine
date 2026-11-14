@@ -51,6 +51,7 @@ const A = assets.Assets(Fake);
 var arena_buf: [4096]u8 align(16) = undefined;
 
 fn pattern(comptime n: usize, seed: u8) [n]u8 {
+    @setEvalBranchQuota(10_000);
     var b: [n]u8 = undefined;
     for (&b, 0..) |*x, i| x.* = @truncate(i *% 7 +% seed);
     return b;
