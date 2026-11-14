@@ -51,6 +51,13 @@ pub extern fn machineSidRender(dst_abs: u32, n: u32) void; // n s16 samples at 2
 pub extern fn machineSidRaw(model: u32) u32; // raw SID: a C64 with no tune (6581 / 8580, PAL); 0 ok
 pub extern fn machineSidWrite(reg: u32, value: u32) void; // one SID register, $D400 + reg (0..0x18)
 
+// The AY engine (libs/c/ayumi, zm_ay_bank.h): eight AY / YM chips in integers, the BARD queue's AY device;
+// machine-audio.wasm on the page, BARD's native C on the board (fpga/host/audio_ay.c), the same code.
+// It renders 44.1 kHz stereo PCM into the caller's buffer, which the player puts on Paula (libs/zig/players/sid.zig).
+pub extern fn machineAyReset() void; // every chip off
+pub extern fn machineAyWrite(a: u32, value: u32) u32; // offset a = chip x 16 + reg (14 configure, 15 pans), 0x80 + chip the gain; 1 applied
+pub extern fn machineAyRender(dst_abs: u32, n: u32) void; // n stereo s16 frames (L, R) at 44100 Hz
+
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.
 pub extern fn machinePaulaTrigger(ch: u32, data_abs: u32, data_len: u32, loop_start: u32, loop_len: u32, pan: f32) void;

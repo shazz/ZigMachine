@@ -4,6 +4,7 @@
  *
  *   0x00 + chip x 16 + reg   reg 0..13: the chip's register (zm_ay_write)
  *                            reg 14: configure: value bits 0-23 the clock in Hz, bit 24 YM (else AY); a fresh chip
+ *                                    (a clock under 8 Hz: the chip off)
  *                            reg 15: stereo: bits 0-7, 8-15, 16-23 the pans of A, B, C (k / 200, 0 left .. 200
  *                                    right), bit 24 equal-power (else linear)
  *   0x80 + chip              the chip's gain in the mix, Q15 (32768 = 1, the default)

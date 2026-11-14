@@ -11,6 +11,7 @@ void zm_ay_bank_reset(void) { on = 0; }
 uint32_t zm_ay_bank_on(void) { return on; }
 
 static void configure(int c, uint32_t v) {
+  if ((v & 0xFFFFFFu) < 8) { on &= ~(1u << c); return; }  /* no clock: the chip off */
   zm_ay_init(&chips[c], (v & ZM_AY_CFG_YM) != 0, v & 0xFFFFFFu, ZM_AY_BANK_RATE);
   gain[c] = 32768;
   on |= 1u << c;

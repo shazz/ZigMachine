@@ -65,3 +65,34 @@ test "a full queue drops the rest, counted and said once a batch" {
     try std.testing.expectEqual(@as(u32, @intFromEnum(live_mod.Kind.dropped)), l.events[0].kind);
     try std.testing.expectEqual(@as(u32, 3), l.events[0].arg);
 }
+
+test "the AY device: its configure picks it, SID commands are then refused; the device's answer is counted" {
+    var l: Live = .{};
+    l.reset(256);
+    _ = l.push(&.{ w(0, live_mod.AY_BASE + 0x10 + live_mod.AY_REG_CONFIG, 1773400), w(0, live_mod.AY_BASE + 0x18, 15), w(0, live_mod.OP_RESET, 6581), w(0, 0xD418, 15) });
+    l.advance(1000);
+    try std.testing.expectEqual(Live.Do.ay, l.classify(l.take().?));
+    try std.testing.expectEqual(Live.Device.ay, l.device);
+    l.ayAnswer(true);
+    try std.testing.expectEqual(Live.Do.ay, l.classify(l.take().?));
+    l.ayAnswer(false); // the bank refused it (say, a chip not configured)
+    try std.testing.expectEqual(Live.Do.none, l.classify(l.take().?)); // a SID reset on an AY open
+    try std.testing.expectEqual(Live.Do.none, l.classify(l.take().?));
+    try std.testing.expect(!l.engine_on);
+    try std.testing.expectEqual(@as(u32, 1), l.applied);
+    try std.testing.expectEqual(@as(u32, 3), l.refused);
+}
+
+test "a SID open refuses the AY range; an AY gain or register write does not pick the device" {
+    var l: Live = .{};
+    l.reset(256);
+    _ = l.push(&.{ w(0, live_mod.AY_BASE + 0x80, 32768), w(0, live_mod.AY_BASE + 7, 0x38), w(0, live_mod.OP_RESET, 8580), w(0, live_mod.AY_BASE + live_mod.AY_REG_CONFIG, 2000000) });
+    l.advance(1000);
+    try std.testing.expectEqual(Live.Do.ay, l.classify(l.take().?));
+    try std.testing.expectEqual(Live.Device.none, l.device);
+    try std.testing.expectEqual(Live.Do.ay, l.classify(l.take().?));
+    try std.testing.expectEqual(Live.Device.none, l.device);
+    try std.testing.expectEqual(Live.Do.reset, l.classify(l.take().?));
+    try std.testing.expectEqual(Live.Device.sid, l.device);
+    try std.testing.expectEqual(Live.Do.none, l.classify(l.take().?));
+}

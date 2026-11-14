@@ -41,6 +41,7 @@ export fn audioBardOpen(lead: u32) u32 {
     m.stopAll();
     m.sfx.songChanged();
     live().reset(lead);
+    audio.machineAyReset(); // the AY device silent until the cart configures a chip
     m.sid_exports.sid.startLive(live());
     m.current_mode = 1; // the four Paula channels, as the .sid player's
     return 1;

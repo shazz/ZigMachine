@@ -13,6 +13,11 @@
 // its stamp. Until the cart's first SID reset the engine is off (silence),
 // whatever .sid played before.
 //
+// The AY device (libs/c/ayumi zm_ay_bank.h, ChipNomad's chips) takes the
+// addresses $A000..$A0FF; it renders at the queue's own 44.1 kHz, so its
+// writes land at their output sample exactly. One device an open: the first
+// SID reset or AY configure picks it, and the other's writes are refused.
+//
 // Plain state, no chip calls (sid_live_test.zig): the player that renders it
 // is sid.zig (SidPlayer.live), the exports apps/zig/demo_audio_sidlive.zig.
 // --------------------------------------------------------------------------
@@ -26,6 +31,10 @@ pub const SID_BASE: u32 = 0xD400;
 pub const SID_REGS: u32 = 0x19;
 pub const OP_RESET: u32 = 1; // a fresh raw SID; value = 6581 or 8580
 pub const OP_MARK: u32 = 2; // an event back when the write's sample comes; value = the cart's arg
+/// The AY device: addr = AY_BASE + chip x 16 + reg (14 configures the chip), AY_BASE + 0x80 + chip its gain.
+pub const AY_BASE: u32 = 0xA000;
+pub const AY_SPAN: u32 = 0x100;
+pub const AY_REG_CONFIG: u32 = 14;
 
 /// What comes back to the cart (zg.bard.pollEvent), at the sample it happened.
 pub const Kind = enum(u32) { mark = 1, reset = 2, resync = 3, dropped = 4 };
@@ -46,6 +55,9 @@ pub const Live = struct {
     refused: u32 = 0,
     /// The engine has had its first reset (before it, silence).
     engine_on: bool = false,
+    /// What this open plays: picked by the first SID reset or AY configure.
+    device: Device = .none,
+    pub const Device = enum(u8) { none, sid, ay };
 
     pub fn reset(self: *Live, lead: u32) void {
         self.queue.reset(lead);
@@ -53,6 +65,7 @@ pub const Live = struct {
         self.applied = 0;
         self.refused = 0;
         self.engine_on = false;
+        self.device = .none;
     }
 
     fn event(self: *Live, t: u32, kind: Kind, arg: u32) void {
@@ -81,16 +94,22 @@ pub const Live = struct {
     }
 
     /// What a write does here beside the chip: the counters, and its event. Returns
-    /// .sid (write the register), .reset (a fresh engine) or .none.
-    pub const Do = enum { none, sid, reset };
+    /// .sid (write the register), .reset (a fresh engine), .ay (the AY device's write: the caller
+    /// counts it with ayAnswer, as the device takes it or not) or .none.
+    pub const Do = enum { none, sid, reset, ay };
     pub fn classify(self: *Live, e: Entry) Do {
-        if (e.addr >= SID_BASE and e.addr < SID_BASE + SID_REGS) {
+        if (e.addr >= AY_BASE and e.addr < AY_BASE + AY_SPAN and self.device != .sid) {
+            if ((e.addr - AY_BASE) & 0x8F == AY_REG_CONFIG) self.device = .ay;
+            return .ay;
+        }
+        if (e.addr >= SID_BASE and e.addr < SID_BASE + SID_REGS and self.device != .ay) {
             self.applied +%= 1;
             return .sid;
         }
-        if (e.addr == OP_RESET) {
+        if (e.addr == OP_RESET and self.device != .ay) {
             self.applied +%= 1;
             self.engine_on = true;
+            self.device = .sid;
             self.event(e.t, .reset, e.value);
             return .reset;
         }
@@ -101,6 +120,11 @@ pub const Live = struct {
         }
         self.refused +%= 1;
         return .none;
+    }
+
+    /// The AY device's answer to a write classify gave it.
+    pub fn ayAnswer(self: *Live, taken: bool) void {
+        if (taken) self.applied +%= 1 else self.refused +%= 1;
     }
 
     /// Engine samples to render before the next write, at most `max` (>= 1 once the due ones

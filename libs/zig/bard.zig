@@ -11,7 +11,8 @@
 // due(t) says when to produce the command stamped t, so a 50 Hz replay keeps
 // the sound side's time whatever the cart's frame rate.
 //
-// First device: SID live (cRSID with no tune: libs/zig/players/sid_live.zig).
+// Devices: SID live (cRSID with no tune: libs/zig/players/sid_live.zig) and up
+// to eight AY / YM chips (libs/c/ayumi zm_ay_bank.h); one of the two an open.
 // --------------------------------------------------------------------------
 extern fn hostBardAttach(block: u32, lead: u32) u32;
 
@@ -43,6 +44,8 @@ pub const Kind = enum(u32) { mark = 1, reset = 2, resync = 3, dropped = 4, _ };
 pub const Model = enum(u32) { mos6581 = 6581, mos8580 = 8580 };
 
 pub const SID_BASE: u32 = 0xD400; // a SID register write: addr = $D400 + 0..0x18
+pub const AY_BASE: u32 = 0xA000; // an AY write: addr = $A000 + chip x 16 + reg (zm_ay_bank.h)
+pub const AY_CHIPS: u32 = 8;
 pub const OP_RESET: u32 = 1;
 pub const OP_MARK: u32 = 2;
 
@@ -104,6 +107,27 @@ pub fn sidWrite(t: u32, reg: u32, value: u8) bool {
 /// A fresh SID (all registers 0, PAL) of `model` at `t`. The SID is silent until the first.
 pub fn sidReset(t: u32, model: Model) bool {
     return push(t, OP_RESET, @intFromEnum(model));
+}
+/// AY chip `chip` (0..7) fresh at `t`: its clock in Hz, AY or YM levels. It plays from here (centred pans).
+pub fn ayConfigure(t: u32, chip: u32, clock_hz: u24, ym: bool) bool {
+    if (chip >= AY_CHIPS) return false;
+    return push(t, AY_BASE + chip * 16 + 14, @as(u32, clock_hz) | @as(u32, @intFromBool(ym)) << 24);
+}
+/// AY register `reg` (0..13) of `chip` to `value` at `t`; 13 re-triggers the envelope, as on the chip.
+pub fn ayWrite(t: u32, chip: u32, reg: u32, value: u8) bool {
+    if (chip >= AY_CHIPS or reg > 13) return false;
+    return push(t, AY_BASE + chip * 16 + reg, value);
+}
+/// The pans of `chip`'s channels A, B, C: k / 200 each (0 left, 100 centre, 200 right), equal-power or linear.
+pub fn ayStereo(t: u32, chip: u32, a: u8, b: u8, c: u8, equal_power: bool) bool {
+    if (chip >= AY_CHIPS or a > 200 or b > 200 or c > 200) return false;
+    const v = @as(u32, a) | @as(u32, b) << 8 | @as(u32, c) << 16 | @as(u32, @intFromBool(equal_power)) << 24;
+    return push(t, AY_BASE + chip * 16 + 15, v);
+}
+/// `chip`'s gain in the mix, Q15 (32768 = 1, the default).
+pub fn ayGain(t: u32, chip: u32, q15: u16) bool {
+    if (chip >= AY_CHIPS) return false;
+    return push(t, AY_BASE + 0x80 + chip, q15);
 }
 /// Ask for a `mark` event carrying `arg` (24 bits on every host) when the sound side reaches `t` (a beat, a pattern row).
 pub fn mark(t: u32, arg: u24) bool {
