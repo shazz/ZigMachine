@@ -10,7 +10,8 @@ const g = @import("shot_grab.zig");
 const gpa = std.testing.allocator;
 const CPU: u32 = 0x4000_0000;
 
-/// The fake firmware: it stops after "its frame" on the first nap that finds the freeze asked.
+/// The fake firmware: it stops after "its frame" on the first nap that finds the freeze asked,
+/// and, as bmailbox.c does, clears FROZEN only on a nap after the freeze was withdrawn.
 pub const Fw = struct {
     pub var mb: ?[]u32 = null;
     pub var front: u32 = 0;
@@ -22,6 +23,7 @@ pub const Fw = struct {
         naps += 1;
         const m = mb orelse return;
         if (!answers) return;
+        if (m[g.MB_FREEZE] == 0) m[g.MB_FROZEN] = 0; // resumed
         if (m[g.MB_FREEZE] != 0 and m[g.MB_FROZEN] == 0) {
             m[g.MB_FRONT] = front;
             m[g.MB_FROZEN] = 1234;
@@ -86,6 +88,19 @@ test "a firmware that never stops: a timeout, and the freeze is withdrawn" {
     try std.testing.expectError(error.FreezeTimeout, g.grab(gpa, env(&words), false));
     try std.testing.expectEqual(@as(u32, 0), mb[g.MB_FREEZE]);
     try std.testing.expectEqual(@as(u32, 50), Fw.naps); // bounded: freeze_ms naps of 1 ms
+}
+
+test "a FROZEN left from the last shot is waited out before the freeze is asked, never trusted" {
+    var words = [_]u32{0} ** 512;
+    const mb = mailbox(&words, 16, 64, 8, 3);
+    mb[g.MB_FROZEN] = 77; // the firmware has not yet seen the last FREEZE drop
+    Fw.answers = false;
+    try std.testing.expectError(error.FreezeTimeout, g.grab(gpa, env(&words), false));
+    try std.testing.expectEqual(@as(u32, 0), mb[g.MB_FREEZE]); // never asked over a stale FROZEN
+    Fw.answers = true; // it resumes (FROZEN 0), then stops again for this shot
+    const s = try g.grab(gpa, env(&words), false);
+    s.deinit(gpa);
+    try std.testing.expectEqual(@as(u32, 1234), mb[g.MB_FROZEN]);
 }
 
 test "no mailbox, or one pointing off the window: refused, nothing left frozen" {

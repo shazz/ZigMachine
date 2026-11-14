@@ -88,9 +88,15 @@ fn mailbox(ddr: bus.Ddr) Error![]volatile u32 {
     return mb;
 }
 
+/// The handshake: FROZEN must read 0 first (the firmware clears it only once it has seen the
+/// last shot's FREEZE drop), else a stale FROZEN would let a copy race the compositor.
 fn freeze(env: Env, mb: []volatile u32) Error!void {
-    mb[MB_FREEZE] = 1;
     var waited: u32 = 0;
+    while (mb[MB_FROZEN] != 0) : (waited += 1) {
+        if (waited >= env.freeze_ms) return error.FreezeTimeout;
+        env.nap(1);
+    }
+    mb[MB_FREEZE] = 1;
     while (mb[MB_FROZEN] == 0) : (waited += 1) {
         if (waited >= env.freeze_ms) {
             mb[MB_FREEZE] = 0;
