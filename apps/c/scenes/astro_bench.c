@@ -13,7 +13,7 @@
 // the effect page (astro_bench/zoom.h): a Julia set zoomed 1e12 deep, every pixel's f64 maths done by
 // ASTROLABE, SPACE swapping it for ZIGGY's soft f64, with ms a picture and pictures a second.
 //
-// Keys: 1 the bench (rerun), 2 the zoom, SPACE swaps the zoom's side, Escape leaves. Build: bash apps/c/build.sh astro_bench -> docs/demo-c-astro_bench.wasm
+// Keys: 1 the bench (rerun), 2 the zoom, SPACE cycles the zoom's side (ASTROLABE, ZIGGY soft f64, ZIGGY f32 FPU), Escape leaves. Build: bash apps/c/build.sh astro_bench -> docs/demo-c-astro_bench.wasm
 // ---------------------------------------------------------------------------
 #include "astro_bench/astro.h"
 #include "astro_bench/fmt.h"
@@ -51,11 +51,11 @@ static void start(void) {
     fm_reset(), fm_s("ZM ASTRO clock="), fm_s(clocked ? "hostMicros" : "none"), consoleLogJS(fm_buf, (int)fm_len);
 }
 
-static void start_zoom(int soft, int from_top) {
+static void start_zoom(int mode, int from_top) {
     job = -1, page = 1;
     if (from_top) zstep = 0;
     if (gui) guiRect(gui, 0, 0, 320, 200, WHITE);
-    zoom_start(soft);
+    zoom_start(mode);
     if (!zok) text_z(0, "zoom: out of memory");
 }
 
@@ -94,7 +94,7 @@ __attribute__((export_name("key"))) void key(u32 cp) {
     if (cp == K_ESC) want_menu = 1;
     else if (cp == '1' && (job < 0 || page == 1)) start();
     else if (cp == '2') start_zoom(0, 1);
-    else if (cp == ' ' && page == 1) start_zoom(!zsoft, 0);
+    else if (cp == ' ' && page == 1) start_zoom((zmode + 1) % 3, 0);
 }
 
 __attribute__((export_name("pollCartRequest"))) int pollCartRequest(void) {
