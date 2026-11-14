@@ -205,6 +205,11 @@
   "type": "atari st"
  },
  {
+  "tag": "kestramp",
+  "title": "KESTRAMP",
+  "type": "system"
+ },
+ {
   "tag": "kestrel_boot",
   "title": "KESTREL BOOT",
   "type": "zigmachine"
