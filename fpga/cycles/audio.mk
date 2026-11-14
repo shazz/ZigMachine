@@ -13,7 +13,7 @@
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
 AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
-	host/audio_sid.c host/crsid.c host/audio_ay.c host/bardq_pump.c host/audio_bardq.c
+	host/audio_sid.c host/crsid.c host/audio_ay.c host/bardq_pump.c host/audio_bardq.c host/audio_bardjob.c
 # The SID engine (cRSID): libs/c/crsid laid out with its patches (patch.sh); host/crsid.c includes it.
 CRSID          := $(ROOT)/libs/c/crsid
 CRSID_TREE     := build/crsid

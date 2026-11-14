@@ -95,6 +95,7 @@ async function hostEnv(memory, machine, rom) {
         kosFileOp: () => -46, // ...nor its writes (docs/KOS_GEMDOS.md §7): EDRIVE
         hostMp3Ctl: noop, hostMp3Feed: noop, hostMp3Status: () => 0, // table 1.11: no MP3 player here
         hostBardAttach: () => 0, // table 1.12: no BARD queue here
+        hostBardJob: () => 0, // table 1.24: no coprocessor here (the cart serves its own jobs)
         hostPointerBox: noop, // table 1.21: the board's mouse box
         netOp: () => -1, // table 1.22: ZIGNIC, no card here
         hostMicros: () => 0, // the benchmark clock (decisions.md 2026-10-10); 0 = none, fixed work

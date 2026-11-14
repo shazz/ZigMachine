@@ -1906,3 +1906,34 @@ their stamps one 44.1 kHz sample apart. The bottom border carries a status line 
 **Decision:** (1) One model: the cart's integer chip moves to `libs/c/ayumi` (C), its set-up made integer (a 201-entry equal-power pan table for k / 200, ticks = clock x 8192 / rate, the counters' bulk advance by subtraction), used by the cart through a thin float wrapper (upstream's ayumi API) and by BARD and the page through `zm_ay_bank` (eight chips). (2) A second BARD queue device beside SID live: `addr = 0xA000 + chip x 16 + reg` (14 configures, 15 the pans, `0xA080 + chip` a gain), time the queue's 44.1 kHz output samples, rendered on that clock (`players/ay_live.zig`) so a write lands on its sample, stereo through MP3's hi/lo Paula path (CHORUS mixes the Paula channels' pans into its L/R). One device an open: the first SID reset or AY configure picks it. (3) The cart side: ChipNomad's own chip factory makes upstream's SoundChipAY with its writes also posted; the queue is the default when the host answers, ZIGGY otherwise or with `KESTREL_AY_ON_ZIGGY=1`; a software oscillator (AY2 PWM, sync, samples: stepped per chip tick inside the model, with no register stream) sends the whole cart back to ZIGGY until its chips are made again.
 **Alternatives considered:** The AY in Zig in demo-audio.wasm (a fork of the model, and wasm2c on BARD: the SID study measured ~1.3x for that path). Stamps in AY ticks (two clocks in one ring). A per-chip fallback (a soft-oscillator chip on ZIGGY, the rest on BARD): the stream and the queue's player share the Paula channels and song RAM, so they cannot play at once. SID + AY in one open: two engines at two rates in one render, for no cart yet. Running the soft oscillators on BARD (the timer callback is the tracker's playback code: a v2 question, with the .cnm player).
 **Consequences:** BARD gains three `machineAy*` imports (demo-audio.wasm's import count 22 -> 25) and ~2 KB of C; any cart can play AY / YM chips on BARD through zg.bard (Zig helpers in bard.zig, the C ring in kestrel_bard.cpp). The cart keeps ChipNomad's sequencer and its 22.05 kHz callback as the clock (stamps = its position x 2). Not bit-exact against today's ZIGGY output by construction (8-bit mono 22.05 kHz stream vs 16-bit stereo 44.1 kHz, the 0.6 gain in Q15): MICROEGG.CNM correlates 1.0000, 98.2 % of the 8-bit samples equal. A clock or chip type change re-configures the chip on BARD (its counters restart). A later `.cnm` player (zg.requestCnm) is the playback core plus this sink.
+
+## 2026-11-13 — BARD jobs: one kernel source, a job ring in the cart, the server outside the cart's frame
+
+**Status:** accepted
+**Context:** ROADMAP (Matt, 13 Nov): "a tech tests cart to show how to use the bard as a co-processor for
+non-music stuff". BARD (rv32i + Zmmul, no divide, no FPU) idles most of a frame; the cart CPU spends its frame on
+depacks, transforms and physics. The BARD queue (1.12) is not the vehicle: opening it takes the players (SID live),
+and a job carries arrays and an answer, not timed register writes. The two S2C halves are full (audio state, queue).
+**Decision:**
+- **A ring of 8 job slots in the cart's memory** (`libs/zig/bard_jobs/layout.zig`, `zg.bard.job`), one writer per
+  word: the cart writes op, args, then `seq` last; the server writes err, cycles, result, then `done` last.
+  Every array is a cart address; the server checks each range and alignment against the cart's memory first.
+- **One kernel source, every server** (`libs/zig/bard_jobs/server.zig`, `kernels.zig`, `depackers/zx0.zig`): the
+  cart's wasm and BARD's firmware (`zig build-obj -mcpu=generic_rv32+zmmul`, linked into snd.bin, the DIV/REM
+  guard still holding) build it, so the bytes never depend on who ran the job: the A/B is pixel-exact and
+  `scene_hash.mjs` is unchanged. The server is resumable (an index range, ZX0's own `Stream.step`), so BARD
+  serves at most 100k cycles a turn of its loop and the renders keep their lead.
+- **One system-table entry** (1.24): `hostBardJob(op, arg) u32`, op OPEN / KICK / POLL / WAIT. Board: OPEN is one
+  mailbox command (OP_JOB: the cart's memory base, size, the block), KICK one C2S store (word 6); BARD takes a slot
+  only once its seq (written last) is in DDR, POLL drops the slot's D-cache lines and, once answered, the whole D-cache.
+  Page: the loader serves through the cart's `bardJobServe` export after the frame and on a WAIT. Elsewhere 0:
+  the cart serves its jobs itself, inside its frame.
+- **A server that never answers** (0.5 s on the board) is replaced by ZIGGY from the first unanswered job: jobs
+  are idempotent by rule (output apart from input).
+**Alternatives considered:** jobs as BARD queue commands (they would close the music, and a full ring of timed
+entries is the wrong shape for arrays); a C port of the kernels for BARD (two sources to keep bit-equal, where
+the Zig one is free); an S2C done word (none free, and the answer's arrays are in DDR anyway); the job run inside
+the kick on the page (it would land in the cart's own frame and the A/B would show nothing).
+**Consequences:** +6 KB in snd.bin (the server, ZX0 and the CRC table), a system-table bump (1.24): carts built
+before it run unchanged; a cart that posts jobs needs a 1.24 system. ZigOS now imports the `depackers` module
+(build.zig, sdk/build_cart.zig). New ops are added in one place (server.zig + kernels.zig) and reach every host.

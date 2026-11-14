@@ -92,6 +92,8 @@ pub fn build(b: *std.Build) void {
         .target = wasm_target,
         .optimize = optimize,
     });
+    // zg.bard.job's server depacks ZX0 (libs/zig/bard_jobs/server.zig): ZigOS takes the one depackers module.
+    zigos_mod.addImport("depackers", depackers_mod);
     // Cart assets that ship ZX0-packed (libs/zig/depackers/zx0.zig, docs/DEPACK.md).
     // zx0pack runs on the HOST at build time, so a packed asset can never drift
     // from its source; a scene reaches it as @import("packed_assets").<name> and

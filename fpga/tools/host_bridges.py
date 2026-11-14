@@ -155,10 +155,17 @@ MP3_DEFAULTS = """/* MP3 hooks: no player (status 0). host/hstream.h (-include) 
 # The BARD queue (zg.bard, libs/zig/bard.zig, table 1.12): the cart hands its ring over once; then
 # the host drains it each frame with no call. The hook answers 0 ("no BARD queue here": every command
 # is refused) unless host/hstream.h (-include, where the players run) defines it.
-BARD = {"hostBardAttach": ("u32", ["u32", "u32"], "HOST_BARD_ATTACH")}
-BARD_DEFAULTS = """/* The BARD queue's hook: none here (0). host/hstream.h (-include) defines it where the players run. */
+# BARD jobs (zg.bard.job, libs/zig/bard_job.zig, table 1.24): the cart's job block, opened, kicked, polled and
+# waited on through one entry; 0 ("no coprocessor here": the cart serves its own jobs) unless host/hstream.h
+# defines it (cycles/bsound_job.c where BARD serves, host/audio_bardjob.c where the players are this CPU's).
+BARD = {"hostBardAttach": ("u32", ["u32", "u32"], "HOST_BARD_ATTACH"),
+        "hostBardJob": ("u32", ["u32", "u32"], "HOST_BARD_JOB")}
+BARD_DEFAULTS = """/* The BARD queue's and BARD jobs' hooks: none here (0). host/hstream.h (-include) defines them where the players run. */
 #ifndef HOST_BARD_ATTACH
 #define HOST_BARD_ATTACH(e, block, lead) ((void)(e), (void)(block), (void)(lead), 0u)
+#endif
+#ifndef HOST_BARD_JOB
+#define HOST_BARD_JOB(e, op, arg) ((void)(e), (void)(op), (void)(arg), 0u)
 #endif
 """
 

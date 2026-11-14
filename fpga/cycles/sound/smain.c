@@ -4,7 +4,8 @@
  *
  *   default        the cart CPU's mailbox commands (cycles/snd_mailbox.h, sent by
  *                  cycles/bsound.c): PLAY and SNDH_CALL, the song's bytes in the cart's image;
- *                  EFFECTS, the cart's sfx / ymWrite / requestModVolume / requestSndhMode
+ *                  EFFECTS, the cart's sfx / ymWrite / requestModVolume / requestSndhMode;
+ *                  JOB, the cart's job block (zg.bard.job: sjobs.c serves it between renders)
  *   ZM_SND_BENCH   no cart: ZM_SONG (linked in, cycles/bsongs.c) starts at once, then
  *                  ZM_FRAMES frames of 735 samples, each timed ("F frame cycles" and the
  *                  bus waits, as cycles/baudio_bench.c prints on the cart CPU), then the end
@@ -19,6 +20,7 @@
 #include "haudio.h"
 #include "snd_mailbox.h"
 #include "sbardq.h"
+#include "sjobs.h"
 #include "smp3bench.h"
 #include "sound.h"
 #include "trap.h"
@@ -134,6 +136,10 @@ static void command(void) {
         sbardq_open(C2S(C_PTR), arg);
         return;
     }
+    if (op == OP_JOB) {
+        sjobs_open(C2S(C_PTR), C2S(C_LEN), arg);
+        return;
+    }
     uint32_t words[C_NAME_WORDS + 1] = {0};
     for (uint32_t i = 0; i < C_NAME_WORDS; i++) words[i] = C2S(C_NAME + i);
     const char* name = (const char*)words;
@@ -154,6 +160,7 @@ static void run(void) {
             S2C(S_ACK) = seq;
         }
         sbardq_take(); /* the cart's ring, in DDR: no command, no wait */
+        sjobs_take();  /* the cart's jobs, a slice of at most SJ_BUDGET cycles */
         timed_pump();
     }
 }

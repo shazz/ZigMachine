@@ -55,6 +55,7 @@ fn libs(b: *std.Build, dep: *std.Build.Dependency, target: std.Build.ResolvedTar
         .kos_gemdos = m(b, dep, "rom/kos/gemdos_cart.zig", target, optimize), // files on A: and C: (docs/KOS_GEMDOS.md)
     };
     l.zigos.addImport("hardware", l.hardware);
+    l.zigos.addImport("depackers", l.depackers); // zg.bard.job's server depacks ZX0
     l.rom_sdk.addImport("zigos", l.zigos);
     l.rom_sdk.addImport("hardware", l.hardware);
     l.boot_rom.addImport("hardware", l.hardware);

@@ -92,9 +92,12 @@ static void post(uint32_t op, const char* name, uint32_t arg) {
     SND_REG(SND_C2S + C_SEQ) = ++g_seq;
 }
 
-void bsound_command(uint32_t op, uint32_t arg, uint32_t ptr) {
+void bsound_command(uint32_t op, uint32_t arg, uint32_t ptr) { bsound_command_len(op, arg, ptr, 0); }
+
+void bsound_command_len(uint32_t op, uint32_t arg, uint32_t ptr, uint32_t len) {
     if (!baudio.on) return;
     wait_ack();
+    SND_REG(SND_C2S + C_LEN) = len;
     SND_REG(SND_C2S + C_OP) = op;
     SND_REG(SND_C2S + C_ARG) = arg;
     SND_REG(SND_C2S + C_PTR) = ptr;

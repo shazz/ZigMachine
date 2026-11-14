@@ -370,6 +370,48 @@ _ = bard.ayWrite(t, 0, 8, 15);                // register 8 (A's volume) of chip
 C carts write the same ring (`apps/ports/chipnomad/kestrel_bard.cpp`): addr = `0xA000 + chip x 16 + reg` (14
 configure, 15 the pans), `0xA080 + chip` the gain (`libs/c/ayumi/zm_ay_bank.h`).
 
+## 8e. BARD jobs: a coprocessor for non-music work (system table 1.24)
+
+`zg.bard.job` (`libs/zig/bard_job.zig`) hands **jobs** to a server outside the cart's frame: on the board
+BARD, the sound CPU, between its audio renders; on the page the loader, after the cart's frame; anywhere
+else (the native host, the harnesses, ZIGGY with no BARD) the cart serves them itself, at once. The
+kernels are ONE Zig source (`libs/zig/bard_jobs/`): the cart's wasm and BARD's firmware (rv32i + Zmmul)
+build the same code, so a job writes the same bytes wherever it ran and `scene_hash.mjs` cannot tell.
+
+```zig
+const job = zg.bard.job;
+const where = job.open(.coprocessor);         // .ziggy when no coprocessor answers here (once, or to switch A/B)
+const t = job.post(.xform, &.{ n, a, b, morph, xform, out }); // inputs written BEFORE; returns a ticket
+...                                           // the frame goes on: draw the previous answer
+job.wait(t);                                  // or job.done(t) (non-blocking); then job.result(t).result / .cycles
+```
+
+| op | arguments (cart addresses, word-aligned) | result |
+|---|---|---|
+| `zx0` | src, src len (a `ZX0!` container), dst, dst cap | bytes written |
+| `xform` | n, shape A, shape B (`Point` x n), morph t 0..256, `Xform`, out (u32 x n: shade << 24 \| offset, or `OFF`) | points on screen |
+| `particles` | n, state in, state out (`Particle` x n, apart), `Physics`, out (u32 x n), frame (the respawn seed) | respawned |
+| `crc32` | src, len, log2 chunk (2..16), out (u32 a chunk: zlib's CRC-32) | the CRC-32 of the chunk CRCs |
+
+The rules (the COPRO cart, cart 130, teaches them on screen):
+
+- **Everything a job reads is written before `post`; nothing it writes is read before `wait`.** On the board
+  BARD takes a job only once its `seq` (written last) is in DDR, and `wait` drops ZIGGY's write-through
+  D-cache once BARD has answered.
+- **Double-buffer**: post frame N+1's job, draw frame N's answer. A job never runs twice on its own output
+  (particles go state A -> state B), so a server that stalls can be replaced by ZIGGY.
+- **At most 8 jobs in flight** (`SLOTS`): `post` waits for the oldest past that.
+- **No divide, no float in a job**: BARD is rv32i + Zmmul. Projections go through a reciprocal table the
+  cart builds at init (`Xform.ztab`), bounces through a multiply and a shift.
+- **What never to offload**: anything small (the handover costs a slot write and a D-cache drop), anything that
+  needs a divide or f32 per item, or an answer needed in the same frame it is asked for (`wait` then spins).
+- **A server that never answers** (0.5 s on the board): `wait` gives the block back and the cart serves the
+  rest itself, from the first job not answered.
+
+The block, one writer per word: 8 header words (magic `ZMBJ`, slots, head: the cart's), then 8 slots of 16
+words: op, seq (the cart's, last), done (the server's, last), err, cycles, result, 10 arguments. On the board
+see `docs/FPGA_SOUND_CPU.md` ("BARD jobs").
+
 ## 9. Build & run
 
 ```
