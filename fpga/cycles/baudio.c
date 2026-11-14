@@ -21,6 +21,7 @@
 #include "baudio.h"
 #include "board.h"
 #include "haudio.h"
+#include "bscope.h"
 #include "bsndinfo.h"
 
 #ifdef ZM_SND /* the players on BARD: its own cycle counter (the cart CPU's CSRs are not on its bus) */
@@ -133,11 +134,13 @@ void baudio_boot(void) {
 #ifdef ZM_SND
     aud_state_boot(&SND_REG(SND_S2C)); /* before READY: the cart CPU reads it once we answer */
 #endif
+    bscope_follow(); /* the scopes' target before any song (cycles/bscope.h) */
 }
 
 #ifndef ZM_SND /* the sound CPU's image has no cart, so no bridge: it calls baudio_pump itself */
 void baudio_frame(struct w2c_env* e) {
     if (!baudio.on) return;
+    bscope_follow();
     audio_bridge(e);
     baudio_pump(1);
 #if ZM_MIRROR_ON
@@ -160,6 +163,7 @@ void baudio_pump(uint32_t min) {
     int32_t want = (int32_t)g_lead - ahead;
     if (want >= (int32_t)min) {
         uint32_t n = (uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER, t0 = render_clock();
+        bscope_follow();
         audio_render(n);
         uint32_t spent = render_clock() - t0;
         sndinfo_render(&g_load, spent, n);

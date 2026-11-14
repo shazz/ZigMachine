@@ -13,6 +13,15 @@ static uint32_t inside(uint64_t size, uint32_t at, uint32_t len) {
     return at && (uint64_t)at + len <= size ? at : 0u;
 }
 
+static uint32_t g_scopes; /* the cart's zigos.scopes in DDR; 0: none */
+
+void audio_mirror_scopes(uint8_t* mem, uint64_t size, uint32_t at) {
+    at = at & 3u ? 0u : inside(size, at, 4u * 4u * 128u); /* [4][128]f32 (libs/zig/zigos.zig scopes) */
+    g_scopes = at ? (uint32_t)(uintptr_t)(mem + at) : 0u;
+}
+
+uint32_t audio_mirror_scopes_at(void) { return g_scopes; }
+
 void audio_mirror_bind(uint8_t* mem, uint64_t size, uint32_t ym, uint32_t mode, uint32_t ms) {
     g_at.mem = mem;
     g_at.ym = inside(size, ym, AS_YM_REGS);

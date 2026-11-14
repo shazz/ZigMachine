@@ -23,8 +23,15 @@ void audio_mirror_bind(uint8_t* mem, uint64_t size, uint32_t ym, uint32_t mode, 
  * Returns the number of stores made (the firmware's cost: stores, ~27 cycles each). */
 uint32_t audio_mirror_frame(const aud_state* s);
 
+/* The cart's zigos.scopes (getScopesPointer, table 1.26's hostAudioScopes), kept as its address in DDR, or 0
+ * (none, or not 4 x 128 f32 inside the memory). The players' side takes it from there: BARD through C2S
+ * (cycles/bsound.c), or host/audio_scope.c straight (cycles/baudio.c, the players on this CPU). */
+void audio_mirror_scopes(uint8_t* mem, uint64_t size, uint32_t at);
+uint32_t audio_mirror_scopes_at(void);
+
 /* Expanded in the generated env.c / sys_env.c, where struct w2c_env is whole. */
 #define HOST_AUDIO_MIRROR(e, ym, mode, ms) audio_mirror_bind((e)->memory.data, (e)->memory.size, (ym), (mode), (ms))
+#define HOST_AUDIO_SCOPES(e, at) audio_mirror_scopes((e)->memory.data, (e)->memory.size, (at))
 
 /* Only on the board, where the music is heard: a sim's frames are hashed against the browser's
  * scene_hash.mjs, which has no audio (ZM_AUDIO_MIRROR=1 turns it on in a sim). */

@@ -129,6 +129,7 @@ void audio_soft_boot(void) {
     }
     if (getenv("ZM_AUDIO_DIGEST")) g_digest = fopen(getenv("ZM_AUDIO_DIGEST"), "w");
     g_q.on = getenv("ZM_AUDIO_QUEUE") != NULL;
+    audio_scope_check_boot();
     audio_boot();
 }
 
@@ -148,6 +149,7 @@ static void dump(uint32_t n) {
 
 void audio_soft_render(uint32_t n) {
     audio_render(n);
+    audio_scope_check_render();
     dump(n);
 }
 
@@ -165,6 +167,7 @@ void audio_soft_frame(struct w2c_env* e) {
 }
 
 void audio_soft_close(void) {
+    audio_scope_check_close();
     if (g_q.on)
         printf("ZM QUEUE max %u of %u, lead %u, dropped %u of %u\n", (unsigned)g_q.max, ZMA_DEPTH, (unsigned)g_q.lead,
                (unsigned)g_q.dropped, (unsigned)g_writes);

@@ -25,6 +25,7 @@ sys.path.insert(0, str(FPGA / "tools"))
 import wasm_info  # after the path insert
 from host_bridges import (BARD, HOST_DEFAULTS, HOST_ENTRIES, KOS_DRIVE, KOS_FILE, MP3, NET, PAULA, POINTER_BOX, STREAM, disk_app_bridge, export_table, input_bridge, mirror_args,
                           song_bridge)
+from host_scopes import scopes_arg
 from host_gen import DRIVE, DRIVE_DEF, HOOK_DEFAULTS, HOOKS, SPAN_HOOKS, decls, forwarder, imports, link_check, resolve
 from sys_abi_c import checked, env_rows
 from sys_abi_c import forwarder as table_call
@@ -145,8 +146,10 @@ def cart_mirror(cart: dict[str, tuple[str, list[str]]]) -> str:
     """The audio-state fields to the system once instantiated (table 1.2's hostAudioMirror,
     host_bridges.MIRROR); skipped by a shorter table, though the version rule refuses one first."""
     call = table_call("c_mirror", "void", ["struct w2c_env*", "u32", "u32", "u32"], "ZM_ENV_hostAudioMirror")
-    return (f"static {call}static void c_audio_mirror(w2c_cart* c, struct w2c_env* e) {{\n"
-            f"    if (zm_sys->count > ZM_ENV_hostAudioMirror) c_mirror(e, {mirror_args(cart, 'c')});\n}}\n")  # fmt: skip
+    scopes = table_call("c_scopes", "void", ["struct w2c_env*", "u32"], "ZM_ENV_hostAudioScopes")  # 1.26
+    return (f"static {call}static {scopes}static void c_audio_mirror(w2c_cart* c, struct w2c_env* e) {{\n"
+            f"    if (zm_sys->count > ZM_ENV_hostAudioMirror) c_mirror(e, {mirror_args(cart, 'c')});\n"
+            f"    if (zm_sys->count > ZM_ENV_hostAudioScopes) c_scopes(e, {scopes_arg(cart, 'c')});\n}}\n")  # fmt: skip
 
 
 def cart_header(wasm: Path, cart: dict[str, tuple[str, list[str]]]) -> str:

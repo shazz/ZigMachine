@@ -91,8 +91,17 @@ Each bank has one writer, so no word ever has two masters.
   its instantiation, through the table's `hostAudioMirror` entry; the monolithic image does it in `host/boot.c`.
   A 1.1 cart runs on a 1.2 system without the mirror. The mirror runs on the board only (`ZM_BOARD`, or a sim built
   with `ZM_AUDIO_MIRROR=1`), because a sim's frames are hashed against `scene_hash.mjs`, which plays no audio.
-  The per-channel scopes (`zigos.scopes`) are not mirrored: Paula is RTL on the board and no CPU has the mixed
-  samples, so music_debug's MOD and sample curves stay flat there.
+  The per-channel scopes (`zigos.scopes`, 4 x 128 f32) take another road since table 1.26 (decisions.md
+  2026-11-14): no CPU runs the Paula mix (CHORUS is RTL), so BARD rebuilds engine.zig's capture from the players'
+  `machinePaula*` calls (`host/audio_scope.c`: a shadow of each channel's data, loop, step, volume and position,
+  every 4th sample x volume into a 128-entry ring, as f32 bits with no float op) and writes it straight into the
+  cart's field. The cart hands its `getScopesPointer` over once through the table's `hostAudioScopes` entry;
+  ZIGGY puts its DDR address in C2S word `C_SCOPES` (7) before BARD runs and again if it moves, and drops the
+  field's 64 D-cache lines after each cart frame (`cycles/bsound.c`, `bdinval.h`). BARD follows the word before
+  each render (`cycles/bscope.h`: 4-aligned, inside the cart's data only). The native host holds the rebuild to the
+  machine's engine word for word after every render (`ZM_SCOPE_CHECK=1`, `tests/test_audio_scopes.py`).
+  A 1.25 cart runs on a 1.26 system with flat scopes; a column read while BARD rewrites it can mix two renders
+  (a scope, harmless).
 
 ### Which songs a cart image holds
 

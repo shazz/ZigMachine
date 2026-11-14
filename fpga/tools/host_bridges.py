@@ -3,6 +3,8 @@ the --call export table, and the song, input and disk-app bridges the host and t
 firmware call the cart through (host/host.h host_song_bridge, host_input_bridge,
 host_disk_app_bridge)."""
 
+from host_scopes import SCOPES, SCOPES_DEFAULTS, scopes_arg
+
 # How a --call argument (a JS Number, as a double) becomes each wasm parameter type.
 FROM_NUMBER = {"u32": "host_to_i32(a[{i}])", "f32": "(f32)a[{i}]", "f64": "a[{i}]"}
 
@@ -189,9 +191,9 @@ NET_DEFAULTS = """/* ZIGNIC: no network card (Err.no_card) unless cycles/bnet.h 
 #endif
 """
 
-HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3, **BARD, **POINTER_BOX, **NET}
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3, **BARD, **POINTER_BOX, **NET, **SCOPES}
 HOST_DEFAULTS = (STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS + KOS_FILE_DEFAULTS + MP3_DEFAULTS
-                 + BARD_DEFAULTS + POINTER_BOX_DEFAULTS + NET_DEFAULTS)
+                 + BARD_DEFAULTS + POINTER_BOX_DEFAULTS + NET_DEFAULTS + SCOPES_DEFAULTS)
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:
@@ -200,6 +202,7 @@ def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:
 
 
 def mirror_bind(cart: dict[str, tuple[str, list[str]]]) -> str:
-    """host_audio_mirror_bind for the monolithic env.c (host/host.h)."""
+    """host_audio_mirror_bind for the monolithic env.c (host/host.h): the mirror's fields, then the scopes."""
     return (f"void host_audio_mirror_bind(struct w2c_env* e) {{ (void)e; "
-            f"HOST_AUDIO_MIRROR(e, {mirror_args(cart, '&e->cart')}); }}\n")  # fmt: skip
+            f"HOST_AUDIO_MIRROR(e, {mirror_args(cart, '&e->cart')}); "
+            f"HOST_AUDIO_SCOPES(e, {scopes_arg(cart, '&e->cart')}); }}\n")  # fmt: skip
