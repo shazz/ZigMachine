@@ -24,8 +24,8 @@ const strip = @import("strip.zig");
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
 /// `load`: Enter, insert + reset; `insert` / `eject`: drive A without a reset (app_drive.zig).
-/// `wifi`: a Wi-Fi job to start (app_wifi.zig). `shot`: a screenshot (app_shot.zig).
-pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source, wifi: page_wifi.Cmd, shot };
+/// `wifi`: a Wi-Fi job to start (app_wifi.zig). `shot`: a screenshot (app_shot.zig). `reboot`: a confirmed Yes (app_reboot.zig).
+pub const Action = union(enum) { none, close, load: usize, insert: usize, eject, floppy_a, cold, warm, settings, save, source, wifi: page_wifi.Cmd, shot, reboot };
 pub const Page = enum { shelf, console, debug, budget, help, wifi };
 
 pub const HINT = "ENTER boot  I/E disk  F floppy >";
@@ -111,6 +111,7 @@ pub const Menu = struct {
             .warm => .warm,
             .settings => .settings,
             .shot => .shot,
+            .reboot => .reboot,
             .debug => self.go(.debug),
             .help => self.go(.help),
             .wifi => blk: {

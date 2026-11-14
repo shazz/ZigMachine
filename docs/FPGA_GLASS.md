@@ -649,13 +649,12 @@ not list shows `no shelf.txt entry` and its file name in the details.
  Help...
  Wi-Fi...
  Take screenshot                    the picture as a PNG on the card (PrintScreen too)
+ Reboot...                          Reboot the board?  Yes / No (No selected): the board restarts
  Back
-
 --------------------------------
 Reload the cart from the SD         what the selected item does
-card, clear all its memory and
-boot it: a power cycle. (R on
-the shelf)
+card, clearing its memory: a
+power cycle. (R on the shelf)
 ENTER do  <> change  Esc back
 ```
 
@@ -698,6 +697,21 @@ card's root (`/mnt/sd/screenshots/`), so Matt can show the lead what he sees (Ma
   screenshots/SHOT0007.PNG`, or `not saved: card read-only` / `card full` / `no card` /
   `write failed` / `screenshots/ full`, `screenshot: no cart running` / `busy, wait` /
   `cart did not stop` / `old firmware` (no mailbox).
+
+### Reboot (`app_reboot.zig`)
+
+Console > `Reboot...` (Matt, 2026-11-14) asks `Reboot the board?` with `Yes` / `No` and No selected;
+Enter on No, Esc or Backspace do nothing, only Yes reboots. `glass ctl reboot` does the same without
+the question. Either way the request shows `Rebooting...` and the next tick (the OSD or the ctl reply
+has gone out) does it: the cart CPU is held and the mixer muted (the audio stops cleanly), a settings
+save still pending is written, `sync`, the card is made read-only again, `/tmp/glass.stop` is touched
+(so S99glass's loop does not restart glass while the kernel goes down), then `reboot(2)` RESTART. Not
+busybox `reboot`: that needs init, PATH and rcK to cooperate and kills glass mid-way; the card is already
+synced and read-only, and nothing else on the rootfs needs a clean stop. If reboot(2) is refused, the stop
+mark is removed, the menu says `reboot failed` and the loop is unharmed. glass is one thread for every
+card write (settings, Wi-Fi, screenshot: all in `tick`), so none can be half done. `/tmp` is RAM, so the
+boot splash plays after a menu reboot, as it should: it is a real boot. Tests inject the sync and the
+restart (`app_reboot_test.zig`): the host is never rebooted.
 
 ### The Wi-Fi page (`page_wifi.zig`, `app_wifi.zig`)
 
@@ -819,6 +833,7 @@ The glass serves it from its main loop, between two input events, as it would a 
 | `osd open\|close` | F12 |
 | `quit-cart` | the cart CPU held in reset, the menu up |
 | `shot` | a screenshot, as PrintScreen takes it ("Screenshots" above): `ok` when it started, the file's name in the log and on the OSD a moment later |
+| `reboot` | restart the board, no question asked: the cart CPU held, the mixer muted, a pending settings save done, `sync`, the card read-only, then `reboot(2)` RESTART. `ok rebooting` is replied first; the restart is the next tick's (<= 100 ms later) |
 | `list`, `help` | the shelf (`file<TAB>title<TAB>folder` a line, the folder a path, `demos/atari_st`, empty for a disk at the top), the commands |
 
 The `stats` line, one `key=value` a field, never a space in a value (`_` stands in), `-` for

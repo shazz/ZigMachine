@@ -40,6 +40,7 @@ pub fn act(app: *App, action: menu.Action) void {
         .source => @import("app_source.zig").toggle(app),
         .wifi => |what| @import("app_wifi.zig").act(app, what),
         .shot => _ = @import("app_shot.zig").take(app), // false: it said why
+        .reboot => _ = @import("app_reboot.zig").request(app),
     }
     app.redraw();
 }

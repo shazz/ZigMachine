@@ -32,6 +32,7 @@ pub fn exec(app: *App, line: []const u8, w: *std.Io.Writer) void {
         .quit_cart => quit(app, w),
         .list => list(app, w),
         .shot => shot(app, w),
+        .reboot => reboot(app, w),
         .help => reply(w, ctl.HELP ++ "ok\n", .{}),
     }
 }
@@ -49,6 +50,12 @@ pub fn tick(app: *App) void {
 fn shot(app: *App, w: *std.Io.Writer) void {
     if (!@import("app_shot.zig").take(app)) return reply(w, "err {s}\n", .{app.menu.status orelse "screenshot"});
     reply(w, "ok screenshot under way: screenshots/ on the card\n", .{});
+}
+
+/// The reply goes out first: the restart itself is the next tick's (app_reboot.zig).
+fn reboot(app: *App, w: *std.Io.Writer) void {
+    if (!@import("app_reboot.zig").request(app)) return reply(w, "err a reboot is already under way\n", .{});
+    reply(w, "ok rebooting\n", .{});
 }
 
 fn reply(w: *std.Io.Writer, comptime fmt: []const u8, args: anytype) void {
