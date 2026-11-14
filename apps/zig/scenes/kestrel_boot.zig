@@ -13,6 +13,7 @@
 //   sound    the YM2149 through zg.ymWrite, a register stream (jingle.zig)
 //   end      once black (tl.BLACK) the cart asks to leave (pollCartRequest -1): at the board's
 //            power-on glass then boots KOS (fpga/glass/src/app_splash.zig); in the browser the menu
+//            comes back
 //
 // Integer-only per frame; frames are counted, dt is ignored (timeline.zig).
 // apps/kestrel_boot_check.mjs proves it.
