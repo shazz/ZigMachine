@@ -71,6 +71,13 @@
   The cross-cutting checks (`check_fits`, `ram_check`, `rom_abi_check`, `blitter_check`, `disk_check`,
   `upload_check`, `verify`, `tunein_check`, `zero_segments`) always run; only per-screen harnesses are
   skipped.
+- **Land ready branches in batches: one gate for the whole queue** (Matt, 2026-11-13: "at each unlock,
+  check for merge / install, if queue, do it before locking again"). Agents gate their own work with
+  `--only <tag>` and, when green, append `<branch> <note>` to `prototypes/_gate_logs/merge_queue.txt`;
+  they never run a full gate to land and never push. Each time the lock frees, the lead runs
+  `tools/gate_batch.sh list`, then `merge <name>` (one integration branch from origin/main with every
+  queued branch) and `gate <name>` (one full gate, then the push), clears the queue, and installs the
+  board files ONCE (one system.rv32 for all ROM/BARD changes) before anyone takes the lock again.
 - **The pre-push hook IS the gate — don't gate twice.** It skips a tree already stamped green
   (`.git/zm-gate-green`, written only by a full gate on a clean tree); otherwise it runs
   `--changed <remote sha>`, or the full gate for a shared change (`libs/`, `rom/`, `machine/`,
