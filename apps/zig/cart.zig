@@ -140,6 +140,7 @@ const scene = switch (opts.index) {
     129 => @import("scenes/sca_karatekid2.zig"), // SCA THE KARATE KID PART II (CODEF 495): starfield, copper raster bar, scroller, logo
     130 => @import("scenes/copro.zig"), // COPRO: BARD as a coprocessor (zg.bard.job): ZX0 depack, a 3D morph, particles, CRC-32, each ZIGGY alone or on BARD, music playing
     131 => @import("scenes/kestrel_boot.zig"), // KESTREL BOOT (WINDHOVER): the console's boot screen, 4.8 s then black (prototypes/boot_screen/STUDY.md)
+    132 => @import("scenes/sb_spike.zig"), // SB SPIKE: Suicide Barbie (TBL, PSP 2007, MIT) mix3, 12,147 textured triangles on CHISEL AFFINE, the port's feasibility spike
     else => @compileError("bad cart index"),
 };
 
