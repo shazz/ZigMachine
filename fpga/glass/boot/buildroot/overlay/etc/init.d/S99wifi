@@ -10,6 +10,11 @@ RUN=/tmp/wifi
 case "$1" in
 start)
     [ -f "$CONF" ] || exit 0
+    # An image without the driver built in: load the modules shipped in /usr/lib/kwifi.
+    if [ ! -e /sys/class/net/wlan0 ] && [ -f /usr/lib/kwifi/brcmfmac.ko ]; then
+        echo /usr/lib/kwifi/modprobe > /proc/sys/kernel/modprobe
+        for m in cfg80211 brcmutil brcmfmac; do insmod /usr/lib/kwifi/$m.ko 2>/dev/null; done
+    fi
     i=0
     while [ ! -e /sys/class/net/wlan0 ] && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
     if [ ! -e /sys/class/net/wlan0 ]; then
