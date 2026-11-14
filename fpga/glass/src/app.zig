@@ -20,6 +20,7 @@ const stats = @import("stats.zig");
 const cart = @import("app_cart.zig");
 const overlay = @import("app_stats.zig");
 const budget_page = @import("app_budget.zig");
+const splash = @import("app_splash.zig");
 
 const HELD_MAX = 16;
 pub const OSD_FG: u32 = 0xE0E0E0;
@@ -76,6 +77,8 @@ pub const App = struct {
     shot: @import("app_shot.zig").State = .{}, // a screenshot under way (app_shot.zig)
     toast: overlay.Toast = .{}, // a message shown with the menu closed (app_stats.toast)
     card_dir: []const u8, // the SD card's root: screenshots/ goes there (layout.Dirs.card)
+    splash: splash.State = .{}, // the boot screen at power-on (app_splash.zig)
+    splash_mark: []const u8 = splash.MARK, // its first-start mark (a test's own path)
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dirs: @import("layout.zig").Dirs) !App {
@@ -120,6 +123,7 @@ pub const App = struct {
 
     /// One evdev key record (value 0 up, 1 down, 2 repeat).
     pub fn key(self: *App, code: u16, value: i32) void {
+        if (splash.skip(self, code, value == 1)) return;
         if (code == keymap.OSD_HOTKEY) {
             if (value == 1 and (self.mods.shift_l or self.mods.shift_r)) return self.rescan();
             if (value == 1) self.setOpen(!self.open);
@@ -200,6 +204,7 @@ pub const App = struct {
         self.pad.x = x;
         self.pad.y = y;
         if (!self.pad.update(ev_type, code, value)) return;
+        if (splash.skip(self, null, self.pad.bits & ~before != 0)) return;
         if (!self.open) return self.regs.write(map.REG_JOY, self.pad.bits);
         const pressed = self.pad.bits & ~before; // the menu takes the pad's down edges as keys
         const keys = [_][2]u32{
@@ -214,7 +219,7 @@ pub const App = struct {
     /// sample, and the live parts of the OSD (the debug page, a long name
     /// scrolling, the F11 overlay).
     pub fn tick(self: *App) void {
-        cart.watch(self);
+        if (!splash.tick(self)) cart.watch(self);
         @import("app_ctl.zig").tick(self);
         self.ticks +%= 1;
         budget_page.sample(self);

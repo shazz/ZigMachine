@@ -1,9 +1,10 @@
 // glass: the ZigMachine console's ARM-side program (docs/FPGA_GLASS.md).
 //
-//   glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR]
+//   glass run [--no-wait] [--no-splash] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR]
 //                                   the board: /dev/mem windows, evdev input, the OSD menu;
 //                                   --no-wait: do not wait for the firmware's RUNNING
 //                                   (for a firmware that does not report CART_STATE yet);
+//                                   --no-splash: no boot screen, KOS at once (app_splash.zig)
 //                                   --mouse-scale: pointer speed, 100 = a pixel a count;
 //                                   --fw-opt: the system's A/B switches (afi.zig) for every cart;
 //                                   CARD_DIR (default /mnt/sd): the card, either layout (layout.zig)
@@ -43,6 +44,8 @@ pub fn main(init: std.process.Init) !u8 {
         while (args.next()) |a| {
             if (std.mem.eql(u8, a, "--no-wait")) {
                 opt.wait = false;
+            } else if (std.mem.eql(u8, a, "--no-splash")) {
+                opt.splash = false;
             } else if (std.mem.startsWith(u8, a, "--mouse-scale=")) {
                 const pct = std.fmt.parseInt(i32, a["--mouse-scale=".len..], 10) catch return usage();
                 if (pct < 1 or pct > 10_000) return usage();
@@ -78,7 +81,7 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu CARD_DIR [shelf|console|debug] | astro-bench\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--no-splash] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu CARD_DIR [shelf|console|debug] | astro-bench\n", .{});
     return 2;
 }
 
@@ -131,7 +134,7 @@ fn simMenu(init: std.process.Init, dir: []const u8, page: menu.Page) !u8 {
     return 0;
 }
 
-const RunOptions = struct { dir: []const u8 = layout.ROOT, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE, fw_opt: ?u32 = null };
+const RunOptions = struct { dir: []const u8 = layout.ROOT, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE, fw_opt: ?u32 = null, splash: bool = true };
 
 fn run(init: std.process.Init, opt: RunOptions) !u8 {
     const board = try devmem.open();
@@ -154,8 +157,10 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     app.stats.start_ms = nowMs();
     app.sd_writable = sdWritable;
     app.wifi.path_env = init.environ_map.get("PATH") orelse app.wifi.path_env; // where the Wi-Fi page looks for iw & co (and /tmp/up)
-    // KOS's power-on: ZIGGY starts at once over drive A, the OSD closed (app_drive.zig).
-    @import("app_drive.zig").powerOn(&app);
+    // KOS's power-on: ZIGGY starts at once over drive A, the OSD closed (app_drive.zig); the
+    // first glass since power-on plays the boot screen before it (app_splash.zig).
+    const why = @import("app_splash.zig").startOrPowerOn(&app, !opt.splash);
+    std.log.info("boot splash: {t}", .{why});
     var inputs = evdev.Inputs{};
     defer inputs.closeAll();
     inputs.extra = ctl_sock.listen(ctl_sock.PATH) catch |err| blk: {

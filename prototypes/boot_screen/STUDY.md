@@ -183,3 +183,49 @@ is 61 KB of wasm, 14.8 KB as a packed `.zmd`: nothing but code and a few tables.
 
 What the prototype does not yet do: the `KSPL` hand-off word (a board-firmware matter, step 4), and
 on the board its YM writes still go through the effects queue (step 2).
+
+## 6. At the board's boot (14 Nov 2026, branch `feat/fast-boot-splash`)
+
+Matt, 14 Nov: "is it possible to add it at the board boot?". Done the simple way, not option B: glass
+plays the cart (`fpga/glass/src/app_splash.zig`, docs/FPGA_GLASS.md "Boot splash") as the first thing
+it does after a power cycle, then powers KOS on as before. No U-Boot, kernel or RTL change; the cart
+ends itself by asking to leave at its black frame 290 (`wants_quit`, the board's REQ_BACK). Skippable
+with any key or pad button, `splash=0` in glass.cfg turns it off, a glass restart or a missing or
+broken cart goes straight to KOS, a 9 s cap cuts a stuck one. U-Boot splash options (C, B) stay
+studies; the measured boot below says they would buy at most ~5 s of picture before glass.
+
+### The measured boot (`bootlogs/boot_card14n.txt`, serial timestamps from `reboot`)
+
+| Stage | At (s from the reset, 2.36) | Took |
+|---|---|---|
+| SPL banner | 0.45 | |
+| U-Boot banner | 0.85 | |
+| bootdelay (`Hit any key`) | 1.0 -> 3.0 | 2.0 |
+| boot.scr, bitstream loaded (2.08 MB, 131 ms) + AFI | 3.3 | 0.25 |
+| zImage 11.9 MB (655 ms), dtb, rootfs 3.4 MB (203 ms) | 4.3 | 0.95 |
+| kernel first line | 5.2 | 0.9 (decompress) |
+| **macb (GEM0) probe stall** | 5.7 -> 44.7 | **39.0** |
+| `/init` | 45.0 | |
+| S40network .. S50crond: nothing logged until `crng init done` (probably avahi-daemon -D on getrandom) | 45.1 -> 47.9 | 2.8 |
+| glass up | 48.3 | |
+| (then today: the desktop load ~2.5 s BOOTING + POST 3 s) | ~53.8 | |
+
+The stall: the device tree enabled GEM0 while the bitstream does not wire its EMIO; the unwired MDIO
+input reads 0, so every PHY address answered ID 0x00000000 and macb registered 32 phantom PHYs (the
+board's `/sys/bus/mdio_bus/devices`), ~1.2 s each. Fixed on this branch: gem0 disabled in
+`fpga/glass/boot/zigmachine-z7lite.dts`, no `BR2_SYSTEM_DHCP="eth0"` (its `wait-delay 15` would wait
+15 s more for an eth0 that no longer appears).
+
+### Expected after the fix (estimates until the lead's board run)
+
+| Stage | Today | gem0 off, no splash | gem0 off + splash |
+|---|---|---|---|
+| glass up | 48.3 | ~6.5-9.3 (the crng wait may grow: watch avahi) | same |
+| splash on screen (load ~2.5 s BOOTING, then frame 20 fades up) | | | ~9-12 |
+| splash asks to leave (frame 290, 4.8 s) | | | ~14-17 |
+| KOS desktop (load ~2.5 s + POST 3 s) | ~53.8 | ~12-15 | ~19.5-22.5 |
+
+The splash costs ~7.5 s before the desktop (its 4.8 s plus a second cart load); `post=0` takes the
+POST's 3 s off either column. Next steps if it should be shorter: read drive A and plan KOS's load
+while the splash plays (the card work is ~0.1 s, the BOOTING wait is the firmware's), and the
+U-Boot option B (the splash from ~3.5 s) only if the 6-9 s of black before glass still matters.

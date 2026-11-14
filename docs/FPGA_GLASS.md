@@ -365,7 +365,8 @@ below the cart window.
    `/mnt/KESTREL/glass run /mnt` at the shell.
 4. **`glass`** maps GP0 and the cart window, checks `ID`, sets the OSD colours,
    scans the shelf and powers KOS on: ZIGGY starts at once over what drive A holds
-   (`drive_a=` in glass.cfg), the OSD closed (below, "KOS: power-on and drive A").
+   (`drive_a=` in glass.cfg), the OSD closed (below, "KOS: power-on and drive A"). The first
+   glass since power-on plays the boot screen first (below, "Boot splash").
    If nothing can boot (no desktop on the card, say), the menu opens with why.
 
 ## Plan A: our own boot stack (`fpga/glass/boot/build_planA.sh`)
@@ -945,11 +946,37 @@ mute=0
 fps=0
 drive_a=demo-stniccc.zmd
 post=1
+splash=1
 ```
 
 `fps=1`: the F11 frame-rate overlay is on. F11 saves it at once. `drive_a=`: the disk in
 KOS's drive A, a shelf file name (`[A-Za-z0-9._-]`, at most 64, never a path; empty = no disk),
 saved when Enter / I / E change it. `post=0`: no POST at any reset (fast demo work).
+`splash=0`: no boot screen at power-on (below, "Boot splash"). An older glass reads `splash=`
+as an unknown key: `glass.cfg: bad line 7` on its status line, every other setting applied.
+
+## Boot splash (`app_splash.zig`)
+
+The first glass after a power cycle plays KESTREL BOOT (WINDHOVER, cart 131,
+`demo-kestrel_boot.zmd` anywhere on the shelf; prototypes/boot_screen/STUDY.md) as a plain cart
+load (no KOS boot words), then powers KOS on exactly as without it (drive A, the POST).
+
+- **Plays** when `splash=1` (the default), this is the first start since power-on (the mark
+  `/tmp/glass.splashed`, in tmpfs: created by the first glass, found by S99glass's restart loop
+  or a `killall glass`), no cart is RUNNING in the window already, `glass run` was not given
+  `--no-splash`, and the shelf has the disk. Otherwise KOS powers on at once; the log says why
+  (`boot splash: restart`, `off`, `missing`...).
+- **Ends** when the cart asks to leave (it does at its black frame 290, 4.8 s in:
+  `pollCartRequest` -1, the firmware's REQ_BACK; any request counts), traps, a key or a pad
+  button goes down (swallowed with its release: KOS never sees it), or after 9 s (`CAP_MS`).
+- **Yields** to a load from elsewhere (`glass ctl load`): the splash just stops, no KOS over it.
+- **Never blocks the menu**: a missing disk, a disk that fails to load, a mark that cannot be
+  made all mean "no splash", and a stuck cart is cut by the cap.
+
+Tests: `app_splash_test.zig` (the policy, the first-boot flow to the desktop, restart, `splash=0`,
+missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load over it);
+`apps/kestrel_boot_check.mjs` checks the cart asks to leave at 290 and never before
+(`--break stays`).
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
   is reported, as nothing is wrong.
@@ -1554,9 +1581,15 @@ ssh to the board over its RJ45; no Wi-Fi dongle is needed.
   `REALTEK_PHY`, `INET`, `PACKET`, `IP_MULTICAST`. The defconfig:
   `BR2_SYSTEM_DHCP="eth0"` (ifupdown + busybox `udhcpc`, started by
   `S40network`), dropbear (`S50dropbear`) and avahi-daemon (`S50avahi-daemon`):
-  Buildroot's own init scripts start them. The DTS enables `&gem0` with
-  `phy-mode = "mii"` and no `phy-handle`, so `macb` scans MDIO for the PHY
-  whatever its strapped address.
+  Buildroot's own init scripts start them. **Off since 14 Nov 2026**: the DTS
+  sets `&gem0` `status = "disabled"` and the defconfig has no
+  `BR2_SYSTEM_DHCP`, because with no EMIO wiring the unwired MDIO input reads 0,
+  `macb`'s bus scan registered 32 phantom PHYs (ID 0x00000000 at every address)
+  and the probe stalled the kernel 39 s of a 51 s boot
+  (`prototypes/boot_screen/bootlogs/boot_card14n.txt`); with eth0 gone, Buildroot's
+  `auto eth0` + `wait-delay 15` would wait 15 s more in `S40network`. When the
+  wiring lands: `gem0` "okay" (better with a `phy-handle` at the strapped address,
+  no scan) and `BR2_SYSTEM_DHCP="eth0"` back. ssh works over the Wi-Fi meanwhile.
 - **PL side (to do).** The bitstream must wire the PS7 cell's ENET0 EMIO ports
   to those pins: `EMIOENET0GMIITXD[3:0]` and `GMIITXEN` out, `GMIIRXD[3:0]`,
   `GMIIRXDV`, `GMIITXCLK`, `GMIIRXCLK` in, and MDIO through one IOBUF
