@@ -567,6 +567,16 @@ host takes the whole commands (`seq` matches) and writes back. `addr` 0xD400..0x
 reset (value = model), 2 a mark (an event back at `t`). On the board BARD reads the ring in DDR: ZIGGY puts the
 head in C2S word 5, BARD answers in S2C words 23-31 (`fpga/cycles/snd_mailbox.h`, `bardq_s2c.h`).
 
+### BARD jobs (system table 1.24)
+
+One `env` import, the host's: `u32 hostBardJob(u32 op, u32 arg)`. `op` 0 opens the cart's job block `arg`
+(16-aligned; 0 closes) and answers 1 when a server outside the cart takes it; 1 kicks (`arg` = jobs posted),
+2 polls job `arg` (1: answered), 3 waits for it (1: answered; 0: the server never answered). Every op answers 0
+where no coprocessor runs: `zg.bard.job` then serves the jobs in the cart. The block is
+`libs/zig/bard_jobs/layout.zig`'s (= `fpga/host/bjob.h`). The page serves through the cart's `bardJobServe`
+export after the frame (and on a wait). On the board OP_JOB (`fpga/cycles/snd_mailbox.h`) opens it once;
+a kick is C2S word 6; BARD answers in the cart's DDR (`cycles/sound/sjobs.c`, `cycles/bsound_job.c`).
+
 ### Read-back pointers (for the worklet / scope)
 
 ```zig

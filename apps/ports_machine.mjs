@@ -59,6 +59,7 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
         // The Paula channels (HW 1.14.0): none here unless extraEnv lends them (claim 0: software mix).
         hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
         hostBardAttach: () => 0, // table 1.12: no BARD queue here
+        hostBardJob: () => 0, // table 1.24: no coprocessor here (the cart serves its own jobs)
         hostPointerBox: (x0, y0, x1, y1) => ptrBoxes.push([x0 | 0, y0 | 0, x1 | 0, y1 | 0]), // table 1.21: recorded
         netOp: () => -1, // table 1.22: ZIGNIC, no card in the harness (SyncTERM falls back to its in-cart BBS)
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5)

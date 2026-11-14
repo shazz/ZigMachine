@@ -16,6 +16,9 @@
 // --------------------------------------------------------------------------
 extern fn hostBardAttach(block: u32, lead: u32) u32;
 
+/// Jobs for BARD (table 1.24): a coprocessor for non-music work (bard_job.zig).
+pub const job = @import("bard_job.zig");
+
 pub const MAGIC: u32 = 0x51424d5a; // "ZMBQ"
 pub const CAP: u32 = 256; // commands the ring holds (a power of two)
 pub const EV_CAP: u32 = 16; // events

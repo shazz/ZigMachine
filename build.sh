@@ -170,6 +170,7 @@ NATIVE_TESTS="
     libs/zig/zigdemo/debug_test.zig
     libs/zig/zigdemo/assets_test.zig
     libs/zig/zigdemo/audio_test.zig
+    libs/zig/bard_jobs_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
     libs/zig/depackers/depack_fx.zig
@@ -470,6 +471,11 @@ gate bard_ay sh libs/c/ayumi/check/check.sh --break   # ...and the core's tone w
 gate bard_ay node apps/ay_live_check.mjs   # the BARD queue's AY device (zm_ay_bank.h, players/ay_live.zig): machine-audio.wasm's engine = the same C built natively (fpga/tools/ay_render.c, what BARD runs), 4 s of random writes to three chips, block for block; the queue player (audioBardOpen, the stage, audioBardQueue) = the engine with the writes a lead late, >> 1 a side, sample for sample, stereo, nothing refused, dropped or re-anchored; a chip not configured and a SID command on an AY open refused
 gate bard_ay node apps/ay_live_check.mjs --break drop   # ...and one write lost on the way fails the player check
 gate bard_ay node apps/ay_live_check.mjs --break late   # ...and every write but the first a sample late fails it
+gate copro node apps/copro_check.mjs   # COPRO (cart 130): BARD jobs (zg.bard.job, table 1.24) through the loader's own hostBardJob / bardJobFrame: each page (ZX0 depack, 3D morph, particles, CRC-32) draws the same pixels with its jobs on ZIGGY and served by the page after the frame; every posted job answered by the page, no fallback; nothing kicked on ZIGGY; the first slide is dragon.raw index for index; the CRC map is zlib's crc32 chunk for chunk
+gate copro node apps/copro_check.mjs --break answer   # ...and a server whose answer differs from ZIGGY's (one output word spoiled) fails every page's A/B
+gate copro node apps/copro_check.mjs --break stale   # ...and a page that says done without serving makes the cart fall back to ZIGGY: every "served" check fails
+gate copro node apps/scene_hash.mjs docs/demo-copro.wasm 480 60 --call 120:setShadeMode:1 --call 240:setShadeMode:2 --call 360:setShadeMode:3   # ...and scene_hash runs all four pages (no coprocessor: the cart serves its own jobs, as the board sim's hashes do)
+gate copro uv run --project fpga python -m pytest -q fpga/tests/test_bard_job.py   # ...and the C side's view of the job block (host/bjob.h, what ZIGGY polls on the board) is layout.zig's word for word (ZM_RTL_BREAK=1: a moved done word is caught)
 gate tri_test node apps/tri_test_check.mjs   # TRI TEST (cart 125): every TRIANGLE of set A (edge cases + 160 seeded) and of set B (48 a frame, 300 frames) equals a rasteriser written in the harness from the spec; the cart's on-screen hashes are the GOLDEN_A / GOLDEN_B the board compares against
 gate tri_test node apps/tri_test_check.mjs --break floor   # ...and a rasteriser that truncates instead of flooring is caught
 gate kt node apps/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted

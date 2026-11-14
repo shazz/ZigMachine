@@ -52,6 +52,11 @@ enum { S_ACK = 0, S_READY = 1, S_PUSHED = 2, S_APPLIED = 3, S_STATUS = 4, S_RESY
  * past its D-cache and answers in S2C words S_BQ.. (after the audio state): the commands taken, its
  * position, the event count << 1 | anchored, and the last S_BQ_SLOTS events {t, kind | arg << 8}. */
 enum { OP_BARD = 4, C_BQ_HEAD = 5 };
+/* BARD jobs (table 1.24, host/bjob.h): OP_JOB opens the cart's job block (C_PTR the cart's memory in DDR,
+ * C_LEN its size, C_ARG the block's offset in it) or closes it (C_PTR 0). Then no command: ZIGGY writes
+ * the jobs posted in C2S word C_JOB_HEAD when the cart kicks; BARD takes a slot once its seq (written last)
+ * is in DDR, and answers in the cart's DDR (cycles/sound/sjobs.c). */
+enum { OP_JOB = 5, C_JOB_HEAD = 6 };
 enum { S_BQ = 23, S_BQ_TAIL = 23, S_BQ_POS = 24, S_BQ_EVN = 25, S_BQ_EV = 26, S_BQ_SLOTS = 3 };
 
 #endif

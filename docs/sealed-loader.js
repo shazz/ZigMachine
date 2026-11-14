@@ -431,6 +431,7 @@ async function instantiateCart(bytes, what) {
         if (audioNode) audioNode.port.postMessage({ type: "reset" });
         paulaCart = null; // the reset gives the Paula channels back to the machine
         bardCart = null; // ...and ends the outgoing cart's BARD queue (its ring is gone)
+        jobCart = false; // ...and its BARD jobs (its block is gone)
         mp3Pending.length = 0; // ...and the outgoing cart's MP3 stream ends with it (the worklet's reset stopped it)
         mp3State = [0, 0, 0];
         sndhResident = null; // ...and the new cart's first zg.sndhCall loads its image
@@ -536,6 +537,8 @@ async function boot() {
             hostPaulaRelease: () => hostPaulaRelease(),
             // The BARD queue (table 1.12, libs/zig/bard.zig): the cart's ring of timed commands.
             hostBardAttach: (block, lead) => hostBardAttach(block, lead),
+            // BARD jobs (table 1.24, libs/zig/bard_job.zig): the page serves the cart's jobs after its frame.
+            hostBardJob: (op, arg) => hostBardJob(op, arg),
             // The pointer's box (table 1.21, HW_API "The pointer's box"): where the cart's picture is,
             // for the board's mouse. The page's pointer is the host's own: nothing to do here.
             hostPointerBox: () => {},
@@ -864,6 +867,7 @@ function start() {
         }
         // zg.bard (table 1.12): the frame's timed commands, off the cart's ring to the worklet.
         bardFrame();
+        bardJobFrame(); // zg.bard.job (table 1.24): the jobs it posted, served after its frame as BARD would
 
         if (desk.show()) return; // the desk mode (HW 1.17.0): plane 0 at 640x480, no planes
         let anyPlane = false;
@@ -1693,6 +1697,21 @@ function bardFrame() {
     if (!bardCart || !audioNode) return;
     const words = bardDrain(new Uint32Array(memory.buffer), bardCart.block >>> 2);
     if (words.length) audioNode.port.postMessage({ type: "bardCmds", words: words.buffer }, [words.buffer]);
+}
+// BARD jobs (table 1.24, libs/zig/bard_job.zig): on the board BARD serves the cart's jobs while the cart
+// runs; here the page does, after the cart's frame, through the cart's own server (its bardJobServe
+// export: the kernels BARD runs, so the same bytes), and at once when the cart waits on a job (a cart
+// that waits inside the frame it posted in: BARD would have been working meanwhile). Without the
+// export the cart serves its own jobs inside its frame (0: no coprocessor here).
+let jobCart = false; // the cart's block is open
+function hostBardJob(op, arg) {
+    if (op === 0) { jobCart = !!arg && typeof demo.bardJobServe === "function"; return jobCart ? 1 : 0; }
+    if (!jobCart) return 0;
+    if (op === 3) { demo.bardJobServe(); return 1; } // WAIT: serve now
+    return op === 1 ? 1 : 0; // KICK taken; POLL: not before the frame ends
+}
+function bardJobFrame() {
+    if (jobCart) demo.bardJobServe();
 }
 // The ring's new commands as {t, addr, value, 0} words, the cart's tail moved past them. An entry
 // is taken only when its seq is its index (a reader never takes half an entry).

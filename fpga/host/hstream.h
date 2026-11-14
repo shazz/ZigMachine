@@ -41,4 +41,9 @@ uint32_t audio_bard_attach(struct w2c_env* e, uint32_t block, uint32_t lead);
 
 #define HOST_BARD_ATTACH(e, block, lead) audio_bard_attach((e), (block), (lead))
 
+/* BARD jobs (table 1.24, host/bjob.h): cycles/bsound_job.c where BARD serves, host/audio_bardjob.c else. */
+uint32_t audio_bard_job(struct w2c_env* e, uint32_t op, uint32_t arg);
+
+#define HOST_BARD_JOB(e, op, arg) audio_bard_job((e), (op), (arg))
+
 #endif

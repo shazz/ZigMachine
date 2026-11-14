@@ -138,6 +138,7 @@ const scene = switch (opts.index) {
     127 => @import("scenes/notepad.zig"), // NOTEPAD: a windowed text editor on GEM 5's program API (windows, menu bar, form_alert), C:\*.TXT through KOS GEMDOS
     128 => @import("scenes/gemtest.zig"), // GEMTEST: every GEM 5 component on one disk, through the program API only (docs/GEMTEST.md)
     129 => @import("scenes/sca_karatekid2.zig"), // SCA THE KARATE KID PART II (CODEF 495): starfield, copper raster bar, scroller, logo
+    130 => @import("scenes/copro.zig"), // COPRO: BARD as a coprocessor (zg.bard.job): ZX0 depack, a 3D morph, particles, CRC-32, each ZIGGY alone or on BARD, music playing
     else => @compileError("bad cart index"),
 };
 

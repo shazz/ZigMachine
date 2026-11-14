@@ -228,6 +228,40 @@ seven of the eight frames play the tune. combo16 core (`SndNdD16Dyn8Sx`, soc_hp_
 - `snd.bin`: 1,998,040 (7 Nov, before) -> 2,003,432 bytes on main 4e05431d + the queue (+5,392 with main's F11 window; the queue alone +5,248); 93,720 bytes left of 2 MiB. The
   queue's own 21 KB (ring, stage, events) lives in song RAM, not in the image.
 
+### BARD jobs (system table 1.24)
+
+`zg.bard.job` (docs/ZIGOS_API.md 8e, decisions.md 2026-11-13): BARD as a coprocessor for non-music work. The
+cart's job ring lives in its own memory (`libs/zig/bard_jobs/layout.zig` = `fpga/host/bjob.h`); BARD runs
+`libs/zig/bard_jobs/server.zig`, the cart's own Zig source built rv32i + Zmmul (`cycles/sound.mk` BJOB_ZIG,
+ReleaseFast, 7 KB of snd.bin; the DIV/REM guard covers it), so a job writes the same bytes on BARD as in the cart.
+
+- **Open** (`OP_JOB`, one mailbox command): C_PTR the cart's memory in DDR, C_LEN its size, C_ARG the block.
+  ZIGGY checks the block against the cart first (`cycles/bsound_job.c`); BARD's server checks every array.
+- **Kick**: ZIGGY writes the jobs posted in C2S word 6. BARD takes a slot only once its `seq`, written last
+  by the cart, is there (`zm_dflush` on a new head, and again while a slot is not whole).
+- **Serve**: `cycles/sound/sjobs.c`, one turn of `smain.c`'s loop after the BARD queue: at most 100k cycles of
+  the job in progress (`SJ_BUDGET`), then the render as usual, so a 2 Mc depack is spread over the renders and
+  the music keeps its lead. The answer (err, cycles, result, then `done` last) goes into the cart's DDR.
+- **Done**: the cart polls through `hostBardJob(POLL/WAIT)`: ZIGGY drops the slot's D-cache lines before it reads
+  `done`, and its whole D-cache once the job is answered (the outputs are BARD's stores). 0.5 s without an
+  answer: the cart takes the block back and serves the rest itself.
+
+`make snd-cbench CBENCH_SRC=cycles/sound/sjobs_cbench.c CBENCH_CFLAGS=-Ibuild/jobbench
+CBENCH_OBJ=build/hcycles/snd/play/o/bjob.zig.o` (build/jobbench/dragon_zx0.h = `xxd -i` of `zx0pack
+tex_neoshow/dragon.raw`), on `soc_hp_snd_dyn8sx`, 14 Nov: the COPRO cart's four jobs at its sizes, the kernel
+and its DDR traffic (warm caches; the cold run is within 0.3 %):
+
+| Job (cart 130's page) | Size | BARD Mc | of BARD's 60 Hz frame | Answer checked |
+|---|---|---|---|---|
+| zx0 (1, the slideshow) | 64,000 bytes out, 18,296 in | 2.34 | 140 % (spread over ~2 frames of renders) | 64,000 bytes, no stream error |
+| xform (2, the morph) | 4,096 points | 0.575 | 34 % | 4,096 on screen, = the native build |
+| particles (3) | 4,096 sparks | 0.283 | 17 % | |
+| crc32 (4) | 64 KB, 256 chunks | 0.696 | 42 % | = zlib (2078341815) |
+
+ReleaseSmall cost the depack 2.8x (6.56 Mc: a byte-by-byte match copy) for 1 KB less, hence ReleaseFast. The
+page CRC was 128 KB first: 1.39 Mc, 84 % of BARD, too much beside a tune. ZIGGY's side is the cart's own wasm2c
+code: the cart's HUD gives both (line 2: the job's Mc on ZIGGY and on BARD), on the board.
+
 ## Size
 
 `fpga/tools/sound_ooc.py`: Vivado out of context on the xc7z010-1, the whole block (core, decoder, arbiter, posted

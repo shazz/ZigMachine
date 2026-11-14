@@ -92,6 +92,8 @@ pub fn build(b: *std.Build) void {
         .target = wasm_target,
         .optimize = optimize,
     });
+    // zg.bard.job's server depacks ZX0 (libs/zig/bard_jobs/server.zig): ZigOS takes the one depackers module.
+    zigos_mod.addImport("depackers", depackers_mod);
     // Cart assets that ship ZX0-packed (libs/zig/depackers/zx0.zig, docs/DEPACK.md).
     // zx0pack runs on the HOST at build time, so a packed asset can never drift
     // from its source; a scene reaches it as @import("packed_assets").<name> and
@@ -255,6 +257,18 @@ pub fn build(b: *std.Build) void {
         naos_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ naos_decl, name, file });
     }
     naos_decl = b.fmt("{s}}};\n", .{naos_decl});
+    // COPRO (cart 130): the TEX NEO SHOW's five pictures (320x200, a byte a pixel, 16 colours), packed here
+    // and depacked on BARD while the one before shows (zg.bard.job: apps/zig/scenes/copro/slides.zig).
+    const COPRO = [_][]const u8{ "dragon", "midearth", "moreta", "porsche", "tut_ench" };
+    var copro_decl: []const u8 = "pub const copro = [_][]const u8{\n";
+    for (COPRO) |name| {
+        const file = b.fmt("copro_{s}.zx0", .{name});
+        const pack_copro = b.addRunArtifact(zx0pack);
+        pack_copro.addFileArg(b.path(b.fmt("apps/zig/assets/screens/tex_neoshow/{s}.raw", .{name})));
+        _ = packed_files.addCopyFile(pack_copro.addOutputFileArg(file), file);
+        copro_decl = b.fmt("{s}    @embedFile(\"{s}\"),\n", .{ copro_decl, file });
+    }
+    copro_decl = b.fmt("{s}}};\n", .{copro_decl});
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
     _ = packed_files.addCopyFile(textracker_zx0, "union_textracker.zx0");
@@ -331,9 +345,9 @@ pub fn build(b: *std.Build) void {
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
-            \\{s}{s}{s}{s}}};
+            \\{s}{s}{s}{s}{s}}};
             \\
-        , .{ swedish_decl, snyd90_decl, naos_decl, mpp_decl })),
+        , .{ swedish_decl, snyd90_decl, naos_decl, copro_decl, mpp_decl })),
         .target = wasm_target,
         .optimize = optimize,
     });
@@ -628,6 +642,7 @@ pub fn build(b: *std.Build) void {
         "demo-notepad", // 127 — NOTEPAD: a GEM program on GEM 5's program API (rom/sdk/aes.zig: a window with every gadget, a menu bar, form_alert, the ITEM SELECTOR), editing C:\*.TXT through KOS GEMDOS; low, medium and the desk
         "demo-gemtest", // 128 — GEMTEST: every GEM 5 component on one disk (windows, menus, dialog objects, form_alert, the ITEM SELECTOR on A: and C:, text, icons, screen modes), the API's gaps shown as "not in the API yet"; docs/GEMTEST.md
         "demo-sca_karatekid2", // 129 — SCA THE KARATE KID PART II, the Swiss Cracking Association crack intro (Amiga 1987; CODEF screen 495)
+        "demo-copro", // 130 — COPRO: BARD as a coprocessor (zg.bard.job, table 1.24): the cart posts jobs (a ZX0 depack, a 3D morph of 4096 dots, 4096 particles, a CRC-32 of 64 KB) that BARD serves between its audio renders, the same kernels on ZIGGY for the A/B; an SNDH plays all along
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
