@@ -33,8 +33,11 @@ is reproducible.
 | `kestrel_font8x10.cpp` | the ST 8x8 font in 8x10 cells |
 | `patches/corelib_font.cpp.sed` | that font as the only resolution |
 | `patches/project_io.cpp.sed` | no C++ exceptions on the cart: a throw logs its message and stops the cart |
-| `kestrel_ayumi.cpp` | built instead of upstream's `ayumi.cpp` (same API and chip model): the AY/YM stepped event to event in integers (tone edges, noise and envelope steps; what no channel hears advanced in bulk), each sample the exact average of its chip ticks (a box filter) instead of the cubic interpolator + FIR, a one-pole DC blocker. Any rate works; the cart runs 22.05 kHz (`kestrel_main.cpp`) |
-| `patches/ayumi.h.sed` | `kestrel_ayumi.cpp`'s state at the end of `struct ayumi` |
+| `kestrel_ayumi.cpp` | built instead of upstream's `ayumi.cpp`: upstream's API (float clock and pans) over the integer AY core every renderer shares, `libs/c/ayumi` (the chip stepped event to event, a sample the exact average of its ticks, a one-pole DC blocker; README there). Any rate works; the cart runs 22.05 kHz (`kestrel_main.cpp`) |
+| `patches/ayumi.h.sed` | the core's state (`struct zm_ay`) at the end of `struct ayumi` |
+| `kestrel_chip.cpp`, `patches/chipnomad_lib.cpp.sed` | the AY on BARD: ChipNomad's chip factory makes upstream's SoundChipAY with its writes also posted on the BARD queue ("AY on BARD") |
+| `kestrel_bard.cpp` | the BARD queue's ring, the cart side (the C copy of `libs/zig/bard.zig`) |
+| `tools/bard_compare.mjs` | BARD against ZIGGY on a song (`KESTREL_AUTOPLAY` builds) or the gate's script; `--dump` the commands for `snd-bench` |
 | `patches/ayumi_filters.cpp.sed` | the FIR's double constants made float (the filters still link: `chip_ay.cpp` names them for its quality setting, which no longer changes anything) |
 | `run.mjs` | headless runner for experiments |
 
@@ -56,74 +59,45 @@ Keys are ChipNomad's desktop mapping (A = X, B = Z, START = Space, SELECT = Left
 - Runs; read-only floppy (projects cannot be saved). A malformed project file stops the cart instead of
   showing an error (no exceptions).
 
-## AY on BARD (design, 13 Nov; branch feat/chipnomad-bard)
+## AY on BARD (13 Nov; branch feat/chipnomad-bard)
 
 Matt, 13 Nov: move the AY synthesis from ZIGGY to BARD, the way SID-WIZARD's SID went (`apps/ports/sidwizard/README.md`,
 "The SID on BARD"). The goal behind it is reuse: a ChipNomad song should play in ANY demo, so the AY player is a
 generic "AY chip on BARD" that any cart reaches through the BARD queue, and only the cart's playback code is
-ChipNomad's. Status: design only. Nothing below is built yet (see the ROADMAP row).
+ChipNomad's. **Built**: the sections below are the design as built; "Results" has the numbers (decisions.md
+2026-11-13).
 
-### What exists (read for this note)
+### The queue and the message format
 
-- The queue: `libs/zig/bard.zig` (Zig, the reference), `apps/ports/sidwizard/kestrel_sw_bard.c` (the C copy the
-  cart uses), `fpga/cycles/bsound_bardq.c` (the cart side on ZIGGY's firmware), `fpga/cycles/sound/sbardq.c` (BARD),
-  `fpga/host/bardq_pump.c` and `fpga/host/audio_bardq.c` (natively). A ring of 256 commands `{t, addr, value, seq}`,
-  the cart writes the head, BARD takes what is due. The lead is 6144 output samples (~139 ms at 44.1 kHz). A full ring
-  drops the write and counts it; BARD never waits.
-- The player on BARD: `libs/zig/players/sid_live.zig` (cRSID's SID, mixed into CHORUS). It is the only player the queue
-  feeds: the open command (`OP_BARD`) names no chip. The chip is chosen by the ADDRESS the cart writes: the queue's
-  addresses are the C64's `$D400..$D418`, and `sid_live` takes them as SID registers.
-- Timing: the stamps are output samples on the 44.1 kHz clock (`t = cycle x 32 / SampleClockRatio` in the SID cart).
-  That is the queue's one time base.
+The BARD queue (`libs/zig/bard.zig`; this cart's C copy `kestrel_bard.cpp`): a ring of 256 commands `{t, addr, value,
+seq}` in the cart's memory, the lead 6144 output samples (~139 ms); a full ring drops the write and counts it, nobody
+waits. `t` is an output sample on the queue's 44.1 kHz clock. Its devices are picked by address
+(`libs/c/ayumi/zm_ay_bank.h`):
 
-### Message format (decision)
+- `0xA000 + chip x 16 + reg`, `chip` 0..7: `reg` 0..13 the chip's registers (13 re-triggers the envelope), 14
+  configure (bits 0-23 the clock in Hz, bit 24 YM; a fresh chip; under 8 Hz the chip off), 15 the pans of A, B, C
+  (`k / 200` a byte each, bit 24 equal-power); `0xA080 + chip` its Q15 gain. A chip plays from its configure.
+- One device an open: the first SID reset or AY configure picks it, the other's commands are refused (counted).
 
-The ring entry does not change. An AY write is `{t, addr, value, seq}` with:
+### The model, the device and the cart
 
-- `addr = 0xA000 | chip << 4 | reg`: `chip` 0..7 (one AY/YM per index; a project with three AYs uses 0..2), `reg`
-  0..15 (the chip's registers, the 0x0D envelope shape included; a write to 0x0D always re-triggers the envelope, as on
-  the chip). `0xA000..0xA07F` never collides with the SID's `0xD400..0xD418`. BARD dispatches on the address range: SID
-  for `$D400`, AY for `$A000`, and a cart that wants both gets both.
-- `t`: output samples at the queue's 44.1 kHz clock, the same as the SID's. Not AY clock ticks: one time base for every
-  chip, and the ring's `t` already means that. Cost: a write lands up to half a sample (11 us) from its AY tick. The
-  chip's tone counters are at the AY clock (the clock is the project's: 2 MHz on the ST; the ChipNomad default is not checked yet), so the error is
-  below one tone step at the top octave; the comparison in step (d) measures it rather than assuming it.
-- `value`: the register value as the cart's model takes it (the low 8 bits; the chip ignores the upper bits as it does).
-
-### The chip model (one source)
-
-`kestrel_ayumi.cpp` moves to `libs/c/ayumi/` (C, not C++: BARD runs C like cRSID, and the native host and the wasm cart
-build the same file). Its API is upstream's `ayumi.h` (`ayumi_configure`, `ayumi_set_tone/noise/mixer/volume/envelope`,
-`ayumi_set_pan`, `ayumi_process`, `ayumi_remove_dc`) with `float` where upstream has it. Floats on BARD are unverified: its
-core is the sound CPU's (cost not measured), and the render is per output sample, so the "no float per frame" rule (CLAUDE.md) is a
-ZIGGY rule; if a BARD float costs too much the measure in step (f) says so. The ChipNomad cart and the BARD player
-call the same functions, so there is one model, not a fork.
-
-### The BARD player (`ay_live`)
-
-A Zig player beside `sid_live.zig`: takes the queue's commands with `addr` in the AY range, applies each at its sample
-to the model (one `ayumi` per chip index), renders at 44.1 kHz, and mixes the stereo pair into CHORUS (ChipNomad's
-per-channel pan stays: `ayumi_set_pan`). Check first: whether the SID's CHORUS output is stereo (`sid_live.zig`'s
-output channels); if not, the pan is folded to mono and that is said in the report. Rate: 44.1 kHz on BARD (the
-queue's rate, the SID's); the cart's 22.05 kHz path stays selectable for the comparison.
-
-### The cart side
-
-`apps/ports/chipnomad/kestrel_corelib.cpp` (the chip layer) posts each register write the tracker makes to the queue
-instead of calling the model. Selection: at boot the cart asks the host for the queue (`hostBardAttach`, as the SID
-cart does). Answer 0 (no queue: the native test host without BARD, an old board image) means the ZIGGY model runs, as
-today. The default is BARD when the queue answers; a build flag `KESTREL_AY_ON_ZIGGY=1` forces the ZIGGY model for
-measuring.
-
-### What is NOT plain register writes (README lines 45-55)
-
-Software-oscillator instruments (AY2 PWM, sync, samples, the timer callback `ayumi_set_timer_func`) step per chip tick
-inside the model. Decision for v1: **they stay on the ZIGGY path, per chip** (a chip with such an instrument in use
-renders on ZIGGY; the rest of the song's chips go to BARD). The reason is the ring's rate: BARD's ring takes 256 writes a
-frame (~15,000 a second); a PWM at the AY clock needs one write per tick of its period, which is an order of magnitude
-more than that. Finer-grained timed writes would not fit; running them on BARD would need the timer callback on BARD
-(the player code moved, not the writes), which is a v2 question. One such instrument gets a test in step (b): the
-per-chip fallback is checked to render the same as the all-ZIGGY build.
+- **One model**: `libs/c/ayumi` (C, integers only: BARD has no FPU and no divider). This cart calls it through
+  `kestrel_ayumi.cpp` (upstream's float API), BARD natively (`fpga/host/audio_ay.c`), the page in
+  `machine-audio.wasm` (`machine/audio/ay.zig`): `machineAyReset / Write / Render`.
+- **The device** (`libs/zig/players/ay_live.zig`, in demo-audio.wasm): the due writes applied, then the chips rendered
+  up to the next, at 44.1 kHz, so a write lands on its output sample; stereo on the four Paula channels.
+- **The cart** (`kestrel_chip.cpp`): ChipNomad's chip factory (patched) makes upstream's SoundChipAY with three
+  overrides. `setRegister` also posts, stamped with the audio callback's position x 2 (the cart runs 22.05 kHz: the
+  tracker's ticks fall where they did on ZIGGY); `render` posts the project's clock, type, pans and `0.6 x mixVolume`
+  when they change and renders nothing; a configure re-posts only the registers the tracker wrote (a fresh chip is the
+  cart's own model, whose mixer and noise period are not the register view's 0x3F and 0). The queue is asked for during
+  the first 60 frames, the stream quiet meanwhile; no answer (an old board image, a harness host) renders on ZIGGY as
+  before, and so does a build with `KESTREL_AY_ON_ZIGGY=1` (`make EXTRA=-DKESTREL_AY_ON_ZIGGY=1`).
+- **Software oscillators** (AY2 PWM, sync, samples, the timer callback `ayumi_set_timer_func`) step per chip tick
+  inside the model: no register stream to post. The first one sends the **whole cart** back to ZIGGY (the queue closed,
+  the stream started) until its chips are made again (a project load): the stream and the queue's player share the
+  Paula channels and song RAM, so one chip on each cannot play. Running them on BARD needs the playback code there (v2,
+  with the .cnm player).
 
 ### The .cnm player (later, not in this task)
 
@@ -141,29 +115,40 @@ A demo would then call `zg.requestCnm("x.cnm")` and get the core's events throug
 project through its own file classes and the UI through corelib; the core needs those reads cut from the screen code.
 That cut is the work; the boundary above says where it goes.
 
-### Plan and proofs (steps b-h of the task)
+### Proofs (build.sh)
 
-- (b) `ay_live` + a native-host test (`fpga/host/audio_bardq.c` path, no board): random AY writes stamped at sample
-  times, against the same model run directly; `--break` on a dropped write.
-- (c) the cart posts (kestrel_corelib.cpp), ZIGGY fallback kept.
-- (d) PCM comparison, `ports_headless.mjs chipnomad` (the AY Classic instrument) and `songs/MICROEGG.CNM`: exact if the
-  sample rounding is zero, else RMS and spectral difference, with the reason.
-- (e) build.sh gate lines for the new path, with a `--break`.
-- (f) ZIGGY cycles before/after (`apps/frame_cost.mjs`, `tools/perf_audit.sh chipnomad`) and BARD load where measurable
-  (`make snd-bench SND_BARDQ=1`, as SID's 58 %).
-- (g) board staging: `prototypes/chipnomad_bard_card/` (MD5SUMS) per `.claude/skills/board-cart/SKILL.md`.
-- (h) the ROADMAP row (added with this note).
+- `bard_ay`: `libs/c/ayumi/check/check.sh` (the core = the old cart model, `--break`); `apps/ay_live_check.mjs` (wasm
+  engine = native C; the queue player = the engine a lead late `>> 1`, stereo; refusals; `--break drop | late`).
+- `ports_chipnomad`: `apps/chipnomad_bard_check.mjs` (the gate's C-4 on BARD: page = native host_audio both sides,
+  nothing refused / dropped / re-anchored, no stream; `--break stamp | reg`); `ports_headless.mjs chipnomad` is the
+  fallback (its host answers no queue).
 
-### Open items, checked 13 Nov (second pass)
+### Results (13 Nov)
 
-- **BARD stereo:** not settled. `libs/zig/players/sid_live.zig` and `fpga/host/audio_bardq.c` do not state a channel
-  count, and docs/FPGA_AUDIO.md does not mention stereo. Needs the CHORUS mixer's port list.
-- **ChipNomad's AY clock:** not settled. `ayumi_configure(clock_rate, sr)` is called from upstream's chip code with the
-  project's clock; the cart's source does not pin a default. Needs upstream's `chip_ay` / project defaults.
-- **Floats on BARD:** not free. `kestrel_ayumi.cpp` is float in `ayumi_configure` (ticks_q16 from `step`), `ayumi_set_pan`
-  (sqrtf for the equal-power pan), the DAC table pointer, and the per-sample output scale (`* 1/32768`). The hot
-  event-stepped loop is integer, but BARD needs an integer renderer (pan as a table, the DAC table as ints, output
-  as ints), not the same file. So "one shared source" means a shared integer core with a float wrapper on the cart,
-  which is a port with its own test, not a move.
-- **Not built:** (b) to (h) need that integer core, the address dispatch in BARD's pump (fpga/host/bardq_pump.c and
-  fpga/cycles/sound/sbardq.c), a BARD firmware rebuild, the cart posting and a comparison run. None is started.
+- **Stereo: yes.** CHORUS's mixer (`fpga/rtl/audio/zm_audio_mix.v`) sums the Paula channels with their pans into
+  `pcm_l` / `pcm_r`, which go out as `smp_l` / `smp_r` (`zm_hdmi_out.v`); the YM and POKEY add to both sides. The AY
+  device puts its stereo on the four Paula channels as the MP3 player does (a high and a low byte a side, `x >> 1`),
+  so ChipNomad's ABC / ACB / BAC pans are kept. (The ZIGGY path folds to mono: the stream is 8-bit mono.)
+- **The integer core** (`libs/c/ayumi`): every sample the same as this cart's ayumi before the move, 3,000 random
+  chips and 9.84 M samples at 22050 and 44100 Hz (`libs/c/ayumi/check/check.sh`). The float set-up it replaced: the
+  pans are a 201-entry table equal to `sqrtf` for every pan ChipNomad makes; the tick rate `clock x 8192 / rate` equals
+  the float step's for every ChipNomad clock preset at 22050 / 44100 / 48000 Hz (1.5-3.7 % of arbitrary clocks drift
+  1/65536 tick a sample). The rebuilt cart's stream was byte-identical to the old cart's.
+- **ChipNomad's default AY clock: 1,773,400 Hz** (`tracker/src/project_utils.cpp:13`, the ZX Spectrum 128's; the
+  presets are 0.75, 1, 1.75, 1.7734 and 2 MHz). It is per project: MICROEGG.CNM 1773400, MICROPIZ and WB7 1750000; the
+  cart posts it with each chip's configure.
+- **BARD vs ZIGGY** (`tools/bard_compare.mjs`, BARD folded to the stream's 8-bit mono 22.05 kHz): MICROEGG.CNM, 20 s:
+  correlation 1.0000, 98.2 % of the samples equal, difference rms 0.14 LSB, rms ratio 1.001, zero crossings 25,832 vs
+  25,818. The gate's C-4 (AY Classic), 6 s: 0.9997, 96.4 %, 0.60 LSB, the crossings equal. Not bit-exact by
+  construction (two output formats, the 0.6 gain in Q15 against float).
+- **ZIGGY** (`apps/frame_cost.mjs --bard`, MICROEGG playing, frames 121-180): 1.38 Mc a frame (p95 1.8, max 2.44; cart
+  0.55) on ZIGGY -> 0.86 Mc (p95 0.91, max 0.92; cart 0.15) with the AY on BARD. FRESCO's 0.7 is most of what is left.
+- **BARD**: BARD_LOAD_PLACEHOLDER
+- **Not done**: the software oscillators stay on ZIGGY, whole cart (`kestrel_chip.cpp`: the stream and the queue's
+  player share the Paula channels, so one chip cannot play on each); a sample preview (`previewSource`) is not heard
+  while the AY is on BARD; a clock or chip type change restarts the chip's counters on BARD; one device an open (SID or
+  AY, not both). BARD's F11 says "SID" while the queue plays the AY (one player id for the queue).
+- **Risks on the board**: a host that never answers the queue (a ZM_AUDIO=1 image) keeps the stream quiet for the
+  first 60 frames (~5 s at ChipNomad's board rate; it boots into an empty project, so nothing is lost). The stamps run
+  on real time capped at 67 ms a frame (`kestrel_frame_us`): below ~15 fps a frame loses time and the next batch
+  re-anchors the queue (`.resync`), heard as a stutter where the stream used to slow down; the harnesses run on dt.
