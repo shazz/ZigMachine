@@ -31,6 +31,7 @@ pub fn exec(app: *App, line: []const u8, w: *std.Io.Writer) void {
         .osd => |open| osd(app, open, w),
         .quit_cart => quit(app, w),
         .list => list(app, w),
+        .shot => shot(app, w),
         .help => reply(w, ctl.HELP ++ "ok\n", .{}),
     }
 }
@@ -41,6 +42,13 @@ pub fn tick(app: *App) void {
     if (app.clock() < app.ctl.up_at) return;
     app.ctl.up = null;
     app.keyEvent(up);
+}
+
+/// The shot runs on its thread and lands a moment later: the reply says it started; the file's
+/// name follows in the log (`screenshot: screenshots/SHOTnnnn.PNG`) and on the OSD.
+fn shot(app: *App, w: *std.Io.Writer) void {
+    if (!@import("app_shot.zig").take(app)) return reply(w, "err {s}\n", .{app.menu.status orelse "screenshot"});
+    reply(w, "ok screenshot under way: screenshots/ on the card\n", .{});
 }
 
 fn reply(w: *std.Io.Writer, comptime fmt: []const u8, args: anytype) void {

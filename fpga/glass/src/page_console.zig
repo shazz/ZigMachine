@@ -1,7 +1,7 @@
 // The console page: the machine itself rather than a cart.
 //
 //   row 0       title bar (rows 1..14 right of the section strip, 30 wide)
-//   rows 2..9   Cold reset, Warm reset, Volume, Mute, Debug, Help, Wi-Fi, Back
+//   rows 1..9   Cold reset, Warm reset, Volume, Mute, Debug, Help, Wi-Fi, Take screenshot, Back
 //   row 10      a rule
 //   rows 11..14 what the selected item does
 //   row 15      status
@@ -15,14 +15,14 @@ const osd = @import("osd.zig");
 const text = @import("text.zig");
 const config = @import("config.zig");
 
-pub const Item = enum { cold, warm, volume, mute, debug, help, wifi, back };
+pub const Item = enum { cold, warm, volume, mute, debug, help, wifi, shot, back };
 const ITEMS = std.enums.values(Item);
-pub const FIRST = 2;
+pub const FIRST = 1;
 const RULE = 10;
 const HELP = 11;
 pub const VOL_STEP = 16;
 
-pub const Key = enum { none, back, cold, warm, settings, debug, help, wifi };
+pub const Key = enum { none, back, cold, warm, settings, debug, help, wifi, shot };
 
 const help = [_][]const u8{
     "Reload the cart from the SD card, clear all its memory and boot it: a power cycle. (R on the shelf)",
@@ -32,6 +32,7 @@ const help = [_][]const u8{
     "Versions, live stats of the running cart, and the board.",
     "Every shortcut: the keys of each page, the hotkeys, the pad.",
     "The board's Wi-Fi: its network and address; scan, join one with its password, forget it.",
+    "The picture on the TV, as a PNG in screenshots/ on the card. PrintScreen too.",
     "Back to the shelf.",
 };
 
@@ -53,6 +54,7 @@ pub const State = struct {
                 .debug => .debug,
                 .help => .help,
                 .wifi => .wifi,
+                .shot => .shot,
                 .back => .back,
             },
             else => {},
@@ -74,6 +76,7 @@ pub const State = struct {
                 .debug => " Debug...",
                 .help => " Help...",
                 .wifi => " Wi-Fi...",
+                .shot => " Take screenshot",
                 .back => " Back",
             };
             o.body(row, t, i == self.cursor);

@@ -30,12 +30,39 @@ pub const Bard = struct {
     at: u32 = 0, // App.ticks when read
 };
 
+/// A message shown with the menu closed (a screenshot saved, app_shot.zig): one inverse line in
+/// the overlay's corner window, under the rate if that is on, for TOAST_TICKS.
+pub const TOAST_TICKS = 30;
+pub const Toast = struct {
+    buf: [map.OSD_COLS]u8 = undefined,
+    len: usize = 0, // 0: none
+    at: u32 = 0, // App.ticks when shown
+};
+
 pub fn supported(version: u32) bool {
     return version >= map.VERSION_OSD_STATS;
 }
 
 pub fn on(app: *const App) bool {
-    return app.pl_stats and app.menu.settings.fps and !app.open;
+    return app.pl_stats and !app.open and (app.menu.settings.fps or app.toast.len != 0);
+}
+
+/// Show `msg` with the menu closed (only logged on a PL with no corner window).
+pub fn toast(app: *App, msg: []const u8) void {
+    std.log.info("toast: {s}", .{msg});
+    app.toast.len = @min(msg.len, app.toast.buf.len);
+    @memcpy(app.toast.buf[0..app.toast.len], msg[0..app.toast.len]);
+    app.toast.at = app.ticks;
+    place(app);
+    draw(app);
+}
+
+fn expire(app: *App) void {
+    if (app.toast.len == 0 or app.ticks -% app.toast.at < TOAST_TICKS) return;
+    app.toast.len = 0;
+    app.osd.clear();
+    _ = app.osd.flush(app.regs);
+    place(app); // the window goes if the rate is off
 }
 
 /// F11 with the menu closed. With the menu open it does nothing: the menu
@@ -63,9 +90,17 @@ pub fn place(app: *App) void {
 /// the rate itself changes once a second (stats.zig), and only changed cells
 /// cross the bus, so a redraw that finds nothing new writes nothing.
 pub fn draw(app: *App) void {
+    if (!app.open) expire(app);
     if (!on(app)) return;
-    var buf: [TEXT_MAX]u8 = undefined;
     app.osd.clear();
+    if (app.menu.settings.fps) rateRows(app);
+    const row: u32 = if (app.menu.settings.fps) 2 else 0;
+    if (app.toast.len != 0) app.osd.put(0, row, app.toast.buf[0..app.toast.len], true);
+    _ = app.osd.flush(app.regs);
+}
+
+fn rateRows(app: *App) void {
+    var buf: [TEXT_MAX]u8 = undefined;
     const rate = text(app.stats.fps_x10, &buf);
     app.osd.put(0, 0, rate, false);
     if (app.bard.len == 0 or app.ticks -% app.bard.at >= BARD_TICKS) {
@@ -81,7 +116,6 @@ pub fn draw(app: *App) void {
     app.osd.put(at, 0, app.bard.buf[0..@min(app.bard.len, room)], false);
     var line: [map.OSD_COLS]u8 = undefined;
     app.osd.put(0, 1, @import("app_budget.zig").overlayLine(app, &line), false); // the frame budget
-    _ = app.osd.flush(app.regs);
 }
 
 /// "FPS 38.2", or "FPS --.-" until a whole second has been measured.

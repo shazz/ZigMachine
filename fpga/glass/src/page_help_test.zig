@@ -102,6 +102,10 @@ fn expectHotkey(r: *test_rig.Rig, a: *App, code: u16, shift: bool) !void {
         press(a, code);
         return std.testing.expect(a.open != open);
     }
+    if (code == keymap.SHOT_HOTKEY) { // no cart in this rig: the shot says why it cannot (app_shot_test.zig)
+        press(a, code);
+        return std.testing.expect(std.mem.startsWith(u8, a.menu.status orelse "", "screenshot"));
+    }
     if (shift) { // Shift+F11: the budget page
         press(a, code);
         return std.testing.expectEqual(menu.Page.budget, a.menu.page);
@@ -140,7 +144,7 @@ test "the help page fits the strip's layout and scrolls within its lines" {
     o.dump(&dump);
     try std.testing.expect(std.mem.indexOf(u8, &dump, "\n  GLOBAL ---") != null); // strip, gap, heading
     try std.testing.expect(std.mem.indexOf(u8, &dump, "\nH F12        open/close the OSD") != null);
-    try std.testing.expect(std.mem.indexOf(u8, &dump, " ZIGMACHINE  HELP   1-14/38  Esc") != null);
+    try std.testing.expect(std.mem.indexOf(u8, &dump, " ZIGMACHINE  HELP   1-14/39  Esc") != null);
     try std.testing.expectEqual(menu.Action.none, m.key(map.KEY_ESCAPE | map.KEY_DOWN));
     try std.testing.expectEqual(menu.Page.console, m.page);
     m.page = .console; // Help... is the console's item below Debug...

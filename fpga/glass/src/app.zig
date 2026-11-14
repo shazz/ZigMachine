@@ -73,12 +73,15 @@ pub const App = struct {
     req_polls: u32 = 0, // polls of a request whose block did not check yet
     ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)
     wifi: @import("app_wifi.zig").State = .{}, // the Wi-Fi page's jobs (app_wifi.zig)
+    shot: @import("app_shot.zig").State = .{}, // a screenshot under way (app_shot.zig)
+    toast: overlay.Toast = .{}, // a message shown with the menu closed (app_stats.toast)
+    card_dir: []const u8, // the SD card's root: screenshots/ goes there (layout.Dirs.card)
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dirs: @import("layout.zig").Dirs) !App {
         try loader.checkGlass(regs);
         const disks = try shelf.scan(gpa, io, dirs.carts);
-        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dirs.carts, .sys_dir = dirs.sys, .disk_dir = dirs.carts, .disks = disks, .menu = .{ .disks = disks.disks, .rotated = @import("strip.zig").supported(regs.read(map.REG_VERSION)) } };
+        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dirs.carts, .sys_dir = dirs.sys, .card_dir = dirs.card(), .disk_dir = dirs.carts, .disks = disks, .menu = .{ .disks = disks.disks, .rotated = @import("strip.zig").supported(regs.read(map.REG_VERSION)) } };
         app.pl_stats = overlay.supported(regs.read(map.REG_VERSION));
         app.opt.system = system.load(gpa, io, dirs.sys); // once: every lean cart runs on it
         regs.write(map.REG_OSD_FG, OSD_FG);
@@ -90,6 +93,7 @@ pub const App = struct {
 
     pub fn deinit(self: *App) void {
         @import("app_wifi.zig").deinit(self);
+        @import("app_shot.zig").deinit(self);
         if (self.opt.system) |s| s.deinit(self.gpa);
         self.disks.deinit();
     }
@@ -119,6 +123,10 @@ pub const App = struct {
         if (code == keymap.OSD_HOTKEY) {
             if (value == 1 and (self.mods.shift_l or self.mods.shift_r)) return self.rescan();
             if (value == 1) self.setOpen(!self.open);
+            return;
+        }
+        if (code == keymap.SHOT_HOTKEY) { // PrintScreen: the picture onto the card (app_shot.zig)
+            if (value == 1) _ = @import("app_shot.zig").take(self);
             return;
         }
         if (code == keymap.STATS_HOTKEY) { // swallowed: the cart never sees F11
@@ -211,6 +219,7 @@ pub const App = struct {
         self.ticks +%= 1;
         budget_page.sample(self);
         @import("app_wifi.zig").tick(self); // a job's result lands with the OSD closed too
+        @import("app_shot.zig").tick(self); // and a screenshot's
         if (!self.open) return overlay.draw(self);
         switch (self.menu.page) {
             .debug, .budget => if (self.ticks % 5 == 0) self.redraw(),

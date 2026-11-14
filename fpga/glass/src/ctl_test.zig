@@ -28,6 +28,7 @@ test "every command parses, with its defaults" {
     try std.testing.expectEqual(ctl.Cmd{ .osd = false }, try ctl.parse("osd close"));
     try std.testing.expectEqual(ctl.Cmd.quit_cart, try ctl.parse("quit-cart"));
     try std.testing.expectEqual(ctl.Cmd.list, try ctl.parse("list"));
+    try std.testing.expectEqual(ctl.Cmd.shot, try ctl.parse("shot"));
 }
 
 test "a malformed command says which way it is wrong" {
