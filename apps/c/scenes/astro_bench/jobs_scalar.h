@@ -62,23 +62,26 @@ static void job_roundtrip(void) {
     fm_s(" served="), fm_u(served), fm_s("/"), fm_u(calls), say();
 }
 
+// Each column times only its operation: the operands are made BEFORE the clock starts (the
+// soft-f64 conversions and multiplies that built them per op used to be ~6 soft ops inside
+// every column, ~10 us of the 13 the board showed for a batch of 48), and the soft columns
+// do one op an iteration into a volatile, not an accumulating add.
+static double opa[32], opb[32];
+static float opaf[32], opbf[32];
+
 static void job_scalar(u32 op, const char* name) {
     enum { N1 = 256, NB = 16, NS = 4096 };
+    for (unsigned i = 0; i < 32; i++) opa[i] = in_a(i), opb[i] = in_b(i), opaf[i] = (float)opa[i], opbf[i] = (float)opb[i];
     u32 t0 = hostMicros();
-    for (int k = 0; k < N1; k++) as_scalar(&ds[0], op, in_a(k & 31), in_b(k & 31)), run(1), sink = ds[0].r;
+    for (int k = 0; k < N1; k++) as_scalar(&ds[0], op, opa[k & 31], opb[k & 31]), run(1), sink = ds[0].r;
     u32 t1 = hostMicros();
-    for (int k = 0; k < NB; k++) {
-        for (unsigned i = 0; i < AS_MAX; i++) as_scalar(&ds[i], op, in_a(i), in_b(i));
-        run(AS_MAX);
-    }
+    for (unsigned i = 0; i < AS_MAX; i++) as_scalar(&ds[i], op, in_a(i), in_b(i)); // a call writes only STATUS, CYCLES, R
+    u32 t1b = hostMicros();
+    for (int k = 0; k < NB; k++) run(AS_MAX);
     u32 t2 = hostMicros();
-    double acc = 0;
-    for (int i = 0; i < NS; i++) acc += soft(op, in_a(i & 31) + i * 1e-7, in_b(i & 31));
-    sink = acc;
+    for (int i = 0; i < NS; i++) sink = soft(op, opa[i & 31], opb[i & 31]);
     u32 t3 = hostMicros();
-    float accf = 0;
-    for (int i = 0; i < NS; i++) accf += softf(op, (float)in_a(i & 31) + i * 1e-7f, (float)in_b(i & 31));
-    sinkf = accf;
+    for (int i = 0; i < NS; i++) sinkf = softf(op, opaf[i & 31], opbf[i & 31]);
     u32 t4 = hostMicros();
     u64 worst = 0;
     for (unsigned i = 0; i < AS_MAX; i++) {
@@ -87,7 +90,7 @@ static void job_scalar(u32 op, const char* name) {
         chk((ds[i].status & 0xFF) == 0, name);
     }
     chk(worst == 0, name);
-    fm_reset(), fm_s("ZM ASTRO "), fm_s(name), fm_ns("astro1", t1 - t0, N1, clocked), fm_ns("astro48", t2 - t1, NB * AS_MAX, clocked);
+    fm_reset(), fm_s("ZM ASTRO "), fm_s(name), fm_ns("astro1", t1 - t0, N1, clocked), fm_ns("astro48", t2 - t1b, NB * AS_MAX, clocked);
     fm_ns("soft64", t3 - t2, NS, clocked), fm_ns("f32", t4 - t3, NS, clocked), fm_s(" ulp="), fm_u(worst), say();
 }
 

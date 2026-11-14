@@ -114,7 +114,7 @@ ASTROLABE freely: unlike a JS `Math.sin` in the page, it never makes the board's
   (`sched_setaffinity`) spins on SEQ while requests come and naps 1 ms after 2 s idle (BEAT counts the
   naps). Each array is checked against the cart's memory and the memory against the DDR window before a
   word is read (the cart is not trusted), staged from DDR into a cached 8 MB mirror, computed, staged
-  back. `dsb` before DONE.
+  back: each byte at most once a request, in 64-byte bursts (section 10). `dsb` before DONE.
 - **When nobody answers**: no STATUS.ASTRO, no MAGIC, or not TAKEN in 50 ms: the request is withdrawn
   (SEQ = 0; glass re-reads SEQ after TAKEN and never serves a withdrawn one), the machine's own code runs
   on ZIGGY, and the mailbox is not tried again until BEAT moves. Taken but not DONE in 10 s: ST_TIMEOUT,
@@ -246,4 +246,52 @@ A chunk of 64 samples is one batch of rays (`astro/engine.zig`); `astro/rays.zig
   ~95 % of it, not the round trip and not the FPU. The levers, in order: (1) glass stages each array ONCE a call
   (in on first use, out after the last descriptor): a march step touches 21 arrays, not 48 × 2-3, ~6x fewer words
   (~5-9 k px/s); (2) a cached or ACP-coherent view of the cart's memory, no staging at all (compute-bound,
-  ~20 k px/s); (3) VMIN (a third fewer descriptors a step).
+  ~20 k px/s); (3) VMIN (a third fewer descriptors a step). Board, 14 Nov: 1,280 px/s (Matt). Lever (1) is
+  built, with bursts (section 10): expected ~4-6 k px/s, the mailbox words then the largest part.
+
+## 10. The transport, measured (14 Nov, branch `perf/astro-staging`)
+
+Board figures (SHOT0024, ASTRO BENCH on the `--astro` bitstream): one call ~25 µs an op, a batch of 48
+~13 µs an element on every op, so batches won only x1.3-x2. `glass astro-bench` (ns an access, median):
+
+| access | ns | |
+|---|---|---|
+| GP0 register / mailbox word, read or write | 125-136 | single-beat AXI (zm_glass_regs.v): never a burst |
+| DDR window, random LDR / sequential LDR | 204 / 158 | mapped non-cacheable (O_SYNC = write-combine on ARM Linux) |
+| DDR window, VLDM d0-d7 (64-byte burst) | **27** | `astro_copy.zig`: x6 over word by word |
+| DDR window mapped without O_SYNC, sequential LDR | 33 | CACHED: unusable, ARMv7 user space cannot invalidate (and the PL310 is outside HP0) |
+| CLOCK_MONOTONIC | **996** | a syscall: the A9 global timer has no vDSO on ARM32 |
+| f64 add / div / sqrt / sin on the A9 | ~7 / 42 / 55 / 182 | (the rows carry ~15 ns of the clock) |
+
+**Where a batch-of-48 ADD's 13 µs went** (before): ~9.5 µs was the BENCH itself, building each descriptor's
+operands with soft f64 (`in_a`/`in_b`: two conversions, two multiplies, two adds) inside the timed loop
+(the same overhead made "soft f64 add" read 17.7 µs: a soft add is ~1.6 µs); ~1.35 µs the ARM's 10 mailbox
+words (7 reads, 3 writes); ~2 µs ZIGGY's 10 IO words and 3 write-backs (the rest). No DDR in it: scalar
+descriptors stage nothing. A NOP call's ARM side paid 2-3 µs of clock syscalls (two a request, one
+every empty poll). The mailbox's last ARM_NS reads with `devmem 0x43C02024` (the ARM's part of the last
+request): 22.2 µs for the bench's 7 reference descriptors, cold.
+
+**The fix** (glass only; no firmware, protocol or bitstream change):
+- `astro_stage.zig`: a request stages each array once: an input is read only where the mirror is not
+  already fresh this request, an output only marked, every dirty range written back once before DONE
+  (a range a kernel wrote is never re-read over its result: the test that breaks it is in
+  `astro_stage_test.zig`). `astro_copy.zig`: whole 64-byte VLDM/VSTM bursts, the tail word by word.
+- `astro_box.zig` `inWords`: only the words the op uses (ADD 4 + OP, SIN 2 + OP, VADD 4 + OP), not 6-8.
+- `astro_clock.zig`: ARM_NS from the global timer through /dev/mem (rate measured against
+  CLOCK_MONOTONIC at start), the idle clock read once every 256 empty polls.
+- ASTRO BENCH: operands made before the clock starts; the soft columns one op an iteration.
+
+**Expected** (*est.* until the lead's board run): batch-of-48 ADD ~3 µs an element (ARM ~1.1 + ZIGGY ~2),
+against an honest soft add of ~1.6 µs: **scalar descriptors still lose on add/mul** (as section 2 says); they
+win on div ~x2, sqrt ~x3.5, sin ~x25 (soft div ~5.8 µs, sqrt ~11, sin ~80, from SHOT0024's soft column less
+its ~16 µs of operand making). Add/mul in bulk belong in VADD/VMUL: ~6 DDR words an element at
+~27 ns, ~0.2 µs, x8. LINPACK 100: A staged in and out once for GEFA+GESL (was twice in, once out, word
+by word): ~15.8 -> ~20-25 MFLOPS. RAYTRACE mode 3: ~4-6 k px/s (was 1,280).
+
+**Under 1 µs a scalar descriptor needs a protocol change** (proposed, not built): ZIGGY rings with the
+descriptors' cart address instead of copying words into the mailbox; glass reads the 80-byte descriptors
+from DDR in bursts (~0.5 µs each), writes STATUS/R there, and ZIGGY drops its D-cache after DONE as it
+already does after an array op. ~0.7 µs a scalar descriptor, and RAYTRACE's 35 mailbox descriptors a
+sample from ~3 µs each to ~0.6. Needs `bastro_post.h` + `bastro_box.h` + `test_astro_box.py`, PROTO 2
+(glass serving both), and a system.rv32.
+
