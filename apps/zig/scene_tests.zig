@@ -14,6 +14,8 @@ test {
     _ = @import("scenes/notepad/doc_test.zig"); // NOTEPAD's text, cursor, selection, clipboard, find
     _ = @import("scenes/notepad/names.zig");
     _ = @import("scenes/sysinfo/stref.zig");
+    _ = @import("scenes/sysinfo/refs.zig");
+    _ = @import("scenes/sysinfo/view.zig");
     _ = @import("scenes/sysinfo/diskinfo.zig");
     _ = @import("scenes/sysinfo/sound_list.zig");
     _ = @import("scenes/dbug_sync.zig");

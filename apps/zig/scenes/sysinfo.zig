@@ -3,16 +3,18 @@
 // 8.34, 1992; atari-wiki.co.uk "SysInfo"): a full-screen medium-res page of
 // what the machine reports about itself, two columns of "LABEL : value" under
 // underlined headings, and a GEM dialog (Space or a click) to pick the page:
-// system & memory, video, sound, disk, and speed tests against a stock ST.
+// system & memory, video, sound, disk, and speed tests against a reference
+// machine (a stock ST = 100 %, or an STE ... a CT60: sysinfo/refs.zig).
+// The page shows in low, medium or the desk mode (L / M / D, F6; view.zig).
 //
 // Like ST Replay it is an application on the ROM's GEM toolkit (rom_sdk): the
 // drawing, the dialog and the alert are the ROM's, through handles. Like it,
 // it is a GEM program: BOOT.WSM on a data disk; Q goes back to the desktop.
-// Input is sysinfo/control.zig's. It reads the machine only through what a cart is given (sysinfo/probe.zig),
-// so the same cart links lean for the KESTREL board; what is not given reads
-// n/a. On the board every store is a blocking DDR write, so the glass is
-// written only where a page changed (sysinfo/grid.zig + screen.zig), and live
-// values are re-read twice a second, as SysInfo's own refresh clock did.
+// Input is sysinfo/control.zig's. It reads the machine only through what a cart is
+// given (sysinfo/probe.zig; what it IS: sysinfo/ident.zig), so the same cart links
+// lean for the KESTREL board; what is not given reads n/a. The glass is written
+// only where a page changed (sysinfo/grid.zig + screen.zig), and live values are
+// re-read twice a second, as SysInfo's own refresh clock did.
 //
 // NOTE: HWAM's title line carries its own copyright; this is a homage, not
 // their program, so it names itself and credits the original instead.
@@ -30,8 +32,17 @@ const bench = @import("sysinfo/bench.zig");
 const k = @import("sysinfo/kernels.zig");
 const diskinfo = @import("sysinfo/diskinfo.zig");
 const sound = @import("sysinfo/sound_play.zig");
+const ident = @import("sysinfo/ident.zig");
+const view = @import("sysinfo/view.zig");
+const refresh = @import("sysinfo/refresh.zig");
+const aes = rom.aes;
 
-const PLANE: u32 = 0;
+// The page's server for BARD jobs (docs/sealed-loader.js): ident.zig's CRC-32 test job then
+// runs outside the cart's code in the browser, as on BARD on the board.
+comptime {
+    zg.bard.job.exportServer();
+}
+pub const PLANE: u32 = 0;
 const SPARE_PLANE: usize = 3; // the blitter probe's 8 pixels: never enabled
 const REFRESH_FRAMES: u32 = 30; // live values twice a second
 
@@ -41,7 +52,8 @@ pub const App = struct {
     dialog: rom.Dialog,
     blit: zg.Blitter,
     page: pages.Page,
-    want: grid.Grid, // what the page says now
+    text: grid.Grid, // the page as composed (80 x 25)
+    want: grid.Grid, // what the glass should show of it in this mode (view.project)
     shown: grid.Grid, // what is on the glass
     bench: bench.Bench,
     scratch: *[k.SCATTER_BYTES]u8,
@@ -50,6 +62,10 @@ pub const App = struct {
     nfiles: u8,
     snd: sound.Player, // the SOUND page's files, read off the disk and played
     blit_probe: probe.Blit,
+    id: ident.Ident, // what the machine is, asked once
+    mode: view.Mode,
+    right: bool, // low res: the page's right half
+    ref: u8, // the speed tests' reference machine (refs.zig)
     menu_open: bool,
     menu_drawn: bool,
     covered: bool, // a dialog or the menu drew over the page: repaint it all
@@ -66,17 +82,20 @@ pub const App = struct {
         // A fresh cart over GEM: the plane is ours to bring up, BEFORE the ROM binds
         // a context to it (it reads the plane's registers), as ST Replay does.
         fb.is_enabled = true;
-        fb.setMediumPlane();
+        self.id.desk_ok = screen.allocPlane(fb);
         fb.setResMedium();
         self.g.close(); // memory reused across a cart swap may hold a stale handle
         self.dialog.close();
-        self.g = rom.Gui.openPlane(PLANE, screen.SW, screen.SH);
+        self.g = rom.Gui.openPlane(PLANE, view.width(.medium), view.height(.medium));
         self.dialog = rom.Dialog.open();
         rom.installPalette(PLANE);
         os.setBackgroundColor(fb.getPaletteEntry(rom.WHITE)); // an ST's border is colour 0, GEM's white
         self.blit = .{};
         self.blit.init();
         self.blit_probe = probe.blitterTest(&self.blit, &os.lfbs[SPARE_PLANE]);
+        const desk_ok = self.id.desk_ok;
+        self.id = ident.probe(&os.lfbs[SPARE_PLANE]);
+        self.id.desk_ok = desk_ok and self.id.desk_ok;
         self.disk = probe.readDisk(); // the mounted disk, once: its descriptor and its FAT
         self.nfiles = probe.readFiles(&self.files);
         self.snd.init(self.files[0..self.nfiles]);
@@ -88,6 +107,9 @@ pub const App = struct {
 
     fn resetState(self: *App) void {
         self.page = .system;
+        self.mode = .medium;
+        self.right = false;
+        self.ref = 0;
         self.menu_open = false;
         self.menu_drawn = false;
         self.covered = true; // the first frame paints the paper and the whole page
@@ -110,7 +132,7 @@ pub const App = struct {
     }
 
     pub fn pointer(self: *App, x: i32, y: i32, buttons: u32) void {
-        self.g.setPointer(x, y, buttons);
+        aes.hostPointer(self.g, x, y, buttons); // the host's coordinates, mapped to the mode's
     }
 
     pub fn key(self: *App, cp: u32) void {
@@ -148,45 +170,21 @@ pub const App = struct {
             return;
         }
         if (self.menu_open) {
-            if (!self.menu_drawn) menu.draw(self.g);
+            if (!self.menu_drawn) menu.draw(self.g, self.mode);
             self.menu_drawn = true;
             return;
         }
-        if (self.covered) screen.blank(self.g, &self.shown);
+        if (self.covered) screen.blank(self.g, self.mode, &self.shown);
         const due = self.frames % REFRESH_FRAMES == 0;
-        if (due) self.tick();
+        if (due) refresh.tick(self);
         if (!(self.covered or self.dirty or due)) return;
-        self.compose();
-        screen.flush(self.g, &self.want, &self.shown);
+        refresh.compose(self);
+        screen.flush(self.g, self.mode, &self.want, &self.shown);
         self.covered = false;
         self.dirty = false;
     }
 
     fn target(self: *App) bench.Target {
         return .{ .os = self.os, .blit = &self.blit, .scratch = self.scratch };
-    }
-
-    /// The host's real frame period, averaged since the last tick.
-    fn tick(self: *App) void {
-        const now = bench.micros();
-        const n = self.frames -% self.last_frames;
-        if (now != 0 and self.last_us != 0 and n != 0) self.frame_us = (now -% self.last_us) / n;
-        self.last_us = now;
-        self.last_frames = self.frames;
-    }
-
-    fn compose(self: *App) void {
-        const c = pages.Ctx{
-            .os = self.os,
-            .bench = &self.bench,
-            .blit = self.blit_probe,
-            .disk = self.disk,
-            .files = self.files[0..self.nfiles],
-            .snd = &self.snd.files,
-            .gem_ok = self.g.h != 0,
-            .dialog_ok = self.dialog.h != 0,
-            .frame_us = self.frame_us,
-        };
-        pages.compose(&self.want, self.page, &c);
     }
 };
