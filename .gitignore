@@ -40,6 +40,7 @@ docs/music/club_style.sid
 # The C program ports (apps/ports): upstream sources fetched at their pins by apps/ports/fetch.sh, and build output.
 apps/ports/upstream/
 apps/ports/*/build/
+apps/ports/*/build_*/
 apps/ports/*/*/build/
 
 # The KESTREL SDK template run in this checkout (make in sdk/template): its cart copied into docs/.

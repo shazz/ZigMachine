@@ -15,6 +15,7 @@ const Engine = engine_mod.Engine;
 const pokey_mod = @import("audio/pokey.zig");
 comptime {
     _ = @import("audio/sid.zig"); // machineSidLoad / machineSidRender: cRSID, the .sid player's engine
+    _ = @import("audio/ay.zig"); // machineAyReset / Write / Render: libs/c/ayumi, the BARD queue's AY device
 }
 
 const FRAC_BITS: u6 = 16; // Paula fixed-point (matches engine.zig)

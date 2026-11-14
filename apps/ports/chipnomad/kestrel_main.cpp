@@ -1,5 +1,8 @@
 // The cart's entry points for ChipNomad: upstream's main() (platforms/shared/main.cpp) up to mainLoopRun runs in
 // boot(); one pass of the SDL2 main loop (events, tick, draw) runs per frame().
+#ifdef KESTREL_AUTOPLAY
+#include "chipnomad_lib.h" // first: some tracker headers include it inside extern "C" (C linkage)
+#endif
 #include <SDL2/SDL.h>
 #include "corelib_gfx.h"
 #include "corelib_font.h"
@@ -33,6 +36,14 @@ extern "C" __attribute__((export_name("boot"))) void boot(void)
     appSettings.audioSampleRate = 22050;
     if (!gfxSetup(&appSettings.screenWidth, &appSettings.screenHeight)) { kestrel_log("chipnomad: gfxSetup failed"); return; }
     appSetup();
+#ifdef KESTREL_AUTOPLAY
+    // A measuring build (tools/bard_compare.mjs): a project off the floppy, playing from boot.
+    if (projectLoad(&chipnomadState->project, KESTREL_AUTOPLAY)) {
+        chipnomadInitChips(chipnomadState, appSettings.audioSampleRate, NULL);
+        playbackStartSong(&chipnomadState->playbackState, 0, 0, 1);
+        kestrel_log("chipnomad: autoplay " KESTREL_AUTOPLAY);
+    } else kestrel_log("chipnomad: autoplay: no " KESTREL_AUTOPLAY);
+#endif
     running = 1;
     kestrel_log("chipnomad: booted");
     kestrel_heap_report();

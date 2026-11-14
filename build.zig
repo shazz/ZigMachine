@@ -484,6 +484,7 @@ pub fn build(b: *std.Build) void {
     machine_audio.initial_memory = audio_bytes;
     machine_audio.max_memory = audio_bytes;
     addCrsid(b, machine_audio.root_module);
+    addAyumi(b, machine_audio.root_module);
     installTo(b, machine_audio, sealed_step);
 
     // docs/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
@@ -814,6 +815,15 @@ fn addCrsid(b: *std.Build, mod: *std.Build.Module) void {
     const flags = [_][]const u8{ "-std=gnu99", "-ffreestanding", "-fno-builtin", "-w" };
     mod.addCSourceFile(.{ .file = b.path("libs/c/crsid/zm_sid.c"), .flags = &flags });
     mod.addCSourceFile(.{ .file = b.path("libs/c/crsid/freestanding/zm_sid_libc.c"), .flags = &flags });
+}
+
+// ayumi in integers (libs/c/ayumi/README.md): the BARD queue's AY device, compiled into machine-audio.wasm as
+// the page's copy of the same C BARD runs natively (fpga/host/audio_ay.c). No libc: freestanding C.
+fn addAyumi(b: *std.Build, mod: *std.Build.Module) void {
+    mod.addIncludePath(b.path("libs/c/ayumi"));
+    const flags = [_][]const u8{ "-std=c99", "-ffreestanding", "-fno-builtin", "-Wall", "-Werror" };
+    for ([_][]const u8{ "zm_ay.c", "zm_ay_cfg.c", "zm_ay_bank.c" }) |f|
+        mod.addCSourceFile(.{ .file = b.path(b.fmt("libs/c/ayumi/{s}", .{f})), .flags = &flags });
 }
 
 // TC TEST's `tc_art` module: the pictures tools/tc_art.py converts from `dir`, or none (the

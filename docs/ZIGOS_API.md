@@ -321,7 +321,7 @@ const w = zg.mp3Status(.word);              // bits 0-1 state (0 idle 1 playing 
 - The worked example is the MP3 PLAYER tools cart (`apps/zig/scenes/mp3_player.zig`): C:\MUSIC through
   KOS GEMDOS, a 32 KiB chunk at a time.
 
-## 8d. The BARD queue: SID live (system table 1.12)
+## 8d. The BARD queue: SID live and AY (system table 1.12)
 
 `zg.bard` (`libs/zig/bard.zig`) is a ring of **timed commands** from the cart to the sound side (BARD on
 the board, the AudioWorklet on the page) and a ring of **events** back, both in the cart's own memory. The
@@ -355,6 +355,20 @@ bard.close();                                  // or any song request, or the ne
 - **Cost on the board**: see `docs/FPGA_SOUND_CPU.md` (Effects, "the BARD queue").
 - The worked example is BARD SID (cart 124, `apps/zig/scenes/bard_sid.zig`): a three-voice Zig tracker
   (`bard_sid/tune.zig`), a beat flash from the marks.
+
+**AY** (13 Nov 2026): the queue's second device, up to eight AY-3-8910 / YM2149 chips (`libs/c/ayumi`, the
+model ChipNomad's tracker uses), rendered at the queue's own 44.1 kHz in **stereo**: a write lands on its sample
+exactly. One device an open: the first `sidReset` or `ayConfigure` picks it and the other's commands are refused.
+
+```zig
+_ = bard.ayConfigure(0, 0, 2_000_000, true);  // chip 0 fresh at t 0: 2 MHz, YM levels (false: AY). Silent until this
+_ = bard.ayStereo(0, 0, 30, 100, 170, true);  // A, B, C at k / 200 (0 left .. 200 right), equal-power
+_ = bard.ayGain(0, 0, 19661);                 // Q15 in the mix (32768 = 1, the default; ChipNomad uses 0.6)
+_ = bard.ayWrite(t, 0, 8, 15);                // register 8 (A's volume) of chip 0 at t; 13 re-triggers the envelope
+```
+
+C carts write the same ring (`apps/ports/chipnomad/kestrel_bard.cpp`): addr = `0xA000 + chip x 16 + reg` (14
+configure, 15 the pans), `0xA080 + chip` the gain (`libs/c/ayumi/zm_ay_bank.h`).
 
 ## 9. Build & run
 

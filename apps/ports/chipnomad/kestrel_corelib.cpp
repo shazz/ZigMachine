@@ -6,7 +6,8 @@
 // Input: the shared kestrel_input.c turns the cart's key exports into SDL keycodes, which are exactly what
 // ChipNomad's desktop key mapping expects (BTN_A = X, BTN_B = Z, START = Space, SELECT = Left Shift...).
 // Audio: ChipNomad's callback renders one VBL of 16-bit stereo; it goes to the machine's stream ring as
-// signed 8-bit mono (env.hostAudioFeed), like pt2-clone.
+// signed 8-bit mono (env.hostAudioFeed), like pt2-clone. With the AY on BARD (kestrel_chip.cpp) the chips
+// render there instead, in stereo, and the stream is quiet.
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -192,15 +193,21 @@ static int audio_rate = 48000, audio_paused = 1;
 int audioSetup(AudioCallback *cb, int rate, int bufsize) { (void)bufsize; audio_cb = cb; audio_rate = rate; return 1; }
 void audioPause(int p) { audio_paused = p; }
 void audioCleanup(void) { audio_cb = NULL; }
+void kestrel_ay_frame(void);                         // kestrel_chip.cpp: the AY on BARD
+void kestrel_ay_block(uint32_t frames, int done);
 static void mix(void *ctx, int16_t *stereo, int frames)
 {
     (void)ctx;
+    kestrel_ay_block((uint32_t)frames, 0);
     if (audio_paused) memset(stereo, 0, (size_t)frames * 4);
     else audio_cb(stereo, frames);
+    kestrel_ay_block((uint32_t)frames, 1);
 }
-// Once a frame: the player's callback (its clock too) for the real time the frame took.
+// Once a frame: the player's callback (its clock too) for the real time the frame took; with the AY on BARD
+// the stream is quiet and the callback only keeps the clock (kestrel_chip.cpp).
 void kestrel_audio_frame(uint32_t us)
 {
+    kestrel_ay_frame();
     if (audio_cb) kestrel_audio_pump(us, (uint32_t)audio_rate, AUDIO_LEAD_MS, mix, NULL);
 }
 

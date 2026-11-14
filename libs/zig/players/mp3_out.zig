@@ -29,11 +29,14 @@ pub fn buffers(at0: u32) Bufs {
     return b;
 }
 
-/// A sample's four channel bytes: y = x >> 1 = 128 h + l, h in -128..127, l in -64..63.
+/// A sample's four channel bytes: y = x >> 1 = 128 h + l, h in -128..127, l in -64..63. The top 64 values of
+/// y (x >= 32640) have no h: they hold at 127 x 128 + 63 (they wrapped to -128 x 128 before: a full-scale
+/// positive sample played as full-scale negative).
+pub const Y_MAX: i32 = 127 * 128 + 63;
 pub inline fn bytes(smp: [2]i16) [audio.NUM_CHANNELS]i8 {
     var b: [audio.NUM_CHANNELS]i8 = undefined;
     for (0..2) |side| {
-        const y: i32 = @as(i32, smp[side]) >> 1;
+        const y: i32 = @min(@as(i32, smp[side]) >> 1, Y_MAX);
         const h = (y + 64) >> 7;
         b[side] = @intCast(h);
         b[2 + side] = @intCast(y - (h << 7));

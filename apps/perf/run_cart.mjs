@@ -82,7 +82,8 @@ function hbl(hw, mods, call, by) {
 // cartBytes: the cart wasm. opts: { machineDir, disk, cImage, pal, names: {cart, rom} (Maps) }.
 // cImage: KOS's C: (scene_hash.mjs --c-image), each kosDriveRead counted (a board round trip).
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
-export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, cImage = null, pal = true, names = {}, paula = false } = {}) {
+// bard: the host answers the BARD queue (table 1.12) and takes every command a frame, as BARD does (frame_cost --bard).
+export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, cImage = null, pal = true, names = {}, paula = false, bard = false } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblBy: [0, 0, 0, 0, 0], hblStores: 0, snoopOverflow: 0, diskBlocks: 0, kosReads: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];
@@ -117,6 +118,8 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
     }
     const noop = () => {};
     if (paula) env.hostPaulaClaim = () => 1; // HW 1.14.0: the channels are lent (frame_cost --paula)
+    const bq = { block: 0 };
+    if (bard) env.hostBardAttach = (b) => { bq.block = b >>> 0; return b ? 1 : 0; };
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;
     const cartInst = (await WebAssembly.instantiate(cartI.bytes, { env })).instance;
@@ -133,16 +136,17 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
         const w = x.mem ? new Uint32Array(x.mem.buffer) : null;
         return a + (w ? w[MIS_LOADS] + w[MIS_STORES] : 0);
     }, 0);
-    return { memory, machine, demo, rom, hw, mods, vlo, misaligned };
+    return { memory, machine, demo, rom, hw, mods, vlo, misaligned, bq };
 }
 
 // One host frame, exactly scene_hash.mjs's loop body.
 // songMs: what the host mirrors into zigos.song_ms from the playing tune (the board's BARD does it
 // every frame); a cart that paces its parts on the music never leaves its first part without it.
-export function hostFrame({ machine, demo, memory }, songMs = null) {
+export function hostFrame({ machine, demo, memory, bq }, songMs = null) {
     if (songMs !== null && demo.getSongMsPointer) new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = songMs;
     machine.hwClear();
     demo.frame(Number(process.env.PERF_DT ?? 16.6)); // PERF_DT: a slower host frame (a cart that runs ST VBLs per elapsed ms does more work per frame)
+    if (bq?.block) { const u = new Uint32Array(memory.buffer, bq.block, 16); u[5] = u[4]; } // the queue's tail = its head
     const planes = machine.hwPlanesNumber();
     for (let p = 0; p < planes; p++) if (demo.isPlaneEnabled(p)) machine.hwRenderPlane(p);
 }

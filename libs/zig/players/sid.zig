@@ -15,6 +15,7 @@ const chip = @import("xm_chip.zig");
 const rs = @import("mp3_resample.zig");
 const out = @import("mp3_out.zig");
 const sid_live = @import("sid_live.zig");
+const ay_live = @import("ay_live.zig");
 
 pub const RATE: u32 = 22050;
 pub const FILE_MAX: u32 = 0x10000 + 0x7C + 2; // a C64's 64 KiB, its load address and the v2 header
@@ -23,6 +24,7 @@ pub const CHUNK: u32 = 512; // engine samples a call
 pub const LIVE_CHUNK: u32 = 128; // SID live: the most rendered ahead between two writes
 comptime {
     if (CHUNK_OFF + 2 * CHUNK > chip.BUF_OFFSET) @compileError("the SID player's song RAM overlaps the Paula rings");
+    if (4 * ay_live.CHUNK > 2 * CHUNK) @compileError("the AY's stereo chunk overflows the SID chunk it shares");
 }
 
 /// zm_sid.h's load answers (audioSidStatus bits 8-15).
@@ -76,7 +78,12 @@ pub const SidPlayer = struct {
         const at0 = ring.place(self.ring_pos, n);
         self.ring_pos = at0 + n;
         const bufs = out.buffers(at0);
-        for (0..n) |f| out.put(bufs, @intCast(f), out.bytes(self.next()));
+        var f: u32 = 0;
+        // SID live: until its first SID reset (an AY open, or nothing yet) the output clock's own path
+        if (self.live) |l| if (l.device != .sid) {
+            f = ay_live.render(l, bufs, n, CHUNK_OFF);
+        };
+        while (f < n) : (f += 1) out.put(bufs, f, out.bytes(self.next()));
         out.trigger(at0, n);
         audio.machineMixPaula(0, n);
         audio.machineClamp(n);
@@ -118,6 +125,7 @@ fn liveChunk(l: *sid_live.Live) u32 {
     while (l.take()) |e| switch (l.classify(e)) {
         .sid => audio.machineSidWrite(e.addr - sid_live.SID_BASE, e.value),
         .reset => _ = audio.machineSidRaw(e.value),
+        .ay => {}, // never on a SID open (sid_live: the device is picked once)
         .none => {},
     };
     const n = l.chunk(LIVE_CHUNK);

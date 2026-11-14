@@ -542,6 +542,19 @@ machineSidWrite(reg, value) void            // one SID register, $D400 + reg (0.
 Raw SID is a load like any other: a static 2-byte PSID whose init and play are an RTS, so the engine is set up
 exactly as for a tune; a write is the 6502's store into cRSID's I/O page. The BARD queue's SID live player uses it.
 
+**The AY engine** (13 Nov 2026): eight AY-3-8910 / YM2149 chips in integers (`libs/c/ayumi`, ayumi's chip model
+as ChipNomad's cart runs it on ZIGGY), the BARD queue's AY device. On the page it is in `machine-audio.wasm`; on
+the board BARD answers the same three imports with the same C, natively (`fpga/host/audio_ay.c`), and
+`apps/ay_live_check.mjs` holds the two to the same samples.
+
+```zig
+machineAyReset() void                       // every chip off
+machineAyWrite(a, value) u32                // offset a = chip x 16 + reg: 0..13 the registers, 14 configure (bits 0-23
+                                            // the clock in Hz, bit 24 YM; under 8 Hz: off), 15 the pans of A, B, C (k / 200
+                                            // a byte each, bit 24 equal-power); 0x80 + chip its Q15 gain. 1 applied
+machineAyRender(dst_abs, n) void            // the next n stereo s16 frames (L, R) at 44100 Hz: the configured chips summed
+```
+
 ### The BARD queue (system table 1.12)
 
 One `env` import, the host's: `u32 hostBardAttach(u32 block, u32 lead)` (0 closes; answers 0 where no queue

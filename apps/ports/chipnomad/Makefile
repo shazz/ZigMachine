@@ -14,6 +14,8 @@ OUT    := build
 GEN    := $(OUT)/gen
 KSDL   := ../kestrel_sdl2/src
 KINC   := ../kestrel_sdl2/include
+# the integer AY core every renderer shares (libs/c/ayumi: this cart, BARD, machine-audio.wasm)
+AYC    := ../../../libs/c/ayumi
 # upstream's source dirs (Makefile.common COMMON_LIBS), minus platforms/shared (main.cpp, big fonts) and the SDL2 back end;
 # platforms/sdl2/corelib_input.cpp is kept: its key mapping and key names are platform-independent here.
 DIRS   := tracker/src chipnomad_lib chipnomad_lib/chips chipnomad_lib/external/ayumi chipnomad_lib/export \
@@ -22,7 +24,7 @@ UP_ALL := $(foreach d,$(DIRS),$(patsubst $(UP)/%,%,$(wildcard $(UP)/$(d)/*.c $(U
           tracker/platforms/sdl2/corelib_input.cpp tracker/platforms/shared/corelib_keymap.h
 # ayumi.cpp is replaced by kestrel_ayumi.cpp (the same chip in integers, a box filter for the resampling)
 UP_SRC := $(filter-out chipnomad_lib/external/ayumi/ayumi.cpp,$(filter %.c %.cpp,$(UP_ALL)))
-INCS   := $(addprefix -I$(GEN)/,$(DIRS) tracker/platforms/shared tracker/platforms/sdl2) -I$(KINC) -I$(KINC)/SDL2
+INCS   := $(addprefix -I$(GEN)/,$(DIRS) tracker/platforms/shared tracker/platforms/sdl2) -I$(KINC) -I$(KINC)/SDL2 -I$(AYC)
 FLAGS  := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory $(INCS) -include kestrel_port.h -D__KESTREL__ -Wno-unused-parameter -Wno-date-time \
           -Wno-builtin-macro-redefined '-D__DATE__="$(BUILD_DATE)"'
 CXXFLAGS := $(FLAGS) -std=c++17 -fno-exceptions -fno-rtti
@@ -31,7 +33,7 @@ MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=262144 -Wl,--strip-debug
 OBJS   := $(patsubst %,$(OUT)/up/%.o,$(UP_SRC)) $(patsubst %,$(OUT)/%.o,$(wildcard kestrel_*.cpp)) \
-          $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c))
+          $(patsubst $(KSDL)/%.c,$(OUT)/ksdl/%.o,$(wildcard $(KSDL)/*.c)) $(OUT)/ayc/zm_ay.o $(OUT)/ayc/zm_ay_cfg.o
 GENALL := $(addprefix $(GEN)/,$(UP_ALL))
 
 .PHONY: link objs clean install
@@ -50,6 +52,9 @@ $(OUT)/up/%.c.o: $(GEN)/%.c $(GENALL)
 $(OUT)/%.cpp.o: %.cpp $(GENALL)
 	@mkdir -p $(dir $@)
 	$(ZIG) c++ $(CXXFLAGS) -c $< -o $@
+$(OUT)/ayc/%.o: $(AYC)/%.c $(wildcard $(AYC)/*.h)
+	@mkdir -p $(dir $@)
+	$(ZIG) cc $(CFLAGS) -c $< -o $@
 $(OUT)/ksdl/%.o: $(KSDL)/%.c
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
