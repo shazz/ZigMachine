@@ -49,23 +49,25 @@ static uint32_t pans(const ChipSetupAY &a)
 
 class KestrelChipAY : public SoundChipAY {
     int idx;
+    unsigned written; // registers the tracker has written: a fresh chip on BARD is the cart's own model, the rest unset
     uint32_t sent_cfg, sent_pan, sent_gain;
 public:
-    KestrelChipAY(int i, int rate, ChipSetup s) : SoundChipAY(rate, s), idx(i) { forget(); chips[i] = this; }
+    KestrelChipAY(int i, int rate, ChipSetup s) : SoundChipAY(rate, s), idx(i), written(0) { forget(); chips[i] = this; }
     ~KestrelChipAY() override
     {
         if (chips[idx] == this) chips[idx] = nullptr;
         if (on_bard) post(idx, 14, 0); // no clock: BARD's chip off
     }
     void forget() { sent_cfg = sent_pan = sent_gain = 0xFFFFFFFFu; }
-    // The project's set-up, posted when it changes. A configure is a fresh chip on BARD: the registers follow.
+    // The project's set-up, posted when it changes. A configure is a fresh chip on BARD: the registers written so
+    // far follow (only those: a register never written, e.g. the noise period, is not 0 in the model but unset).
     void sync()
     {
         const ChipSetupAY &a = chipnomadState->project.chipSetup.ay;
         uint32_t cfg = ((uint32_t)a.clock & 0xFFFFFFu) | (a.isYM ? 1u << 24 : 0);
         if (cfg != sent_cfg) {
             post(idx, 14, cfg);
-            for (unsigned r = 0; r <= 13; r++) post(idx, r, getRegister((uint16_t)r));
+            for (unsigned r = 0; r <= 13; r++) if (written >> r & 1) post(idx, r, getRegister((uint16_t)r));
             sent_cfg = cfg; sent_pan = sent_gain = 0xFFFFFFFFu;
         }
         uint32_t p = pans(a), g = (uint32_t)(0.6f * chipnomadState->mixVolume * 32768.0f + 0.5f); // chip_ay.cpp's ayVolumeScale
@@ -75,6 +77,7 @@ public:
     void setRegister(uint16_t reg, uint8_t value) override
     {
         SoundChipAY::setRegister(reg, value);
+        if (reg <= 13) written |= 1u << reg;
         if (on_bard && reg <= 13 && sent_cfg != 0xFFFFFFFFu) post(idx, reg, value);
     }
     void setTimerFunc(int (*f)(SoundChip *self, void *ud), void *ud) override;
