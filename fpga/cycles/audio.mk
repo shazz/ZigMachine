@@ -12,12 +12,12 @@
 # memories stay apart (the players' 3 MiB is not the cart's 8 MiB).
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
-AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
+AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_scope.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
 	host/audio_sid.c host/crsid.c host/audio_ay.c host/bardq_pump.c host/audio_bardq.c host/audio_bardjob.c
 # The SID engine (cRSID): libs/c/crsid laid out with its patches (patch.sh); host/crsid.c includes it.
 CRSID          := $(ROOT)/libs/c/crsid
 CRSID_TREE     := build/crsid
-AUD_HDRS       := host/audio_names.h host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h host/hstream.h host/bardq.h \
+AUD_HDRS       := host/audio_names.h host/haudio.h host/audio_regs.h host/audio_scope.h host/audio_queue.h host/host.h host/hstream.h host/bardq.h \
 	$(CRSID_TREE)/libcRSID.c $(CRSID)/zm_sid.c $(CRSID)/zm_sid.h $(CRSID)/config/zm_crsid.h \
 	$(wildcard $(ROOT)/libs/c/ayumi/*.[ch])
 $(CRSID_TREE)/libcRSID.c: $(CRSID)/patch.sh $(wildcard $(CRSID)/patches/*) $(wildcard $(CRSID)/upstream/*.[ch] $(CRSID)/upstream/*/*.[ch])
@@ -40,10 +40,10 @@ $(HOST)/common/maud.h: $(HOST)/common/maud.c
 # -include host/hstream.h: the cart's stream imports reach the ring (tools/host_gen.py STREAM hooks).
 HOST_AUD_CFLAGS = $(HOST_CFLAGS) -DZM_AUDIO_SOFT -DHOST_AUDIO -DHOST_MUSIC_DIR='"$(ROOT)/docs/music"' -include host/hstream.h
 $(HOST)/%/host_audio: $(HOST)/%/env.c $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/common/aplayer.o \
-		$(HOST)/common/maud.o $(AUD_SRC) $(AUD_HDRS) host/audio_soft.c host/haudio_soft.h host/main.c host/boot.c \
+		$(HOST)/common/maud.o $(AUD_SRC) $(AUD_HDRS) host/audio_soft.c host/audio_scope_check.c host/haudio_soft.h host/main.c host/boot.c \
 		$(HOST_IO) $(INPUT_DEPS) $(HOST_BOOTSEC)
 	@mkdir -p $(@D)/aud
-	for s in $(HOST)/$*/env.c host/boot.c host/main.c host/host_io.c $(AUD_SRC) host/audio_soft.c $(INPUT_SRC) $(HOST_BOOTSEC); do \
+	for s in $(HOST)/$*/env.c host/boot.c host/main.c host/host_io.c $(AUD_SRC) host/audio_soft.c host/audio_scope_check.c $(INPUT_SRC) $(HOST_BOOTSEC); do \
 		$(HOST_CC) $(HOST_AUD_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(@D)/aud/$$(basename $$s .c).o || exit 1; done
 	$(HOST_CC) $(@D)/aud/*.o $(HOST)/$*/cart.o $(HOST_COMMON) $(HOST)/common/aplayer.o $(HOST)/common/maud.o \
 		-lm -lpthread -o $@
@@ -55,7 +55,7 @@ host-audio: memmap $(HOST)/$(CART)/host_audio
 # the writes a frame; run once with ZM_SNDH_MUSASHI=1 (the reference) and once without.
 #   make sndh-oracle && ZM_AUDIO_DIGEST=/dev/shm/n.d build/host/oracle/sndh_oracle union/beat_dis.sndh 0 600
 # (host.h wants a cart's header for its types: tutorial's.)
-ORACLE_SRC := host/sndh_oracle.c $(AUD_SRC) host/audio_soft.c
+ORACLE_SRC := host/sndh_oracle.c $(AUD_SRC) host/audio_soft.c host/audio_scope_check.c
 ORACLE_RT  := $(addprefix $(HOST)/common/,rt.o rt-mem.o rt-exc.o)
 $(HOST)/oracle/sndh_oracle: $(ORACLE_SRC) $(AUD_HDRS) host/audio_queue.h host/haudio_soft.h $(ORACLE_RT) \
 		$(HOST)/common/aplayer.o $(HOST)/common/maud.o $(HOST)/tutorial/cart.h
@@ -89,7 +89,7 @@ sndh-survey: memmap $(HOST)/oracle/sndh_survey
 SONG_FRAMES ?= 600
 HCYC        := build/hcycles
 AUD_FW_SRC  := $(AUD_SRC) cycles/baudio.c cycles/bsongs.c cycles/bmirror.c
-AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h cycles/bsndinfo.h cycles/aud_state.h cycles/bmirror.h gen/glass_cart.h $(CYC)/$(HV)/common/aplayer.o $(HOST)/common/aplayer.h
+AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h cycles/bsndinfo.h cycles/aud_state.h cycles/bmirror.h cycles/bscope.h gen/glass_cart.h $(CYC)/$(HV)/common/aplayer.o $(HOST)/common/aplayer.h
 # The players for rv32, in a cycles.mk variant: `aligned` (soft-float), `alignedf` (board.mk ZM_FPU=1).
 $(CYC)/%/common/aplayer.o: $(CYC)/src/aplayer.c
 	@mkdir -p $(@D)

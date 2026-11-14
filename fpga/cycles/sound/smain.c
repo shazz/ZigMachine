@@ -21,6 +21,9 @@
 #include "snd_mailbox.h"
 #include "sbardq.h"
 #include "sjobs.h"
+#ifdef ZM_SND_SCOPES
+#include "audio_scope.h"
+#endif
 #include "smp3bench.h"
 #include "sound.h"
 #include "trap.h"
@@ -51,6 +54,10 @@ const host_song_bridge host_songs = {0}; /* host.h wants one; nothing polls it h
 static void run(void) {
     #define ZMA_NOW (*(volatile uint32_t*)0x92000008u) /* soc/zm_audio_soc.py AUDIO_WINDOW, word 2 */
     uint32_t t0 = SND_REG(SND_CYCLES);
+#ifdef ZM_SND_SCOPES /* make snd-bench SND_SCOPES=1: the scopes rebuilt into a cart's field, as on the board */
+    static uint32_t scopes[ZSC_CHANNELS * ZSC_LEN];
+    zsc_target(scopes);
+#endif
 #ifdef ZM_SND_MP3 /* make snd-bench SND_MP3=1: the song is an .mp3, streamed (cycles/sound/smp3bench.c) */
     mp3_bench_start(ZM_SONG);
 #elif defined(ZM_SND_BARDQ) /* make snd-bench SND_BARDQ=1: SID live, a linked command log (sbardq_bench.c) */
@@ -77,6 +84,9 @@ static void run(void) {
                (unsigned long)(SND_REG(SND_IBUS_WAIT) - i0), (unsigned long)(SND_REG(SND_DBUS_WAIT) - d0));
 #ifdef ZM_SND_BARDQ
         printf("BQ %d put %lu\n", f, (unsigned long)put);
+#endif
+#ifdef ZM_SND_SCOPES
+        printf("SC %d %lu\n", f, (unsigned long)zsc_cycles), zsc_cycles = 0;
 #endif
 #ifdef ZM_SND_MP3
         mp3_bench_report(f);

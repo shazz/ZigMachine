@@ -26,6 +26,7 @@ ROOT = FPGA.parent
 MANIFEST = FPGA / "cycles/sys_abi.txt"
 sys.path.insert(0, str(FPGA / "tools"))
 from host_bridges import BARD, DISK_APP_BRIDGE, INPUT_BRIDGE, KOS_DRIVE, KOS_FILE, MIRROR, MP3, NET, PAULA, POINTER_BOX, SONG_BRIDGE, STREAM  # after the path insert
+from host_scopes import SCOPES
 from host_gen import MACHINE_ENV
 from sys_abi_layout import CONSTS, HEADER, RUNTIME, TYPE_SOURCES, TYPES
 from sys_abi_break import run_breaks
@@ -65,6 +66,8 @@ def env_entries(root: Path = ROOT) -> dict[str, str]:
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in POINTER_BOX.items()})
     # ZIGNIC, the network card (cycles/bnet.h on the board: glass's sockets; no_card elsewhere), by the system (1.22).
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in NET.items()})
+    # The scopes (cycles/bmirror.h on the board: BARD writes them into the cart; a no-op elsewhere), by the system (1.26).
+    out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in SCOPES.items()})
     return out
 
 

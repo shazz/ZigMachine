@@ -33,7 +33,7 @@ CART_LDFLAGS = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -nostd
 # instead: the KESTREL SDK passes CART_RTLIB=<its zrt_cart.o> (sdk/build_cart.zig, docs/SDK.md).
 CART_RTLIB  ?= -lgcc
 CARTS_DIR   := $(SPLIT)/carts$(HSUF)$(if $(ZM_CART_VERSION),_v$(ZM_CART_VERSION))
-SYS_ABI_DEPS := cycles/sys_abi.txt $(wildcard tools/sys_abi*.py) tools/wasm_sig.py tools/host_bridges.py \
+SYS_ABI_DEPS := cycles/sys_abi.txt $(wildcard tools/sys_abi*.py) tools/wasm_sig.py tools/host_bridges.py tools/host_scopes.py \
 	tools/host_gen.py glass/src/map_cart.zig host/host.h cycles/baudio.h $(ROOT)/docs/rom.wasm \
 	$(ROOT)/docs/machine-video.wasm
 
@@ -41,7 +41,7 @@ gen/zm_sys_abi.h: $(SYS_ABI_DEPS)
 	uv run python tools/sys_abi_c.py header $@
 gen/zm_cart_rt.c: $(SYS_ABI_DEPS)
 	uv run python tools/sys_abi_c.py cart-rt $@
-$(HOST)/common/sys_env.c: $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py tools/host_bridges.py \
+$(HOST)/common/sys_env.c: $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py tools/host_bridges.py tools/host_scopes.py \
 		gen/zm_sys_abi.h gen/memmap.py
 	uv run python tools/host_split.py system $@
 $(HOST)/%/cart_env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py \

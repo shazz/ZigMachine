@@ -10,6 +10,7 @@
 
 #include "aud_state.h"
 #include "baudio.h"
+#include "bdinval.h"
 #include "bmirror.h"
 #include "bsndinfo.h"
 #include "haudio.h"
@@ -51,6 +52,8 @@ void baudio_boot(void) {
     uint32_t t0 = SND_REG(SND_CYCLES);
     g_seq = t0 | 1u;
     SND_REG(SND_C2S + C_SEQ) = g_seq;
+    /* An earlier run's cart is gone: this one's scopes (bound at its instantiation, the board only), or none. */
+    SND_REG(SND_C2S + C_SCOPES) = ZM_MIRROR_ON ? audio_mirror_scopes_at() : 0u;
     SND_REG(SND_CTRL) = SND_RUN;
     while (SND_REG(SND_S2C + S_ACK) != g_seq || SND_REG(SND_S2C + S_READY) != S_READY_VALUE) {
         if (SND_REG(SND_CYCLES) - t0 > READY_WAIT) {
@@ -141,8 +144,22 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
     }
 }
 
+/* The scopes (snd_mailbox.h C_SCOPES): BARD writes them into the cart's DDR, so the cart's next read
+ * must miss this write-through D-cache: their 64 lines dropped (bdinval.h), not the whole cache. */
+#if ZM_MIRROR_ON
+static void scopes_frame(void) {
+    uint32_t at = audio_mirror_scopes_at();
+    if (!at) return;
+    if (SND_REG(SND_C2S + C_SCOPES) != at) SND_REG(SND_C2S + C_SCOPES) = at;
+    bdi_span(at, at + 4u * 4u * 128u);
+}
+#endif
+
 void baudio_frame(struct w2c_env* e) {
     if (!baudio.on) return;
+#if ZM_MIRROR_ON
+    scopes_frame(); /* before the frame's songs: BARD follows the channels only while it has a target */
+#endif
     audio_bridge(e);
 #if ZM_MIRROR_ON /* BARD's audio state (cycles/aud_state.h), read past the D-cache: the S2C bank */
     aud_state s;

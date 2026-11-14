@@ -7,6 +7,7 @@
 #                                        (board.mk; needs the soc_hp_snd model: make soc-hp-snd)
 #   make snd-bench SONG=union/wow_scroller.sndh [TUNE=0] [ZM_FRAMES=8] [MUSIC=<dir>] [SND_MODE=3]
 #                                        one song on the sound CPU, no cart: cycles a frame (SND_MODE: requestSndhMode first)
+#   make snd-bench SONG=lollapalooza.mod SND_SCOPES=1   ...with the scopes rebuilt ("SC frame cycles": their share)
 #   make snd-bench SONG=TONES44.MP3 MUSIC=$PWD/../apps/zig/assets/mp3 SND_MP3=1
 #                                        an .mp3 streamed into the MP3 player as a cart streams it (cycles/sound/smp3bench.c)
 #   ZM_SOC=$PWD/build/soc_hp_snd ZM_INIT=sim_zm_ddr.init tools/cycles_sim.sh \
@@ -36,7 +37,7 @@ SND_LDFLAGS := $(RV_ARCH) $(SND_ARCH) -Wl,--defsym=__flash=0x40E00000,--defsym=_
 SND_CFLAGS  = $(HRV_CFLAGS) -Icycles/sound -I$(HOST)/tutorial -DZM_SND
 SND_COMMON := cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
-SND_PLAY   := host/audio.c host/audio_imports.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
+SND_PLAY   := host/audio.c host/audio_imports.c host/audio_scope.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
 	host/audio_sid.c host/crsid.c host/audio_ay.c host/bardq_pump.c cycles/baudio.c cycles/sound/smain.c cycles/sound/sbardq.c cycles/sound/sjobs.c
 # BARD jobs' server (zg.bard.job, cycles/sound/sjobs.c): the cart's own Zig source, built rv32i + Zmmul, so a
 # job's bytes are the same wherever it runs. ReleaseFast (7 KB; ReleaseSmall 6 KB, ZX0 ~100 cycles a byte), no unwind tables.
@@ -48,7 +49,7 @@ BJOB_ZIG   := -target riscv32-freestanding-none -mcpu=generic_rv32+zmmul -O Rele
 # where -march=rv32i_zmmul calls the core's 400-cycle __divsi3 even for x / 5 (review/SID_BARD_STUDY.md).
 # The DIV/REM guard below still holds; the link keeps SND_ARCH's rv32i multilib.
 SND_NODIV  := -march=rv32im -mno-div
-SND_DEPS   := $(SND_COMMON) $(SND_PLAY) $(BJOB_DEPS) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h cycles/aud_state.h cycles/bsndinfo.h gen/glass_cart.h \
+SND_DEPS   := $(SND_COMMON) $(SND_PLAY) $(BJOB_DEPS) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h cycles/aud_state.h cycles/bscope.h cycles/bsndinfo.h gen/glass_cart.h \
 	$(AUD_HDRS) cycles/baudio.h $(CYC)/alignedz/common/aplayer.o $(HOST)/common/aplayer.h \
 	$(HCYC)/gen/csr_addr.h $(HOST)/tutorial/cart.h
 
@@ -88,7 +89,8 @@ $(SND)/bench/bardq_log.c: $(BARDQ_LOG)
 	{ echo "#include <stdint.h>"; echo "const uint32_t zm_bardq_log[] = {"; od -An -v -tx4 -w4 $< | awk '{printf "0x%s,\n", $$1}'; \
 	  echo "0};"; echo "const uint32_t zm_bardq_log_words = sizeof zm_bardq_log / 4 - 1;"; } >$@
 $(eval $(call snd_image,bench,cycles/bsongs.c $(SND)/bench/songs.c $(if $(SND_MP3),cycles/sound/smp3bench.c) $(if $(SND_BARDQ),cycles/sound/sbardq_bench.c $(SND)/bench/bardq_log.c),-DZM_SND_BENCH $(if $(SND_BARDQ),-DZM_SND_BARDQ) '-DZM_SONG="$(SONG)"' \
-	-DZM_TUNE=$(TUNE) -DZM_FRAMES=$(ZM_FRAMES) $(if $(SND_MODE),-DZM_SND_MODE=$(SND_MODE)) $(if $(SND_MP3),-DZM_SND_MP3)))
+	-DZM_TUNE=$(TUNE) -DZM_FRAMES=$(ZM_FRAMES) $(if $(SND_MODE),-DZM_SND_MODE=$(SND_MODE)) $(if $(SND_MP3),-DZM_SND_MP3) \
+	$(if $(SND_SCOPES),-DZM_SND_SCOPES)))
 
 # The bench's cart side (cycles/sound/sbench_cart.c): start the bench image, print its console, end.
 $(SND)/bench/fw.elf: $(SND)/bench/snd_img.o cycles/sound/sbench_cart.c cycles/bsound.c cycles/bsound_bardq.c cycles/bsound_job.c host/audio_bridge.c \

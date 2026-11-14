@@ -58,5 +58,12 @@ enum { OP_BARD = 4, C_BQ_HEAD = 5 };
  * is in DDR, and answers in the cart's DDR (cycles/sound/sjobs.c). */
 enum { OP_JOB = 5, C_JOB_HEAD = 6 };
 enum { S_BQ = 23, S_BQ_TAIL = 23, S_BQ_POS = 24, S_BQ_EVN = 25, S_BQ_EV = 26, S_BQ_SLOTS = 3 };
+/* The scopes (table 1.26, host/audio_scope.h): C2S word C_SCOPES is the cart's zigos.scopes in DDR (4 x 128
+ * f32, 4-aligned), 0 for none. ZIGGY zeroes it before BARD runs and writes it once the cart has handed it over
+ * (cycles/bsound.c; the board only, ZM_MIRROR_ON); BARD reads it before each render and writes every capture
+ * there, as the browser's loader writes the worklet's scopes. Outside every command's words, as the heads.
+ * BARD takes only an address inside the cart's data, under its own RAM (cycles/sound.mk __ram). */
+enum { C_SCOPES = 7 };
+#define SND_CART_END 0x41C00000u
 
 #endif

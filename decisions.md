@@ -994,12 +994,12 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A versioned block in DDR that BARD writes and ZIGGY reads after a D-cache range invalidate: every BARD write is a blocking DDR store (~27 cycles), and the reader must invalidate. The S2C bank is LUTRAM already shared by both CPUs, uncached on both sides, with 20 free words: the same versioned block, no DDR traffic, no invalidate, no RTL change.
 - A pointer bridge in the cart header: a header layout change, so a major bump and every cart rebuilt.
 - A new cart import (`zg.audioState()`), polled by ZigOS each frame: every cart's wasm and the browser loader change, and so does every harness's import list.
-- Mirroring `scopes`: no CPU has the mixed Paula samples on the board (Paula is RTL), so there is nothing to mirror.
+- Mirroring `scopes`: no CPU has the mixed Paula samples on the board (Paula is RTL), so there is nothing to mirror. (Superseded 2026-11-14: BARD rebuilds the capture from the players' Paula calls, see that entry.)
 
 **Consequences:**
 - A cart that reads the state now looks on the board as in the browser with sound on. Its frames therefore differ from a no-audio reference once music plays, which is why the sim keeps the mirror off.
 - The cost is a few stores a frame on each CPU while a tune plays: the position word every frame, plus the YM registers that changed (`tests/test_audio_mirror.py` pins "unchanged costs nothing").
-- MOD and sample scopes stay flat on the board.
+- MOD and sample scopes stay flat on the board. (Until 2026-11-14, "The Paula scopes on the board": table 1.26.)
 
 ## 2026-10-18 — ZIGGY's stores are posted on the board, with a fence before every IO store
 
@@ -1945,3 +1945,44 @@ the kick on the page (it would land in the cart's own frame and the A/B would sh
 **Consequences:** +6 KB in snd.bin (the server, ZX0 and the CRC table), a system-table bump (1.24): carts built
 before it run unchanged; a cart that posts jobs needs a 1.24 system. ZigOS now imports the `depackers` module
 (build.zig, sdk/build_cart.zig). New ops are added in one place (server.zig + kernels.zig) and reach every host.
+
+## 2026-11-14 — The Paula scopes on the board: BARD rebuilds the engine's capture and writes it into the cart (sys table 1.26)
+
+**Status:** accepted
+**Context:** Matt, 14 Nov: music_debug's oscilloscope is flat on the board for keys 1 (MOD), 3 (12517 Hz sample),
+5 and 6 (XM), and moves for YM and SNDH. Not a regression: the 2026-10-18 mirror carries mode and YM registers only,
+because no CPU has the mixed Paula samples (CHORUS is RTL). In the browser the engine's `Channel.mixInto` captures
+every 4th output sample x volume into a 128-entry ring per channel and the loader copies the four rings into
+`zigos.scopes`. The S2C bank is full (audio state 12..22, BARD queue 23..28).
+**Decision:**
+- **Rebuild, not read back.** Every Paula change goes through the players' `machinePaula*` imports
+  (`host/audio_imports.c`) on whichever CPU runs them, so `host/audio_scope.c` keeps a shadow of each channel (data,
+  length, loop, step, f32 volume, 16.16 position, the u2 capture counter, the ring index) and, on each
+  `machineMixPaula` piece, advances it exactly as `mixInto` (wrap, one-shot end, capture when the counter is 0).
+  Between captures nothing is read, so four samples that cannot reach the end are one step. The value is the
+  engine's f32 product (s / 128) x volume, built with an integer multiply and a round-to-nearest-even shift, cached
+  per volume in a 129-entry table (BARD has no FPU and no divider).
+- **Straight into the cart.** The cart hands `getScopesPointer` to the system once, after its instantiation, through
+  a new host entry appended to the table, `hostAudioScopes(u32)` (1.25 -> 1.26, minor: every index stands, a 1.25
+  cart runs with flat scopes). ZIGGY puts the field's DDR address in C2S word 7 (`C_SCOPES`, free: commands use 0..4
+  and 8.., the heads 5..6) before BARD runs and again if it changes, and drops the field's 64 D-cache lines after each
+  cart frame (`bdinval.h`). BARD follows the word before each render (`cycles/bscope.h`: 4-aligned, inside the cart's
+  data only) and stores every capture there (posted stores). With the players on ZIGGY the rebuild writes the cart
+  directly. Board only (`ZM_MIRROR_ON`), as the rest of the mirror: sims stay hashed against `scene_hash.mjs`.
+**Alternatives considered:**
+- Read back what CHORUS played (`fix/scope-mirror`, 18 Oct, never built): RTL taps and a channel of samples back to a
+  CPU, for the same picture.
+- A scope block in BARD's memory that ZIGGY copies into the cart each frame: 512 uncached loads and 512 stores on the
+  cart CPU, where cycles are scarcest; BARD writing the cart costs ZIGGY 64 cache-line drops.
+- Approximating the volume with CHORUS's Q8 (`zma_vol`): cheaper, but the scopes would differ from the browser's
+  for any volume off the 1/256 grid (the sample's 0.9, MOD headroom); the f32 product is word for word.
+- Widening `hostAudioMirror` to four fields: a changed row is a major bump and every cart rebuilt.
+**Consequences:**
+- The board's scopes are the browser's: `ZM_SCOPE_CHECK=1` (native oracle) holds the rebuild to machine-audio's own
+  scopes word for word after every render (MOD, the 12517 Hz sample, XM, a looping MOD, plus .kt and .hip players
+  over 1,500 frames), `tests/test_audio_scopes.py` with six break mutants.
+- BARD's cost (snd-bench `SND_SCOPES=1`, soc_hp_snd_dyn8sx, 6 frames): keygen_9000.xm 42 k cycles a frame of a
+  ~120 k render (2.5 % of the 1.67 Mc frame), ronken.mod 20 k of ~20.5 k (1.2 %); the first frame +30 k (the volume
+  tables). Only while a cart has bound its scopes and a channel plays.
+- A column the cart reads while BARD rewrites it can mix two renders (a scope: harmless). The cart's scopes are the
+  rings as captured, unrotated, as in the browser.

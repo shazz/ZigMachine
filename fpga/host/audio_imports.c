@@ -14,6 +14,7 @@
 
 #include "haudio.h"
 #include "audio_regs.h"
+#include "audio_scope.h"
 
 #ifdef ZM_AUDIO_SOFT
 #include "maud.h"
@@ -46,9 +47,9 @@ static void rendered(uint32_t off, uint32_t len) {
 
 wasm_rt_memory_t* w2c_aud_memory(struct w2c_aud* a) { return &a->memory; }
 
-void w2c_aud_machineAudioInit(struct w2c_aud* a) { (void)a; zma_init(); ym_regs_clear(); SOFT(w2c_maud_machineAudioInit(&g_maud)); }
-void w2c_aud_machineAudioReset(struct w2c_aud* a) { (void)a; zma_reset(); ym_regs_reset(); SOFT(w2c_maud_machineAudioReset(&g_maud)); }
-void w2c_aud_machinePaulaClearScopes(struct w2c_aud* a) { (void)a; SOFT(w2c_maud_machinePaulaClearScopes(&g_maud)); }
+void w2c_aud_machineAudioInit(struct w2c_aud* a) { (void)a; zma_init(); ym_regs_clear(); zsc_init(); SOFT(w2c_maud_machineAudioInit(&g_maud)); }
+void w2c_aud_machineAudioReset(struct w2c_aud* a) { (void)a; zma_reset(); ym_regs_reset(); zsc_reset(); SOFT(w2c_maud_machineAudioReset(&g_maud)); }
+void w2c_aud_machinePaulaClearScopes(struct w2c_aud* a) { (void)a; zsc_clear(); SOFT(w2c_maud_machinePaulaClearScopes(&g_maud)); }
 void w2c_aud_machineClear(struct w2c_aud* a, u32 n) { (void)a; SOFT(w2c_maud_machineClear(&g_maud, n)); (void)n; }
 void w2c_aud_machineClamp(struct w2c_aud* a, u32 n) { (void)a; SOFT(w2c_maud_machineClamp(&g_maud, n)); (void)n; }
 
@@ -77,8 +78,8 @@ void w2c_aud_machinePokeyClock(struct w2c_aud* a, u32 pal) {
 }
 
 void w2c_aud_machineMixPaula(struct w2c_aud* a, u32 off, u32 len) {
-    (void)a;
     SOFT(w2c_maud_machineMixPaula(&g_maud, off, len));
+    zsc_mix(a->memory.data, off, len); /* the scopes (audio_scope.h): what the engine just captured */
     rendered(off, len);
 }
 
@@ -92,18 +93,23 @@ void w2c_aud_machineYmWrite(struct w2c_aud* a, u32 reg, u32 val) {
 void w2c_aud_machinePaulaTrigger(struct w2c_aud* a, u32 ch, u32 data, u32 len, u32 ls, u32 ll, f32 pan) {
     (void)a;
     zma_trigger(ch, data, len, ls, ll, pan);
+    zsc_trigger(ch, data, len, ls, ll);
     SOFT(w2c_maud_machinePaulaTrigger(&g_maud, ch, data, len, ls, ll, pan));
 }
 
 void w2c_aud_machinePaulaSetStep(struct w2c_aud* a, u32 ch, u32 step) {
     (void)a;
     zma_field(ch, ZMA_F_STEP, step);
+    zsc_step(ch, step);
     SOFT(w2c_maud_machinePaulaSetStep(&g_maud, ch, step));
 }
 
 void w2c_aud_machinePaulaSetVolume(struct w2c_aud* a, u32 ch, f32 vol) {
     (void)a;
+    uint32_t bits;
+    memcpy(&bits, &vol, sizeof bits);
     zma_field(ch, ZMA_F_VOL, zma_vol(vol));
+    zsc_vol(ch, bits);
     SOFT(w2c_maud_machinePaulaSetVolume(&g_maud, ch, vol));
 }
 
@@ -116,11 +122,13 @@ void w2c_aud_machinePaulaSetPan(struct w2c_aud* a, u32 ch, f32 pan) {
 void w2c_aud_machinePaulaSetPos(struct w2c_aud* a, u32 ch, u32 pos) {
     (void)a;
     zma_field(ch, ZMA_F_POS, pos & 0xFFFFFFu);
+    zsc_pos(ch, pos);
     SOFT(w2c_maud_machinePaulaSetPos(&g_maud, ch, pos));
 }
 
 void w2c_aud_machinePaulaSetActive(struct w2c_aud* a, u32 ch, u32 on) {
     (void)a;
     zma_field(ch, ZMA_F_CTRL, on ? 1u : 0u);
+    zsc_active(ch, on);
     SOFT(w2c_maud_machinePaulaSetActive(&g_maud, ch, on));
 }

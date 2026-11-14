@@ -4,8 +4,12 @@
 // with an "electron flow" gradient band sweeping right->left every
 // FLOW_PERIOD frames. The host mirrors the audio state into zigos: the
 // browser's loader, and on the board the firmware from BARD's state
-// (fpga/cycles/aud_state.h, mode + YM registers; the board has no per-channel
-// captures, Paula is RTL, so MOD/sample curves stay flat there).
+// (fpga/cycles/aud_state.h, mode + YM registers). The per-channel scopes come
+// from the engine's capture in the browser; on the board, where Paula is RTL,
+// BARD rebuilds the same capture from the players' Paula calls and writes it
+// into zigos.scopes (fpga/host/audio_scope.c, table 1.26), word for word, so
+// MOD, sample and XM (mode 1, its voices paired on the 4 Paula channels) move
+// there as here.
 //
 // Integer only (Matt, 2026-10-24): the square waves step a fixtrig Angle a
 // column, amplitudes are Q8, the flow band is in 1/FLOW_PULSE pixels, and the
