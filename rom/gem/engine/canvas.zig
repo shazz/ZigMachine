@@ -20,10 +20,12 @@ pub const Font = struct {
     h: u8,
     data: []const u8,
     packed_rows: bool = true,
+    tall: bool = false, // `data` holds h/2 rows a glyph, each drawn twice (the 8x8 font as an 8x16 one)
 
-    pub fn ink(self: *const Font, c: u8, row: usize, col: usize) bool {
+    pub fn ink(self: *const Font, c: u8, row_in: usize, col: usize) bool {
         const w: usize = self.w;
-        const h: usize = self.h;
+        const h: usize = if (self.tall) self.h / 2 else self.h;
+        const row = if (self.tall) row_in / 2 else row_in;
         if (!self.packed_rows) {
             const i = @as(usize, c) * w * h + row * w + col;
             return i < self.data.len and self.data[i] != 0;

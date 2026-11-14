@@ -1945,3 +1945,23 @@ the kick on the page (it would land in the cart's own frame and the A/B would sh
 **Consequences:** +6 KB in snd.bin (the server, ZX0 and the CRC table), a system-table bump (1.24): carts built
 before it run unchanged; a cart that posts jobs needs a 1.24 system. ZigOS now imports the `depackers` module
 (build.zig, sdk/build_cart.zig). New ops are added in one place (server.zig + kernels.zig) and reach every host.
+
+## 2026-11-14 — The ITEM SELECTOR's layout: our cells-of-the-font geometry, TOS 4's only from a local asset build
+
+**Status:** accepted
+**Context:** Matt's board shot of ST Replay's selector (medium) looked "twice too tall, 8x16, TOS-1 rows". Measured:
+it was the 8x8 font line-doubled by medium on a 400-line glass, 178 of 200 lines as TOS 4's own box; what differed
+was the layout (rows 10 px apart where TOS 4 puts them one font height apart, loose labels), and the desk drew it
+with 8-pixel cells where TOS 4 on 640x400 (falcon16, st_high) uses its 8x16 font. The exact TOS 4 tree exists only
+in Matt's LOCAL reconstruction (decisions.md 2026-11-09: never committed).
+**Decision:** fsel_geom.zig lays the selector out in cells of the font height (8 below 400 lines, 16 from 400) with
+OUR numbers; the 16-pixel case draws the asset set's 8x16 font, else ZigOS's 8x8 with each row twice (canvas Font
+`tall`). A `-Dgem_assets` build replaces the geometry with the reconstruction's own SELECTOR rects per font height:
+tools/gem_assets_fsel.py reads them from the manifest by object NAME into the generated module's `selectors`
+(rom/gem/engine/assets_none.zig `Selector`), fsel_look.zig picks them. The committed tool holds names, not numbers.
+**Alternatives considered:** pasting TOS's tree into fsel_tree.zig (licence); deriving the 16-pixel tree from the
+st_medium zig_extract (its pixel offsets are ambiguous: chars x 8 + px does not decompose uniquely); switching the
+program look's font to 8x16 in the desk (every dialog and alert would move; another branch's area).
+**Consequences:** the harnesses click and check the committed layout through apps/fsel_geom.mjs (a JS copy of
+`ours`: keep the two in step); a board ROM built with Matt's assets draws TOS 4's exact geometry, which no gate
+sees (it is local), so a converter mutant (`--break fsel`) guards the extraction instead.

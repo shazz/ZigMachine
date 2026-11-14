@@ -23,6 +23,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import gem_assets_conv as conv  # noqa: E402
+import gem_assets_fsel  # noqa: E402
+from gem_assets_fsel_fake import FSEL_CHECK, made_up_selector  # noqa: E402
 
 BLACK, WHITE, CLEAR = (0, 0, 0, 255), (255, 255, 255, 255), (0, 0, 0, 0)
 ARROW_DATA = [0x8001 if r % 2 else 0x4002 for r in range(16)]  # made up
@@ -86,6 +88,7 @@ def make(root: Path) -> None:
         {"file": "a/cicons_diskcc_4planes.png", "kind": "color_icon"},
         {"file": "a/notebb.png", "kind": "bitblk"},
         {"file": "a/pal.png", "kind": "palette", "colors": pal},
+        made_up_selector(),
     ]
     for e in man:  # the converter takes TOS 4's mouse forms and icons (aes340_*) only
         if e["kind"] in ("mouse_form", "icon", "bitblk"):
@@ -130,6 +133,7 @@ test "the synthetic set lands where its directory says" {
     try std.testing.expectEqualStrings("ZIGGY", ga.trees[0].objs[1].str);
     try eq(@as(i16, 3), ga.trees[0].objs[1].x);
     try eq(@as(u32, 0x00011100), ga.trees[0].objs[0].box);
+FSEL_CHECK
 }
 """
 
@@ -144,6 +148,8 @@ def sabotage(brk: str) -> None:
         conv.IMAGE_IDS.clear()
     elif brk == "tree":
         conv.collect_trees = lambda root, group="aes340_tos4": []
+    elif brk == "fsel":
+        gem_assets_fsel.selectors = lambda entries: []
 
 
 def main() -> int:
@@ -154,7 +160,7 @@ def main() -> int:
         if brk:
             sabotage(brk)
         conv.main([str(tmp / "set"), str(tmp / "out"), "--trees", str(tmp / "set/trees")])
-        check = CHECK.replace("ARROW_DATA0", hex(ARROW_DATA[0])).replace("ARROW_MASK1", hex(ARROW_MASK[1]))
+        check = CHECK.replace("ARROW_DATA0", hex(ARROW_DATA[0])).replace("ARROW_MASK1", hex(ARROW_MASK[1])).replace("FSEL_CHECK\n", FSEL_CHECK)
         (tmp / "out/check.zig").write_text(check)
         zig = os.environ.get("ZIG", "zig")
         r = subprocess.run([zig, "test", str(tmp / "out/check.zig")], capture_output=True, text=True, check=False)

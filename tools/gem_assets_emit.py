@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gem_assets_fsel import emit as fsel_emit
+
 STUB = Path(__file__).resolve().parent.parent / "rom/gem/engine/assets_none.zig"
 
 
@@ -90,5 +92,6 @@ def emit(d: dict, src_name: str) -> str:
         "pub const trees: []const Tree = &[_]Tree{",
         *(tree(t) for t in d["trees"]),
         "};",
+        fsel_emit(d.get("selectors", [])),
     ]
     return "\n".join(lines) + "\n"

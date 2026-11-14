@@ -22,6 +22,8 @@ const proglook = gui.proglook;
 const FileSel = @import("filesel.zig").FileSel;
 const Result = @import("filesel.zig").Result;
 const Id = T.Id;
+const fl = @import("fsel_look.zig");
+const Geom = T.geom.Geom;
 
 const DIR_CELLS = 37;
 
@@ -68,7 +70,8 @@ pub fn frame(f: *FileSel, g: *gui.Gui) Result {
     var tx: Texts = .{};
     var s: T.Store = .{};
     var v = view(f, &tx);
-    const t0 = T.build(&s, &v, g.screen.w, g.screen.h);
+    const geo = fl.geomFor(g.screen.h);
+    const t0 = T.build(&s, &v, &geo, g.screen.w, g.screen.h);
     const at = under(t0, g);
     const slider = (obj.offset(t0, Id.SLIDER) orelse Rect{}).y;
     const res = act(f, g, at, slider);
@@ -76,12 +79,12 @@ pub fn frame(f: *FileSel, g: *gui.Gui) Result {
     if (g.down and (at == Id.OK or at == Id.CANCEL)) v.pressed = at;
     if (!f.active) return res; // closed: the caller repaints what was under it
     const sig = signature(f, g, &tx, &v);
-    const box = boxOf(g, &s, &v);
+    const box = boxOf(g, &s, &v, &geo);
     if (sig == f.painted and probe(g, box) == f.probe) { // the same box, still on screen: no repaint
         gui.clip.record(g, .{ .x = box.x, .y = box.y, .w = box.w, .h = box.h }); // (the board shows a repaint half drawn: it flashed, 10 Nov)
         return res;
     }
-    paint(f, g, &s, &v);
+    paint(f, g, &s, &v, &geo);
     f.painted = sig;
     f.probe = probe(g, box);
     return res;
@@ -119,9 +122,9 @@ fn signature(f: *const FileSel, g: *const gui.Gui, tx: *const Texts, v: *const T
     return h.final() | 1; // never 0: 0 is "not painted yet"
 }
 
-fn boxOf(g: *gui.Gui, s: *T.Store, v: *const T.View) Rect {
-    const t = T.build(s, v, g.screen.w, g.screen.h);
-    const lk = proglook.look(g);
+fn boxOf(g: *gui.Gui, s: *T.Store, v: *const T.View, geo: *const Geom) Rect {
+    const t = T.build(s, v, geo, g.screen.w, g.screen.h);
+    const lk = fl.lookFor(g, geo);
     const e = draw.extent(&lk, &t[0], obj.offset(t, 0).?);
     return .{ .x = e.x, .y = e.y, .w = e.w, .h = e.h };
 }
@@ -145,15 +148,15 @@ fn act(f: *FileSel, g: *gui.Gui, at: i16, slider_y: i16) Result {
     return .none;
 }
 
-fn paint(f: *const FileSel, g: *gui.Gui, s: *T.Store, v: *const T.View) void {
-    const t = T.build(s, v, g.screen.w, g.screen.h);
-    const lk = proglook.look(g);
+fn paint(f: *const FileSel, g: *gui.Gui, s: *T.Store, v: *const T.View, geo: *const Geom) void {
+    const t = T.build(s, v, geo, g.screen.w, g.screen.h);
+    const lk = fl.lookFor(g, geo);
     var cv = proglook.canvasOf(g);
     draw.draw(&cv, &lk, t, 0, draw.MAX_DEPTH);
     const field: i16 = if (f.on_path) Id.DIR else Id.SEL;
     const r = obj.offset(t, field).?;
     const col: i16 = if (f.on_path) @intCast(@min(f.path.caret -| (f.path.len -| DIR_CELLS), DIR_CELLS)) else f.name.caretCol();
-    cv.fill(.{ .x = r.x + col * 8, .y = r.y - 1, .w = 2, .h = 9 }, lk.ink(1)); // the caret
+    cv.fill(.{ .x = r.x + col * 8, .y = r.y - 1, .w = 2, .h = geo.ch + 1 }, lk.ink(1)); // the caret
     const e = draw.extent(&lk, &t[0], obj.offset(t, 0).?);
     gui.clip.record(g, .{ .x = e.x, .y = e.y, .w = e.w, .h = e.h });
 }

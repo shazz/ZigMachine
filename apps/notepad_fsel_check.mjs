@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { fromGem, C_IMAGE } from "./notepad_lib.mjs";
 import { png } from "./ports_machine.mjs";
+import { fselGeom } from "./fsel_geom.mjs";
 
 const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : ""; };
@@ -46,9 +47,10 @@ console.log(`notepad_fsel_check: NOTEPAD's ITEM SELECTOR over a card-like C:${br
 const d = await fromGem(img, "", patch);
 d.frames(3);
 
-// The selector in low res (320 x 200): TOS 4's 312 x 178 box at (4, 11) (fsel_tree.zig): its closer at
-// (24, 48), the list at (24, 58), nine rows 10 px apart from 4 px in, the names 16 px into a row.
-const BX = 4, BY = 11, LX = BX + 24, LY = BY + 48, ROW0 = BY + 62, PITCH = 10;
+// The selector in low res (320 x 200), fsel_geom.zig's layout (apps/fsel_geom.mjs): the list, its nine
+// rows a font height (8 px) apart, the names 16 px into a row, the closer, the Directory: line.
+const G = fselGeom(320, 200);
+const LX = G.list.x, ROW0 = G.row(0).y, PITCH = G.ch;
 function pixel(x, y) {
     const v = new DataView(d.m.memory.buffer, d.m.machine.hwVideoBase());
     const base = v.getUint32(0x44, true), stride = v.getUint16(0x34, true);
@@ -72,7 +74,7 @@ d.ctrl("o"); d.frames(2); shot("root");
 let r = rows();
 check("^O on C:\\*.TXT: the four folders, no file", count(r, "dir") === 4 && count(r, "file") === 0, r.join(","));
 
-d.click(BX + 48, BY + 31); // the Directory: line
+d.click(G.dir.x + 40, G.dir.y + 3); // the Directory: line
 for (let i = 0; i < 3; i++) d.key(8);
 d.type("*"); d.key(13); d.frames(2); shot("mask");
 r = rows();
@@ -84,7 +86,7 @@ check("Return re-read the list: the selector is still up", up());
 d.click(LX + 50, ROW0 + 3 * PITCH + 3); d.frames(2); shot("net");
 r = rows();
 check("a click on NET opens it: INNET.TXT, no folder", count(r, "dir") === 0 && count(r, "file") === 1, r.join(","));
-d.click(LX + 3, LY + 3); d.frames(2);
+d.click(...G.mid(G.closer)); d.frames(2);
 r = rows();
 check("the close box goes back to C:\\", count(r, "dir") === 4 && count(r, "file") === 1, r.join(","));
 

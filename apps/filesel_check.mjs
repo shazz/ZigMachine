@@ -14,6 +14,7 @@ import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
+import { fselGeom } from "./fsel_geom.mjs";
 
 // Re-pinned for HW 1.13.0: only ST Replay's "bytes free" figure (top right) moved, the
 // cart window being 3 MiB; the selector's pixels are unchanged. Again 9 Nov 2026 (the desk
@@ -21,17 +22,20 @@ import { parseDisk } from "../docs/zmdisk.js";
 // x 509..530, y 10..16 of the screen, which is that figure; the selector is unchanged. Re-pinned
 // 10 Nov 2026 on purpose (GEM 5 S2, G21): the selector is TOS 4's now, on the GEM 5 engine.
 // Re-pinned 10 Nov again with the "bytes free" figure masked out of the hash (ST Replay grew by its
-// C: loader and moved it a third time); the selector's pixels are unchanged.
+// C: loader and moved it a third time); the selector's pixels are unchanged. Re-pinned 14 Nov 2026 on
+// purpose (fix/fsel-aes340): the list's rows a font height (8 px) apart as TOS 4 draws them in medium,
+// the box 312 x 176 (fsel_geom.zig), no frame round the drive buttons, eyeballed against the reference.
 const PINS = {
-    open: "d3ee1352ad02819b62c19b7968f68dea0c876ef0f70fda6690375cc53808210b",
-    drumloop: "85365cfdaf235823eb970749d68e658e57c63d456afb2b196a5fde48de29cb0e",
-    short: "967a2c7117b38f46dc191fef125e8cf430416050b4b3a4a44ab030241189e86f",
+    open: "950a9d751778572553f545619e69fa6da4cca133bb2cf3cb09d92fac78c2686e",
+    drumloop: "b3663d5e8219c48830f057929216a52c2cb6f62ff00367c63ec9f58dc5e68d16",
+    short: "9e61129a786266e9834efda9d8a21b63a0919141d0c4c17a8e2eaff6347cf5f1",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
-const DX = 164, DY = 11;                 // TOS 4's 312 x 178 box, centred in 640 x 200 (fsel_tree.zig)
-const LIST_X = DX + 24, ROW0_Y = DY + 58 + 4; // the list box, its first row 4 px in
-const FIELD_X = DX + 96, FIELD_Y = DY + 40;
-const row = (i) => [LIST_X + 80, ROW0_Y + 10 * i + 3];
+const G = fselGeom(640, 200);           // fsel_geom.zig's layout, centred in 640 x 200
+const DX = G.box.x, DY = G.box.y;
+const LIST_X = G.list.x;                 // the list box; a name starts 24 px in (row 8 px in, two blanks)
+const FIELD_X = G.sel.x, FIELD_Y = G.sel.y;
+const row = (i) => [LIST_X + 80, G.row(i).y + 3];
 
 let failed = 0;
 const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
