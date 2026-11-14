@@ -35,6 +35,7 @@ const sound = @import("sysinfo/sound_play.zig");
 const ident = @import("sysinfo/ident.zig");
 const view = @import("sysinfo/view.zig");
 const refresh = @import("sysinfo/refresh.zig");
+const arrow = @import("sysinfo/pointer.zig");
 const aes = rom.aes;
 
 // The page's server for BARD jobs (docs/sealed-loader.js): ident.zig's CRC-32 test job then
@@ -44,7 +45,7 @@ comptime {
 }
 pub const PLANE: u32 = 0;
 const SPARE_PLANE: usize = 3; // the blitter probe's 8 pixels: never enabled
-const REFRESH_FRAMES: u32 = 30; // live values twice a second
+pub const REFRESH_FRAMES: u32 = 30; // live values twice a second
 
 pub const App = struct {
     os: *ZigOS,
@@ -68,6 +69,8 @@ pub const App = struct {
     ref: u8, // the speed tests' reference machine (refs.zig)
     menu_open: bool,
     menu_drawn: bool,
+    arrow_off: bool, // the desk's arrow is off the glass for this frame's drawing (pointer.zig)
+    pointer_moved: bool, // the host moved the pointer since the arrow was drawn
     covered: bool, // a dialog or the menu drew over the page: repaint it all
     dirty: bool, // compose this frame, not at the next refresh
     frames: u32,
@@ -88,6 +91,7 @@ pub const App = struct {
         self.dialog.close();
         self.g = rom.Gui.openPlane(PLANE, view.width(.medium), view.height(.medium));
         self.dialog = rom.Dialog.open();
+        arrow.lend(self.g);
         rom.installPalette(PLANE);
         os.setBackgroundColor(fb.getPaletteEntry(rom.WHITE)); // an ST's border is colour 0, GEM's white
         self.blit = .{};
@@ -112,6 +116,8 @@ pub const App = struct {
         self.ref = 0;
         self.menu_open = false;
         self.menu_drawn = false;
+        self.arrow_off = false;
+        self.pointer_moved = true;
         self.covered = true; // the first frame paints the paper and the whole page
         self.dirty = true;
         self.frames = 0;
@@ -132,7 +138,7 @@ pub const App = struct {
     }
 
     pub fn pointer(self: *App, x: i32, y: i32, buttons: u32) void {
-        aes.hostPointer(self.g, x, y, buttons); // the host's coordinates, mapped to the mode's
+        arrow.host(self, x, y, buttons); // the host's coordinates, mapped to the mode's
     }
 
     pub fn key(self: *App, cp: u32) void {
@@ -153,6 +159,7 @@ pub const App = struct {
         self.g.beginFrame();
         self.frames +%= 1;
         if (self.dialog.active()) return;
+        if (self.menu_open and self.g.edge()) arrow.off(self); // a menu button is drawn pressed
         control.click(self);
         if (self.page == .speed and self.bench.running()) {
             self.bench.step(self.target());
@@ -164,6 +171,8 @@ pub const App = struct {
         _ = os;
         _ = dt;
         defer self.g.endFrame();
+        defer arrow.on(self);
+        if (arrow.drawing(self, self.frames % REFRESH_FRAMES == 0)) arrow.off(self);
         if (self.dialog.active()) {
             _ = self.dialog.process(self.g);
             self.covered = true;

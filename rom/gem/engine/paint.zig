@@ -133,7 +133,9 @@ fn tedText(cv: *Canvas, look: *const Look, o: *const Object, r: Rect, sel: bool)
     };
     const c = obj.colors(t.color);
     const boxed = o.ty == obj.G_BOXTEXT or o.ty == obj.G_FBOXTEXT;
-    const k = kind3d(look, o);
+    // TOS 4 gives a 3D background its face only where it is white: a patterned one (the ITEM
+    // SELECTOR's title bar) keeps its pattern, and its text in replace mode has paper behind it
+    const k = if (kind3d(look, o) == obj.FL3DBAK and !whiteFill(c)) 0 else kind3d(look, o);
     if (boxed and k != 0) face3d(cv, look, k, r, sel) else if (boxed) interior(cv, look, c, r, sel);
     if (boxed and t.thickness != 0) cv.frame(r, t.thickness, look.inv(c.border, sel and k == 0));
     const f = if (t.font == obj.FONT_SMALL) look.small else look.font;
@@ -144,8 +146,13 @@ fn tedText(cv: *Canvas, look: *const Look, o: *const Object, r: Rect, sel: bool)
         else => r.x,
     };
     const ink = if (o.state & obj.DISABLED != 0) look.grey else look.inv(c.text, sel and k == 0);
-    const paper: ?u8 = if (c.replace and !boxed) look.inv(L.WHITE, sel) else null;
+    const paper: ?u8 = if (c.replace and (!boxed or k == 0 and !whiteFill(c))) look.inv(L.WHITE, sel) else null;
     cv.text(f, t.text, x, r.y + @divTrunc(r.h - f.h + 1, 2), ink, paper);
+}
+
+// A hollow or white interior: what TOS 4's 3D look paints with the face colour.
+fn whiteFill(c: obj.Colors) bool {
+    return c.pattern == 0 or c.interior == L.WHITE;
 }
 
 /// Text centred in `r`, the spare space rounded up as the AES's gr_just does.

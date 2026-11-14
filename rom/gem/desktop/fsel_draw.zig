@@ -34,15 +34,15 @@ const Texts = struct {
     rows: [T.ROWS][14]u8 = undefined,
 };
 
-fn view(f: *const FileSel, tx: *Texts) T.View {
+fn view(f: *const FileSel, tx: *Texts, glyphs: bool) T.View {
     const spec = f.path.text();
     const shown = spec[spec.len -| DIR_CELLS..];
     @memcpy(tx.dir[0..shown.len], shown);
-    var v: T.View = .{ .title = spec, .dir = &tx.dir, .sel = f.name.cells(&tx.sel), .mask = fpath.mask(spec), .rows = undefined, .picked = f.list.sel, .top = f.list.top, .n = f.list.n, .drives = f.drivesShown(), .drive = f.driveOf(), .three_d = proglook.three_d };
+    var v: T.View = .{ .title = spec, .dir = &tx.dir, .sel = f.name.cells(&tx.sel), .mask = fpath.mask(spec), .rows = undefined, .picked = f.list.sel, .top = f.list.top, .n = f.list.n, .drives = f.drivesShown(), .drive = f.driveOf(), .three_d = proglook.three_d, .glyphs = glyphs };
     for (0..T.ROWS) |i| {
         const idx = f.list.top + i;
         var cells: [12]u8 = undefined;
-        tx.rows[i][0] = ' ';
+        tx.rows[i][0] = if (idx < f.list.n) ' ' else '_'; // TOS 4's row template: "_ ________.___"
         tx.rows[i][1] = ' ';
         @memcpy(tx.rows[i][2..], listCells(if (idx < f.list.n) f.list.nameAt(idx) else "", &cells));
         v.rows[i] = &tx.rows[i];
@@ -69,13 +69,14 @@ fn under(t: []const obj.Object, g: *const gui.Gui) i16 {
 pub fn frame(f: *FileSel, g: *gui.Gui) Result {
     var tx: Texts = .{};
     var s: T.Store = .{};
-    var v = view(f, &tx);
     const geo = fl.geomFor(g.screen.h);
+    const glyphs = fl.gadgetGlyphs(&fl.lookFor(g, &geo));
+    var v = view(f, &tx, glyphs);
     const t0 = T.build(&s, &v, &geo, g.screen.w, g.screen.h);
     const at = under(t0, g);
     const slider = (obj.offset(t0, Id.SLIDER) orelse Rect{}).y;
     const res = act(f, g, at, slider);
-    v = view(f, &tx); // drawn as the press left it
+    v = view(f, &tx, glyphs); // drawn as the press left it
     if (g.down and (at == Id.OK or at == Id.CANCEL)) v.pressed = at;
     if (!f.active) return res; // closed: the caller repaints what was under it
     const sig = signature(f, g, &tx, &v);

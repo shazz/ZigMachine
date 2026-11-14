@@ -12,7 +12,7 @@
 const obj = @import("../engine/obj.zig");
 const L = @import("../engine/look.zig");
 const Builder = @import("../engine/tree.zig").Builder;
-const glyphs = @import("../gem_glyphs.zig");
+const sym = @import("fsel_sym.zig");
 pub const geom = @import("fsel_geom.zig");
 const Geom = geom.Geom;
 const R = geom.R;
@@ -51,11 +51,14 @@ pub const View = struct {
     drive: u8 = 0, // the spec's drive
     pressed: i16 = obj.NIL, // the object held down (drawn SELECTED)
     three_d: bool = false, // TOS 4's 3D look: indicators are drawn L.ADJ3D larger
+    glyphs: bool = false, // the font has TOS's gadget characters (CHARS)
 };
 
 // An indicator as laid out: our Geom gives the size it is DRAWN, so in 3D it is shrunk by the outset
-// on each side (Matt, 10 Nov: the drive buttons and the slider overlapped); a core rect stays.
+// on each side (Matt, 10 Nov: the drive buttons and the slider overlapped); a core rect (TOS 4's own
+// tree) stays in 3D and is drawn that much larger flat, so TOS's packing holds in both looks.
 fn inset(v: *const View, g: *const Geom, r: R) R {
+    if (g.core and !v.three_d) return .{ .x = r.x - L.ADJ3D, .y = r.y - L.ADJ3D, .w = r.w + 2 * L.ADJ3D, .h = r.h + 2 * L.ADJ3D };
     return shrink(v, r, !g.core);
 }
 fn shrink(v: *const View, r: R, on: bool) R {
@@ -64,6 +67,7 @@ fn shrink(v: *const View, r: R, on: bool) R {
 }
 
 const FACE = obj.colorWord(L.BLACK, L.BLACK, true, 7, L.WHITE);
+const HOLLOW = obj.colorWord(L.BLACK, L.BLACK, false, 0, L.WHITE); // TOS 4's 0x1100: the paper (or the 3D face) shows
 fn box(t: i8) obj.Spec {
     return .{ .box = obj.boxSpec(0, t, FACE) };
 }
@@ -83,33 +87,26 @@ fn rel(r: R, p: R) R {
     return .{ .x = r.x - p.x, .y = r.y - p.y, .w = r.w, .h = r.h };
 }
 
-const GADGET = [3][glyphs.GH]u16{ glyphs.CLOSE, glyphs.UP, glyphs.DOWN };
-const GADGET_BITS = blk: {
-    var out: [3][glyphs.GH * 2]u8 = undefined;
-    for (GADGET, 0..) |rows, g| for (rows, 0..) |r, i| {
-        out[g][2 * i] = @intCast((r << 4) >> 8);
-        out[g][2 * i + 1] = @intCast((r << 4) & 0xFF);
-    };
-    break :blk out;
-};
-const GADGET_BLK = blk: {
-    var out: [3]obj.BitBlk = undefined;
-    for (&out, 0..) |*b, g| b.* = .{ .data = &GADGET_BITS[g], .w = glyphs.GW, .h = glyphs.GH, .bpr = 2 };
-    break :blk out;
-};
-const FOLDER_BITS = [7]u8{ 0x10, 0x38, 0x7C, 0xFE, 0x7C, 0x38, 0x10 }; // TOS's folder diamond
-const FOLDER: obj.BitBlk = .{ .data = &FOLDER_BITS, .w = 8, .h = 7 };
+pub const CHARS = sym.CHARS;
+const FOLDER = sym.FOLDER;
 
-// A gadget box with its glyph centred in it (the closer, the arrows).
-fn gadget(b: *Builder, parent: i16, g: usize, r: R) void {
-    const i = b.add(parent, at(.{ .ty = obj.G_BOX, .flags = obj.TOUCHEXIT | obj.FL3DBAK, .spec = box(1) }, r));
-    _ = b.add(i, .{ .ty = obj.G_IMAGE, .spec = .{ .image = &GADGET_BLK[g] }, .x = @divTrunc(r.w - glyphs.GW, 2), .y = @divTrunc(r.h - glyphs.GH, 2), .w = glyphs.GW, .h = glyphs.GH });
+// A gadget as TOS 4's: a G_BOXCHAR (white, a black border `thick`, an activator in 3D) with its
+// character, and no frame inside it; the symbol image under it shows only when the font has no such
+// character (Matt on the board, 14 Nov: "the arrows with useless frames around").
+fn gadget(b: *Builder, parent: i16, v: *const View, g: *const Geom, k: usize, thick: i8, r: R) void {
+    const in = inset(v, g, r);
+    const ch: u8 = if (v.glyphs) CHARS[k] else ' ';
+    const i = b.add(parent, at(.{ .ty = obj.G_BOXCHAR, .flags = obj.TOUCHEXIT | obj.FL3DACT, .spec = .{ .box = obj.boxSpec(ch, thick, FACE) } }, in));
+    const blk = sym.symbol(k, g.ch == 16);
+    const fl: u16 = if (v.glyphs) obj.HIDETREE else 0;
+    _ = b.add(i, .{ .ty = obj.G_IMAGE, .flags = fl, .spec = .{ .image = blk }, .x = @divTrunc(in.w - blk.w + 1, 2), .y = @divTrunc(in.h - blk.h + 1, 2), .w = blk.w, .h = blk.h });
 }
 
 /// Where a tree is built: its objects and the list title's TEDINFO.
 pub const Store = struct {
     objs: [MAX_OBJ]obj.Object = undefined,
-    mask: obj.Ted = .{ .text = "", .just = obj.JUST_CENTRE, .color = obj.colorWord(L.BLACK, L.BLACK, true, 2, L.BLACK), .thickness = 1 },
+    // TOS 4's: the 50 % pattern, the mask written in replace mode (paper behind it), framed outside
+    mask: obj.Ted = .{ .text = "", .just = obj.JUST_CENTRE, .color = obj.colorWord(L.BLACK, L.BLACK, true, 4, L.BLACK), .thickness = -1 },
 };
 
 /// The selector's tree for `v` laid out by `g`, centred on an `sw` x `sh` screen.
@@ -143,8 +140,8 @@ fn held(v: *const View, i: i16) u16 {
 
 // 7 the closer (8 its glyph), 9 the mask's title bar, 10 the list, 11.. its rows, the scroll column.
 fn listWindow(b: *Builder, v: *const View, g: *const Geom, mask: *const obj.Ted) void {
-    gadget(b, 0, 0, g.closer);
-    _ = b.add(0, at(.{ .ty = obj.G_BOXTEXT, .spec = .{ .ted = mask } }, g.mask));
+    gadget(b, 0, v, g, 0, -1, g.closer);
+    _ = b.add(0, at(.{ .ty = obj.G_BOXTEXT, .flags = obj.TOUCHEXIT | obj.FL3DBAK, .spec = .{ .ted = mask } }, g.mask));
     _ = b.add(0, at(.{ .ty = obj.G_BOX, .spec = box(1) }, g.list));
     const row0 = rel(g.row, g.list);
     for (0..ROWS) |i| {
@@ -158,21 +155,22 @@ fn listWindow(b: *Builder, v: *const View, g: *const Geom, mask: *const obj.Ted)
 
 fn scroll(b: *Builder, v: *const View, g: *const Geom) void {
     const col = b.add(0, at(.{ .ty = obj.G_BOX, .spec = box(1) }, g.scroll));
-    gadget(b, col, 1, rel(g.up, g.scroll)); // UP + its image
+    gadget(b, col, v, g, 1, 1, rel(g.up, g.scroll)); // UP + its image
     const tr = rel(g.track, g.scroll);
-    const grey = obj.boxSpec(0, 1, obj.colorWord(L.BLACK, L.BLACK, true, 2, L.BLACK));
+    const grey = obj.boxSpec(0, 1, obj.colorWord(L.BLACK, L.BLACK, false, 4, L.BLACK)); // TOS 4's: the 50 % pattern
     const track = b.add(col, at(.{ .ty = obj.G_BOX, .flags = obj.TOUCHEXIT, .spec = .{ .box = grey } }, tr));
     const max = if (v.n > ROWS) v.n - ROWS else 0;
     const sh: i16 = if (max == 0) tr.h else @max(g.ch + 4, @divTrunc(tr.h * @as(i16, ROWS), @as(i16, @intCast(v.n))));
     const y: i16 = if (max == 0) 0 else @intCast(@divTrunc(@as(i32, tr.h - sh) * @as(i32, @intCast(v.top)), @as(i32, @intCast(max))));
     // the slider is sized here from the track, never a core rect: always shrunk in 3D, so it stays in the column
-    _ = b.add(track, at(.{ .ty = obj.G_BOX, .flags = obj.FL3DIND, .spec = box(1) }, shrink(v, .{ .x = 0, .y = y, .w = tr.w, .h = sh }, true)));
-    gadget(b, col, 2, rel(g.down, g.scroll)); // DOWN + its image
+    _ = b.add(track, at(.{ .ty = obj.G_BOX, .flags = obj.TOUCHEXIT | obj.FL3DACT, .spec = box(1) }, shrink(v, .{ .x = 0, .y = y, .w = tr.w, .h = sh }, true)));
+    gadget(b, col, v, g, 2, 1, rel(g.down, g.scroll)); // DOWN + its image
 }
 
 // The drive buttons A..P, two columns of eight; absent drives DISABLED.
 fn driveGroup(b: *Builder, v: *const View, g: *const Geom) void {
-    const grp = b.add(0, at(.{ .ty = obj.G_IBOX, .spec = box(0) }, g.drives)); // no frame: TOS 4 draws none round them
+    // TOS 4's DRVBOX: no frame of its own; the buttons' outside borders, one pixel shared, are the grid
+    const grp = b.add(0, at(.{ .ty = obj.G_BOX, .flags = obj.FL3DBAK, .spec = .{ .box = obj.boxSpec(0, 0, HOLLOW) } }, g.drives));
     const d0 = rel(g.drive, g.drives);
     for (0..DRIVES) |k| {
         var st: u16 = 0;
@@ -181,6 +179,6 @@ fn driveGroup(b: *Builder, v: *const View, g: *const Geom) void {
         const ch: u8 = 'A' + @as(u8, @intCast(k));
         const r: R = .{ .x = d0.x + @as(i16, @intCast(k % 2)) * g.dx, .y = d0.y + @as(i16, @intCast(k / 2)) * g.dy, .w = d0.w, .h = d0.h };
         const fl = obj.SELECTABLE | obj.EXIT | obj.RBUTTON | obj.FL3DIND;
-        _ = b.add(grp, at(.{ .ty = obj.G_BOXCHAR, .flags = fl, .state = st, .spec = .{ .box = obj.boxSpec(ch, 1, FACE) } }, inset(v, g, r)));
+        _ = b.add(grp, at(.{ .ty = obj.G_BOXCHAR, .flags = fl, .state = st, .spec = .{ .box = obj.boxSpec(ch, -1, FACE) } }, inset(v, g, r)));
     }
 }
