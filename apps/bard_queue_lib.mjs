@@ -24,12 +24,15 @@ function proto(src, name) {
 export async function loaderBard(memory, audioNode, brk) {
     const src = await readFile("docs/sealed-loader.js", "utf8");
     const mutants = {
-        stamp: (s) => s.replace("out.push(u[e], u[e + 1]", "out.push(u[e + 1] >= 0xD400 ? u[e] + 2 : u[e], u[e + 1]"), // the writes two samples late
-        reg: (s) => s.replace("u[e + 1], u[e + 2], 0)", "u[e + 1] >= 0xD400 ? u[e + 1] + 1 : u[e + 1], u[e + 2], 0)"),
+        // the chip's register writes two samples late (a SID's, or an AY's registers 0..13: not the commands that
+        // open a device, which anchor the clocks)
+        stamp: (s) => s.replace("out.push(u[e], u[e + 1]", "out.push(u[e + 1] >= 0xD400 || AYREG(u[e + 1]) ? u[e] + 2 : u[e], u[e + 1]"),
+        reg: (s) => s.replace("u[e + 1], u[e + 2], 0)", "u[e + 1] >= 0xD400 || AYREG(u[e + 1]) && (u[e + 1] & 15) < 13 ? u[e + 1] + 1 : u[e + 1], u[e + 2], 0)"),
     };
     const drain = fn(src, "bardDrain", mutants[brk]);
     if (brk && drain === fn(src, "bardDrain")) throw new Error(`--break ${brk}: the mutant changed nothing`);
-    const body = ["hostBardAttach", "flushBardOpen", "bardFrame", "bardPublish"].map((n) => fn(src, n)).join("\n") + drain;
+    const body = ["hostBardAttach", "flushBardOpen", "bardFrame", "bardPublish"].map((n) => fn(src, n)).join("\n") + drain +
+        "\nfunction AYREG(a) { return a >= 0xA000 && a < 0xA080 && (a & 15) < 14; }";
     return new Function("memory", "audioNode",
         `let bardCart = null; ${body}; return { hostBardAttach, bardFrame, bardDrain, bardPublish, block: () => bardCart && bardCart.block };`)(memory, audioNode);
 }
@@ -116,13 +119,13 @@ export async function pageRun(frames, { brk = null, keys = {} } = {}) {
  * the loader's hostBardAttach / bardFrame / bardPublish and the worklet's bardQueue / bardState over the real
  * audio modules, as pageRun runs them. `hostBardAttach` goes in the cart's env; after each cart frame, `frame()`
  * takes the frame's commands and renders its samples (735 by default; 128-sample blocks, the state every fourth); `left()`
- * is everything rendered so far (s16, the native host's rounding). `brk` mutates the loader's bardDrain. */
+ * and `right()` are everything rendered so far (s16, the native host's rounding). `brk` mutates the loader's bardDrain. */
 export async function pageSound(memory, { brk = null, frames = 2000 } = {}) { // frames: of 735 samples, the most it renders
     const snd = await audioModules(), proc = await workletBard(snd);
     const log = []; // every command the loader posted, {t, addr, value, 0} words
     const audioNode = { port: { postMessage: (msg) => { if (msg.words) log.push(...new Uint32Array(msg.words)); proc.bardQueue(msg); } } };
     const loader = await loaderBard(memory, audioNode, brk);
-    const left = new Int16Array(frames * FRAME + BLOCK);
+    const left = new Int16Array(frames * FRAME + BLOCK), right = new Int16Array(frames * FRAME + BLOCK);
     let done = 0, blocks = 0, f = 0;
     return {
         hostBardAttach: (b, lead) => loader.hostBardAttach(b, lead),
@@ -132,12 +135,17 @@ export async function pageSound(memory, { brk = null, frames = 2000 } = {}) { //
             for (; done < f && done + BLOCK <= left.length; done += BLOCK) {
                 snd.a.audioRender(BLOCK);
                 const l = new Float32Array(snd.memory.buffer, snd.m.audioLeftPtr(), BLOCK);
-                for (let i = 0; i < BLOCK; i++) left[done + i] = Math.max(-32768, Math.min(32767, Math.floor(l[i] * 32768)));
+                const r = new Float32Array(snd.memory.buffer, snd.m.audioRightPtr(), BLOCK);
+                for (let i = 0; i < BLOCK; i++) {
+                    left[done + i] = Math.max(-32768, Math.min(32767, Math.floor(l[i] * 32768)));
+                    right[done + i] = Math.max(-32768, Math.min(32767, Math.floor(r[i] * 32768)));
+                }
                 const st = (blocks++ & 3) === 0 ? proc.bardState() : null;
                 if (st && loader.block()) loader.bardPublish(new Uint32Array(memory.buffer), loader.block() >>> 2, st);
             }
         },
         left: () => left.subarray(0, Math.min(done, f)),
+        right: () => right.subarray(0, Math.min(done, f)),
         commands: () => Uint32Array.from(log),
         stats: () => ({ mode: snd.a.audioMode(), applied: snd.a.audioBardApplied(), refused: snd.a.audioBardRefused(),
             dropped: snd.a.audioBardDropped(), resyncs: snd.a.audioBardResyncs() }),
