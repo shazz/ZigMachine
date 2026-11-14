@@ -172,7 +172,13 @@ Effort: M (the zeST estimate, 3 to 5 days) once step 0 is measured; the cart its
 
 `apps/zig/scenes/kestrel_boot/` (cart 129, tag `kestrel_boot`): WINDHOVER as specified above, in the
 browser. Integer-only per frame (`zg.fixtrig`, Q16.16, the ease table built at compile time), sky and
-bird made at init. Frames: `f0060_sky.png` (the sky fading up), `f0072_stoop.png` (mid-dive, banked),
-`f0096_arrival.png` (the flash and the highlight), `f0130_wordmark.png` (letters lighting),
-`f0200_hold.png` (the still mark), `f0270_fade.png`, `f0320_black.png`.
-Proof: `apps/kestrel_boot_check.mjs` (and `--break`).
+bird made at init. Frames (cart frame numbers; the PNGs are the 800x280 physical raster, pixels
+doubled across, so they look wide): `f0055_stoop.png` (the bird entering at ~3x, banked),
+`f0060_sky.png` (the sky fading up, the bird braking), `f0100_glint.png` (after the flash, the copper
+highlight on the head), `f0130_wordmark.png` (letters lighting), `f0200_hold.png` (the still mark),
+`f0270_fade.png`, `f0320_black.png`.
+Proof: `apps/kestrel_boot_check.mjs` (and `--break`), `scene_hash.mjs` (no zg.mem refusal). The cart
+is 61 KB of wasm, 14.8 KB as a packed `.zmd`: nothing but code and a few tables.
+
+What the prototype does not yet do: the `KSPL` hand-off word (a board-firmware matter, step 4), and
+on the board its YM writes still go through the effects queue (step 2).

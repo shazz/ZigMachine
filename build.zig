@@ -626,6 +626,7 @@ pub fn build(b: *std.Build) void {
         "demo-desk_test", // 126 — DESK TEST: the desk mode (HW 1.17.0): plane 0 alone at 640x480 1:1, 256 cells of palette 0, a 1-px checker and frame, text; key 1 desk, key 2 low res
         "demo-notepad", // 127 — NOTEPAD: a GEM program on GEM 5's program API (rom/sdk/aes.zig: a window with every gadget, a menu bar, form_alert, the ITEM SELECTOR), editing C:\*.TXT through KOS GEMDOS; low, medium and the desk
         "demo-gemtest", // 128 — GEMTEST: every GEM 5 component on one disk (windows, menus, dialog objects, form_alert, the ITEM SELECTOR on A: and C:, text, icons, screen modes), the API's gaps shown as "not in the API yet"; docs/GEMTEST.md
+        "demo-kestrel_boot", // 129 — KESTREL BOOT (WINDHOVER): the console's boot screen, a kestrel stooping into a dawn sky on the true-colour plane (TC fade), CHISEL AFFINE dive, copper highlight, palette wordmark, a YM call + strummed chord; 4.8 s then black (prototypes/boot_screen/STUDY.md)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

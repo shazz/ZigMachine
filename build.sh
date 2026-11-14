@@ -209,6 +209,9 @@ NATIVE_TESTS="
     machine/video_desk_test.zig
     libs/zig/vram_pool.zig
     apps/zig/scenes/desk_test/picture.zig
+    apps/zig/scenes/kestrel_boot/timeline.zig
+    apps/zig/scenes/kestrel_boot/jingle.zig
+    apps/zig/scenes/kestrel_boot/bird.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
@@ -517,6 +520,9 @@ gate tc_test node apps/tc_test_check.mjs   # TC TEST (cart 113, HW 1.15.0): plan
 gate tc_test node apps/tc_test_check.mjs --break   # ...and mode 5, colours quantised to 3 bits, a pixel written a frame, a frozen list and a tracked cart with local pictures, the fade registers zeroed, a pixel rewritten during the fade and a model without the fade are each caught
 gate desk_test node apps/desk_check.mjs   # DESK TEST (cart 126, HW 1.17.0): the desk mode's 640x480 picture (hwRenderDesk) is the cart's model pixel for pixel; plane 0's buffer 64-aligned inside the VRAM pool; still; key 2 leaves for low res on the same buffer, key 1 brings the same desk back; hwClear only counts FRAME, hwRenderPlane draws nothing; a machine without the mode keeps the cart out; scene_hash's desk sample is "desk" + the bars (hwDeskBars) + the picture
 gate desk_test node apps/desk_check.mjs --break   # ...and a palette entry, the checker, the halves swapped, FRAME counted twice, an older machine saying yes and the hash without its tag are each caught
+gate kestrel_boot node apps/scene_hash.mjs docs/demo-kestrel_boot.wasm 420 30 --composite   # KESTREL BOOT (cart 129, prototypes/boot_screen/STUDY.md): the composed boot screen runs 420 frames with no zg.mem refusal
+gate kestrel_boot node apps/kestrel_boot_check.mjs   # ...the WINDHOVER storyboard: black 0-19, the true-colour sky up by 80, the stoop moving 50-95, one still picture 170-249, a copper highlight on many lines at 100 and none at 200, black from 290 to the end (3-6 s lit); the YM call on C at 20/28/36, R13 once at the chord with the buzzer, silent by 260
+gate kestrel_boot node apps/kestrel_boot_check.mjs --break   # ...and a fade that never reaches black, a silent jingle, a cart at half speed, no copper list, a second R13 write and a frozen cart are each caught
 gate ziggy node apps/ziggy_check.mjs   # ZIGGY (cart 115): ZM-X on and off draw the SAME picture (ROTO at 64/128/256 and VOXEL, frame 40), the picture area is the mode's own, frames move, the texture size changes the pixels, VOXEL has sky on top and ground at the bottom, the HUD is drawn and follows the mode, Escape leaves; P swaps ROTO's texture for the parrot photo at 64/128/256 (ZM-X on = off, photo indices and palette, HUD says PHOTO)
 gate ziggy node apps/ziggy_check.mjs --break   # ...and ZM-X off compared a frame later is caught
 gate ziggy node apps/ziggy_check.mjs --break photo   # ...and no swap asked for fails all nine photo checks

@@ -195,6 +195,11 @@
   "type": "atari st"
  },
  {
+  "tag": "kestrel_boot",
+  "title": "KESTREL BOOT",
+  "type": "zigmachine"
+ },
+ {
   "tag": "kickoff2",
   "title": "KICK OFF 2",
   "type": "amiga"
