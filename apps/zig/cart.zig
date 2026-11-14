@@ -139,6 +139,7 @@ const scene = switch (opts.index) {
     128 => @import("scenes/gemtest.zig"), // GEMTEST: every GEM 5 component on one disk, through the program API only (docs/GEMTEST.md)
     129 => @import("scenes/sca_karatekid2.zig"), // SCA THE KARATE KID PART II (CODEF 495): starfield, copper raster bar, scroller, logo
     130 => @import("scenes/copro.zig"), // COPRO: BARD as a coprocessor (zg.bard.job): ZX0 depack, a 3D morph, particles, CRC-32, each ZIGGY alone or on BARD, music playing
+    131 => @import("scenes/kestrel_boot.zig"), // KESTREL BOOT (WINDHOVER): the console's boot screen, 4.8 s then black (prototypes/boot_screen/STUDY.md)
     else => @compileError("bad cart index"),
 };
 

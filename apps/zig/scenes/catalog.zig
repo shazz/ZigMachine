@@ -138,6 +138,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "GEMTEST", .tag = "gemtest" }, // system — every GEM 5 component on one disk, to see them on the board (docs/GEMTEST.md)
     .{ .name = "SCA KARATE KID II", .tag = "sca_karatekid2" }, // amiga
     .{ .name = "NOTEPAD", .tag = "notepad" }, // system — a windowed text editor for C:\*.TXT, the GEM 5 program API's proof (docs/NOTEPAD.md)
+    .{ .name = "KESTREL BOOT", .tag = "kestrel_boot" }, // zigmachine — WINDHOVER, the console's boot screen prototype: a kestrel stoops into a dawn sky and hovers, a YM chord (prototypes/boot_screen/STUDY.md)
     .{ .name = "SITTING COMFORTABLY?", .tag = "falcon_ays" }, // atari falcon — Reservoir Gods' 2004 intro (Chosneck #2), ported from the depacked original
     .{ .name = "1988", .tag = "c64_1988" }, // c64 — Tristar & Red Sector Inc.'s Only Sprites intro (2021, code Shazz), ported from the depacked original
     .{ .name = "TRANSMISSION64", .tag = "c64_transmission64" }, // c64 — Padua's invitation to Transmission64 2021 (code Anonym, Dano, Doomed, Hoogo), ported from the depacked original
