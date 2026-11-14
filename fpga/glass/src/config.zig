@@ -6,6 +6,7 @@
 //   fps=0           1: the F11 frame-rate overlay is on (app_stats.zig)
 //   drive_a=X.zmd   the disk in drive A (KOS, app_drive.zig): a shelf file; empty = none
 //   post=1          0: KOS's POST is skipped at every reset (fast demo work)
+//   splash=1        0: no boot screen at power-on (app_splash.zig: KESTREL BOOT, then KOS)
 //
 // A missing file means "never saved": the defaults, said nowhere because nothing
 // is wrong. A line that does not parse is reported (the status line and the
@@ -45,6 +46,7 @@ pub const Settings = struct {
     fps: bool = false,
     drive_a: DiskName = .{},
     post: bool = true,
+    splash: bool = true,
 
     /// The REG_AUDIO_VOL word.
     pub fn audioWord(self: Settings) u32 {
@@ -82,6 +84,8 @@ fn apply(s: *Settings, line: []const u8) bool {
         s.drive_a = DiskName.of(val) orelse return false;
     } else if (std.mem.eql(u8, key, "post")) {
         s.post = flag(val) orelse return false;
+    } else if (std.mem.eql(u8, key, "splash")) {
+        s.splash = flag(val) orelse return false;
     } else return false;
     return true;
 }
@@ -92,8 +96,8 @@ fn flag(val: []const u8) ?bool {
 }
 
 pub fn format(s: Settings, buf: []u8) []const u8 {
-    const fmt = "# glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)\nvolume={d}\nmute={d}\nfps={d}\ndrive_a={s}\npost={d}\n";
-    const args = .{ s.volume, @intFromBool(s.mute), @intFromBool(s.fps), s.drive_a.slice(), @intFromBool(s.post) };
+    const fmt = "# glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)\nvolume={d}\nmute={d}\nfps={d}\ndrive_a={s}\npost={d}\nsplash={d}\n";
+    const args = .{ s.volume, @intFromBool(s.mute), @intFromBool(s.fps), s.drive_a.slice(), @intFromBool(s.post), @intFromBool(s.splash) };
     return std.fmt.bufPrint(buf, fmt, args) catch unreachable;
 }
 
@@ -120,7 +124,7 @@ pub fn save(io: std.Io, dir: []const u8, s: Settings) !void {
 
 test "glass.cfg round-trips, and a bad line keeps its default" {
     var buf: [512]u8 = undefined;
-    const s = Settings{ .volume = 77, .mute = true, .fps = true, .drive_a = DiskName.of("demo-stniccc.zmd").?, .post = false };
+    const s = Settings{ .volume = 77, .mute = true, .fps = true, .drive_a = DiskName.of("demo-stniccc.zmd").?, .post = false, .splash = false };
     try std.testing.expectEqual(Loaded{ .settings = s }, parse(format(s, &buf)));
     const bad = parse("volume=300\nmute=1\n");
     try std.testing.expectEqual(@as(u32, 1), bad.bad_line);
@@ -151,4 +155,6 @@ test "drive_a holds a shelf file name, never a path; post is a flag" {
         |line| try std.testing.expectEqual(@as(u32, 1), parse(line).bad_line);
     try std.testing.expect(!parse("post=0").settings.post);
     try std.testing.expectEqual(@as(u32, 1), parse("post=no").bad_line);
+    try std.testing.expect(!parse("splash=0").settings.splash and parse("").settings.splash); // default on
+    try std.testing.expectEqual(@as(u32, 1), parse("splash=yes").bad_line);
 }

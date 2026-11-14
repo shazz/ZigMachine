@@ -9,12 +9,14 @@
 //             many lines; once it is over (frame 200) only its first row sets them (4 writes)
 //   black end the picture is black from frame 290 and stays black to the end (no loop)
 //   length    first light to black between 3 and 6 s
+//   end       the cart asks to leave (pollCartRequest -1) from frame 290, black, never before:
+//             the board's boot splash ends there (fpga/glass/src/app_splash.zig)
 //   jingle    the YM stream (zg.ymWrite entries): the call on C at 20 / 28 / 36, R13 written
 //             exactly once (frame 95, 0x0E, with R8 = 0x10: the buzzer), the last write by
 //             frame 260 leaving the mixer off and every volume 0; never more than the queue holds
 //   node apps/kestrel_boot_check.mjs [cart.wasm]
 //   node apps/kestrel_boot_check.mjs --break   each mutant (nofade, silent, slow, nocopper,
-//                                              retrigger, frozen) must be caught by the checks
+//                                              retrigger, frozen, stays) must be caught by the checks
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -68,7 +70,8 @@ function frame(m, f, brk) {
         const snap = new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size);
         for (let i = 0; i < size; i++) if (snap[i] >>> 24) comp[i] = snap[i];
     }
-    return { comp, ym: brk === "silent" ? [] : ym, fx: n, copper: copperHeads(m) };
+    const req = brk === "stays" ? 0 : demo.pollCartRequest();
+    return { comp, ym: brk === "silent" ? [] : ym, fx: n, copper: copperHeads(m), req };
 }
 
 // Plane 1's copper list: how many colour writes (PAL records) it holds this frame. A row is a
@@ -109,7 +112,7 @@ async function run(brk) {
     for (let f = 1; f <= FRAMES; f++) {
         const r = frame(m, f, brk);
         const st = stats(r.comp);
-        shots[f] = { ...st, copper: r.copper };
+        shots[f] = { ...st, copper: r.copper, req: r.req };
         fxMax = Math.max(fxMax, r.fx);
         for (const [reg, v] of r.ym) ym.push({ f, reg, v });
     }
@@ -137,6 +140,9 @@ function checks({ shots, ym, fxMax }) {
     let first = -1, last = -1;
     for (let k = 0; k < FRAMES; k++) if (at(shots, k).lit) { if (first < 0) first = k; last = k; }
     const secs = (last - first + 1) / 60;
+    const asked = shots.findIndex((s) => s && s.req === -1) - 1; // cart frame of the first -1
+    const held = asked >= 0 && shots.slice(asked + 1).every((s) => s.req === -1);
+    need(asked === 290 && held, `end: asks to leave from frame ${asked} (290 expected, then every frame)`);
     need(first >= 0 && secs >= 3 && secs <= 6, `length: lit ${secs.toFixed(2)} s (frames ${first}..${last})`);
     jingle(ym, need);
     need(fxMax <= FX_CAP, `jingle: ${fxMax} effects in one frame (queue holds ${FX_CAP})`);
@@ -156,7 +162,7 @@ function jingle(ym, need) {
     need(regs[7] === 0x3F && regs[8] + regs[9] + regs[10] === 0, `jingle: ends with mixer ${regs[7]}, volumes ${regs.slice(8, 11)}`);
 }
 
-const MUTANTS = ["nofade", "silent", "slow", "nocopper", "retrigger", "frozen"];
+const MUTANTS = ["nofade", "silent", "slow", "nocopper", "retrigger", "frozen", "stays"];
 if (BROKE) {
     let missed = 0;
     for (const b of MUTANTS) {
@@ -168,5 +174,5 @@ if (BROKE) {
 }
 const bad = checks(await run(null));
 for (const b of bad.slice(0, 20)) console.log(`kestrel_boot: ${b}`);
-console.log(`kestrel_boot: ${bad.length ? `FAIL (${bad.length})` : "OK"}: black 0-19, sky by 80, stoop 50-95, still 170-249, copper highlight, black from 290, YM call + chord`);
+console.log(`kestrel_boot: ${bad.length ? `FAIL (${bad.length})` : "OK"}: black 0-19, sky by 80, stoop 50-95, still 170-249, copper highlight, black from 290, asks to leave at 290, YM call + chord`);
 process.exit(bad.length ? 1 : 0);

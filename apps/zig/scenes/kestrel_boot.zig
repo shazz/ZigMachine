@@ -11,6 +11,8 @@
 //   plane 1  8-bit overscan (borders opened by the copper list's FLICK): the bird (CHISEL AFFINE during the stoop only, stoop.zig), the
 //            highlight (a copper list), the wordmark (palette only) (marks.zig, word.zig)
 //   sound    the YM2149 through zg.ymWrite, a register stream (jingle.zig)
+//   end      once black (tl.BLACK) the cart asks to leave (pollCartRequest -1): at the board's
+//            power-on glass then boots KOS (fpga/glass/src/app_splash.zig); in the browser the menu
 //
 // Integer-only per frame; frames are counted, dt is ignored (timeline.zig).
 // apps/kestrel_boot_check.mjs proves it.
@@ -35,6 +37,7 @@ pub const Demo = struct {
     marks: marks.Marks = undefined,
     stoop: stoop.Stoop = undefined,
     player: jingle.Player = .{},
+    wants_quit: bool = false, // demo_main's pollCartRequest: done, black (the board's boot splash ends here)
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         self.* = .{};
@@ -72,6 +75,7 @@ pub const Demo = struct {
         if (f == tl.ARRIVE + 1) word.paint(os, &os.lfbs[1]);
         self.marks.frame(&os.lfbs[1], f);
         if (self.f < tl.BLACK + 60) self.f += 1; // then hold: nothing changes any more
+        if (f >= tl.BLACK) self.wants_quit = true;
     }
 
     /// Frames since the cart started (the harness and, on the board, glass's hand-off read it).
