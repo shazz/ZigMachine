@@ -60,6 +60,11 @@
   "type": "atari st"
  },
  {
+  "tag": "copro",
+  "title": "COPRO",
+  "type": "zigmachine"
+ },
+ {
   "tag": "dbug",
   "title": "D-BUG",
   "type": "atari st"
