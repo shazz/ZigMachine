@@ -153,3 +153,17 @@ That cut is the work; the boundary above says where it goes.
   (`make snd-bench SND_BARDQ=1`, as SID's 58 %).
 - (g) board staging: `prototypes/chipnomad_bard_card/` (MD5SUMS) per `.claude/skills/board-cart/SKILL.md`.
 - (h) the ROADMAP row (added with this note).
+
+### Open items, checked 13 Nov (second pass)
+
+- **BARD stereo:** not settled. `libs/zig/players/sid_live.zig` and `fpga/host/audio_bardq.c` do not state a channel
+  count, and docs/FPGA_AUDIO.md does not mention stereo. Needs the CHORUS mixer's port list.
+- **ChipNomad's AY clock:** not settled. `ayumi_configure(clock_rate, sr)` is called from upstream's chip code with the
+  project's clock; the cart's source does not pin a default. Needs upstream's `chip_ay` / project defaults.
+- **Floats on BARD:** not free. `kestrel_ayumi.cpp` is float in `ayumi_configure` (ticks_q16 from `step`), `ayumi_set_pan`
+  (sqrtf for the equal-power pan), the DAC table pointer, and the per-sample output scale (`* 1/32768`). The hot
+  event-stepped loop is integer, but BARD needs an integer renderer (pan as a table, the DAC table as ints, output
+  as ints), not the same file. So "one shared source" means a shared integer core with a float wrapper on the cart,
+  which is a port with its own test, not a move.
+- **Not built:** (b) to (h) need that integer core, the address dispatch in BARD's pump (fpga/host/bardq_pump.c and
+  fpga/cycles/sound/sbardq.c), a BARD firmware rebuild, the cart posting and a comparison run. None is started.
