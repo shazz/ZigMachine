@@ -86,7 +86,7 @@ The ring entry does not change. An AY write is `{t, addr, value, seq}` with:
   for `$D400`, AY for `$A000`, and a cart that wants both gets both.
 - `t`: output samples at the queue's 44.1 kHz clock, the same as the SID's. Not AY clock ticks: one time base for every
   chip, and the ring's `t` already means that. Cost: a write lands up to half a sample (11 us) from its AY tick. The
-  chip's tone counters are at the AY clock (2 MHz on the ST, the ChipNomad default is the ZX 1.75 MHz), so the error is
+  chip's tone counters are at the AY clock (the clock is the project's: 2 MHz on the ST; the ChipNomad default is not checked yet), so the error is
   below one tone step at the top octave; the comparison in step (d) measures it rather than assuming it.
 - `value`: the register value as the cart's model takes it (the low 8 bits; the chip ignores the upper bits as it does).
 
@@ -94,8 +94,8 @@ The ring entry does not change. An AY write is `{t, addr, value, seq}` with:
 
 `kestrel_ayumi.cpp` moves to `libs/c/ayumi/` (C, not C++: BARD runs C like cRSID, and the native host and the wasm cart
 build the same file). Its API is upstream's `ayumi.h` (`ayumi_configure`, `ayumi_set_tone/noise/mixer/volume/envelope`,
-`ayumi_set_pan`, `ayumi_process`, `ayumi_remove_dc`) with `float` where upstream has it. Floats are fine on BARD: its
-core is the sound CPU's, and the render is per output sample, so the "no float per frame" rule (CLAUDE.md) is a
+`ayumi_set_pan`, `ayumi_process`, `ayumi_remove_dc`) with `float` where upstream has it. Floats on BARD are unverified: its
+core is the sound CPU's (cost not measured), and the render is per output sample, so the "no float per frame" rule (CLAUDE.md) is a
 ZIGGY rule; if a BARD float costs too much the measure in step (f) says so. The ChipNomad cart and the BARD player
 call the same functions, so there is one model, not a fork.
 
