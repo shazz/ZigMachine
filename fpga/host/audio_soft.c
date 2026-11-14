@@ -83,7 +83,7 @@ void audio_backend_song(const char* name, uint32_t tune) { (void)name, (void)tun
 void audio_backend_mode(uint32_t mode) { (void)mode; }
 void audio_backend_paula(int held) { (void)held; }
 void audio_backend_mp3(int on) { (void)on; }
-void audio_backend_bard(int on) { (void)on; }
+void audio_backend_bard(int kind) { (void)kind; }
 
 void audio_soft_digest(uint32_t frame) {
     if (!g_digest) return;

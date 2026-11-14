@@ -55,6 +55,8 @@ int main(void) {
     printf("%u\n", (unsigned)g_w.load_pm);
     sndinfo_bard(ROUTE_BARD, 1); dump();
     sndinfo_bard(ROUTE_BARD, 0); dump();
+    sndinfo_bard(ROUTE_BARD, 2); dump();
+    sndinfo_bard(ROUTE_BARD, 0); dump();
     return 0;
 }
 """
@@ -171,4 +173,11 @@ def test_a_cart_bard_queue_is_sid_live_and_its_close_is_idle(steps: list[list[in
     on, off = steps[21], steps[22]  # BARD SID (zg.bard): F11 "BARD SID", not "BARD idle"
     assert head(on)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_SID) and on[mc.SI_FLAGS] & mc.SIF_STARTED
     assert name(on) == "sidlive"
+    assert head(off)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and off[mc.SI_FLAGS] == 0
+
+
+def test_an_ay_bard_queue_is_named_ay_not_sid(steps: list[list[int]]) -> None:
+    on, off = steps[23], steps[24]  # ChipNomad's AY chips on the queue: F11 "BARD AY", not "BARD SID"
+    assert head(on)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_AY) and on[mc.SI_FLAGS] & mc.SIF_STARTED
+    assert name(on) == "aylive" and on[mc.SI_SEQ] % 2 == 0
     assert head(off)[1:3] == (mc.ROUTE_BARD, mc.PLAYER_NONE) and off[mc.SI_FLAGS] == 0

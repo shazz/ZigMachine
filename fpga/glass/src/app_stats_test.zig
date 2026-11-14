@@ -178,6 +178,8 @@ test "the BARD line's text" {
     try std.testing.expectEqualStrings("BARD MP3 52%", overlay.bardText(&i, &buf)); // the MP3 PLAYER cart
     i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_SID, .started = true, .cycles = 833_334, .samples = 735 };
     try std.testing.expectEqualStrings("BARD SID 50%", overlay.bardText(&i, &buf)); // SID TEST: a PSID on cRSID
+    i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_AY, .started = true, .cycles = 833_334, .samples = 735 };
+    try std.testing.expectEqualStrings("BARD AY 50%", overlay.bardText(&i, &buf)); // ChipNomad: AY chips on the BARD queue
     i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_NONE, .cycles = 1_333_334, .samples = 735 };
     try std.testing.expectEqualStrings("BARD idle (80%)", overlay.bardText(&i, &buf)); // no player id, but a load: bracketed
     i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_SNDH, .started = true, .cycles = 5_133_334, .samples = 735, .peak_cycles = 5_216_667, .peak_samples = 735 };

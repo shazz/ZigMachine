@@ -11,7 +11,7 @@
 //   node apps/astro_bench_headless.mjs [--break result|batch|clock]
 // --break proves the checks bite: hwAstro's first result off by one ulp; array descriptors answered OK
 // with nothing computed; a no-clock run the harness is told to expect numbers from.
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 128, OFF_VRAM = 0x1100, W = 320, H = 200, PAPER = 1, KEY_1 = 0x31;
@@ -117,10 +117,43 @@ async function noClockRun(bytes) {
     else check(field(add, "soft64") === "-" && field(lines(m.log, "linpack")[0], "soft") === "-", `no clock: a time was logged: ${add}`);
 }
 
+// page 2: the Julia zoom. The same pixels from ASTROLABE and from ZIGGY's soft f64 (the hash of every 8th
+// step's escape events), a picture of many colours, and a readout; --shots DIR writes RGBA dumps of both pages.
+const SHOTS = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : null;
+async function shot(m, name) {
+    m.machine.hwRenderPlane(0);
+    const base = m.machine.hwVideoBase(), mem = new Uint8Array(m.memory.buffer);
+    const out = Buffer.alloc(W * H * 4);
+    for (let i = 0; i < W * H; i++) out.set(mem.subarray(base + 0x100 + mem[base + OFF_VRAM + i] * 4, base + 0x100 + mem[base + OFF_VRAM + i] * 4 + 4), i * 4);
+    await writeFile(`${SHOTS}/${name}.rgba`, out);
+}
+const hashes = (m, side) => Object.fromEntries(m.log.filter((l) => l.startsWith("ZM ASTRO zoom") && l.includes(`side=${side}`)).map((l) => [field(l, "step"), field(l, "hash")]));
+function frames(m, until, max) { for (let f = 0; f < max && !until(); f++) { m.machine.hwClear(); m.demo.frame(16.6); } return until(); }
+
+async function zoomRun(bytes) {
+    const m = await boot(() => Math.floor(performance.now() * 1000) >>> 0, bytes);
+    if (SHOTS) { runToDone(m); await shot(m, "bench"); }
+    m.demo.key(0x32); // 2
+    check(frames(m, () => hashes(m, "astro")[16], 60), "zoom: ASTROLABE never reached step 16");
+    if (SHOTS) await shot(m, "zoom_astro");
+    const a = hashes(m, "astro");
+    m.machine.hwRenderPlane(0);
+    const fb = new Uint8Array(m.memory.buffer, m.machine.hwVideoBase() + OFF_VRAM, W * 160);
+    check(new Set(fb).size >= 8, `zoom: only ${new Set(fb).size} colours in the picture`);
+    if (SHOTS) { frames(m, () => hashes(m, "astro")[200], 400); m.demo.frame(16.6); await shot(m, "zoom_deep"); }
+    m.demo.key(0x32), m.demo.key(0x20); // restart at step 0, then SPACE: ZIGGY's soft f64
+    check(frames(m, () => hashes(m, "ziggy")[16], 600), "zoom: ZIGGY's side never reached step 16");
+    if (SHOTS) await shot(m, "zoom_ziggy");
+    const z = hashes(m, "ziggy");
+    for (const k of ["0", "8", "16"]) check(a[k] !== undefined && a[k] === z[k], `zoom step ${k}: ASTROLABE ${a[k]} != ZIGGY ${z[k]}`);
+    console.log(`  zoom: steps 0/8/16 the same pixels both ways (hash ${a[0]} ${a[8]} ${a[16]})`);
+}
+
 const bytes = new Uint8Array(await readFile("docs/demo-c-astro_bench.wasm"));
 console.log("astro_bench_headless:");
 if (brk !== "clock") await rerunAndScreen(await realClockRun(bytes));
 await noClockRun(bytes);
+await zoomRun(bytes);
 if (brk) {
     const ok = errors.length > 0;
     console.log(ok ? `\nastro_bench_headless: PASS (--break ${brk} was caught: ${errors.length} failures)` : `\nastro_bench_headless: FAILED — --break ${brk} was not caught`);

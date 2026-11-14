@@ -148,6 +148,7 @@ pub fn player(w: *std.Io.Writer, i: *const Info) void {
         mc.PLAYER_KT => "KT", // ZMSTAT: BARD:KT
         mc.PLAYER_MP3 => "MP3", // ZMSTAT: BARD:MP3
         mc.PLAYER_SID => "SID", // ZMSTAT: BARD:SID
+        mc.PLAYER_AY => "AY", // ZMSTAT: BARD:AY
         mc.PLAYER_UNKNOWN => "unknown",
         else => return w.print("player#{d}", .{i.player}) catch {},
     };

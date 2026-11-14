@@ -277,6 +277,7 @@ pub const PLAYER_PAULA: u32 = 8; // no player: the cart drives the Paula channel
 pub const PLAYER_KT: u32 = 9; // a klystrack song: cyd on the Paula channels (libs/zig/players/kt.zig)
 pub const PLAYER_MP3: u32 = 10; // a cart's MP3 stream decoded on BARD (env.hostMp3Ctl/Feed, libs/zig/players/mp3.zig)
 pub const PLAYER_SID: u32 = 11; // a Commodore 64 PSID on cRSID: BARD native, machine-audio.wasm on the page (libs/zig/players/sid.zig)
+pub const PLAYER_AY: u32 = 12; // a cart's AY / YM chips live on the BARD queue (ChipNomad: zg.bard AY writes, libs/c/ayumi)
 pub const PLAYER_UNKNOWN: u32 = 0xFF; // an extension no player takes
 // SI_HEAD's native (PLAYER_SNDH only): demo-audio's audioSndhNative() (players/digi.zig Status).
 pub const NATIVE_MUSASHI: u32 = 0;

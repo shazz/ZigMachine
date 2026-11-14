@@ -1945,3 +1945,11 @@ the kick on the page (it would land in the cart's own frame and the A/B would sh
 **Consequences:** +6 KB in snd.bin (the server, ZX0 and the CRC table), a system-table bump (1.24): carts built
 before it run unchanged; a cart that posts jobs needs a 1.24 system. ZigOS now imports the `depackers` module
 (build.zig, sdk/build_cart.zig). New ops are added in one place (server.zig + kernels.zig) and reach every host.
+
+## 2026-11-14 — The OSD names an AY queue "AY", not "SID" (PLAYER_AY = 12)
+
+**Status:** accepted
+**Context:** ChipNomad's AY chips run on the BARD queue (decisions 2026-11-07), and the queue opens as SID live, so `sndinfo_bard` reported every live queue as PLAYER_SID: the glass OSD read "BARD SID 47%" over an AY.
+**Decision:** a new glass player id `PLAYER_AY = 12` (after PLAYER_SID = 11), shown as "AY", song "aylive". The queue knows its chip from its commands: `bq_pump` (host/bardq_pump.c, shared by BARD, ZIGGY and the host) tells the page `audio_backend_bard(2)` on the first command with an AY address (`0xA000..`, bard.zig AY_BASE); `bq_open` still says 1 (SID) until then.
+**Alternatives considered:** a chip word in the queue header (an ABI change for a label); reading the engine's state (the device is picked inside demo-audio.wasm, out of BARD's page code).
+**Consequences:** ids 0..12 are in map_cart.zig. A queue that opened and has written nothing yet reads "SID" for a moment. Needs glass and system.rv32 (snd firmware) to be reinstalled on the board.

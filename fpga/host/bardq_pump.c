@@ -7,10 +7,16 @@
 #include "bardq.h"
 #include "haudio.h"
 
-void audio_backend_bard(int on); /* cycles/baudio.c: the debug page's music block (F11 "SID"); audio_soft.c: nothing */
+/* cycles/baudio.c: the debug page's music block (F11 "SID" / "AY"); audio_soft.c: nothing.
+ * kind 0 closed, 1 SID live, 2 AY (the queue's first AY write, below). */
+void audio_backend_bard(int kind);
+
+#define BQ_AY_BASE 0xA000u /* libs/zig/bard.zig AY_BASE: an AY command's addr is $A000 + chip x 16 + reg */
+static int g_kind;         /* what the page was told for this queue: 1 until an AY command shows */
 
 void bq_open(uint32_t lead) {
     w2c_audio_audioBardOpen(&g_aud.player, lead);
+    g_kind = 1;
     audio_backend_bard(1);
 }
 void bq_close(void) {
@@ -35,6 +41,7 @@ uint32_t bq_pump(const volatile uint32_t* b, uint32_t tail, uint32_t head) {
     for (; tail != head; tail++) {
         const volatile uint32_t* c = bq_cmd(b, tail);
         if (c[3] != tail) break; /* not whole yet (the board: a store still on its way to DDR) */
+        if (g_kind == 1 && (c[1] & 0xF000u) == BQ_AY_BASE) audio_backend_bard(g_kind = 2);
         uint32_t* s = stage + 4u * n;
         s[0] = c[0];
         s[1] = c[1];
