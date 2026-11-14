@@ -55,6 +55,13 @@ pub const Rig = struct {
         a.reboot.sync_fn = countSync; // never the host's sync(2)
         return a;
     }
+
+    /// `glass run`'s start (main.zig): App.initHidden, nothing on the OSD yet.
+    pub fn appHidden(r: *Rig) !App {
+        var a = try App.initHidden(gpa, io, r.glass.regs(), .{ .words = &r.words }, .flat(r.dir));
+        a.reboot.sync_fn = countSync;
+        return a;
+    }
 };
 
 /// sync(2) calls made by the apps the rig built (card_file.release, the Reboot item).

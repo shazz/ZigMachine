@@ -993,11 +993,13 @@ load (no KOS boot words), then powers KOS on exactly as without it (drive A, the
   after 9 s (`CAP_MS`). The log says how long it played (`boot splash: the cart is done after
   4850 ms, KOS powers on`) and how long its load took.
 - **Plays alone** (Matt, 14 Nov, card14o: "black screen, shows the OSD, then the KESTREL BOOT behind
-  the OSD. The OSD should only appear after"): App.init opens the menu, so once the policy says
-  play the OSD is switched off (`State.quiet`: `app_stats.place` writes no OSD bit, `App.redraw`
+  the OSD. The OSD should only appear after"): `glass run` starts with `App.initHidden` (nothing on the
+  OSD; the menu used to show for half a second before the decision), then once the policy says
+  play the OSD stays off (`State.quiet`: `app_stats.place` writes no OSD bit, `App.redraw`
   draws nothing) before the cart's load and its ~3 s of BOOTING, and stays off while it plays (no
   menu, no F11 overlay, no toast). When it ends KOS's power-on leaves the OSD as it does without a
-  splash (closed, the F11 overlay if `fps=1`); a key that skipped it opens nothing.
+  splash (closed, the F11 overlay if `fps=1`); a key that skipped it opens nothing. With no
+  splash (a restart, `splash=0`...) startOrPowerOn opens the menu over KOS's load as App.init did.
 - **Yields** to a load from elsewhere (`glass ctl load`): the splash just stops, no KOS over it.
 - **Never blocks the menu**: a missing disk, a disk that fails to load, a mark that cannot be
   made all mean "no splash", and a stuck cart is cut by the cap.

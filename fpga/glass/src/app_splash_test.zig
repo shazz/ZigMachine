@@ -35,19 +35,19 @@ fn card(cart: bool) !*rig.Rig {
     return r;
 }
 
-/// `osd_in_load`: every OSD bit startOrPowerOn wrote (App.init's menu was up before it): the
-/// splash's load included, its ~3 s of BOOTING on the board.
+/// `osd_in_load`: every OSD bit written from the process's start (App.initHidden, as main.zig)
+/// to the end of startOrPowerOn: the splash's load included, its ~3 s of BOOTING on the board.
 const Booted = struct { app: App, why: splash.Why, mark: []u8, osd_in_load: u32 };
 
 /// A glass start on the rig's card, its mark in the card's directory (a restart finds it there).
 fn start(r: *rig.Rig, cfg: []const u8, no_splash: bool) !Booted {
     if (cfg.len > 0) try r.tmp.dir.writeFile(io, .{ .sub_path = config.FILE, .data = cfg });
     const mark = try std.fmt.allocPrint(gpa, "{s}/splashed", .{r.dir});
-    var a = try r.app();
+    r.glass.osd_seen = 0; // from the process's start on
+    var a = try r.appHidden(); // main.zig's start: nothing shown before the splash decides
     a.splash_mark = mark;
     a.clock = clock;
     now = 1000;
-    r.glass.osd_seen = 0; // App.init's menu is up (CTRL_OSD); from here on what the start writes
     const why = splash.startOrPowerOn(&a, no_splash);
     return .{ .app = a, .why = why, .mark = mark, .osd_in_load = r.glass.osd_seen };
 }
@@ -234,7 +234,7 @@ test "no OSD while the splash loads and plays, not even the F11 overlay; the OSD
     const a = &b.app;
     try std.testing.expectEqual(splash.Why.play, b.why);
     try std.testing.expectEqual(@as(u32, 0), r.glass.ctrl & OSD_BITS);
-    try std.testing.expectEqual(@as(u32, 0), b.osd_in_load); // not during the load's BOOTING either
+    try std.testing.expectEqual(@as(u32, 0), b.osd_in_load); // not from App.initHidden on, nor in BOOTING
     a.redraw(); // a status line, a toast, the overlay's tick: none of them shows
     @import("app_stats.zig").toast(a, "hello");
     a.tick();
@@ -265,4 +265,19 @@ test "a key that skips the splash powers KOS on and opens no OSD; a broken splas
     try std.testing.expectEqual(splash.Why.failed, d.why);
     try std.testing.expect(!d.app.splash.quiet); // the OSD is glass's again
     try onDesktop(broken, &d.app);
+}
+
+test "no splash (a restart): the menu shows over KOS's load as App.init showed it, then closes" {
+    const r = try card(true);
+    defer r.deinit();
+    {
+        var b = try start(r, "", false);
+        defer done(&b);
+    }
+    var b = try start(r, "", false); // the mark is there
+    defer done(&b);
+    try std.testing.expectEqual(splash.Why.restart, b.why);
+    try std.testing.expect(b.osd_in_load & map.CTRL_OSD != 0); // the menu, during the load
+    try onDesktop(r, &b.app);
+    try std.testing.expectEqual(@as(u32, 0), r.glass.ctrl & map.CTRL_OSD); // closed over KOS
 }

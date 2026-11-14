@@ -91,17 +91,19 @@ pub fn startOrPowerOn(app: *App, no_splash: bool) Why {
         .disk = find(app),
     });
     if (why != .play) {
+        app.setOpen(true); // the menu over the KOS load, as App.init shows it (main.zig: initHidden)
         drive.powerOn(app);
         return why;
     }
     const i = find(app).?;
     const t0 = app.clock();
     app.splash.quiet = true;
-    app_stats.place(app); // App.init opened the menu: off before the load's 3 s of BOOTING
+    app_stats.place(app); // nothing shown yet (initHidden); after App.init's menu: off, before the load
     cart.load(app, i);
     if (!app.running or app.current != i) { // a failed load: KOS as before, the status says why
         std.log.warn("boot splash: {s} did not start, KOS powers on", .{DISK});
         app.splash.quiet = false;
+        app.setOpen(true);
         drive.powerOn(app);
         return .failed;
     }
