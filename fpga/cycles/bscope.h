@@ -10,12 +10,19 @@
 #include "audio_scope.h"
 
 #ifdef ZM_SND
+#include <stdio.h>
+
 #include "snd_mailbox.h"
 /* An address BARD may write: 4-aligned, past its own image, the 2 KiB under its RAM (the cart's data). */
 static inline uint32_t bscope_ok(uint32_t at) {
     return !(at & 3u) && at >= SND_BASE + SND_IMAGE_MAX && at <= SND_CART_END - ZSC_BYTES ? at : 0u;
 }
-static inline uint32_t bscope_wanted(void) { return bscope_ok(SND_REG(SND_C2S + C_SCOPES)); }
+static inline uint32_t bscope_wanted(void) {
+    static uint32_t refused;
+    uint32_t raw = SND_REG(SND_C2S + C_SCOPES), at = bscope_ok(raw);
+    if (raw && !at && raw != refused) printf("ZM SCOPES refused %08lx\n", (unsigned long)(refused = raw)); /* loud, once */
+    return at;
+}
 #else
 #include "bmirror.h"
 static inline uint32_t bscope_wanted(void) { return ZM_MIRROR_ON ? audio_mirror_scopes_at() : 0u; }
