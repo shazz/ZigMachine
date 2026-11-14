@@ -56,8 +56,7 @@ Every browser cart (`build.zig` cart matrix) and its KESTREL board port. Generat
 | 6 | `obj` |  |  | 116 KB | built (#127) | frame (f64 0, f32 34) | f32 obj project/brightness per vertex per frame |  |  |  |
 | 65 | `polkadots` | yes |  | 115 KB | built (#127) | init (f64 11, f32 2) | fixed variant: f64 only in init (zig3d Lens, torus build) |  |  | POLKA DOTS: NoNameNo's halftone dot-matrix torus (CODEF screen 81) |
 | 89 | `polkadots_f32` |  |  | 115 KB | built (#127) | ⚠️ frame (f64 9, f32 36) | FPU twin on purpose: f32 span/fillQuad per scanline |  |  | cart 65's CODEF algorithm kept in f32 (65 is fixed point now), for the |
-| 84 | `raytrace` | yes |  | 63 KB | built (#127) | none |  |  |  | SDF ray-traced scene in Q16.16 fixed point: also the FPGA CPU benchmar |
-| 85 | `raytrace_f32` | yes |  | 62 KB | built (#127) | ⚠️ frame (f64 5, f32 3) | FPU twin on purpose: f32 raymarch per pixel (float.zig) |  | works (#127, 2026-10-17) | the same ray tracer on f32 (soft-float on the FPGA), for comparison |
+| 84 | `raytrace` | yes |  | 63 KB | built (#127) | frame (f32 mode 2, f64 mode 3: on purpose) | mode 2 = the old raytrace_f32 (cart 85, retired 14 Nov); mode 3 = f64 on ASTROLABE |  |  | SDF ray tracer, true colour, three maths: the FPGA CPU benchmark |
 | 33 | `replicants` |  |  | 199 KB | built (#127) | init (f64 0, f32 6) | f32 offset table sin in init only |  |  | REPS OLD: the pre-CODEF Replicants/Garfield, kept to compare with 31 |
 | 29 | `replicants_dd2` |  | 1,757 KB | 156 KB | built (#127) | frame (f64 0, f32 34) | f32 line/copyRow/drawScrollers per frame |  |  | Replicants / Double Dragon II (CODEF screen 515) |
 | 62 | `replicants_emlyn` | yes |  | 178 KB | built (#127) | ⚠️ frame (f64 3, f32 10) | fixed variant: f32 curve.next sin per column per frame |  |  | The Replicants / Emlyn Hughes Intl Soccer cracktro (CODEF screen 17) |

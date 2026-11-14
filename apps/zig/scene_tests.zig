@@ -31,7 +31,8 @@ test {
     _ = @import("scenes/chonchon2/chunky_test.zig");
     _ = @import("scenes/larcociel5/chunky_test.zig");
     _ = @import("scenes/larcociel2/present_test.zig");
-    _ = @import("scenes/raytrace/acc_test.zig");
+    _ = @import("scenes/raytrace/colour_test.zig");
+    _ = @import("scenes/raytrace/astro/bits_test.zig");
     _ = @import("scenes/noextra/assets.zig");
     _ = @import("scenes/noextra/timeline.zig");
     _ = @import("scenes/swedish_newyear/sync_test.zig");

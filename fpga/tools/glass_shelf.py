@@ -45,7 +45,7 @@ CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 # firmware is the program GEM launches (progs/demo-<tag>/BOOT.WSM.zmd). GEM itself is no shelf disk:
 # it is KOS's desktop (OS_CART, kos/desktop.rv32), which an empty drive boots.
 SHELF = (
-    "blitter", "fuji_hobbytronic", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
+    "blitter", "fuji_hobbytronic", "music", "polkadots", "raytrace", "replicants_emlyn",
     "sap_test", "skystrike", "st_replay", "stniccc", "sysinfo", "tsl_hybridglenz", "tutorial", "ulm_dsots",
     "union_beatdis",
     # The Union Demo's street and the carts its doors boot (apps/zig/scenes/union_demo/doors.zig): on the

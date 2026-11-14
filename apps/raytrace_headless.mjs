@@ -1,67 +1,64 @@
-// Headless RAYTRACE driver -- boots the sealed machine + demo-raytrace (Q16.16)
-// and demo-raytrace_f32 the way docs/sealed-loader.js does, runs each to the
-// end of its progressive render, and checks the picture and the benchmark.
+// Headless RAYTRACE driver -- boots the sealed machine + demo-raytrace the way
+// docs/sealed-loader.js does, and runs each of its three maths (keys 1..3, the
+// host's setShadeMode 0..2: Q16.16 and f32 on the cart CPU, f64 on ASTROLABE, here
+// the machine's own hwAstro, as the page binds it).
 //
-// Each cart runs three times, one per answer to env.hostMicros (the benchmark
-// clock, apps/zig/scenes/raytrace/bench.zig):
+// Each mode runs once per answer to env.hostMicros (the benchmark clock,
+// apps/zig/scenes/raytrace/bench.zig):
 //   none  the import left to the no-op stub (0), as on a host without a clock:
-//         FIXED work, 512 px a frame;
-//   fake  a clock that moves 500 us a call: TIMED work, deterministic, so the
-//         frame count and the measured rate are exact;
-//   real  performance.now(): the benchmark itself, printed, not asserted.
+//         FIXED work, 512 samples a frame; run to the end of the 16 passes;
+//   fake  a clock that moves 500 us a call: TIMED work, deterministic: 16 chunks a
+//         frame (16 samples each on ZIGGY, one 64-ray batch on ASTROLABE), so the
+//         frame counts, the rate and the time to converge are exact; run to the end
+//         (ASTROLABE: to its first picture, its convergence is the none run's);
+//   real  performance.now(): the benchmark itself, printed, not asserted; run to the
+//         first picture.
 //
-// What is checked, per cart:
-//   1. the render COMPLETES: the cart's own done flag (read off the binary
-//      strip on row 199, apps/zig/scenes/raytrace/hud.zig) rises at exactly
-//      ceil(320*176 / 512) = 110 frames with no clock, and at 320*176 / 256 =
-//      220 with the fake one (16 checks of 16 px fill the 8 ms budget);
-//   2. it is PROGRESSIVE: after frame 2 the picture is partly drawn and the
-//      drawn fraction only ever grows (no clock);
-//   3. the PICTURE is right: sky above the horizon, both floor tones, all five
-//      spheres, a shadow on the floor (dark floor shades), the chrome sphere
-//      holds a mirrored floor and a mirrored sky, and a SHA-256 fingerprint of
-//      the finished frame is pinned per cart -- the SAME under all three
-//      clocks, since every pixel is traced once whatever a frame's share;
-//   4. the ray count is plausible (1 primary per pixel, shadows, reflections);
-//   5. the RATE: no clock reads 0; the fake clock reads exactly 32000 px/s
-//      (256 px per 8000 us); the real one is above 0;
-//   6. Fire restarts the run: frame counter back to 1, picture cleared;
-//   7. the cart frame stays inside the 60 fps budget in node (timed: alone).
-// Across the two carts: the fixed-point picture matches the f32 one (mean RGB
-// error under 2.5 levels; dither and Q16 rounding are the only differences).
+// What is checked, per mode (row 199's tap strip, apps/zig/scenes/raytrace/hud.zig,
+// carries the counters):
+//   1. the first picture COMPLETES at exactly 110 frames with no clock and at
+//      320*176 / chunk-a-frame with the fake one; pass 16 at 16 x that; then it stops;
+//   2. it is PROGRESSIVE: frame 1 partly drawn, frame 2 the 8x8-block preview, the
+//      drawn fraction never falls, the pass counter only steps by one;
+//   3. the PICTURES are right: sky, both floor tones, all five spheres, a floor shadow,
+//      a chrome sphere mirroring floor and sky; refinement changes the picture, softens
+//      edges and adds a penumbra (raytrace_lib.mjs);
+//   4. both pictures are PINNED (SHA-256 of rows 0..175), the same under every clock:
+//      the per-pixel sums are integers, whatever a frame's share;
+//   5. the ray count is plausible; the RATE reads 0 with no clock, exactly the fake
+//      clock's (32000 / 128000 px/s), above 0 with the real one; the fake clock's
+//      time to converge is exact (16 passes x frames x 8 ms);
+//   6. Fire restarts the run, and a mode key restarts it in that mode;
+//   7. the cart's frames fit the 60 fps budget in node (timed: alone): 99 % of them,
+//      hwAstro's own time apart (the machine's stand-in for the ARM, not the cart's
+//      work); a box busy with other jobs still spikes the odd frame, so the worst is printed.
+// Across the modes: the first pictures agree, and so do the converged ones (mean RGB
+// error under 2.5), with the same ray counts within 2 %.
 //
-// The f32 cart then REFINES (refine.zig): PASSES - 1 more samples a pixel, one
-// pass per 110 frames with no clock, so the tap's pass counter (row 199, x 232)
-// reaches 16 at exactly frame 16 x 110 (x 220 with the fake clock), and it
-// stops there. Its first picture is the one pinned above; the converged one
-// has its own pin, the same under all three clocks, and must differ the ways
-// refinement promises (raytrace_refine_lib.mjs): a penumbra appears on the
-// floor, silhouettes and tile edges become coverage dithers,
-// and every pixel is still a palette colour.
-//
-//   node apps/raytrace_headless.mjs [outdir]            outdir gets PPMs of both
+//   node apps/raytrace_headless.mjs [outdir]            outdir gets PPMs of every mode
 //   node apps/raytrace_headless.mjs --break pixel       one wrong pixel: caught
 //   node apps/raytrace_headless.mjs --break clock       a clock that never moves: caught
 //   node apps/raytrace_headless.mjs --break smooth      refinement that changes nothing: caught
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
-import { checkRefined } from "./raytrace_refine_lib.mjs";
+import { mkdir, writeFile } from "node:fs/promises";
+import * as R from "./raytrace_lib.mjs";
 
-const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
-const W = 320, H = 200, IMG_H = 176, HORIZON = 62;
-const FRAMES_TO_DONE = { none: 110, fake: 220 };
-const FAKE_RATE = 32000; // px/s: 256 px per 8000 fake us
-const MAX_FRAMES = 6000;
-const PASSES = { "demo-raytrace": 1, "demo-raytrace_f32": 16 };
-// Pinned fingerprints of the finished PICTURE, rows 0..175 of the RGB frame
-// (printed by every run). The HUD below it carries each run's own counters and
-// rate, so it is read off the tap strip instead of being hashed.
+const { W, IMG_H } = R;
+const MODES = ["fixed", "f32", "astro"];
+const CHUNK = { fixed: 16, f32: 16, astro: 64 };
+const PASSES = 16, MAX_FRAMES = 4000, FAKE_US = 500, BUDGET_US = 8000;
+// Pinned fingerprints, rows 0..175 of the RGB frame: [first picture, converged].
 const PINNED = {
-    "demo-raytrace": "e03b7477be51699b0b2b50536f63293844e3fe1a7dd8d3e0e5d2f906a4a15646",
-    "demo-raytrace_f32": "4f7e751848b5f65f1db89f0782dee3cb0aaee0084d923fbb0c09995d3a399d89",
+    fixed: ["1b69c3e50cfce683ee8758a9179374b9a57f529427a01d357f8089bb5e94e230", "44b5e22c46d95da3a44d26d1dcfd9bcbe84573a07ab18c9daf808918acdd82db"],
+    f32: ["721e27b54e431823a09af08b297eaf7ec0b9b4a82515ea8159c6830cf9999266", "5f7fec28104e95f128ebd498f9f961e99e61867e15dde954802e1234b0980367"],
+    astro: ["9f1fbc95983a9e7b30e34a7253cbbd23692c746764917785d7541f74991fba06", "4ee076273c18f9fb7824b3b53f7b852449abbacc869089f56d309cec952479df"],
 };
-// (The f32 cart's converged picture is pinned in raytrace_refine_lib.mjs.)
+// The runs [mode, clock, to convergence]; a --break run takes the cheap ones that show it.
+const PLAN = {
+    all: [...["none", "fake", "real"].flatMap((c) => MODES.map((m) => [m, c, c === "none" || (c === "fake" && m !== "astro")]))],
+    pixel: [["fixed", "none", true], ["f32", "none", true]],
+    clock: [["fixed", "fake", false], ["f32", "fake", false]],
+    smooth: [["f32", "none", true]],
+};
 
 const brk = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/raytrace";
@@ -69,180 +66,119 @@ const errors = [];
 const fail = (m) => { errors.push(m); console.log(`  FAIL ${m}`); };
 const check = (ok, m) => { if (!ok) fail(m); };
 
-async function boot(name, clock) {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, {
-        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
-    })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile(`docs/${name}.wasm`);
-    const noop = () => {};
-    const env = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit, ...machine, ...rom };
-    if (clock) env.hostMicros = clock;
-    for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
-        if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;
-    demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    return { memory, machine, demo };
-}
-
-// One host frame; returns the visible 320x200 RGB (physical (80,40), x doubled).
-function frame({ memory, machine, demo }) {
-    machine.hwClear();
-    const t = performance.now();
-    demo.frame(16.6);
-    const ms = performance.now() - t;
-    machine.hwRenderPlane(0);
-    const pw = machine.hwPhysWidth();
-    const pfb = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), pw * machine.hwPhysHeight() * 4);
-    const rgb = new Uint8Array(W * H * 3);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const s = ((40 + y) * pw + 80 + x * 2) * 4, d = (y * W + x) * 3;
-        rgb[d] = pfb[s]; rgb[d + 1] = pfb[s + 1]; rgb[d + 2] = pfb[s + 2];
-    }
-    return { rgb, ms };
-}
-
-const px = (rgb, x, y) => { const i = (y * W + x) * 3; return [rgb[i], rgb[i + 1], rgb[i + 2]]; };
-const bits = (rgb, x0, n) => { let v = 0; for (let i = 0; i < n; i++) v = v * 2 + (px(rgb, x0 + i, 199)[0] > 30 ? 1 : 0); return v; };
-const readTap = (rgb) => ({ frames: bits(rgb, 255, 16), rays: bits(rgb, 271, 24), done: bits(rgb, 295, 1), rate: bits(rgb, 296, 24), pass: bits(rgb, 232, 6) });
-const sha = (rgb) => createHash("sha256").update(rgb.subarray(0, W * IMG_H * 3)).digest("hex");
-const drawn = (rgb) => { let n = 0; for (let y = 0; y < IMG_H; y++) for (let x = 0; x < W; x++) { const p = px(rgb, x, y); if (p[0] !== 12 || p[1] !== 12 || p[2] !== 28) n++; } return n / (W * IMG_H); };
-
-// Fraction of 8x8 blocks that are one flat colour: ~1 in the level-0 preview.
-function blocky(rgb) {
-    let flat = 0, n = 0;
-    for (let by = 0; by < IMG_H; by += 8) for (let bx = 0; bx < W; bx += 8) {
-        const a = px(rgb, bx, by), b = px(rgb, bx + 7, by + 7);
-        n++; if (a[0] === b[0] && a[1] === b[1] && a[2] === b[2]) flat++;
-    }
-    return flat / n;
-}
-
-// Class of a pixel by its colour, from the palette layout in palette.zig.
-function classify([r, g, b]) {
-    if (b > 2 * r && b > 1.3 * g && r < 60) return "blue";
-    if (r > 150 && g < 80 && b < 80) return "red";
-    if (r > 180 && g > 120 && b < 80) return "gold";
-    if (g > 130 && r < 90 && b < 140) return "green";
-    return "other";
-}
-
-function checkPicture(name, rgb) {
-    const count = {}, bump = (k) => { count[k] = (count[k] ?? 0) + 1; };
-    let darkFloor = 0, skyTop = 0, skyBottomWarm = 0;
-    for (let y = 0; y < IMG_H; y++) for (let x = 0; x < W; x++) {
-        const p = px(rgb, x, y);
-        bump(classify(p));
-        if (y < 20 && p[2] > p[1] + 30 && p[0] < 200) skyTop++; // cool mauve/blue
-        if (y > HORIZON + 8 && p[0] > 25 && p[0] < 95 && Math.abs(p[0] - p[1]) < 12 && Math.abs(p[1] - p[2]) < 20) darkFloor++; // shadowed cream tiles: dark grey
-        if (y > HORIZON - 6 && y <= HORIZON && p[0] > 200) skyBottomWarm++;
-    }
-    console.log(`  ${name} colours: ${JSON.stringify(count)} skyTop=${skyTop} warmHorizon=${skyBottomWarm} shadowFloor=${darkFloor}`);
-    for (const k of ["red", "gold", "blue", "green"]) check((count[k] ?? 0) > 300, `${name}: sphere colour ${k} missing (${count[k] ?? 0} px)`);
-    check(skyTop > 2000, `${name}: no cool sky at the top (${skyTop})`);
-    check(skyBottomWarm > 800, `${name}: no peach glow at the horizon (${skyBottomWarm})`);
-    check(darkFloor > 150, `${name}: no shadow on the floor (${darkFloor})`);
-}
-
-// The chrome sphere (centre ~ pixel (160+..., 78)) must mirror BOTH the floor
-// and the sky: its disc holds floor-tone cream AND deep sky blue pixels.
-function checkChrome(name, rgb) {
-    let cream = 0, sky = 0;
-    for (let y = 40; y < 100; y++) for (let x = 130; x < 200; x++) {
-        const [r, g, b] = px(rgb, x, y);
-        if (r > 190 && g > 180 && b > 150 && Math.abs(r - g) < 25) cream++;
-        if (b > 80 && b > r + 30) sky++;
-    }
-    check(cream > 40, `${name}: chrome sphere shows no mirrored floor (${cream})`);
-    check(sky > 40, `${name}: chrome sphere shows no mirrored sky (${sky})`);
-}
-
-function clockFor(mode) {
-    if (mode === "real") return () => Math.floor(performance.now() * 1000) >>> 0;
-    if (mode === "fake") { let t = 0; return () => (t = (t + (brk === "clock" ? 0 : 500)) >>> 0) || 1; }
+function clockFor(clock) {
+    if (clock === "real") return () => Math.floor(performance.now() * 1000) >>> 0;
+    if (clock === "fake") { let t = 0; return () => (t = (t + (brk === "clock" ? 0 : FAKE_US)) >>> 0) || 1; }
     return null; // left to the no-op stub, as a host without the import
 }
 
-async function runCart(name, mode) {
-    console.log(`${name} (clock ${mode}):`);
-    const m = await boot(name, clockFor(mode));
-    const passes = PASSES[name];
-    let last = 0, ms = 0, tap = null, rgb = null, doneAt = 0, convAt = 0, lastPass = 0, first = null;
-    for (let f = 1; f <= MAX_FRAMES && !convAt; f++) {
-        const r = frame(m);
-        ms = Math.max(ms, r.ms); rgb = r.rgb;
-        tap = readTap(rgb);
-        const d = drawn(rgb);
-        if (mode === "none" && f === 1) check(d > 0.2 && d < 0.9, `${name}: frame 1 should be a partial preview (drawn ${d.toFixed(3)})`);
-        if (mode === "none" && f === 2) check(blocky(rgb) > 0.9, `${name}: frame 2 should be the 8x8-block preview (blocky ${blocky(rgb).toFixed(2)})`);
-        check(d + 1e-9 >= last, `${name}: drawn fraction fell at frame ${f}`);
-        check(tap.pass === lastPass || tap.pass === lastPass + 1, `${name}: pass counter ${lastPass} -> ${tap.pass} at frame ${f}`);
-        last = d; lastPass = tap.pass;
-        if (tap.done && !doneAt) { doneAt = f; first = { rgb, tap }; check(tap.pass === 1, `${name}: first picture done at pass ${tap.pass}`); }
-        if (tap.pass >= passes) convAt = f;
+// Frames to the first picture: 512 samples a frame with no clock, 16 chunks with the fake one.
+const perFrame = (mode, clock) => (clock === "none" ? 512 : (BUDGET_US / FAKE_US) * CHUNK[mode]);
+const framesToDone = (mode, clock) => (clock === "real" ? 0 : Math.ceil(56320 / perFrame(mode, clock)));
+
+// Runs one mode to its first picture (and on to pass 16 when `full`), checking as it goes.
+async function play(mode, clock, full) {
+    const m = await R.boot("demo-raytrace", clockFor(clock));
+    m.demo.setShadeMode(MODES.indexOf(mode));
+    const s = { m, ms: [], astroMs: 0, doneAt: 0, convAt: 0, first: null, rgb: null, tap: null };
+    let last = 0, lastPass = 0;
+    for (let f = 1; f <= MAX_FRAMES; f++) {
+        const a0 = m.astroMs, r = R.frame(m);
+        s.ms.push(r.ms - (m.astroMs - a0)); s.astroMs = Math.max(s.astroMs, m.astroMs - a0);
+        s.rgb = r.rgb; s.tap = R.readTap(r.rgb);
+        const d = R.drawn(r.rgb);
+        if (clock === "none" && f === 1) check(d > 0.2 && d < 0.9, `${mode}: frame 1 should be a partial preview (drawn ${d.toFixed(3)})`);
+        if (clock === "none" && f === 2) check(R.blocky(r.rgb) > 0.9, `${mode}: frame 2 should be the 8x8-block preview (blocky ${R.blocky(r.rgb).toFixed(2)})`);
+        check(d + 1e-9 >= last, `${mode}: drawn fraction fell at frame ${f}`);
+        check(s.tap.pass === lastPass || s.tap.pass === lastPass + 1, `${mode}: pass counter ${lastPass} -> ${s.tap.pass} at frame ${f}`);
+        last = d; lastPass = s.tap.pass;
+        if (s.tap.done && !s.doneAt) { s.doneAt = f; s.first = { rgb: r.rgb, tap: s.tap }; check(s.tap.pass === 1, `${mode}: first picture done at pass ${s.tap.pass}`); }
+        if (s.doneAt && !full) break;
+        if (s.tap.pass >= PASSES) { s.convAt = f; break; }
     }
-    // A converged cart traces nothing more: the frame after leaves tap and picture alone.
-    const after = frame(m).rgb;
-    check(readTap(after).frames === tap.frames, `${name}: frame counter moved after the last pass (${tap.frames} -> ${readTap(after).frames})`);
-    check(sha(after) === sha(rgb), `${name}: the picture changed after the last pass`);
-    const conv = brk === "smooth" && first ? first.rgb : rgb;
-    if (first) ({ rgb, tap } = first);
-    const nsPx = tap.rate ? (1e9 / tap.rate).toFixed(0) : "-";
-    console.log(`  done at frame ${doneAt}, tap frames=${tap.frames} rays=${tap.rays} rate=${tap.rate} px/s (${nsPx} ns/px), worst cart frame ${ms.toFixed(2)} ms`);
-    check(doneAt > 0, `${name}: never completed in ${MAX_FRAMES} frames`);
-    check(blocky(rgb) < 0.5, `${name}: the final frame is still blocky`);
-    if (FRAMES_TO_DONE[mode]) check(doneAt === FRAMES_TO_DONE[mode], `${name}: completes at frame ${doneAt}, expected ${FRAMES_TO_DONE[mode]}`);
-    if (FRAMES_TO_DONE[mode]) check(convAt === passes * FRAMES_TO_DONE[mode], `${name}: pass ${passes} ends at frame ${convAt}, expected ${passes * FRAMES_TO_DONE[mode]}`);
-    check(tap.frames === doneAt, `${name}: frame counter ${tap.frames}, done at ${doneAt}`);
-    if (mode === "none") check(tap.rate === 0, `${name}: no clock, yet a rate of ${tap.rate} px/s`);
-    if (mode === "fake") check(tap.rate === FAKE_RATE, `${name}: fake-clock rate ${tap.rate} px/s, expected ${FAKE_RATE}`);
-    if (mode === "real") check(tap.rate > 0, `${name}: the real clock measured no rate`);
-    check(tap.rays > 56320 * 1.3 && tap.rays < 56320 * 2.5, `${name}: ray count ${tap.rays} implausible`);
-    check(ms < 16.6, `${name}: a frame took ${ms.toFixed(2)} ms, over the 60 fps budget`);
-    if (brk === "pixel") { rgb[(40 * W + 40) * 3] ^= 0x40; conv[(40 * W + 40) * 3] ^= 0x40; }
-    checkPicture(name, rgb);
-    checkChrome(name, rgb);
-    const hash = sha(rgb);
-    console.log(`  fingerprint ${hash}`);
-    if (PINNED[name]) check(hash === PINNED[name], `${name}: fingerprint ${hash.slice(0, 16)} != pinned ${PINNED[name].slice(0, 16)}`);
-    if (passes > 1) checkRefined({ check, sha, checkPicture, checkChrome }, name, rgb, conv, convAt);
-    if (mode === "fake") checkRestart(name, m);
-    if (mode === "none") await writeFile(`${outdir}/${name}.ppm`, ppm(rgb));
-    if (mode === "none" && passes > 1) await writeFile(`${outdir}/${name}-converged.ppm`, ppm(conv));
-    return { rgb, tap, doneAt };
+    return s;
 }
 
-const ppm = (rgb) => Buffer.concat([Buffer.from(`P6\n${W} ${H}\n255\n`), rgb]);
+async function run(mode, clock, full) {
+    console.log(`${mode} (clock ${clock}${full ? ", 16 passes" : ""}):`);
+    const s = await play(mode, clock, full);
+    const { first } = s, tap = first?.tap ?? s.tap, rgb = first?.rgb ?? s.rgb;
+    const ms = s.ms.sort((a, b) => a - b), p99 = ms[Math.floor(ms.length * 0.99)];
+    console.log(`  first picture at frame ${s.doneAt} (rays ${tap.rays}, ${tap.rate} px/s)${full ? `, converged at ${s.convAt} (${s.tap.convMs} ms of tracing)` : ""}, cart frame p99 ${p99.toFixed(2)} ms, worst ${ms.at(-1).toFixed(2)} ms (+ hwAstro up to ${s.astroMs.toFixed(2)} ms)`);
+    check(s.doneAt > 0 && (!full || s.convAt > 0), `${mode}: never ${full ? "converged" : "finished"} in ${MAX_FRAMES} frames`);
+    check(R.blocky(rgb) < 0.6, `${mode}: the first picture is still blocky`);
+    const want = framesToDone(mode, clock);
+    if (want) check(s.doneAt === want, `${mode}: first picture at frame ${s.doneAt}, expected ${want}`);
+    if (want && full) check(s.convAt === PASSES * want, `${mode}: pass ${PASSES} ends at frame ${s.convAt}, expected ${PASSES * want}`);
+    check(tap.frames === s.doneAt, `${mode}: frame counter ${tap.frames}, done at ${s.doneAt}`);
+    if (clock === "none") check(tap.rate === 0 && s.tap.convMs === 0, `${mode}: no clock, yet ${tap.rate} px/s, ${s.tap.convMs} ms`);
+    if (clock === "fake") {
+        const rate = perFrame(mode, clock) * 1e6 / BUDGET_US;
+        check(tap.rate === rate, `${mode}: fake-clock rate ${tap.rate} px/s, expected ${rate}`);
+        if (full) check(s.tap.convMs === PASSES * want * BUDGET_US / 1000, `${mode}: fake-clock convergence ${s.tap.convMs} ms, expected ${PASSES * want * BUDGET_US / 1000}`);
+    }
+    if (clock === "real") check(tap.rate > 0, `${mode}: the real clock measured no rate`);
+    check(tap.rays > 56320 * 1.3 && tap.rays < 56320 * 2.5, `${mode}: ray count ${tap.rays} implausible`);
+    check(p99 < 16.6, `${mode}: 1 % of the cart frames took over ${p99.toFixed(2)} ms, over the 60 fps budget`);
+    if (brk === "pixel") rgb[(40 * W + 40) * 3] ^= 0x40;
+    R.checkPicture(check, mode, rgb);
+    R.checkChrome(check, mode, rgb);
+    const hashes = [R.sha(rgb)];
+    let conv = null;
+    if (full) {
+        const after = R.frame(s.m).rgb; // a converged run traces nothing more
+        check(R.readTap(after).frames === s.tap.frames, `${mode}: frame counter moved after the last pass`);
+        check(R.sha(after) === R.sha(s.rgb), `${mode}: the picture changed after the last pass`);
+        conv = brk === "smooth" ? first.rgb : s.rgb;
+        if (brk === "pixel") conv[(40 * W + 40) * 3] ^= 0x40;
+        R.checkRefined(check, mode, rgb, conv);
+        hashes.push(R.sha(conv));
+    }
+    console.log(`  fingerprints ${hashes.join(" ")}`);
+    hashes.forEach((h, i) => check(h === PINNED[mode][i], `${mode}: ${["first", "converged"][i]} fingerprint ${h.slice(0, 16)} != pinned ${PINNED[mode][i].slice(0, 16)}`));
+    if (clock === "fake") checkRestart(mode, s.m, s.rgb);
+    if (clock === "none") {
+        await writeFile(`${outdir}/raytrace-${mode}-first.ppm`, R.ppm(rgb));
+        if (conv) await writeFile(`${outdir}/raytrace-${mode}-converged.ppm`, R.ppm(conv));
+    }
+    return { rgb, conv, tap };
+}
 
-// Fire (input 5) restarts the run on the next frame: counter 1, picture cleared.
-function checkRestart(name, m) {
-    m.demo.input(5);
-    const r = frame(m), tap = readTap(r.rgb);
-    check(tap.frames === 1 && !tap.done, `${name}: Fire did not restart the run (frames ${tap.frames}, done ${tap.done})`);
-    check(drawn(r.rgb) < 0.9, `${name}: the restarted run did not clear the picture (drawn ${drawn(r.rgb).toFixed(3)})`);
+// Fire (input 5) restarts the run on the next frame; so does a mode key, in its mode: the
+// counters start again and the picture is the coarse preview again, not the finished one.
+function checkRestart(mode, m, done) {
+    for (const [what, act] of [["Fire", () => m.demo.input(5)], ["the next mode's key", () => m.demo.setShadeMode((MODES.indexOf(mode) + 1) % 3)]]) {
+        act();
+        const r = R.frame(m), tap = R.readTap(r.rgb);
+        let same = 0;
+        for (let i = 0; i < W * IMG_H * 3; i++) same += r.rgb[i] === done[i];
+        check(tap.frames === 1 && !tap.done && tap.pass === 0, `${mode}: ${what} did not restart the run (frames ${tap.frames}, pass ${tap.pass})`);
+        check(same < 0.7 * W * IMG_H * 3, `${mode}: ${what} left the finished picture up (${(same / (W * IMG_H * 3)).toFixed(3)} the same)`);
+    }
+}
+
+function compare(runs) {
+    for (const [a, b] of [["fixed", "f32"], ["f32", "astro"], ["fixed", "astro"]]) for (const k of ["rgb", "conv"]) {
+        const x = runs[`${a}/none`][k], y = runs[`${b}/none`][k];
+        let err = 0;
+        for (let i = 0; i < W * IMG_H * 3; i++) err += Math.abs(x[i] - y[i]);
+        const mean = err / (W * IMG_H * 3);
+        console.log(`${a} vs ${b} (${k === "rgb" ? "first" : "converged"}): mean abs RGB error ${mean.toFixed(3)}`);
+        check(mean < 2.5, `${a} and ${b} pictures drift apart (mean error ${mean.toFixed(2)})`);
+    }
+    for (const [a, b] of [["fixed", "f32"], ["f32", "astro"]]) {
+        const r = [runs[`${a}/none`].tap.rays, runs[`${b}/none`].tap.rays];
+        check(Math.abs(r[0] - r[1]) < 0.02 * r[1], `ray counts differ: ${a} ${r[0]}, ${b} ${r[1]}`);
+    }
 }
 
 await mkdir(outdir, { recursive: true });
 const runs = {};
-for (const mode of ["none", "fake", "real"])
-    for (const name of Object.keys(PINNED)) runs[`${name}/${mode}`] = await runCart(name, mode);
-const fixed = runs["demo-raytrace/none"], f32 = runs["demo-raytrace_f32/none"];
-console.log(`benchmark (node, real clock): fixed ${runs["demo-raytrace/real"].tap.rate} px/s, f32 ${runs["demo-raytrace_f32/real"].tap.rate} px/s`);
-let err = 0;
-for (let i = 0; i < W * IMG_H * 3; i++) err += Math.abs(fixed.rgb[i] - f32.rgb[i]);
-const mean = err / (W * IMG_H * 3);
-console.log(`fixed vs f32: mean abs RGB error ${mean.toFixed(3)}, rays ${fixed.tap.rays} vs ${f32.tap.rays}`);
-check(mean < 2.5, `fixed-point picture drifts from the f32 one (mean error ${mean.toFixed(2)})`);
-check(Math.abs(fixed.tap.rays - f32.tap.rays) < 0.02 * f32.tap.rays, `ray counts differ: ${fixed.tap.rays} vs ${f32.tap.rays}`);
+for (const [mode, clock, full] of PLAN[brk ?? "all"]) runs[`${mode}/${clock}`] = await run(mode, clock, full);
+if (!brk) {
+    console.log(`benchmark (node, real clock, first picture): ${MODES.map((m) => `${m} ${runs[`${m}/real`].tap.rate} px/s`).join(", ")}`);
+    compare(runs);
+}
 if (brk) { // a --break run PASSES when the harness caught the damage
     console.log(errors.length ? `raytrace: PASS (--break ${brk} caught: ${errors.length} failures)` : `raytrace: FAILED -- --break ${brk} was not caught`);
     process.exit(errors.length ? 0 : 1);

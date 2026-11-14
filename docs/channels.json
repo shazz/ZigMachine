@@ -340,13 +340,8 @@
   "type": "pc"
  },
  {
-  "tag": "raytrace_f32",
-  "title": "RAYTRACE F32",
-  "type": "zigmachine"
- },
- {
   "tag": "raytrace",
-  "title": "RAYTRACE FIXED",
+  "title": "RAYTRACE",
   "type": "zigmachine"
  },
  {

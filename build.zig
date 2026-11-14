@@ -596,8 +596,8 @@ pub fn build(b: *std.Build) void {
         "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1..F6 (ported from the disk; F3..F6 best effort)
         "demo-dune_gen4", // 82 — DUNE / GEN4 DEMO 1990: intro, main part, title, menu, F1, F2 (ported from the ST disk)
         "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (ported from the ST disk)
-        "demo-raytrace", // 84 — SDF ray-traced scene in Q16.16 fixed point: also the FPGA CPU benchmark
-        "demo-raytrace_f32", // 85 — the same ray tracer on f32 (soft-float on the FPGA), for comparison
+        "demo-raytrace", // 84 — SDF ray-traced scene, true colour, three maths (Q16.16 / f32 / f64 on ASTROLABE): the FPGA CPU benchmark
+        "", // 85 — was demo-raytrace_f32: its f32 maths is mode 2 of demo-raytrace (Matt, 2026-11-14)
         "demo-sap_test", // 86 — SAP TEST: five ASMA tunes, their own 6502 code on the POKEY, picked from a list
         "demo-fuji_hobbytronic", // 87 — FUJI HOBBYTRONIC: fixed-point 3D Fuji, blitter-filled, HBL rasters, Hobbytronic '92 on the POKEY
         "demo-replicants_emlyn_f32", // 88 — cart 62 booting on its f32 side (F switches either cart live), for the FPU test
