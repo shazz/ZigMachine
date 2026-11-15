@@ -10,6 +10,11 @@ pub const debug = @import("debug.zig");
 pub const assets = @import("assets.zig");
 pub const audio = @import("audio.zig");
 pub const mp3 = @import("mp3.zig");
+pub const smooth = @import("smooth.zig");
+pub const palfx = @import("palfx.zig");
+pub const ring = @import("ring.zig");
+pub const records = @import("records.zig");
+pub const handoff = @import("handoff.zig");
 pub const r3d = @import("r3d.zig");
 
 pub const Demo = demo.Demo;
