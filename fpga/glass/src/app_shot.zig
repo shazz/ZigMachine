@@ -60,7 +60,7 @@ pub fn tick(app: *App) void {
 fn save(app: *App, png: []const u8, frozen_ms: i64) void {
     if (!writable(app, true)) return say(app, "not saved: card read-only", .{});
     const n = file.save(app.io, app.card_dir, png);
-    _ = writable(app, false);
+    _ = @import("card_file.zig").release(app); // sync(2) and read-only again, before "Saved"
     const num = n catch |e| return say(app, "not saved: {s}", .{fileText(e)});
     std.log.info("screenshot: {s}/{s}, {d} bytes, the cart held {d} ms", .{ file.DIR, &file.name(num, "PNG"), png.len, frozen_ms });
     say(app, "Saved {s}/{s}", .{ file.DIR, &file.name(num, "PNG") });

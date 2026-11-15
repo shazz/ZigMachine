@@ -4,9 +4,13 @@
 //
 //   plays     glass.cfg splash=1 (the default), the first start since power-on, no cart already
 //             running in the window, no --no-splash, and the shelf has DISK
-//   ends      the cart asks to leave (it does at its black frame 290, any request counts), or it
-//             traps, or a key / pad button (swallowed), or CAP_MS: then KOS powers on
+//   ends      the cart asks to leave (it does at its black frame 290, 4.8 s; a request before MIN_MS
+//             is logged and held until MIN_MS, so the picture cannot vanish at once), or it traps
+//             (logged with its code), or a key / pad button (swallowed), or CAP_MS: then KOS powers on
 //   yields    a load from elsewhere (glass ctl load) takes the window: the splash just stops
+//   alone     no OSD while it plays, neither the menu nor the F11 overlay (`quiet`): from the
+//             decision to play until it ends, then the OSD is as without a splash (Matt, 14 Nov:
+//             "shows the OSD, then the KESTREL BOOT behind the OSD. The OSD should only appear after")
 //
 // "First start" is a mark in tmpfs (/tmp, MARK): a power cycle clears it, S99glass's restart loop
 // (or a lead's killall glass) finds it. Anything odd (no mark possible, no cart, a failed load)
@@ -16,12 +20,17 @@ const map = @import("map.zig");
 const mc = @import("map_cart.zig");
 const cart = @import("app_cart.zig");
 const drive = @import("app_drive.zig");
+const app_stats = @import("app_stats.zig");
 const App = @import("app.zig").App;
 
 pub const DISK = "demo-kestrel_boot.zmd";
 pub const MARK = "/tmp/glass.splashed";
 /// The cart is black and asks to leave 4.8 s in; past this a slow or stuck one is cut short.
 pub const CAP_MS: i64 = 9000;
+/// A request sooner than this is not the cart's own end (frame 290 is 4833 ms at 60 Hz): it is
+/// logged, and the splash ends here instead. The log line says which way it went (MIN_MS, the board
+/// test of 14 Nov: no splash seen after the OSD's Reboot, no log to say why).
+pub const MIN_MS: i64 = 4000;
 
 /// Why glass did (play) or did not run the splash; main.zig logs it.
 pub const Why = enum { play, off, restart, running, asked, missing, failed };
@@ -46,7 +55,14 @@ pub fn decide(in: Inputs) Why {
 
 /// The splash under way: `disk` the shelf index it was loaded from (null: none runs); `swallow`
 /// the key that skipped it, whose release KOS must not get.
-pub const State = struct { disk: ?usize = null, since: i64 = 0, swallow: ?u16 = null };
+/// `early`: a request came before MIN_MS (logged once). `quiet`: the OSD stays hidden, from the
+/// decision to play (before the cart's load) until the splash is over (app_stats.place, App.redraw).
+pub const State = struct { disk: ?usize = null, since: i64 = 0, swallow: ?u16 = null, early: bool = false, quiet: bool = false };
+
+/// The OSD must not show: a splash is loading or playing.
+pub fn hidesOsd(app: *const App) bool {
+    return app.splash.quiet;
+}
 
 /// True only for the first call since `path` was cleared (a power cycle, tmpfs): it creates it.
 pub fn firstStart(io: std.Io, path: []const u8) bool {
@@ -75,25 +91,33 @@ pub fn startOrPowerOn(app: *App, no_splash: bool) Why {
         .disk = find(app),
     });
     if (why != .play) {
+        app.setOpen(true); // the menu over the KOS load, as App.init shows it (main.zig: initHidden)
         drive.powerOn(app);
         return why;
     }
     const i = find(app).?;
+    const t0 = app.clock();
+    app.splash.quiet = true;
+    app_stats.place(app); // nothing shown yet (initHidden); after App.init's menu: off, before the load
     cart.load(app, i);
     if (!app.running or app.current != i) { // a failed load: KOS as before, the status says why
         std.log.warn("boot splash: {s} did not start, KOS powers on", .{DISK});
+        app.splash.quiet = false;
+        app.setOpen(true);
         drive.powerOn(app);
         return .failed;
     }
-    app.splash = .{ .disk = i, .since = app.clock() };
+    app.splash = .{ .disk = i, .since = app.clock(), .quiet = true };
+    std.log.info("boot splash: {s} up in {d} ms", .{ DISK, app.splash.since - t0 });
     return .play;
 }
 
 /// The splash is over: KOS's power-on (drive A, the POST), as glass does without one.
 pub fn finish(app: *App, why: []const u8) void {
     if (app.splash.disk == null) return;
+    const ms = app.clock() - app.splash.since;
     app.splash = .{};
-    std.log.info("boot splash: {s}, KOS powers on", .{why});
+    std.log.info("boot splash: {s} after {d} ms, KOS powers on", .{ why, ms });
     drive.powerOn(app);
 }
 
@@ -103,14 +127,23 @@ pub fn tick(app: *App) bool {
     const i = app.splash.disk orelse return false;
     if (!app.running or app.current != i) { // something else was loaded over it
         app.splash = .{};
+        app_stats.place(app); // the OSD as that load left it
         return false;
     }
-    const state = app.regs.read(map.REG_CART_STATE) & map.CART_STATE_MASK;
+    const word = app.regs.read(map.REG_CART_STATE);
+    const state = word & map.CART_STATE_MASK;
+    const ms = app.clock() - app.splash.since;
     if (state == mc.CART_REQUEST) {
-        finish(app, "the cart is done");
+        if (ms >= MIN_MS) {
+            finish(app, if (app.splash.early) "the early request's hold is over" else "the cart is done");
+        } else if (!app.splash.early) {
+            app.splash.early = true;
+            std.log.warn("boot splash: request 0x{x} after only {d} ms, held to {d} ms", .{ word >> map.CART_ARG_SHIFT, ms, MIN_MS });
+        }
     } else if (state == map.CART_TRAPPED) {
+        std.log.warn("boot splash: trap code 0x{x}", .{word >> map.CART_ARG_SHIFT});
         finish(app, "the cart trapped");
-    } else if (app.clock() - app.splash.since > CAP_MS) finish(app, "time is up");
+    } else if (ms > CAP_MS) finish(app, "time is up");
     return true;
 }
 

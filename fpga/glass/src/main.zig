@@ -145,7 +145,7 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     const dirs = try layout.detect(init.gpa, init.io, opt.dir);
     defer dirs.deinit(init.gpa);
     std.log.info("card {s}: {t} layout, system {s}, carts {s}", .{ opt.dir, dirs.kind, dirs.sys, dirs.carts });
-    var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), dirs);
+    var app = try App.initHidden(init.gpa, init.io, board.regs(), board.ddr(), dirs); // the splash decides first
     defer app.deinit();
     app.opt.fw_opt = fw_opt;
     @import("kos_drive.zig").startThread(board.ddr().words); // KOS's C: (docs/KOS_FAT.md F5)
@@ -158,7 +158,8 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     app.sd_writable = sdWritable;
     app.wifi.path_env = init.environ_map.get("PATH") orelse app.wifi.path_env; // where the Wi-Fi page looks for iw & co (and /tmp/up)
     // KOS's power-on: ZIGGY starts at once over drive A, the OSD closed (app_drive.zig); the
-    // first glass since power-on plays the boot screen before it (app_splash.zig).
+    // first glass since power-on plays the boot screen before it (app_splash.zig). Nothing has
+    // shown the OSD yet (initHidden): with no splash, startOrPowerOn opens it as App.init did.
     const why = @import("app_splash.zig").startOrPowerOn(&app, !opt.splash);
     std.log.info("boot splash: {t}", .{why});
     var inputs = evdev.Inputs{};

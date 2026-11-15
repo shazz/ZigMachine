@@ -171,7 +171,7 @@ pub fn saveSettings(app: *App) void {
     if (!app.settings_dirty) return;
     if (app.sd_writable) |rw| if (!rw(true)) return app.menu.setStatus("not saved: card read-only", .{});
     const res = config.save(app.io, app.sys_dir, app.menu.settings);
-    if (app.sd_writable) |rw| _ = rw(false);
+    _ = @import("card_file.zig").release(app); // sync(2) and read-only again, before "settings saved"
     res catch |err| {
         std.log.warn("{s}: {t}", .{ config.FILE, err });
         return app.menu.setStatus("not saved: {t}", .{err});

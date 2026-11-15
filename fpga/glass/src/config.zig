@@ -118,8 +118,7 @@ pub fn save(io: std.Io, dir: []const u8, s: Settings) !void {
     const text = format(s, &buf);
     var d = try std.Io.Dir.cwd().openDir(io, dir, .{});
     defer d.close(io);
-    try d.writeFile(io, .{ .sub_path = FILE ++ ".new", .data = text });
-    try d.rename(FILE ++ ".new", d, FILE, io);
+    try @import("card_file.zig").replace(io, d, FILE ++ ".new", FILE, text); // fsynced, file and directory
 }
 
 test "glass.cfg round-trips, and a bad line keeps its default" {

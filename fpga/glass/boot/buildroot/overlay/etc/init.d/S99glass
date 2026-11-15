@@ -46,8 +46,12 @@ start)
     fi
     pick_glass
     rm -f /tmp/glass.stop
+    # glass's log goes to syslog (/tmp/messages, `logread`) as well as the console (-s): the serial
+    # line is not always captured, and a board fault with no log cannot be explained (14 Nov:
+    # the splash after the OSD's Reboot). A dead logger costs glass a SIGPIPE: the loop brings both
+    # back. No syslogd: logger -s still writes the console.
     (while [ ! -e /tmp/glass.stop ]; do
-        "$GLASS" run "$CARD" || echo "glass: exited ($?), restarting" >&2
+        ("$GLASS" run "$CARD" || echo "glass: exited ($?), restarting" >&2) 2>&1 | logger -s -t glass
         sleep 1
     done) &
     ;;

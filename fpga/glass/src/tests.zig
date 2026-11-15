@@ -67,6 +67,7 @@ test {
     _ = @import("shot_png_test.zig");
     _ = @import("shot_grab_test.zig");
     _ = @import("shot_file_test.zig");
+    _ = @import("card_file.zig");
     _ = @import("app_shot_test.zig");
     _ = @import("app_reboot_test.zig");
 }

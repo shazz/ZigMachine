@@ -118,8 +118,7 @@ pub fn load(io: std.Io, dir: []const u8, buf: *[MAX_BYTES]u8) ?Saved {
 pub fn save(io: std.Io, dir: []const u8, text: []const u8) !void {
     var d = try std.Io.Dir.cwd().openDir(io, dir, .{});
     defer d.close(io);
-    try d.writeFile(io, .{ .sub_path = FILE ++ ".new", .data = text });
-    try d.rename(FILE ++ ".new", d, FILE, io);
+    try @import("card_file.zig").replace(io, d, FILE ++ ".new", FILE, text); // fsynced, file and directory
 }
 
 /// The saved network gone; none there already is not an error.
@@ -127,7 +126,8 @@ pub fn remove(io: std.Io, dir: []const u8) !void {
     var d = try std.Io.Dir.cwd().openDir(io, dir, .{});
     defer d.close(io);
     d.deleteFile(io, FILE) catch |err| switch (err) {
-        error.FileNotFound => {},
+        error.FileNotFound => return,
         else => return err,
     };
+    try @import("card_file.zig").syncDir(io, d); // the entry's removal onto the card
 }

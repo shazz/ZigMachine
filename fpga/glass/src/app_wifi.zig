@@ -131,13 +131,13 @@ fn writable(app: *App, rw: bool) bool {
 
 fn writeCard(app: *App, text: []const u8) !void {
     if (!writable(app, true)) return error.ReadOnly;
-    defer _ = writable(app, false);
+    defer _ = @import("card_file.zig").release(app); // sync(2), read-only, before "saved"
     try wc.save(app.io, app.sys_dir, text);
 }
 
 fn removeCard(app: *App) !void {
     if (!writable(app, true)) return error.ReadOnly;
-    defer _ = writable(app, false);
+    defer _ = @import("card_file.zig").release(app);
     try wc.remove(app.io, app.sys_dir);
 }
 

@@ -83,6 +83,14 @@ pub const App = struct {
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dirs: @import("layout.zig").Dirs) !App {
+        var app = try initHidden(gpa, io, regs, ddr, dirs);
+        app.setOpen(true);
+        return app;
+    }
+
+    /// init without showing anything: `glass run`, whose boot splash decides first whether the OSD
+    /// may show at all (app_splash.startOrPowerOn opens it when no splash plays).
+    pub fn initHidden(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dirs: @import("layout.zig").Dirs) !App {
         try loader.checkGlass(regs);
         const disks = try shelf.scan(gpa, io, dirs.carts);
         var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dirs.carts, .sys_dir = dirs.sys, .card_dir = dirs.card(), .disk_dir = dirs.carts, .disks = disks, .menu = .{ .disks = disks.disks, .rotated = @import("strip.zig").supported(regs.read(map.REG_VERSION)) } };
@@ -91,7 +99,6 @@ pub const App = struct {
         regs.write(map.REG_OSD_FG, OSD_FG);
         regs.write(map.REG_OSD_BG, OSD_BG);
         cart.loadSettings(&app);
-        app.setOpen(true);
         return app;
     }
 
@@ -112,6 +119,7 @@ pub const App = struct {
 
     /// The menu while it is open; the frame-rate overlay (if on) while closed.
     pub fn redraw(self: *App) void {
+        if (splash.hidesOsd(self)) return; // the boot splash plays alone (app_splash.zig)
         if (!self.open) return overlay.draw(self);
         self.menu.disks = self.disks.disks;
         self.menu.fps_x10 = if (self.running) self.stats.fps_x10 else null;
