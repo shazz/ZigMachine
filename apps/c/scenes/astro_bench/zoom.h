@@ -2,6 +2,8 @@
 // repelling fixed point, every pixel's maths done in f64 by ASTROLABE, with ZIGGY's own soft f64 one
 // key away (SPACE) so the difference is something you SEE and read off (ms a picture, pictures a second).
 //
+// SPACE cycles three sides: ASTROLABE, ZIGGY soft f64, ZIGGY f32 on the FPU (zoom_f32.h: breaks down at deep steps, on purpose).
+//
 // Per-frame float is allowed here, and only here, because ASTROLABE is the point: the A side is the
 // comparison (the same maths as a cart would write it: ZIGGY's soft-float, ~100 cycles an op). The B
 // side never touches an FPU op: it hands descriptors over; ZIGGY moves bits and scans the escaped
@@ -26,10 +28,12 @@ static double *zr, *zi, *cr, *ci, *t0, *t1, *t2, *ix, *iy, *ones, *tx, *ty, *td;
 static unsigned short* al; // the cells still iterating
 static unsigned na;
 static astro_desc zset[6] __attribute__((aligned(8))), zits[ZPER] __attribute__((aligned(8)));
-static int zok, zsoft, zstep, zround, zit, zarm;
+static int zok, zsoft, zf32, zmode, zstep, zround, zit, zarm;
 static u32 zhash, zcalc_us, zwin_us, zwin_imgs, zlast_us, zfail;
 static u32 zimg_us; // the picture being computed: ZIGGY's time so far
 static u32 hud_us, hud_ms10, hud_ips10;
+
+#include "zoom_f32.h"
 
 static unsigned char* vram(void) { return (unsigned char*)(hwVideoBase() + OFF_VRAM); }
 static u32 hiw(const double* p) { return ((const u32*)p)[1]; } // sign, exponent, top mantissa: no FPU op
@@ -71,7 +75,7 @@ static void zoom_init(void) {
     double zx = (1.0 + __builtin_sqrt((m + wr) / 2.0)) / 2.0, zy = -__builtin_sqrt((m - wr) / 2.0) / 2.0, dx = 4.0 / ZW;
     for (int k = 0; k < ZSTEPS; k++) td[k] = dx, tx[k] = zx - dx * (ZW / 2), ty[k] = zy - dx * (ZH / 2), dx *= 0.9375;
     zoom_build(), zoom_palette();
-    zok = 1;
+    zok = zf32_init(tx, ty, td, zx, zy);
 }
 
 static void paint(unsigned i, unsigned v) {
@@ -97,6 +101,7 @@ static void zimage_begin(void) {
         zrun(zset, 6);
         return;
     }
+    if (zf32) { zf32_begin(zstep); return; }
     for (unsigned i = 0; i < ZP; i++) zr[i] = ix[i] * td[zstep] + tx[zstep], zi[i] = iy[i] * td[zstep] + ty[zstep];
 }
 
@@ -117,8 +122,8 @@ static void soft_round(void) {
 static void scan(void) {
     unsigned n2 = 0;
     for (unsigned k = 0; k < na; k++) {
-        unsigned i = al[k], e = ((hiw(&zr[i]) >> 20) & 0x7FF), e2 = (hiw(&zi[i]) >> 20) & 0x7FF;
-        e = e > e2 ? e : e2;
+        unsigned i = al[k], e = zf32 ? zf32_exp(i) : ((hiw(&zr[i]) >> 20) & 0x7FF), e2 = (hiw(&zi[i]) >> 20) & 0x7FF;
+        if (!zf32) e = e > e2 ? e : e2;
         if (e < 1024) { al[n2++] = (unsigned short)i; continue; }
         unsigned lg = 31 - (unsigned)__builtin_clz(e - 1022), col = ((unsigned)zit * 2 - lg * 2) & 15;
         paint(i, ZPAL + col);
@@ -130,7 +135,7 @@ static void scan(void) {
 
 static void zimage_end(void) {
     for (unsigned k = 0; k < na; k++) paint(al[k], BLACK);
-    fm_reset(), fm_s("ZM ASTRO zoom step="), fm_u((unsigned)zstep), fm_s(zsoft ? " side=ziggy" : " side=astro"), fm_s(" hash="), fm_u(zhash);
+    fm_reset(), fm_s("ZM ASTRO zoom step="), fm_u((unsigned)zstep), fm_s(zf32 ? " side=f32" : zsoft ? " side=ziggy" : " side=astro"), fm_s(" hash="), fm_u(zhash);
     if ((zstep & 7) == 0) consoleLogJS(fm_buf, (int)fm_len);
     zwin_imgs++, zstep = (zstep + 1) % ZSTEPS, zround = 0;
 }
@@ -141,7 +146,7 @@ static void zoom_tick(void) {
     u32 t = hostMicros();
     if (zround == 0) zimage_begin();
     for (int r = 0, n = zsoft ? 1 : ZROUNDS; r < n && zround < ZROUNDS && na; r++, zround++) {
-        if (zsoft) soft_round(); else zrun(zits, ZPER);
+        if (zf32) zf32_round(); else if (zsoft) soft_round(); else zrun(zits, ZPER);
         zit += ZITER, scan();
     }
     if (zround >= ZROUNDS || !na) zimage_end();
@@ -149,9 +154,10 @@ static void zoom_tick(void) {
     zoom_hud();
 }
 
-static void zoom_start(int soft) {
-    zsoft = soft, zround = 0, zwin_imgs = zcalc_us = 0, zwin_us = hostMicros(), hud_us = 0;
+static void zoom_start(int mode) { // 0 ASTROLABE, 1 ZIGGY soft f64, 2 ZIGGY f32 FPU
+    zmode = mode, zsoft = mode != 0, zf32 = mode == 2, zround = 0, zwin_imgs = zcalc_us = 0, zwin_us = hostMicros(), hud_us = 0;
     if (!zok) return;
+    if (zf32) fm_reset(), fm_s("ZM ASTRO f32 break="), fm_u(zf32_break), consoleLogJS(fm_buf, (int)fm_len); // the harness reads it
     if (gui) guiRect(gui, 0, ZH * ZCELL, 320, 200 - ZH * ZCELL, WHITE);
     hud_ms10 = hud_ips10 = 0;
 }
@@ -168,12 +174,15 @@ static void zoom_hud(void) {
     if (clocked && zwin_imgs) hud_ms10 = zcalc_us / 100 / zwin_imgs, hud_ips10 = (u32)((unsigned long long)zwin_imgs * 10000000ull / (now - zwin_us));
     hud_us = now | 1, zwin_us = now, zwin_imgs = zcalc_us = 0;
     fm_reset(), fm_s("JULIA c=-0.123+0.745i zoom step "), fm_u((unsigned)zstep), fm_s("/420"), hud_row(0, fm_buf);
-    fm_reset(), fm_s(zsoft ? "NOW: ZIGGY soft f64    SPACE = ASTRO" : zarm ? "NOW: ASTROLABE (ARM)  SPACE = ZIGGY" : "NOW: ASTROLABE (host) SPACE = ZIGGY"), hud_row(1, fm_buf);
+    fm_reset(), fm_s(zf32 ? "NOW: ZIGGY f32 FPU       SPACE = next" : zsoft ? "NOW: ZIGGY soft f64     SPACE = next" : zarm ? "NOW: ASTROLABE (ARM)   SPACE = next" : "NOW: ASTROLABE (host)  SPACE = next"), hud_row(1, fm_buf);
     fm_reset();
     if (!clocked) fm_s("no clock on this host: no times");
     else fm_u(hud_ms10 / 10), fm_s("."), fm_u(hud_ms10 % 10), fm_s(" ms a picture  "), fm_u(hud_ips10 / 10), fm_s("."), fm_u(hud_ips10 % 10), fm_s(" pictures/s");
     hud_row(2, fm_buf);
-    fm_reset(), fm_s("0.9M f64 ops a picture. 1 = bench"), hud_row(3, fm_buf);
+    fm_reset();
+    if (zf32) fm_s("F32 FPU: precision runs out past step "), fm_u(zf32_break);
+    else fm_s("0.9M f64 ops a picture. 1 = bench");
+    hud_row(3, fm_buf);
 }
 
 #endif
