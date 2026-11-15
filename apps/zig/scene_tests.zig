@@ -34,6 +34,7 @@ test {
     _ = @import("scenes/larcociel5/chunky_test.zig");
     _ = @import("scenes/larcociel2/present_test.zig");
     _ = @import("scenes/raytrace/colour_test.zig");
+    _ = @import("scenes/raytrace/gfa_test.zig"); // the GfA Punch listing's FN a/c/d, RAND, line 7
     _ = @import("scenes/raytrace/astro/bits_test.zig");
     _ = @import("scenes/noextra/assets.zig");
     _ = @import("scenes/noextra/timeline.zig");
