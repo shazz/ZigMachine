@@ -4,6 +4,9 @@
 //   key 2  F32    f32 on ZIGGY (float.zig): soft-float on the board, the FPU on its FPU build
 //   key 3  ASTRO  f64 on ASTROLABE, the ARM's VFPv3 on the board (astro/): rays in
 //                 batches, every step of the march one call of vector descriptors
+//   key 4  GFA PUNCH (ST MAGAZINE)  NUCLEUS's 21-line GFA BASIC ray tracer as the ST
+//                 drew it: 16 colours, dithered, line by line (gfa_mode.zig, plane 1)
+//   key 5  GFA PUNCH, KESTREL  the same scene in true colour, refined over 16 samples
 // Each key restarts the render in that mode; Fire (Space/Enter) restarts the current one.
 // No key() and no ownsKeyboard(): Escape falls through to demo_main.zig's way out.
 //
@@ -26,13 +29,14 @@ const colour = @import("colour.zig");
 const work = @import("work.zig");
 const astro = @import("astro/engine.zig");
 const Shade = @import("shade.zig").Shade;
+const Gfa = @import("gfa_mode.zig").Gfa;
 
 const ZigOS = zg.ZigOS;
 const DIR_FIRE: u8 = 5;
 const Fixed = trace.Tracer(@import("fixed.zig"));
 const Float = trace.Tracer(@import("float.zig"));
 
-pub const Mode = enum(u8) { fixed, f32, astro };
+pub const Mode = enum(u8) { fixed, f32, astro, gfa_st, gfa_kestrel };
 const ZIGGY_CHUNK: u32 = 16; // samples between clock reads on ZIGGY
 
 pub const Demo = struct {
@@ -48,11 +52,13 @@ pub const Demo = struct {
     frames: u32,
     items: [astro.BATCH]work.Item,
     shades: [astro.BATCH]Shade,
+    gfa: Gfa,
 
     const Self = @This();
 
     pub fn init(self: *Self, zigos: *ZigOS) void {
         self.bench.clocked = false;
+        self.gfa.bench.clocked = false;
         self.pending = null;
         self.mode = .fixed;
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -66,6 +72,10 @@ pub const Demo = struct {
     }
 
     fn restart(self: *Self, zigos: *ZigOS) void {
+        const gfa = self.mode == .gfa_st or self.mode == .gfa_kestrel;
+        zigos.lfbs[0].is_enabled = self.mode != .gfa_st; // one plane on at a time
+        zigos.lfbs[1].is_enabled = self.mode == .gfa_st;
+        if (gfa) return self.gfa.restart(zigos, if (self.mode == .gfa_st) .st else .kestrel, &zigos.lfbs[1], self.fb);
         self.work.start();
         self.stats = .{ .rays = 0 };
         self.more = .{ .rays = 0 };
@@ -75,9 +85,9 @@ pub const Demo = struct {
         hud.draw(zigos, self.fb, self.counters());
     }
 
-    /// Keys 1..3 (the host's setShadeMode 0..2): that mode, from the start.
+    /// Keys 1..5 (the host's setShadeMode 0..4): that mode, from the start.
     pub fn setShadeMode(self: *Self, m: u32) void {
-        if (m <= @intFromEnum(Mode.astro)) self.pending = @enumFromInt(m);
+        if (m <= @intFromEnum(Mode.gfa_kestrel)) self.pending = @enumFromInt(m);
     }
 
     pub fn input(self: *Self, dir: u8) void {
@@ -94,6 +104,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Self, zigos: *ZigOS, dt: f32) void {
         _ = dt;
+        if (self.mode == .gfa_st or self.mode == .gfa_kestrel) return self.gfa.frame(zigos, self.acc);
         if (self.work.converged()) return;
         self.frames += 1;
         const first = self.work.pass == 0;
@@ -126,6 +137,7 @@ pub const Demo = struct {
                 self.shades[i] = Float.sample(st, it.x, it.y, it.j);
             },
             .astro => self.eng.trace(items, self.shades[0..n], st),
+            .gfa_st, .gfa_kestrel => unreachable, // gfa_mode.zig's
         }
         for (items, self.shades[0..n]) |it, s| self.show(p, it, colour.of(s));
         return self.work.pass == p;
@@ -172,6 +184,7 @@ pub const Demo = struct {
                 .host => "3 F64 ASTROLABE (HOST)",
                 .failed => "3 F64 ASTROLABE FAILED",
             },
+            .gfa_st, .gfa_kestrel => "", // gfa_hud.zig names them
         };
     }
 };
