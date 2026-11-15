@@ -48,9 +48,9 @@ const d = await fromGem(img, "", patch);
 d.frames(3);
 
 // The selector in low res (320 x 200), fsel_geom.zig's layout (apps/fsel_geom.mjs): the list, its nine
-// rows a font height (8 px) apart, the names 16 px into a row, the closer, the Directory: line.
+// rows a font height (8 px) apart, the names 16 px into a row (TOS 4's `_ ________.___`), the closer, the Directory: line.
 const G = fselGeom(320, 200);
-const LX = G.list.x, ROW0 = G.row(0).y, PITCH = G.ch;
+const RX = G.row(0).x, ROW0 = G.row(0).y, PITCH = G.ch; // a row: the mark (folder or _), a blank, the name
 function pixel(x, y) {
     const v = new DataView(d.m.memory.buffer, d.m.machine.hwVideoBase());
     const base = v.getUint32(0x44, true), stride = v.getUint16(0x34, true);
@@ -62,8 +62,8 @@ function rows() {
     for (let i = 0; i < 9; i++) {
         const y = ROW0 + i * PITCH;
         let ink = false;
-        for (let yy = y; yy < y + 6; yy++) for (let x = LX + 24; x < LX + 32; x++) ink ||= pixel(x, yy) === 0;
-        out.push(!ink ? "" : pixel(LX + 8 + 3, y + 3) === 0 ? "dir" : "file");
+        for (let yy = y; yy < y + 6; yy++) for (let x = RX + 16; x < RX + 24; x++) ink ||= pixel(x, yy) === 0;
+        out.push(!ink ? "" : pixel(RX + 3, y + 3) === 0 ? "dir" : "file");
     }
     return out;
 }
