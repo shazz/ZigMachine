@@ -12,7 +12,7 @@ TEXT 81D/81E/82B/82C/832 (timer $656C; mains $6404/$644C/$6494/$64DC/$6524)
   blur start 160 ticks (81D/81E) or 20 (82B/82C/832).
  Entry: clear 320-wide work buffer BSS $2995EA (13560 B), copy glyphs at row 4, x 8 ($6588), blur once ($691E),
   zero tick counter $29D1EA (timer +1, cap 1000).
- Frame: if counter >= threshold blur ($691E) in place p = (UL+UR+DL+DR)>>2 over 10140 bytes from row 1 col 1
+ Frame: if counter >= threshold blur ($691E) in place p = (UL+UR+DL+DR)>>2 over 12168 bytes (dbra $3F5 x 12 unrolled; 10140 was a misread, fixed 14 Nov) from row 1 col 1
   (in place: smears to one side; truncation darkens to nothing). Display ($6808): 320x40 bytes through 128-entry
   565 palette $F37EC (black->red->white) to screen words. Rest of screen = what 807/814 left.
 809 grey noise band (timer $32EC, mode 804, main $3172): lines 75-124, 320 wide, fades in.
