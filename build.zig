@@ -379,6 +379,8 @@ pub fn build(b: *std.Build) void {
     addPvmp3(b, players_mod);
     // rom/ — reference system software (GEM). Linked into rom.wasm (rom_chip
     // below), NOT into carts: a cart gets rom_sdk, the flat ABI header.
+    // One converted asset set for the GEM ROM code and KOS's POST (rom/kos/kos.zig: the boot logo).
+    const gem_assets_mod = gemAssets(b, gem_assets_dir, gem_trees_dir, wasm_target, optimize);
     const gem_opts = b.addOptions();
     gem_opts.addOption(bool, "engine_default", gem_engine_new);
     const rom_mod = b.createModule(.{
@@ -388,7 +390,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zigos", .module = zigos_mod },
             .{ .name = "hardware", .module = sdk_video },
-            .{ .name = "gem_assets", .module = gemAssets(b, gem_assets_dir, gem_trees_dir, wasm_target, optimize) },
+            .{ .name = "gem_assets", .module = gem_assets_mod },
             .{ .name = "gem_opts", .module = gem_opts.createModule() },
         },
     });
@@ -434,6 +436,7 @@ pub fn build(b: *std.Build) void {
                 // romDepack: a disk's cart is stored ZX0-packed and the ROM unpacks it.
                 .{ .name = "depackers", .module = depackers_mod },
                 .{ .name = "boot_rom", .module = boot_rom_mod }, // KOS's POST (rom/kos/kos.zig)
+                .{ .name = "gem_assets", .module = gem_assets_mod }, // the POST's TOS look with a local set
                 // ZM-X v1's twins exported for every host (rom/zmx_exports.zig): the spec itself.
                 .{ .name = "zmx", .module = b.createModule(.{
                     .root_source_file = b.path("libs/zig/zmx.zig"),

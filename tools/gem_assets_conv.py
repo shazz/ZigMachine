@@ -102,7 +102,7 @@ def read_manifest(root: Path) -> list[dict]:
 
 
 def collect(root: Path) -> dict:
-    out = {"fonts": {}, "icons": [], "cicons": [], "images": [], "patterns": [], "palette": None, "arrow": None, "busy": None}
+    out = {"fonts": {}, "icons": [], "cicons": [], "images": [], "patterns": [], "palette": None, "arrow": None, "busy": None, "boot_logo": None}
     entries = read_manifest(root)
     pal = next((e["colors"] for e in entries if e["kind"] == "palette" and len(e.get("colors", [])) == 16), None)
     out["palette"] = [hexrgb(c) for c in pal] if pal else None
@@ -141,6 +141,10 @@ def add_entry(root: Path, e: dict, out: dict, pens) -> None:
         mono = rgba(f)
         out["cicons"].append({"id": CICON_IDS[stem[:-8]], "w": mono.width, "h": mono.height,
                               "mask": bitrows(mono, opaque), "data": bitrows(mono, dark), "col": chunky(f, pens)})
+    elif kind == "logo" and stem == "fuji_boot_logo":
+        im = rgba(f)
+        out["boot_logo"] = {"w": im.width, "h": im.height,
+                            "ink": [1 if opaque(im.getpixel((x, y))) else 0 for y in range(im.height) for x in range(im.width)]}
     elif kind == "fill_pattern" and e.get("table") == "DITHER":
         im = rgba(f)
         out["patterns"].append([int.from_bytes(bytes(bitrows(im, dark, 0, y, 16, 1)), "big") for y in range(16)])

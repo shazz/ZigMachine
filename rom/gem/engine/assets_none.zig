@@ -36,6 +36,8 @@ pub const Obj = struct {
 /// rects are 3D cores).
 pub const R4 = [4]i16;
 pub const Selector = struct { ch: u8, w: i16, h: i16, title_y: i16, dir_label: R4, dir: R4, sel_label: R4, sel: R4, drive_label: R4, closer: R4, mask: R4, list: R4, row: R4, pitch: i16, scroll: R4, up: R4, track: R4, down: R4, drives: R4, drive: R4, dx: i16, dy: i16, ok: R4, cancel: R4 };
+/// The BIOS boot logo (TOS 4's startup Fuji, bios/fuji_boot_logo.png): one byte a pixel, 1 = ink.
+pub const BootLogo = struct { w: u16, h: u16, ink: []const u8 };
 pub const Tree = struct { group: []const u8, name: []const u8, objs: []const Obj };
 
 pub const font_8x16: ?Font = null;
@@ -50,3 +52,4 @@ pub const patterns: []const [16]u16 = &.{};
 pub const palette: ?[16][3]u8 = null;
 pub const trees: []const Tree = &.{};
 pub const selectors: []const Selector = &.{};
+pub const boot_logo: ?BootLogo = null;
