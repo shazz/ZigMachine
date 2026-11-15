@@ -22,7 +22,7 @@ The study notes are `prototypes/suicide_barbie_re/ANALYSIS.md` §7 (a local, git
 | `part.zig` | 71 | `Dispatch(Ctx, Parts)`: the cart's `union(enum)` of parts, dispatched by `inline else`. |
 | `demo.zig` | 108 | `Demo(Parts, Ctx, tracks)`: clock, timeline and active parts. `update`, `render`, `deinit`. |
 | `debug.zig` | 71 | Scrub keys (pause, ±1 s, ±10 s, next/prev item, A-B marks) and `formatTime` (mm:ss.cc). |
-| `assets.zig` | 68 | **MOCK**: two slots and a prefetch queue; loads at once from a table. |
+| `assets.zig`, `assets_place.zig` | 176 + 30 | **REAL**: a part's data file loaded into an arena of the cart's RAM, ONE read of `chunk` bytes an update (32 KiB = one C: round trip on the board), two slots (current + next, each placed wherever it fits beside the other; a blob that does not fit waits for the release), per-mille progress for a loader, the failure and its reason (NotFound, Empty, TooBig, ReadFailed). The cart passes its `Files` (open/size/read/close: four forwards to KOS GEMDOS). |
 | `audio.zig` | 36 | **MOCK**: a 60 Hz sample counter, exact at rate/60. No sound. |
 | `mp3.zig`, `mp3_music.zig` | 106 + 149 | **REAL** music backend: an MP3 file fed to the host's MP3 player (`zg.mp3Ctl/Feed/Status`) a chunk at a time, the clock's source from the frames it decoded, a seek by byte offset (exact on CBR files), a VBL fallback when no player answers. The cart passes its Host (three forwards to zigos) and Input (`SliceInput`, or KOS GEMDOS). |
 | `r3d.zig` | 32 | **MOCK**: 3D types only (`Vec3`, `Mesh`, `Material`, `Actor`, `Camera`). No maths. |
@@ -37,8 +37,9 @@ once firing, jump replay, same-start items, empty tracks), the curves (edges, ke
 the part dispatch, the demo flow, the scrub keys and the time text.
 
 Mocked, each marked in its file:
-- **assets**: the disk streaming (64 KB a frame) and the zx0 step-depack. The mock keeps the
-  queue and the slots and loads at once.
+- **assets** is real (its tests in `assets_test.zig` run it over a fake file system: short
+  reads, a missing file, a read error, a blob that waits for a release). Not done: the zx0
+  step-depack (a part file is stored raw).
 - **audio**: the ADPCM/PCM stream and the re-seek of the ring. The mock keeps a sample counter.
   An MP3 soundtrack is real: `mp3.Music(Host, Input)` (its tests in `mp3_test.zig` run it
   against a fake player).
@@ -56,7 +57,8 @@ Items are data. A cart declares its parts as a union; the tag order is the item'
 ```zig
 const zigdemo = @import("zigdemo");
 
-const Ctx = struct { pal: *Palette, assets: zigdemo.assets.Assets };
+// Files: open(path) i32, size(h) i32, read(h, dst) i32, close(h): KOS GEMDOS on the board
+const Ctx = struct { pal: *Palette, assets: zigdemo.assets.Assets(Files) };
 
 const Fade = struct {
     pub fn init(self: *Fade, ctx: *Ctx, arg: u16) void { _ = self; _ = ctx; _ = arg; }
@@ -120,3 +122,24 @@ parts in track order. A part that is a transition renders two parts itself.
 To use zigdemo from a cart, add the module to the cart's imports in `build.zig` the way
 `tvnoise` is (`libs/zig/zigdemo/zigdemo.zig`, no imports of its own). It is not in `build.zig`
 yet, because no cart consumes it.
+
+### Assets over KOS GEMDOS
+
+A part names its file; the load track requests the NEXT part's file while the current one
+plays, the part's `init` takes `assets.bytes(id)` (null: not in yet, draw black), its `deinit`
+releases it. The cart's `Files` is four forwards to KOS GEMDOS (`@import("kos_gemdos").dos()`):
+
+```zig
+const Files = struct {
+    pub fn open(_: *Files, path: []const u8) i32 { return dos().Fopen(path, 0); }
+    pub fn size(_: *Files, h: i32) i32 {
+        const n = dos().Fseek(0, h, 2);
+        _ = dos().Fseek(0, h, 0);
+        return n;
+    }
+    pub fn read(_: *Files, h: i32, dst: []u8) i32 { return dos().Fread(h, @intCast(dst.len), dst.ptr); }
+    pub fn close(_: *Files, h: i32) void { _ = dos().Fclose(h); }
+};
+var a = zigdemo.assets.Assets(Files){ .files = &files, .table = &TABLE, .arena = zg.mem.mustAlloc(...) };
+// per frame, before demo.update: a.update();   a loader bar: a.progress(id) per mille
+```
