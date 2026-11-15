@@ -171,6 +171,11 @@ NATIVE_TESTS="
     libs/zig/zigdemo/assets_test.zig
     libs/zig/zigdemo/audio_test.zig
     libs/zig/zigdemo/mp3_test.zig
+    libs/zig/zigdemo/smooth_test.zig
+    libs/zig/zigdemo/palfx_test.zig
+    libs/zig/zigdemo/ring_test.zig
+    libs/zig/zigdemo/records_test.zig
+    libs/zig/zigdemo/handoff_test.zig
     libs/zig/bard_jobs_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig

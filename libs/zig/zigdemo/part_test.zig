@@ -144,3 +144,39 @@ test "a transition renders both of its parts" {
     D.render(&c, &ctx, 0);
     try expectEqual(@as(u32, 11), ctx.renders); // Fade's 1 and Bar's 10
 }
+
+/// A Ctx with the optional enter hook: it hears the part's id before the part's init.
+const Ctx2 = struct {
+    inits: u32 = 0,
+    entered: ?u16 = null,
+    inits_at_enter: u32 = 99,
+    pub fn enter(self: *Ctx2, id: u16) void {
+        self.entered = id;
+        self.inits_at_enter = self.inits;
+    }
+};
+
+const Fade2 = struct {
+    pub fn update(_: *Fade2, _: *Ctx2, _: u32) void {}
+    pub fn render(_: *Fade2, _: *Ctx2, _: u32) void {}
+};
+const Bar2 = struct {
+    pub fn init(_: *Bar2, ctx: *Ctx2, _: u16) void {
+        ctx.inits += 1;
+    }
+    pub fn update(_: *Bar2, _: *Ctx2, _: u32) void {}
+    pub fn render(_: *Bar2, _: *Ctx2, _: u32) void {}
+};
+
+test "a Ctx with enter() hears the part's id right before its init" {
+    const D2 = part.Dispatch(Ctx2, union(enum) { fade: Fade2, bar: Bar2 });
+    var ctx = Ctx2{};
+    var p = D2.make(1);
+    D2.init(&p, &ctx, 0);
+    try expectEqual(@as(?u16, 1), ctx.entered);
+    try expectEqual(@as(u32, 0), ctx.inits_at_enter);
+    try expectEqual(@as(u32, 1), ctx.inits);
+    var q = D2.make(0); // a part without init: the Ctx still hears it
+    D2.init(&q, &ctx, 0);
+    try expectEqual(@as(?u16, 0), ctx.entered);
+}

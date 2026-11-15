@@ -9,6 +9,7 @@
 //!   init(self, ctx, arg)      optional, when its draw item starts (arg = the item's)
 //!   deinit(self, ctx)         optional, when its draw item ends
 //!   once(ctx, arg)            optional, a static hook for a `once` item (a load)
+//! and the Ctx may have enter(ctx, id): called with the part's id right before a part's init.
 //! A transition is a part whose render calls the render of two other parts.
 //!
 //! The dispatch is an `inline else` switch over the tag: no vtable, no allocation.
@@ -31,6 +32,9 @@ pub fn Dispatch(comptime Ctx: type, comptime Parts: type) type {
         }
 
         pub fn init(p: *Parts, ctx: *Ctx, arg: u16) void {
+            // optional: the CTX hears which part starts, after the one before has ended (rift's "next part" store
+            // is freed there when the part is neither its producer nor its consumer: its memory is on top then)
+            if (@hasDecl(Ctx, "enter")) ctx.enter(@intFromEnum(std.meta.activeTag(p.*)));
             switch (p.*) {
                 inline else => |*s| {
                     if (@hasDecl(@TypeOf(s.*), "init")) s.init(ctx, arg);
