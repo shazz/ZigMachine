@@ -10,10 +10,13 @@
 // The cart is not trusted: the descriptors' arrays are checked (astro_ops.check) against
 // the cart's memory, and the memory itself against the DDR window, before a word is read.
 // Arrays are FAR: they stay in the cart's memory in DDR and are staged through `mirror`
-// (ordinary cached memory, indexed by cart address) around each descriptor.
+// (ordinary cached memory, indexed by cart address), each byte at most once a request
+// (astro_stage.zig). Each mailbox word is a ~135 ns single-beat GP0 access: glass reads only
+// the words the op uses (`inWords`).
 const std = @import("std");
 const ops = @import("astro_ops");
 const abi = ops.abi;
+const Stage = @import("astro_stage.zig").Stage;
 
 pub const MAGIC: u32 = 0; // glass: ID while its worker runs, 0 when it stops
 pub const VERSION: u32 = 1; // glass: PROTO
@@ -35,9 +38,33 @@ comptime {
 }
 
 /// The words of descriptor `i` ZIGGY copies in: W_OP always, then the scalars of a scalar op
-/// or the array words (W_N .. W_C) and S0 of an array op. glass reads exactly these.
+/// or the array words (W_N .. W_C) and S0 of an array op.
 pub fn isScalar(op: u32) bool {
     return (op & abi.OP_MASK) < abi.OP_VADD;
+}
+
+/// The words after W_OP that glass reads: the subset of ZIGGY's copy the op uses (a word not
+/// read stays 0, which no kernel or check of that op looks at). An unknown op reads none:
+/// ops.run refuses it.
+pub fn inWords(op: u32) []const u32 {
+    const S0 = [_]u32{ abi.W_S0, abi.W_S0 + 1 };
+    const S1 = [_]u32{ abi.W_S1, abi.W_S1 + 1 };
+    const S2 = [_]u32{ abi.W_S2, abi.W_S2 + 1 };
+    const N, const M, const LDA, const A, const B, const C = .{ abi.W_N, abi.W_M, abi.W_LDA, abi.W_A, abi.W_B, abi.W_C };
+    return switch (op & abi.OP_MASK) {
+        abi.OP_SQRT, abi.OP_SIN, abi.OP_COS, abi.OP_TAN, abi.OP_EXP, abi.OP_LOG => &S0,
+        abi.OP_ADD, abi.OP_SUB, abi.OP_MUL, abi.OP_DIV, abi.OP_ATAN2, abi.OP_POW => &(S0 ++ S1),
+        abi.OP_FMA => &(S0 ++ S1 ++ S2),
+        abi.OP_VADD, abi.OP_VMUL => &[_]u32{ N, A, B, C },
+        abi.OP_AXPY => &([_]u32{ N, A, B } ++ S0),
+        abi.OP_DOT => &[_]u32{ N, A, B },
+        abi.OP_SCAL => &([_]u32{ N, A, C } ++ S0),
+        abi.OP_MAP => &[_]u32{ N, M, A, C },
+        abi.OP_GEMV => &[_]u32{ N, M, LDA, A, B, C },
+        abi.OP_GEFA => &[_]u32{ N, LDA, A, B },
+        abi.OP_GESL => &[_]u32{ N, LDA, A, B, C },
+        else => &.{},
+    };
 }
 
 pub const Server = struct {
@@ -46,6 +73,7 @@ pub const Server = struct {
     mirror: []u8, // >= the cart memory, 8-aligned; index = cart address
     last: u32 = 0, // the last SEQ served
     clock: *const fn () u64 = zeroNs,
+    stage: Stage = .{},
 
     fn zeroNs() u64 {
         return 0;
@@ -68,10 +96,12 @@ pub const Server = struct {
         if (count <= abi.MAX_COUNT and memOk(s, off, size)) {
             const mem = ops.Mem{ .ptr = s.mirror.ptr, .size = size };
             ret = abi.ST_OK;
+            s.stage.begin();
             for (0..count) |i| {
                 const st = s.serveOne(mem, off, DESC0 + @as(u32, @intCast(i)) * abi.DESC_WORDS);
                 if (ret == abi.ST_OK) ret = st;
             }
+            s.stage.flush(s.ddr.ptr + off / 4, s.words());
         }
         s.box[RET] = ret;
         s.box[ARM_NS] = @truncate(s.clock() -% t0);
@@ -86,11 +116,14 @@ pub const Server = struct {
         return off % 4 == 0 and size <= s.mirror.len and @as(u64, off) + size <= s.ddr.len * 4;
     }
 
+    fn words(s: *Server) [*]u32 {
+        return @ptrCast(@alignCast(s.mirror.ptr));
+    }
+
     fn serveOne(s: *Server, mem: ops.Mem, off: u32, at: u32) u32 {
         var d = ops.Desc{ .w = [_]u32{0} ** abi.DESC_WORDS };
         d.w[abi.W_OP] = s.box[at + abi.W_OP];
-        const words: []const u32 = if (isScalar(d.w[abi.W_OP])) &.{ 10, 11, 12, 13, 14, 15 } else &.{ 1, 2, 3, 4, 5, 6, 10, 11 };
-        for (words) |w| d.w[w] = s.box[at + w];
+        for (inWords(d.w[abi.W_OP])) |w| d.w[w] = s.box[at + w];
         var res = ops.Result{};
         if (isScalar(d.w[abi.W_OP])) {
             res = ops.run(mem, d);
@@ -98,9 +131,9 @@ pub const Server = struct {
             res.status = ops.check(mem, d);
             if (res.status == abi.ST_OK) {
                 const sp = ops.spans(d);
-                for (sp.in) |x| s.stage(off, x, .in);
+                for (sp.in) |x| s.stage.need(s.ddr.ptr + off / 4, s.words(), x.addr, x.bytes);
                 res = ops.run(mem, d);
-                for (sp.out) |x| s.stage(off, x, .out);
+                for (sp.out) |x| s.stage.wrote(x.addr, x.bytes);
             }
         }
         s.box[at + abi.W_STATUS] = res.status | abi.SERVED_ARM;
@@ -108,20 +141,6 @@ pub const Server = struct {
         s.box[at + abi.W_R] = @truncate(r);
         s.box[at + abi.W_R + 1] = @truncate(r >> 32);
         return res.status;
-    }
-
-    /// One span between DDR and the mirror. Spans are 4-aligned (check() passed).
-    fn stage(s: *Server, off: u32, x: ops.Span, dir: enum { in, out }) void {
-        const first = (off + x.addr) / 4;
-        const words = std.mem.bytesAsSlice(u32, @as([]align(4) u8, @alignCast(s.mirror[x.addr..][0..x.bytes])));
-        switch (dir) {
-            .in => for (words, 0..) |*w, i| {
-                w.* = s.ddr[first + i];
-            },
-            .out => for (words, 0..) |w, i| {
-                s.ddr[first + i] = w;
-            },
-        }
     }
 };
 

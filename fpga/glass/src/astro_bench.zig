@@ -20,20 +20,41 @@ fn nowNs() u64 {
     return @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
 }
 
-const Kind = enum { gp0_read, gp0_write, mbox_read, mbox_write, ddr_read, f64_add, f64_div, f64_sqrt, f64_sin };
+const copy = @import("astro_copy.zig");
+
+// ddr_seq: one LDR a word, in order; ddr_vldm: astro_copy.load's bursts; ddr_nosync: ddr_seq
+// through a mapping opened without O_SYNC (CACHED, so not coherent with ZIGGY: astro_copy.zig);
+// clock: one CLOCK_MONOTONIC read (a syscall on the A9's global timer, no vDSO); gtimer: the
+// worker's clock (astro_clock.zig: that timer through /dev/mem).
+const Kind = enum { gp0_read, gp0_write, mbox_read, mbox_write, ddr_read, ddr_seq, ddr_vldm, ddr_nosync, clock, gtimer, f64_add, f64_div, f64_sqrt, f64_sin };
 
 var sink: u32 = 0;
 var fsink: f64 = 1.0;
 
+var nosync: []volatile u32 = &.{};
+var buf: [BATCH]u32 = undefined;
+var round: usize = 0;
+
 fn batch(k: Kind, regs: []volatile u32, ddr: []volatile u32) void {
     const last = map.OFF_ASTRO / 4 + map.ASTRO_WORDS - 1;
     var x: f64 = fsink;
+    round = (round + BATCH) % (ddr.len - BATCH); // a new stretch each batch: no stale burst reuse
+    switch (k) {
+        .ddr_vldm => return copy.load(&buf, ddr.ptr + round, BATCH),
+        .ddr_nosync => if (nosync.len == 0) return,
+        else => {},
+    }
     for (0..BATCH) |i| switch (k) {
         .gp0_read => sink +%= regs[map.REG_SCRATCH / 4],
         .gp0_write => regs[map.REG_SCRATCH / 4] = @intCast(i),
         .mbox_read => sink +%= regs[last],
         .mbox_write => regs[last] = @intCast(i),
         .ddr_read => sink +%= ddr[(i * 1031) % ddr.len],
+        .ddr_seq => sink +%= ddr[round + i],
+        .ddr_nosync => sink +%= nosync[round + i],
+        .ddr_vldm => unreachable,
+        .clock => sink +%= @truncate(nowNs()),
+        .gtimer => sink +%= @truncate(@import("astro_clock.zig").nowNs()),
         .f64_add => x = x + 1.0000001,
         .f64_div => x = 1.0 / (x + 1.0),
         .f64_sqrt => x = @sqrt(x + 2.0),
@@ -51,9 +72,22 @@ fn measure(k: Kind, regs: []volatile u32, ddr: []volatile u32, ns: []u64) void {
     std.mem.sort(u64, ns, {}, std.sort.asc(u64));
 }
 
+// The DDR window again, read-only and without O_SYNC (ddr_nosync); empty when it will not map.
+fn mapNoSync() []volatile u32 {
+    const fd = linux.open("/dev/mem", .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+    if (linux.errno(fd) != .SUCCESS) return &.{};
+    defer _ = linux.close(@intCast(fd));
+    const rc = linux.mmap(null, map.DDR_CART_BYTES, .{ .READ = true }, .{ .TYPE = .SHARED }, @intCast(fd), map.DDR_CART_BASE);
+    if (linux.errno(rc) != .SUCCESS) return &.{};
+    const p: [*]volatile u32 = @ptrFromInt(rc);
+    return p[0 .. map.DDR_CART_BYTES / 4];
+}
+
 pub fn run() !u8 {
     const board = try devmem.open();
     @import("astro.zig").pinSelf();
+    nosync = mapNoSync();
+    @import("astro_clock.zig").init();
     var ns: [ROUNDS]u64 = undefined;
     std.debug.print("ASTRO bench: ns per access/op, {d} x {d} (min med p99 max)\n", .{ ROUNDS, BATCH });
     for (std.enums.values(Kind)) |k| {
