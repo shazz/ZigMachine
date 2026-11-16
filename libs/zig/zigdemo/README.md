@@ -25,6 +25,12 @@ The study notes are `prototypes/suicide_barbie_re/ANALYSIS.md` §7 (a local, git
 | `assets.zig` | 68 | **MOCK**: two slots and a prefetch queue; loads at once from a table. |
 | `audio.zig` | 36 | **MOCK**: a 60 Hz sample counter, exact at rate/60. No sound. |
 | `r3d.zig` | 32 | **MOCK**: 3D types only (`Vec3`, `Mesh`, `Material`, `Actor`, `Camera`). No maths. |
+| `nfo.zig` | 190 | NFO / ASCII-art viewer core: CP437 text painted once into a tall 640-wide buffer, a 1 px scroll (`update`, `scrollTo`, `scrollBy`), a fixed prompt bar, `key()` for the keys a loader offers. Hardware-free; module `nfo` in build.zig. |
+| `nfo_render.zig` | 110 | Text split into 80-column lines, one pixel row at a time with the viewer's drop shadow; the prompt bar. |
+| `nfo_glyph.zig` | 110 | The 8x9 cell: blocks, shades (dither), grid lines, the palette. |
+| `nfo_font.zig` | 140 | Our own 8x8 ASCII font (original pixel work, as pictures in the source; no Topaz ROM data). |
+| `nfo_cp437.zig` | 80 | UTF-8 to CP437, at comptime for an `@embedFile`d text; an unmappable code point is an error. |
+| `nfo_plane.zig` | 20 | Binds an `Nfo` to the desk plane (`attach`, `frame`); `fb` is `anytype`, so no zigos import. |
 | `zigdemo.zig` | 14 | Umbrella: re-exports the modules and `Demo`. |
 
 Tests are `*_test.zig` siblings, run natively by `build.sh` (the NATIVE_TESTS list).
@@ -99,3 +105,24 @@ parts in track order. A part that is a transition renders two parts itself.
 To use zigdemo from a cart, add the module to the cart's imports in `build.zig` the way
 `tvnoise` is (`libs/zig/zigdemo/zigdemo.zig`, no imports of its own). It is not in `build.zig`
 yet, because no cart consumes it.
+
+## The NFO viewer
+
+`nfo.zig` renders an NFO the way an Amiga ASCII viewer shows it: blue background, white text with a dark
+drop shadow one pixel down and right, blocks with a faint grid, shades as dithers. Cell 8x9, 80 columns =
+640 px, so it needs the desk mode (640x480, square pixels; medium's pixels are twice as tall as wide).
+
+```zig
+const nfo = @import("nfo");                       // module in build.zig
+const text = nfo.cp437.comptimeFromUtf8(@embedFile("my.nfo.txt"));
+var v = try nfo.Nfo.init(text, .{ .frames_per_px = 2, .prompt = "press O or K", .keys = "OK" });
+try nfo.plane.attach(&v, &zigos.lfbs[0]);         // once: tall buffer, palette, paint, pan to 0
+nfo.plane.frame(&v, &zigos.lfbs[0]);              // every frame: v.update() then setScroll(0, y)
+if (v.key(cp)) |k| { /* the cart decides what 'O' / 'K' mean */ }
+```
+
+`Nfo.init` errors on a text over 160 lines, a prompt over 80 columns, `frames_per_px == 0`; lines over 80
+columns are cut. The text is painted once; a scroll step only rewrites the 18 bar rows and the one text row
+the bar uncovers (the desk has one plane, so the bar lives in the buffer). Characters with no glyph yet
+(accents, Greek, line drawing) show as a hollow box. Example cart: 138 `nfo_viewer`
+(`apps/zig/scenes/nfo_viewer.zig`), harness `apps/nfo_viewer_check.mjs`.
