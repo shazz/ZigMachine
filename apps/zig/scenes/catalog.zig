@@ -135,6 +135,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "TC TEST", .tag = "tc_test" }, // zigmachine — HW 1.15.0's RGB565 true-colour plane: gamut, plasma warp, palette vs 565, gradients
     .{ .name = "MP3 PLAYER", .tag = "mp3_player" }, // system — a jukebox for C:\MUSIC (KOS GEMDOS), decoded by the sound side
     .{ .name = "KESTRAMP", .tag = "kestramp" }, // system — a classic desktop MP3 window for C:\MUSIC (KOS GEMDOS), decoded by the sound side
+    .{ .name = "NFO VIEWER", .tag = "nfo_viewer" }, // zigmachine — zigdemo's NFO / ASCII-art viewer (an Amiga ASCII viewer's look) on the desk plane
     .{ .name = "GEMTEST", .tag = "gemtest" }, // system — every GEM 5 component on one disk, to see them on the board (docs/GEMTEST.md)
     .{ .name = "SCA KARATE KID II", .tag = "sca_karatekid2" }, // amiga
     .{ .name = "NOTEPAD", .tag = "notepad" }, // system — a windowed text editor for C:\*.TXT, the GEM 5 program API's proof (docs/NOTEPAD.md)

@@ -31,6 +31,13 @@ The study notes are `prototypes/suicide_barbie_re/ANALYSIS.md` §7 (a local, git
 | `records.zig` | 90 | A file of FIXED-STRIDE records (an animation frame each) read one a picture, a frame ahead, into two aligned buffers; a jump is one seek. The demo checks its header and gives the layout. |
 | `handoff.zig` | 78 | The "next part" store: a light part precomputes DATA for the heavy part after it, in the part region's stack (the cart's `Mem`), freed by `Ctx.enter` when a part outside the pair starts. The consumer never relies on it. |
 | `r3d.zig` | 32 | **MOCK**: 3D types only (`Vec3`, `Mesh`, `Material`, `Actor`, `Camera`). No maths. |
+| `nfo.zig` | 190 | NFO / ASCII-art viewer core: CP437 text painted once into a tall 640-wide buffer, a 1 px scroll (`update`, `scrollTo`, `scrollBy`), a fixed prompt bar, `key()` for the keys a loader offers. Hardware-free; module `nfo` in build.zig. |
+| `nfo_render.zig` | 110 | Text split into 80-column lines, one pixel row at a time with the viewer's drop shadow; the prompt bar. |
+| `nfo_glyph.zig` | 110 | The 8x9 cell: blocks, shades (dither), grid lines, the palette. |
+| `nfo_font.zig` | 140 | Our own 8x8 ASCII font (original pixel work, as pictures in the source; no Topaz ROM data). |
+| `nfo_cp437.zig` | 80 | UTF-8 to CP437, at comptime for an `@embedFile`d text; an unmappable code point is an error. |
+| `nfo_plane.zig` | 20 | Binds an `Nfo` to the desk plane (`attach`, `frame`); `fb` is `anytype`, so no zigos import. |
+| `nfo_menu.zig` | 90 | A menu PANEL over the page: the cart's CP437 art (a block frame round its choices, same cell, font, colours and shadow), its choice keys; Space opens / closes, Esc closes, a key chooses while open. Keys only queue: `Nfo.update()` paints the panel into the window's middle rows or restores them, and holds the scroll while it is open. `Nfo.setMenu(bytes, keys)`, then `nfo.menu.?.key(cp)`. |
 | `zigdemo.zig` | 14 | Umbrella: re-exports the modules and `Demo`. |
 
 Tests are `*_test.zig` siblings, run natively by `build.sh` (the NATIVE_TESTS list).
@@ -148,3 +155,24 @@ const Files = struct {
 var a = zigdemo.assets.Assets(Files){ .files = &files, .table = &TABLE, .arena = zg.mem.mustAlloc(...) };
 // per frame, before demo.update: a.update();   a loader bar: a.progress(id) per mille
 ```
+
+## The NFO viewer
+
+`nfo.zig` renders an NFO the way an Amiga ASCII viewer shows it: blue background, white text with a dark
+drop shadow one pixel down and right, blocks with a faint grid, shades as dithers. Cell 8x9, 80 columns =
+640 px, so it needs the desk mode (640x480, square pixels; medium's pixels are twice as tall as wide).
+
+```zig
+const nfo = @import("nfo");                       // module in build.zig
+const text = nfo.cp437.comptimeFromUtf8(@embedFile("my.nfo.txt"));
+var v = try nfo.Nfo.init(text, .{ .frames_per_px = 2, .prompt = "press O or K", .keys = "OK" });
+try nfo.plane.attach(&v, &zigos.lfbs[0]);         // once: tall buffer, palette, paint, pan to 0
+nfo.plane.frame(&v, &zigos.lfbs[0]);              // every frame: v.update() then setScroll(0, y)
+if (v.key(cp)) |k| { /* the cart decides what 'O' / 'K' mean */ }
+```
+
+`Nfo.init` errors on a text over 160 lines, a prompt over 80 columns, `frames_per_px == 0`; lines over 80
+columns are cut. The text is painted once; a scroll step only rewrites the 18 bar rows and the one text row
+the bar uncovers (the desk has one plane, so the bar lives in the buffer). Characters with no glyph yet
+(accents, Greek, line drawing) show as a hollow box. Example cart: 138 `nfo_viewer`
+(`apps/zig/scenes/nfo_viewer.zig`), harness `apps/nfo_viewer_check.mjs`.

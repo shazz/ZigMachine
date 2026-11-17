@@ -1,0 +1,73 @@
+
+ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ 
+ █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█ 
+ █▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█ 
+ █                █▀▀▀ █▀▀█ █▀▀▄ █▀▀▀ █▀▀ ▀█▀ ▀▀█▀▀ █▀▀▀ █▀▀▄               █ 
+ █                █ ▀█ █  █ █  █ █▀▀  ▀▀█  █    █   █▀▀  █  █               █ 
+ █                ▀▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀▀▀ ▀▀▀   ▀   ▀▀▀▀ ▀▀▀                █ 
+ █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█ 
+ █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█ 
+ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ 
+
+                 >>> a sample NFO for the zigdemo viewer <<<
+
+           a generic ASCII-art file, drawn for the ZigMachine tests
+                    released for the KESTREL console, 2026
+
+                *** the text scrolls under a fixed prompt ***
+           * one pixel a step, painted once, only the base moves *
+
+       code: zigdemo   font: our own 8x8   look: an Amiga ASCII viewer
+
+          The block and shade characters join into a solid picture:
+
+     ▄▄▄▄▄▄▄▄  ████████  ▀▀▀▀▀▀▀▀  ░░░░░░░░  ▒▒▒▒▒▒▒▒  ▓▓▓▓▓▓▓▓  ▌▐▌▐▌▐▌▐
+     ▌▐▌▐▌▐▌▐  ▓▓▓▓▓▓▓▓  ▒▒▒▒▒▒▒▒  ░░░░░░░░  ▀▀▀▀▀▀▀▀  ████████  ▄▄▄▄▄▄▄▄
+
+                     ▄██▄    ▄██▄    ▄██▄    ▄██▄    ▄██▄
+                     ████████████████████████████████████
+                     ▀██▀    ▀██▀    ▀██▀    ▀██▀    ▀██▀
+
+       line 1 of the body text, to make the file taller than the screen
+       line 2 of the body text, to make the file taller than the screen
+       line 3 of the body text, to make the file taller than the screen
+       line 4 of the body text, to make the file taller than the screen
+
+                                 Greetings to
+
+       the lone coders - pixel guild - sine wave society - raster club
+    copper kings - the blit crew - fixed point forever - zero page heroes
+        vblank - hblank - wobbly scroll - plasma works - the dot union
+  interrupt party - tiny demo makers - chunky planes - sound tracker friends
+    the border openers - cycle counters - and everyone who reads NFO files
+
+   more text, row 5: the quick brown fox jumps over the lazy dog 0123456789
+   more text, row 6: the quick brown fox jumps over the lazy dog 0123456789
+   more text, row 7: the quick brown fox jumps over the lazy dog 0123456789
+   more text, row 8: the quick brown fox jumps over the lazy dog 0123456789
+
+
+                                     ░▒▓█
+                                   ▒▓█▓▒░░▒
+                                 ▓█▓▒░░▒▓█▓▒░
+                               █▓▒░░▒▓█▓▒░░▒▓█▓
+                             ▓▒░░▒▓█▓▒░░▒▓█▓▒░░▒▓
+                           ▒░░▒▓█▓▒░░▒▓█▓▒░░▒▓█▓▒░░
+                         ░░▒▓█▓▒░░▒▓█▓▒░░▒▓█▓▒░░▒▓█▓▒
+                         ░▒▓█▓▒░░▒▓█▓▒░░▒▓█▓▒░░▒▓█▓▒░
+                           ▒▓█▓▒░░▒▓█▓▒░░▒▓█▓▒░░▒▓█
+                             ▓█▓▒░░▒▓█▓▒░░▒▓█▓▒░░
+                               █▓▒░░▒▓█▓▒░░▒▓█▓
+                                 ▓▒░░▒▓█▓▒░░▒
+                                   ▒░░▒▓█▓▒
+                                     ░░▒▓
+
+      The quick brown fox jumps over the lazy dog. THE QUICK BROWN FOX.
+Pack my box with five dozen liquor jugs! (0123456789) [a-z] {A-Z} <> @ # $ % & *
+
+      press the keys in the prompt bar: the cart chooses what they mean.
+
+                                 [ the end ]
+ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ 
+ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ 
+

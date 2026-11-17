@@ -295,6 +295,11 @@
   "type": "atari st"
  },
  {
+  "tag": "nfo_viewer",
+  "title": "NFO VIEWER",
+  "type": "zigmachine"
+ },
+ {
   "tag": "noextra",
   "title": "NOEXTRA DHS MEGADEMO",
   "type": "atari st"
