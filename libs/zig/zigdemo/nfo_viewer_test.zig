@@ -118,3 +118,28 @@ test "nfo: page is the window less the bar, a whole window without a prompt" {
     try expect(with_bar.page() < bare.page());
     try eq(@as(u32, 480), bare.page());
 }
+
+test "nfo: bounce holds at the bottom, scrolls back up at the same speed, holds, and goes down again" {
+    var n = try newNfo(.{ .start_delay = 0, .frames_per_px = 1, .end = .bounce, .end_hold = 3, .prompt = "go" });
+    n.paint(buf[0..n.bufferBytes()]);
+    while (n.y < n.y_max) _ = n.update();
+    for (0..2) |_| try eq(n.y_max, n.update()); // the hold at the bottom
+    _ = n.update(); // the turn
+    try expect(n.up);
+    try eq(n.y_max - 1, n.update());
+    while (n.y > 0) _ = n.update();
+    for (0..3) |_| try eq(@as(u32, 0), n.update()); // the hold at the top, then the turn
+    try expect(!n.up);
+    try eq(@as(u32, 1), n.update());
+}
+
+test "nfo: stop stays at the bottom, restart() clears a bounce going up" {
+    var n = try newNfo(.{ .start_delay = 0, .frames_per_px = 1, .end = .stop, .prompt = "go" });
+    n.paint(buf[0..n.bufferBytes()]);
+    while (n.y < n.y_max) _ = n.update();
+    for (0..500) |_| try eq(n.y_max, n.update());
+    n.up = true;
+    n.restart();
+    try expect(!n.up);
+    try eq(@as(u32, 0), n.y);
+}

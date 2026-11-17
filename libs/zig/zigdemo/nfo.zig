@@ -13,14 +13,15 @@ pub const screen_h: u32 = 480;
 pub const bar_h = render.bar_h;
 pub const row_px = render.row_px;
 
-pub const End = enum { stop, loop };
+pub const End = enum { stop, loop, bounce };
 
 pub const Config = struct {
     /// Frames per 1-pixel step (60 fps): 1 = 60 px/s, 3 = 20 px/s.
     frames_per_px: u16 = 3,
     /// Frames the first screen stays still before the scroll starts.
     start_delay: u16 = 180,
-    /// At the last row: stay (`stop`) or, after `end_hold` frames, jump back to the top (`loop`).
+    /// At the last row: stay (`stop`), after `end_hold` frames jump back to the top (`loop`), or after
+    /// `end_hold` frames scroll back up at the same speed, and down again from the top (`bounce`).
     end: End = .stop,
     end_hold: u16 = 240,
     /// The fixed bottom line (ASCII, at most 80 columns); empty = no bar.
@@ -43,6 +44,8 @@ pub const Nfo = struct {
     chosen: ?u8 = null,
     /// The reader scrolled by hand: the automatic scroll stops (it would fight the reader) until restart().
     manual: bool = false,
+    /// `bounce`: the automatic scroll is going back up.
+    up: bool = false,
     /// The reader's scroll waiting for the next update(): applied there, beside the pan, so the bar never
     /// moves in the buffer while the old window is still on screen (it flashed a frame higher, Matt 16 Nov).
     pending: i32 = 0,
@@ -86,17 +89,22 @@ pub const Nfo = struct {
             self.timer += 1;
             return self.y;
         }
-        if (self.y >= self.y_max) return self.atEnd();
+        if (if (self.up) self.y == 0 else self.y >= self.y_max) return self.atEdge();
         self.timer += 1;
-        if ((self.timer - self.cfg.start_delay) % self.cfg.frames_per_px == 0) self.scrollTo(self.y + 1);
+        if ((self.timer - self.cfg.start_delay) % self.cfg.frames_per_px == 0)
+            self.scrollTo(if (self.up) self.y - 1 else self.y + 1);
         return self.y;
     }
 
-    fn atEnd(self: *Nfo) u32 {
-        if (self.cfg.end != .loop) return self.y;
+    /// At the bottom (or, bouncing back, the top): hold `end_hold` frames, then loop or turn.
+    fn atEdge(self: *Nfo) u32 {
+        if (self.cfg.end == .stop) return self.y;
         self.hold += 1;
-        if (self.hold >= self.cfg.end_hold) {
-            self.hold = 0;
+        if (self.hold < self.cfg.end_hold) return self.y;
+        self.hold = 0;
+        if (self.cfg.end == .bounce) {
+            self.up = !self.up;
+        } else {
             self.timer = 0;
             self.scrollTo(0);
         }
@@ -113,6 +121,7 @@ pub const Nfo = struct {
     /// Back to the top, the automatic scroll running again (from its start delay).
     pub fn restart(self: *Nfo) void {
         self.manual = false;
+        self.up = false;
         self.pending = 0;
         self.timer = 0;
         self.hold = 0;
