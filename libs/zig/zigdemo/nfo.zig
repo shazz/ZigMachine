@@ -43,6 +43,9 @@ pub const Nfo = struct {
     chosen: ?u8 = null,
     /// The reader scrolled by hand: the automatic scroll stops (it would fight the reader) until restart().
     manual: bool = false,
+    /// The reader's scroll waiting for the next update(): applied there, beside the pan, so the bar never
+    /// moves in the buffer while the old window is still on screen (it flashed a frame higher, Matt 16 Nov).
+    pending: i32 = 0,
 
     /// `bytes` is CP437 (keep it alive: the viewer reads it on every restored row).
     pub fn init(bytes: []const u8, cfg: Config) Error!Nfo {
@@ -74,7 +77,11 @@ pub const Nfo = struct {
 
     /// One frame: advance the timers and the scroll. Returns y, the row at the top of the window.
     pub fn update(self: *Nfo) u32 {
-        if (self.manual) return self.y;
+        if (self.manual) {
+            if (self.pending != 0) self.scrollBy(self.pending);
+            self.pending = 0;
+            return self.y;
+        }
         if (self.timer < self.cfg.start_delay) {
             self.timer += 1;
             return self.y;
@@ -96,15 +103,17 @@ pub const Nfo = struct {
         return self.y;
     }
 
-    /// A scroll by the reader (the arrows / d-pad): takes over from the automatic scroll.
+    /// A scroll by the reader (the arrows / d-pad): takes over from the automatic scroll. Queued: the next
+    /// update() moves the window, so call it from key handlers at any time.
     pub fn userScroll(self: *Nfo, dy: i32) void {
         self.manual = true;
-        self.scrollBy(dy);
+        self.pending +|= dy;
     }
 
     /// Back to the top, the automatic scroll running again (from its start delay).
     pub fn restart(self: *Nfo) void {
         self.manual = false;
+        self.pending = 0;
         self.timer = 0;
         self.hold = 0;
         self.scrollTo(0);

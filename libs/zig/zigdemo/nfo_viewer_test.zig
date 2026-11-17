@@ -99,8 +99,11 @@ test "nfo: a scroll by the reader stops the automatic scroll, restart() runs it 
     for (0..12) |_| _ = n.update();
     try eq(@as(u32, 10), n.y);
     n.userScroll(5);
-    try eq(@as(u32, 15), n.y);
-    for (0..50) |_| try eq(@as(u32, 15), n.update()); // held where the reader put it
+    try eq(@as(u32, 10), n.y); // queued: nothing moves before the frame's update
+    for (0..50) |_| try eq(@as(u32, 15), n.update()); // then held where the reader put it
+    n.userScroll(2);
+    n.userScroll(3); // two keys in one frame add up
+    try eq(@as(u32, 20), n.update());
     n.userScroll(-1000); // clamped at the top, still by hand
     for (0..10) |_| try eq(@as(u32, 0), n.update());
     n.restart();
