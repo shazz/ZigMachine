@@ -31,6 +31,7 @@ The study notes are `prototypes/suicide_barbie_re/ANALYSIS.md` §7 (a local, git
 | `nfo_font.zig` | 140 | Our own 8x8 ASCII font (original pixel work, as pictures in the source; no Topaz ROM data). |
 | `nfo_cp437.zig` | 80 | UTF-8 to CP437, at comptime for an `@embedFile`d text; an unmappable code point is an error. |
 | `nfo_plane.zig` | 20 | Binds an `Nfo` to the desk plane (`attach`, `frame`); `fb` is `anytype`, so no zigos import. |
+| `nfo_menu.zig` | 90 | A menu PANEL over the page: the cart's CP437 art (a block frame round its choices, same cell, font, colours and shadow), its choice keys; Space opens / closes, Esc closes, a key chooses while open. Keys only queue: `Nfo.update()` paints the panel into the window's middle rows or restores them, and holds the scroll while it is open. `Nfo.setMenu(bytes, keys)`, then `nfo.menu.?.key(cp)`. |
 | `zigdemo.zig` | 14 | Umbrella: re-exports the modules and `Demo`. |
 
 Tests are `*_test.zig` siblings, run natively by `build.sh` (the NATIVE_TESTS list).

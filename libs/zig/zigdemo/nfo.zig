@@ -7,6 +7,8 @@
 const std = @import("std");
 const glyph = @import("nfo_glyph.zig");
 const render = @import("nfo_render.zig");
+const nfo_menu = @import("nfo_menu.zig");
+pub const menu = nfo_menu; // the menu panel (Nfo.setMenu)
 
 pub const Error = render.Error || error{BadConfig};
 pub const screen_h: u32 = 480;
@@ -49,6 +51,7 @@ pub const Nfo = struct {
     /// The reader's scroll waiting for the next update(): applied there, beside the pan, so the bar never
     /// moves in the buffer while the old window is still on screen (it flashed a frame higher, Matt 16 Nov).
     pending: i32 = 0,
+    menu: ?nfo_menu.Menu = null, // an optional menu panel over the page (nfo_menu.zig, setMenu())
 
     /// `bytes` is CP437 (keep it alive: the viewer reads it on every restored row).
     pub fn init(bytes: []const u8, cfg: Config) Error!Nfo {
@@ -78,8 +81,17 @@ pub const Nfo = struct {
         self.drawBar();
     }
 
-    /// One frame: advance the timers and the scroll. Returns y, the row at the top of the window.
+    /// A menu panel (nfo_menu.zig: CP437 art + its choice keys); the cart passes keys to `menu.?.key()`.
+    pub fn setMenu(self: *Nfo, bytes: []const u8, keys: []const u8) nfo_menu.Error!void {
+        self.menu = try nfo_menu.Menu.init(bytes, keys, self.page());
+    }
+
+    /// One frame: the menu panel synced, then the timers and the scroll (held under the panel). Returns y.
     pub fn update(self: *Nfo) u32 {
+        if (self.menu) |*m| if (m.sync(self)) {
+            self.pending = 0; // the page holds still under the panel (`up` untouched)
+            return self.y;
+        };
         if (self.manual) {
             if (self.pending != 0) self.scrollBy(self.pending);
             self.pending = 0;
@@ -172,7 +184,8 @@ pub const Nfo = struct {
         return if (self.cfg.prompt.len > 0) bar_h else 0;
     }
 
-    fn paintRow(self: *Nfo, r: u32) void {
+    /// Buffer row r painted from the text again (the menu panel restores its rows with it).
+    pub fn paintRow(self: *Nfo, r: u32) void {
         render.renderRow(&self.text, r, self.buf[@as(usize, r) * row_px ..][0..row_px]);
     }
 

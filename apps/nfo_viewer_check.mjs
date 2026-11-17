@@ -10,7 +10,8 @@
 //            painted once, never again)
 //   bar      the bottom 18 rows of the window are the same bytes at every scroll position, the text
 //            above them is not
-//   keys     B jumps to the end, A to the top, a key that is not configured does nothing
+//   keys     PgDn pages to the end, PgUp to the top and the automatic scroll stops, an arrow moves 18
+//            rows, Space leaves, a key that is not configured does nothing
 //   older    a machine without the desk mode (hwDeskAvailable() = 0) keeps the cart out of it
 //   node apps/nfo_viewer_check.mjs           node apps/nfo_viewer_check.mjs --break
 //   --break  each mutant (a wrong glyph pixel, no shadow, a dither seam, a bar that scrolls, a wrong
@@ -24,7 +25,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 128, W = 640, H = 480, CART = "docs/demo-nfo_viewer.wasm", HALF = W * (H / 2) * 4;
 const REG_RES = 0x00, REG_FB_BASE = 0x44, OFF_VRAM = 0x1100, VRAM_BYTES = 1 << 20, RES_DESK = 3;
 // nfo_viewer.zig's config: the checks below fail if the cart's differs.
-const DELAY = 90, FPP = 2, BAR_H = 18, PROMPT = "press A to restart, B for the end, up/down to scroll, ESC to leave";
+const DELAY = 90, FPP = 2, BAR_H = 18, PROMPT = "up/down or PgUp/PgDn to scroll, SPACE to leave";
 const PAL = { 0: [0x40, 0x5f, 0x89], 1: [255, 255, 255], 2: [0x1f, 0x3b, 0x67], 3: [0xe2, 0xe6, 0xeb], 4: [0xe5, 0xda, 0xf0], 5: [0x1f, 0x3b, 0x67], 6: [0x12, 0x25, 0x45], 7: [0xa3, 0xe1, 0xff] };
 const MUTANTS = ["glyph", "shadow", "dither", "bar", "step", "older", "pan"];
 
@@ -200,9 +201,9 @@ function barAndEnd(m, brk, check, base0) {
     check(!textNow.every((v, i) => v === rowsAt(0, 200)[i]), "bar: the text did not move");
     const dm = diff(picture(m), model(panOf(m, base0, brk), brk));
     check(dm.bad === 0, `picture: mid-scroll the window has ${dm.bad} wrong pixels${dm.first}`);
-    m.demo.key("b".charCodeAt(0));
+    m.demo.key(0xe01d); // PgDn: a page (462 rows) takes the pan to the end
     frame(m);
-    check(panOf(m, base0, brk) === ymax, `keys: B should pan to ${ymax}, the pan is ${panOf(m, base0, brk)}`);
+    check(panOf(m, base0, brk) === ymax, `keys: PgDn should pan to ${ymax}, the pan is ${panOf(m, base0, brk)}`);
     const de = diff(picture(m), model(ymax, brk));
     check(de.bad === 0, `picture: the last window has ${de.bad} wrong pixels${de.first}`);
 }
@@ -218,12 +219,17 @@ async function keysAndOlder(brk, check) {
     m.demo.key("x".charCodeAt(0));
     frame(m);
     check(yOf() - y0 <= 1 && yOf() >= y0, `keys: an unconfigured key moved the pan from ${y0} to ${yOf()}`);
-    m.demo.key("a".charCodeAt(0));
+    m.demo.key(0xe01c); // PgUp: back to the top, and the reader's scroll stops the automatic one
     frame(m);
-    check(yOf() <= 1, `keys: A should restart from the top, the pan is ${yOf()}`);
-    check(m.demo.pollCartRequest() === 0, "keys: the cart asked to leave before Escape");
-    m.demo.key(0xe012);
-    check(m.demo.pollCartRequest() === -1, "keys: Escape did not ask for the menu");
+    check(yOf() === 0, `keys: PgUp should pan to the top, the pan is ${yOf()}`);
+    for (let i = 0; i < 30; i++) frame(m);
+    check(yOf() === 0, `keys: after PgUp the automatic scroll ran on (pan ${yOf()})`);
+    m.demo.input(1); // the down arrow: two text rows
+    frame(m);
+    check(yOf() === 18, `keys: the down arrow should pan 18 rows, the pan is ${yOf()}`);
+    check(m.demo.pollCartRequest() === 0, "keys: the cart asked to leave before Space");
+    m.demo.key(0x20);
+    check(m.demo.pollCartRequest() === -1, "keys: Space did not ask for the menu");
     const old = await boot(brk, 0);
     for (let i = 0; i < 3; i++) frame(old);
     check(!old.machine.hwDeskActive(), "older: the cart entered the desk on a machine without it");

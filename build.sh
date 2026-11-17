@@ -172,6 +172,7 @@ NATIVE_TESTS="
     libs/zig/zigdemo/audio_test.zig
     libs/zig/zigdemo/nfo_test.zig
     libs/zig/zigdemo/nfo_viewer_test.zig
+    libs/zig/zigdemo/nfo_menu_test.zig
     libs/zig/bard_jobs_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
@@ -558,7 +559,7 @@ gate tc_test node apps/tc_test_check.mjs   # TC TEST (cart 113, HW 1.15.0): plan
 gate tc_test node apps/tc_test_check.mjs --break   # ...and mode 5, colours quantised to 3 bits, a pixel written a frame, a frozen list and a tracked cart with local pictures, the fade registers zeroed, a pixel rewritten during the fade and a model without the fade are each caught
 gate desk_test node apps/desk_check.mjs   # DESK TEST (cart 126, HW 1.17.0): the desk mode's 640x480 picture (hwRenderDesk) is the cart's model pixel for pixel; plane 0's buffer 64-aligned inside the VRAM pool; still; key 2 leaves for low res on the same buffer, key 1 brings the same desk back; hwClear only counts FRAME, hwRenderPlane draws nothing; a machine without the mode keeps the cart out; scene_hash's desk sample is "desk" + the bars (hwDeskBars) + the picture
 gate desk_test node apps/desk_check.mjs --break   # ...and a palette entry, the checker, the halves swapped, FRAME counted twice, an older machine saying yes and the hash without its tag are each caught
-gate nfo_viewer node apps/nfo_viewer_check.mjs   # NFO VIEWER (cart 138, zigdemo/nfo.zig) on the desk plane: the first window is the model's pixels (a known glyph, the shadow, blocks, dither), the scroll moves 1 px a step by moving FB_BASE and no pixel but one text row, the prompt bar stays fixed, keys A/B, a machine without the desk keeps the cart out
+gate nfo_viewer node apps/nfo_viewer_check.mjs   # NFO VIEWER (cart 138, zigdemo/nfo.zig) on the desk plane: the first window is the model's pixels (a known glyph, the shadow, blocks, dither), the scroll moves 1 px a step by moving FB_BASE and no pixel but one text row, the prompt bar stays fixed, PgUp/PgDn page and stop the automatic scroll, an arrow moves 18 rows, Space leaves, a machine without the desk keeps the cart out
 gate nfo_viewer node apps/nfo_viewer_check.mjs --break   # ...and a wrong glyph row, a bar that scrolls, a skipped step, a missing shadow, a seam in the dither and an older machine saying yes are each caught
 gate kestrel_boot node apps/scene_hash.mjs docs/demo-kestrel_boot.wasm 420 30 --composite   # KESTREL BOOT (cart 131, prototypes/boot_screen/STUDY.md): the composed boot screen runs 420 frames with no zg.mem refusal
 gate kestrel_boot node apps/kestrel_boot_check.mjs   # ...the WINDHOVER storyboard: black 0-19, the true-colour sky up by 80, the stoop moving 50-95, one still picture 170-249, a copper highlight on many lines at 100 and none at 200, black from 290 to the end (3-6 s lit); the YM call on C at 20/28/36, R13 once at the chord with the buzzer, silent by 260
