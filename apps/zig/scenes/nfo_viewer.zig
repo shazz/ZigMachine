@@ -14,14 +14,16 @@ const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
 const K_ESC: u32 = 0xE012; // docs/sealed-loader.js KEY_CODES
+const K_PGUP: u32 = 0xE01C;
+const K_PGDN: u32 = 0xE01D;
 const sample = nfo_lib.cp437.comptimeFromUtf8(@embedFile("nfo_viewer/sample.nfo.txt"));
 const config = nfo_lib.Config{
     .frames_per_px = 2,
     .start_delay = 90,
     .end = .loop,
     .end_hold = 180,
-    .prompt = "press A to restart, B for the end, up/down to scroll, ESC to leave",
-    .keys = "AB",
+    .prompt = "up/down or PgUp/PgDn to scroll, SPACE to leave",
+    .keys = "",
 };
 
 pub const Demo = struct {
@@ -35,7 +37,8 @@ pub const Demo = struct {
         self.shown = false;
         self.unavailable = false;
         self.wants_quit = false;
-        zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
+        // The desk's bars around the 640x480 show the border colour: the NFO's own background blue (Matt, 16 Nov).
+        zigos.setBackgroundColor(Color{ .r = 0x40, .g = 0x5F, .b = 0x89, .a = 255 });
         zigos.lfbs[0].is_enabled = true;
     }
 
@@ -44,19 +47,21 @@ pub const Demo = struct {
         return 1; // the keys are the cart's: Esc leaves it
     }
 
+    /// Space (or Esc) leaves; PgUp / PgDn scroll a page (Matt, 16 Nov), which stops the automatic scroll.
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_ESC) self.wants_quit = true;
-        switch (self.nfo.key(cp) orelse return) {
-            'A' => self.nfo.scrollTo(0),
-            'B' => self.nfo.scrollTo(self.nfo.y_max),
+        const page: i32 = @intCast(self.nfo.page());
+        switch (cp) {
+            ' ', K_ESC => self.wants_quit = true,
+            K_PGUP => self.nfo.userScroll(-page),
+            K_PGDN => self.nfo.userScroll(page),
             else => {},
         }
     }
 
     /// The d-pad / arrows: 0 up, 1 down.
     pub fn input(self: *Demo, dir: u32) void {
-        if (dir == 0) self.nfo.scrollBy(-18);
-        if (dir == 1) self.nfo.scrollBy(18);
+        if (dir == 0) self.nfo.userScroll(-18);
+        if (dir == 1) self.nfo.userScroll(18);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {

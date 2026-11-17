@@ -92,3 +92,26 @@ test "nfo: key matches the configured keys without case, others are nothing" {
     try eq(@as(?u8, null), n.key(0xE012)); // Escape's code is not a letter
     try eq(@as(?u8, 'K'), n.chosen); // a miss keeps the last choice
 }
+
+test "nfo: a scroll by the reader stops the automatic scroll, restart() runs it again from the top" {
+    var n = try newNfo(.{ .start_delay = 2, .frames_per_px = 1, .prompt = "go" });
+    n.paint(buf[0..n.bufferBytes()]);
+    for (0..12) |_| _ = n.update();
+    try eq(@as(u32, 10), n.y);
+    n.userScroll(5);
+    try eq(@as(u32, 15), n.y);
+    for (0..50) |_| try eq(@as(u32, 15), n.update()); // held where the reader put it
+    n.userScroll(-1000); // clamped at the top, still by hand
+    for (0..10) |_| try eq(@as(u32, 0), n.update());
+    n.restart();
+    try expect(!n.manual);
+    for (0..2) |_| try eq(@as(u32, 0), n.update()); // the start delay again
+    try eq(@as(u32, 1), n.update());
+}
+
+test "nfo: page is the window less the bar, a whole window without a prompt" {
+    const with_bar = try newNfo(.{ .prompt = "go" });
+    const bare = try newNfo(.{ .prompt = "" });
+    try expect(with_bar.page() < bare.page());
+    try eq(@as(u32, 480), bare.page());
+}

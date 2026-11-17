@@ -41,6 +41,8 @@ pub const Nfo = struct {
     timer: u32 = 0,
     hold: u32 = 0,
     chosen: ?u8 = null,
+    /// The reader scrolled by hand: the automatic scroll stops (it would fight the reader) until restart().
+    manual: bool = false,
 
     /// `bytes` is CP437 (keep it alive: the viewer reads it on every restored row).
     pub fn init(bytes: []const u8, cfg: Config) Error!Nfo {
@@ -72,6 +74,7 @@ pub const Nfo = struct {
 
     /// One frame: advance the timers and the scroll. Returns y, the row at the top of the window.
     pub fn update(self: *Nfo) u32 {
+        if (self.manual) return self.y;
         if (self.timer < self.cfg.start_delay) {
             self.timer += 1;
             return self.y;
@@ -91,6 +94,20 @@ pub const Nfo = struct {
             self.scrollTo(0);
         }
         return self.y;
+    }
+
+    /// A scroll by the reader (the arrows / d-pad): takes over from the automatic scroll.
+    pub fn userScroll(self: *Nfo, dy: i32) void {
+        self.manual = true;
+        self.scrollBy(dy);
+    }
+
+    /// Back to the top, the automatic scroll running again (from its start delay).
+    pub fn restart(self: *Nfo) void {
+        self.manual = false;
+        self.timer = 0;
+        self.hold = 0;
+        self.scrollTo(0);
     }
 
     pub fn scrollBy(self: *Nfo, dy: i32) void {
@@ -126,6 +143,11 @@ pub const Nfo = struct {
     /// First buffer row of the bar for the current y.
     pub fn barTop(self: *const Nfo) u32 {
         return self.y + screen_h - self.barRows();
+    }
+
+    /// Text rows the window shows (the screen less the bar): one page for PgUp / PgDn.
+    pub fn page(self: *const Nfo) u32 {
+        return screen_h - self.barRows();
     }
 
     fn barRows(self: *const Nfo) u32 {
