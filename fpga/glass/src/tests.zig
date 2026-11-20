@@ -58,6 +58,7 @@ test {
     _ = @import("app_ctl_test.zig");
     _ = @import("vstat_test.zig");
     _ = @import("astro_box_test.zig");
+    _ = @import("astro_stage_test.zig");
     _ = @import("wifi_conf_test.zig");
     _ = @import("wifi_parse_test.zig");
     _ = @import("wifi_job_test.zig");
@@ -67,6 +68,7 @@ test {
     _ = @import("shot_png_test.zig");
     _ = @import("shot_grab_test.zig");
     _ = @import("shot_file_test.zig");
+    _ = @import("card_file.zig");
     _ = @import("app_shot_test.zig");
     _ = @import("app_reboot_test.zig");
 }

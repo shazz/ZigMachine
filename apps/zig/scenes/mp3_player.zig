@@ -21,7 +21,7 @@ const view = @import("mp3_player/view.zig");
 const id3 = @import("mp3_player/id3.zig");
 
 const K_ESC: u32 = 0xE012; // docs/sealed-loader.js KEY_CODES
-const RATES = [_]u32{ 0, 32000, 44100, 48000, 0 };
+const RATES = [_]u32{ 0, 32000, 44100, 48000, 0, 22050, 24000, 16000, 12000, 11025, 8000 }; // zg.mp3Status(0) rate codes
 
 pub const Demo = struct {
     list: List,
@@ -98,8 +98,9 @@ pub const Demo = struct {
     pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {
         _ = dt;
         const word = if (self.playing != null) self.stream.state() else 0;
-        const rate = RATES[@min((word >> 4) & 15, 4)];
-        const secs: u32 = if (rate == 0) 0 else @intCast(@as(u64, zg.mp3Status(.frames)) * 1152 / rate);
+        const rate = RATES[@min((word >> 4) & 15, RATES.len - 1)];
+        const per: u64 = if (rate < 32000) 576 else 1152; // samples a frame: MPEG-2 / 2.5 (LSF) halve it
+        const secs: u32 = if (rate == 0) 0 else @intCast(@as(u64, zg.mp3Status(.frames)) * per / rate);
         const s = view.Shown{
             .sel = self.sel,
             .top = self.top,

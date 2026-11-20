@@ -72,6 +72,10 @@ def palette(p) -> str:
     return ".{" + ",".join(".{" + ",".join(str(c) for c in rgb) + "}" for rgb in p) + "}"
 
 
+def boot_logo(b) -> str:
+    return "null" if b is None else f".{{ .w = {b['w']}, .h = {b['h']}, .ink = {blob(b['ink'])} }}"
+
+
 def emit(d: dict, src_name: str) -> str:
     pats = ",".join(".{" + ",".join(f"0x{w:04x}" for w in p) + "}" for p in d["patterns"])
     lines = [
@@ -93,5 +97,6 @@ def emit(d: dict, src_name: str) -> str:
         *(tree(t) for t in d["trees"]),
         "};",
         fsel_emit(d.get("selectors", [])),
+        f"pub const boot_logo: ?BootLogo = {boot_logo(d.get('boot_logo'))};",
     ]
     return "\n".join(lines) + "\n"

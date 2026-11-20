@@ -11,35 +11,42 @@ const STEP0: u32 = 8;
 
 pub const Cell = struct { x: u32, y: u32, size: u32 };
 
-pub const Progress = struct {
-    level: u32,
-    gx: u32,
-    gy: u32,
+pub const Progress = ProgressOf(trace.IMG_W, trace.IMG_H);
 
-    pub fn start(self: *Progress) void {
-        self.level = 0;
-        self.gx = 0;
-        self.gy = 0;
-    }
+pub fn ProgressOf(comptime W: u32, comptime H: u32) type {
+    comptime if (W % STEP0 != 0 or H % STEP0 != 0) @compileError("sides must be multiples of 8");
+    return struct {
+        level: u32,
+        gx: u32,
+        gy: u32,
 
-    /// The next pixel to trace, or null when the picture is complete.
-    pub fn next(self: *Progress) ?Cell {
-        while (self.level < LEVELS) {
-            const s: u32 = STEP0 >> @as(u5, @intCast(self.level));
-            const nx = trace.IMG_W / s;
-            const ny = trace.IMG_H / s;
-            while (self.gy < ny) : (self.gy += 1) {
-                while (self.gx < nx) {
-                    const gx = self.gx;
-                    self.gx += 1;
-                    const covered = self.level > 0 and gx & 1 == 0 and self.gy & 1 == 0;
-                    if (!covered) return .{ .x = gx * s, .y = self.gy * s, .size = s };
-                }
-                self.gx = 0;
-            }
-            self.level += 1;
+        const Self = @This();
+
+        pub fn start(self: *Self) void {
+            self.level = 0;
+            self.gx = 0;
             self.gy = 0;
         }
-        return null;
-    }
-};
+
+        /// The next pixel to trace, or null when the picture is complete.
+        pub fn next(self: *Self) ?Cell {
+            while (self.level < LEVELS) {
+                const s: u32 = STEP0 >> @as(u5, @intCast(self.level));
+                const nx = W / s;
+                const ny = H / s;
+                while (self.gy < ny) : (self.gy += 1) {
+                    while (self.gx < nx) {
+                        const gx = self.gx;
+                        self.gx += 1;
+                        const covered = self.level > 0 and gx & 1 == 0 and self.gy & 1 == 0;
+                        if (!covered) return .{ .x = gx * s, .y = self.gy * s, .size = s };
+                    }
+                    self.gx = 0;
+                }
+                self.level += 1;
+                self.gy = 0;
+            }
+            return null;
+        }
+    };
+}

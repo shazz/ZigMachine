@@ -8,9 +8,15 @@
 //   3. no clock (hostMicros = 0): "-" for every time, the checks still pass;
 //   4. key 1 reruns, the screen shows text.
 //
-//   node apps/astro_bench_headless.mjs [--break result|batch|clock]
+//   5. the zoom's third side (SPACE twice): ZIGGY's f32 on the FPU. Its pictures at the shallow steps 0 and 8
+//      are the f64 pictures (<= 1 % of the cells differ), at a deep step they are NOT (>= 50 % differ: f32's
+//      7 digits run out past the step the cart logs as "f32 break="), which documents why f64 / ASTROLABE exist.
+//
+//   node apps/astro_bench_headless.mjs [--break result|batch|clock|f32|f32match]
 // --break proves the checks bite: hwAstro's first result off by one ulp; array descriptors answered OK
-// with nothing computed; a no-clock run the harness is told to expect numbers from.
+// with nothing computed; a no-clock run the harness is told to expect numbers from; f32: the "deep" step
+// is a shallow one (f32 looks fine there, so the degradation check must fail); f32match: the "shallow"
+// step is the deep one (the f32 picture is garbage there, so the match check must fail).
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
@@ -127,8 +133,47 @@ async function shot(m, name) {
     for (let i = 0; i < W * H; i++) out.set(mem.subarray(base + 0x100 + mem[base + OFF_VRAM + i] * 4, base + 0x100 + mem[base + OFF_VRAM + i] * 4 + 4), i * 4);
     await writeFile(`${SHOTS}/${name}.rgba`, out);
 }
+const ZCELLS = 80 * 40, ZROWS = W * 160, F32_DEEP = brk === "f32" ? 8 : 296;
+const pic = (m) => Buffer.from(new Uint8Array(m.memory.buffer, m.machine.hwVideoBase() + OFF_VRAM, ZROWS));
+// the share of the 80 x 40 cells (4 x 4 px) whose colour differs: the top-left pixel of each stands for it
+const differ = (a, b) => { let d = 0; for (let y = 0; y < 160; y += 4) for (let x = 0; x < W; x += 4) if (a[y * W + x] !== b[y * W + x]) d++; return d / ZCELLS; };
 const hashes = (m, side) => Object.fromEntries(m.log.filter((l) => l.startsWith("ZM ASTRO zoom") && l.includes(`side=${side}`)).map((l) => [field(l, "step"), field(l, "hash")]));
 function frames(m, until, max) { for (let f = 0; f < max && !until(); f++) { m.machine.hwClear(); m.demo.frame(16.6); } return until(); }
+
+// run frames; keep a copy of the picture on the frame a side logs each wanted step (the log comes at the end of a picture)
+function capture(m, side, steps, max) {
+    const got = {}, from = m.log.length; // only this run's log lines: an earlier run left the same steps in it
+    for (let f = 0; f < max && Object.keys(got).length < steps.length; f++) {
+        m.machine.hwClear(); m.demo.frame(16.6);
+        const h = hashes({ log: m.log.slice(from) }, side);
+        for (const k of steps) if (got[k] === undefined && h[k] !== undefined) got[k] = pic(m);
+    }
+    return got;
+}
+
+// SPACE twice from ASTROLABE: f32 on the FPU against ASTROLABE's f64 at steps 0, 8 and a deep one
+async function f32Run(m, steps) {
+    const f64 = capture(m, "astro", steps, 400);
+    m.demo.key(0x32), m.demo.key(0x20), m.demo.key(0x20);
+    const brkLine = m.log.filter((l) => l.startsWith("ZM ASTRO f32 break=")).pop();
+    const N = Number(field(brkLine, "break"));
+    check(N > 8 && N < F32_DEEP + 100, `f32: the cart's break step ${N} is not between the shallow steps and the deep one`);
+    const f32 = capture(m, "f32", steps, 12 * (F32_DEEP + 8));
+    for (const k of steps) check(f32[k] !== undefined && f64[k] !== undefined, `f32: no picture at step ${k}`);
+    const sh = brk === "f32match" ? F32_DEEP : 8;
+    const d0 = differ(f32[0], f64[0]), d8 = differ(f32[8], f64[8]), dd = differ(f32[F32_DEEP], f64[F32_DEEP]);
+    check(d0 <= 0.01 && differ(f32[sh], f64[sh]) <= 0.01, `f32: shallow pictures differ from f64's (step 0: ${d0}, step ${sh}: ${differ(f32[sh], f64[sh])})`);
+    check(dd >= 0.5, `f32: deep step ${F32_DEEP} differs in only ${(dd * 100).toFixed(1)} % of the cells: f32 should have broken down`);
+    check(new Set(f32[F32_DEEP]).size < new Set(f64[F32_DEEP]).size, "f32: the deep picture has no fewer colours than f64's: it should have collapsed to blocks");
+    console.log(`  f32 FPU: cart says precision runs out past step ${N}; vs f64 ${(d0 * 100).toFixed(1)} % of cells differ at step 0, ${(d8 * 100).toFixed(1)} % at 8, ${(dd * 100).toFixed(1)} % at ${F32_DEEP}`);
+    if (SHOTS) {
+        const dump = async (name, p) => { const out = Buffer.alloc(W * H * 4), mem = new Uint8Array(m.memory.buffer), b = m.machine.hwVideoBase();
+            for (let i = 0; i < ZROWS; i++) out.set(mem.subarray(b + 0x100 + p[i] * 4, b + 0x100 + p[i] * 4 + 4), i * 4); await writeFile(`${SHOTS}/${name}.rgba`, out); };
+        m.demo.key(0x32), m.demo.key(0x20); // restart, soft f64 from step 0
+        const soft = capture(m, "ziggy", steps, 12 * (F32_DEEP + 8));
+        for (const k of steps.slice(2)) await dump(`step${k}_astro`, f64[k]), await dump(`step${k}_f32`, f32[k]), await dump(`step${k}_ziggy`, soft[k]);
+    }
+}
 
 async function zoomRun(bytes) {
     const m = await boot(() => Math.floor(performance.now() * 1000) >>> 0, bytes);
@@ -147,6 +192,8 @@ async function zoomRun(bytes) {
     const z = hashes(m, "ziggy");
     for (const k of ["0", "8", "16"]) check(a[k] !== undefined && a[k] === z[k], `zoom step ${k}: ASTROLABE ${a[k]} != ZIGGY ${z[k]}`);
     console.log(`  zoom: steps 0/8/16 the same pixels both ways (hash ${a[0]} ${a[8]} ${a[16]})`);
+    m.demo.key(0x32); // from step 0 again
+    await f32Run(m, [0, 8, ...(SHOTS ? [232] : []), F32_DEEP]);
 }
 
 const bytes = new Uint8Array(await readFile("docs/demo-c-astro_bench.wasm"));

@@ -2054,3 +2054,25 @@ not sourced); GB6 tables (no per-machine integer/memory split found).
 **Consequences:** the running machine's version and the system's table version stay unreadable (n/a in spirit,
 shown as the SDK's and a lower bound). A host that someday writes W_CYCLES elsewhere would read as the board.
 The desk mode shows the 8x8 system font doubled to 8x16 cells, not the ROM's tall font (not exported).
+
+## 2026-11-15 — zigdemo engine modules from a real demo: smooth clock, palette track, streamers, next-part store
+
+**Status:** accepted
+**Context:** Matt (15 Nov): move the engine features the first real zigdemo demo grew into zigdemo, but
+"only effects which could be reused in another demo with different data". That demo's data and formats are not ours to
+publish, so only the mechanism may move: no keys, tables, constants or file formats of it.
+**Decision:** Five modules, each taking its data from the demo: `smooth` (the picture clock on the VBL, pulled gently
+toward a decoder's bursty position; tuning in a Config), `palfx` (a step track of (row, id) keys selecting effects from
+the demo's `Def` table, evaluated as a function of song time so a seek is exact; `apply`/`veil`), `ring` (a big file read
+in order through a ring of chunked reads with a spill, length-prefixed records; the demo parses its own header), `records`
+(fixed-stride records, two buffers, a frame ahead, one seek a jump; the demo checks its header and gives the layout) and
+`handoff` (a typed store in the part region's stack, freed through the existing-on-a-branch `Ctx.enter(id)` hook, which
+moves too). The streamers share zigdemo.assets' `Files` contract (+ `seek`); `handoff` takes the cart's allocator as a
+comptime `Mem` type, so zigdemo still imports only std.
+**Alternatives considered:** moving the demo's whole palette module (its key track and id table are the original's data);
+one streamer for both shapes (a sequential ring and a random-access stride reader want different buffers); the 3D path
+(rasterizer, gradients, span sink): the most valuable piece, but it lives in a private scene tree, has six users and needs
+its own per-part pixel proofs (a later round); the per-part debug runner (too thin over clock's A-B loop to be a module yet).
+**Consequences:** a demo now gets music-locked smooth time, track-driven fades/flashes, streaming of files bigger than its
+arena and next-part precompute without writing them. The native tests run on synthetic files; the private demo switches to
+them with its own wrappers (its formats stay with it) and proves the move byte-exact on its own carts.

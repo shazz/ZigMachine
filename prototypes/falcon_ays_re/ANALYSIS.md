@@ -138,11 +138,11 @@ the local rip.
   ".......WE ARE BACK!", "      PRESENTS     ", "SOME RANDOM STUFF..", "...FOR CHOSNECK MAG".
 - On entry the line is copied into a 320x42 byte buffer (BSS `$2995EA`) at row 4, x 8, blurred once.
   The timer counts ticks; past a threshold (160 ticks for the first two, 20 for the others) the
-  main blurs the buffer **in place** every frame: `p = (UL + UR + DL + DR) >> 2` over 10,140
-  bytes. In place it smears toward the start; the truncation darkens it to nothing. 40 rows go
+  main blurs the buffer **in place** every frame: `p = (UL + UR + DL + DR) >> 2` over 12,168
+  bytes (`dbra` 1013 over 12 unrolled bytes: rows 1..38 and row 39 to column 8). In place it smears toward the start; the truncation darkens it to nothing. 40 rows go
   through a 128-entry palette (`$F37EC`, black -> red -> white) onto the screen at line 80/88/84.
 - Port: `text.zig`, the same buffer and blur, one blur a 50 Hz tick (the Falcon's frame rate).
-  Cost 0.40 Mc cart (12,800 palette lookups + the 10 K blur). Stand-in: the system font scaled
+  Cost 0.40 Mc cart (12,800 palette lookups + the 12 K blur). Stand-in: the system font scaled
   to 16x32 with a fixed grain.
 
 ### 3.2 The blobs (80B..811, 821; mode 805, 160x100)
@@ -418,3 +418,18 @@ Two causes, both in show.zig, both in the browser too:
   its border is the one the next frame shows. apps/falcon_ays_flash.mjs steps in the hosts' order
   and checks every frame around the 25 flash commands (old cart: fails at 19.60 s, screen `e7cbd6`,
   border black).
+
+## 10. Matt's board run of 14 Nov: the texts' blur stopped short of their last rows
+
+"The effect on the text not reaching the lower part (blur)" (SHOT0026, SHOT0033: "...FOR
+CHOSNECK MAG" smeared, a few sharp white/orange pixels at its bottom right). The RE notes had
+the blur's length as 10,140 bytes; `$691E` is `move.l #$3F5, d7` around **12** unrolled bytes,
+so 1014 x 12 = **12,168** bytes from row 1, column 1. The port's 10,140 stopped at row 32,
+column 221: buffer rows 33..35 (the glyphs' rows 29..31: "PRESENTS" and "...MAG" have ink there)
+were never blurred and stayed sharp forever, and no text's glow spread below row 32 (a hard edge
+under every text). Now `text.zig` blurs 1014 x 12 bytes (reads stay inside the 320x42 buffer:
+the last, byte 12,488, reads 12,809 < 13,440). Proof apps/falcon_ays_text.mjs: for each of the
+five texts, no lit pixel of band rows 33..38 still equals the frame it was drawn on both ~10
+passes after the blur starts and on its last frame, and the blur lights those rows at least once
+(old cart: 9 and 7 sharp pixels under PRESENTS and ...MAG, rows 33..38 never lit under the other
+three; `--break sharp` looks twice before the blur starts).

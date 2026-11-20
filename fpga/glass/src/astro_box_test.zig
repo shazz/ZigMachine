@@ -131,3 +131,42 @@ test "a request ZIGGY withdrew before glass's TAKEN is not served" {
     try t.expectEqual(@as(u32, 0), mbox[box.DONE]);
     try t.expectEqual(@as(u32, 0), mbox[box.DESC0 + abi.W_STATUS]);
 }
+
+var reads: u32 = 0; // DDR words staged in by the next test's server
+fn countedLoad(dst: [*]u32, src: [*]const volatile u32, n: usize) void {
+    reads += @intCast(n);
+    @import("astro_copy.zig").load(dst, src, n);
+}
+
+fn arrayDesc(i: u32, op: u32, a: u32, b: u32, c: u32) void {
+    const at = box.DESC0 + i * abi.DESC_WORDS;
+    mbox[at + abi.W_OP] = op;
+    mbox[at + abi.W_N] = 4;
+    mbox[at + abi.W_A] = a;
+    mbox[at + abi.W_B] = b;
+    mbox[at + abi.W_C] = c;
+}
+
+test "a chain in one request: a result feeds the next descriptor, each array read from DDR once" {
+    var s = fresh();
+    s.stage.load = countedLoad;
+    reads = 0;
+    for (0..4) |i| {
+        put64(&ddr, (MEM_OFF + 0x100) / 4 + 2 * @as(u32, @intCast(i)), @floatFromInt(i));
+        put64(&ddr, (MEM_OFF + 0x200) / 4 + 2 * @as(u32, @intCast(i)), 10);
+    }
+    arrayDesc(0, abi.OP_VADD, 0x100, 0x200, 0x300); // C = A + B: C is stale 0xDEADBEEF in DDR
+    arrayDesc(1, abi.OP_SCAL, 0x300, 0, 0x400); // D = 2 C: read from the mirror, not DDR
+    put64(&mbox, box.DESC0 + abi.DESC_WORDS + abi.W_S0, 2);
+    arrayDesc(2, abi.OP_DOT, 0x100, 0x400, 0); // A . D
+    post(1, 3);
+    try t.expect(s.poll());
+    try t.expectEqual(abi.ST_OK, mbox[box.RET]);
+    try t.expectEqual(@as(u32, 16), reads); // A and B, 4 f64 each: C and D never read in
+    for (0..4) |i| {
+        const x: f64 = @floatFromInt(i);
+        try t.expectEqual(x + 10, get64(&ddr, (MEM_OFF + 0x300) / 4 + 2 * @as(u32, @intCast(i))));
+        try t.expectEqual(2 * (x + 10), get64(&ddr, (MEM_OFF + 0x400) / 4 + 2 * @as(u32, @intCast(i))));
+    }
+    try t.expectEqual(@as(f64, 2 * (0 + 11 + 24 + 39)), get64(&mbox, box.DESC0 + 2 * abi.DESC_WORDS + abi.W_R));
+}

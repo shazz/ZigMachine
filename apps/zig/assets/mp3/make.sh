@@ -17,4 +17,18 @@ enc TONES44.MP3 44100 2 128 8 "Tones 44.1 kHz stereo"
 enc TONES32.MP3 32000 2 96 4 "Tones 32 kHz stereo"
 enc TONES48.MP3 48000 2 128 4 "Tones 48 kHz stereo"
 enc MONO44.MP3 44100 1 64 4 "Tones 44.1 kHz mono"
+# MPEG-2 / 2.5 (LSF) streams, 576 samples a frame: a pure 1000 Hz sine left (1500 Hz right when stereo),
+# so a check can read the pitch back (apps/mp3_check.mjs). Mono is the 1000 Hz tone alone.
+lsf() { # <file> <rate> <channels> <kbps> <seconds> <title>
+    local ex="0.5*sin(2*PI*1000*t)"
+    [ "$3" = 2 ] && ex="$ex|0.5*sin(2*PI*1500*t)"
+    ffmpeg -v error -y -f lavfi -i "aevalsrc='$ex':s=$2:d=$5" \
+        -ac "$3" -ar "$2" -c:a libmp3lame -b:a "$4k" \
+        -write_xing 0 -id3v2_version 3 -write_id3v1 0 -metadata title="$6" "$1"
+}
+lsf LSF22M.MP3 22050 1 64 3 "Sine 22.05 kHz mono"
+lsf LSF22S.MP3 22050 2 96 3 "Sine 22.05 kHz stereo"
+lsf LSF24M.MP3 24000 1 64 3 "Sine 24 kHz mono"
+lsf LSF16M.MP3 16000 1 48 3 "Sine 16 kHz mono"
+lsf LSF11M.MP3 11025 1 32 3 "Sine 11.025 kHz mono (MPEG-2.5)"
 ls -l ./*.MP3

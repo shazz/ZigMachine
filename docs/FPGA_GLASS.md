@@ -693,6 +693,11 @@ card's root (`/mnt/sd/screenshots/`), so Matt can show the lead what he sees (Ma
   main thread writes the file, the card remounted read-write for the write and the rename only,
   as for `glass.cfg` (`shot_file.zig`: `SHOTnnnn.TMP` renamed, the next number after the
   highest, gaps left alone, past 9999 the lowest free one, never one that exists).
+- **On the card when it says Saved** (Matt, 14 Nov: board users power-cycle freely): every card
+  write (a screenshot, `glass.cfg`, `wifi.conf` saved or forgotten) goes through `card_file.zig`:
+  the temporary written and fsynced, renamed, the directory fsynced, then `sync(2)` and the card
+  read-only again, and only then the status line or the toast. Tested in `app_shot_test.zig`
+  (the order writable, sync, read-only, then "Saved", for a shot and a settings save).
 - **What it says**: the status line with the menu open; with it closed a 3 s toast in the
   corner window (`app_stats.toast`, under the F11 overlay if that is on): `Saved
   screenshots/SHOT0007.PNG`, or `not saved: card read-only` / `card full` / `no card` /
@@ -982,14 +987,27 @@ load (no KOS boot words), then powers KOS on exactly as without it (drive A, the
   `--no-splash`, and the shelf has the disk. Otherwise KOS powers on at once; the log says why
   (`boot splash: restart`, `off`, `missing`...).
 - **Ends** when the cart asks to leave (it does at its black frame 290, 4.8 s in:
-  `pollCartRequest` -1, the firmware's REQ_BACK; any request counts), traps, a key or a pad
-  button goes down (swallowed with its release: KOS never sees it), or after 9 s (`CAP_MS`).
+  `pollCartRequest` -1, the firmware's REQ_BACK; any request counts, but one before 4 s, `MIN_MS`,
+  is logged and held until then, so the picture cannot vanish at once), traps (the trap code is
+  logged), a key or a pad button goes down (swallowed with its release: KOS never sees it), or
+  after 9 s (`CAP_MS`). The log says how long it played (`boot splash: the cart is done after
+  4850 ms, KOS powers on`) and how long its load took.
+- **Plays alone** (Matt, 14 Nov, card14o: "black screen, shows the OSD, then the KESTREL BOOT behind
+  the OSD. The OSD should only appear after"): `glass run` starts with `App.initHidden` (nothing on the
+  OSD; the menu used to show for half a second before the decision), then once the policy says
+  play the OSD stays off (`State.quiet`: `app_stats.place` writes no OSD bit, `App.redraw`
+  draws nothing) before the cart's load and its ~3 s of BOOTING, and stays off while it plays (no
+  menu, no F11 overlay, no toast). When it ends KOS's power-on leaves the OSD as it does without a
+  splash (closed, the F11 overlay if `fps=1`); a key that skipped it opens nothing. With no
+  splash (a restart, `splash=0`...) startOrPowerOn opens the menu over KOS's load as App.init did.
 - **Yields** to a load from elsewhere (`glass ctl load`): the splash just stops, no KOS over it.
 - **Never blocks the menu**: a missing disk, a disk that fails to load, a mark that cannot be
   made all mean "no splash", and a stuck cart is cut by the cap.
 
 Tests: `app_splash_test.zig` (the policy, the first-boot flow to the desktop, restart, `splash=0`,
-missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load over it);
+missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load over it, a request
+at once held to `MIN_MS`, no OSD bit written from the decision to the end, the overlay back after,
+a skip that opens nothing);
 `apps/kestrel_boot_check.mjs` checks the cart asks to leave at 290 and never before
 (`--break stays`).
 
@@ -1665,6 +1683,21 @@ work on this board:
    later through a USB dongle on a hub with its kernel driver in the fragment.
    **Wi-Fi works** (9 Nov 2026, BCM43143 dongle, `fpga/docs/PREREQUISITES.md`): the SD card's
    `KESTREL/wifi.conf` names the network and `S99wifi` joins it at boot.
+   **Wi-Fi at boot, and its watchdog** (14 Nov): the dongle died twice that day (wlan0 gone after
+   3.3 h; once joined with an address but deaf to the gateway, `iw` saying "Power save: on").
+   S99wifi now turns power save off after every join, then a background `S99wifi watch` looks
+   every 30 s: wlan0 gone or a brcmfmac `-5` (EIO) in dmesg re-probes (wpa_supplicant and udhcpc
+   stopped, the modules out, the dongle's USB `authorized` 0 then 1, the modules in, a join);
+   the gateway silent 4 looks running joins again, 8 re-probes; re-probes are 5 min apart at
+   least (a hung `rmmod` is waited for 20 s, then logged); power save found on again goes off; a
+   `-5` already in the boot log is counted at start, not news. Every action is logged (`logger -t kwifi`:
+   `logread`, `/tmp/messages`; and `/tmp/wifi/watch.log`); it never reboots. An OSD join under way
+   (`/tmp/wifi/osd.log` newer than the last look) is left alone, a Forget (no `wifi.conf`) stops
+   it. `fpga/tests/test_s99wifi.py` runs it against stubs. It ships in the rootfs's appended
+   archive (`fpga/glass/boot/wifi/mk_wifi_rootfs.sh`), with the overlay's S99glass.
+   **glass's log in syslog** (14 Nov): S99glass pipes glass's stderr through `logger -s -t glass`,
+   so `logread` / `/tmp/messages` hold it beside the console (the serial line is not always
+   captured).
 
 The NICE-TO-HAVE list:
 

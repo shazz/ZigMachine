@@ -81,7 +81,7 @@ pub fn toggle(app: *App) void {
 /// CTRL's OSD bits and the window's place, for the state the app is in now.
 pub fn place(app: *App) void {
     const ctrl = app.regs.read(map.REG_CTRL) & ~(map.CTRL_OSD | map.CTRL_OSD_STATS);
-    const bits = if (app.open) map.CTRL_OSD else if (on(app)) map.CTRL_OSD | map.CTRL_OSD_STATS else 0;
+    const bits = if (@import("app_splash.zig").hidesOsd(app)) 0 else if (app.open) map.CTRL_OSD else if (on(app)) map.CTRL_OSD | map.CTRL_OSD_STATS else 0;
     if (app.pl_stats) app.regs.write(map.REG_OSD_POS, if (on(app)) CORNER else map.OSD_POS_RESET);
     app.regs.write(map.REG_CTRL, ctrl | bits);
 }

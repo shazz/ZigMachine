@@ -80,6 +80,12 @@ pub fn build(b: *std.Build) void {
         .target = wasm_target,
         .optimize = optimize,
     });
+    // The NFO viewer (zigdemo/nfo.zig): pure, no imports of its own; carts reach it as "nfo".
+    const nfo_mod = b.createModule(.{
+        .root_source_file = b.path("libs/zig/zigdemo/nfo.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
     // Runtime depackers (Pack-Ice &c). ST files arrive crunched, and opening one
     // is the machine's job, not a build step's.
     // KOS GEMDOS (docs/KOS_GEMDOS.md): Fopen & co. over A: and C: in the cart; @import("kos_gemdos").dos().
@@ -379,6 +385,8 @@ pub fn build(b: *std.Build) void {
     addPvmp3(b, players_mod);
     // rom/ — reference system software (GEM). Linked into rom.wasm (rom_chip
     // below), NOT into carts: a cart gets rom_sdk, the flat ABI header.
+    // One converted asset set for the GEM ROM code and KOS's POST (rom/kos/kos.zig: the boot logo).
+    const gem_assets_mod = gemAssets(b, gem_assets_dir, gem_trees_dir, wasm_target, optimize);
     const gem_opts = b.addOptions();
     gem_opts.addOption(bool, "engine_default", gem_engine_new);
     const rom_mod = b.createModule(.{
@@ -388,7 +396,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zigos", .module = zigos_mod },
             .{ .name = "hardware", .module = sdk_video },
-            .{ .name = "gem_assets", .module = gemAssets(b, gem_assets_dir, gem_trees_dir, wasm_target, optimize) },
+            .{ .name = "gem_assets", .module = gem_assets_mod },
             .{ .name = "gem_opts", .module = gem_opts.createModule() },
         },
     });
@@ -434,6 +442,7 @@ pub fn build(b: *std.Build) void {
                 // romDepack: a disk's cart is stored ZX0-packed and the ROM unpacks it.
                 .{ .name = "depackers", .module = depackers_mod },
                 .{ .name = "boot_rom", .module = boot_rom_mod }, // KOS's POST (rom/kos/kos.zig)
+                .{ .name = "gem_assets", .module = gem_assets_mod }, // the POST's TOS look with a local set
                 // ZM-X v1's twins exported for every host (rom/zmx_exports.zig): the spec itself.
                 .{ .name = "zmx", .module = b.createModule(.{
                     .root_source_file = b.path("libs/zig/zmx.zig"),
@@ -646,6 +655,11 @@ pub fn build(b: *std.Build) void {
         "demo-kestrel_boot", // 131 — KESTREL BOOT (WINDHOVER): the console's boot screen, a kestrel stooping into a dawn sky on the true-colour plane (TC fade), CHISEL AFFINE dive, copper highlight, palette wordmark, a YM call + strummed chord; 4.8 s then black (prototypes/boot_screen/STUDY.md)
         "demo-sb_spike", // 132 — SB SPIKE: Suicide Barbie's heaviest scene (mix3, TBL PSP 2007, MIT) textured on one 8-bit plane: Q16 geometry on ZIGGY, CHISEL AFFINE spans, LOD keys 1-4; data from tools/sb_mix3/convert.py
         "demo-kestramp", // 133 — KESTRAMP: a classic desktop MP3 player's main window (Webamp's layout, MIT, our own pixels) for C:\MUSIC, through the MP3 PLAYER's reader and the sound side's decoder
+        "", // 134: reserved (spike/rift-* branches, 14 Nov)
+        "", // 135: reserved (spike/rift-* branches)
+        "", // 136: reserved (spike/rift-* branches)
+        "", // 137: reserved (spike/rift-* branches)
+        "demo-nfo_viewer", // 138 — NFO VIEWER: the zigdemo NFO / ASCII-art viewer (an Amiga ASCII viewer's look) on the desk plane: a sample NFO painted once into a tall buffer, panned 1 px a step, a fixed prompt bar, keys A/B
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -671,6 +685,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "packed_assets", .module = packed_assets_mod },
                 .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
                 .{ .name = "kos_gemdos", .module = kos_gemdos_mod }, // KOS GEMDOS (docs/KOS_GEMDOS.md): no cart pays unless it imports it
+                .{ .name = "nfo", .module = nfo_mod }, // zigdemo's NFO viewer: pure, a cart pays only for what it uses
             },
         });
         if (std.mem.eql(u8, name, "demo-tc_test")) cart_mod.addImport("tc_art", tcArt(b, tc_art_dir, wasm_target, optimize));

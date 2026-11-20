@@ -56,7 +56,7 @@ pub fn trigger(at0: u32, n: u32) void {
 }
 
 /// zg.mp3Status(0): bits 0-1 the state (0 idle, 1 playing, 2 paused, 3 ended), bit 2 the input has
-/// ended, bits 4-7 the rate (0 none yet, 1 32 kHz, 2 44.1, 3 48, 4 another), bit 8 stereo, bits 16-23
+/// ended, bits 4-7 the rate (0 none yet, 1 32 kHz, 2 44.1, 3 48, 4 another, 5 22.05, 6 24, 7 16, 8 12, 9 11.025, 10 8 kHz), bit 8 stereo, bits 16-23
 /// decode errors and 24-31 underruns (both saturate at 255).
 pub fn word(state: u32, eof: bool, rate: u32, stereo: bool, errors: u32, underruns: u32) u32 {
     const code: u32 = switch (rate) {
@@ -64,6 +64,12 @@ pub fn word(state: u32, eof: bool, rate: u32, stereo: bool, errors: u32, underru
         32000 => 1,
         44100 => 2,
         48000 => 3,
+        22050 => 5,
+        24000 => 6,
+        16000 => 7,
+        12000 => 8,
+        11025 => 9,
+        8000 => 10,
         else => 4,
     };
     return state | (@as(u32, @intFromBool(eof)) << 2) | (code << 4) | (@as(u32, @intFromBool(stereo)) << 8) |

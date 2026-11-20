@@ -1,38 +1,177 @@
 #!/bin/sh
-# Wi-Fi: join the network the SD card names, if there is a dongle and a file.
+# Wi-Fi: join the network the SD card names, if there is a dongle and a file, then watch it.
 # The file is KESTREL/wifi.conf on the card's FAT partition, in wpa_supplicant's format
 # (fpga/docs/PREREQUISITES.md, "Wi-Fi"); S99glass has mounted the card read-only at /mnt/sd
 # before this runs. No file, or no wlan0: nothing happens, the console boots as before.
 # The address comes by DHCP in the background, so a missing network never delays the boot.
-CONF=/mnt/sd/KESTREL/wifi.conf
-RUN=/tmp/wifi
+#
+# The watchdog (docs/FPGA_GLASS.md, "Wi-Fi at boot"): the BCM43143 dongle has died twice on the
+# board (14 Nov): wlan0 gone after 3.3 h, and once joined with an address but deaf, `iw` saying
+# "Power save: on". So power save goes off after every join, and every TICK s `watch` checks:
+#   wlan0 gone, or the driver logged a -5 (EIO)   -> re-probe: modules out, the dongle's USB
+#                                                    authorized 0/1, modules in, join again
+#   the gateway silent MISS ticks running          -> join again; still silent MISS more -> re-probe
+# Re-probes are at least REPROBE_GAP s apart. Everything is logged (logger -t kwifi: logread,
+# /tmp/messages). It never reboots. An OSD join under way (glass's osd.conf, osd.log) is left
+# alone, and a Forget (no wifi.conf) stops the watching.
+# The paths are variables so fpga/tests/test_s99wifi.py runs it against fakes.
+CONF=${KWIFI_CONF:-/mnt/sd/KESTREL/wifi.conf}
+RUN=${KWIFI_RUN:-/tmp/wifi}
+KMOD=${KWIFI_KMOD:-/usr/lib/kwifi}
+SYS=${KWIFI_SYS:-/sys}
+PROC=${KWIFI_PROC:-/proc}
+UPTIME=$PROC/uptime
+TICK=${KWIFI_TICK:-30}
+MISS=${KWIFI_MISS:-4}
+REPROBE_GAP=${KWIFI_REPROBE_GAP:-300}
+WAIT=${KWIFI_WAIT:-10}
+BRCM_VENDOR=0a5c
+
+log() { logger -t kwifi "$*"; echo "wifi: $*" >> $RUN/watch.log; }
+now() { cut -d. -f1 "$UPTIME"; }
+have_wlan() { [ -e $SYS/class/net/wlan0 ]; }
+
+wait_wlan() {
+    i=0
+    while ! have_wlan && [ $i -lt $WAIT ]; do sleep 1; i=$((i + 1)); done
+    have_wlan
+}
+
+load_modules() {
+    [ -f $KMOD/brcmfmac.ko ] || return 0
+    echo $KMOD/modprobe > $PROC/sys/kernel/modprobe
+    for m in cfg80211 brcmutil brcmfmac; do insmod $KMOD/$m.ko 2>/dev/null; done
+}
+
+join() {
+    mkdir -p -m 0700 $RUN
+    # A copy: the card's file may have DOS line ends; wpa_supplicant reads its own copy.
+    tr -d '\r' < "$CONF" > $RUN/wpa.conf && chmod 0600 $RUN/wpa.conf
+    [ -f $RUN/udhcpc.pid ] && kill "$(cat $RUN/udhcpc.pid)" 2>/dev/null
+    killall -q wpa_supplicant 2>/dev/null
+    ip link set wlan0 up
+    wpa_supplicant -B -i wlan0 -c $RUN/wpa.conf -f $RUN/wpa.log || {
+        log "wpa_supplicant failed, see $RUN/wpa.log"
+        return 1
+    }
+    # brcmfmac comes up with power save on, and that dongle then stops hearing the AP (14 Nov).
+    # cfg80211 keeps the setting for the next association, so it holds across rejoins.
+    iw dev wlan0 set power_save off 2>/dev/null || log "power_save off refused"
+    udhcpc -b -i wlan0 -p $RUN/udhcpc.pid >/dev/null 2>&1
+    return 0
+}
+
+# The dongle off the bus and back (its firmware reloaded by the probe), the driver with it.
+reprobe() {
+    echo "$(now)" > $RUN/reprobe.at
+    log "re-probe: $1"
+    [ -f $RUN/udhcpc.pid ] && kill "$(cat $RUN/udhcpc.pid)" 2>/dev/null
+    killall -q wpa_supplicant 2>/dev/null
+    # A wedged USB driver can hang rmmod (in D state, unkillable): waited for 20 s at most, so the
+    # watchdog lives on and says so (the board's busybox has no `timeout`).
+    for m in brcmfmac_wcc brcmfmac brcmutil; do
+        rmmod $m 2>/dev/null &
+        p=$! i=0
+        while kill -0 $p 2>/dev/null && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+        kill -0 $p 2>/dev/null && log "rmmod $m: no answer in 20 s"
+    done
+    for d in $SYS/bus/usb/devices/*; do
+        [ "$(cat $d/idVendor 2>/dev/null)" = $BRCM_VENDOR ] || continue
+        log "USB ${d##*/} ($BRCM_VENDOR:$(cat $d/idProduct 2>/dev/null)) re-authorized"
+        echo 0 > $d/authorized
+        sleep 1
+        echo 1 > $d/authorized
+    done
+    load_modules
+    if wait_wlan; then join && log "re-probe: wlan0 back, joining"; else log "re-probe: still no wlan0"; fi
+}
+
+# The gateway DHCP gave, if any.
+gateway() { ip route 2>/dev/null | awk '$1 == "default" { print $3; exit }'; }
+
+# The driver's -5 (EIO) lines in the kernel log, counted.
+eio_count() { dmesg 2>/dev/null | grep -c -E 'brcmf.*-5([^0-9]|$)'; }
+
+# A new -5 since the last look: true when it re-probed.
+check_driver() {
+    eio=$(eio_count)
+    seen=$(cat $RUN/eio 2>/dev/null || echo 0)
+    echo $eio > $RUN/eio
+    [ "$eio" -gt "$seen" ] || return 1
+    log "the driver logged -5 ($eio lines)"
+    [ $may = 1 ] || return 1
+    reprobe "driver -5"
+    echo 0 > $RUN/miss
+}
+
+# The gateway: answered, or one more silent look (a rejoin at MISS, a re-probe at 2 x MISS).
+check_gateway() {
+    gw=$(gateway)
+    if [ -n "$gw" ] && ping -c 1 -W 2 "$gw" >/dev/null 2>&1; then
+        echo 0 > $RUN/miss
+        return 0
+    fi
+    miss=$(( $(cat $RUN/miss 2>/dev/null || echo 0) + 1 ))
+    echo $miss > $RUN/miss
+    if [ $miss -ge $((2 * MISS)) ] && [ $may = 1 ]; then
+        reprobe "gateway ${gw:-none} silent for $miss ticks after a rejoin"
+        echo 0 > $RUN/miss
+    elif [ $miss -eq $MISS ]; then
+        log "gateway ${gw:-none} silent for $miss ticks: joining again"
+        join
+    fi
+}
+
+# One look (`watch` calls it every TICK s). State in $RUN: miss (silent ticks), eio (the -5 count
+# last seen, seeded at start), reprobe.at (the last re-probe's uptime), tick.at (the last look).
+tick() {
+    [ -f "$CONF" ] || return 0 # forgotten from the OSD: nothing to keep up
+    # An OSD join owns wpa_supplicant for ~30 s (wifi_job.zig): not this tick.
+    busy=$(find $RUN -maxdepth 1 -name osd.log -newer $RUN/tick.at 2>/dev/null)
+    touch $RUN/tick.at
+    [ -z "$busy" ] || return 0
+    last=$(cat $RUN/reprobe.at 2>/dev/null || echo -$REPROBE_GAP)
+    may=$(( $(now) - last >= REPROBE_GAP ))
+    if ! have_wlan; then
+        [ $may = 1 ] && reprobe "no wlan0"
+        return 0
+    fi
+    check_driver && return 0
+    case "$(iw dev wlan0 get power_save 2>/dev/null)" in
+    *"save: on"*) iw dev wlan0 set power_save off 2>/dev/null && log "power save was on again: off" ;;
+    esac
+    check_gateway
+}
 
 case "$1" in
 start)
     [ -f "$CONF" ] || exit 0
-    # An image without the driver built in: load the modules shipped in /usr/lib/kwifi.
-    if [ ! -e /sys/class/net/wlan0 ] && [ -f /usr/lib/kwifi/brcmfmac.ko ]; then
-        echo /usr/lib/kwifi/modprobe > /proc/sys/kernel/modprobe
-        for m in cfg80211 brcmutil brcmfmac; do insmod /usr/lib/kwifi/$m.ko 2>/dev/null; done
-    fi
-    i=0
-    while [ ! -e /sys/class/net/wlan0 ] && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
-    if [ ! -e /sys/class/net/wlan0 ]; then
-        echo "wifi: $CONF is there but no wlan0 (no supported dongle)" >&2
-        exit 0
-    fi
     mkdir -p -m 0700 $RUN
-    # A copy: the card's file may have DOS line ends; wpa_supplicant reads its own copy.
-    tr -d '\r' < "$CONF" > $RUN/wpa.conf && chmod 0600 $RUN/wpa.conf
-    ip link set wlan0 up
-    wpa_supplicant -B -i wlan0 -c $RUN/wpa.conf -f $RUN/wpa.log || {
-        echo "wifi: wpa_supplicant failed, see $RUN/wpa.log" >&2
-        exit 0
-    }
-    udhcpc -b -i wlan0 -p $RUN/udhcpc.pid >/dev/null 2>&1
-    echo "wifi: joining (log $RUN/wpa.log)"
+    # An image without the driver built in: load the modules shipped in /usr/lib/kwifi.
+    have_wlan || load_modules
+    if wait_wlan; then
+        join && echo "wifi: joining (log $RUN/wpa.log)"
+    else
+        echo "wifi: $CONF is there but no wlan0 (no supported dongle yet; the watchdog re-probes)" >&2
+    fi
+    rm -f $RUN/watch.stop
+    touch $RUN/tick.at
+    eio_count > $RUN/eio # a -5 from before the watch (a probe that then came up) is not news
+    "$0" watch </dev/null >/dev/null 2>&1 &
+    echo $! > $RUN/watch.pid
+    ;;
+watch)
+    while [ ! -e $RUN/watch.stop ]; do
+        sleep $TICK
+        tick
+    done
+    ;;
+tick)
+    tick
     ;;
 stop)
+    touch $RUN/watch.stop
+    [ -f $RUN/watch.pid ] && kill "$(cat $RUN/watch.pid)" 2>/dev/null
     [ -f $RUN/udhcpc.pid ] && kill "$(cat $RUN/udhcpc.pid)" 2>/dev/null
     killall wpa_supplicant 2>/dev/null
     ;;

@@ -170,6 +170,15 @@ NATIVE_TESTS="
     libs/zig/zigdemo/debug_test.zig
     libs/zig/zigdemo/assets_test.zig
     libs/zig/zigdemo/audio_test.zig
+    libs/zig/zigdemo/mp3_test.zig
+    libs/zig/zigdemo/smooth_test.zig
+    libs/zig/zigdemo/palfx_test.zig
+    libs/zig/zigdemo/ring_test.zig
+    libs/zig/zigdemo/records_test.zig
+    libs/zig/zigdemo/handoff_test.zig
+    libs/zig/zigdemo/nfo_test.zig
+    libs/zig/zigdemo/nfo_viewer_test.zig
+    libs/zig/zigdemo/nfo_menu_test.zig
     libs/zig/bard_jobs_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
@@ -430,6 +439,8 @@ gate mp3 node apps/mp3_check.mjs   # MP3 player (libs/zig/players/mp3.zig, pvmp3
 gate mp3 node apps/mp3_check.mjs --break lowbyte   # ...and the low-byte channels silenced fail the exact check
 gate mp3 node apps/mp3_check.mjs --break overfeed   # ...and feeding past the ring (no flow control) fails (bytes dropped)
 gate mp3 node apps/mp3_check.mjs --break noend   # ...and never telling the player the input ended fails (it never ends)
+gate mp3 node apps/mp3_check.mjs --break lsfpitch   # ...and the MPEG-2 / 2.5 streams (22.05 stereo and mono, 24, 16, 11.025 kHz: apps/mp3_lsf.mjs: rate code, 576-sample frames, length, every 2nd / 4th output sample = the host decode, pitch) read at the wrong step fail
+gate mp3 node apps/mp3_check.mjs --break lsfmono   # ...and a mono LSF stream with one side silenced fails
 gate mp3_player node apps/mp3_player_check.mjs   # MP3 PLAYER cart over the machine + ROM, C: = docs/mp3-c.img through KOS GEMDOS: Down Down Return plays TONES44.MP3; the bytes it fed are the file's in order, never past the ring, the end told; the audio out = the reference >> 1; the next file starts at the end, N past the last stops, Esc again asks for request 4
 gate notepad node apps/notepad_check.mjs   # NOTEPAD (docs/NOTEPAD.md) on GEM 5's program API over the machine + ROM, C: = a copy of docs/gemdos-c.img: launched from GEM off its data disk; typed, ^S to C:\NOTE.TXT (mtools: the bytes, CR LF; fsck clean), reopened in a new session pixel for pixel; "Save changes?" Cancel / Yes; the menu by the pointer; 60 lines, PgUp, a held arrow; the sizer; in low, medium and the desk; the screen as drawn = a whole repaint after every step
 gate notepad node apps/notepad_check.mjs --break write   # ...and a host that refuses every write is caught
@@ -555,6 +566,8 @@ gate tc_test node apps/tc_test_check.mjs   # TC TEST (cart 113, HW 1.15.0): plan
 gate tc_test node apps/tc_test_check.mjs --break   # ...and mode 5, colours quantised to 3 bits, a pixel written a frame, a frozen list and a tracked cart with local pictures, the fade registers zeroed, a pixel rewritten during the fade and a model without the fade are each caught
 gate desk_test node apps/desk_check.mjs   # DESK TEST (cart 126, HW 1.17.0): the desk mode's 640x480 picture (hwRenderDesk) is the cart's model pixel for pixel; plane 0's buffer 64-aligned inside the VRAM pool; still; key 2 leaves for low res on the same buffer, key 1 brings the same desk back; hwClear only counts FRAME, hwRenderPlane draws nothing; a machine without the mode keeps the cart out; scene_hash's desk sample is "desk" + the bars (hwDeskBars) + the picture
 gate desk_test node apps/desk_check.mjs --break   # ...and a palette entry, the checker, the halves swapped, FRAME counted twice, an older machine saying yes and the hash without its tag are each caught
+gate nfo_viewer node apps/nfo_viewer_check.mjs   # NFO VIEWER (cart 138, zigdemo/nfo.zig) on the desk plane: the first window is the model's pixels (a known glyph, the shadow, blocks, dither), the scroll moves 1 px a step by moving FB_BASE and no pixel but one text row, the prompt bar stays fixed, PgUp/PgDn page and stop the automatic scroll, an arrow moves 18 rows, Space leaves, a machine without the desk keeps the cart out
+gate nfo_viewer node apps/nfo_viewer_check.mjs --break   # ...and a wrong glyph row, a bar that scrolls, a skipped step, a missing shadow, a seam in the dither and an older machine saying yes are each caught
 gate kestrel_boot node apps/scene_hash.mjs docs/demo-kestrel_boot.wasm 420 30 --composite   # KESTREL BOOT (cart 131, prototypes/boot_screen/STUDY.md): the composed boot screen runs 420 frames with no zg.mem refusal
 gate kestrel_boot node apps/kestrel_boot_check.mjs   # ...the WINDHOVER storyboard: black 0-19, the true-colour sky up by 80, the stoop moving 50-95, one still picture 170-249, a copper highlight on many lines at 100 and none at 200, black from 290 to the end (3-6 s lit); the YM call on C at 20/28/36, R13 once at the chord with the buzzer, silent by 260
 gate kestrel_boot node apps/kestrel_boot_check.mjs --break   # ...and a fade that never reaches black, a silent jingle, a cart at half speed, no copper list, a second R13 write and a frozen cart are each caught
@@ -571,6 +584,8 @@ gate falcon_ays node apps/falcon_ays_board.mjs --break shake   # ...and the plaq
 gate falcon_ays node apps/falcon_ays_board.mjs --break band   # ...and the black rows above the band checked as white are caught
 gate falcon_ays node apps/falcon_ays_flash.mjs   # Matt's board run of 14 Nov: every frame around each beat flash (81A/81B, 823/824) in the hosts' order (border in hwClear, before the cart's frame), the border = the screen's flash colour on the same frame
 gate falcon_ays node apps/falcon_ays_flash.mjs --break lag   # ...and each picture compared with the next frame's border is caught
+gate falcon_ays node apps/falcon_ays_text.mjs   # Matt's board run of 14 Nov: the five red texts' blur covers every row (1014 x 12 bytes, as $691E): no lit pixel of band rows 33..38 left as drawn, the blur lights those rows
+gate falcon_ays node apps/falcon_ays_text.mjs --break sharp   # ...and the two looks taken before the blur starts are caught
 gate c64_1988 node apps/c64_1988_headless.mjs   # 1988 (cart 118, Tristar & RSI's C64 Only Sprites intro): plane 0 alone, overscan; nine C64 frames across the loop (logo + scrollers on texts 1 and 2, the logo fade, the wipe, the grid joining, cubes, the end fade, balls, the green fade) pixel-identical to VICE 3.9 x64sc (pinned SHA-256 of the 384x272 view in colodore indices, tools/c64/pin_frames.py); Escape leaves
 gate c64_1988 node apps/c64_1988_headless.mjs --break pixel   # ...and the view taken one pixel to the right is caught
 gate c64_transmission64 node apps/c64_transmission64_headless.mjs   # TRANSMISSION64 (cart 120, Padua's C64 invitation 2021): plane 0 alone; C64 frames across the show (the boot screen, the rings, the wipe, the logo's colours, the dots, the panel) pixel-identical to VICE 3.9 x64sc (pinned SHA-256 of the 384x272 view in colodore indices, tools/c64/pin_frames.py); Escape leaves
@@ -597,6 +612,8 @@ gate_timed raytrace node apps/raytrace_headless.mjs "$SHOTS/raytrace"   # RAYTRA
 gate_timed raytrace node apps/raytrace_headless.mjs --break pixel "$SHOTS/raytrace"   # ...and one wrong pixel fails the pinned fingerprint
 gate_timed raytrace node apps/raytrace_headless.mjs --break clock "$SHOTS/raytrace"   # ...and a clock that never moves (a frame that never ends its budget) fails the frame count, the rate and the 60 fps budget
 gate_timed raytrace node apps/raytrace_headless.mjs --break smooth "$SHOTS/raytrace"   # ...and refinement passes that change nothing fail the converged pin, the penumbra and the soft-edge checks
+gate raytrace node apps/gfa_punch_headless.mjs "$SHOTS/gfa_punch"   # RAYTRACE keys 4/5: NUCLEUS's GfA Punch Raytrace (ST Magazine, 21 lines of GFA BASIC). Key 4 on a 16-colour 8-bit plane: the title PRINTed in the system font and read back by PTST as the floor's texture, the loops bottom row first, finished at exactly frame 96 (512 turns a frame), every pixel's colour index against an independent JS run of the listing (f64, TRUE = -1, the same seeded RAND); key 5 in true colour: block preview at frame 2, first picture at 100, pass 16 at 1600, block brightness following the listing's; keys 4/5/1 and Fire restart in the right plane; three pictures pinned
+gate raytrace node apps/gfa_punch_headless.mjs --break true "$SHOTS/gfa_punch"   # ...and the listing run with TRUE = +1 (the text and the shadow brighten, the dither adds) disagrees with the cart
 gate elite_cfsr node apps/elite_cfsr_headless.mjs "$SHOTS/elite_cfsr"   # ELITE CHALLENGE FOOT: both colour-0 bars are REAL rasters read off the LEFT BORDER (BEAM_RASTERS1/2 exact, and the closing one only exists because the bottom border is open), every one of the 156 band lines carries its own RASTERS group word, and all ten copies of the 16-row XOR-filled scroller pattern agree
 gate rno_sodium node apps/rno_sodium_headless.mjs "$SHOTS/rno_sodium"   # RNO SODIUM: at the eight counter values of the Hatari RAM snapshots (wobble trail, curtain, both text pages, prism and distorter back buffers) the frame on screen is the original's, pixel for pixel; the parts change on a 50 Hz counter even on a 60 Hz host; gritty.sndh restarts when the intro loops
 gate rno_natrium node apps/rno_natrium_headless.mjs "$SHOTS/rno_natrium"   # RNO NATRIUM: at six timeline counters the displayed frame is Hatari's RAM snapshot through the palette, byte for byte; part 1's two-tone dot tunnel and logo band; $1E00 starts the intro over identically
@@ -803,6 +820,8 @@ gate c_bench node apps/bench_headless.mjs --break clock   # ...and a no-clock ru
 gate c_astro_bench node apps/astro_bench_headless.mjs   # ASTRO BENCH (C, SPIKE: docs/ARM_FPU_COPROC.md): ASTROLABE's hwAstro (HW 1.18.0) as the page binds it: the round trip, ADD/MUL/DIV/SQRT/SIN one call an op and 48 a call against the cart's own f64 and f32, LINPACK 100 as GEFA+GESL against the cart's netlib dgefa/dgesl, sin over 4096 elements (f64 and f32 out); every result 0 ulp from the cart's own (one kernel source, compiler_rt both sides), LINPACK's two solutions the same bits, the reference bits against JavaScript (IEEE exact, libm <= 1 ulp), served=0 (no ARM in a browser), each job logged once, no clock = no times, key 1 reruns
 gate c_astro_bench node apps/astro_bench_headless.mjs --break result   # ...a result one ulp off is caught
 gate c_astro_bench node apps/astro_bench_headless.mjs --break batch   # ...array descriptors answered OK with nothing computed
+gate c_astro_bench node apps/astro_bench_headless.mjs --break f32   # ...the zoom's f32 FPU side: it matches f64 at shallow steps and breaks down at a deep one; this run calls a shallow step "deep", so the degradation check must fail
+gate c_astro_bench node apps/astro_bench_headless.mjs --break f32match   # ...and a deep step called "shallow" must fail the match check
 gate c_astro_bench node apps/astro_bench_headless.mjs --break clock   # ...a no-clock run expected to print numbers
 gate c_astro_bench uv run --project fpga python -m pytest -q fpga/tests/test_astro_box.py   # ...and the board's mailbox protocol: cycles/bastro_box.h = glass/src/astro_box.zig = machine/sdk/astro.zig = soc/zm_astro.py, and cycles/bastro_post.h against a scripted glass (served, words per op class, no worker, withdrawn when not taken, dead until the BEAT moves, TIMEOUT never rerun, a late worker serves nothing)
 gate ports_pt2 node apps/ports_headless.mjs pt2   # PT2-CLONE (C, apps/ports): its GEM data disk runs the SDL boot sector (request 2), GEM lists its files, a double-click runs BOOT.WSM = the committed cart with only env imports, 300 frames no trap, the UI pinned; DISK OP (a click) lists the floppy, a click on HYBRID.MOD loads it (the song-name row changes), PLAY is heard; Esc, Esc quits back to the desktop exactly as it was (request 4)

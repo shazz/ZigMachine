@@ -834,15 +834,25 @@ pub const LogicalFB = struct {
     // changes nothing) on another plane, where the machine has no desk mode (an older board
     // bitstream: the cart then stays in its mode, e.g. medium), or when the pool is full.
     pub fn setDeskPlane(self: *LogicalFB) error{ NotPlaneZero, DeskUnavailable, VramFull }!void {
+        return self.setDeskPlaneRows(hw.DESK_HEIGHT);
+    }
+
+    // setDeskPlane on a TALL buffer: `rows` (>= 480) rows of 640 bytes, 64-aligned, for a cart that
+    // pans the 480-row window over it with setScroll(0, y) (the NFO viewer: zigdemo/nfo_plane.zig).
+    // The buffer is NOT cleared (a blitter fill stops at row 199 on a stride-640 plane): the cart
+    // paints every row. Like setDeskPlane, the first call of a scene allocates and later calls keep
+    // that buffer, whatever `rows` they pass.
+    pub fn setDeskPlaneRows(self: *LogicalFB, rows: u32) error{ NotPlaneZero, DeskUnavailable, VramFull }!void {
         if (self.id != 0) return error.NotPlaneZero;
         if (hw.hwDeskAvailable() == 0) return error.DeskUnavailable;
         const fresh = self.desk_off == 0;
-        if (fresh) self.desk_off = vramTry(hw.DESK_FB_BYTES, 64) orelse return error.VramFull;
+        const bytes = @as(usize, hw.DESK_WIDTH) * @max(rows, hw.DESK_HEIGHT);
+        if (fresh) self.desk_off = vramTry(bytes, 64) orelse return error.VramFull;
         self.bind(self.desk_off);
         self.stride = hw.DESK_WIDTH;
         self.fb_w = hw.DESK_WIDTH;
         self.fb_h = hw.DESK_HEIGHT;
-        if (fresh) self.clearFrameBuffer(0);
+        if (fresh and rows <= hw.DESK_HEIGHT) self.clearFrameBuffer(0);
         const pal: [*]volatile u32 = @ptrCast(self.palette);
         for (0..256) |i| pal[i] = pal[i];
         writeU8(hw.REG_RESOLUTION, hw.RES_DESK);

@@ -15,6 +15,15 @@
 // a cart built before KOS never calls one and keeps running.
 // --------------------------------------------------------------------------
 const Post = @import("boot_rom").Boot;
+const hw = @import("hardware");
+const assets = @import("gem_assets");
+
+/// KESTREL's POST look (Matt, 14 Nov): a ROM built with a LOCAL GEM set (-Dgem_assets, the board's
+/// GEM 5.0 ROM, never committed) shows TOS's own: the set's BIOS Fuji instead of the Zig logo, "TOS 5.0",
+/// the board's 32 MiB cart RAM, no "WASM RAM:" label. Without a set (the browser, Pages, the gate) the
+/// POST is KOS 1.0's, unchanged.
+const tos_look = assets.present and assets.boot_logo != null;
+const TOS_TEXT = "TOS 5.0";
 
 /// KOS 1.0, major << 16 | minor: the ROM's version (sysvars.kos_version).
 pub const VERSION: u32 = 0x0001_0000;
@@ -109,8 +118,10 @@ export fn kosPostFrame() u32 {
     const boot = post.counter_boot;
     post.update();
     if (post_n == 0) {
-        post.render();
-        post.text(VERSION_TEXT, VERSION_X, VERSION_Y, BLACK, WHITE);
+        if (tos_look) renderTos() else {
+            post.render();
+            post.text(VERSION_TEXT, VERSION_X, VERSION_Y, BLACK, WHITE);
+        }
     } else changed(ram, boot);
     post_n += 1;
     return @intFromBool(post_n >= post_frames);
@@ -121,15 +132,35 @@ export fn kosPostFrame() u32 {
 /// keeps the last frame's pixels, so the next dash of the memory bar, the RAM total and the next
 /// cell of the boot bar are all that move. The picture is render()'s, frame for frame.
 fn changed(ram: u16, boot: u16) void {
-    const bar_y = POST_TOP + 10;
+    const bar_y = L.top + L.pitch;
     if (post.counter_ram != ram) {
-        post.text("-", BAR_X + (post.counter_ram - 1) * 8, bar_y, WHITE, BLACK);
+        // KOS: one dash a step; TOS 4: the 16 steps spread over 24 dash cells of its 32-cell bar.
+        var c = dashCells(ram);
+        while (c < dashCells(post.counter_ram)) : (c += 1) post.text("-", L.bar_x + c * 8, bar_y, WHITE, BLACK);
         if (post.counter_ram == 16) {
-            post.text("  2048 KB", 8 + 19 * 8, bar_y, WHITE, BLACK);
-            post.text("Memory Test Complete.", 8, POST_TOP + 20, BLACK, WHITE);
+            post.text(L.ram_text, L.ram_x, bar_y, WHITE, BLACK);
+            post.text("Memory Test Complete.", L.text_x, L.top + 2 * L.pitch, BLACK, WHITE);
         }
     }
-    if (post.counter_boot != boot) post.text(" ", 8 + (post.counter_boot - 1) * 8, POST_TOP + 30, WHITE, BLACK);
+    if (post.counter_boot != boot) post.text(" ", L.text_x + (post.counter_boot - 1) * 8, L.top + 3 * L.pitch, WHITE, BLACK);
+}
+
+fn dashCells(steps: u16) u16 {
+    return if (tos_look) steps * 3 / 2 else steps;
+}
+
+/// The TOS look's first frame: what Boot.render() draws, without its "Stay Atari!" footer (TOS 4 has
+/// none), with the set's Fuji (ink black on the POST's
+/// white) and the text block moved below it; the bars then grow through changed(), as KOS's do.
+fn renderTos() void {
+    const logo = assets.boot_logo.?;
+    const fb: [*]u8 = @ptrFromInt(post.base + hw.OFF_VRAM);
+    for (0..logo.h) |y| for (0..logo.w) |x| {
+        fb[(TOS_LOGO_Y + y) * hw.WIDTH + TOS_LOGO_X + x] = if (logo.ink[y * logo.w + x] != 0) BLACK else WHITE;
+    };
+    post.text(TOS_TEXT, TOS_LOGO_X + @as(u16, @intCast(logo.w)) + 16, TOS_LOGO_Y + 72, BLACK, WHITE);
+    post.text("Memory Test:", L.text_x, L.top, BLACK, WHITE);
+    post.text("                                ", L.bar_x, L.top + L.pitch, WHITE, BLACK); // 32 cells, TOS 4's bar
 }
 
 // machine/boot.zig's layout: its palette's white and black, the text block's top, the bar's left.
@@ -137,6 +168,17 @@ const WHITE: u8 = 7;
 const BLACK: u8 = 0;
 const POST_TOP: u16 = 74;
 const BAR_X: u16 = 8 + 12 * 8;
+
+/// Where the POST's moving parts sit: KOS's layout (machine/boot.zig), or TOS 4's as a real Falcon
+/// shows it (Matt's photo, 14 Nov): the Fuji in the top-left corner, the text from column 0 in rows
+/// 8 px apart under it, a 32-cell bar with the KB total right-aligned at its end, no "WASM RAM:" label.
+const Layout = struct { top: u16, pitch: u16, text_x: u16, bar_x: u16, ram_text: []const u8, ram_x: u16 };
+const L: Layout = if (tos_look)
+    .{ .top = 96, .pitch = 8, .text_x = 0, .bar_x = 0, .ram_text = "32768 KB", .ram_x = 24 * 8 }
+else
+    .{ .top = POST_TOP, .pitch = 10, .text_x = 8, .bar_x = BAR_X, .ram_text = "  2048 KB", .ram_x = 8 + 19 * 8 };
+const TOS_LOGO_X: u16 = 0;
+const TOS_LOGO_Y: u16 = 4;
 
 // Right of the logo (65x60 at 20,10), on its middle row: black on the POST's white.
 const VERSION_X: u16 = 104;
