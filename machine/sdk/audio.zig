@@ -64,6 +64,7 @@ pub extern fn machineAyRender(dst_abs: u32, n: u32) void; // n stereo s16 frames
 pub extern fn machineVgmLoad(file_abs: u32, len: u32, cap: u32) u32; // 0 ok, 1 not a VGM, 2 no chip, 3 truncated, 4 bad .vgz
 pub extern fn machineVgmRate() u32; // the engine's rate, Hz
 pub extern fn machineVgmRender(dst_abs: u32, n: u32) void; // n stereo s16 frames (L, R) at machineVgmRate
+pub extern fn machineVgmRenderPaula(hl_abs: u32, hr_abs: u32, ll_abs: u32, lr_abs: u32, n: u32) void; // n 44.1 kHz frames as Paula hi/lo bytes
 
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.

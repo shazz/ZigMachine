@@ -30,6 +30,7 @@ uint32_t zm_vgm_load(uint8_t *file, uint32_t len, uint32_t cap) {
     int rc = vgm_open(&zm_vgm, file, len, ZM_VGM_DIV, ZM_VGM_YM_GAIN, ZM_VGM_PSG_GAIN);
     if (rc) return (uint32_t)rc;
     zm_vgm_loaded = 1;
+    zm_vgm_out_reset(zm_vgm.rate);
     return ZM_VGM_OK;
 }
 

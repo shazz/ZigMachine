@@ -866,8 +866,9 @@ fn addAyumi(b: *std.Build, mod: *std.Build.Module) void {
 fn addVgm(b: *std.Build, mod: *std.Build.Module) void {
     const flags = [_][]const u8{ "-std=c99", "-ffreestanding", "-fno-builtin", "-Wall", "-Werror" };
     for ([_][]const u8{
-        "vgm/zm_vgm.c",    "vgm/vgm_seq.c",      "vgm/vgm_stream.c",       "vgm/zm_inflate.c",
-        "ym2612/ym2612.c", "ym2612/ym2612_eg.c", "ym2612/ym2612_render.c", "sn76489/sn76489.c",
+        "vgm/zm_vgm.c",       "vgm/vgm_seq.c",          "vgm/vgm_stream.c",  "vgm/zm_inflate.c",
+        "vgm/zm_vgm_out.c",   "ym2612/ym2612.c",        "ym2612/ym2612_eg.c", "ym2612/ym2612_render.c",
+        "sn76489/sn76489.c",
     }) |f| mod.addCSourceFile(.{ .file = b.path(b.fmt("libs/c/{s}", .{f})), .flags = &flags });
 }
 

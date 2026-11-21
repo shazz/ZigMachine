@@ -29,6 +29,11 @@ uint32_t zm_vgm_rate(void);
 /* The next `n` frames (s16 L, R interleaved, at zm_vgm_rate) into `lr`; silence when nothing is loaded. */
 void zm_vgm_render(int16_t *lr, uint32_t n);
 
+/* The player's output (zm_vgm_out.c): the next `n` 44.1 kHz frames, resampled linearly from the engine's rate
+ * and split into the four Paula channels' bytes, hi L, hi R, lo L, lo R (128 hi + lo = x >> 1 a side). */
+void zm_vgm_render_paula(int8_t *hl, int8_t *hr, int8_t *ll, int8_t *lr, uint32_t n);
+void zm_vgm_out_reset(uint32_t rate); /* at every load (zm_vgm_load calls it) */
+
 /* Benches only (fpga/cycles/sound/svgmbench.c): jump `tenths` of a second into the tune, nothing rendered. */
 void zm_vgm_seek(uint32_t tenths);
 

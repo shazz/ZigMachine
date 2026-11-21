@@ -20,7 +20,7 @@ import { gzipSync } from "node:zlib";
 const TUNE = "docs/music/kestrel_fm.vgm", TUNE_Z = "docs/music/kestrel_fm.vgz", SECS = 6, OUT = 735;
 const LOCAL = process.env.VGM_LOCAL || "prototypes/gens_fm/dl/s1/x"; // Sonic 1's VGMs, the Gens study's local set
 const PIN = "apps/vgm_expected.json";
-const SRC = ["vgm/zm_vgm.c", "vgm/vgm_seq.c", "vgm/vgm_stream.c", "vgm/zm_inflate.c", "ym2612/ym2612.c",
+const SRC = ["vgm/zm_vgm.c", "vgm/vgm_seq.c", "vgm/vgm_stream.c", "vgm/zm_inflate.c", "vgm/zm_vgm_out.c", "ym2612/ym2612.c",
     "ym2612/ym2612_eg.c", "ym2612/ym2612_render.c", "sn76489/sn76489.c"];
 // --break <feature>: [file, the rule, its mutant, the feature VGM whose pinned hash must then fail]
 const BREAKS = {
@@ -69,7 +69,7 @@ async function nativeRenderer(dir) {
 /** The engine in machine-audio.wasm: the same blocks' hashes (0.1 s of stereo frames each), and the samples. */
 async function wasmRender(bytes, secs = SECS) {
     const { memory, m, a } = await modules();
-    const at = a.audioSongPtr(), cap = 0xEF000, dst = at + cap;
+    const at = a.audioSongPtr(), cap = 0xF0000, dst = at + cap; // the player's room (vgm.zig FILE_MAX), the chunk past it
     new Uint8Array(memory.buffer, at, bytes.length).set(bytes);
     const st = m.machineVgmLoad(at, bytes.length, cap), rate = m.machineVgmRate(), block = Math.floor(rate / 10);
     const hashes = [], all = [];
@@ -96,7 +96,7 @@ async function tunes(dir) {
 async function parity(native, list, nlocal, errors, notes) {
     for (const [file, name] of list) {
         const bytes = new Uint8Array(await readFile(file));
-        if (bytes.length > 0xEF000) { notes.push(`parity: ${name}: ${bytes.length} bytes, past the song RAM's room, skipped`); continue; }
+        if (bytes.length > 0xF0000) { notes.push(`parity: ${name}: ${bytes.length} bytes, past the song RAM's room, skipped`); continue; }
         const w = await wasmRender(bytes), n = native(file);
         const bad = w.hashes.findIndex((h, i) => h !== n[i]);
         if (w.st !== 0) errors.push(`parity: ${name}: the engine refused it (${w.st})`);
@@ -163,7 +163,7 @@ function header(ym, psg, data = 0x40) {
 
 async function refused(errors, notes) {
     const tune = new Uint8Array(await readFile(TUNE));
-    const badz = gzipSync(tune).slice(), big = new Uint8Array(0xF0000);
+    const badz = gzipSync(tune).slice(), big = new Uint8Array(0xF0001);
     badz.fill(0xAB, 20, 60); // a corrupt deflate stream
     big.set(tune);
     const cases = [["garbage", new Uint8Array(400).fill(7), 1], ["no chip", header(0, 0), 2],

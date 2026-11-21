@@ -10,6 +10,7 @@
 #include "../../libs/c/vgm/vgm_stream.c"
 #include "../../libs/c/vgm/zm_inflate.c"
 #include "../../libs/c/vgm/zm_vgm.c"
+#include "../../libs/c/vgm/zm_vgm_out.c"
 #include "../../libs/c/ym2612/ym2612.c"
 #include "../../libs/c/ym2612/ym2612_eg.c"
 #include "../../libs/c/ym2612/ym2612_render.c"
@@ -33,6 +34,15 @@ void w2c_aud_machineVgmRender(struct w2c_aud* a, u32 dst_abs, u32 n) {
     (void)a;
     if (dst_abs > AUDIO_MEM_BYTES || n > (AUDIO_MEM_BYTES - dst_abs) / 4 || (dst_abs & 1)) return;
     zm_vgm_render((int16_t*)(void*)(g_aud.memory.data + dst_abs), n);
+}
+
+void w2c_aud_machineVgmRenderPaula(struct w2c_aud* a, u32 hl, u32 hr, u32 ll, u32 lr, u32 n) {
+    (void)a;
+    uint32_t at[4] = {hl, hr, ll, lr};
+    for (int k = 0; k < 4; k++)
+        if (at[k] > AUDIO_MEM_BYTES || n > AUDIO_MEM_BYTES - at[k]) return;
+    uint8_t* m = g_aud.memory.data;
+    zm_vgm_render_paula((int8_t*)(m + hl), (int8_t*)(m + hr), (int8_t*)(m + ll), (int8_t*)(m + lr), n);
 }
 
 /* load_paula's .vgm / .vgz (host/audio.c): play it, or say why not. */

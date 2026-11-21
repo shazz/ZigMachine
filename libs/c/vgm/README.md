@@ -19,7 +19,7 @@ native host; `libs/zig/players/vgm.zig` resamples it to 44.1 kHz and plays it on
 
 ## Limits
 
-- The file sits whole in song RAM: up to 982,016 bytes, a `.vgz` and what it inflates to likewise (status 5,
+- The file sits whole in song RAM: up to 983,040 bytes, a `.vgz` and what it inflates to likewise (status 5,
   "too big for the song RAM", or 4). Most Mega Drive VGMs fit; Sonic 1's Staff Roll (1.05 MB) does not.
 - One YM2612 and one SN76489. Second chips (bit 30 of a clock), other chips' commands, and data blocks of other
   types are skipped. No timers, so no CSM.

@@ -10,6 +10,7 @@
 extern fn zm_vgm_load(file: [*]u8, len: u32, cap: u32) u32;
 extern fn zm_vgm_rate() u32;
 extern fn zm_vgm_render(dst: [*]i16, n: u32) void;
+extern fn zm_vgm_render_paula(hl: [*]i8, hr: [*]i8, ll: [*]i8, lr: [*]i8, n: u32) void;
 
 /// Load the file staged at `file_abs` (it must stay there while it plays); a .vgz is inflated in place
 /// into the `cap` bytes from `file_abs`. 0 ok, 1 not a VGM, 2 no YM2612 / SN76489, 3 truncated, 4 a bad
@@ -26,4 +27,10 @@ export fn machineVgmRate() u32 {
 /// The next `n` stereo frames (s16 L, R) at machineVgmRate into `dst_abs` (2-byte aligned).
 export fn machineVgmRender(dst_abs: u32, n: u32) void {
     zm_vgm_render(@ptrFromInt(dst_abs), n);
+}
+
+/// The player's output: the next `n` 44.1 kHz frames, the engine resampled linearly and split into the four
+/// Paula channels' bytes at `hl_abs`, `hr_abs` (high L, R) and `ll_abs`, `lr_abs` (low L, R): 128 hi + lo = x >> 1.
+export fn machineVgmRenderPaula(hl_abs: u32, hr_abs: u32, ll_abs: u32, lr_abs: u32, n: u32) void {
+    zm_vgm_render_paula(@ptrFromInt(hl_abs), @ptrFromInt(hr_abs), @ptrFromInt(ll_abs), @ptrFromInt(lr_abs), n);
 }

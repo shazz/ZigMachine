@@ -43,7 +43,7 @@ def _import_modules(wasm: bytes) -> list[bytes]:
 
 def test_rename_moves_every_env_import_of_the_players_to_aud() -> None:
     data, count = wasm_env_rename.rename(AUDIO_WASM.read_bytes(), b"env", b"aud")
-    assert count == 28  # env.memory and the 27 machine* calls (13, + the POKEY's three: ABI 1.2.0, + machineAudioReset, + the SID engine's four, + the AY engine's three, + the VGM engine's three)
+    assert count == 27  # env.memory and the 26 machine* calls (13, + the POKEY's three: ABI 1.2.0, + machineAudioReset, + the SID engine's four, + the AY engine's three, + the VGM player's two: load, render to Paula)
     assert set(_import_modules(data)) == {b"aud"}
     assert len(data) == AUDIO_WASM.stat().st_size
 

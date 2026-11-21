@@ -15,12 +15,27 @@ static uint8_t eff(uint32_t r5, uint32_t ksr) {
     return (uint8_t)(r > 63 ? 63 : r);
 }
 
+/* The current state's rate, its update mask (2^shift - 1) and shift: kept so the EG tick's common case
+ * (no update due) is one AND. Redone whenever the state or the rates change. */
+static void eg_cache(ym_op *o) {
+    uint32_t r = o->rate[o->state], sh = YM_EG_SHIFT[r];
+    o->eg_rate = (uint8_t)r;
+    o->eg_shift = (uint8_t)sh;
+    o->eg_mask = (uint16_t)((1u << sh) - 1u);
+}
+
+static void set_state(ym_op *o, uint8_t s) {
+    o->state = s;
+    eg_cache(o);
+}
+
 void ym_op_rates(ym_op *o) {
     uint32_t ksr = o->kc >> (3 - o->ks);
     o->rate[YM_ATTACK] = eff(o->ar, ksr);
     o->rate[YM_DECAY] = eff(o->d1r, ksr);
     o->rate[YM_SUSTAIN] = eff(o->d2r, ksr);
     o->rate[YM_RELEASE] = eff(2u * o->rr + 1u, ksr);
+    eg_cache(o);
 }
 
 /* The phase increment: fnum moved by the channel's LFO PM, (fnum << block) >> 1, detuned, times the
@@ -41,15 +56,15 @@ void ym_key(ym_op *o, uint32_t on) {
     if (on && !o->key) {
         o->phase = 0;
         o->ssg_inv = 0;
-        o->state = YM_ATTACK;
+        set_state(o, YM_ATTACK);
         if (o->rate[YM_ATTACK] >= 62) {
             o->att = 0;
-            o->state = YM_DECAY;
+            set_state(o, YM_DECAY);
         }
     } else if (!on && o->key) {
         if ((o->ssg & 8u) && ssg_inverted(o)) o->att = (0x200 - o->att) & 0x3FF; /* release from what is heard */
         o->ssg_inv = 0;
-        o->state = YM_RELEASE;
+        set_state(o, YM_RELEASE);
     }
     o->key = (uint8_t)(on != 0);
     ym_op_eatt(o);
@@ -67,7 +82,7 @@ static void ssg_edge(ym_op *o) {
     }
     if (o->ssg & 2u) o->ssg_inv ^= 1u;
     else o->phase = 0;
-    o->state = YM_ATTACK;
+    set_state(o, YM_ATTACK);
 }
 
 /* The attenuation the operator is heard at before the LFO's AM: SSG-EG's inversion, + TL, at most 0x3FF.
@@ -85,7 +100,7 @@ static void eg_advance(ym_op *o, uint32_t r, int32_t inc) {
         else if (inc) o->att += (~o->att * inc) >> 3; /* see the header: >> 3, not >> 4 */
         if (o->att <= 0) {
             o->att = 0;
-            o->state = YM_DECAY;
+            set_state(o, YM_DECAY);
         }
         return;
     }
@@ -98,16 +113,16 @@ static void eg_advance(ym_op *o, uint32_t r, int32_t inc) {
     }
     o->att += inc;
     if (o->att > 0x3FF) o->att = 0x3FF;
-    if (o->state == YM_DECAY && o->att >= o->sl) o->state = YM_SUSTAIN;
+    if (o->state == YM_DECAY && o->att >= o->sl) set_state(o, YM_SUSTAIN);
 }
 
 /* One EG tick of one operator; 0 when it is silent for good (released to 0x3FF). */
-static uint32_t eg_step(ym_op *o, uint32_t cnt) {
+static inline uint32_t eg_step(ym_op *o, uint32_t cnt) {
     if (o->state == YM_RELEASE && o->att >= 0x3FF) return 0;
     if ((o->ssg & 8u) && o->key && o->state != YM_ATTACK && o->att >= 0x200) ssg_edge(o), ym_op_eatt(o);
-    uint32_t r = o->rate[o->state], sh = YM_EG_SHIFT[r];
-    if (cnt & ((1u << sh) - 1u)) return 1;
-    int32_t inc = YM_EG_INC[YM_EG_ROW[r] * 8u + (cnt >> sh & 7u)];
+    if (cnt & o->eg_mask) return 1;
+    uint32_t r = o->eg_rate;
+    int32_t inc = YM_EG_INC[YM_EG_ROW[r] * 8u + (cnt >> o->eg_shift & 7u)];
     eg_advance(o, r, inc);
     ym_op_eatt(o);
     return o->state != YM_RELEASE || o->att < 0x3FF;

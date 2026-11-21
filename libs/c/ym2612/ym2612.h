@@ -23,6 +23,8 @@ typedef struct {
     uint16_t tl3, sl;         /* TL << 3; sustain level as an attenuation */
     uint16_t eatt;            /* the attenuation heard before AM: SSG-adjusted att + TL (ym_op_eatt) */
     uint8_t rate[4];          /* effective rate (0..63) of each EG state, key scaling applied */
+    uint8_t eg_rate, eg_shift; /* the current state's rate and update shift; eg_mask = 2^shift - 1 */
+    uint16_t eg_mask;
     uint32_t fnum, block, kc; /* this operator's pitch (channel 3's special mode gives each its own) */
 } ym_op;
 
