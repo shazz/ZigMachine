@@ -14,6 +14,8 @@
 //   *.KT             a klystrack song ("cyd!song" at 0): the .kt player (klystron's cyd) on Paula
 //   *.SID            a C64 PSID ("PSID" at 0): cRSID on BARD (players/sid.zig). An RSID (a real
 //                    C64 program, "RSID" at 0) is listed but not played: the player refuses it
+//   *.VGM / *.VGZ    a Mega Drive VGM ("Vgm " at 0, or a gzip stream): our YM2612 + SN76489 on BARD
+//                    (players/vgm.zig; a .vgz is inflated by the engine)
 //
 // An SNDH, XM or HIP may be stored ZX0-packed (the "ZX0!" container): the header is
 // checked on the bytes it depacks to (sysinfo/sound_play.zig).
@@ -22,8 +24,8 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const Kind = enum(u8) { sndh, sap, pcm, xm, hip, kt, sid };
-pub const MAX: usize = 7; // the page's rows for files
+pub const Kind = enum(u8) { sndh, sap, pcm, xm, hip, kt, sid, vgm };
+pub const MAX: usize = 8; // the page's rows for files
 
 pub const Entry = struct { name: [16]u8, len: u32, kind: Kind };
 
@@ -41,6 +43,7 @@ pub fn kindOf(name: []const u8) ?Kind {
     if (eqlUpper(ext, "HIP")) return .hip;
     if (eqlUpper(ext, "KT")) return .kt;
     if (eqlUpper(ext, "SID")) return .sid;
+    if (eqlUpper(ext, "VGM") or eqlUpper(ext, "VGZ")) return .vgm;
     return null;
 }
 
@@ -62,6 +65,7 @@ pub fn imageOk(kind: Kind, bytes: []const u8) bool {
             std.mem.indexOf(u8, bytes[0..@min(bytes.len, HIP_TFMX_WITHIN)], "TFMX") != null,
         .kt => std.mem.startsWith(u8, bytes, "cyd!song"), // players/kt_load.zig's own test
         .sid => isPsid(bytes) or isRsid(bytes),
+        .vgm => std.mem.startsWith(u8, bytes, "Vgm ") or std.mem.startsWith(u8, bytes, "\x1f\x8b"),
     };
 }
 
@@ -190,4 +194,13 @@ test "a SID is a PSID or an RSID by its first four bytes; an RSID is not a PSID"
     try std.testing.expect(isRsid("RSID\x00\x02") and !isRsid("PSID"));
     try std.testing.expect(!imageOk(.sid, "SNDH\x00\x02"));
     try std.testing.expect(!imageOk(.sid, "PSI"));
+}
+
+test "a VGM is a .vgm or a .vgz, its bytes a VGM header or a gzip stream" {
+    try std.testing.expectEqual(@as(?Kind, .vgm), kindOf("KESTREL.VGZ"));
+    try std.testing.expectEqual(@as(?Kind, .vgm), kindOf("tune.vgm"));
+    try std.testing.expect(imageOk(.vgm, "Vgm \x00\x01"));
+    try std.testing.expect(imageOk(.vgm, "\x1f\x8b\x08\x00"));
+    try std.testing.expect(!imageOk(.vgm, "PSID\x00\x02"));
+    try std.testing.expect(!imageOk(.vgm, "Vg"));
 }

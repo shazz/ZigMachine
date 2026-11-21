@@ -56,7 +56,7 @@ fn soundFiles(g: *grid.Grid, l: *const sound_list.List) void {
         _ = std.fmt.bufPrint(&b, " {s:<14} {d:>6} BYTES  {s:<22} {s}", .{ sound_list.List.nameOf(e), e.len, kindName(e.kind), mark }) catch {};
         g.put(FILES_ROW + 1 + i, L, &b, if (l.sel == i) .inverse else .plain);
     }
-    const row = FILES_ROW + 2 + sound_list.MAX;
+    const row = FILES_ROW + 1 + sound_list.MAX; // the grid's last two rows (25 rows: 8 files fill it)
     if (l.playing) |i| g.fieldf(row, L, "STATUS", "PLAYING {s}", .{sound_list.List.nameOf(&l.items[i])}) else g.field(row, L, "STATUS", statusName(l.status));
     g.put(row + 1, L, "UP/DOWN: SELECT   P OR FIRE: PLAY   S: STOP", .plain);
 }
@@ -70,6 +70,7 @@ fn kindName(k: sound_list.Kind) []const u8 {
         .hip => "HIP (68000 + PAULA)",
         .kt => "KT (KLYSTRACK + PAULA)",
         .sid => "SID (6502 + SID)",
+        .vgm => "VGM (YM2612 + SN76489)",
     };
 }
 

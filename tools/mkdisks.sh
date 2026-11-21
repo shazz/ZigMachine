@@ -148,7 +148,8 @@ for w in "$OUT"/demo-*.wasm; do
                         --file "KEYGEN.XM=$(packcart "$OUT/music/keygen_9000.xm")" \
                         --file "THALION.HIP=$(packcart "$OUT/music/hippel/thalion_intro.hip")" \
                         --file "STARPORT.KT=$OUT/music/starport2.kt" \
-                        --file "HERMINI.SID=$OUT/music/hermini.sid" ;;
+                        --file "HERMINI.SID=$OUT/music/hermini.sid" \
+                        --file "KESTREL.VGZ=$OUT/music/kestrel_fm.vgz" ;;
         # NOTEPAD is a GEM program as ST Replay and SysInfo are: a DATA disk, GEM opens it, BOOT.WSM
         # is double-clicked, ^Q goes back to the desktop (request 4). Its files are on C: (KOS GEMDOS).
         notepad)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
