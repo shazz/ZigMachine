@@ -56,6 +56,10 @@ export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
             if (audio.keep) audio.keep.push(new Int8Array(memory.buffer, p, n).slice());
         },
         hostAudioStreamStop: () => { audio.stops = (audio.stops || 0) + 1; },
+        // The stereo stream (table 1.27): counted as fed bytes; no players here, so the counter answers 0.
+        hostAudioStreamStartStereo: (rate) => { audio.rate = rate; audio.stereo = true; },
+        hostAudioFeedStereo: (p, n) => { audio.n += n; },
+        hostAudioStreamPlayed: () => 0,
         // The Paula channels (HW 1.14.0): none here unless extraEnv lends them (claim 0: software mix).
         hostPaulaClaim: () => 0, hostPaulaUpload: () => {}, hostPaulaWrite: () => {}, hostPaulaRelease: () => {},
         hostBardAttach: () => 0, // table 1.12: no BARD queue here

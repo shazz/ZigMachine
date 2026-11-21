@@ -178,6 +178,9 @@ uint32_t audio_mp3_status(uint32_t which) {
     return s2c[S_AS + AS_MP3_W + which];
 }
 
+/* zg.audioStreamPlayed: BARD's counter in the audio state's MS word while a stream plays (aud_state.h). */
+uint32_t audio_stream_played(void) { return baudio.on ? aud_state_stream(&SND_REG(SND_S2C)) : 0u; }
+
 void baudio_report(void) {
     if (!baudio.on) return;
     drain_log();

@@ -4,6 +4,7 @@ firmware call the cart through (host/host.h host_song_bridge, host_input_bridge,
 host_disk_app_bridge)."""
 
 from host_scopes import SCOPES, SCOPES_DEFAULTS, scopes_arg
+from host_stereo import STEREO, STEREO_DEFAULTS
 
 # How a --call argument (a JS Number, as a double) becomes each wasm parameter type.
 FROM_NUMBER = {"u32": "host_to_i32(a[{i}])", "f32": "(f32)a[{i}]", "f64": "a[{i}]"}
@@ -191,9 +192,10 @@ NET_DEFAULTS = """/* ZIGNIC: no network card (Err.no_card) unless cycles/bnet.h 
 #endif
 """
 
-HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3, **BARD, **POINTER_BOX, **NET, **SCOPES}
+HOST_ENTRIES = {**STREAM, **MIRROR, **PAULA, **KOS_DRIVE, **KOS_FILE, **MP3, **BARD, **POINTER_BOX, **NET, **SCOPES, **STEREO}
 HOST_DEFAULTS = (STREAM_DEFAULTS + MIRROR_DEFAULTS + PAULA_DEFAULTS + KOS_DRIVE_DEFAULTS + KOS_FILE_DEFAULTS + MP3_DEFAULTS
-                 + BARD_DEFAULTS + POINTER_BOX_DEFAULTS + NET_DEFAULTS + SCOPES_DEFAULTS)
+                 + BARD_DEFAULTS + POINTER_BOX_DEFAULTS + NET_DEFAULTS + SCOPES_DEFAULTS
+                 + STEREO_DEFAULTS)
 
 
 def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:

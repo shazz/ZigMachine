@@ -64,7 +64,9 @@ const ALLOW = {
     // struct with non-zero fields, and its input ring, frame, PCM and pvmp3's 28 KB state live in song RAM.
     // +8 B (2026-11-07): the BARD queue's closed-drop counter and the SID player's live pointer
     // (demo_audio_sidlive.zig, sid.zig); the queue itself (21 KB: its ring, stage, events) lives in song RAM.
-    "demo-audio.wasm": 591399,
+    // +17 B (2026-11-20): the stream's sample counter (its 16.16 position, its step) and the stereo
+    // flag (demo_audio_raw.zig, table 1.27); the two rings live in song RAM.
+    "demo-audio.wasm": 591416,
 };
 
 function uleb(b, p) {

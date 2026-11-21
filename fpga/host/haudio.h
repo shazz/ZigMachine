@@ -61,6 +61,9 @@ enum { FX_SONG_SNDH = 1, FX_SONG_SAP = 2, FX_SONG_XM = 3, FX_SONG_HIP = 4, FX_SO
  * by this side (audio_bridge.c audio_stream_*): never on the cart's queue, so above its ops.
  * Start's rate is in `rate` (Hz); a feed's bytes are `pcm`, `len`. */
 enum { FX_STREAM_START = 0x81, FX_STREAM_FEED = 0x82, FX_STREAM_STOP = 0x83 };
+/* The stereo stream (table 1.27): a start's and a feed's `a` is FX_STREAM_STEREO (0 the mono ring); the
+ * feed's bytes are interleaved L,R frames. */
+enum { FX_STREAM_STEREO = 2 };
 /* A cart's Paula (env.hostPaulaClaim / Upload / Write / Release, HW 1.14.0, host/audio_paula.c):
  * claim's lead in `rate` (samples); an upload's bytes `pcm`, `len`, its chip RAM offset in `rate`;
  * a write batch's 16-byte entries `pcm`, their count `len` (apps/zig/demo_audio_paula.zig). */
@@ -92,6 +95,11 @@ void audio_pcm_forget(void);
 void audio_stream_start(struct w2c_env* e, float rate);
 void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len);
 void audio_stream_stop(struct w2c_env* e);
+/* The stereo stream (table 1.27): host/audio_bridge.c, as FX_STREAM_* effects with `a` FX_STREAM_STEREO.
+ * audio_stream_played answers zg.audioStreamPlayed (host/audio_pcm.c, or BARD's word: cycles/bsound.c). */
+void audio_stream_start_stereo(struct w2c_env* e, uint32_t rate);
+void audio_stream_feed_stereo(struct w2c_env* e, uint32_t ptr, uint32_t len);
+uint32_t audio_stream_played(void);
 /* The cart's Paula imports (env.hostPaula*, host/hstream.h), carried as FX_PAULA_* effects:
  * host/audio_bridge.c. audio_paula_effect applies one where the players are (0: not one), and
  * audio_paula_holds says a cart holds the channels: every song, stream and effect is refused. */

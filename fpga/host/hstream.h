@@ -16,6 +16,16 @@ void audio_stream_stop(struct w2c_env* e);
 #define HOST_AUDIO_FEED(e, ptr, len) audio_stream_feed((e), (ptr), (len))
 #define HOST_AUDIO_STREAM_STOP(e) audio_stream_stop((e))
 
+/* The stereo stream and the stream's sample counter (table 1.27): host/audio_bridge.c, host/audio_pcm.c
+ * or cycles/bsound.c (libs/zig/audio_stereo.zig). */
+void audio_stream_start_stereo(struct w2c_env* e, uint32_t rate);
+void audio_stream_feed_stereo(struct w2c_env* e, uint32_t ptr, uint32_t len);
+uint32_t audio_stream_played(void);
+
+#define HOST_AUDIO_STREAM_START_STEREO(e, rate) audio_stream_start_stereo((e), (rate))
+#define HOST_AUDIO_FEED_STEREO(e, ptr, len) audio_stream_feed_stereo((e), (ptr), (len))
+#define HOST_AUDIO_STREAM_PLAYED(e) ((void)(e), audio_stream_played())
+
 /* The cart's Paula (HW 1.14.0): host/audio_bridge.c, as docs/sealed-loader.js's hostPaula*. */
 uint32_t audio_paula_claim(struct w2c_env* e, uint32_t lead);
 void audio_paula_upload(struct w2c_env* e, uint32_t src, uint32_t off, uint32_t len);

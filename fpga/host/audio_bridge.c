@@ -73,12 +73,14 @@ static void effects(struct w2c_env* e) {
 }
 
 static uint32_t g_pending_rate; /* a stream start made before the players were up (audio_live) */
+static uint8_t g_pending_ch;    /* ...and its layout: 0 mono, FX_STREAM_STEREO */
+static void stream_begin(uint32_t rate, uint8_t layout);
 static int g_paula;             /* the cart holds the Paula channels (audio_paula_claim, below) */
 
 int audio_bridge(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
     int started = 0;
-    if (g_pending_rate) audio_stream_start(e, (float)g_pending_rate);
+    if (g_pending_rate) stream_begin(g_pending_rate, g_pending_ch);
     if (b->poll && b->poll(HOST_CART(e))) {
         char name[NAME_MAX + 1];
         cart_name(e, b->name_ptr(HOST_CART(e)), b->name_len(HOST_CART(e)), name);
@@ -95,24 +97,39 @@ int audio_bridge(struct w2c_env* e) {
 /* env.hostAudioStreamStart / hostAudioFeed / hostAudioStreamStop (host/hstream.h): applied at once,
  * mid-frame, as the browser posts them; a feed's bytes are taken now (the cart may reuse its
  * buffer for the next block in the same frame: apps/zig/scenes/stream.zig does). */
-void audio_stream_start(struct w2c_env* e, float rate) {
-    (void)e;
-    audio_fx f = {.op = FX_STREAM_START, .rate = rate > 0.0f ? (uint32_t)(rate + 0.5f) : 0u};
+static void stream_begin(uint32_t rate, uint8_t layout) {
+    audio_fx f = {.op = FX_STREAM_START, .a = layout, .rate = rate};
     /* The stream cart starts in its init, before the players (main.c, bmain.c boot them after the
      * cart): held until they are, as the browser holds it until its AudioContext is (streamRate). */
     g_pending_rate = audio_live() ? 0u : f.rate;
+    g_pending_ch = layout;
     if (audio_live()) audio_effects(&f, 1);
 }
 
-void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) {
+void audio_stream_start(struct w2c_env* e, float rate) {
+    (void)e;
+    stream_begin(rate > 0.0f ? (uint32_t)(rate + 0.5f) : 0u, 0);
+}
+
+/* The stereo stream (table 1.27): the same effects, `a` FX_STREAM_STEREO; a feed's bytes are
+ * interleaved L,R frames (an odd last byte, half a frame, is not fed). */
+void audio_stream_start_stereo(struct w2c_env* e, uint32_t rate) {
+    (void)e;
+    stream_begin(rate, FX_STREAM_STEREO);
+}
+
+static void stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len, uint8_t layout) {
     if (!len || !audio_live()) return; /* nothing plays yet: the browser drops it too */
     if ((uint64_t)ptr + len > e->memory.size) {
         printf("ZM FX audioFeed out of the cart's memory\n");
         return;
     }
-    audio_fx f = {.op = FX_STREAM_FEED, .pcm = (uintptr_t)(e->memory.data + ptr), .len = len};
+    audio_fx f = {.op = FX_STREAM_FEED, .a = layout, .pcm = (uintptr_t)(e->memory.data + ptr), .len = len};
     audio_effects(&f, 1);
 }
+
+void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) { stream_feed(e, ptr, len, 0); }
+void audio_stream_feed_stereo(struct w2c_env* e, uint32_t ptr, uint32_t len) { stream_feed(e, ptr, len & ~1u, FX_STREAM_STEREO); }
 
 void audio_stream_stop(struct w2c_env* e) {
     (void)e;

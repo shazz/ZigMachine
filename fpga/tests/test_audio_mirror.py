@@ -52,6 +52,11 @@ int main(void) {
     dump("rebound", frame());
     audio_mirror_bind(mem, MEM, MEM - 4, MEM, MEM); /* all past the end */
     dump("outside", frame());
+    audio_mirror_bind(mem, MEM, YM, MODE, MS); /* a stream (table 1.27): its counter rides the MS word */
+    s.mode = 3; s.ms = 0; s.stream = 123456; aud_state_publish(s2c, &s);
+    frame(); dump("stream", aud_state_stream(s2c));
+    s.mode = 4; s.ms = 777; s.stream = 99; aud_state_publish(s2c, &s);
+    frame(); dump("song", aud_state_stream(s2c));
     return 0;
 }
 """
@@ -115,7 +120,17 @@ def check_bind(st: dict) -> None:
     assert st["outside"][0] == 0
 
 
-CHECKS = [check_bank, check_cart, check_bind]
+def check_stream(st: dict) -> None:
+    """A stream's sample counter (zg.audioStreamPlayed, table 1.27) shares the MS word in mode 3 only: the
+    cart reads it there, its song_ms reads 0 (no SNDH plays), and in any other mode the word is the ms."""
+    n, words, mem = st["stream"]
+    assert n == 123456 and words[1:3] == [3, 123456], "the stream's counter is not in the MS word"
+    assert mem[MODE] == 3 and ms(mem) == 0, "a stream's counter reached the cart's song_ms"
+    n, words, mem = st["song"]
+    assert n == 0 and words[2] == 777 and ms(mem) == 777, "a song's ms was read as a stream counter"
+
+
+CHECKS = [check_bank, check_cart, check_bind, check_stream]
 
 
 @pytest.fixture(scope="module")
@@ -135,6 +150,8 @@ MUTANTS = [
     ("store_always", "bmirror.c", "if (dst[i] != src[i]) {", "{"),
     ("no_bounds", "bmirror.c", "return at && (uint64_t)at + len <= size ? at : 0u;", "return at;"),
     ("no_ms", "bmirror.c", "*ms = s->ms;", "(void)ms;"),
+    ("no_stream_word", "aud_state.h", "s->mode == AS_MODE_STREAM ? s->stream : s->ms", "s->ms"),
+    ("stream_as_ms", "aud_state.h", "w[AS_MODE_W] == AS_MODE_STREAM ? 0u : w[AS_MS_W]", "w[AS_MS_W]"),
 ]
 BREAK = pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 

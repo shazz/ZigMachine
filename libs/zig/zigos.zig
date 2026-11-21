@@ -459,6 +459,13 @@ pub fn audioFeed(bytes: []const u8) void {
 pub fn audioStreamStop() void {
     hostAudioStreamStop();
 }
+// The stereo stream (table 1.27): channels 0 / 1 hard left / right, interleaved L,R feeds; and
+// the stream's sample counter, mono or stereo (libs/zig/audio_stereo.zig).
+const audio_stereo = @import("audio_stereo.zig");
+pub const audioStreamStartStereo = audio_stereo.startStereo;
+pub const audioFeedStereo = audio_stereo.feedStereo;
+pub const audioStreamPlayed = audio_stereo.played;
+pub const AUDIO_STREAM_RING = audio_stereo.RING;
 
 // --- MP3 stream (system table 1.11, libs/zig/players/mp3.zig, docs/ZIGOS_API.md) -------------
 // The cart reads the file (KOS GEMDOS, a disk) and feeds its bytes; the sound side (BARD on the

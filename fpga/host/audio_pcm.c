@@ -3,6 +3,9 @@
  * writers, as docs/audio-worklet-sealed.js has:
  *   the cart's feed (zg.audioStreamStart / audioFeed / audioStreamStop): bytes appended at the
  *     write cursor as the cart hands them over, paced by the cart;
+ *   the cart's stereo feed (zg.audioStreamStartStereo / audioFeedStereo, table 1.27): `a` 2 on the
+ *     start and the feed; two rings (channels 0 / 1), a feed's interleaved L,R frames split into
+ *     them at the one cursor, as the worklet's feedRing;
  *   a whole sample (zg.samplePlay / sampleStop): the ring refilled from here before every
  *     render, CUSHION bytes ahead of the channel, from the sample's bytes in the cart's memory
  *     (on the board the sound CPU reads them in DDR), looping or ending, no cart in the loop.
@@ -36,9 +39,20 @@ static void put(const uint8_t* src, uint32_t n) {
     }
 }
 
-static void stream_start(uint32_t rate) {
+/* `n` bytes of interleaved L,R frames: the left into the ring, the right into the one after it. */
+static void put_stereo(const uint8_t* src, uint32_t n) {
+    uint8_t *l = ring(), *r = l + RING;
+    for (uint32_t i = 0; i + 1 < n; i += 2) {
+        l[g_w] = src[i];
+        r[g_w] = src[i + 1];
+        g_w = (g_w + 1) % RING;
+    }
+}
+
+static void stream_start(uint32_t rate, int stereo) {
     g_s.on = 0;
-    w2c_audio_audioStreamStart(&g_aud.player, (float)rate);
+    if (stereo) w2c_audio_audioStreamStartStereo(&g_aud.player, rate);
+    else w2c_audio_audioStreamStart(&g_aud.player, (float)rate);
     g_w = 0;
 }
 
@@ -50,7 +64,7 @@ static void stream_stop(void) {
 
 static void sample_play(const audio_fx* fx) {
     if (!fx->len) return;
-    stream_start(fx->rate);
+    stream_start(fx->rate, 0);
     /* The channel's own step: demo_audio_raw.zig's rate / SAMPLE_RATE * FRAC_ONE, in f32. */
     uint32_t step = (uint32_t)((float)fx->rate / 44100.0f * 65536.0f);
     g_s = (__typeof__(g_s)){.src = (const uint8_t*)fx->pcm, .len = fx->len, .step = step, .loop = fx->a != 0, .on = 1};
@@ -61,14 +75,20 @@ int audio_pcm_effect(const audio_fx* fx) {
     switch (fx->op) {
     case FX_SAMPLE: sample_play(fx); return 1;
     case FX_SAMPLE_STOP: if (g_s.on) stream_stop(); return 1;
-    case FX_STREAM_START: stream_start(fx->rate); return 1;
-    case FX_STREAM_FEED: put((const uint8_t*)fx->pcm, fx->len); return 1;
+    case FX_STREAM_START: stream_start(fx->rate, fx->a == FX_STREAM_STEREO); return 1;
+    case FX_STREAM_FEED:
+        if (fx->a == FX_STREAM_STEREO) put_stereo((const uint8_t*)fx->pcm, fx->len);
+        else put((const uint8_t*)fx->pcm, fx->len);
+        return 1;
     case FX_STREAM_STOP: stream_stop(); return 1;
     default: return 0;
     }
 }
 
 void audio_pcm_forget(void) { g_s.on = 0; }
+
+/* zg.audioStreamPlayed where the players are this side's (the native host, ZM_AUDIO=1). */
+uint32_t audio_stream_played(void) { return audio_live() ? w2c_audio_audioStreamPlayed(&g_aud.player) : 0u; }
 
 /* Before `n` samples: the ring written up to where the channel will have read after them, plus
  * CUSHION. Past a one-shot's end, silence; once the channel has read it all, the channel off. */

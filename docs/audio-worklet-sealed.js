@@ -183,7 +183,9 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 d.audioPlayRaw(len, msg.rate, msg.unsigned ? 1 : 0);
                 this.port.postMessage({ type: "rawLoaded", len: len });
             } else if (msg.type === "streamStart") {
-                d.audioStreamStart(msg.rate);
+                // channels 2: the stereo stream (table 1.27), two rings on channels 0 / 1 hard L / R
+                if (msg.channels === 2) d.audioStreamStartStereo(msg.rate >>> 0);
+                else d.audioStreamStart(msg.rate);
                 this.ringWrite = 0;
                 this.sample = null;
             } else if (msg.type === "streamStop") {
@@ -202,13 +204,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             } else if (msg.type === "sampleStop") {
                 if (this.sample) { d.audioStreamStop(); this.ringWrite = 0; this.sample = null; }
             } else if (msg.type === "streamFeed") {
-                // Append signed-8-bit bytes into the ring at SONG_BASE, wrapping at RING.
-                const ring = new Uint8Array(mem.buffer, d.audioSongPtr(), RING);
-                const src = new Uint8Array(msg.bytes);
-                for (let i = 0; i < src.length; i++) {
-                    ring[this.ringWrite] = src[i];
-                    this.ringWrite = (this.ringWrite + 1) % RING;
-                }
+                this.feedRing(new Uint8Array(msg.bytes), msg.channels === 2);
             } else if (msg.type === "mp3Ctl") {
                 // zg.mp3Ctl (libs/zig/players/mp3.zig): start / stop / pause / end
                 if (d.audioMp3Ctl) d.audioMp3Ctl(msg.op >>> 0, msg.arg >>> 0);
@@ -281,6 +277,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 songMs: this.demo.audioSndhPositionMs ? this.demo.audioSndhPositionMs() : 0,
                 scopes: this.scopes.map((s) => Array.from(s)),
                 mp3: this.demo.audioMp3Status ? [0, 1, 2].map((w) => this.demo.audioMp3Status(w) >>> 0) : null,
+                streamPlayed: this.demo.audioStreamPlayed ? this.demo.audioStreamPlayed() >>> 0 : 0, // table 1.27
                 bard: this.bardState(),
             });
         }
@@ -350,6 +347,28 @@ ZigAudioSealedProcessor.prototype.bardState = function () {
         events.push(ring[e], ring[e + 1], ring[e + 2]);
     }
     return { pos: d.audioBardPosition() >>> 0, anchored: !!d.audioBardAnchored(), events };
+};
+
+// A cart's feed (zg.audioFeed / audioFeedStereo): signed-8-bit bytes at the write cursor, wrapping
+// at RING. Mono: the one ring at SONG_BASE. Stereo (table 1.27): interleaved L,R frames, the left
+// into the ring at SONG_BASE (channel 0), the right into the one after it (channel 1), at one
+// cursor, so both sides of a frame sit at the same offset. fpga/host/audio_pcm.c does the same.
+ZigAudioSealedProcessor.prototype.feedRing = function (src, stereo) {
+    const base = this.demo.audioSongPtr();
+    const left = new Uint8Array(this.memory.buffer, base, RING);
+    if (!stereo) {
+        for (let i = 0; i < src.length; i++) {
+            left[this.ringWrite] = src[i];
+            this.ringWrite = (this.ringWrite + 1) % RING;
+        }
+        return;
+    }
+    const right = new Uint8Array(this.memory.buffer, base + RING, RING);
+    for (let i = 0; i + 1 < src.length; i += 2) {
+        left[this.ringWrite] = src[i];
+        right[this.ringWrite] = src[i + 1];
+        this.ringWrite = (this.ringWrite + 1) % RING;
+    }
 };
 
 // zg.samplePlay, before the players render `n` frames: the ring written up to

@@ -57,6 +57,7 @@ static sndinfo_window g_load; /* the load now, a second's mean (bsndinfo.h): F11
 static inline void state_now(aud_state* s) {
     s->mode = w2c_audio_audioMode(&g_aud.player);
     s->ms = w2c_audio_audioSndhPositionMs(&g_aud.player);
+    s->stream = w2c_audio_audioStreamPlayed(&g_aud.player); /* zg.audioStreamPlayed (table 1.27) */
     memcpy(s->ym, zma_ym_regs, sizeof s->ym);
     for (uint32_t i = 0; i < 3; i++) s->mp3[i] = w2c_audio_audioMp3Status(&g_aud.player, i);
     s->mp3[3] = g_load.load_pm;

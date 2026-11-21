@@ -91,6 +91,7 @@ async function hostEnv(memory, machine, rom) {
         hwAstro: machine.hwAstro, // 1.18.0: ASTROLABE (SPIKE)
         beep: noop, diskReadBlock: noop,
         hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
+        hostAudioStreamStartStereo: noop, hostAudioFeedStereo: noop, hostAudioStreamPlayed: () => 0, // table 1.27
         hostPaulaClaim: () => 0, hostPaulaUpload: noop, hostPaulaWrite: noop, hostPaulaRelease: noop, // HW 1.14.0
         kosDriveRead: () => 0, // KOS's C: (docs/KOS_FAT.md F5): no C: image here
         kosFileOp: () => -46, // ...nor its writes (docs/KOS_GEMDOS.md §7): EDRIVE

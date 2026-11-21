@@ -28,7 +28,6 @@ pub var current_mode: u8 = 0;
 // and the raw sample streamer's (audioPlayRaw, audioStream*).
 comptime {
     _ = @import("demo_audio_mod.zig");
-    _ = @import("demo_audio_raw.zig");
     _ = @import("demo_audio_xm.zig");
     _ = @import("demo_audio_sidlive.zig"); // the BARD queue: SID live, the cart's timed writes
 }
@@ -37,6 +36,7 @@ pub const mp3_exports = @import("demo_audio_mp3.zig"); // MP3 (pvmp3) on the fou
 pub const sid_exports = @import("demo_audio_sid.zig"); // .sid (cRSID: BARD native, machine-audio.wasm) on the four Paula channels
 pub const sap_exports = @import("demo_audio_sap.zig");
 pub const hip_exports = @import("demo_audio_hip.zig");
+pub const raw_exports = @import("demo_audio_raw.zig"); // the raw sample and the stream rings (mono, stereo)
 pub const cart_paula = @import("demo_audio_paula.zig"); // the channels lent to a cart (HW 1.14.0)
 
 /// Every player stopped, before one starts: they share song RAM (a SAP's Atari
@@ -110,6 +110,7 @@ export fn audioRender(frames: u32) void {
         if (sfx.ym_live) audio.machineRenderYm(0, @intCast(m));
         audio.machineMixPaula(0, @intCast(m));
         audio.machineClamp(@intCast(m));
+        raw_exports.streamAdvance(@intCast(m)); // the stream's sample counter
     }
 }
 

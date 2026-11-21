@@ -12,11 +12,16 @@
 #define CUSHION 4096u
 
 struct w2c_aud g_aud;
-static int g_starts, g_stops;
+static int g_starts, g_stops, g_stereo;
 static float g_rate;
+static uint32_t g_srate;
 u32 w2c_audio_audioSongPtr(w2c_audio* p) { (void)p; return SONG; }
 void w2c_audio_audioStreamStart(w2c_audio* p, f32 rate) { (void)p, g_starts++, g_rate = rate; }
 void w2c_audio_audioStreamStop(w2c_audio* p) { (void)p, g_stops++; }
+void w2c_audio_audioStreamStartStereo(w2c_audio* p, u32 rate) { (void)p, g_stereo++, g_srate = rate; }
+u32 w2c_audio_audioStreamPlayed(w2c_audio* p) { (void)p; return 4242u; }
+static int g_live = 1;
+int audio_live(void) { return g_live; }
 
 static int g_bad;
 static void check(int ok, const char* name, const char* why) {
@@ -29,13 +34,35 @@ static void fx(uint8_t op, const uint8_t* pcm, uint32_t len, uint32_t rate, uint
     if (!audio_pcm_effect(&f)) check(0, "effect", "an FX_SAMPLE / FX_STREAM op was not taken");
 }
 static void reset(void) {
-    memset(ring(), 0xEE, RING);
+    memset(ring(), 0xEE, 2 * RING);
     fx(FX_STREAM_STOP, NULL, 0, 0, 0);
     g_starts = g_stops = 0;
 }
 
+/* The stereo stream (table 1.27): its start, interleaved frames split into the two rings at one cursor,
+ * wrapping; the mono feed untouched by it; the counter the players' own, 0 with no players. */
+static void stereo_checks(const uint8_t* big) {
+    reset();
+    fx(FX_STREAM_START, NULL, 0, 22050, FX_STREAM_STEREO);
+    check(g_stereo == 1 && g_srate == 22050 && g_starts == 0, "stereo_starts_both", "audioStreamStartStereo not called");
+    fx(FX_STREAM_FEED, big, 2 * (RING - 10), 0, FX_STREAM_STEREO);
+    fx(FX_STREAM_FEED, big + 1000, 41, 0, FX_STREAM_STEREO); /* 20 frames and half a frame */
+    int ok = 1;
+    for (uint32_t i = 0; i < RING - 10; i++) ok &= ring()[i] == big[2 * i] || i < 10;
+    for (uint32_t i = 10; i < RING - 10; i++) ok &= ring()[RING + i] == big[2 * i + 1];
+    check(ok, "stereo_deinterleaves", "a frame's L/R did not land in the left/right ring");
+    ok = ring()[RING - 10] == big[1000] && ring()[2 * RING - 10] == big[1001];
+    ok &= ring()[0] == big[1020] && ring()[RING] == big[1021] && ring()[9] == big[1038] && ring()[RING + 9] == big[1039];
+    ok &= ring()[10] == big[20] && ring()[RING + 10] == big[21]; /* the half frame not fed */
+    check(ok, "stereo_wraps_at_one_cursor", "the two rings did not wrap together");
+    check(audio_stream_played() == 4242u, "played_is_the_players", "audio_stream_played is not audioStreamPlayed");
+    g_live = 0;
+    check(audio_stream_played() == 0u, "played_0_without_players", "a counter with no players up");
+    g_live = 1;
+}
+
 int main(void) {
-    g_aud.memory.data = calloc(1, SONG + RING);
+    g_aud.memory.data = calloc(1, SONG + 2 * RING);
     static uint8_t smp[10000], big[100000];
     for (uint32_t i = 0; i < sizeof smp; i++) smp[i] = (uint8_t)(i * 7 + 1);
     for (uint32_t i = 0; i < sizeof big; i++) big[i] = (uint8_t)(i * 13 + 5);
@@ -84,5 +111,6 @@ int main(void) {
     check(touched == 0, "forget_stops_refilling", "the ring was written over the song");
     audio_fx other = {.op = FX_PLAY};
     check(!audio_pcm_effect(&other), "not_its_op", "took an sfxPlay");
+    stereo_checks(big);
     return g_bad != 0;
 }
