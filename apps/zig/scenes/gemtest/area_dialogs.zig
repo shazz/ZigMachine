@@ -137,6 +137,7 @@ pub fn key(app: *App, cp: u32) bool {
     }
     if (!st.focus or cp > 127) return false;
     st.caret = st.dlg.tree(app.g).edit(T.FIELD, O.ED_CHAR, cp, st.caret);
+    repaint(app); // the caret reaches 3 px past the field, over the window's paper: the content paints it clean
     return true;
 }
 

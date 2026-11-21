@@ -24,7 +24,7 @@ export const K = { F1: 0xe001, HELP: 0xe011, ESC: 0xe012 };
 /// Boot SYSINFO. clock: "none" (hostMicros answers 0, as the gate's other carts get) or "host".
 /// corrupt: a FAT file the DRIVE serves with one byte changed (the harness keeps the real image).
 /// opts.board: hwAstro writes W_CYCLES as the board's wrapper does (the host reads as the board);
-/// opts.pageJobs: hostBardJob as the page's loader answers it.
+/// opts.pageJobs: hostBardJob as the page's loader answers it; opts.noMouse: a ROM whose graf_mouse does nothing.
 export async function boot(clock = "none", corrupt = null, opts = {}) {
     const disk = new Uint8Array(await readFile("docs/demo-sysinfo.zmd"));
     const served = disk.slice();
@@ -45,6 +45,7 @@ export async function boot(clock = "none", corrupt = null, opts = {}) {
     const s = { memory, machine, rom, demo: null, draws: 0, disk };
     const env = { memory, ...rom };
     for (const n of DRAWS) env[n] = (...a) => { s.draws++; return rom[n](...a); };
+    if (opts.noMouse) env.guiMouse = () => {}; // sysinfo_check --break mouse: graf_mouse does nothing
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     env.hostMicros = clock === "host" ? () => (Math.floor(performance.now() * 1000) >>> 0) || 1 : () => 0;
     if (opts.board) { // the board's wrapper (fpga/cycles/bastro.c): W_CYCLES = the call's ZIGGY cycles.

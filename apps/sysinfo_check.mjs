@@ -9,22 +9,24 @@
 //   speed    with no host clock every test runs once and reads n/a; with one, every test has a
 //            time, six a percentage of the ST, f32 a ratio to the integer multiply-add
 //   sysinfo2 apps/sysinfo_modes.mjs: the host, CPU, clock, coprocessors and versions as each host
-//            answers (no n/a left where one does), the reference machine switch, the screen modes
+//            answers (no n/a left where one does), the reference machine switch, the screen modes,
+//            the pointer in each mode (shown, and a click opens the menu and picks a page)
 //   menu     Space opens the GEM dialog over the page, a click on F4 shows the disk page, and the
 //            page comes back whole; Q asks the host to go back to the OS (request 4)
 //   sound    page 3's sound files are the disk's, each plays off the disk (apps/sysinfo_sound.mjs)
-//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound|ref]
+//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound|ref|mouse]
 //     ref: the Mega STE's percentages expected at 1.92 / 3.60, so the reference check must fail
 //     free: the FREE line expected 4 KB off what hwRamFree() says, so the check must fail
 //     sound: the drive serves JINKS.SND with one byte changed, so the bytes check must fail
+//     mouse: graf_mouse does nothing (the cart before 14 Nov: no arrow in the desk), so the pointer check must fail
 import { mkdir } from "node:fs/promises";
 import { boot, frames, page, field, glassMismatches, glass, mode, K } from "./sysinfo_machine.mjs";
 import { grab, png } from "./skystrike_zig_frame.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
 import { soundPage } from "./sysinfo_sound.mjs";
-import { ident, pagesTwoThree, reference, modes } from "./sysinfo_modes.mjs";
+import { ident, pagesTwoThree, reference, modes, pointer } from "./sysinfo_modes.mjs";
 
-const BREAKS = ["free", "sound", "ref"];
+const BREAKS = ["free", "sound", "ref", "mouse"];
 const BROKE = process.argv.includes("--break") ? (BREAKS.find((b) => process.argv.includes(b)) ?? "free") : null;
 const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && !BREAKS.includes(a));
 const errors = [];
@@ -147,13 +149,14 @@ await videoSoundDisk(s);
 await soundPage(s, expect);
 await speed(s, false);
 await menu(s);
-s = await boot("host", null, { pageJobs: true });
+s = await boot("host", null, { pageJobs: true, noMouse: BROKE === "mouse" });
 frames(s, 2);
 await speed(s, true);
 await reference(s, expect, BROKE === "ref");
 await ident(s, expect, "browser");
 await pagesTwoThree(s, expect, "browser");
 await modes(s, expect, shot);
+await pointer(s, expect);
 s = await boot("host", null, { board: true });
 frames(s, 2);
 await ident(s, expect, "board");
@@ -162,7 +165,7 @@ await show(s, 1, "system_board");
 
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
-    const hit = errors.find((e) => e.startsWith({ free: "FREE", sound: "JINKS.SND: the bytes", ref: "the Mega STE's" }[BROKE]));
+    const hit = errors.find((e) => e.startsWith({ free: "FREE", sound: "JINKS.SND: the bytes", ref: "the Mega STE's", mouse: "desk: the arrow" }[BROKE]));
     console.log(hit ? `sysinfo_check: PASS (--break ${BROKE} caught: ${hit})` : `sysinfo_check: FAILED -- --break ${BROKE} not caught`);
     process.exitCode = hit ? 0 : 1;
 } else {

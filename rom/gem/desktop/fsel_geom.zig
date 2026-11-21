@@ -57,8 +57,9 @@ pub fn ours(ch: i16) Geom {
     const c = ch;
     const pad = @divTrunc(c, 2) + 4; // 8 / 12: the margins round the list and the buttons
     const bar_y = 4 * c + 16; // the list window's title bar, the drive group's top
-    const list: R = .{ .x = 24, .y = bar_y + c + 1, .w = 158, .h = 11 * c };
-    const dy = c + 5; // a drive button is c + 2 tall: one pixel apart even drawn 3D
+    // the title bar c + 4 tall, framed outside: its bottom line is the list's top
+    const list: R = .{ .x = 24, .y = bar_y + c + 4, .w = 158, .h = 11 * c };
+    const dy = c + 5; // a drive button is c + 4 tall and framed outside: a grid, one line shared
     const drives: R = .{ .x = 216, .y = bar_y, .w = 80, .h = 8 * dy };
     const by = @max(list.bottom(), drives.bottom()) + @divTrunc(pad, 2) + 2;
     const sy = 3 * c + 12; // the Selection: line
@@ -73,18 +74,21 @@ pub fn ours(ch: i16) Geom {
         .sel_label = .{ .x = 8, .y = sy, .w = 80, .h = c },
         .sel = .{ .x = 96, .y = sy, .w = 96, .h = c },
         .drive_label = .{ .x = 232, .y = sy, .w = 48, .h = c },
-        .closer = .{ .x = 24, .y = bar_y, .w = 16, .h = c + 2 },
-        .mask = .{ .x = 39, .y = bar_y, .w = 167, .h = c + 2 },
+        // framed outside, packed as TOS 4's: the closer's right line is the title's left, the title's
+        // right the scroll column's
+        .closer = .{ .x = 25, .y = bar_y, .w = 20, .h = c + 4 },
+        .mask = .{ .x = 46, .y = bar_y, .w = 158, .h = c + 4 },
         .list = list,
-        .row = .{ .x = list.x + 8, .y = list.y + c, .w = 15 * 8, .h = c },
+        .row = .{ .x = list.x + 16, .y = list.y + c, .w = 15 * 8, .h = c }, // the mark (folder or _), a blank, 8.3
         .pitch = c,
         .scroll = .{ .x = 181, .y = list.y, .w = 24, .h = list.h },
-        .up = .{ .x = 181, .y = list.y, .w = 24, .h = arrow },
-        .track = .{ .x = 181, .y = list.y + arrow - 1, .w = 24, .h = list.h - 2 * arrow + 2 },
-        .down = .{ .x = 181, .y = list.bottom() - arrow, .w = 24, .h = arrow },
+        .up = .{ .x = 181, .y = list.y, .w = 23, .h = arrow },
+        // TOS 4's column is black: the pieces are framed boxes one black line apart, one more black line at the right
+        .track = .{ .x = 181, .y = list.y + arrow + 1, .w = 23, .h = list.h - 2 * arrow - 3 },
+        .down = .{ .x = 181, .y = list.bottom() - arrow - 1, .w = 23, .h = arrow },
         .drives = drives,
-        .drive = .{ .x = drives.x + 4, .y = drives.y, .w = 32, .h = c + 2 },
-        .dx = 40,
+        .drive = .{ .x = drives.x + 4, .y = drives.y, .w = 36, .h = c + 4 },
+        .dx = 37,
         .dy = dy,
         .ok = .{ .x = 64, .y = by, .w = 72, .h = c + 2 },
         .cancel = .{ .x = 176, .y = by, .w = 72, .h = c + 2 },

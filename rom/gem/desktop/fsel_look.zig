@@ -11,6 +11,7 @@ const ga = @import("gem_assets");
 const gui = @import("../gui.zig");
 const L = @import("../engine/look.zig");
 const G = @import("fsel_geom.zig");
+const T = @import("fsel_tree.zig");
 const proglook = gui.proglook;
 
 /// The layout for a screen `sh` lines tall.
@@ -41,10 +42,25 @@ fn fromSet(s: ga.Selector) G.Geom {
 
 var tall: L.Font = undefined;
 
-/// The program look with the font the layout `geo` is for.
+/// Does the look's font draw TOS's gadget characters (the closer, the arrows)? A TOS font (a local
+/// asset set) does; ZigOS's 8x8 has nothing there, and the tree then shows our own symbols.
+pub fn gadgetGlyphs(lk: *const L.Look) bool {
+    for (T.CHARS) |c| {
+        var ink = false;
+        for (0..lk.font.h) |row| for (0..lk.font.w) |col| {
+            ink = ink or lk.font.ink(c, row, col);
+        };
+        if (!ink) return false;
+    }
+    return true;
+}
+
+/// The program look with the font the layout `geo` is for. From 400 lines in 3D, the face is
+/// TOS 4's grey (the Falcon's 16-colour desk), not the white of the 4-colour modes.
 pub fn lookFor(g: *const gui.Gui, geo: *const G.Geom) L.Look {
     var lk = proglook.look(g);
     if (geo.ch != 16) return lk;
+    lk.face = L.LWHITE;
     const set = proglook.setOf(g);
     tall = set.tall orelse .{ .w = set.sys.w, .h = set.sys.h * 2, .data = set.sys.data, .packed_rows = set.sys.packed_rows, .tall = true };
     lk.font = &tall;

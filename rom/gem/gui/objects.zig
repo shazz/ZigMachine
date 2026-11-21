@@ -92,6 +92,19 @@ pub fn redrawObj(g: *Gui, addr: u32, n: u32, i: i16) void {
     paint(g, tree, 0, draw_mod.MAX_DEPTH, extentOf(g, tree, i));
 }
 
+// The field repainted with room for the caret, which reaches CARET_PAD pixels past a field a cell high:
+// the old caret's pixels there must go too (the incremental screen = a whole repaint).
+const CARET_PAD: i16 = 3;
+fn redrawField(g: *Gui, addr: u32, n: u32, i: i16) void {
+    ensureSys(g);
+    const tree = loadTree(addr, n) orelse return;
+    if (!obj.valid(tree, i)) return;
+    var e = extentOf(g, tree, i);
+    e.y -= CARET_PAD;
+    e.h += 2 * CARET_PAD;
+    paint(g, tree, 0, draw_mod.MAX_DEPTH, e);
+}
+
 /// form_button: bit 0 an EXIT / TOUCHEXIT object, bit 1 some state changed (redraw the tree).
 pub fn button(addr: u32, n: u32, i: i16) u32 {
     const tree = loadTree(addr, n) orelse return 0;
@@ -117,12 +130,12 @@ pub fn edit(g: *Gui, addr: u32, n: u32, i: i16, kind: u32, key: u32, idx: u32) i
     const tmplt = m.str(t.tmplt);
     var at: usize = idx;
     if (kind == 2) at = objedit.edit(buf, tmplt, m.str(t.valid), idx, @truncate(key)).idx;
-    redrawObj(g, addr, n, i);
+    redrawField(g, addr, n, i);
     if (kind != 3) caret(g, addr, n, i, wire.caretCol(tmplt, at));
     return @intCast(at);
 }
 
-// The caret: two pixels wide, a cell high, before template column `col` of the shown text.
+// The caret as TOS 4's: one pixel wide, 3 px past the cell at each end (Matt, board 20 Nov), before template column `col` of the shown text.
 fn caret(g: *Gui, addr: u32, n: u32, i: i16, col: usize) void {
     const tree = loadTree(addr, n) orelse return;
     const r = obj.offset(tree, i).?;
@@ -135,5 +148,5 @@ fn caret(g: *Gui, addr: u32, n: u32, i: i16, col: usize) void {
     const x0: i32 = if (t.just == obj.JUST_CENTRE) r.x + @divTrunc(r.w - tw + 1, 2) else if (t.just == obj.JUST_RIGHT) r.x + r.w - tw else r.x;
     var cv = proglook.canvasOf(g);
     const y = r.y + @divTrunc(r.h - @as(i32, lk.font.h) + 1, 2);
-    cv.fill(.{ .x = @intCast(x0 + @as(i32, @intCast(col)) * lk.font.w), .y = @intCast(y - 1), .w = 2, .h = @intCast(lk.font.h + 2) }, lk.ink(1));
+    cv.fill(.{ .x = @intCast(x0 + @as(i32, @intCast(col)) * lk.font.w), .y = @intCast(y - 3), .w = 1, .h = @intCast(lk.font.h + 6) }, lk.ink(1));
 }

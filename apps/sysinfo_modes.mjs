@@ -11,7 +11,7 @@
 //              register and page 1 say so, the glass shows the page in the mode's geometry (desk:
 //              8 x 16 cells; low: 40 columns, Tab the other half), glyph for glyph
 import { readFile } from "node:fs/promises";
-import { frames, page, field, glassMismatches, shownRows, mode, K } from "./sysinfo_machine.mjs";
+import { frames, page, field, glassMismatches, shownRows, mode, glass, K } from "./sysinfo_machine.mjs";
 
 const TAB = 0xe019, F6 = 0xe006;
 
@@ -95,6 +95,7 @@ export async function reference(s, expect, broke = false) {
 async function inMode(s, expect, key, want, shot) {
     s.demo.key(key);
     frames(s, 2);
+    if (want === "desk") { s.demo.pointer(...BLANK.desk, 0); frames(s, 1); } // the ROM's arrow off the text
     const bad = await glassMismatches(s);
     expect(mode(s) === want && bad.length === 0, `${typeof key === "number" && key > 0xe000 ? "F6" : String.fromCharCode(key)}: the screen is ${mode(s)} (want ${want}), the glass shows the page${bad.length ? " -- off at " + bad.slice(0, 5).join(" ") : ""}`);
     if (shot) await shot(s, `mode_${want}`);
@@ -118,4 +119,52 @@ export async function modes(s, expect, shot) {
     await inMode(s, expect, F6, "low", null);
     await inMode(s, expect, F6, "medium", null);
     expect(field(page(s), "RESOLUTION") === "MEDIUM 640*200", "F6 three times: back to medium");
+}
+
+// The pointer in each mode (Matt on the board, 14 Nov: "desk mode: no mouse, hard to click"). Low and
+// medium: the host draws it (the page's cursor, the board's arrow), so the cart must not claim it
+// (drawsOwnPointer) nor draw one into the plane. The desk: nobody else does, so the ROM's arrow
+// (graf_mouse M_ON, the screen under it kept) must be on the glass at the pointer, follow it, and leave
+// the page as it was. Each mode: a click on the page opens the SysInfo Menu where menu.zig draws it, a
+// click on F2 shows page 2, whole.
+const MENU = { low: { x: 4, y: 28, lx: 36, lw: 120 }, medium: { x: 104, y: 28, lx: 160, lw: 160 }, desk: { x: 104, y: 168, lx: 160, lw: 160 } };
+const BLANK = { low: [280, 100], medium: [600, 100], desk: [300, 12] }; // the desk: the band above the page
+const hostXY = (m, x, y) => [m === "low" ? 2 * x : x, y];
+
+function point(s, m, x, y, b = 0) { s.demo.pointer(...hostXY(m, x, y), b); frames(s, 1); }
+function click(s, m, x, y) { point(s, m, x, y); point(s, m, x, y, 1); point(s, m, x, y); frames(s, 2); }
+function region(s, x, y) {
+    const px = glass(s), out = [];
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) out.push(px[(y + j) * px.w + x + i]);
+    return out;
+}
+const blacks = (r) => r.filter((v) => v === 0).length;
+
+async function pointerIn(s, expect, m, key) {
+    s.demo.key(key);
+    frames(s, 2);
+    const [bx, by] = BLANK[m], away = [bx - 40, by];
+    point(s, m, bx, by); frames(s, 1);
+    const here = region(s, bx, by), before = glass(s).slice();
+    point(s, m, ...away); frames(s, 1);
+    const left = region(s, bx, by), there = region(s, ...away);
+    if (m === "desk") {
+        expect(blacks(here) >= 10 && here.includes(1) && blacks(there) >= 10, `desk: the arrow is on the glass at the pointer (${blacks(here)} black pixels), and follows it`);
+        expect(blacks(left) === 0, "desk: where the arrow was, the page is back (the save-under restored)");
+    } else {
+        const own = typeof s.demo.drawsOwnPointer === "function" && s.demo.drawsOwnPointer() !== 0;
+        const same = glass(s).every((v, i) => v === before[i]);
+        expect(!own && same, `${m}: the host's pointer is shown (no drawsOwnPointer), the cart draws no second arrow (a move changes no pixel)`);
+    }
+    const g = MENU[m];
+    click(s, m, bx, by);
+    const px = glass(s);
+    expect(px[g.y * px.w + g.x] === 0 && px[(g.y + 3) * px.w + g.x + 3] === 0, `${m}: a click on the page opens the SysInfo Menu where it is drawn`);
+    click(s, m, g.lx + (g.lw >> 1), g.y + 26 + 20 + 6); // F2's button (menu.zig: row 1)
+    point(s, m, bx, by); frames(s, 1); // the arrow back over the blank band, off the text
+    expect(page(s)[0].includes("PAGE 2") && (await glassMismatches(s)).length === 0, `${m}: a click on F2 shows page 2, whole`);
+}
+
+export async function pointer(s, expect) {
+    for (const [m, key] of [["desk", "d"], ["low", "l"], ["medium", "m"]]) await pointerIn(s, expect, m, key.charCodeAt(0));
 }

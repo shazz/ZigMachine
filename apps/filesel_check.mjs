@@ -25,15 +25,19 @@ import { fselGeom } from "./fsel_geom.mjs";
 // C: loader and moved it a third time); the selector's pixels are unchanged. Re-pinned 14 Nov 2026 on
 // purpose (fix/fsel-aes340): the list's rows a font height (8 px) apart as TOS 4 draws them in medium,
 // the box 312 x 176 (fsel_geom.zig), no frame round the drive buttons, eyeballed against the reference.
+// Re-pinned 14 Nov 2026 on purpose (fix/fsel-pass2-sysinfo-mouse): TOS 4's closer and arrows (G_BOXCHARs, no
+// box drawn inside them), the 50 % title bar, the drive buttons packed, rows `_ ________.___` (names 8 px
+// further right); sheets in prototypes/gem_filesel_re/aes340_pass2/ (local only).
 const PINS = {
-    open: "950a9d751778572553f545619e69fa6da4cca133bb2cf3cb09d92fac78c2686e",
-    drumloop: "b3663d5e8219c48830f057929216a52c2cb6f62ff00367c63ec9f58dc5e68d16",
-    short: "9e61129a786266e9834efda9d8a21b63a0919141d0c4c17a8e2eaff6347cf5f1",
+    open: "bf73479edf0efad59429c8ef114acdb1a16b4fff4cf360329173cfc9f2bbb857",
+    drumloop: "29527dd60464a522ccac6f3e09acc84bea84667e80dd0edc3eb0e2119938dc38",
+    short: "e2ecbe196c5a7c90ef5cb63a56888b7c08fb529e7c51b6c1c2742bb52b5d930b",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
 const G = fselGeom(640, 200);           // fsel_geom.zig's layout, centred in 640 x 200
 const DX = G.box.x, DY = G.box.y;
-const LIST_X = G.list.x;                 // the list box; a name starts 24 px in (row 8 px in, two blanks)
+const LIST_X = G.list.x;                 // the list box
+const NAME_X = G.row(0).x + 16;          // a name: after the row's mark (folder or _) and a blank, TOS 4's `_ ________.___`
 const FIELD_X = G.sel.x, FIELD_Y = G.sel.y;
 const row = (i) => [LIST_X + 80, G.row(i).y + 3];
 
@@ -135,10 +139,10 @@ const got = { open: m.hash() };
 // has no underscore line at all.
 for (let i = 4; i < 9; i++) {
     const y = row(i)[1] + 3; // = the row's top + 6
-    expect(cells(m, LIST_X + 24, y, 12, ink) === "############" && cells(m, LIST_X + 24, y - 1, 12, ink) === "........#...",
+    expect(cells(m, NAME_X, y, 12, ink) === "############" && cells(m, NAME_X, y - 1, 12, ink) === "........#...",
         `empty row ${i + 1} shows ________.___`);
 }
-expect(cells(m, LIST_X + 24, row(0)[1] + 3, 12, ink) !== "############", "a file row has no underscores");
+expect(cells(m, NAME_X, row(0)[1] + 3, 12, ink) !== "############", "a file row has no underscores");
 
 m.click(...row(1)); // DRUMLOOP.RAW (FAT order: SAMPLE, DRUMLOOP, A, BASSLINE)
 got.drumloop = m.hash();
@@ -147,11 +151,11 @@ for (let y = FIELD_Y - 1; y < FIELD_Y + 8; y++)
     for (let x = FIELD_X + 96 + 2; x < DX + 224; x++) if (m.px(x, y) !== paper) past++; // up to DRIVE:
 expect(past === 0, `DRUMLOOP.RAW ends inside the frame (${past} pixels past the field)`);
 expect(cellsIn(m, FIELD_X, FIELD_Y, FIELD_Y + 5, 12, ink) === "############", "the Selection shows all 12 cells of DRUMLOOP.RAW");
-expect(cells(m, LIST_X + 24, row(1)[1] + 3, 12, paper) === "############", "the picked row is drawn in inverse");
+expect(cells(m, NAME_X, row(1)[1] + 3, 12, paper) === "############", "the picked row is drawn in inverse");
 
 m.click(...row(2)); // A.RAW: listed as A       .RAW
 got.short = m.hash();
-expect(cells(m, LIST_X + 24, row(2)[1] + 3, 12, paper) === "#.......####", "A.RAW is listed as A       .RAW");
+expect(cells(m, NAME_X, row(2)[1] + 3, 12, paper) === "#.......####", "A.RAW is listed as A       .RAW");
 
 for (const [k, h] of Object.entries(got)) {
     if (process.argv.includes("--print")) console.log(`    ${k}: "${h}",`);
