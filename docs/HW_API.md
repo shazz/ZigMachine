@@ -544,7 +544,7 @@ Raw SID is a load like any other: a static 2-byte PSID whose init and play are a
 exactly as for a tune; a write is the 6502's store into cRSID's I/O page. The BARD queue's SID live player uses it.
 
 **The VGM engine** (21 Nov 2026): our own YM2612 + SN76489 and a VGM sequencer (`libs/c/vgm`, MIT), the .vgm
-player's renderer. On the page it is in `machine-audio.wasm`; on the board BARD answers the same three imports
+player's renderer. On the page it is in `machine-audio.wasm`; on the board BARD answers the same four imports
 with the same C, natively (`fpga/host/audio_vgm.c`), and `apps/vgm_check.mjs` holds the two to the same samples.
 
 ```zig
@@ -552,6 +552,8 @@ machineVgmLoad(file_abs, len, cap) u32   // 0 ok, 1 not a VGM, 2 no YM2612 / SN7
                                          // (a .vgz is inflated in place into the cap bytes at file_abs)
 machineVgmRate() u32                     // the engine's rate: the file's YM2612 clock / 288 (26,633 Hz NTSC)
 machineVgmRender(dst_abs, n) void        // the next n stereo s16 frames (L, R) at that rate into dst_abs
+machineVgmRenderPaula(hl, hr, ll, lr, n) void // the player's output: n 44.1 kHz frames, resampled linearly and
+                                         // split into the four Paula channels' bytes (hi L, hi R, lo L, lo R)
 ```
 
 **The AY engine** (13 Nov 2026): eight AY-3-8910 / YM2149 chips in integers (`libs/c/ayumi`, ayumi's chip model

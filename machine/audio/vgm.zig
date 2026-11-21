@@ -1,9 +1,9 @@
 // --------------------------------------------------------------------------
 // The VGM engine (HW audio 1.3.0): our own YM2612 + SN76489 (libs/c/ym2612,
-// libs/c/sn76489) and VGM sequencer (libs/c/vgm) behind three calls. A player
+// libs/c/sn76489) and VGM sequencer (libs/c/vgm) behind four calls. A player
 // stages a .vgm / .vgz in song RAM, loads it here, then asks for stereo samples
-// at the engine's rate (the YM2612's clock / 288, 26.6 kHz) into its own
-// buffer; it puts them on the Paula channels itself (libs/zig/players/vgm.zig).
+// at the engine's rate (the YM2612's clock / 288, 26.6 kHz), or, as the
+// player does (libs/zig/players/vgm.zig), the Paula channels' bytes at 44.1 kHz.
 // On the board BARD runs the same C natively (fpga/host/audio_vgm.c): this is
 // the page's copy.
 // --------------------------------------------------------------------------

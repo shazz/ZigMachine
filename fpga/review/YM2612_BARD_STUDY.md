@@ -1,5 +1,7 @@
 # YM2612 (Mega Drive FM) on BARD: results and the clean-room plan
 
+Status (21 Nov 2026): **our own MIT core is built** (section 6: `libs/c/ym2612`, `libs/c/sn76489`,
+`libs/c/vgm`, the .vgm player and VGM TEST, branch feat/ym2612-mit); board check pending.
 Status (13 Nov 2026): **FM on BARD is validated on the board** with a local-only build of the Gens
 YM2612 core. Matt, listening on KESTREL v1.3: "sounds great!!!!". That build stays **private**: Gens
 (via libvgm) is GPL-2 and never enters this MIT repository. This document records what was proven, the
@@ -90,3 +92,38 @@ sample by sample.
 `prototypes/gens_fm/bard/run_sim.sh` runs the BARD sim (take `prototypes/_gate_logs/sim-a.lock` or
 `sim-b.lock`). The board install: copy the two files under `prototypes/gens_fm_card/`, restart glass,
 pick tests → `gens_fm`.
+
+## 6. The clean-room core: results (21 Nov 2026)
+
+Built per section 4, all MIT and our own code: `libs/c/ym2612` (README: sources and the choices),
+`libs/c/sn76489`, `libs/c/vgm` (sequencer, DAC streams, an inflate for .vgz, the output stage), the player
+`libs/zig/players/vgm.zig` behind `zg.requestSong("x.vgm" | "x.vgz")` and `requestSongBytes(.vgm)`, the test
+cart VGM TEST (139) with our own tune (`libs/c/vgm/make_tune.py`). Gate: `apps/vgm_check.mjs` (wasm =
+native for the engine and the output stage, pinned feature hashes, refusals, malformed loops) with five
+`--break`s, `apps/vgm_test_check.mjs`.
+
+**Accuracy** (FM only, black-box, `libs/c/vgm/README.md`): Sonic 1's 19 tunes against Gens 0.891-0.996
+(median 0.966) at the chip's rate and 0.862-0.991 (0.951) at 26.6 kHz; against Genesis Plus GX 0.950-0.998
+(0.992) and 0.933-0.996 (0.982). Green Hill Zone: Gens 0.991 / 0.986, GPGX 0.996 / 0.993. Where Gens and the
+other references disagree (the attack rate) the core follows the hardware notes.
+
+**BARD load** (Verilator, the v1.3 core model `soc_hp_snd_dyn8sx`, 26,634 Hz with DAC + PSG, `snd-bench`
+over the whole player, 6 frames; the tunes cut with `vgm_trim.py` to fit the bench image; "mean" is frames
+1-5's cycles over 5 frames, a frame with two 256-sample engine refills is the peak):
+
+| tune | operators computed a frame (`vgm_count`) | engine alone | whole player, mean / peak frame |
+|---|---|---|---|
+| Green Hill Zone from 10 s | 7,102 (whole tune: mean 7,761, max 8,880) | 57 % (before the EG cache) | **57.7 % / 64.8 %** |
+| Special Stage from 10 s (all six FM channels, 24 operators) | 10,595 (tune mean 10,567) | - | **65.5 % / 73.0 %** |
+| KESTREL FM (ours), from the start, before the C output stage | 4,526 | - | 57.7 % / 58.6 % |
+
+The Gens spike on the same model: 63-73 % (board 66-74 %) on Green Hill Zone. Ours, over the whole of GHZ, is ~9 %
+busier than the benched window (operators a frame), so ~62 % on average (estimated from the counts). The
+load follows the live channels: the core skips released channels and operators at attenuation >= 832.
+Two steps took the player from 77 % to 58 % on the GHZ window: the per-output-frame stage (resample + hi/lo
+split) moved from wasm2c'd Zig into native C (`zm_vgm_out.c`), and the EG's update masks cached per operator.
+
+**Not proven:** the board (glass's OSD fps / BARD load) and Matt's ear; the <= 65 % target holds for GHZ's mean
+(57.7 %, ~62 % over the whole tune), Special Stage's mean is 65.5 %, and the busiest frames reach 64.8 % and
+73 % (absorbed by the 4-frame output lead, as the spike's 114 % peaks were); SSG-EG (the references disagree with each other); a VGM over
+983,040 bytes (refused, not streamed); the snd image's remaining room (2,044,112 of 2,097,152 bytes).

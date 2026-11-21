@@ -31,6 +31,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 | `.kt` | a klystrack song: klystron's cyd synth and music.c sequencer in integer Zig (`libs/zig/players/kt.zig`), bit-exact against upstream, its 16-bit stereo on the four Paula channels (see [KT](#kt-klystrack) below) | no: `tune` is the sequence row to start at (0 = the start) |
 | `.sid` | a Commodore 64 **PSID** (HVSC): its 6502 code and the SID on cRSID (Hermit, `libs/c/crsid`), 22.05 kHz mono on the four Paula channels (see [SID](#sid-commodore-64) below). An RSID is refused: "RSID not supported" | yes: `tune` counts from 1, 0 = the file's default |
+| `.vgm` `.vgz` | a Mega Drive / Genesis **VGM** (YM2612 + SN76489, the DAC, data blocks, DAC streams): our own MIT chips (`libs/c/vgm`), 26.6 kHz stereo on the four Paula channels (see [VGM](#vgm-mega-drive) below). A `.vgz` is inflated by the engine; a file over ~960 KB, or with neither chip, is refused | no: it plays from the top, looping where the file says |
 | `.hip` | a Jochen Hippel **Amiga** module as UADE plays it: the module's own 68000 replay on the SNDH player's Musashi, poking an emulated Paula (`libs/zig/players/hip_player.zig`, `paula.zig`) on the four sample channels. A file that is not a `bra` jump table plus a `TFMX` song is refused | yes: `tune` counts from 1, 0 = the first song |
 
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
@@ -58,7 +59,7 @@ drive, as a GEM program reads its data files) plays from the cart's memory inste
 
 ```zig
 const n = zg.disk.read(entry, buf);                         // the file, a block at a time
-_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip / .kt / .sid; copied this frame
+_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap / .xm / .hip / .kt / .sid / .vgm; copied this frame
 zg.stopSong();                                              // stops it, as it stops a named one
 ```
 
@@ -390,6 +391,26 @@ start ~0.5 Mc once. No Paula sound effect while a SID plays.
 | File | What | md5 |
 |---|---|---|
 | `hermini.sid` | HerMiniSID by Hermit, cRSID's own test tune (379 B, 8580) | `537f693740ed05502fc23151381082d9` |
+
+## VGM (Mega Drive)
+
+`zg.requestSong("tune.vgm")` (or `.vgz`) plays a Mega Drive / Genesis VGM, in the browser and on BARD, on
+our own YM2612 and SN76489 (`libs/c/ym2612`, `libs/c/sn76489`, `libs/c/vgm`: MIT, written from the
+hardware documents; `libs/c/vgm/README.md` has the sources, the limits and the accuracy against the Gens
+core). The chips render at the YM2612's clock / 288 (26,634 Hz NTSC) in stereo; `libs/zig/players/vgm.zig`
+plays it on the four Paula channels as MP3 does, resampled to 44.1 kHz (that stage is C too, `zm_vgm_out.c`). BARD runs the C natively; the page
+runs the same C in machine-audio.wasm, and `apps/vgm_check.mjs` holds the two to the same samples.
+`zg.requestSongBytes(bytes, .vgm, 0)` plays one the cart holds (op 8, kind 7), a `.vgz` included.
+
+The file sits whole in song RAM: up to 983,040 bytes (a `.vgz` and what it inflates to likewise). Played:
+the YM2612 (both ports, the DAC by 0x8n, 0xE0 and the 0x90-0x95 streams, type-0 data blocks), the SN76489
+(Game Gear stereo too), the loop. Skipped: other chips, second chips, timers (no CSM).
+**Cost on BARD:** ~58 % of a 60 Hz frame on Green Hill Zone's busy part, ~66 % with all six FM channels (peaks 65 % / 73 %), 26,634 Hz with the DAC and PSG (fpga/review/YM2612_BARD_STUDY.md section 6). No Paula sound effect while a VGM plays.
+
+| File | What | md5 |
+|---|---|---|
+| `kestrel_fm.vgm` | KESTREL FM, VGM TEST's tune: written by `libs/c/vgm/make_tune.py` for this repo (MIT), six FM channels + DAC drums + PSG, 31 s loop | `0a722a24357c0c003ab6f3e90b814bc7` |
+| `kestrel_fm.vgz` | the same, gzipped | `7c22417f14adc706a54e09d12b9d9789` |
 
 ## MP3 (MPEG-1, MPEG-2 and MPEG-2.5 Layer III)
 
