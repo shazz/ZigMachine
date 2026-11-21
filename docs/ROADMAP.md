@@ -61,7 +61,6 @@ Private `spike/rift-*` branches are left out on purpose (never pushed, never que
 | R40 | P3 | Study, kept for reference | `study/bard-bram`, `study/mp3-bard`, `analysis/mindwind` | BARD / screens | Study commits (BARD BRAM: D$ 16 KB is the use; MP3 on BARD ~35 %; Mind Rewind RE, no port). Land the docs or keep as archive | — |
 | R41 | P3 | Matt to decide | `chore/repo-reorg` (+1, 13 Nov) | tools | The repo reorg scripts (docs/ site/ apps/harness/ prototypes/), approved 13 Nov, not run | lead |
 | — | Archive | `archive/omarchy/*` (bram, deskmode, kt, sdkgate) | — | Laptop-side copies of work since landed by other routes; delete after a cherry check | — |
-| R42 | P2 | In progress (21 Nov, Matt go: one agent) | Planner pytests are not in the gate: `test_vdirty.py::test_palref_planes_skip_their_borders_uncompared` fails on origin/main | fpga/tests / build.sh | mpp_truecolor reports 1020 frames planned with a PALREF plane where the test expects 1500 (MPP_FRAMES), same on dad93583 and on perf/pal-lists-compared-v2. build.sh never runs tests/test_vdirty*.py, so it rotted silently. Find whether the cart or the test moved, fix, and add the planner pytests to the gate | — |
 
 ## KOS: the KESTREL Operating System (ZigGEM in ROM), docs/ZIGTOS_BOOT.md
 
