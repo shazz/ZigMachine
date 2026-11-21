@@ -8,7 +8,8 @@
  * after half a second) sends WELCOME.ANS off the cart's floppy (data/BBS.ANS; named to sort after BOOT.WSM,
  * the first file GEM's window lists) (CP437 ANSI art), a line with what the
  * negotiation told it, and a prompt. From then on it echoes what is typed: Enter starts a new prompt line,
- * Backspace rubs out. */
+ * Backspace rubs out, and a line G (the menu's Goodbye) or BYE hangs up from the BBS's end (the remote drop:
+ * SyncTERM goes back to its dialing directory). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,8 @@ static struct peer {
     int rd, wr;
     uint8_t cmd[64];                 /* the telnet command being parsed from the client */
     int ncmd, last_cr;
+    char line[8];                    /* the prompt line typed so far (G or BYE hangs up) */
+    int nline;
     char ttype[33];
     int cols, rows;
 } peers[KNET_SOCKETS];
@@ -107,9 +110,19 @@ static void echo(struct peer *p, uint8_t ch)
     typed++;
     if (p->last_cr && (ch == 0 || ch == '\n')) { p->last_cr = 0; return; }   /* telnet's CR NUL / CR LF */
     p->last_cr = ch == '\r';
-    if (ch == '\r') outs(p, "\r\n\x1b[1;33m> \x1b[0;37m");
-    else if (ch == 8 || ch == 127) outs(p, "\b \b");
-    else if (ch >= 32) out(p, &ch, 1);
+    if (ch == '\r') {
+        int bye = (p->nline == 3 && strncasecmp(p->line, "BYE", 3) == 0) || (p->nline == 1 && (p->line[0] | 32) == 'g');
+        p->nline = 0;
+        if (bye) { outs(p, "\r\n\x1b[1;31mGoodbye.\x1b[0m\r\n"); p->state = KNET_CLOSED; return; }   /* sent, then EOF */
+        outs(p, "\r\n\x1b[1;33m> \x1b[0;37m");
+    } else if (ch == 8 || ch == 127) {
+        if (p->nline) p->nline--;
+        outs(p, "\b \b");
+    } else if (ch >= 32) {
+        if (p->nline < (int)sizeof p->line) p->line[p->nline] = (char)ch;
+        p->nline++;
+        out(p, &ch, 1);
+    }
 }
 
 static void from_client(struct peer *p, const uint8_t *b, int n)

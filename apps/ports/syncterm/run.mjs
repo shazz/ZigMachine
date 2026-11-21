@@ -2,16 +2,23 @@
 // (640x480, from hwRenderDesk's two halves). For experiments; the gate's harness is apps/ports_headless.mjs.
 //   cd <repo> && node apps/ports/syncterm/run.mjs [frames=120] [out=apps/ports/syncterm/build/frame]
 //   KEYS="frame:text;..."   type text at a frame (\r = Enter)        DISK=<zmd>  another floppy
+//   EVERY=<n>               a PNG every n frames (30)
+//   INPUTS="frame:dir;..."  an arrow at a frame (0 up, 1 down, 2 left, 3 right)
 //   CODES="frame:code;..."  a raw key code at a frame (0xE013 = Alt, a toggle; decimal or 0x)
+//   C=<img>  C: is that FAT image (docs/gemdos-c.img's layout, HD/ = C:\), its writes served as the page serves
+//            them and saved back to the file at the end (the dialing directory lives in HD/SYNCTERM/); no C= = no C:
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { makeCDrive, makeCFile } from "../../scene_hash_disk.mjs";
 
 const FRAMES = +(process.argv[2] ?? 120), OUT = process.argv[3] ?? "apps/ports/syncterm/build/frame";
+const EVERY = +(process.env.EVERY ?? 30); // a PNG every EVERY frames
 const CART = process.env.CART ?? "apps/ports/syncterm/build/demo-syncterm.wasm";
 const DISK = await readFile(process.env.DISK ?? "docs/demo-syncterm.zmd").catch(() => null);
 const KEYS = (process.env.KEYS ?? "").split(";").filter(Boolean).map((k) => { const i = k.indexOf(":"); return [+k.slice(0, i), k.slice(i + 1).replace(/\\r/g, "\r")]; });
 const CODES = (process.env.CODES ?? "").split(";").filter(Boolean).map((k) => k.split(":").map(Number));
+const INPUTS = (process.env.INPUTS ?? "").split(";").filter(Boolean).map((k) => k.split(":").map(Number)); // an arrow (0 up, 1 down, 2 left, 3 right)
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
 const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
 const romBytes = await readFile("docs/rom.wasm");
@@ -22,6 +29,9 @@ const text = (p, n) => new TextDecoder().decode(new Uint8Array(memory.buffer, p,
 const env = { memory, ...rom, pollCartRequest: () => 0, consoleLogJS: (p, n) => console.log("cart:", text(p, n)),
     diskReadBlock: (b, dst) => { if (!DISK) return 0; const s = DISK.subarray(b * 512, b * 512 + 512); new Uint8Array(memory.buffer, dst, s.length).set(s); return s.length; } };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
+const cimg = process.env.C ? new Uint8Array(await readFile(process.env.C)) : null;
+if (cimg) { env.kosDriveRead = makeCDrive(memory, cimg); env.kosFileOp = makeCFile(memory, cimg); }
+else { env.kosDriveRead = () => 0; env.kosFileOp = () => -46; } // no C: (EDRIVE), never a stub's "done"
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
     if (imp.module === "env" && !(imp.name in env)) { env[imp.name] = () => 0; console.log("stubbed: env." + imp.name); }
 const demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
@@ -47,7 +57,9 @@ t0 = Date.now();
 for (let f = 1; f <= FRAMES; f++) {
     for (const [kf, s] of KEYS) if (kf === f) for (const ch of s) demo.key(ch.charCodeAt(0));
     for (const [kf, c] of CODES) if (kf === f) demo.key(c);
+    for (const [kf, d] of INPUTS) if (kf === f) demo.input(d);
     machine.hwClear(); demo.frame(1000 / 60);
-    if (f === FRAMES || f % 30 === 0) { await png(`${OUT}${f}.png`, desk()); console.log(`wrote ${OUT}${f}.png (desk ${machine.hwDeskActive()})`); }
+    if (f === FRAMES || f % EVERY === 0) { await png(`${OUT}${f}.png`, desk()); console.log(`wrote ${OUT}${f}.png (desk ${machine.hwDeskActive()})`); }
 }
 console.log(`${FRAMES} frames in ${Date.now() - t0} ms`);
+if (cimg) { await writeFile(process.env.C, cimg); console.log(`C: saved to ${process.env.C}`); }
