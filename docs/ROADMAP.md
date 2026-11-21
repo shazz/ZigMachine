@@ -3,7 +3,7 @@
 [ROADMAP_DONE.md](ROADMAP_DONE.md). Matt's view is the artifact (https://claude.ai/artifact/2V2LVaerVTnPpn2RbwHH2W),
 regenerated from this file.
 Rules (Matt, 31 Oct 2026):
-- **Every row has a permanent ID** (`R<n>`, Matt 21 Nov: to reference it). IDs are never reused or renumbered; a new row takes the next number (**next: R76**) and keeps its ID when it moves to ROADMAP_DONE.md.
+- **Every row has a permanent ID** (`R<n>`, Matt 21 Nov: to reference it). IDs are never reused or renumbered; a new row takes the next number (**next: R77**) and keeps its ID when it moves to ROADMAP_DONE.md.
 - Update this file in the same commit as the work: a row when work starts, its status as it moves, and
   when it is done move it to ROADMAP_DONE.md with its commit.
 - **Every unmerged branch has a row** naming the branch, its state and what landing it takes. Parked work
@@ -124,3 +124,4 @@ Private `spike/rift-*` branches are left out on purpose (never pushed, never que
 | R73 | P4 | Idea | 8 hardware PCM channels | CHORUS | +100–200 LUT; BARD's software mix preferred | — |
 | R74 | P4 | Idea (Matt, 21 Nov: nothing to do now) | Other FPGA boards: a portable KESTREL, a NEEK port, a transportable ST (zeST on the NEEK) | boards | docs/OTHER_BOARDS.md: Spartan-3E, MAX 10 NEEK (5" 800x480 LCD), BeMicro MAX 10 compared with the Z7-Lite. Easy portable: Z7-Lite + HDMI LCD + power bank; hard: a KESTREL Lite on the NEEK; Matt's "maybe a day": zerkman's zeST on the NEEK as a transportable Atari ST | — |
 | R75 | P3 | Idea (Matt, 21 Nov: "a good idea, i like it") | BeMicro MAX 10 sound-chip lab: one chip core alone on real gates, fed by a register dump | boards / CHORUS / BARD | docs/OTHER_BOARDS.md. YM2149, POKEY, a SID, then our own YM2612 (R12) on real gates before it enters KESTREL; one dump-player bitstream per chip (Quartus Prime Lite). Check the board's audio out first (headers: a PWM/sigma-delta DAC pin + RC filter, or an I2S DAC module) | — |
+| R76 | P2 | Open (Matt, 21 Nov) | SyncTERM: the real dialing directory, saved on C: | apps/ports/syncterm | Today the cart dials DIAL.TXT's first line (the floppy, read-only) as a command-line URL, so Alt+X / hang-up quits to GEM. Start SyncTERM with no URL so its BBS list opens (pick an entry or type telnet://host:port), its syncterm.lst + syncterm.ini on C: (/C GEMDOS) so it saves. Needs the upstream fetch (apps/ports/fetch.sh) + a rebuild + gate ports_syncterm. 21 Nov: the board's disk dials the ColdFire BBS relay telnet://192.168.0.113:2323 (local-only DIAL.TXT, rollback KESTREL/rollback/syncdial) | — |
