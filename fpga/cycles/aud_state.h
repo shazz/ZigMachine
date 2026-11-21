@@ -26,18 +26,24 @@
 enum { S_AS = 12, AS_MAGIC_W = 0, AS_MODE_W = 1, AS_MS_W = 2, AS_YM_W = 3, AS_MP3_W = 7, AS_MP3_WORDS = 4, AS_WORDS = 11 };
 #define AS_MAGIC 0x31534d5au /* 'ZMS1': version 1 of this block */
 #define AS_YM_REGS 14u        /* the worklet posts ymRegs.subarray(0, 14) */
+/* The stream's sample counter (zg.audioStreamPlayed, table 1.27) shares the MS word: the bank has no free
+ * word (no RTL change), and the two never hold at once. Mode 3 (a stream or a raw sample) means no SNDH
+ * plays, so audioSndhPositionMs() is 0: the word then carries the counter, and the reader hands back ms 0,
+ * as the worklet's audioState has. Any other mode: the ms, and the counter 0 (no stream plays). */
+#define AS_MODE_STREAM 3u
 
 typedef struct aud_state {
     uint32_t mode;   /* demo-audio.wasm audioMode(): 0 none, 1 MOD/XM, 2 YM, 3 sample, 4 SNDH, 5 SAP */
     uint32_t ms;     /* audioSndhPositionMs(): ms into the SNDH, 0 when none plays */
     uint8_t ym[16];  /* the YM registers as last written (host/audio_imports.c zma_ym_regs) */
     uint32_t mp3[AS_MP3_WORDS]; /* zg.mp3Status(0..3): audioMp3Status(0..2), then the players' load (cycles/baudio.c) */
+    uint32_t stream; /* audioStreamPlayed(): the stream's samples played, 0 when none (mode 3 only) */
 } aud_state;
 
 static inline void aud_state_words(const aud_state* s, uint32_t w[AS_WORDS]) {
     w[AS_MAGIC_W] = AS_MAGIC;
     w[AS_MODE_W] = s->mode;
-    w[AS_MS_W] = s->ms;
+    w[AS_MS_W] = s->mode == AS_MODE_STREAM ? s->stream : s->ms;
     memcpy(&w[AS_YM_W], s->ym, 16);
     memcpy(&w[AS_MP3_W], s->mp3, sizeof s->mp3);
 }
@@ -68,10 +74,39 @@ static inline int aud_state_read(const volatile uint32_t* s2c, aud_state* s) {
     uint32_t w[AS_WORDS];
     for (uint32_t i = 0; i < AS_WORDS; i++) w[i] = s2c[S_AS + i];
     s->mode = w[AS_MODE_W];
-    s->ms = w[AS_MS_W];
+    s->ms = w[AS_MODE_W] == AS_MODE_STREAM ? 0u : w[AS_MS_W];
+    s->stream = w[AS_MODE_W] == AS_MODE_STREAM ? w[AS_MS_W] : 0u;
     memcpy(s->ym, &w[AS_YM_W], 16);
     memcpy(s->mp3, &w[AS_MP3_W], sizeof s->mp3);
     return 1;
+}
+
+/* ZIGGY: zg.audioStreamPlayed off the bank (0: no block, or no stream). BARD stores MODE before MS, so a
+ * read between the two on a mode change can take one sample of an SNDH's ms for a count (or the reverse):
+ * one frame's reading, gone on the next. */
+static inline uint32_t aud_state_stream(const volatile uint32_t* s2c) {
+    if (s2c[S_AS + AS_MAGIC_W] != AS_MAGIC || s2c[S_AS + AS_MODE_W] != AS_MODE_STREAM) return 0;
+    return s2c[S_AS + AS_MS_W];
+}
+
+/* A stream (re)start: BARD has reset its counter, but publishes it only after its next render, so the bank
+ * still holds the previous stream's count. ZIGGY notes that word once BARD has taken the start (acked) and
+ * answers 0 until the word moves: a cart never reads the old stream's position as the new one's. */
+typedef struct aud_stream_view {
+    uint32_t stale; /* the word at the start's ack */
+    int fresh;      /* 0 until the word differs from it */
+} aud_stream_view;
+
+static inline void aud_stream_restart(aud_stream_view* v, const volatile uint32_t* s2c) {
+    v->stale = aud_state_stream(s2c);
+    v->fresh = 0;
+}
+
+static inline uint32_t aud_stream_read(aud_stream_view* v, const volatile uint32_t* s2c) {
+    uint32_t w = aud_state_stream(s2c);
+    if (!v->fresh && w == v->stale) return 0;
+    v->fresh = 1;
+    return w;
 }
 
 #endif

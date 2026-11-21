@@ -2076,3 +2076,39 @@ its own per-part pixel proofs (a later round); the per-part debug runner (too th
 **Consequences:** a demo now gets music-locked smooth time, track-driven fades/flashes, streaming of files bigger than its
 arena and next-part precompute without writing them. The native tests run on synthetic files; the private demo switches to
 them with its own wrappers (its formats stay with it) and proves the move byte-exact on its own carts.
+
+## 2026-11-20 — Stereo PCM stream: interleaved feeds on two hard-panned Paula rings, and a stream sample counter (table 1.27)
+
+**Status:** accepted
+**Context:** Matt (13 Nov): "update the api to support 2 channels". The stream (`zg.audioStreamStart` /
+`audioFeed`) loops ONE signed-8-bit ring on Paula channel 0, centred, although the machine has four Paula
+channels with a pan each on a stereo bus. Software only: KESTREL's 7010 is at 100 % slices, so no RTL, no new
+mailbox word. The first users (Suicide Barbie's music, zigdemo's audio) also need the sound's own position to
+drive their clock, and no host gave a cart one.
+**Decision:** Three host imports appended to the system table (1.26 -> 1.27, minor: every older index stands, a
+1.26 cart runs): `hostAudioStreamStartStereo(rate: u32)`, `hostAudioFeedStereo(ptr, len)`, `hostAudioStreamPlayed()
+-> u32` (zg.audioStreamStartStereo / audioFeedStereo / audioStreamPlayed, `libs/zig/audio_stereo.zig`).
+- Two rings of 32 KiB (the mono ring's size, so the pacing is the same per sample): the left at SONG_BASE on channel 0
+  panned -1, the right after it on channel 1 panned +1, triggered back to back with the same step, written at one cursor.
+  The rate is a u32 (no float), 1000..50066 Hz as samplePlay's; outside it nothing starts.
+- The feed is INTERLEAVED (L, R, L, R ... signed 8-bit): the layout of a stereo WAV and of a decoder's output, and ONE
+  pointer, so it rides every transport unchanged (`audio_fx`, BARD's 4-word mailbox effect carry one pointer) as the
+  existing FX_STREAM_START / FX_STREAM_FEED with `a` = 2, and one call cannot leave one side behind the other. The players'
+  side deinterleaves (the worklet's feedRing, host/audio_pcm.c put_stereo).
+- The counter is defined ONCE, in demo-audio.wasm (`audioStreamPlayed`, demo_audio_raw.zig): the channel's own 16.16 step
+  summed over the samples audioRender mixed, so it is the sound's position on every host that runs those players, mono
+  or stereo, 0 with no stream. The hosts only carry it: the worklet in its audioState (every 512 samples), the native host
+  by a call, BARD in the audio state's MS word (cycles/aud_state.h): the S2C bank is full, and in mode 3 (a stream) no
+  SNDH plays, so that word is free; the reader hands back ms 0 then, as the page does.
+**Alternatives considered:** planar feeds `(l, r)` (two pointers: a second effect per feed, or a pointer in the rate
+field, through the board's one-pointer transport); one ring of interleaved frames on one channel (Paula plays one byte per
+step: it cannot split them); the counter from ZIGGY's clock (ZIGGY cannot see the audio core's sample clock, only
+SOUND_WINDOW, and it would miss the lead); a DDR word BARD writes and ZIGGY invalidates (a new fixed address in a page
+that is someone else's, for one word the MS word holds already); the MP3 status words (their mp3Status contract would change).
+**Consequences:** a cart gets stereo PCM with the mono pacing rules and a sample clock. The counter is RENDERED, not heard:
+the board renders a lead (~67 ms) ahead of the speaker, the page one output buffer; the page's value moves in ~12 ms
+steps. Stubs (sim, scene_hash) answer 0. The stereo stream takes channels 0 and 1, as the mono one takes the sound.
+A restart is guarded on both carriers: the page takes an audioState only when its stream epoch (streamStart / streamStop
+/ reset messages handled) is the loader's, ZIGGY answers 0 after a start until BARD's word moves. Two board-only edges
+are accepted: a BARD resync (it fell behind the sound) leaves the count that many samples off the RTL channel for good,
+and a read between BARD's MODE and MS stores on a mode change can show one frame's wrong value.

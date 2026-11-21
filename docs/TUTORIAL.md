@@ -1481,6 +1481,9 @@ the whole speaker:
 | `hostAudioStreamStart(rate: f32)` | open the stream at `rate` Hz |
 | `hostAudioFeed(ptr: u32, len: u32)` | append `len` **signed 8-bit mono** samples |
 | `hostAudioStreamStop()` | silence it |
+| `hostAudioStreamStartStereo(rate: u32)` | (table 1.27) open the **stereo** stream: two rings, hard left / right |
+| `hostAudioFeedStereo(ptr: u32, len: u32)` | append `len / 2` **interleaved L,R signed 8-bit** frames |
+| `hostAudioStreamPlayed() -> u32` | samples the stream has played since its start (0: none) |
 
 and one is the whole drive: `diskReadBlock(block: u32, dst: u32)` copies one
 512-byte block into your RAM and returns how many bytes it moved. They are plain

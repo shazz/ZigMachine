@@ -594,6 +594,22 @@ machineClear(n)  →  [player writes chip regs via the setters above]
                  →  machineClamp(n)     →  worklet copies left/right to the output
 ```
 
+### The stereo stream and the stream's sample counter (system table 1.27, not a HW version)
+
+Three `env` imports (the host's, like `hostAudioFeed`; `docs/ZIGOS_API.md` has the Zig side, `libs/zig/audio_stereo.zig`):
+
+```c
+void hostAudioStreamStartStereo(u32 rate); // two 32 KiB rings: Paula 0 hard left, Paula 1 hard right; 1000..50066 Hz
+void hostAudioFeedStereo(u32 ptr, u32 len); // append len / 2 INTERLEAVED frames: L, R, L, R ... signed 8-bit
+u32  hostAudioStreamPlayed(void);           // samples the stream (mono or stereo) has played since its start; 0: none
+```
+
+`hostAudioStreamStop()` stops either stream. The counter is the channel's 16.16 step summed over what the players
+rendered (demo-audio.wasm `audioStreamPlayed`): rendered, not heard (the board runs a lead, ~67 ms, ahead of the
+speaker; a BARD resync leaves it that many samples off the RTL channel for good). The page answers the worklet's last
+report (every 512 samples); a stub host (a sim, scene_hash) answers 0. A system older than 1.27 refuses a cart
+that imports them. Decision: decisions.md 2026-11-20.
+
 ### MP3 streams (system table 1.11, not a HW version)
 
 Three `env` imports (the host's, like `hostAudioFeed`; `docs/ZIGOS_API.md` 8c has the Zig side):

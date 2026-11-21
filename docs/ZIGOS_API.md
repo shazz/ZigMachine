@@ -250,6 +250,18 @@ Players are open ZigOS code that drive the sealed chips. These ship today (MP3, 
   `zg.sampleStop()`) and the audio side plays it on its own: the audio thread in the browser, the sound
   CPU (BARD) on the board. A `samplePlay` sample is read while it plays, so it stays put until it stops
   (ST Replay's ALTernate O/P switches between the two: `apps/zig/scenes/st_replay_play.zig`).
+- **stereo stream** (system table 1.27, `libs/zig/audio_stereo.zig`) — two rings of 32 KiB, Paula
+  channel 0 panned hard left and channel 1 hard right, started on the same sample at the same step:
+  `zg.audioStreamStartStereo(rate)` (u32 Hz, 1000..50066; outside it nothing starts),
+  `zg.audioFeedStereo(frames)` (INTERLEAVED signed-8-bit frames, L then R, as a stereo WAV's data; an odd
+  last byte is not fed), `zg.audioStreamStop()` stops it. Pace it as the mono stream: a ring holds
+  `zg.AUDIO_STREAM_RING` frames a side. The mono calls are unchanged.
+- **the stream's sample counter** — `zg.audioStreamPlayed()`: the samples (frames) the stream, mono or
+  stereo, has played since its start, wrapping u32; 0 with no stream or no sound (a stub, a sim, the page
+  before sound is on). The sound's own clock for a demo timeline
+  (`zigdemo.clock` `.samples = .{ .rate, .fed = played, .fill = 0 }`). Rendered, not heard: the board runs
+  a lead (~67 ms) ahead of the speaker, the page one output buffer; the page's value is the worklet's last
+  report (every 512 samples, ~12 ms).
 
 They run on the audio thread and are swappable — add your own by driving the same
 chip ABI (see HW_API.md §5). The active player's mode + per-channel scopes are

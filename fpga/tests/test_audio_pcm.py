@@ -26,4 +26,4 @@ def test_the_ring_is_refilled_ahead_looped_fed_and_stopped_as_the_worklet_does()
     run = subprocess.run([str(exe)], capture_output=True, text=True, check=False)
     lines = run.stdout.splitlines()
     assert [ln for ln in lines if not ln.startswith("ok ")] == []
-    assert len(lines) == 13 and run.returncode == 0
+    assert len(lines) == 18 and run.returncode == 0

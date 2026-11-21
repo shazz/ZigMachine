@@ -1202,6 +1202,18 @@ the whole speaker:</p>
 <td><code>hostAudioStreamStop()</code></td>
 <td>silence it</td>
 </tr>
+<tr>
+<td><code>hostAudioStreamStartStereo(rate: u32)</code></td>
+<td>(table 1.27) open the <strong>stereo</strong> stream: two rings, hard left / right</td>
+</tr>
+<tr>
+<td><code>hostAudioFeedStereo(ptr: u32, len: u32)</code></td>
+<td>append <code>len / 2</code> <strong>interleaved L,R signed 8-bit</strong> frames</td>
+</tr>
+<tr>
+<td><code>hostAudioStreamPlayed() -&gt; u32</code></td>
+<td>samples the stream has played since its start (0: none)</td>
+</tr>
 </tbody>
 </table>
 <p>and one is the whole drive: <code>diskReadBlock(block: u32, dst: u32)</code> copies one
