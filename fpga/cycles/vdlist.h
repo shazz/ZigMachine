@@ -30,7 +30,8 @@ static uint32_t vdl_word(const vd_frame* fr, uint32_t off) {
 }
 
 /* Plane p's list length in words, up to and including its end HEAD; 0 if it cannot be compared
- * (too long, leaving VRAM, a PALREF or an LBASE, or a record that would stop it on the machine). */
+ * (too long, leaving VRAM, a PALREF or an LBASE, or a record that would stop it on the machine).
+ * A PAL's k colour words are data and are stepped over (read as ops, an alpha of 0xFF looked reserved). */
 static uint32_t vdl_measure(const vd_frame* fr, uint32_t at) {
     const uint32_t end = ZM_OFF_VRAM + ZM_VRAM_BYTES;
     uint32_t words = 0;
@@ -42,9 +43,14 @@ static uint32_t vdl_measure(const vd_frame* fr, uint32_t at) {
         if (((head >> 19) & 0x1FFu) == 511u) return words;
         if (n > 253u || at + 4 + 4 * n > end || words + n > VDL_MAX) return 0;
         for (uint32_t i = 0; i < n; i++) {
-            uint32_t op = vdl_word(fr, at + 4 + 4 * i) >> 28;
+            uint32_t w = vdl_word(fr, at + 4 + 4 * i), op = w >> 28, k = (w >> 12) & 0xFFu;
 #ifdef VD_BREAK_LBASE /* tests/test_vdirty.py's mutant: an LBASE list compared like a PAL one */
             if (op == 5u) continue;
+#endif
+#ifndef VD_BREAK_PALWORDS /* tests/test_vdirty.py's mutant: PAL's colour words read as ops */
+            if (op == 1u && (k == 0 || i + k >= n)) return 0; /* a PAL the machine would stop at */
+            if (op == 1u) i += k;                              /* its k colours are data, not ops */
+            else
 #endif
             if (op >= 4u) return 0; /* PALREF, LBASE, reserved */
         }
@@ -72,6 +78,17 @@ static int vdl_moved(const vd_frame* fr, int p) {
     }
     const uint8_t* src = fr->mem + ZM_HW_VIDEO_BASE + at;
     int moved = !vdl_ok[p] || vdl_len[p] != n || memcmp(vdl_copy[p], src, 4 * n);
+#ifdef VD_BREAK_PALCOLOURS /* tests/test_vdirty.py's mutant: a PAL's colour words left out of the comparison */
+    if (moved && vdl_ok[p] && vdl_len[p] == n) {
+        moved = 0;
+        for (uint32_t i = 0, skip = 0; i < n; i++) {
+            if (skip) { skip--; continue; }
+            if (memcmp((const uint8_t*)vdl_copy[p] + 4 * i, src + 4 * i, 4)) moved = 1;
+            uint32_t w = (uint32_t)(src[4 * i] | src[4 * i + 1] << 8 | src[4 * i + 2] << 16 | (uint32_t)src[4 * i + 3] << 24);
+            if (w >> 28 == 1u) skip = (w >> 12) & 0xFFu;
+        }
+    }
+#endif
     if (moved) memcpy(vdl_copy[p], src, 4 * n);
     vdl_len[p] = n, vdl_ok[p] = 1;
     return moved;

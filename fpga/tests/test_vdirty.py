@@ -194,3 +194,4 @@ def test_a_forgotten_record_rule_is_caught() -> None:
     """VD_BREAK=RECORDS: the planner skips the record lines, and the case counts them."""
     rc, _, recskip = copper_case("RECORDS")
     assert rc == 1 and recskip > 0
+

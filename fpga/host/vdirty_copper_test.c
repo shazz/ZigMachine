@@ -35,7 +35,21 @@ static void list(uint8_t* r) {
     w32(r, at, 0xF0000000u | 511u << 19);
 }
 
-int main(void) {
+/* argv[1] == "pal": one PAL record (op 1, one colour word) on raster line 100 whose colour changes
+ * every frame over a fully static picture; "palstatic": the same, the colour never changing. A
+ * colour change is a change of the list (the words are compared as data, cycles/vdlist.h), so the
+ * covered lines must be composited again; counts the skipped lines of each frame whose colour
+ * changed (VD_BREAK=PALCOLOURS compares only the ops, and skips them). */
+static void pal_list(uint8_t* r, uint32_t colour) {
+    uint32_t at = ZM_OFF_VRAM + 16u * LIST_V;
+    w32(r, at, 0xF0000000u | 100u << 19 | 2u);
+    w32(r, at + 4, 0x10000000u | 1u << 12);
+    w32(r, at + 8, colour);
+    w32(r, at + 12, 0xF0000000u | 511u << 19);
+}
+
+int main(int argc, char** argv) {
+    const int pal = argc > 1 && argv[1][0] == 'p', still = pal && argv[1][3] == 's';
     uint32_t size = ZM_HW_VIDEO_BASE + PLANE_AT + ZM_WIDTH * ZM_HEIGHT + 4096;
     uint8_t* mem = calloc(1, size);
     if (!mem) return 2;
@@ -44,20 +58,24 @@ int main(void) {
     w16(r, ZM_REG_FB_STRIDE, ZM_WIDTH);
     w32(r, ZM_REG_FB_BASE, PLANE_AT);
     w16(r, ZM_REG_FB_COPPER, LIST_V);
-    list(r);
-    uint32_t bg = 0, skipped = 0, recskip = 0;
+    if (pal) pal_list(r, 0xFF000000u);
+    else list(r);
+    uint32_t bg = 0, skipped = 0, recskip = 0, covskip = 0;
     uint8_t beam = 0, rec[ZM_RASTER_HEIGHT];
     for (int f = 1; f <= FRAMES; f++) {
-        memset(r + PLANE_AT + 160u * ZM_WIDTH, f, ZM_WIDTH); /* raster line 200 changes */
+        if (pal) pal_list(r, still ? 0xFF000000u : 0xFF000000u | (uint32_t)f * 0x111u);
+        else memset(r + PLANE_AT + 160u * ZM_WIDTH, f, ZM_WIDTH); /* raster line 200 changes */
         vd_frame fr = {mem, size, 1u, 1, &bg, &beam};
         vd_plan(&fr);
         vdc_records(r, 1u, rec);
         for (uint32_t y = 0; y < VD_LINES; y++) {
             int skip = vd_line(f & 1, y);
             skipped += (uint32_t)skip, recskip += (uint32_t)(skip && rec[y]);
+            if (pal && f > 2 && skip && y >= 40 && y < 240) covskip++;
         }
     }
-    printf("VDCOPPER skipped %u recskip %u\n", (unsigned)skipped, (unsigned)recskip);
+    if (pal) printf("VDPAL covered_skipped %u\n", (unsigned)covskip);
+    else printf("VDCOPPER skipped %u recskip %u\n", (unsigned)skipped, (unsigned)recskip);
     free(mem);
-    return recskip != 0;
+    return recskip != 0 && !pal;
 }
