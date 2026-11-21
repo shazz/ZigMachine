@@ -484,7 +484,7 @@ gate sid_test node apps/sid_test_check.mjs   # SID TEST: keys 1-4 ask for the lo
 gate sid_test node apps/sid_test_check.mjs --break name   # ...and key 6 expected to ask for another file fails
 gate vgm python3 libs/c/ym2612/gen_tables.py --check   # our YM2612's constant tables (log-sin, exp, detune, EG patterns, LFO, PM depths) = what their generator builds from the documented definitions
 gate vgm node apps/vgm_check.mjs   # .vgm player (libs/zig/players/vgm.zig; our YM2612 + SN76489, libs/c/vgm, MIT): machine-audio.wasm's engine = the same C built natively by the host's cc (fpga/tools/vgm_render.c: what BARD runs, host/audio_vgm.c), 0.1 s block for block, on KESTREL FM (.vgm and .vgz) and the 9 single-feature VGMs (libs/c/vgm/test_vgms.py), local Sonic tunes too when present; each feature VGM's native render = apps/vgm_expected.json (our core's own pinned output); the player's 44.1 kHz output a side = the engine resampled (mp3_resample's linear) >> 1, mode 1, both sides heard; garbage, no chip, truncated, a corrupt .vgz and a too-big file refused (status 1-5), silent
-gate vgm node apps/vgm_check.mjs --break envelope   # ...and the attack's >> 3 made >> 4 fails envelope.vgm's pinned hash
+gate vgm node apps/vgm_check.mjs --break envelope   # ...and the attack's >> 4 made >> 3 (twice as fast) fails envelope.vgm's pinned hash
 gate vgm node apps/vgm_check.mjs --break lfo   # ...and the PM depth halved fails lfo.vgm's
 gate vgm node apps/vgm_check.mjs --break feedback   # ...and the feedback one step weaker fails feedback.vgm's
 gate vgm node apps/vgm_check.mjs --break dac   # ...and the DAC 6 dB down fails dac.vgm's

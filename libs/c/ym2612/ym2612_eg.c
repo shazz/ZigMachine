@@ -2,9 +2,7 @@
  * (rates, key scaling, sustain level, detune) and Nemesis's hardware notes on the YM2612 (SpritesMind,
  * "New Documentation: An authoritative reference on the YM2612"): the EG ticks once every 3 chip
  * samples; a rate R updates every 2^shift ticks with an 8-step increment pattern; attack moves by
- * (~att x inc) >> 3 (the notes write >> 4 in 12-bit units; in our 10-bit attenuation >> 4 attacks at
- * half the YM2608 manual's attack times, measured against the reference: libs/c/vgm/README.md), the
- * others add inc; SSG-EG steps 4x below 0x200 and repeats, alternates or holds
+ * (~att x inc) >> 4, the others add inc; SSG-EG steps 4x below 0x200 and repeats, alternates or holds
  * there. Our own code. */
 #include "ym2612.h"
 #include "ym2612_tables.h"
@@ -97,7 +95,7 @@ void ym_op_eatt(ym_op *o) {
 static void eg_advance(ym_op *o, uint32_t r, int32_t inc) {
     if (o->state == YM_ATTACK) {
         if (r >= 62) o->att = 0;
-        else if (inc) o->att += (~o->att * inc) >> 3; /* see the header: >> 3, not >> 4 */
+        else if (inc) o->att += (~o->att * inc) >> 4;
         if (o->att <= 0) {
             o->att = 0;
             set_state(o, YM_DECAY);

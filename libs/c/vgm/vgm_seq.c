@@ -36,10 +36,13 @@ uint32_t vgm_bank_byte(const vgm_bank *b, uint32_t off) {
 
 static void dac(vgm_seq *v, uint32_t byte) { ym2612_write(&v->ym, 0, 0x2A, byte); }
 
+/* The end, or the loop: a loop pass that waited nothing would spin for ever (a malformed loop offset), so the
+ * second such pass ends the tune. */
 static void end_or_loop(vgm_seq *v) {
-    if (v->loop && v->loop < v->len) {
+    if (v->loop && v->loop < v->len && (v->loops == 0 || v->waited)) {
         v->pos = v->loop;
         v->loops++;
+        v->waited = 0;
     } else {
         v->ended = 1;
     }
@@ -104,7 +107,7 @@ static void advance(vgm_seq *v) {
             continue;
         }
         uint32_t w = step(v);
-        if (w) wait44(v, w);
+        if (w) v->waited = 1, wait44(v, w);
     }
 }
 
@@ -134,7 +137,9 @@ void vgm_seek(vgm_seq *v, uint32_t t44) {
             end_or_loop(v);
             continue;
         }
-        t += step(v);
+        uint32_t w = step(v);
+        t += w;
+        if (w) v->waited = 1;
     }
     v->acc = v->due = 0;
 }

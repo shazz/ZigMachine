@@ -38,7 +38,7 @@ static void split(int32_t x, int8_t *hi, int8_t *lo) {
     if (y > Y_MAX) y = Y_MAX;
     int32_t h = (y + 64) >> 7;
     *hi = (int8_t)h;
-    *lo = (int8_t)(y - (h << 7));
+    *lo = (int8_t)(y - h * 128);
 }
 
 void zm_vgm_render_paula(int8_t *hl, int8_t *hr, int8_t *ll, int8_t *lr, uint32_t n) {

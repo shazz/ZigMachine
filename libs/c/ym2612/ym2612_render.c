@@ -9,9 +9,16 @@
 #include "ym2612.h"
 #include "ym2612_tables.h"
 
+#ifdef ZM_YM_COUNT
+uint32_t ym_count_ops, ym_count_ch;
+#endif
+
 /* At 832 (x 4 = 13 << 8) even the sine's loudest step (YM_LOGSIN[255] is 0) is below one unit: 0, exactly. */
 static inline int32_t op_calc(const ym_op *o, int32_t mod, uint32_t att) {
     if (att >= 832u) return 0;
+#ifdef ZM_YM_COUNT /* the load bench's work counter (libs/c/vgm/README.md "BARD load"): operators computed */
+    ym_count_ops++;
+#endif
     uint32_t p = ((o->phase >> 10) + (uint32_t)mod) & 0x3FFu;
     uint32_t q = p & 0x100u ? ~p & 0xFFu : p & 0xFFu;
     uint32_t l = YM_LOGSIN[q] + (att << 2);
@@ -121,7 +128,12 @@ void ym2612_render(ym2612 *y, int16_t *lr, uint32_t n) {
             int32_t v;
             if (ci == 5 && y->dac_on) v = y->dac;
             else if (!c->live) c->fb1 = c->fb2 = c->mem = 0, v = 0;
-            else v = channel(c, am);
+            else {
+#ifdef ZM_YM_COUNT
+                ym_count_ch++;
+#endif
+                v = channel(c, am);
+            }
             if (c->pan & 2u) l += v;
             if (c->pan & 1u) r += v;
         }

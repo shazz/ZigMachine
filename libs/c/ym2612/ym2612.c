@@ -89,7 +89,7 @@ static void global_write(ym2612 *y, uint32_t reg, uint32_t v) {
         c->live = 0; /* silent for good once every operator is released to 0x3FF */
         for (uint32_t k = 0; k < 4; k++) c->live |= c->op[k].state != YM_RELEASE || c->op[k].att < 0x3FF;
     } else if (reg == 0x2A) {
-        y->dac = ((int32_t)(v & 0xFFu) - 128) << 6;
+        y->dac = ((int32_t)(v & 0xFFu) - 128) * 64; /* x 64, not << 6: a negative left shift is undefined */
     } else if (reg == 0x2B) {
         y->dac_on = v >> 7;
     }

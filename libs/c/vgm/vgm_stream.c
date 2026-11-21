@@ -25,7 +25,10 @@ void vgm_stream_cmd(vgm_seq *v, const uint8_t *p) {
     switch (p[0]) {
     case 0x90: s->setup = p[2] == 0x02 && p[4] == 0x2A; break; /* chip type 2: the YM2612, its DAC */
     case 0x91: s->step = p[3] ? p[3] : 1u, s->base = p[4]; break;
-    case 0x92: s->freq = vgm_u32(p + 2); break;
+    case 0x92: /* at most 4 writes a chip sample: a wild rate must not stall the render */
+        s->freq = vgm_u32(p + 2);
+        if (s->freq > 4u * v->rate) s->freq = 4u * v->rate;
+        break;
     case 0x93: {
         uint32_t at = vgm_u32(p + 2), m = p[6], n = vgm_u32(p + 7);
         if (at == 0xFFFFFFFFu) at = s->data_start;

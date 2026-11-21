@@ -31,7 +31,7 @@ typedef struct {
     const uint8_t *d;
     uint32_t len, pos, start, loop; /* loop: 0 = none */
     uint32_t rate, acc, due;        /* acc: 44.1 kHz samples x rate not yet a whole chip sample */
-    uint32_t pcm_pos, loops, ended, unknown;
+    uint32_t pcm_pos, loops, ended, unknown, waited; /* waited: a wait since the last loop jump */
     uint32_t has_ym, has_psg;
     vgm_bank bank;
     vgm_stream st;
