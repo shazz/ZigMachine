@@ -72,6 +72,9 @@ __attribute__((export_name("key"))) void key(uint32_t cp)
     if (cp < 32 || cp > 126) return;
     uint8_t c = (uint8_t)cp;
     uint8_t lower = (c >= 'A' && c <= 'Z') ? (uint8_t)(c + 32) : c;
+    /* Alt+X is ciolib's CIO_KEY_QUIT (what closing SyncTERM's window sends): the terminal takes it as its own
+     * Alt+X (exit), and the dialing directory and its dialogs, which ignore Alt+X, quit on it: back to GEM. */
+    if (alt && lower == 'x') { put_code(0x7ee0); alt = 0; return; }
     if (alt && lower >= 'a' && lower <= 'z') { put_code((uint16_t)(alt_scan[lower - 'a'] << 8)); alt = 0; return; }
     if (ctrl && lower >= 'a' && lower <= 'z') { put_code((uint16_t)(lower & 0x1f)); return; }
     put_code(c);

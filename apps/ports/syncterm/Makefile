@@ -19,7 +19,7 @@ DIRS   := syncterm sbbs3 uifc conio xpdev encode comio $(HSH)
 DEFS   := -D__unix__ -D__KESTREL__ -D_THREAD_SAFE -D_REENTRANT -DUSE_XP_SEMAPHORES -DLINK_LIST_THREADSAFE \
           -DWITHOUT_CRYPTLIB -DWITHOUT_OOII -DTELNET_NO_DLL -DHAS_INTTYPES_H -D_DEFAULT_SOURCE -D_BSD_SOURCE \
           -D_GNU_SOURCE -DPREFIX=\"/\" -DSYSTEM_LIST_DIR=\"/\" -DNO_X -DDISABLE_X11=1 -DHAVE_VASPRINTF \
-          -DWITH_RETRO -DPREFER_POLL -DNDEBUG -D__wasilibc_use_wasip2 -DUNAME_ARCHITECTURE_DESC=\"wasm32\"
+          -DWITH_RETRO -DPREFER_POLL -DNDEBUG -DKESTREL_CDRIVE -D__wasilibc_use_wasip2 -DUNAME_ARCHITECTURE_DESC=\"wasm32\"
 INCS   := -I. -Iinclude -I$(KINC) $(addprefix -I$(GEN)/,$(DIRS))
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 $(INCS) -include kestrel_port.h $(DEFS) -w
 MEM := 8388608
@@ -41,11 +41,14 @@ UP_SRC := syncterm/bbslist syncterm/uifcinit syncterm/fonts syncterm/rip_icons s
   $(HSH)/crc16 $(HSH)/crc32 $(HSH)/md5 $(HSH)/sha1
 UP_HDR := $(patsubst $(UP)/%,%,$(foreach d,$(DIRS),$(wildcard $(UP)/$(d)/*.h)))
 GENALL := $(addprefix $(GEN)/,$(UP_HDR) $(addsuffix .c,$(UP_SRC)))
-# The shared layer: the core (heap, WASI over the floppy, quit) and the opt-in fibers. Not its input.c:
-# kestrel_keys.c maps the keys to ciolib codes directly (SyncTERM has no SDL path here).
-KSDL_OBJ := kestrel_heap kestrel_wasi kestrel_quit opt/kestrel_fiber opt/kestrel_pthread
+# The shared layer: the core (heap, WASI over the floppy, quit), the opt-in fibers, and C: (KOS GEMDOS,
+# docs/KOS_GEMDOS.md §5: "/C" = the card's HD, -DKESTREL_CDRIVE above, as ../grafx2), where the dialing
+# directory lives (kestrel_dialdir.c). Not its input.c: kestrel_keys.c maps the keys to ciolib codes directly.
+KSDL_OBJ := kestrel_heap kestrel_wasi kestrel_quit opt/kestrel_fiber opt/kestrel_pthread \
+            opt/kestrel_wasi_c opt/kestrel_wasi_cdir opt/kestrel_wasi_cfile
+GEMDOS := ../../../rom/kos
 OBJS   := $(addprefix $(OUT)/up/,$(addsuffix .o,$(UP_SRC))) $(patsubst %.c,$(OUT)/%.o,$(wildcard kestrel_*.c)) \
-          $(addprefix $(OUT)/ksdl/,$(addsuffix .o,$(KSDL_OBJ)))
+          $(addprefix $(OUT)/ksdl/,$(addsuffix .o,$(KSDL_OBJ))) $(OUT)/gemdos.o
 
 .PHONY: objs link dbg clean install
 .SECONDARY:
@@ -58,9 +61,12 @@ $(GEN)/%: $(UP)/% $(wildcard patches/*.sed)
 $(OUT)/up/%.o: $(GEN)/%.c $(GENALL) kestrel_port.h $(wildcard include/*.h $(KINC)/*.h)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
-$(OUT)/ksdl/%.o: $(KSDL)/%.c $(wildcard $(KINC)/*.h $(KINC)/SDL2/*) kestrel_port.h kestrel_net.h
+$(OUT)/ksdl/%.o: $(KSDL)/%.c $(wildcard $(KINC)/*.h $(KINC)/SDL2/* $(KSDL)/opt/*.h) kestrel_port.h kestrel_net.h
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -DKESTREL_NET_NO_RENAME -c $< -o $@
+$(OUT)/gemdos.o: $(wildcard $(GEMDOS)/gemdos*.zig $(GEMDOS)/fat*.zig)
+	@mkdir -p $(dir $@)
+	$(ZIG) build-obj -target wasm32-wasi -OReleaseSmall -fno-stack-check $(GEMDOS)/gemdos_c.zig -femit-bin=$@
 $(OUT)/kestrel_%.o: kestrel_%.c $(GENALL) $(wildcard *.h include/*.h $(KINC)/*.h)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) -c $< -o $@
