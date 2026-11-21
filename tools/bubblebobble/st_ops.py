@@ -4,6 +4,8 @@
 (a `continue :sw` inside the chunk, a `return` to the dispatcher outside it), ctx.idle(i) says the
 branch closes a loop that only polls RAM (the frame waits).
 """
+import re
+
 from st_ea import TYPES, Operand
 
 SIZES = {'b': 1, 'w': 2, 'l': 4}
@@ -39,6 +41,18 @@ def sx(op, size):
 
 
 def gen(i, ctx):
+    """The statements; flags no later instruction reads (ctx.live) are not computed."""
+    out = gen_all(i, ctx)
+    if ctx.live(i) == 0:
+        out = [x for x in out if not x.startswith(('k.logic(', 'k.btst(', 'k.cmp(', '_ = s;'))]
+        for n, x in enumerate(list(out)):  # an address or value only the dropped flags used
+            m = re.match(r'const (\w+)', x)
+            if m and not any(re.search(r'\b%s\b' % m[1], y) for y in out[n + 1:]):
+                out.append('_ = %s;' % m[1])
+    return out
+
+
+def gen_all(i, ctx):
     base, size = split(i)
     ops = operands(i, size)
     t = TYPES.get(size)
@@ -66,7 +80,7 @@ def gen(i, ctx):
     if base == 'cmpa':
         return ops[0].bind() + ['k.cmp(u32, %s, k.a[%d]);' % (sx(ops[0], size), ops[1].regno())]
     if base in ALU or base in ('adda', 'suba'):
-        return alu(base, ops, size, t)
+        return alu(i, base, ops, size, t, ctx)
     if base in LOGIC:
         return ops[0].bind() + ['const s = %s;' % ops[0].get()] + ops[1].bind() + \
             ['const r = %s %s s;' % (ops[1].get(), LOGIC[base]), ops[1].put('r'), 'k.logic(%s, r);' % t]
@@ -95,11 +109,15 @@ def gen(i, ctx):
     return flow(i, base, ops, ctx, nxt)
 
 
-def alu(base, ops, size, t):
+def alu(i, base, ops, size, t, ctx):
     dst = ops[1]
     if dst.is_reg('a') and dst.am == 2:
         op = '+%=' if base.startswith('add') else '-%='
         return ops[0].bind() + ['k.a[%d] %s %s;' % (dst.regno(), op, sx(ops[0], size))]
+    if ctx.live(i) == 0:  # no flag read: the plain sum
+        op = '+%' if base.startswith('add') else '-%'
+        return ops[0].bind() + ['const s = %s;' % ops[0].get()] + dst.bind() + \
+            ['const r = %s %s s;' % (dst.get(), op), dst.put('r')]
     return ops[0].bind() + ['const s = %s;' % ops[0].get()] + dst.bind() + \
         ['const r = %s(%s, s, %s);' % (ALU[base], t, dst.get()), dst.put('r')]
 
@@ -158,10 +176,11 @@ def flow(i, base, ops, ctx, nxt):
         return [ctx.jump(ctx.target(i), i)]
     if base in ('bsr', 'jsr'):
         tgt = ctx.target(i)
+        hook = ['k.hook(0x%x);' % tgt] if ctx.hooked(i, tgt) else []
         if tgt is None:
             pre, e = ops[0].addr()
             return pre + ['const t: u32 = %s;' % e, 'k.push32(0x%x);' % nxt, 'return t;']
-        return ['k.push32(0x%x);' % nxt, ctx.jump(tgt, i)]
+        return hook + ['k.push32(0x%x);' % nxt, ctx.call(tgt, nxt, i)]
     if base == 'jmp':
         tgt = ctx.target(i)
         if tgt is None:

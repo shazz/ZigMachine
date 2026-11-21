@@ -1,6 +1,6 @@
 // Native runner for the translated game (development + reference captures, no ZigOS):
-//   zig run -OReleaseFast apps/zig/scenes/bubblebobble/st_native.zig -- <re_dir> <frames> <outdir> [every] [script]
-// Loads <re_dir>/work/text_reloc.bin and <re_dir>/files/GRAPHICS/*, runs <frames> 50 Hz frames,
+//   zig run -OReleaseFast apps/zig/scenes/bubblebobble/st_native.zig -- <asset_dir> <frames> <outdir> [every] [script]
+// Loads <asset_dir>/text.bin and the GRAPHICS files (apps/zig/assets/screens/bubblebobble), runs <frames> 50 Hz frames,
 // writes the shown screen as <outdir>/fNNNNN.ppm every [every] frames. [script]: "frame:key:down"
 // events separated by commas (key = scancode hex, or j0..j1=<hex> joystick states).
 const std = @import("std");
@@ -24,11 +24,12 @@ pub fn main(init: std.process.Init) !void {
     const cwd = std.Io.Dir.cwd();
     var files: [NAMES.len]tos.File = undefined;
     for (NAMES, 0..) |n, i| {
-        const p = try std.fmt.allocPrint(gpa, "{s}/files/GRAPHICS/{s}", .{ re, n });
+        var low: [16]u8 = undefined;
+        const p = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ re, std.ascii.lowerString(&low, n) });
         files[i] = .{ .name = n, .data = try cwd.readFileAlloc(io_, p, gpa, .limited(1 << 20)) };
     }
     tos.files = &files;
-    const tp = try std.fmt.allocPrint(gpa, "{s}/work/text_reloc.bin", .{re});
+    const tp = try std.fmt.allocPrint(gpa, "{s}/text.bin", .{re});
     const text = try cwd.readFileAlloc(io_, tp, gpa, .limited(1 << 20));
     k.mem = try gpa.alloc(u8, k.RAM);
     frame.reset(text);
@@ -39,7 +40,8 @@ pub fn main(init: std.process.Init) !void {
         frame.runFrame();
         if (f % every == every - 1) try dump(gpa, io_, out, f);
     }
-    std.debug.print("frames {d} pc {x} cy {d} bad {d} (last {x}) io-dropped {d} tos-unknown {d} psg {d} stuck {d} term {}\n", .{ frame.frames, frame.pc, k.cy, k.bad_pcs, k.last_bad, io.dropped, tos.unknown, io.psg_writes, frame.stuck_irqs, tos.terminated });
+    std.debug.print("rasters {d}\n", .{io.raster_n});
+    std.debug.print("frames {d} pc {x} cy {d} bad {d} (last {x}) io-dropped {d} ({x}) tos-unknown {d} psg {d} stuck {d} term {}\n", .{ frame.frames, frame.pc, k.cy, k.bad_pcs, k.last_bad, io.dropped, io.last_dropped, tos.unknown, io.psg_writes, frame.stuck_irqs, tos.terminated });
 }
 
 fn applyScript(script: []const u8, f: u32) void {

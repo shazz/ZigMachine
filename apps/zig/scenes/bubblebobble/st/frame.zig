@@ -63,7 +63,7 @@ fn interrupt(vec: u32) void {
 }
 
 /// Run one routine as a subroutine of the host (a TOS callback), registers kept.
-fn call(addr: u32) void {
+pub fn call(addr: u32) void {
     const saved_d = k.d;
     const saved_a = k.a;
     const sr = k.getSr();

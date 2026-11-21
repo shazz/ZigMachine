@@ -18,7 +18,7 @@ pub inline fn logic(comptime T: type, v: T) void {
 }
 
 /// dst + src, all five flags.
-pub inline fn add(comptime T: type, s: T, dst: T) T {
+pub noinline fn add(comptime T: type, s: T, dst: T) T {
     const r = @addWithOverflow(dst, s);
     k.fc = r[1] != 0;
     k.fx = k.fc;
@@ -29,7 +29,7 @@ pub inline fn add(comptime T: type, s: T, dst: T) T {
 }
 
 /// dst - src, all five flags.
-pub inline fn sub(comptime T: type, s: T, dst: T) T {
+pub noinline fn sub(comptime T: type, s: T, dst: T) T {
     const r = dst -% s;
     k.fc = s > dst;
     k.fx = k.fc;
@@ -40,7 +40,7 @@ pub inline fn sub(comptime T: type, s: T, dst: T) T {
 }
 
 /// dst - src for the flags only: X is kept.
-pub inline fn cmp(comptime T: type, s: T, dst: T) void {
+pub noinline fn cmp(comptime T: type, s: T, dst: T) void {
     const r = dst -% s;
     k.fc = s > dst;
     k.fneg = msb(T, r);
@@ -49,7 +49,7 @@ pub inline fn cmp(comptime T: type, s: T, dst: T) void {
 }
 
 /// dst + src + X: Z is only cleared (a multi-precision sum's zero test).
-pub inline fn addx(comptime T: type, s: T, dst: T) T {
+pub noinline fn addx(comptime T: type, s: T, dst: T) T {
     const W = @import("std").meta.Int(.unsigned, @bitSizeOf(T) + 1);
     const wide = @as(W, dst) + s + @intFromBool(k.fx);
     const r: T = @truncate(wide);

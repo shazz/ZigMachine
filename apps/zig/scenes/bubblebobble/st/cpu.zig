@@ -2,7 +2,7 @@
 // The 68000 the translated game runs on (../gen/, tools/bubblebobble/st_recomp.py):
 // the registers, the five condition flags, the cycle clock, and the bus.
 //
-// The bus is the ST's: the first 512 KB are RAM (`mem`, the cart allocates
+// The bus is the ST's: the first 1 MB is RAM (`mem`, the cart allocates
 // it), $FF8000-$FFFFFF the hardware registers (io.zig). Words and longs are
 // big-endian, as the game stores them. The flags are kept as five booleans
 // and set by the helpers below exactly as the 68000 sets them.
@@ -11,7 +11,9 @@ const io = @import("io.zig");
 const tos = @import("tos.zig");
 const alu = @import("alu.zig");
 
-pub const RAM: u32 = 0x80000;
+/// 1 MB: now and then the game draws a sprite past the bottom of the screen at $78000,
+/// beyond 512 KB; a 1 MB ST has RAM there.
+pub const RAM: u32 = 0x100000;
 
 pub var d: [8]u32 = .{0} ** 8;
 pub var a: [8]u32 = .{0} ** 8;
@@ -33,32 +35,43 @@ pub var last_bad: u32 = 0;
 
 pub var mem: []u8 = &.{};
 
-// ---- the bus ---------------------------------------------------------------
-pub inline fn rb(addr: u32) u8 {
+// ---- the bus: calls, not inlined -- the board's 16 KB I$ is what the translated code
+// runs out of, and an inlined access is ~40 bytes of rv32 at each of 6,953 instructions ----
+pub noinline fn rb(addr: u32) u8 {
     const x = addr & 0xFFFFFF;
     if (x < RAM) return mem[x];
     return io.rb(x);
 }
-pub inline fn rw(addr: u32) u16 {
+pub noinline fn rw(addr: u32) u16 {
     const x = addr & 0xFFFFFE;
     if (x < RAM) return @as(u16, mem[x]) << 8 | mem[x + 1];
     return io.rw(x);
 }
-pub inline fn rl(addr: u32) u32 {
+pub noinline fn rl(addr: u32) u32 {
+    const x = addr & 0xFFFFFE;
+    if (x < RAM - 3) return @as(u32, mem[x]) << 24 | @as(u32, mem[x + 1]) << 16 | @as(u32, mem[x + 2]) << 8 | mem[x + 3];
     return @as(u32, rw(addr)) << 16 | rw(addr +% 2);
 }
-pub inline fn wb(addr: u32, v: u8) void {
+pub noinline fn wb(addr: u32, v: u8) void {
     const x = addr & 0xFFFFFF;
     if (x < RAM) mem[x] = v else io.wb(x, v);
 }
-pub inline fn ww(addr: u32, v: u16) void {
+pub noinline fn ww(addr: u32, v: u16) void {
     const x = addr & 0xFFFFFE;
     if (x < RAM) {
         mem[x] = @truncate(v >> 8);
         mem[x + 1] = @truncate(v);
     } else io.ww(x, v);
 }
-pub inline fn wl(addr: u32, v: u32) void {
+pub noinline fn wl(addr: u32, v: u32) void {
+    const x = addr & 0xFFFFFE;
+    if (x < RAM - 3) {
+        mem[x] = @truncate(v >> 24);
+        mem[x + 1] = @truncate(v >> 16);
+        mem[x + 2] = @truncate(v >> 8);
+        mem[x + 3] = @truncate(v);
+        return;
+    }
     ww(addr, @truncate(v >> 16));
     ww(addr +% 2, @truncate(v));
 }
@@ -132,6 +145,12 @@ pub fn bad(pc: u32) u32 {
     last_bad = pc;
     limit = cy; // stop the frame: the harness reports it
     return pc;
+}
+
+/// The host's ear on the game's sound calls (a tune or an effect started from game code).
+pub var on_hook: ?*const fn (u32) void = null;
+pub inline fn hook(target: u32) void {
+    if (on_hook) |f| f(target);
 }
 
 /// A loop that only polls RAM waits for an interrupt: the time until it passes at once.

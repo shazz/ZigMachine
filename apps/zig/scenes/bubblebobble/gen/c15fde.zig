@@ -3,8 +3,43 @@
 // each comment is the original instruction at its TEXT offset.
 const k = @import("../st/cpu.zig");
 
+const f10000 = @import("c10000.zig");
+const f104f6 = @import("c104f6.zig");
+const f10c1a = @import("c10c1a.zig");
+const f110ea = @import("c110ea.zig");
+const f11536 = @import("c11536.zig");
+const f11986 = @import("c11986.zig");
+const f12d96 = @import("c12d96.zig");
+const f13146 = @import("c13146.zig");
+const f1354e = @import("c1354e.zig");
+const f13a10 = @import("c13a10.zig");
+const f14060 = @import("c14060.zig");
+const f143f0 = @import("c143f0.zig");
+const f1479e = @import("c1479e.zig");
+const f14bee = @import("c14bee.zig");
+const f1500e = @import("c1500e.zig");
+const f15398 = @import("c15398.zig");
+const f15796 = @import("c15796.zig");
+const f15fde = @import("c15fde.zig");
+const f16556 = @import("c16556.zig");
+const f169e2 = @import("c169e2.zig");
+const f16dc2 = @import("c16dc2.zig");
+const f171aa = @import("c171aa.zig");
+const f17b1e = @import("c17b1e.zig");
+const f1806a = @import("c1806a.zig");
+const f18780 = @import("c18780.zig");
+const f19252 = @import("c19252.zig");
+const f195b2 = @import("c195b2.zig");
+const f19a0a = @import("c19a0a.zig");
+const f19f60 = @import("c19f60.zig");
+const f1a5f8 = @import("c1a5f8.zig");
+const f1a81a = @import("c1a81a.zig");
+const f1ac5a = @import("c1ac5a.zig");
+const f1b102 = @import("c1b102.zig");
+const f1b5c2 = @import("c1b5c2.zig");
+
 pub const c15fde = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x15fde => {
                 // $05fde  move.l #$14, d0
@@ -12,25 +47,22 @@ pub const c15fde = struct {
                     k.cy +%= 12;
                     const v = @as(u32, 0x14);
                     k.setD(u32, 0, v);
-                    k.logic(u32, v);
                 }
                 continue :sw 0x15fe4;
             },
             0x15fe4 => {
                 // $05fe4  movea.l $16392.l, a1
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x16392;
                     k.a[1] = k.rl(e0);
                 }
                 // $05fea  cmpa.l #$24d48, a1
                 {
-                    k.cy +%= 12;
                     k.cmp(u32, @as(u32, 0x24d48), k.a[1]);
                 }
                 // $05ff0  bne.w $15ffe
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 46;
                     if (!k.fz) continue :sw 0x15ffe;
                 }
                 // $05ff4  move.l #$21e32, $16392.l
@@ -39,14 +71,12 @@ pub const c15fde = struct {
                     const v = @as(u32, 0x21e32);
                     const e1: u32 = 0x16392;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 continue :sw 0x15ffe;
             },
             0x15ffe => {
                 // $05ffe  addi.l #$23e, $16392.l
                 {
-                    k.cy +%= 28;
                     const s = @as(u32, 0x23e);
                     const e1: u32 = 0x16392;
                     const r = k.add(u32, s, k.rl(e1));
@@ -54,68 +84,62 @@ pub const c15fde = struct {
                 }
                 // $06008  movea.l $16392.l, a1
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x16392;
                     k.a[1] = k.rl(e0);
                 }
                 // $0600e  cmpi.b #$0, $11(a1)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x0);
                     const e1: u32 = k.a[1] +% @as(u32, 17);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $06014  beq.w $16046
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 78;
                     if (k.fz) continue :sw 0x16046;
                 }
                 // $06018  cmpi.b #$b, $11(a1)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0xb);
                     const e1: u32 = k.a[1] +% @as(u32, 17);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $0601e  beq.w $16046
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (k.fz) continue :sw 0x16046;
                 }
                 // $06022  cmpi.b #$c, $11(a1)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0xc);
                     const e1: u32 = k.a[1] +% @as(u32, 17);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $06028  beq.w $16046
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (k.fz) continue :sw 0x16046;
                 }
                 // $0602c  cmpi.b #$49, $11(a1)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x49);
                     const e1: u32 = k.a[1] +% @as(u32, 17);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $06032  beq.w $16046
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (k.fz) continue :sw 0x16046;
                 }
                 // $06036  cmpi.b #$2d, $11(a1)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x2d);
                     const e1: u32 = k.a[1] +% @as(u32, 17);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $0603c  beq.w $16046
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (k.fz) continue :sw 0x16046;
                 }
                 // $06040  dbra d0, $15fe4
@@ -145,7 +169,7 @@ pub const c15fde = struct {
 };
 
 pub const c16048 = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x16048 => {
                 // $06048  move.l #$14, d0
@@ -153,25 +177,22 @@ pub const c16048 = struct {
                     k.cy +%= 12;
                     const v = @as(u32, 0x14);
                     k.setD(u32, 0, v);
-                    k.logic(u32, v);
                 }
                 continue :sw 0x1604e;
             },
             0x1604e => {
                 // $0604e  movea.l $16392.l, a1
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x16392;
                     k.a[1] = k.rl(e0);
                 }
                 // $06054  cmpa.l #$24d48, a1
                 {
-                    k.cy +%= 12;
                     k.cmp(u32, @as(u32, 0x24d48), k.a[1]);
                 }
                 // $0605a  bne.w $16068
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 46;
                     if (!k.fz) continue :sw 0x16068;
                 }
                 // $0605e  move.l #$21e32, $16392.l
@@ -180,14 +201,12 @@ pub const c16048 = struct {
                     const v = @as(u32, 0x21e32);
                     const e1: u32 = 0x16392;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 continue :sw 0x16068;
             },
             0x16068 => {
                 // $06068  addi.l #$23e, $16392.l
                 {
-                    k.cy +%= 28;
                     const s = @as(u32, 0x23e);
                     const e1: u32 = 0x16392;
                     const r = k.add(u32, s, k.rl(e1));
@@ -195,20 +214,18 @@ pub const c16048 = struct {
                 }
                 // $06072  movea.l $16392.l, a1
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x16392;
                     k.a[1] = k.rl(e0);
                 }
                 // $06078  cmpi.b #$0, $11(a1)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x0);
                     const e1: u32 = k.a[1] +% @as(u32, 17);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $0607e  beq.w $1608c
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 78;
                     if (k.fz) continue :sw 0x1608c;
                 }
                 // $06082  dbra d0, $1604e
@@ -220,28 +237,26 @@ pub const c16048 = struct {
                 }
                 // $06086  move.b #$1, d6
                 {
-                    k.cy +%= 8;
                     const v = @as(u8, 0x1);
                     k.setD(u8, 6, v);
                     k.logic(u8, v);
                 }
                 // $0608a  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 32;
                     return k.pop32();
                 }
             },
             0x1608c => {
                 // $0608c  move.b #$0, d6
                 {
-                    k.cy +%= 8;
                     const v = @as(u8, 0x0);
                     k.setD(u8, 6, v);
                     k.logic(u8, v);
                 }
                 // $06090  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 32;
                     return k.pop32();
                 }
             },
@@ -252,34 +267,31 @@ pub const c16048 = struct {
 };
 
 pub const c16092 = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x16092 => {
                 // $06092  tst.b $16(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 22);
                     k.logic(u8, k.rb(e0));
                 }
                 // $06096  beq.w $160fc
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 26;
                     if (k.fz) continue :sw 0x160fc;
                 }
                 // $0609a  lea.l $16508.l, a1
                 {
-                    k.cy +%= 12;
                     k.a[1] = 0x16508;
                 }
                 // $060a0  tst.b $38(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 56);
                     k.logic(u8, k.rb(e0));
                 }
                 // $060a4  beq.w $160ae
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 38;
                     if (k.fz) continue :sw 0x160ae;
                 }
                 // $060a8  lea.l $16512.l, a1
@@ -292,56 +304,43 @@ pub const c16092 = struct {
             0x160ae => {
                 // $060ae  move.b $16(a0), d1
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 22);
                     const v = k.rb(e0);
                     k.setD(u8, 1, v);
-                    k.logic(u8, v);
                 }
                 // $060b2  ext.w d1
                 {
-                    k.cy +%= 4;
                     const r: u16 = @truncate(k.sx8(k.dv(u8, 1)));
                     k.setD(u16, 1, r);
-                    k.logic(u16, r);
                 }
                 // $060b4  ext.l d1
                 {
-                    k.cy +%= 4;
                     k.d[1] = k.sx16(k.dv(u16, 1));
-                    k.logic(u32, k.d[1]);
                 }
                 // $060b6  move.b (a1, d1.l), d2
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, 0) +% k.d[1];
                     const v = k.rb(e0);
                     k.setD(u8, 2, v);
-                    k.logic(u8, v);
                 }
                 // $060ba  ext.w d2
                 {
-                    k.cy +%= 4;
                     const r: u16 = @truncate(k.sx8(k.dv(u8, 2)));
                     k.setD(u16, 2, r);
-                    k.logic(u16, r);
                 }
                 // $060bc  ext.l d2
                 {
-                    k.cy +%= 4;
                     k.d[2] = k.sx16(k.dv(u16, 2));
-                    k.logic(u32, k.d[2]);
                 }
                 // $060be  cmpi.b #$1, $25(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x1);
                     const e1: u32 = k.a[0] +% @as(u32, 37);
                     k.cmp(u8, s, k.rb(e1));
                 }
                 // $060c4  beq.w $160e2
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 70;
                     if (k.fz) continue :sw 0x160e2;
                 }
                 continue :sw 0x160c8;
@@ -351,7 +350,7 @@ pub const c16092 = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x160cc);
-                    return 0x12fcc;
+                    { const p = f12d96.c12fcc.run(0x12fcc); if (p != 0x160cc) return p; continue :sw 0x160cc; }
                 }
             },
             0x160cc => {
@@ -364,7 +363,6 @@ pub const c16092 = struct {
                 }
                 // $060d0  subi.b #$1, $16(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x1);
                     const e1: u32 = k.a[0] +% @as(u32, 22);
                     const r = k.sub(u8, s, k.rb(e1));
@@ -372,24 +370,22 @@ pub const c16092 = struct {
                 }
                 // $060d6  tst.b d6
                 {
-                    k.cy +%= 4;
                     k.logic(u8, k.dv(u8, 6));
                 }
                 // $060d8  beq.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 34;
                     if (k.fz) return 0x13d28;
                 }
                 // $060dc  clr.b $16(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 22);
                     k.wb(e0, 0);
                     k.logic(u8, 0);
                 }
                 // $060e0  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 36;
                     return k.pop32();
                 }
             },
@@ -398,7 +394,7 @@ pub const c16092 = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x160e6);
-                    return 0x130e0;
+                    { const p = f12d96.c130e0.run(0x130e0); if (p != 0x160e6) return p; continue :sw 0x160e6; }
                 }
             },
             0x160e6 => {
@@ -411,7 +407,6 @@ pub const c16092 = struct {
                 }
                 // $060ea  subi.b #$1, $16(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u8, 0x1);
                     const e1: u32 = k.a[0] +% @as(u32, 22);
                     const r = k.sub(u8, s, k.rb(e1));
@@ -419,59 +414,51 @@ pub const c16092 = struct {
                 }
                 // $060f0  tst.b d6
                 {
-                    k.cy +%= 4;
                     k.logic(u8, k.dv(u8, 6));
                 }
                 // $060f2  beq.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 34;
                     if (k.fz) return 0x13d28;
                 }
                 // $060f6  clr.b $16(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 22);
                     k.wb(e0, 0);
                     k.logic(u8, 0);
                 }
                 // $060fa  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 36;
                     return k.pop32();
                 }
             },
             0x160fc => {
                 // $060fc  movea.l $12(a0), a1
                 {
-                    k.cy +%= 16;
                     const e0: u32 = k.a[0] +% @as(u32, 18);
                     k.a[1] = k.rl(e0);
                 }
                 // $06100  move.b (a1), d0
                 {
-                    k.cy +%= 8;
                     const e0: u32 = k.a[1];
                     const v = k.rb(e0);
                     k.setD(u8, 0, v);
-                    k.logic(u8, v);
                 }
                 // $06102  clr.b $1639e.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1639e;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $06108  cmpi.w #$12b, $10574.l
                 {
-                    k.cy +%= 20;
                     const s = @as(u16, 0x12b);
                     const e1: u32 = 0x10574;
                     k.cmp(u16, s, k.rw(e1));
                 }
                 // $06110  bne.w $1611a
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 74;
                     if (!k.fz) continue :sw 0x1611a;
                 }
                 // $06114  move.w #$7, $34(a0)
@@ -480,41 +467,38 @@ pub const c16092 = struct {
                     const v = @as(u16, 0x7);
                     const e1: u32 = k.a[0] +% @as(u32, 52);
                     k.ww(e1, v);
-                    k.logic(u16, v);
                 }
                 continue :sw 0x1611a;
             },
             0x1611a => {
                 // $0611a  cmpi.w #$ffff, $34(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u16, 0xffff);
                     const e1: u32 = k.a[0] +% @as(u32, 52);
                     k.cmp(u16, s, k.rw(e1));
                 }
                 // $06120  beq.w $16132
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (k.fz) continue :sw 0x16132;
                 }
                 // $06124  bsr.w $16318
                 {
                     k.cy +%= 32;
                     k.push32(0x16128);
-                    return 0x16318;
+                    { const p = f15fde.c16318.run(0x16318); if (p != 0x16128) return p; continue :sw 0x16128; }
                 }
             },
             0x16128 => {
                 // $06128  cmpi.w #$7, $34(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u16, 0x7);
                     const e1: u32 = k.a[0] +% @as(u32, 52);
                     k.cmp(u16, s, k.rw(e1));
                 }
                 // $0612e  bls.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (k.fc or k.fz) return 0x13d28;
                 }
                 continue :sw 0x16132;
@@ -522,60 +506,53 @@ pub const c16092 = struct {
             0x16132 => {
                 // $06132  movea.l $12(a0), a1
                 {
-                    k.cy +%= 16;
                     const e0: u32 = k.a[0] +% @as(u32, 18);
                     k.a[1] = k.rl(e0);
                 }
                 // $06136  andi.b #$c0, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0xc0);
                     const r = k.dv(u8, 0) & s;
                     k.setD(u8, 0, r);
-                    k.logic(u8, r);
                 }
                 // $0613a  cmp.b #$c0, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0xc0);
                     k.cmp(u8, s, k.dv(u8, 0));
                 }
                 // $0613e  beq.w $1615c
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 46;
                     if (k.fz) continue :sw 0x1615c;
                 }
                 // $06142  cmp.b #$40, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0x40);
                     k.cmp(u8, s, k.dv(u8, 0));
                 }
                 // $06146  beq.w $16174
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 22;
                     if (k.fz) continue :sw 0x16174;
                 }
                 // $0614a  cmp.b #$0, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0x0);
                     k.cmp(u8, s, k.dv(u8, 0));
                 }
                 // $0614e  beq.w $1618e
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 22;
                     if (k.fz) continue :sw 0x1618e;
                 }
                 // $06152  cmp.b #$80, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0x80);
                     k.cmp(u8, s, k.dv(u8, 0));
                 }
                 // $06156  beq.w $161aa
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 22;
                     if (k.fz) continue :sw 0x161aa;
                 }
                 // $0615a  rts 
@@ -587,15 +564,12 @@ pub const c16092 = struct {
             0x1615c => {
                 // $0615c  move.b (a1), d6
                 {
-                    k.cy +%= 8;
                     const e0: u32 = k.a[1];
                     const v = k.rb(e0);
                     k.setD(u8, 6, v);
-                    k.logic(u8, v);
                 }
                 // $0615e  or.b $1(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, 1);
                     const s = k.rb(e0);
                     const r = k.dv(u8, 6) | s;
@@ -604,19 +578,18 @@ pub const c16092 = struct {
                 }
                 // $06162  btst.b #$2, d6
                 {
-                    k.cy +%= 8;
                     k.btst(u32, k.d[6], 2);
                 }
                 // $06166  bne.w $161c6
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 42;
                     if (!k.fz) continue :sw 0x161c6;
                 }
                 // $0616a  bsr.w $13146
                 {
                     k.cy +%= 32;
                     k.push32(0x1616e);
-                    return 0x13146;
+                    { const p = f13146.c13146.run(0x13146); if (p != 0x1616e) return p; continue :sw 0x1616e; }
                 }
             },
             0x1616e => {
@@ -624,7 +597,7 @@ pub const c16092 = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x16172);
-                    return 0x1637e;
+                    { const p = f15fde.c1637e.run(0x1637e); if (p != 0x16172) return p; continue :sw 0x16172; }
                 }
             },
             0x16172 => {
@@ -637,15 +610,12 @@ pub const c16092 = struct {
             0x16174 => {
                 // $06174  move.b $1(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, 1);
                     const v = k.rb(e0);
                     k.setD(u8, 6, v);
-                    k.logic(u8, v);
                 }
                 // $06178  or.b $2(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, 2);
                     const s = k.rb(e0);
                     const r = k.dv(u8, 6) | s;
@@ -654,19 +624,18 @@ pub const c16092 = struct {
                 }
                 // $0617c  btst.b #$2, d6
                 {
-                    k.cy +%= 8;
                     k.btst(u32, k.d[6], 2);
                 }
                 // $06180  bne.w $161c6
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 46;
                     if (!k.fz) continue :sw 0x161c6;
                 }
                 // $06184  bsr.w $13044
                 {
                     k.cy +%= 32;
                     k.push32(0x16188);
-                    return 0x13044;
+                    { const p = f12d96.c13044.run(0x13044); if (p != 0x16188) return p; continue :sw 0x16188; }
                 }
             },
             0x16188 => {
@@ -674,7 +643,7 @@ pub const c16092 = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x1618c);
-                    return 0x1637e;
+                    { const p = f15fde.c1637e.run(0x1637e); if (p != 0x1618c) return p; continue :sw 0x1618c; }
                 }
             },
             0x1618c => {
@@ -687,24 +656,19 @@ pub const c16092 = struct {
             0x1618e => {
                 // $0618e  move.b -$20(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, @bitCast(@as(i32, -32)));
                     const v = k.rb(e0);
                     k.setD(u8, 6, v);
-                    k.logic(u8, v);
                 }
                 // $06192  or.b -$1f(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, @bitCast(@as(i32, -31)));
                     const s = k.rb(e0);
                     const r = k.dv(u8, 6) | s;
                     k.setD(u8, 6, r);
-                    k.logic(u8, r);
                 }
                 // $06196  or.b (a1), d6
                 {
-                    k.cy +%= 8;
                     const e0: u32 = k.a[1];
                     const s = k.rb(e0);
                     const r = k.dv(u8, 6) | s;
@@ -713,19 +677,18 @@ pub const c16092 = struct {
                 }
                 // $06198  btst.b #$2, d6
                 {
-                    k.cy +%= 8;
                     k.btst(u32, k.d[6], 2);
                 }
                 // $0619c  bne.w $161c6
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 54;
                     if (!k.fz) continue :sw 0x161c6;
                 }
                 // $061a0  bsr.w $131ac
                 {
                     k.cy +%= 32;
                     k.push32(0x161a4);
-                    return 0x131ac;
+                    { const p = f13146.c131ac.run(0x131ac); if (p != 0x161a4) return p; continue :sw 0x161a4; }
                 }
             },
             0x161a4 => {
@@ -733,7 +696,7 @@ pub const c16092 = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x161a8);
-                    return 0x1637e;
+                    { const p = f15fde.c1637e.run(0x1637e); if (p != 0x161a8) return p; continue :sw 0x161a8; }
                 }
             },
             0x161a8 => {
@@ -746,24 +709,19 @@ pub const c16092 = struct {
             0x161aa => {
                 // $061aa  move.b $40(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, 64);
                     const v = k.rb(e0);
                     k.setD(u8, 6, v);
-                    k.logic(u8, v);
                 }
                 // $061ae  or.b $41(a1), d6
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1] +% @as(u32, 65);
                     const s = k.rb(e0);
                     const r = k.dv(u8, 6) | s;
                     k.setD(u8, 6, r);
-                    k.logic(u8, r);
                 }
                 // $061b2  or.b (a1), d6
                 {
-                    k.cy +%= 8;
                     const e0: u32 = k.a[1];
                     const s = k.rb(e0);
                     const r = k.dv(u8, 6) | s;
@@ -772,19 +730,18 @@ pub const c16092 = struct {
                 }
                 // $061b4  btst.b #$2, d6
                 {
-                    k.cy +%= 8;
                     k.btst(u32, k.d[6], 2);
                 }
                 // $061b8  bne.w $161c6
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 54;
                     if (!k.fz) continue :sw 0x161c6;
                 }
                 // $061bc  bsr.w $132b0
                 {
                     k.cy +%= 32;
                     k.push32(0x161c0);
-                    return 0x132b0;
+                    { const p = f13146.c132b0.run(0x132b0); if (p != 0x161c0) return p; continue :sw 0x161c0; }
                 }
             },
             0x161c0 => {
@@ -792,7 +749,7 @@ pub const c16092 = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x161c4);
-                    return 0x1637e;
+                    { const p = f15fde.c1637e.run(0x1637e); if (p != 0x161c4) return p; continue :sw 0x161c4; }
                 }
             },
             0x161c4 => {
@@ -805,18 +762,16 @@ pub const c16092 = struct {
             0x161c6 => {
                 // $061c6  tst.b $1639e.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1639e;
                     k.logic(u8, k.rb(e0));
                 }
                 // $061cc  bne.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (!k.fz) return 0x13d28;
                 }
                 // $061d0  addi.b #$1, $1639e.l
                 {
-                    k.cy +%= 20;
                     const s = @as(u8, 0x1);
                     const e1: u32 = 0x1639e;
                     const r = k.add(u8, s, k.rb(e1));
@@ -824,31 +779,27 @@ pub const c16092 = struct {
                 }
                 // $061d8  bsr.w $10b2a
                 {
-                    k.cy +%= 32;
+                    k.cy +%= 52;
                     k.push32(0x161dc);
-                    return 0x10b2a;
+                    { const p = f104f6.c10b2a.run(0x10b2a); if (p != 0x161dc) return p; continue :sw 0x161dc; }
                 }
             },
             0x161dc => {
                 // $061dc  move.b $10df4.l, d0
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10df4;
                     const v = k.rb(e0);
                     k.setD(u8, 0, v);
-                    k.logic(u8, v);
                 }
                 // $061e2  andi.b #$c0, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0xc0);
                     const r = k.dv(u8, 0) & s;
                     k.setD(u8, 0, r);
-                    k.logic(u8, r);
                 }
                 // $061e6  jmp $1611a.l
                 {
-                    k.cy +%= 20;
+                    k.cy +%= 44;
                     { if (k.cy >= k.limit) return 0x1611a; continue :sw 0x1611a; }
                 }
             },
@@ -859,39 +810,32 @@ pub const c16092 = struct {
 };
 
 pub const c161ec = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         switch (pc) {
             0x161ec => {
                 // $061ec  move.l (a0), (a2)
                 {
-                    k.cy +%= 20;
                     const e0: u32 = k.a[0];
                     const v = k.rl(e0);
                     const e1: u32 = k.a[2];
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $061ee  move.l $4(a0), $4(a2)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[0] +% @as(u32, 4);
                     const v = k.rl(e0);
                     const e1: u32 = k.a[2] +% @as(u32, 4);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $061f4  move.l $8(a0), $8(a2)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[0] +% @as(u32, 8);
                     const v = k.rl(e0);
                     const e1: u32 = k.a[2] +% @as(u32, 8);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $061fa  move.l $12(a0), $12(a2)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[0] +% @as(u32, 18);
                     const v = k.rl(e0);
                     const e1: u32 = k.a[2] +% @as(u32, 18);
@@ -900,7 +844,7 @@ pub const c161ec = struct {
                 }
                 // $06200  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 128;
                     return k.pop32();
                 }
             },
@@ -911,72 +855,62 @@ pub const c161ec = struct {
 };
 
 pub const c16202 = struct {
-    pub fn run(pc: u32) u32 {
-        switch (pc) {
+    pub noinline fn run(pc: u32) u32 {
+        sw: switch (pc) {
             0x16202 => {
                 // $06202  lea.l $20e80.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x20e80;
                 }
                 // $06208  lea.l $16396.l, a1
                 {
-                    k.cy +%= 12;
                     k.a[1] = 0x16396;
                 }
                 // $0620e  lea.l $10582.l, a2
                 {
-                    k.cy +%= 12;
                     k.a[2] = 0x10582;
                 }
                 // $06214  lea.l $163a0.l, a3
                 {
-                    k.cy +%= 12;
                     k.a[3] = 0x163a0;
                 }
                 // $0621a  lea.l $163d8.l, a4
                 {
-                    k.cy +%= 12;
                     k.a[4] = 0x163d8;
                 }
                 // $06220  bsr.w $16248
                 {
-                    k.cy +%= 32;
+                    k.cy +%= 92;
                     k.push32(0x16224);
-                    return 0x16248;
+                    { const p = f15fde.c16248.run(0x16248); if (p != 0x16224) return p; continue :sw 0x16224; }
                 }
             },
             0x16224 => {
                 // $06224  lea.l $210be.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x210be;
                 }
                 // $0622a  lea.l $1639a.l, a1
                 {
-                    k.cy +%= 12;
                     k.a[1] = 0x1639a;
                 }
                 // $06230  lea.l $10584.l, a2
                 {
-                    k.cy +%= 12;
                     k.a[2] = 0x10584;
                 }
                 // $06236  lea.l $16410.l, a3
                 {
-                    k.cy +%= 12;
                     k.a[3] = 0x16410;
                 }
                 // $0623c  lea.l $16448.l, a4
                 {
-                    k.cy +%= 12;
                     k.a[4] = 0x16448;
                 }
                 // $06242  bsr.w $16248
                 {
-                    k.cy +%= 32;
+                    k.cy +%= 92;
                     k.push32(0x16246);
-                    return 0x16248;
+                    { const p = f15fde.c16248.run(0x16248); if (p != 0x16246) return p; continue :sw 0x16246; }
                 }
             },
             0x16246 => {
@@ -993,35 +927,32 @@ pub const c16202 = struct {
 };
 
 pub const c16248 = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x16248 => {
                 // $06248  tst.b $31(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 49);
                     k.logic(u8, k.rb(e0));
                 }
                 // $0624c  bne.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 26;
                     if (!k.fz) return 0x13d28;
                 }
                 // $06250  cmpi.l #$0, (a1)
                 {
-                    k.cy +%= 20;
                     const s = @as(u32, 0x0);
                     const e1: u32 = k.a[1];
                     k.cmp(u32, s, k.rl(e1));
                 }
                 // $06256  beq.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 34;
                     if (k.fz) return 0x13d28;
                 }
                 // $0625a  subi.l #$1, (a1)
                 {
-                    k.cy +%= 20;
                     const s = @as(u32, 0x1);
                     const e1: u32 = k.a[1];
                     const r = k.sub(u32, s, k.rl(e1));
@@ -1029,30 +960,27 @@ pub const c16248 = struct {
                 }
                 // $06260  btst.b #$0, (a2)
                 {
-                    k.cy +%= 12;
                     const e1: u32 = k.a[2];
                     k.btst(u8, k.rb(e1), 0);
                 }
                 // $06264  beq.w $16288
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 46;
                     if (k.fz) continue :sw 0x16288;
                 }
                 // $06268  cmpi.l #$0, (a1)
                 {
-                    k.cy +%= 20;
                     const s = @as(u32, 0x0);
                     const e1: u32 = k.a[1];
                     k.cmp(u32, s, k.rl(e1));
                 }
                 // $0626e  beq.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 34;
                     if (k.fz) return 0x13d28;
                 }
                 // $06272  subi.l #$1, (a1)
                 {
-                    k.cy +%= 20;
                     const s = @as(u32, 0x1);
                     const e1: u32 = k.a[1];
                     const r = k.sub(u32, s, k.rl(e1));
@@ -1060,14 +988,13 @@ pub const c16248 = struct {
                 }
                 // $06278  cmpi.l #$0, (a1)
                 {
-                    k.cy +%= 20;
                     const s = @as(u32, 0x0);
                     const e1: u32 = k.a[1];
                     k.cmp(u32, s, k.rl(e1));
                 }
                 // $0627e  beq.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 54;
                     if (k.fz) return 0x13d28;
                 }
                 // $06282  subi.l #$1, (a1)
@@ -1075,7 +1002,7 @@ pub const c16248 = struct {
                     k.cy +%= 20;
                     const s = @as(u32, 0x1);
                     const e1: u32 = k.a[1];
-                    const r = k.sub(u32, s, k.rl(e1));
+                    const r = k.rl(e1) -% s;
                     k.wl(e1, r);
                 }
                 continue :sw 0x16288;
@@ -1083,46 +1010,37 @@ pub const c16248 = struct {
             0x16288 => {
                 // $06288  move.b $25(a0), d0
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 37);
                     const v = k.rb(e0);
                     k.setD(u8, 0, v);
-                    k.logic(u8, v);
                 }
                 // $0628c  andi.b #$2, d0
                 {
-                    k.cy +%= 8;
                     const s = @as(u8, 0x2);
                     const r = k.dv(u8, 0) & s;
                     k.setD(u8, 0, r);
-                    k.logic(u8, r);
                 }
                 // $06290  tst.b d0
                 {
-                    k.cy +%= 4;
                     k.logic(u8, k.dv(u8, 0));
                 }
                 // $06292  bne.w $162a2
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 38;
                     if (!k.fz) continue :sw 0x162a2;
                 }
                 // $06296  move.l (a1), d0
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1];
                     const v = k.rl(e0);
                     k.setD(u32, 0, v);
-                    k.logic(u32, v);
                 }
                 // $06298  asl.l #$2, d0
                 {
-                    k.cy +%= 10;
                     k.setD(u32, 0, k.asl(u32, k.dv(u32, 0), 2));
                 }
                 // $0629a  move.l (a3, d0.l), $c(a0)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[3] +% @as(u32, 0) +% k.d[0];
                     const v = k.rl(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 12);
@@ -1131,27 +1049,23 @@ pub const c16248 = struct {
                 }
                 // $062a0  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 74;
                     return k.pop32();
                 }
             },
             0x162a2 => {
                 // $062a2  move.l (a1), d0
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[1];
                     const v = k.rl(e0);
                     k.setD(u32, 0, v);
-                    k.logic(u32, v);
                 }
                 // $062a4  asl.l #$2, d0
                 {
-                    k.cy +%= 10;
                     k.setD(u32, 0, k.asl(u32, k.dv(u32, 0), 2));
                 }
                 // $062a6  move.l (a4, d0.l), $c(a0)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[4] +% @as(u32, 0) +% k.d[0];
                     const v = k.rl(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 12);
@@ -1160,7 +1074,7 @@ pub const c16248 = struct {
                 }
                 // $062ac  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 74;
                     return k.pop32();
                 }
             },
@@ -1171,43 +1085,40 @@ pub const c16248 = struct {
 };
 
 pub const c162ae = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x162ae => {
                 // $062ae  tst.w $34(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 52);
                     k.logic(u16, k.rw(e0));
                 }
                 // $062b2  beq.w $162cc
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 26;
                     if (k.fz) continue :sw 0x162cc;
                 }
                 // $062b6  bsr.w $160fc
                 {
                     k.cy +%= 32;
                     k.push32(0x162ba);
-                    return 0x160fc;
+                    { const p = f15fde.c16092.run(0x160fc); if (p != 0x162ba) return p; continue :sw 0x162ba; }
                 }
             },
             0x162ba => {
                 // $062ba  cmpi.w #$1e, $34(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u16, 0x1e);
                     const e1: u32 = k.a[0] +% @as(u32, 52);
                     k.cmp(u16, s, k.rw(e1));
                 }
                 // $062c0  bne.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (!k.fz) return 0x13d28;
                 }
                 // $062c4  move.b #$1e, $32(a0)
                 {
-                    k.cy +%= 16;
                     const v = @as(u8, 0x1e);
                     const e1: u32 = k.a[0] +% @as(u32, 50);
                     k.wb(e1, v);
@@ -1215,91 +1126,72 @@ pub const c162ae = struct {
                 }
                 // $062ca  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 40;
                     return k.pop32();
                 }
             },
             0x162cc => {
                 // $062cc  move.b $11(a0), d0
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 17);
                     const v = k.rb(e0);
                     k.setD(u8, 0, v);
-                    k.logic(u8, v);
                 }
                 // $062d0  ext.w d0
                 {
-                    k.cy +%= 4;
                     const r: u16 = @truncate(k.sx8(k.dv(u8, 0)));
                     k.setD(u16, 0, r);
-                    k.logic(u16, r);
                 }
                 // $062d2  ext.l d0
                 {
-                    k.cy +%= 4;
                     k.d[0] = k.sx16(k.dv(u16, 0));
-                    k.logic(u32, k.d[0]);
                 }
                 // $062d4  lea.l $1651c.l, a2
                 {
-                    k.cy +%= 12;
                     k.a[2] = 0x1651c;
                 }
                 // $062da  move.b (a2, d0.l), $11(a0)
                 {
-                    k.cy +%= 20;
                     const e0: u32 = k.a[2] +% @as(u32, 0) +% k.d[0];
                     const v = k.rb(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 17);
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $062e0  movea.l #$19bec, a2
                 {
-                    k.cy +%= 12;
                     k.a[2] = @as(u32, 0x19bec);
                 }
                 // $062e6  asl.l #$2, d0
                 {
-                    k.cy +%= 10;
                     k.setD(u32, 0, k.asl(u32, k.dv(u32, 0), 2));
                 }
                 // $062e8  lea.l $164a0.l, a2
                 {
-                    k.cy +%= 12;
                     k.a[2] = 0x164a0;
                 }
                 // $062ee  move.l (a2, d0.l), $c(a0)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[2] +% @as(u32, 0) +% k.d[0];
                     const v = k.rl(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 12);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $062f4  move.l $c(a0), $1c(a0)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[0] +% @as(u32, 12);
                     const v = k.rl(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 28);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $062fa  move.l $c(a0), $20(a0)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[0] +% @as(u32, 12);
                     const v = k.rl(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 32);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $06300  subi.l #$40, $20(a0)
                 {
-                    k.cy +%= 24;
                     const s = @as(u32, 0x40);
                     const e1: u32 = k.a[0] +% @as(u32, 32);
                     const r = k.sub(u32, s, k.rl(e1));
@@ -1307,7 +1199,6 @@ pub const c162ae = struct {
                 }
                 // $06308  move.b #$1, $38(a0)
                 {
-                    k.cy +%= 16;
                     const v = @as(u8, 0x1);
                     const e1: u32 = k.a[0] +% @as(u32, 56);
                     k.wb(e1, v);
@@ -1315,9 +1206,9 @@ pub const c162ae = struct {
                 }
                 // $0630e  bsr.w $131ac
                 {
-                    k.cy +%= 32;
+                    k.cy +%= 242;
                     k.push32(0x16312);
-                    return 0x131ac;
+                    { const p = f13146.c131ac.run(0x131ac); if (p != 0x16312) return p; continue :sw 0x16312; }
                 }
             },
             0x16312 => {
@@ -1325,7 +1216,7 @@ pub const c162ae = struct {
                 {
                     k.cy +%= 32;
                     k.push32(0x16316);
-                    return 0x131ac;
+                    { const p = f13146.c131ac.run(0x131ac); if (p != 0x16316) return p; continue :sw 0x16316; }
                 }
             },
             0x16316 => {
@@ -1342,39 +1233,33 @@ pub const c162ae = struct {
 };
 
 pub const c16318 = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x16318 => {
                 // $06318  tst.w $34(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 52);
                     k.logic(u16, k.rw(e0));
                 }
                 // $0631c  bne.w $16338
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 26;
                     if (!k.fz) continue :sw 0x16338;
                 }
                 // $06320  move.b #$0, $11(a0)
                 {
-                    k.cy +%= 16;
                     const v = @as(u8, 0x0);
                     const e1: u32 = k.a[0] +% @as(u32, 17);
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $06326  move.l #$ffffe200, $8(a0)
                 {
-                    k.cy +%= 24;
                     const v = @as(u32, 0xffffe200);
                     const e1: u32 = k.a[0] +% @as(u32, 8);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $0632e  move.l #$127d4, $12(a0)
                 {
-                    k.cy +%= 24;
                     const v = @as(u32, 0x127d4);
                     const e1: u32 = k.a[0] +% @as(u32, 18);
                     k.wl(e1, v);
@@ -1382,33 +1267,30 @@ pub const c16318 = struct {
                 }
                 // $06336  rts 
                 {
-                    k.cy +%= 24;
+                    k.cy +%= 88;
                     return k.pop32();
                 }
             },
             0x16338 => {
                 // $06338  cmpi.w #$7, $34(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u16, 0x7);
                     const e1: u32 = k.a[0] +% @as(u32, 52);
                     k.cmp(u16, s, k.rw(e1));
                 }
                 // $0633e  bgt.w $16376
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (!k.fz and k.fneg == k.fv) continue :sw 0x16376;
                 }
                 // $06342  clr.b $3a(a0)
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 58);
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $06346  lea.l $16536.l, a2
                 {
-                    k.cy +%= 12;
+                    k.cy +%= 24;
                     k.a[2] = 0x16536;
                 }
                 continue :sw 0x1634c;
@@ -1416,88 +1298,159 @@ pub const c16318 = struct {
             0x1634c => {
                 // $0634c  move.b (a2)+, d2
                 {
-                    k.cy +%= 8;
                     const e0 = k.a[2];
                     k.a[2] +%= 1;
                     const v = k.rb(e0);
                     k.setD(u8, 2, v);
-                    k.logic(u8, v);
                 }
                 // $0634e  cmp.b $11(a0), d2
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 17);
                     const s = k.rb(e0);
                     k.cmp(u8, s, k.dv(u8, 2));
                 }
                 // $06352  beq.w $16376
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 34;
                     if (k.fz) continue :sw 0x16376;
                 }
                 // $06356  tst.b d2
                 {
-                    k.cy +%= 4;
                     k.logic(u8, k.dv(u8, 2));
                 }
                 // $06358  bne.w $1634c
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 18;
                     if (!k.fz) { if (k.cy >= k.limit) return 0x1634c; continue :sw 0x1634c; }
                 }
                 // $0635c  lea.l $16480.l, a2
                 {
-                    k.cy +%= 12;
                     k.a[2] = 0x16480;
                 }
                 // $06362  move.w $34(a0), d2
                 {
-                    k.cy +%= 12;
                     const e0: u32 = k.a[0] +% @as(u32, 52);
                     const v = k.rw(e0);
                     k.setD(u16, 2, v);
-                    k.logic(u16, v);
                 }
                 // $06366  asl.w #$2, d2
                 {
-                    k.cy +%= 10;
                     k.setD(u16, 2, k.asl(u16, k.dv(u16, 2), 2));
                 }
                 // $06368  ext.l d2
                 {
-                    k.cy +%= 4;
                     k.d[2] = k.sx16(k.dv(u16, 2));
-                    k.logic(u32, k.d[2]);
                 }
                 // $0636a  move.l (a2, d2.l), $c(a0)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = k.a[2] +% @as(u32, 0) +% k.d[2];
                     const v = k.rl(e0);
                     const e1: u32 = k.a[0] +% @as(u32, 12);
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $06370  move.b #$0, $12(a0)
                 {
-                    k.cy +%= 16;
+                    k.cy +%= 82;
                     const v = @as(u8, 0x0);
                     const e1: u32 = k.a[0] +% @as(u32, 18);
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 continue :sw 0x16376;
             },
             0x16376 => {
                 // $06376  subi.w #$1, $34(a0)
                 {
-                    k.cy +%= 16;
                     const s = @as(u16, 0x1);
                     const e1: u32 = k.a[0] +% @as(u32, 52);
                     const r = k.sub(u16, s, k.rw(e1));
                     k.ww(e1, r);
                 }
                 // $0637c  rts 
+                {
+                    k.cy +%= 40;
+                    return k.pop32();
+                }
+            },
+            else => return k.bad(pc),
+        }
+    }
+
+};
+
+pub const c1637e = struct {
+    pub noinline fn run(pc: u32) u32 {
+        switch (pc) {
+            0x1637e => {
+                // $0637e  move.l a1, -(a7)
+                {
+                    const v = k.av(u32, 1);
+                    k.a[7] -%= 4;
+                    const e1 = k.a[7];
+                    k.wl(e1, v);
+                    k.logic(u32, v);
+                }
+                // $06380  movea.l $12(a0), a1
+                {
+                    const e0: u32 = k.a[0] +% @as(u32, 18);
+                    k.a[1] = k.rl(e0);
+                }
+                // $06384  bset.b #$2, $1(a1)
+                {
+                    const e1: u32 = k.a[1] +% @as(u32, 1);
+                    k.wb(e1, k.bset(u8, k.rb(e1), 2));
+                }
+                // $0638a  bset.b #$2, (a1)
+                {
+                    const e1: u32 = k.a[1];
+                    k.wb(e1, k.bset(u8, k.rb(e1), 2));
+                }
+                // $0638e  movea.l (a7)+, a1
+                {
+                    const e0 = k.a[7];
+                    k.a[7] +%= 4;
+                    k.a[1] = k.rl(e0);
+                }
+                // $06390  rts 
+                {
+                    k.cy +%= 92;
+                    return k.pop32();
+                }
+            },
+            else => return k.bad(pc),
+        }
+    }
+
+};
+
+pub const c16540 = struct {
+    pub noinline fn run(pc: u32) u32 {
+        sw: switch (pc) {
+            0x16540 => {
+                // $06540  lea.l $20e80.l, a0
+                {
+                    k.a[0] = 0x20e80;
+                }
+                // $06546  bsr.w $16556
+                {
+                    k.cy +%= 44;
+                    k.push32(0x1654a);
+                    { const p = f16556.c16556.run(0x16556); if (p != 0x1654a) return p; continue :sw 0x1654a; }
+                }
+            },
+            0x1654a => {
+                // $0654a  lea.l $210be.l, a0
+                {
+                    k.a[0] = 0x210be;
+                }
+                // $06550  bsr.w $165c8
+                {
+                    k.cy +%= 44;
+                    k.push32(0x16554);
+                    { const p = f16556.c165c8.run(0x165c8); if (p != 0x16554) return p; continue :sw 0x16554; }
+                }
+            },
+            0x16554 => {
+                // $06554  rts 
                 {
                     k.cy +%= 24;
                     return k.pop32();

@@ -5,6 +5,7 @@
 //   $FF8201/03   video base (high, mid): latched at the VBL (frame.zig)
 //   $FF8205-09   video address counter: where the beam reads, from k.cy
 //   $FF820A      sync mode: 50 Hz, internal sync
+//   $FF8260      shift mode (written 0 = low res by the palette movem)
 //   $FF8240-5E   the 16 colour registers; a write while the beam is in the
 //                picture is logged with its line (the game's Timer B rasters)
 //   $FF8800/02   the YM2149: register select / data (the game's own driver)
@@ -24,12 +25,13 @@ pub const LINES: usize = 200;
 pub var palette: [16]u16 = .{0} ** 16;
 pub var vbase_hi: u8 = 0;
 pub var vbase_mid: u8 = 0;
+pub var shift_mode: u8 = 0;
 pub var frame_start: u64 = 0;
 /// The screen being displayed (latched at the VBL).
 pub var shown_base: u32 = 0;
 
 /// Palette writes inside the picture this frame: line, register, value.
-pub const RasterWrite = struct { line: u8, reg: u8, value: u16 };
+pub const RasterWrite = extern struct { line: u8, reg: u8, value: u16 };
 pub var rasters: [1024]RasterWrite = undefined;
 pub var raster_n: usize = 0;
 /// The palette as it stood when the picture began (line 0).
@@ -46,6 +48,7 @@ pub var psg_writes: u32 = 0;
 pub var kbd_byte: u8 = 0;
 pub var in_irq: bool = false;
 pub var dropped: u32 = 0;
+pub var last_dropped: u32 = 0;
 
 pub fn reset() void {
     palette = .{0} ** 16;
@@ -99,7 +102,7 @@ pub fn rb(x: u32) u8 {
         0xFFFC02 => kbd_byte,
         0xFF8240...0xFF825F => @truncate(palette[(x - 0xFF8240) >> 1] >> @intCast(8 * (1 - (x & 1)))),
         else => blk: {
-            dropped += 1;
+            drop(x);
             break :blk 0;
         },
     };
@@ -114,6 +117,8 @@ pub fn wb(x: u32, v: u8) void {
     switch (x) {
         0xFF8201 => vbase_hi = v,
         0xFF8203 => vbase_mid = v,
+        0xFF8260 => shift_mode = v, // the game's palette movem.l runs on into it: 0, low res
+        0xFF8261...0xFF8263 => {},
         0xFF8800 => psg_sel = v,
         0xFF8802 => {
             psg[psg_sel & 15] = v;
@@ -125,8 +130,13 @@ pub fn wb(x: u32, v: u8) void {
             const sh: u4 = if (x & 1 == 0) 8 else 0;
             setColour(i, (palette[i] & ~(@as(u16, 0xFF) << sh)) | (@as(u16, v) << sh));
         },
-        else => dropped += 1,
+        else => drop(x),
     }
+}
+
+fn drop(x: u32) void {
+    dropped += 1;
+    last_dropped = x;
 }
 
 pub fn ww(x: u32, v: u16) void {

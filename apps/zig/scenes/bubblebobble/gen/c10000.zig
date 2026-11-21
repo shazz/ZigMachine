@@ -3,21 +3,53 @@
 // each comment is the original instruction at its TEXT offset.
 const k = @import("../st/cpu.zig");
 
+const f10000 = @import("c10000.zig");
+const f104f6 = @import("c104f6.zig");
+const f10c1a = @import("c10c1a.zig");
+const f110ea = @import("c110ea.zig");
+const f11536 = @import("c11536.zig");
+const f11986 = @import("c11986.zig");
+const f12d96 = @import("c12d96.zig");
+const f13146 = @import("c13146.zig");
+const f1354e = @import("c1354e.zig");
+const f13a10 = @import("c13a10.zig");
+const f14060 = @import("c14060.zig");
+const f143f0 = @import("c143f0.zig");
+const f1479e = @import("c1479e.zig");
+const f14bee = @import("c14bee.zig");
+const f1500e = @import("c1500e.zig");
+const f15398 = @import("c15398.zig");
+const f15796 = @import("c15796.zig");
+const f15fde = @import("c15fde.zig");
+const f16556 = @import("c16556.zig");
+const f169e2 = @import("c169e2.zig");
+const f16dc2 = @import("c16dc2.zig");
+const f171aa = @import("c171aa.zig");
+const f17b1e = @import("c17b1e.zig");
+const f1806a = @import("c1806a.zig");
+const f18780 = @import("c18780.zig");
+const f19252 = @import("c19252.zig");
+const f195b2 = @import("c195b2.zig");
+const f19a0a = @import("c19a0a.zig");
+const f19f60 = @import("c19f60.zig");
+const f1a5f8 = @import("c1a5f8.zig");
+const f1a81a = @import("c1a81a.zig");
+const f1ac5a = @import("c1ac5a.zig");
+const f1b102 = @import("c1b102.zig");
+const f1b5c2 = @import("c1b5c2.zig");
+
 pub const c10000 = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x10000 => {
                 // $00000  clr.l -(a7)
                 {
-                    k.cy +%= 12;
                     k.a[7] -%= 4;
                     const e0 = k.a[7];
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $00002  move.w #$20, -(a7)
                 {
-                    k.cy +%= 12;
                     const v = @as(u16, 0x20);
                     k.a[7] -%= 2;
                     const e1 = k.a[7];
@@ -26,25 +58,23 @@ pub const c10000 = struct {
                 }
                 // $00006  trap #$1
                 {
-                    k.cy +%= 42;
+                    k.cy +%= 66;
                     return k.trap(1, 0x10008);
                 }
             },
             0x10008 => {
                 // $00008  btst.b #$0, $ff820a.l
                 {
-                    k.cy +%= 20;
                     const e1: u32 = 0xff820a;
                     k.btst(u8, k.rb(e1), 0);
                 }
                 // $00010  beq.w $10018
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 34;
                     if (k.fz) continue :sw 0x10018;
                 }
                 // $00014  clr.l -(a7)
                 {
-                    k.cy +%= 12;
                     k.a[7] -%= 4;
                     const e0 = k.a[7];
                     k.wl(e0, 0);
@@ -52,64 +82,52 @@ pub const c10000 = struct {
                 }
                 // $00016  trap #$1
                 {
-                    k.cy +%= 42;
+                    k.cy +%= 54;
                     return k.trap(1, 0x10018);
                 }
             },
             0x10018 => {
                 // $00018  movea.l #$1079e, a7
                 {
-                    k.cy +%= 12;
                     k.a[7] = @as(u32, 0x1079e);
                 }
                 // $0001e  move.l #$78000, $10dec.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x78000);
                     const e1: u32 = 0x10dec;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00028  move.l #$6e200, $10df0.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x6e200);
                     const e1: u32 = 0x10df0;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00032  move.w #$0, -(a7)
                 {
-                    k.cy +%= 12;
                     const v = @as(u16, 0x0);
                     k.a[7] -%= 2;
                     const e1 = k.a[7];
                     k.ww(e1, v);
-                    k.logic(u16, v);
                 }
                 // $00036  move.l $10dec.l, -(a7)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = 0x10dec;
                     const v = k.rl(e0);
                     k.a[7] -%= 4;
                     const e1 = k.a[7];
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $0003c  move.l $10dec.l, -(a7)
                 {
-                    k.cy +%= 28;
                     const e0: u32 = 0x10dec;
                     const v = k.rl(e0);
                     k.a[7] -%= 4;
                     const e1 = k.a[7];
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00042  move.w #$5, -(a7)
                 {
-                    k.cy +%= 12;
                     const v = @as(u16, 0x5);
                     k.a[7] -%= 2;
                     const e1 = k.a[7];
@@ -118,21 +136,20 @@ pub const c10000 = struct {
                 }
                 // $00046  trap #$e
                 {
-                    k.cy +%= 42;
+                    k.cy +%= 190;
                     return k.trap(14, 0x10048);
                 }
             },
             0x10048 => {
                 // $00048  adda.l #$c, a7
                 {
-                    k.cy +%= 12;
                     k.a[7] +%= @as(u32, 0xc);
                 }
                 // $0004e  jsr $10484.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 48;
                     k.push32(0x10054);
-                    return 0x10484;
+                    { const p = f10000.c10484.run(0x10484); if (p != 0x10054) return p; continue :sw 0x10054; }
                 }
             },
             0x10054 => {
@@ -140,7 +157,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1005a);
-                    return 0x104e4;
+                    { const p = f10000.c104e4.run(0x104e4); if (p != 0x1005a) return p; continue :sw 0x1005a; }
                 }
             },
             0x1005a => {
@@ -148,7 +165,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10060);
-                    return 0x10b12;
+                    { const p = f104f6.c10b12.run(0x10b12); if (p != 0x10060) return p; continue :sw 0x10060; }
                 }
             },
             0x10060 => {
@@ -156,7 +173,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10066);
-                    return 0x1370c;
+                    { const p = f1354e.c1370c.run(0x1370c); if (p != 0x10066) return p; continue :sw 0x10066; }
                 }
             },
             0x10066 => {
@@ -164,7 +181,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1006c);
-                    return 0x10e3a;
+                    { const p = f10c1a.c10e3a.run(0x10e3a); if (p != 0x1006c) return p; continue :sw 0x1006c; }
                 }
             },
             0x1006c => {
@@ -172,7 +189,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10072);
-                    return 0x13752;
+                    { const p = f1354e.c13752.run(0x13752); if (p != 0x10072) return p; continue :sw 0x10072; }
                 }
             },
             0x10072 => {
@@ -180,7 +197,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10078);
-                    return 0x135d2;
+                    { const p = f1354e.c135d2.run(0x135d2); if (p != 0x10078) return p; continue :sw 0x10078; }
                 }
             },
             0x10078 => {
@@ -188,7 +205,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1007e);
-                    return 0x19742;
+                    { const p = f195b2.c19742.run(0x19742); if (p != 0x1007e) return p; continue :sw 0x1007e; }
                 }
             },
             0x1007e => {
@@ -196,7 +213,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10084);
-                    return 0x13660;
+                    { const p = f1354e.c13660.run(0x13660); if (p != 0x10084) return p; continue :sw 0x10084; }
                 }
             },
             0x10084 => {
@@ -204,7 +221,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1008a);
-                    return 0x13688;
+                    { const p = f1354e.c13688.run(0x13688); if (p != 0x1008a) return p; continue :sw 0x1008a; }
                 }
             },
             0x1008a => {
@@ -212,7 +229,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10090);
-                    return 0x13634;
+                    { const p = f1354e.c13634.run(0x13634); if (p != 0x10090) return p; continue :sw 0x10090; }
                 }
             },
             0x10090 => {
@@ -220,7 +237,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10096);
-                    return 0x13608;
+                    { const p = f1354e.c13608.run(0x13608); if (p != 0x10096) return p; continue :sw 0x10096; }
                 }
             },
             0x10096 => {
@@ -228,7 +245,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1009c);
-                    return 0x136b4;
+                    { const p = f1354e.c136b4.run(0x136b4); if (p != 0x1009c) return p; continue :sw 0x1009c; }
                 }
             },
             0x1009c => {
@@ -236,117 +253,92 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x100a2);
-                    return 0x12c54;
+                    { const p = f11986.c12c54.run(0x12c54); if (p != 0x100a2) return p; continue :sw 0x100a2; }
                 }
             },
             0x100a2 => {
                 // $000a2  move.b #$fc, $25403.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xfc);
                     const e1: u32 = 0x25403;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $000aa  bset.b #$2, $27865.l
                 {
-                    k.cy +%= 20;
                     const e1: u32 = 0x27865;
                     k.wb(e1, k.bset(u8, k.rb(e1), 2));
                 }
                 // $000b2  move.b #$fe, $255fb.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xfe);
                     const e1: u32 = 0x255fb;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $000ba  move.l $257b4.l, $257b0.l
                 {
-                    k.cy +%= 36;
                     const e0: u32 = 0x257b4;
                     const v = k.rl(e0);
                     const e1: u32 = 0x257b0;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $000c4  move.l $257b8.l, $257b4.l
                 {
-                    k.cy +%= 36;
                     const e0: u32 = 0x257b8;
                     const v = k.rl(e0);
                     const e1: u32 = 0x257b4;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $000ce  move.l $257bc.l, $257b8.l
                 {
-                    k.cy +%= 36;
                     const e0: u32 = 0x257bc;
                     const v = k.rl(e0);
                     const e1: u32 = 0x257b8;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $000d8  move.b #$d5, $259fc.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xd5);
                     const e1: u32 = 0x259fc;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $000e0  move.b #$32, $208c6.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0x32);
                     const e1: u32 = 0x208c6;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $000e8  move.b #$ec, $2092a.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xec);
                     const e1: u32 = 0x2092a;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $000f0  move.b #$b0, $2098e.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xb0);
                     const e1: u32 = 0x2098e;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $000f8  bclr.b #$0, $20995.l
                 {
-                    k.cy +%= 20;
                     const e1: u32 = 0x20995;
                     k.wb(e1, k.bclr(u8, k.rb(e1), 0));
                 }
                 // $00100  move.b #$fe, $2753b.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xfe);
                     const e1: u32 = 0x2753b;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $00108  andi.b #$7, $27e84.l
                 {
-                    k.cy +%= 20;
                     const s = @as(u8, 0x7);
                     const e1: u32 = 0x27e84;
                     const r = k.rb(e1) & s;
                     k.wb(e1, r);
-                    k.logic(u8, r);
                 }
                 // $00110  ori.b #$50, $27e84.l
                 {
-                    k.cy +%= 20;
                     const s = @as(u8, 0x50);
                     const e1: u32 = 0x27e84;
                     const r = k.rb(e1) | s;
@@ -355,25 +347,22 @@ pub const c10000 = struct {
                 }
                 // $00118  bclr.b #$0, $276fc.l
                 {
-                    k.cy +%= 20;
                     const e1: u32 = 0x276fc;
                     k.wb(e1, k.bclr(u8, k.rb(e1), 0));
                 }
                 // $00120  bset.b #$0, $27704.l
                 {
-                    k.cy +%= 20;
                     const e1: u32 = 0x27704;
                     k.wb(e1, k.bset(u8, k.rb(e1), 0));
                 }
                 // $00128  bclr.b #$7, $276ff.l
                 {
-                    k.cy +%= 20;
                     const e1: u32 = 0x276ff;
                     k.wb(e1, k.bclr(u8, k.rb(e1), 7));
                 }
                 // $00130  bset.b #$7, $27707.l
                 {
-                    k.cy +%= 20;
+                    k.cy +%= 408;
                     const e1: u32 = 0x27707;
                     k.wb(e1, k.bset(u8, k.rb(e1), 7));
                 }
@@ -384,7 +373,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1013e);
-                    return 0x10c5e;
+                    { const p = f10c1a.c10c5e.run(0x10c5e); if (p != 0x1013e) return p; continue :sw 0x1013e; }
                 }
             },
             0x1013e => {
@@ -392,7 +381,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10144);
-                    return 0x13c48;
+                    { const p = f13a10.c13c48.run(0x13c48); if (p != 0x10144) return p; continue :sw 0x10144; }
                 }
             },
             0x10144 => {
@@ -400,343 +389,262 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1014a);
-                    return 0x17cc6;
+                    { const p = f17b1e.c17cc6.run(0x17cc6); if (p != 0x1014a) return p; continue :sw 0x1014a; }
                 }
             },
             0x1014a => {
                 // $0014a  clr.b $1058a.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1058a;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $00150  movea.l #$1079e, a7
                 {
-                    k.cy +%= 12;
                     k.a[7] = @as(u32, 0x1079e);
                 }
                 // $00156  move.l #$12494, $12490.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x12494);
                     const e1: u32 = 0x12490;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00160  clr.l $10540.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x10540;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $00166  clr.l $16396.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x16396;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $0016c  clr.l $18e86.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x18e86;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $00172  clr.l $107ae.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x107ae;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $00178  clr.l $10560.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x10560;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $0017e  clr.l $12144.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x12144;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $00184  clr.l $10568.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x10568;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $0018a  clr.l $1056c.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x1056c;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 // $00190  clr.w $10582.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10582;
                     k.ww(e0, 0);
-                    k.logic(u16, 0);
                 }
                 // $00196  clr.w $10584.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10584;
                     k.ww(e0, 0);
-                    k.logic(u16, 0);
                 }
                 // $0019c  clr.w $19242.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x19242;
                     k.ww(e0, 0);
-                    k.logic(u16, 0);
                 }
                 // $001a2  clr.w $19248.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x19248;
                     k.ww(e0, 0);
-                    k.logic(u16, 0);
                 }
                 // $001a8  clr.w $1924e.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1924e;
                     k.ww(e0, 0);
-                    k.logic(u16, 0);
                 }
                 // $001ae  clr.w $10586.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10586;
                     k.ww(e0, 0);
-                    k.logic(u16, 0);
                 }
                 // $001b4  clr.b $1057c.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1057c;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001ba  clr.b $1058b.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1058b;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001c0  clr.b $1058c.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1058c;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001c6  clr.b $1058d.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1058d;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001cc  clr.b $1057a.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1057a;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001d2  clr.b $10578.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10578;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001d8  clr.b $1058f.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1058f;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001de  clr.b $10590.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10590;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001e4  clr.b $10591.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10591;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001ea  clr.b $10592.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10592;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001f0  clr.b $10595.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10595;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001f6  clr.b $10596.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10596;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $001fc  clr.b $10597.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10597;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $00202  clr.b $1ac08.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1ac08;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $00208  clr.b $20ebc.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x20ebc;
                     k.wb(e0, 0);
-                    k.logic(u8, 0);
                 }
                 // $0020e  clr.b $210fa.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x210fa;
                     k.wb(e0, 0);
                     k.logic(u8, 0);
                 }
                 // $00214  lea.l $1915c.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x1915c;
                 }
                 // $0021a  jsr $18e32.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 616;
                     k.push32(0x10220);
-                    return 0x18e32;
+                    { const p = f18780.c18e32.run(0x18e32); if (p != 0x10220) return p; continue :sw 0x10220; }
                 }
             },
             0x10220 => {
                 // $00220  lea.l $19188.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x19188;
                 }
                 // $00226  jsr $18e32.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 48;
                     k.push32(0x1022c);
-                    return 0x18e32;
+                    { const p = f18780.c18e32.run(0x18e32); if (p != 0x1022c) return p; continue :sw 0x1022c; }
                 }
             },
             0x1022c => {
                 // $0022c  lea.l $191b4.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x191b4;
                 }
                 // $00232  jsr $18e32.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 48;
                     k.push32(0x10238);
-                    return 0x18e32;
+                    { const p = f18780.c18e32.run(0x18e32); if (p != 0x10238) return p; continue :sw 0x10238; }
                 }
             },
             0x10238 => {
                 // $00238  lea.l $191e0.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x191e0;
                 }
                 // $0023e  jsr $18e32.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 48;
                     k.push32(0x10244);
-                    return 0x18e32;
+                    { const p = f18780.c18e32.run(0x18e32); if (p != 0x10244) return p; continue :sw 0x10244; }
                 }
             },
             0x10244 => {
                 // $00244  move.w #$8, $1923a.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u16, 0x8);
                     const e1: u32 = 0x1923a;
                     k.ww(e1, v);
-                    k.logic(u16, v);
                 }
                 // $0024c  move.l #$4, $10564.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x4);
                     const e1: u32 = 0x10564;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00256  move.b #$ff, $11056.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0xff);
                     const e1: u32 = 0x11056;
                     k.wb(e1, v);
-                    k.logic(u8, v);
                 }
                 // $0025e  move.l #$2779a, $15090.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x2779a);
                     const e1: u32 = 0x15090;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00268  move.l #$22070, $16392.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x22070);
                     const e1: u32 = 0x16392;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $00272  move.l #$20876, $15094.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x20876);
                     const e1: u32 = 0x15094;
                     k.wl(e1, v);
-                    k.logic(u32, v);
                 }
                 // $0027c  move.l #$3e8, $10544.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0x3e8);
                     const e1: u32 = 0x10544;
                     k.wl(e1, v);
@@ -744,9 +652,9 @@ pub const c10000 = struct {
                 }
                 // $00286  jsr $10484.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 216;
                     k.push32(0x1028c);
-                    return 0x10484;
+                    { const p = f10000.c10484.run(0x10484); if (p != 0x1028c) return p; continue :sw 0x1028c; }
                 }
             },
             0x1028c => {
@@ -754,7 +662,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10292);
-                    return 0x11092;
+                    { const p = f10c1a.c11092.run(0x11092); if (p != 0x10292) return p; continue :sw 0x10292; }
                 }
             },
             0x10292 => {
@@ -762,7 +670,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10298);
-                    return 0x110ea;
+                    { const p = f110ea.c110ea.run(0x110ea); if (p != 0x10298) return p; continue :sw 0x10298; }
                 }
             },
             0x10298 => {
@@ -770,7 +678,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1029e);
-                    return 0x117fc;
+                    { const p = f11536.c117fc.run(0x117fc); if (p != 0x1029e) return p; continue :sw 0x1029e; }
                 }
             },
             0x1029e => {
@@ -778,7 +686,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102a4);
-                    return 0x11bb0;
+                    { const p = f11986.c11bb0.run(0x11bb0); if (p != 0x102a4) return p; continue :sw 0x102a4; }
                 }
             },
             0x102a4 => {
@@ -786,7 +694,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102aa);
-                    return 0x104cc;
+                    { const p = f10000.c104cc.run(0x104cc); if (p != 0x102aa) return p; continue :sw 0x102aa; }
                 }
             },
             0x102aa => {
@@ -794,7 +702,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102b0);
-                    return 0x11bd6;
+                    { const p = f11986.c11bd6.run(0x11bd6); if (p != 0x102b0) return p; continue :sw 0x102b0; }
                 }
             },
             0x102b0 => {
@@ -802,7 +710,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102b6);
-                    return 0x113a4;
+                    { const p = f110ea.c113a4.run(0x113a4); if (p != 0x102b6) return p; continue :sw 0x102b6; }
                 }
             },
             0x102b6 => {
@@ -810,7 +718,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102bc);
-                    return 0x12ef2;
+                    { const p = f12d96.c12ef2.run(0x12ef2); if (p != 0x102bc) return p; continue :sw 0x102bc; }
                 }
             },
             0x102bc => {
@@ -818,26 +726,24 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102c2);
-                    return 0x12ec2;
+                    { const p = f12d96.c12ec2.run(0x12ec2); if (p != 0x102c2) return p; continue :sw 0x102c2; }
                 }
             },
             0x102c2 => {
                 // $002c2  lea.l $1e086.l, a0
                 {
-                    k.cy +%= 12;
                     k.a[0] = 0x1e086;
                 }
                 // $002c8  jsr $10bda.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 48;
                     k.push32(0x102ce);
-                    return 0x10bda;
+                    { const p = f104f6.c10bda.run(0x10bda); if (p != 0x102ce) return p; continue :sw 0x102ce; }
                 }
             },
             0x102ce => {
                 // $002ce  move.b #$0, $1058e.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u8, 0x0);
                     const e1: u32 = 0x1058e;
                     k.wb(e1, v);
@@ -845,9 +751,9 @@ pub const c10000 = struct {
                 }
                 // $002d6  jsr $196f0.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 56;
                     k.push32(0x102dc);
-                    return 0x196f0;
+                    { const p = f195b2.c196f0.run(0x196f0); if (p != 0x102dc) return p; continue :sw 0x102dc; }
                 }
             },
             0x102dc => {
@@ -855,7 +761,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102e2);
-                    return 0x195d0;
+                    { const p = f195b2.c195d0.run(0x195d0); if (p != 0x102e2) return p; continue :sw 0x102e2; }
                 }
             },
             0x102e2 => {
@@ -863,13 +769,12 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x102e8);
-                    return 0x19806;
+                    { const p = f195b2.c19806.run(0x19806); if (p != 0x102e8) return p; continue :sw 0x102e8; }
                 }
             },
             0x102e8 => {
                 // $002e8  move.w #$12c, $10574.l
                 {
-                    k.cy +%= 20;
                     const v = @as(u16, 0x12c);
                     const e1: u32 = 0x10574;
                     k.ww(e1, v);
@@ -877,22 +782,21 @@ pub const c10000 = struct {
                 }
                 // $002f0  jsr $10a70.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 56;
                     k.push32(0x102f6);
-                    return 0x10a70;
+                    { const p = f104f6.c10a70.run(0x10a70); if (p != 0x102f6) return p; continue :sw 0x102f6; }
                 }
             },
             0x102f6 => {
                 // $002f6  movea.l #$1079e, a7
                 {
-                    k.cy +%= 12;
                     k.a[7] = @as(u32, 0x1079e);
                 }
                 // $002fc  jsr $10afe.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 48;
                     k.push32(0x10302);
-                    return 0x10afe;
+                    { const p = f104f6.c10afe.run(0x10afe); if (p != 0x10302) return p; continue :sw 0x10302; }
                 }
             },
             0x10302 => {
@@ -900,7 +804,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10308);
-                    return 0x10b12;
+                    { const p = f104f6.c10b12.run(0x10b12); if (p != 0x10308) return p; continue :sw 0x10308; }
                 }
             },
             0x10308 => {
@@ -908,7 +812,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1030e);
-                    return 0x1737e;
+                    { const p = f171aa.c1737e.run(0x1737e); if (p != 0x1030e) return p; continue :sw 0x1030e; }
                 }
             },
             0x1030e => {
@@ -916,7 +820,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10314);
-                    return 0x16778;
+                    { const p = f16556.c16778.run(0x16778); if (p != 0x10314) return p; continue :sw 0x10314; }
                 }
             },
             0x10314 => {
@@ -924,7 +828,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1031a);
-                    return 0x19466;
+                    { const p = f19252.c19466.run(0x19466); if (p != 0x1031a) return p; continue :sw 0x1031a; }
                 }
             },
             0x1031a => {
@@ -932,22 +836,21 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10320);
-                    return 0x16b96;
+                    { const p = f169e2.c16b96.run(0x16b96); if (p != 0x10320) return p; continue :sw 0x10320; }
                 }
             },
             0x10320 => {
                 // $00320  clr.b $10578.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10578;
                     k.wb(e0, 0);
                     k.logic(u8, 0);
                 }
                 // $00326  jsr $167e8.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 52;
                     k.push32(0x1032c);
-                    return 0x167e8;
+                    { const p = f16556.c167e8.run(0x167e8); if (p != 0x1032c) return p; continue :sw 0x1032c; }
                 }
             },
             0x1032c => {
@@ -955,7 +858,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10332);
-                    return 0x172d2;
+                    { const p = f171aa.c172d2.run(0x172d2); if (p != 0x10332) return p; continue :sw 0x10332; }
                 }
             },
             0x10332 => {
@@ -963,7 +866,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10338);
-                    return 0x10476;
+                    { const p = f10000.c10476.run(0x10476); if (p != 0x10338) return p; continue :sw 0x10338; }
                 }
             },
             0x10338 => {
@@ -971,7 +874,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1033e);
-                    return 0x15098;
+                    { const p = f1500e.c15098.run(0x15098); if (p != 0x1033e) return p; continue :sw 0x1033e; }
                 }
             },
             0x1033e => {
@@ -979,7 +882,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10344);
-                    return 0x173e8;
+                    { const p = f171aa.c173c0.run(0x173e8); if (p != 0x10344) return p; continue :sw 0x10344; }
                 }
             },
             0x10344 => {
@@ -987,7 +890,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1034a);
-                    return 0x158f8;
+                    { const p = f15796.c158f8.run(0x158f8); if (p != 0x1034a) return p; continue :sw 0x1034a; }
                 }
             },
             0x1034a => {
@@ -995,7 +898,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10350);
-                    return 0x16540;
+                    { const p = f15fde.c16540.run(0x16540); if (p != 0x10350) return p; continue :sw 0x10350; }
                 }
             },
             0x10350 => {
@@ -1003,7 +906,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10356);
-                    return 0x139a2;
+                    { const p = f1354e.c139a2.run(0x139a2); if (p != 0x10356) return p; continue :sw 0x10356; }
                 }
             },
             0x10356 => {
@@ -1011,7 +914,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1035c);
-                    return 0x13ca6;
+                    { const p = f13a10.c13ca6.run(0x13ca6); if (p != 0x1035c) return p; continue :sw 0x1035c; }
                 }
             },
             0x1035c => {
@@ -1019,7 +922,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10362);
-                    return 0x11948;
+                    { const p = f11536.c11948.run(0x11948); if (p != 0x10362) return p; continue :sw 0x10362; }
                 }
             },
             0x10362 => {
@@ -1027,7 +930,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10368);
-                    return 0x11a16;
+                    { const p = f11986.c11a16.run(0x11a16); if (p != 0x10368) return p; continue :sw 0x10368; }
                 }
             },
             0x10368 => {
@@ -1035,7 +938,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1036e);
-                    return 0x145a4;
+                    { const p = f143f0.c145a4.run(0x145a4); if (p != 0x1036e) return p; continue :sw 0x1036e; }
                 }
             },
             0x1036e => {
@@ -1043,7 +946,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10374);
-                    return 0x182b2;
+                    { const p = f1806a.c182b2.run(0x182b2); if (p != 0x10374) return p; continue :sw 0x10374; }
                 }
             },
             0x10374 => {
@@ -1051,7 +954,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1037a);
-                    return 0x18d84;
+                    { const p = f18780.c18d84.run(0x18d84); if (p != 0x1037a) return p; continue :sw 0x1037a; }
                 }
             },
             0x1037a => {
@@ -1059,7 +962,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10380);
-                    return 0x173c0;
+                    { const p = f171aa.c173c0.run(0x173c0); if (p != 0x10380) return p; continue :sw 0x10380; }
                 }
             },
             0x10380 => {
@@ -1067,7 +970,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10386);
-                    return 0x1745c;
+                    { const p = f171aa.c1745c.run(0x1745c); if (p != 0x10386) return p; continue :sw 0x10386; }
                 }
             },
             0x10386 => {
@@ -1075,7 +978,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1038c);
-                    return 0x10476;
+                    { const p = f10000.c10476.run(0x10476); if (p != 0x1038c) return p; continue :sw 0x1038c; }
                 }
             },
             0x1038c => {
@@ -1083,7 +986,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10392);
-                    return 0x16202;
+                    { const p = f15fde.c16202.run(0x16202); if (p != 0x10392) return p; continue :sw 0x10392; }
                 }
             },
             0x10392 => {
@@ -1091,7 +994,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10398);
-                    return 0x192d8;
+                    { const p = f19252.c192d8.run(0x192d8); if (p != 0x10398) return p; continue :sw 0x10398; }
                 }
             },
             0x10398 => {
@@ -1099,7 +1002,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1039e);
-                    return 0x166e4;
+                    { const p = f16556.c166e4.run(0x166e4); if (p != 0x1039e) return p; continue :sw 0x1039e; }
                 }
             },
             0x1039e => {
@@ -1107,7 +1010,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103a4);
-                    return 0x16892;
+                    { const p = f16556.c16892.run(0x16892); if (p != 0x103a4) return p; continue :sw 0x103a4; }
                 }
             },
             0x103a4 => {
@@ -1115,7 +1018,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103aa);
-                    return 0x17308;
+                    { const p = f171aa.c17308.run(0x17308); if (p != 0x103aa) return p; continue :sw 0x103aa; }
                 }
             },
             0x103aa => {
@@ -1123,7 +1026,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103b0);
-                    return 0x172be;
+                    { const p = f171aa.c172be.run(0x172be); if (p != 0x103b0) return p; continue :sw 0x103b0; }
                 }
             },
             0x103b0 => {
@@ -1131,7 +1034,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103b6);
-                    return 0x17576;
+                    { const p = f171aa.c17576.run(0x17576); if (p != 0x103b6) return p; continue :sw 0x103b6; }
                 }
             },
             0x103b6 => {
@@ -1139,7 +1042,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103bc);
-                    return 0x1042c;
+                    { const p = f10000.c1042c.run(0x1042c); if (p != 0x103bc) return p; continue :sw 0x103bc; }
                 }
             },
             0x103bc => {
@@ -1147,7 +1050,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103c2);
-                    return 0x1a1d4;
+                    { const p = f19f60.c1a1d4.run(0x1a1d4); if (p != 0x103c2) return p; continue :sw 0x103c2; }
                 }
             },
             0x103c2 => {
@@ -1155,7 +1058,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103c8);
-                    return 0x1a5f8;
+                    { const p = f1a5f8.c1a5f8.run(0x1a5f8); if (p != 0x103c8) return p; continue :sw 0x103c8; }
                 }
             },
             0x103c8 => {
@@ -1163,7 +1066,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103ce);
-                    return 0x16bfa;
+                    { const p = f169e2.c16bfa.run(0x16bfa); if (p != 0x103ce) return p; continue :sw 0x103ce; }
                 }
             },
             0x103ce => {
@@ -1171,7 +1074,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103d4);
-                    return 0x184ec;
+                    { const p = f1806a.c184ec.run(0x184ec); if (p != 0x103d4) return p; continue :sw 0x103d4; }
                 }
             },
             0x103d4 => {
@@ -1179,7 +1082,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103da);
-                    return 0x16ff6;
+                    { const p = f16dc2.c16ff6.run(0x16ff6); if (p != 0x103da) return p; continue :sw 0x103da; }
                 }
             },
             0x103da => {
@@ -1187,7 +1090,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103e0);
-                    return 0x16f82;
+                    { const p = f16dc2.c16f82.run(0x16f82); if (p != 0x103e0) return p; continue :sw 0x103e0; }
                 }
             },
             0x103e0 => {
@@ -1195,7 +1098,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103e6);
-                    return 0x1715c;
+                    { const p = f16dc2.c1715c.run(0x1715c); if (p != 0x103e6) return p; continue :sw 0x103e6; }
                 }
             },
             0x103e6 => {
@@ -1203,7 +1106,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103ec);
-                    return 0x17210;
+                    { const p = f171aa.c17210.run(0x17210); if (p != 0x103ec) return p; continue :sw 0x103ec; }
                 }
             },
             0x103ec => {
@@ -1211,7 +1114,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103f2);
-                    return 0x1b4fa;
+                    { const p = f1b102.c1b4fa.run(0x1b4fa); if (p != 0x103f2) return p; continue :sw 0x103f2; }
                 }
             },
             0x103f2 => {
@@ -1219,7 +1122,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103f8);
-                    return 0x1b594;
+                    { const p = f1b102.c1b594.run(0x1b594); if (p != 0x103f8) return p; continue :sw 0x103f8; }
                 }
             },
             0x103f8 => {
@@ -1227,7 +1130,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x103fe);
-                    return 0x12d5e;
+                    { const p = f11986.c12d5e.run(0x12d5e); if (p != 0x103fe) return p; continue :sw 0x103fe; }
                 }
             },
             0x103fe => {
@@ -1235,7 +1138,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10404);
-                    return 0x16b96;
+                    { const p = f169e2.c16b96.run(0x16b96); if (p != 0x10404) return p; continue :sw 0x10404; }
                 }
             },
             0x10404 => {
@@ -1243,7 +1146,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1040a);
-                    return 0x13b10;
+                    { const p = f13a10.c13b10.run(0x13b10); if (p != 0x1040a) return p; continue :sw 0x1040a; }
                 }
             },
             0x1040a => {
@@ -1251,7 +1154,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10410);
-                    return 0x10a70;
+                    { const p = f104f6.c10a70.run(0x10a70); if (p != 0x10410) return p; continue :sw 0x10410; }
                 }
             },
             0x10410 => {
@@ -1259,7 +1162,7 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x10416);
-                    return 0x104f6;
+                    { const p = f104f6.c104f6.run(0x104f6); if (p != 0x10416) return p; continue :sw 0x10416; }
                 }
             },
             0x10416 => {
@@ -1267,19 +1170,18 @@ pub const c10000 = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1041c);
-                    return 0x1afca;
+                    { const p = f1ac5a.c1afca.run(0x1afca); if (p != 0x1041c) return p; continue :sw 0x1041c; }
                 }
             },
             0x1041c => {
                 // $0041c  tst.b $1057a.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x1057a;
                     k.logic(u8, k.rb(e0));
                 }
                 // $00422  bne.w $10138
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (!k.fz) { if (k.cy >= k.limit) return 0x10138; continue :sw 0x10138; }
                 }
                 // $00426  jmp $102f6.l
@@ -1295,23 +1197,21 @@ pub const c10000 = struct {
 };
 
 pub const c1042c = struct {
-    pub fn run(pc: u32) u32 {
+    pub noinline fn run(pc: u32) u32 {
         sw: switch (pc) {
             0x1042c => {
                 // $0042c  tst.w $10572.l
                 {
-                    k.cy +%= 16;
                     const e0: u32 = 0x10572;
                     k.logic(u16, k.rw(e0));
                 }
                 // $00432  bne.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 30;
                     if (!k.fz) return 0x13d28;
                 }
                 // $00436  move.l #$ffffffff, $10544.l
                 {
-                    k.cy +%= 28;
                     const v = @as(u32, 0xffffffff);
                     const e1: u32 = 0x10544;
                     k.wl(e1, v);
@@ -1319,9 +1219,9 @@ pub const c1042c = struct {
                 }
                 // $00440  jsr $154f2.l
                 {
-                    k.cy +%= 36;
+                    k.cy +%= 64;
                     k.push32(0x10446);
-                    return 0x154f2;
+                    { const p = f15398.c154f2.run(0x154f2); if (p != 0x10446) return p; continue :sw 0x10446; }
                 }
             },
             0x10446 => {
@@ -1329,20 +1229,19 @@ pub const c1042c = struct {
                 {
                     k.cy +%= 36;
                     k.push32(0x1044c);
-                    return 0x12d5e;
+                    { const p = f11986.c12d5e.run(0x12d5e); if (p != 0x1044c) return p; continue :sw 0x1044c; }
                 }
             },
             0x1044c => {
                 // $0044c  cmpi.l #$ffffffff, $10554.l
                 {
-                    k.cy +%= 28;
                     const s = @as(u32, 0xffffffff);
                     const e1: u32 = 0x10554;
                     k.cmp(u32, s, k.rl(e1));
                 }
                 // $00456  beq.w $10460
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 42;
                     if (k.fz) continue :sw 0x10460;
                 }
                 // $0045a  clr.l $10554.l
@@ -1350,31 +1249,60 @@ pub const c1042c = struct {
                     k.cy +%= 20;
                     const e0: u32 = 0x10554;
                     k.wl(e0, 0);
-                    k.logic(u32, 0);
                 }
                 continue :sw 0x10460;
             },
             0x10460 => {
                 // $00460  cmpi.l #$ffffffff, $10550.l
                 {
-                    k.cy +%= 28;
                     const s = @as(u32, 0xffffffff);
                     const e1: u32 = 0x10550;
                     k.cmp(u32, s, k.rl(e1));
                 }
                 // $0046a  beq.w $13d28
                 {
-                    k.cy +%= 14;
+                    k.cy +%= 42;
                     if (k.fz) return 0x13d28;
                 }
                 // $0046e  clr.l $10550.l
                 {
-                    k.cy +%= 20;
                     const e0: u32 = 0x10550;
                     k.wl(e0, 0);
                     k.logic(u32, 0);
                 }
                 // $00474  rts 
+                {
+                    k.cy +%= 44;
+                    return k.pop32();
+                }
+            },
+            else => return k.bad(pc),
+        }
+    }
+
+};
+
+pub const c10476 = struct {
+    pub noinline fn run(pc: u32) u32 {
+        sw: switch (pc) {
+            0x10476 => {
+                // $00476  jsr $1393a.l
+                {
+                    k.cy +%= 36;
+                    k.push32(0x1047c);
+                    { const p = f1354e.c1393a.run(0x1393a); if (p != 0x1047c) return p; continue :sw 0x1047c; }
+                }
+            },
+            0x1047c => {
+                // $0047c  jsr $1396e.l
+                {
+                    k.cy +%= 36;
+                    k.push32(0x10482);
+                    { const p = f1354e.c1396e.run(0x1396e); if (p != 0x10482) return p; continue :sw 0x10482; }
+                }
+            },
+            0x10482 => {
+                // $00482  rts 
                 {
                     k.cy +%= 24;
                     return k.pop32();
@@ -1386,29 +1314,232 @@ pub const c1042c = struct {
 
 };
 
-pub const c10476 = struct {
-    pub fn run(pc: u32) u32 {
-        switch (pc) {
-            0x10476 => {
-                // $00476  jsr $1393a.l
+pub const c10484 = struct {
+    pub noinline fn run(pc: u32) u32 {
+        sw: switch (pc) {
+            0x10484 => {
+                // $00484  move.l #$c7, d6
                 {
-                    k.cy +%= 36;
-                    k.push32(0x1047c);
-                    return 0x1393a;
+                    const v = @as(u32, 0xc7);
+                    k.setD(u32, 6, v);
+                    k.logic(u32, v);
                 }
-            },
-            0x1047c => {
-                // $0047c  jsr $1396e.l
+                // $0048a  movea.l $10df0.l, a6
                 {
-                    k.cy +%= 36;
-                    k.push32(0x10482);
-                    return 0x1396e;
+                    k.cy +%= 32;
+                    const e0: u32 = 0x10df0;
+                    k.a[6] = k.rl(e0);
                 }
+                continue :sw 0x10490;
             },
-            0x10482 => {
-                // $00482  rts 
+            0x10490 => {
+                // $00490  movem.l $10dfa.l, d0-d5/a0-a5
+                {
+                    const m: u32 = 0x10dfa;
+                    k.d[0] = k.rl(m +% 0);
+                    k.d[1] = k.rl(m +% 4);
+                    k.d[2] = k.rl(m +% 8);
+                    k.d[3] = k.rl(m +% 12);
+                    k.d[4] = k.rl(m +% 16);
+                    k.d[5] = k.rl(m +% 20);
+                    k.a[0] = k.rl(m +% 24);
+                    k.a[1] = k.rl(m +% 28);
+                    k.a[2] = k.rl(m +% 32);
+                    k.a[3] = k.rl(m +% 36);
+                    k.a[4] = k.rl(m +% 40);
+                    k.a[5] = k.rl(m +% 44);
+                }
+                // $00498  movem.l d0-d5/a0-a5, (a6)
+                {
+                    const m: u32 = k.a[6];
+                    k.wl(m +% 0, k.d[0]);
+                    k.wl(m +% 4, k.d[1]);
+                    k.wl(m +% 8, k.d[2]);
+                    k.wl(m +% 12, k.d[3]);
+                    k.wl(m +% 16, k.d[4]);
+                    k.wl(m +% 20, k.d[5]);
+                    k.wl(m +% 24, k.a[0]);
+                    k.wl(m +% 28, k.a[1]);
+                    k.wl(m +% 32, k.a[2]);
+                    k.wl(m +% 36, k.a[3]);
+                    k.wl(m +% 40, k.a[4]);
+                    k.wl(m +% 44, k.a[5]);
+                }
+                // $0049c  movem.l d0-d5/a0-a5, $2e(a6)
+                {
+                    const m: u32 = k.a[6] +% @as(u32, 46);
+                    k.wl(m +% 0, k.d[0]);
+                    k.wl(m +% 4, k.d[1]);
+                    k.wl(m +% 8, k.d[2]);
+                    k.wl(m +% 12, k.d[3]);
+                    k.wl(m +% 16, k.d[4]);
+                    k.wl(m +% 20, k.d[5]);
+                    k.wl(m +% 24, k.a[0]);
+                    k.wl(m +% 28, k.a[1]);
+                    k.wl(m +% 32, k.a[2]);
+                    k.wl(m +% 36, k.a[3]);
+                    k.wl(m +% 40, k.a[4]);
+                    k.wl(m +% 44, k.a[5]);
+                }
+                // $004a2  movem.l d0-d2/a0-a5, $5c(a6)
+                {
+                    const m: u32 = k.a[6] +% @as(u32, 92);
+                    k.wl(m +% 0, k.d[0]);
+                    k.wl(m +% 4, k.d[1]);
+                    k.wl(m +% 8, k.d[2]);
+                    k.wl(m +% 12, k.a[0]);
+                    k.wl(m +% 16, k.a[1]);
+                    k.wl(m +% 20, k.a[2]);
+                    k.wl(m +% 24, k.a[3]);
+                    k.wl(m +% 28, k.a[4]);
+                    k.wl(m +% 32, k.a[5]);
+                }
+                // $004a8  adda.l #$a0, a6
+                {
+                    k.a[6] +%= @as(u32, 0xa0);
+                }
+                // $004ae  dbra d6, $10490
+                {
+                    k.cy +%= 450;
+                    const w = k.dv(u16, 6) -% 1;
+                    k.setD(u16, 6, w);
+                    if (w != 0xFFFF) { if (k.cy >= k.limit) return 0x10490; continue :sw 0x10490; }
+                }
+                // $004b2  rts 
                 {
                     k.cy +%= 24;
+                    return k.pop32();
+                }
+            },
+            else => return k.bad(pc),
+        }
+    }
+
+};
+
+pub const c104b4 = struct {
+    pub noinline fn run(pc: u32) u32 {
+        sw: switch (pc) {
+            0x104b4 => {
+                // $004b4  move.l #$1fff, d6
+                {
+                    const v = @as(u32, 0x1fff);
+                    k.setD(u32, 6, v);
+                }
+                // $004ba  movea.l $10dec.l, a6
+                {
+                    k.cy +%= 32;
+                    const e0: u32 = 0x10dec;
+                    k.a[6] = k.rl(e0);
+                }
+                continue :sw 0x104c0;
+            },
+            0x104c0 => {
+                // $004c0  move.l #$0, (a6)+
+                {
+                    const v = @as(u32, 0x0);
+                    const e1 = k.a[6];
+                    k.a[6] +%= 4;
+                    k.wl(e1, v);
+                    k.logic(u32, v);
+                }
+                // $004c6  dbra d6, $104c0
+                {
+                    k.cy +%= 34;
+                    const w = k.dv(u16, 6) -% 1;
+                    k.setD(u16, 6, w);
+                    if (w != 0xFFFF) { if (k.cy >= k.limit) return 0x104c0; continue :sw 0x104c0; }
+                }
+                // $004ca  rts 
+                {
+                    k.cy +%= 24;
+                    return k.pop32();
+                }
+            },
+            else => return k.bad(pc),
+        }
+    }
+
+};
+
+pub const c104cc = struct {
+    pub noinline fn run(pc: u32) u32 {
+        sw: switch (pc) {
+            0x104cc => {
+                // $004cc  move.l #$1fff, d6
+                {
+                    const v = @as(u32, 0x1fff);
+                    k.setD(u32, 6, v);
+                }
+                // $004d2  movea.l $10df0.l, a6
+                {
+                    k.cy +%= 32;
+                    const e0: u32 = 0x10df0;
+                    k.a[6] = k.rl(e0);
+                }
+                continue :sw 0x104d8;
+            },
+            0x104d8 => {
+                // $004d8  move.l #$0, (a6)+
+                {
+                    const v = @as(u32, 0x0);
+                    const e1 = k.a[6];
+                    k.a[6] +%= 4;
+                    k.wl(e1, v);
+                    k.logic(u32, v);
+                }
+                // $004de  dbra d6, $104d8
+                {
+                    k.cy +%= 34;
+                    const w = k.dv(u16, 6) -% 1;
+                    k.setD(u16, 6, w);
+                    if (w != 0xFFFF) { if (k.cy >= k.limit) return 0x104d8; continue :sw 0x104d8; }
+                }
+                // $004e2  rts 
+                {
+                    k.cy +%= 24;
+                    return k.pop32();
+                }
+            },
+            else => return k.bad(pc),
+        }
+    }
+
+};
+
+pub const c104e4 = struct {
+    pub noinline fn run(pc: u32) u32 {
+        switch (pc) {
+            0x104e4 => {
+                // $004e4  movem.l $10dfa.l, d0-d1/a0-a6
+                {
+                    const m: u32 = 0x10dfa;
+                    k.d[0] = k.rl(m +% 0);
+                    k.d[1] = k.rl(m +% 4);
+                    k.a[0] = k.rl(m +% 8);
+                    k.a[1] = k.rl(m +% 12);
+                    k.a[2] = k.rl(m +% 16);
+                    k.a[3] = k.rl(m +% 20);
+                    k.a[4] = k.rl(m +% 24);
+                    k.a[5] = k.rl(m +% 28);
+                    k.a[6] = k.rl(m +% 32);
+                }
+                // $004ec  movem.l d0-d1/a0-a6, $ff8240.l
+                {
+                    const m: u32 = 0xff8240;
+                    k.wl(m +% 0, k.d[0]);
+                    k.wl(m +% 4, k.d[1]);
+                    k.wl(m +% 8, k.a[0]);
+                    k.wl(m +% 12, k.a[1]);
+                    k.wl(m +% 16, k.a[2]);
+                    k.wl(m +% 20, k.a[3]);
+                    k.wl(m +% 24, k.a[4]);
+                    k.wl(m +% 28, k.a[5]);
+                    k.wl(m +% 32, k.a[6]);
+                }
+                // $004f4  rts 
+                {
+                    k.cy +%= 208;
                     return k.pop32();
                 }
             },
