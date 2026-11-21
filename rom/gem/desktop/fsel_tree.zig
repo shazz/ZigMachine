@@ -67,6 +67,7 @@ fn shrink(v: *const View, r: R, on: bool) R {
 }
 
 const FACE = obj.colorWord(L.BLACK, L.BLACK, true, 7, L.WHITE);
+const BLACKFILL = obj.colorWord(L.BLACK, L.BLACK, true, 7, L.BLACK);
 const HOLLOW = obj.colorWord(L.BLACK, L.BLACK, false, 0, L.WHITE); // TOS 4's 0x1100: the paper (or the 3D face) shows
 fn box(t: i8) obj.Spec {
     return .{ .box = obj.boxSpec(0, t, FACE) };
@@ -154,7 +155,7 @@ fn listWindow(b: *Builder, v: *const View, g: *const Geom, mask: *const obj.Ted)
 }
 
 fn scroll(b: *Builder, v: *const View, g: *const Geom) void {
-    const col = b.add(0, at(.{ .ty = obj.G_BOX, .spec = box(1) }, g.scroll));
+    const col = b.add(0, at(.{ .ty = obj.G_BOX, .spec = .{ .box = obj.boxSpec(0, 0, BLACKFILL) } }, g.scroll)); // TOS 4's: black between the pieces
     gadget(b, col, v, g, 1, 1, rel(g.up, g.scroll)); // UP + its image
     const tr = rel(g.track, g.scroll);
     const grey = obj.boxSpec(0, 1, obj.colorWord(L.BLACK, L.BLACK, false, 4, L.BLACK)); // TOS 4's: the 50 % pattern

@@ -82,9 +82,10 @@ pub fn ours(ch: i16) Geom {
         .row = .{ .x = list.x + 16, .y = list.y + c, .w = 15 * 8, .h = c }, // the mark (folder or _), a blank, 8.3
         .pitch = c,
         .scroll = .{ .x = 181, .y = list.y, .w = 24, .h = list.h },
-        .up = .{ .x = 181, .y = list.y, .w = 24, .h = arrow },
-        .track = .{ .x = 181, .y = list.y + arrow - 1, .w = 24, .h = list.h - 2 * arrow + 2 },
-        .down = .{ .x = 181, .y = list.bottom() - arrow, .w = 24, .h = arrow },
+        .up = .{ .x = 181, .y = list.y, .w = 23, .h = arrow },
+        // TOS 4's column is black: the pieces are framed boxes one black line apart, one more black line at the right
+        .track = .{ .x = 181, .y = list.y + arrow + 1, .w = 23, .h = list.h - 2 * arrow - 3 },
+        .down = .{ .x = 181, .y = list.bottom() - arrow - 1, .w = 23, .h = arrow },
         .drives = drives,
         .drive = .{ .x = drives.x + 4, .y = drives.y, .w = 36, .h = c + 4 },
         .dx = 37,

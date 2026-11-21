@@ -83,15 +83,15 @@ const up = () => [1, 2].some((h) => d.m.rom.fileSelActive(h) === 1); // rom_main
 check("Return re-read the list: the selector is still up", up());
 
 // NET is the folder GEMDOS lists last (made last): the fourth row.
-d.click(LX + 50, ROW0 + 3 * PITCH + 3); d.frames(2); shot("net");
+d.click(RX + 50, ROW0 + 3 * PITCH + 3); d.frames(2); shot("net");
 r = rows();
 check("a click on NET opens it: INNET.TXT, no folder", count(r, "dir") === 0 && count(r, "file") === 1, r.join(","));
 d.click(...G.mid(G.closer)); d.frames(2);
 r = rows();
 check("the close box goes back to C:\\", count(r, "dir") === 4 && count(r, "file") === 1, r.join(","));
 
-d.click(LX + 50, ROW0 + 3 * PITCH + 3); d.frames(2);
-d.click(LX + 50, ROW0 + 3); d.frames(1); // INNET.TXT into the Selection field
+d.click(RX + 50, ROW0 + 3 * PITCH + 3); d.frames(2);
+d.click(RX + 50, ROW0 + 3); d.frames(1); // INNET.TXT into the Selection field
 d.key(13); d.frames(3);
 d.type("X"); d.ctrl("s"); d.frames(3);
 const saved = await mtype("NET/INNET.TXT");

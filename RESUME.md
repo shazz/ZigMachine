@@ -1,7 +1,0 @@
-# fix/fsel-pass2-sysinfo-mouse: PAUSED 14 Nov (Matt)
-
-1. Done and committed (WIP): the selector's closer and arrows are TOS 4's G_BOXCHARs (chars 5/1/2, 3D activators; our own symbols when the font has none), the title bar is a 50 % pattern with the mask on paper, the drive buttons/closer/title/list share frame lines, empty rows read `_ ________.___`, the desk's 3D face is grey; SysInfo lends a save-under and calls graf_mouse, so the desk shows the arrow (sysinfo_check pointer checks per mode + `--break mouse`, both pass locally).
-2. Gate (`--only gemtest st_replay_filesel notepad sysinfo`) failed only on filesel_check and notepad_fsel_check: they read the names 8 px further left than the rows now are. The readers are fixed (NAME_X / RX from fsel_geom.mjs), but nothing has run them yet.
-3. Next: under build.lock, `./build.sh --fast`, then `node apps/filesel_check.mjs --print`, paste the 3 new hashes into PINS, and run `node apps/notepad_fsel_check.mjs`. Then re-gate the four screens, commit the docs/ wasm + zmd the gate built, and append the branch to merge_queue.txt.
-4. Sheets (local only): prototypes/gem_filesel_re/aes340_pass2/{low,medium,desk}_{flat,3d}.png (before / after / after with local assets / TOS 4 reference).
-5. Open: the top path line (the title is still the 36-char path, TOS's FLABEL is 30), the scroll column's own pattern, sysinfo_check's board FREQUENCY line flakes under load (89.x MHz, timing), and sysinfo.zig is at 199 lines.

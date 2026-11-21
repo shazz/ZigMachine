@@ -18,7 +18,7 @@ export function fselGeom(sw, sh) {
         sel: at({ x: 96, y: sy, w: 96, h: c }), driveLabel: at({ x: 232, y: sy, w: 48, h: c }),
         closer: at({ x: 25, y: barY, w: 20, h: c + 4 }), list: at(list),
         row: (i) => at({ x: list.x + 16, y: list.y + c + i * c, w: 120, h: c }),
-        up: at({ x: 181, y: list.y, w: 24, h: arrow }), down: at({ x: 181, y: list.y + list.h - arrow, w: 24, h: arrow }),
+        up: at({ x: 181, y: list.y, w: 23, h: arrow }), down: at({ x: 181, y: list.y + list.h - arrow - 1, w: 23, h: arrow }),
         drive: (k) => at({ x: drives.x + 4 + (k % 2) * 37, y: drives.y + (k >> 1) * dy, w: 36, h: c + 4 }),
         ok: at({ x: 64, y: by, w: 72, h: c + 2 }), cancel: at({ x: 176, y: by, w: 72, h: c + 2 }),
     };
