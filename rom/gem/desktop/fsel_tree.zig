@@ -163,8 +163,8 @@ fn scroll(b: *Builder, v: *const View, g: *const Geom) void {
     const max = if (v.n > ROWS) v.n - ROWS else 0;
     const sh: i16 = if (max == 0) tr.h else @max(g.ch + 4, @divTrunc(tr.h * @as(i16, ROWS), @as(i16, @intCast(v.n))));
     const y: i16 = if (max == 0) 0 else @intCast(@divTrunc(@as(i32, tr.h - sh) * @as(i32, @intCast(v.top)), @as(i32, @intCast(max))));
-    // the slider is sized here from the track, never a core rect: always shrunk in 3D, so it stays in the column
-    _ = b.add(track, at(.{ .ty = obj.G_BOX, .flags = obj.TOUCHEXIT | obj.FL3DACT, .spec = box(1) }, shrink(v, .{ .x = 0, .y = y, .w = tr.w, .h = sh }, true)));
+    // sized from the track, laid out as the arrows are (inset): a core set's slider is as wide as its arrows in both looks
+    _ = b.add(track, at(.{ .ty = obj.G_BOX, .flags = obj.TOUCHEXIT | obj.FL3DACT, .spec = box(1) }, inset(v, g, .{ .x = 0, .y = y, .w = tr.w, .h = sh })));
     gadget(b, col, v, g, 2, 1, rel(g.down, g.scroll)); // DOWN + its image
 }
 

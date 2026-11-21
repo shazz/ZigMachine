@@ -131,6 +131,7 @@ test "the layout per screen: rows a font height apart, nothing overlapping, the 
         const col = r(t, Id.UP - 1);
         const sl = r(t, Id.SLIDER).grow(grow);
         try expect(sl.x >= col.x and sl.right() <= col.right());
+        try expect(r(t, Id.SLIDER).x == r(t, Id.UP).x and r(t, Id.SLIDER).w == r(t, Id.UP).w); // as wide as the arrows
     };
 }
 
@@ -149,9 +150,8 @@ test "a core geometry (a local asset build's) is not shrunk in 3D" {
     g.core = true;
     const t = T.build(&s, &v, &g, 640, 200);
     try expect(r(t, Id.DRIVE0).w == g.drive.w);
-    const col = r(t, Id.UP - 1); // the slider is ours, sized from the track: inside the column even drawn 3D
-    const sl = r(t, Id.SLIDER).grow(L.ADJ3D);
-    try expect(sl.x >= col.x and sl.right() <= col.right());
+    // the slider is as wide as the arrows (board, 20 Nov: it was a few pixels narrower on both sides)
+    try expect(r(t, Id.SLIDER).x == r(t, Id.UP).x and r(t, Id.SLIDER).w == r(t, Id.UP).w);
     g.core = false;
     const f = T.build(&s, &v, &g, 640, 200);
     try expect(r(f, Id.DRIVE0).w == g.drive.w - 2 * L.ADJ3D);

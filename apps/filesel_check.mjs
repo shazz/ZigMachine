@@ -29,9 +29,9 @@ import { fselGeom } from "./fsel_geom.mjs";
 // box drawn inside them), the 50 % title bar, the drive buttons packed, rows `_ ________.___` (names 8 px
 // further right); sheets in prototypes/gem_filesel_re/aes340_pass2/ (local only).
 const PINS = {
-    open: "c1681998be2fc3bccd7a774db6e143f27f664939949c7346947c47f745d2c2a3",
-    drumloop: "6046a624e067c2dc3bf5485a47b528f6bb82316806dc0db767a4e1429e10aa90",
-    short: "7c16835f02592b806e3141f5cbee0902176e897554f65c6a426eae2ae344d69b",
+    open: "bf73479edf0efad59429c8ef114acdb1a16b4fff4cf360329173cfc9f2bbb857",
+    drumloop: "29527dd60464a522ccac6f3e09acc84bea84667e80dd0edc3eb0e2119938dc38",
+    short: "e2ecbe196c5a7c90ef5cb63a56888b7c08fb529e7c51b6c1c2742bb52b5d930b",
 };
 const NAMES = ["DRUMLOOP.RAW", "A.RAW", "BASSLINE.RAW"];
 const G = fselGeom(640, 200);           // fsel_geom.zig's layout, centred in 640 x 200

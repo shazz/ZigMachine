@@ -157,7 +157,7 @@ fn paint(f: *const FileSel, g: *gui.Gui, s: *T.Store, v: *const T.View, geo: *co
     const field: i16 = if (f.on_path) Id.DIR else Id.SEL;
     const r = obj.offset(t, field).?;
     const col: i16 = if (f.on_path) @intCast(@min(f.path.caret -| (f.path.len -| DIR_CELLS), DIR_CELLS)) else f.name.caretCol();
-    cv.fill(.{ .x = r.x + col * 8, .y = r.y - 1, .w = 2, .h = geo.ch + 1 }, lk.ink(1)); // the caret
+    cv.fill(.{ .x = r.x + col * 8, .y = r.y - 3, .w = 1, .h = geo.ch + 5 }, lk.ink(1)); // the caret: TOS 4's, 1 px wide, 2 px longer at each end than before
     const e = draw.extent(&lk, &t[0], obj.offset(t, 0).?);
     gui.clip.record(g, .{ .x = e.x, .y = e.y, .w = e.w, .h = e.h });
 }
