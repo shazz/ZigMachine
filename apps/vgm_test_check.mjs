@@ -4,13 +4,17 @@
 //   name     the cart asks for kestrel_fm.vgm at boot; key 1 for it again, key 2 for kestrel_fm.vgz, key 4
 //            for "none" (zg.SONG_STOP)
 //   bytes    key 3 is zg.requestSongBytes (sfx op 8, kind 7: SongKind.vgm) of the .vgz the cart carries;
-//            mode 4 (no key) garbage bytes as a VGM
+//            mode 7 (no key) garbage bytes as a VGM
+//   local    keys 5-7 ask for the local Sonic 1 tunes (sonic1_ghz / sonic1_special / sonic1_starlight.vgm:
+//            gitignored, never fetched here, none tracked); with none playing the cart runs on past its
+//            second of silence (the screen's "NOT ON THIS MACHINE")
 //   bridge   docs/sealed-loader.js's own postSfx turns each into loadVgm; the audio modules play the .vgz
 //            (mode 1, heard) and refuse the garbage ("not a VGM", silent)
 //   song     docs/music/kestrel_fm.vgm is what libs/c/vgm/make_tune.py writes today, and the .vgz (docs/music
 //            and the cart's asset) inflates to it, byte for byte
-//   node apps/vgm_test_check.mjs [--break name]
+//   node apps/vgm_test_check.mjs [--break name|local]
 //     name: key 2 is expected to ask for another file, so the check must fail
+//     local: key 6 is expected to ask for another file
 import { execFileSync } from "node:child_process";
 import { readFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,7 +22,9 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const BROKE = process.argv.includes("--break");
+const bi = process.argv.indexOf("--break");
+const BROKE = bi > 0 ? process.argv[bi + 1] || "name" : null;
+const LOCAL = ["sonic1_ghz.vgm", "sonic1_special.vgm", "sonic1_starlight.vgm"];
 
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
@@ -94,12 +100,21 @@ const cart = await bootCart("docs/demo-vgm_test.wasm");
 const boot = await press(cart, null);
 if (boot.name !== "kestrel_fm.vgm") errors.push(`name: the cart asked for ${boot.name} at boot`);
 const names = [];
-for (const [key, want] of [[0, "kestrel_fm.vgm"], [1, BROKE ? "other.vgz" : "kestrel_fm.vgz"], [3, "none"]]) {
+for (const [key, want] of [[0, "kestrel_fm.vgm"], [1, BROKE === "name" ? "other.vgz" : "kestrel_fm.vgz"], [3, "none"]]) {
     const k = await press(cart, key);
     names.push(k.name);
     if (k.name !== want) errors.push(`name: key ${key + 1} asked for ${k.name}, not ${want}`);
 }
-for (const [key, garbage] of [[2, false], [4, true]]) {
+for (const [i, want] of LOCAL.entries()) {
+    const k = await press(cart, 4 + i), w = BROKE === "local" && i === 1 ? "other.vgm" : want;
+    if (k.name !== w) errors.push(`local: key ${5 + i} asked for ${k.name}, not ${w}`);
+}
+// No host plays them here, as on a card without the files: past the screen's second of silence the cart keeps
+// running (a trap would throw out of frame()).
+for (let f = 0; f < 90; f++) cart.demo.frame(16.6);
+const tracked = execFileSync("git", ["ls-files", "--", ...LOCAL.map((n) => `docs/music/${n}`)], { encoding: "utf8" }).trim();
+if (tracked) errors.push(`local: ${tracked.split("\n").join(", ")} committed: the Sonic tunes stay on their owner's machine`);
+for (const [key, garbage] of [[2, false], [7, true]]) {
     const { posted } = await press(cart, key);
     const msg = posted.find((p) => p.type === "loadVgm");
     const bytes = msg ? new Uint8Array(msg.bytes) : null;
@@ -113,11 +128,11 @@ for (const [key, garbage] of [[2, false], [4, true]]) {
     console.log(`  mode ${key}: loadVgm of ${bytes.length} bytes (${garbage ? "garbage: refused, status 1" : `the .vgz, played, mode 1, peak ${got.peak.toFixed(3)}`})`);
 }
 for (let f = 0; f < 90; f++) cart.demo.frame(16.6); // the screen's load readout redraws: no trap
-console.log(`  boot: ${boot.name}; keys 1, 2, 4: ${names.join(", ")}; the .vgm is make_tune.py's, both .vgz inflate to it`);
+console.log(`  boot: ${boot.name}; keys 1, 2, 4: ${names.join(", ")}; keys 5-7: ${LOCAL.join(", ")} (local, none tracked); the .vgm is make_tune.py's, both .vgz inflate to it`);
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
-    const hit = errors.find((e) => e.startsWith("name:"));
-    console.log(hit ? `vgm_test_check: PASS (--break name caught: ${hit})` : "vgm_test_check: FAILED -- --break name not caught");
+    const hit = errors.find((e) => e.startsWith(`${BROKE}:`));
+    console.log(hit ? `vgm_test_check: PASS (--break ${BROKE} caught: ${hit})` : `vgm_test_check: FAILED -- --break ${BROKE} not caught`);
     process.exitCode = hit ? 0 : 1;
 } else {
     console.log(errors.length ? `vgm_test_check: FAILED -- ${errors.join("; ")}` : "vgm_test_check: all pass");

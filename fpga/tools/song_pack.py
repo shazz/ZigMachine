@@ -30,7 +30,7 @@ SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap", "hip", "kt", "sid", "vg
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
 # Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
 # SID TEST's keys 1-4 (apps/zig/scenes/sid_test.zig): High Voltage SID Collection PSIDs, not ours to ship.
-LOCAL_SONGS = frozenset({"local.xm", "local.vgm", "cybernoid_ii.sid", "wizball.sid", "commando.sid", "club_style.sid"})
+LOCAL_SONGS = frozenset({"local.xm", "local.vgm", "sonic1_ghz.vgm", "sonic1_special.vgm", "sonic1_starlight.vgm", "cybernoid_ii.sid", "wizball.sid", "commando.sid", "club_style.sid"})
 # host/audio.c's name for a zg.requestSongBytes song ("bytes.sid"...): played from the cart's memory, nothing to pack.
 BYTES = "bytes."
 # Carts whose string literals are not song requests: ported C programs (apps/ports) name their own documents
