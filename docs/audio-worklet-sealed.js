@@ -120,6 +120,15 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const status = d.audioSidStatus();
                 this.port.postMessage({ type: "sidLoaded", ok: !!ok, len: len, status,
                                         error: ["", "not a .sid", "RSID not supported", "bad length"][status >> 8 & 0xFF] || "?" });
+            } else if (msg.type === "loadVgm") {
+                // A Mega Drive .vgm / .vgz (libs/zig/players/vgm.zig): our YM2612 + SN76489 in
+                // machine-audio.wasm, the same C as BARD's. A .vgz is inflated in place by the engine.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadVgm(len);
+                const status = d.audioVgmStatus();
+                this.port.postMessage({ type: "vgmLoaded", ok: !!ok, len: len, status,
+                                        error: ["", "not a VGM", "no YM2612 or SN76489", "truncated", "a bad or too big .vgz",
+                                                "too big for the song RAM"][status >> 8 & 0xFF] || "?" });
             } else if (msg.type === "sfxPlay") {
                 // zg.sfxPlay: the PCM into the effect buffer, then onto the MOD's
                 // quiet channel (libs/zig/players/sfx_voice.zig).

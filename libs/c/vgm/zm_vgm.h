@@ -29,6 +29,9 @@ uint32_t zm_vgm_rate(void);
 /* The next `n` frames (s16 L, R interleaved, at zm_vgm_rate) into `lr`; silence when nothing is loaded. */
 void zm_vgm_render(int16_t *lr, uint32_t n);
 
+/* Benches only (fpga/cycles/sound/svgmbench.c): jump `tenths` of a second into the tune, nothing rendered. */
+void zm_vgm_seek(uint32_t tenths);
+
 /* How many times the file has looped (0 in its first pass). */
 uint32_t zm_vgm_loops(void);
 

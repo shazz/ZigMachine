@@ -143,6 +143,7 @@ const scene = switch (opts.index) {
     132 => @import("scenes/sb_spike.zig"), // SB SPIKE: Suicide Barbie (TBL, PSP 2007, MIT) mix3, 12,147 textured triangles on CHISEL AFFINE, the port's feasibility spike
     133 => @import("scenes/kestramp.zig"), // KESTRAMP: a classic desktop MP3 window for C:\MUSIC (its layout after Webamp, MIT; our own pixels), decoded by the sound side (pvmp3)
     138 => @import("scenes/nfo_viewer.zig"), // NFO VIEWER: zigdemo's NFO / ASCII-art viewer on the desk plane, a sample NFO scrolling under a fixed prompt bar
+    139 => @import("scenes/vgm_test.zig"), // VGM TEST: one text plane, keys 1-3 play KESTREL FM by name (.vgm, .vgz) and as bytes, 4 stops; BARD load (libs/zig/players/vgm.zig)
     else => @compileError("bad cart index"),
 };
 

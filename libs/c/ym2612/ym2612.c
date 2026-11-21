@@ -6,7 +6,7 @@
 #include "ym2612.h"
 #include "ym2612_tables.h"
 
-#include <string.h>
+#include "../vgm/zm_mem.h"
 
 void ym2612_reset(ym2612 *y, uint32_t div) {
     memset(y, 0, sizeof *y);
@@ -18,6 +18,7 @@ void ym2612_reset(ym2612 *y, uint32_t div) {
         for (uint32_t k = 0; k < 4; k++) {
             ym_op *o = &y->ch[c].op[k];
             o->att = 0x3FF;
+            o->eatt = 0x3FF;
             o->state = YM_RELEASE;
             ym_op_rates(o);
         }
@@ -50,7 +51,7 @@ static void refresh(ym2612 *y, uint32_t ci) {
 static void op_write(ym2612 *y, ym_ch *c, ym_op *o, uint32_t reg, uint32_t v) {
     switch (reg & 0xF0u) {
     case 0x30: o->dt = v >> 4 & 7u, o->mul = v & 15u; break;
-    case 0x40: o->tl3 = (uint16_t)((v & 0x7Fu) << 3); return;
+    case 0x40: o->tl3 = (uint16_t)((v & 0x7Fu) << 3), ym_op_eatt(o); return;
     case 0x50: o->ks = v >> 6, o->ar = v & 31u; break;
     case 0x60: o->am_on = v >> 7, o->d1r = v & 31u; break;
     case 0x70: o->d2r = v & 31u; break;
@@ -60,7 +61,7 @@ static void op_write(ym2612 *y, ym_ch *c, ym_op *o, uint32_t reg, uint32_t v) {
         o->rr = v & 15u;
         break;
     }
-    case 0x90: o->ssg = v & 15u; return;
+    case 0x90: o->ssg = v & 15u, ym_op_eatt(o); return;
     default: return;
     }
     ym_op_rates(o);
@@ -85,6 +86,8 @@ static void global_write(ym2612 *y, uint32_t reg, uint32_t v) {
         ym_key(&c->op[2], v >> 5 & 1u);
         ym_key(&c->op[1], v >> 6 & 1u);
         ym_key(&c->op[3], v >> 7 & 1u);
+        c->live = 0; /* silent for good once every operator is released to 0x3FF */
+        for (uint32_t k = 0; k < 4; k++) c->live |= c->op[k].state != YM_RELEASE || c->op[k].att < 0x3FF;
     } else if (reg == 0x2A) {
         y->dac = ((int32_t)(v & 0xFFu) - 128) << 6;
     } else if (reg == 0x2B) {

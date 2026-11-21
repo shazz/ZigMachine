@@ -62,6 +62,8 @@ SHELF = (
     "notepad", "gemtest",
     # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.
     "sid_test",
+    # The .vgm player's test screen: a Mega Drive VGM on our own YM2612 + SN76489, native on BARD.
+    "vgm_test",
     # The BARD queue's test screen: the cart writes the SID live (system table 1.12).
     "bard_sid",
     # CHISEL's TRIANGLE against the browser model: OK / BAD on screen, to compare bitstreams.

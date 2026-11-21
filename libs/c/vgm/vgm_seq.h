@@ -45,6 +45,9 @@ int vgm_open(vgm_seq *v, const uint8_t *d, uint32_t len, uint32_t div, int32_t y
 /* `n` chip samples, interleaved L R, the file's commands applied at their times; loops forever. */
 void vgm_fill(vgm_seq *v, int16_t *lr, uint32_t n);
 uint32_t vgm_u32(const uint8_t *p);
+/* Benches only: every command up to 44.1 kHz sample t44 applied, nothing rendered (envelopes stand
+ * still: notes keyed before t44 are heard from their attack). */
+void vgm_seek(vgm_seq *v, uint32_t t44);
 /* The bank's byte at `off` (its blocks appended in file order); 0x80 (silence) past its end. */
 uint32_t vgm_bank_byte(const vgm_bank *b, uint32_t off);
 void vgm_stream_cmd(vgm_seq *v, const uint8_t *p); /* 0x90-0x95 (vgm_stream.c) */

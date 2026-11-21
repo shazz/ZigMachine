@@ -107,6 +107,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "DESK TEST", .tag = "desk_test" }, // zigmachine — the desk mode (HW 1.17.0): plane 0 at 640x480 1:1, a known picture
     .{ .name = "TRI TEST", .tag = "tri_test" }, // zigmachine — CHISEL TRIANGLE edge cases, OK / BAD against the model
     .{ .name = "SID TEST", .tag = "sid_test" }, // zigmachine — a C64 PSID on the .sid player (cRSID: BARD native, machine-audio.wasm)
+    .{ .name = "VGM TEST", .tag = "vgm_test" }, // zigmachine — a Mega Drive VGM on our own YM2612 + SN76489 (BARD native, machine-audio.wasm)
     .{ .name = "BARD SID", .tag = "bard_sid" }, // zigmachine — the BARD queue: the cart writes the SID live, raw cRSID plays it
     .{ .name = "COPRO", .tag = "copro" }, // zigmachine — the coprocessors: BARD (a depack, a 3D morph, particles, a CRC) and ASTROLABE (an f64 zoom, a LINPACK cloth), A/B with ZIGGY alone
     .{ .name = "SYSINFO", .tag = "sysinfo" }, // system

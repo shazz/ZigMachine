@@ -52,6 +52,7 @@ void ym_key(ym_op *o, uint32_t on) {
         o->state = YM_RELEASE;
     }
     o->key = (uint8_t)(on != 0);
+    ym_op_eatt(o);
 }
 
 /* SSG-EG at 0x200 and past (keyed, not attacking): hold (bit 0), alternate (bit 1) or repeat. Bit 1 of
@@ -69,11 +70,16 @@ static void ssg_edge(ym_op *o) {
     o->state = YM_ATTACK;
 }
 
-static void step(ym_op *o, uint32_t cnt) {
-    if ((o->ssg & 8u) && o->key && o->state != YM_ATTACK && o->att >= 0x200) ssg_edge(o);
-    uint32_t r = o->rate[o->state], sh = YM_EG_SHIFT[r];
-    if (cnt & ((1u << sh) - 1u)) return;
-    int32_t inc = YM_EG_INC[YM_EG_ROW[r] * 8u + (cnt >> sh & 7u)];
+/* The attenuation the operator is heard at before the LFO's AM: SSG-EG's inversion, + TL, at most 0x3FF.
+ * Kept in eatt, redone whenever att, TL or the SSG state moves (the render reads it every sample). */
+void ym_op_eatt(ym_op *o) {
+    uint32_t a = (uint32_t)o->att;
+    if ((o->ssg & 8u) && ssg_inverted(o)) a = (0x200u - a) & 0x3FFu;
+    a += o->tl3;
+    o->eatt = (uint16_t)(a > 0x3FFu ? 0x3FFu : a);
+}
+
+static void eg_advance(ym_op *o, uint32_t r, int32_t inc) {
     if (o->state == YM_ATTACK) {
         if (r >= 62) o->att = 0;
         else if (inc) o->att += (~o->att * inc) >> 3; /* see the header: >> 3, not >> 4 */
@@ -95,8 +101,25 @@ static void step(ym_op *o, uint32_t cnt) {
     if (o->state == YM_DECAY && o->att >= o->sl) o->state = YM_SUSTAIN;
 }
 
+/* One EG tick of one operator; 0 when it is silent for good (released to 0x3FF). */
+static uint32_t eg_step(ym_op *o, uint32_t cnt) {
+    if (o->state == YM_RELEASE && o->att >= 0x3FF) return 0;
+    if ((o->ssg & 8u) && o->key && o->state != YM_ATTACK && o->att >= 0x200) ssg_edge(o), ym_op_eatt(o);
+    uint32_t r = o->rate[o->state], sh = YM_EG_SHIFT[r];
+    if (cnt & ((1u << sh) - 1u)) return 1;
+    int32_t inc = YM_EG_INC[YM_EG_ROW[r] * 8u + (cnt >> sh & 7u)];
+    eg_advance(o, r, inc);
+    ym_op_eatt(o);
+    return o->state != YM_RELEASE || o->att < 0x3FF;
+}
+
 void ym_eg_tick(ym2612 *y) {
     uint32_t cnt = ++y->eg_cnt;
-    for (uint32_t c = 0; c < 6; c++)
-        for (uint32_t k = 0; k < 4; k++) step(&y->ch[c].op[k], cnt);
+    for (uint32_t c = 0; c < 6; c++) {
+        ym_ch *ch = &y->ch[c];
+        if (!ch->live) continue;
+        uint32_t live = 0;
+        for (uint32_t k = 0; k < 4; k++) live |= eg_step(&ch->op[k], cnt);
+        ch->live = (uint8_t)live;
+    }
 }

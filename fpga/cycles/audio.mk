@@ -13,13 +13,13 @@
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
 AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_scope.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
-	host/audio_sid.c host/crsid.c host/audio_ay.c host/bardq_pump.c host/audio_bardq.c host/audio_bardjob.c
+	host/audio_sid.c host/crsid.c host/audio_ay.c host/audio_vgm.c host/bardq_pump.c host/audio_bardq.c host/audio_bardjob.c
 # The SID engine (cRSID): libs/c/crsid laid out with its patches (patch.sh); host/crsid.c includes it.
 CRSID          := $(ROOT)/libs/c/crsid
 CRSID_TREE     := build/crsid
 AUD_HDRS       := host/audio_names.h host/haudio.h host/audio_regs.h host/audio_scope.h host/audio_queue.h host/host.h host/hstream.h host/bardq.h \
 	$(CRSID_TREE)/libcRSID.c $(CRSID)/zm_sid.c $(CRSID)/zm_sid.h $(CRSID)/config/zm_crsid.h \
-	$(wildcard $(ROOT)/libs/c/ayumi/*.[ch])
+	$(wildcard $(ROOT)/libs/c/ayumi/*.[ch]) $(wildcard $(ROOT)/libs/c/vgm/*.[ch] $(ROOT)/libs/c/ym2612/*.[ch] $(ROOT)/libs/c/sn76489/*.[ch])
 $(CRSID_TREE)/libcRSID.c: $(CRSID)/patch.sh $(wildcard $(CRSID)/patches/*) $(wildcard $(CRSID)/upstream/*.[ch] $(CRSID)/upstream/*/*.[ch])
 	sh $(CRSID)/patch.sh $(CRSID_TREE)
 

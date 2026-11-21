@@ -9,7 +9,9 @@
 #include "ym2612.h"
 #include "ym2612_tables.h"
 
+/* At 832 (x 4 = 13 << 8) even the sine's loudest step (YM_LOGSIN[255] is 0) is below one unit: 0, exactly. */
 static inline int32_t op_calc(const ym_op *o, int32_t mod, uint32_t att) {
+    if (att >= 832u) return 0;
     uint32_t p = ((o->phase >> 10) + (uint32_t)mod) & 0x3FFu;
     uint32_t q = p & 0x100u ? ~p & 0xFFu : p & 0xFFu;
     uint32_t l = YM_LOGSIN[q] + (att << 2);
@@ -18,18 +20,11 @@ static inline int32_t op_calc(const ym_op *o, int32_t mod, uint32_t att) {
     return p & 0x200u ? -v : v;
 }
 
-/* The attenuation heard: SSG-EG's inversion, TL, the LFO's AM; at most 0x3FF. */
+/* The attenuation heard: eatt (SSG-EG's inversion and TL, ym_op_eatt) + the LFO's AM; at most 0x3FF. */
 static inline uint32_t op_att(const ym_op *o, uint32_t am) {
-    uint32_t a = (uint32_t)o->att;
-    if ((o->ssg & 8u) && (((o->ssg >> 2) ^ o->ssg_inv) & 1u)) a = (0x200u - a) & 0x3FFu;
-    a += o->tl3 + (o->am_on ? am : 0);
+    if (!am || !o->am_on) return o->eatt;
+    uint32_t a = o->eatt + am;
     return a > 0x3FFu ? 0x3FFu : a;
-}
-
-static inline int dead(const ym_ch *c) {
-    for (uint32_t k = 0; k < 4; k++)
-        if (c->op[k].state != YM_RELEASE || c->op[k].att < 0x3FF) return 0;
-    return 1;
 }
 
 /* One sample of channel c: its output, 14-bit signed. */
@@ -125,7 +120,7 @@ void ym2612_render(ym2612 *y, int16_t *lr, uint32_t n) {
             ym_ch *c = &y->ch[ci];
             int32_t v;
             if (ci == 5 && y->dac_on) v = y->dac;
-            else if (dead(c)) c->fb1 = c->fb2 = c->mem = 0, v = 0;
+            else if (!c->live) c->fb1 = c->fb2 = c->mem = 0, v = 0;
             else v = channel(c, am);
             if (c->pan & 2u) l += v;
             if (c->pan & 1u) r += v;

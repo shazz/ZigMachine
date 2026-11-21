@@ -21,6 +21,7 @@ typedef struct {
     uint8_t state, key, ssg_inv, am_on;
     uint8_t dt, mul, ks, ar, d1r, d2r, rr, ssg;
     uint16_t tl3, sl;         /* TL << 3; sustain level as an attenuation */
+    uint16_t eatt;            /* the attenuation heard before AM: SSG-adjusted att + TL (ym_op_eatt) */
     uint8_t rate[4];          /* effective rate (0..63) of each EG state, key scaling applied */
     uint32_t fnum, block, kc; /* this operator's pitch (channel 3's special mode gives each its own) */
 } ym_op;
@@ -32,6 +33,7 @@ typedef struct {
     int32_t pm;               /* the LFO's PM now: depth x signed step (fnum x pm >> 16 is the deviation) */
     uint32_t fnum, block, kc;
     uint8_t alg, fb, ams, pms, pan; /* pan: bit 1 left, bit 0 right */
+    uint8_t live;             /* 0: every operator released to silence (the render skips it) */
 } ym_ch;
 
 typedef struct {
@@ -60,5 +62,6 @@ void ym_op_rates(ym_op *o);
 void ym_eg_tick(ym2612 *y);
 void ym_key(ym_op *o, uint32_t on);
 void ym_ch_pm(ym2612 *y, ym_ch *c);
+void ym_op_eatt(ym_op *o);
 
 #endif

@@ -5,7 +5,7 @@
  * 0x40) or half tone 2's rate; periods 0 and 1 hold a tone high; the Game Gear stereo port. Our own code. */
 #include "sn76489.h"
 
-#include <string.h>
+#include "../vgm/zm_mem.h"
 
 /* 8191 x 10^(-i / 10): 2 dB steps of a 13-bit peak; 15 is off. */
 static const int32_t VOL[16] = {8191, 6506, 5168, 4105, 3261, 2590, 2057, 1634,

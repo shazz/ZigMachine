@@ -3,7 +3,7 @@
  * (fpga/host/audio_vgm.c). Our own code. */
 #include "zm_vgm.h"
 
-#include <string.h>
+#include "zm_mem.h"
 
 #include "vgm_seq.h"
 #include "zm_inflate.h"
@@ -41,3 +41,7 @@ void zm_vgm_render(int16_t *lr, uint32_t n) {
 }
 
 uint32_t zm_vgm_loops(void) { return zm_vgm.loops; }
+
+void zm_vgm_seek(uint32_t tenths) {
+    if (zm_vgm_loaded) vgm_seek(&zm_vgm, tenths * 4410u);
+}

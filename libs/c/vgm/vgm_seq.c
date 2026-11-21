@@ -2,7 +2,7 @@
  * divide in the play path (BARD has no divider): waits convert through a multiply by 2^32 / 44100. */
 #include "vgm_seq.h"
 
-#include <string.h>
+#include "zm_mem.h"
 
 #define VGM_RATE 44100u
 
@@ -127,9 +127,21 @@ void vgm_fill(vgm_seq *v, int16_t *lr, uint32_t n) {
     }
 }
 
+void vgm_seek(vgm_seq *v, uint32_t t44) {
+    uint32_t t = 0;
+    while (t < t44 && !v->ended) {
+        if (v->pos >= v->len) {
+            end_or_loop(v);
+            continue;
+        }
+        t += step(v);
+    }
+    v->acc = v->due = 0;
+}
+
 int vgm_open(vgm_seq *v, const uint8_t *d, uint32_t len, uint32_t div, int32_t ym_gain, int32_t psg_gain) {
     memset(v, 0, sizeof *v);
-    if (len < 0x40 || memcmp(d, "Vgm ", 4) != 0) return 1;
+    if (len < 0x40 || d[0] != 'V' || d[1] != 'g' || d[2] != 'm' || d[3] != ' ') return 1;
     uint32_t ver = vgm_u32(d + 8), eof = vgm_u32(d + 4) + 4;
     uint32_t psg_clk = vgm_u32(d + 0x0C) & 0x3FFFFFFFu, ym_clk = ver >= 0x110 ? vgm_u32(d + 0x2C) & 0x3FFFFFFFu : 0;
     if (!psg_clk && !ym_clk) return 2;

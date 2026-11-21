@@ -2,7 +2,7 @@
  * length / distance bases) and RFC 1952 (the member header and trailer). Our own code. */
 #include "zm_inflate.h"
 
-#include <string.h>
+#include "zm_mem.h"
 
 typedef struct {
     const uint8_t *src;

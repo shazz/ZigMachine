@@ -38,7 +38,7 @@ SND_CFLAGS  = $(HRV_CFLAGS) -Icycles/sound -I$(HOST)/tutorial -DZM_SND
 SND_COMMON := cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
 SND_PLAY   := host/audio.c host/audio_imports.c host/audio_scope.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
-	host/audio_sid.c host/crsid.c host/audio_ay.c host/bardq_pump.c cycles/baudio.c cycles/sound/smain.c cycles/sound/sbardq.c cycles/sound/sjobs.c
+	host/audio_sid.c host/crsid.c host/audio_ay.c host/audio_vgm.c host/bardq_pump.c cycles/baudio.c cycles/sound/smain.c cycles/sound/sbardq.c cycles/sound/sjobs.c
 # BARD jobs' server (zg.bard.job, cycles/sound/sjobs.c): the cart's own Zig source, built rv32i + Zmmul, so a
 # job's bytes are the same wherever it runs. ReleaseFast (7 KB; ReleaseSmall 6 KB, ZX0 ~100 cycles a byte), no unwind tables.
 BJOB_SRC   := $(ROOT)/libs/zig/bard_job_rv32.zig

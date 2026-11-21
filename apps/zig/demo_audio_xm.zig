@@ -23,6 +23,7 @@ export fn audioLoadXm(len: u32) bool {
     m.kt_exports.kt.stop();
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     if (m.sndh.active) m.sndh.abandon();
     m.hip_exports.hip.abandon();
     const p: [*]u8 = @ptrFromInt(audio.SONG_BASE);
@@ -50,6 +51,7 @@ export fn audioXmPlay(bpm: u32) void {
     m.kt_exports.kt.stop();
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     audio.machinePaulaClearScopes();
     m.xm.start(bpm);
     m.current_mode = 1;
