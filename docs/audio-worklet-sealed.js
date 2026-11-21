@@ -22,6 +22,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
         this.tick = 0;
         this.ringWrite = 0; // streamFeed write cursor into the 32 KiB ring at SONG_BASE
         this.sample = null; // zg.samplePlay's sample, refilled into the ring before each block
+        this.streamEpoch = 0; // streamStart / streamStop / reset messages handled (the loader's streamEpoch)
 
         const { machineBytes, demoBytes } = options.processorOptions;
         (async () => {
@@ -66,6 +67,8 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
 
         this.port.onmessage = (event) => {
             const msg = event.data;
+            // Counted even when dropped (players not up yet, the Paula claim): the loader counts what it posts.
+            if (msg.type === "streamStart" || msg.type === "streamStop" || msg.type === "reset") this.streamEpoch++;
             if (!this.demo) return;
             const d = this.demo, mem = this.memory;
             const writeSong = (bytes) => {
@@ -278,6 +281,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 scopes: this.scopes.map((s) => Array.from(s)),
                 mp3: this.demo.audioMp3Status ? [0, 1, 2].map((w) => this.demo.audioMp3Status(w) >>> 0) : null,
                 streamPlayed: this.demo.audioStreamPlayed ? this.demo.audioStreamPlayed() >>> 0 : 0, // table 1.27
+                streamEpoch: this.streamEpoch, // ...as of the stream messages handled so far
                 bard: this.bardState(),
             });
         }

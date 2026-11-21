@@ -81,10 +81,32 @@ static inline int aud_state_read(const volatile uint32_t* s2c, aud_state* s) {
     return 1;
 }
 
-/* ZIGGY: zg.audioStreamPlayed off the bank (0: no block, or no stream). */
+/* ZIGGY: zg.audioStreamPlayed off the bank (0: no block, or no stream). BARD stores MODE before MS, so a
+ * read between the two on a mode change can take one sample of an SNDH's ms for a count (or the reverse):
+ * one frame's reading, gone on the next. */
 static inline uint32_t aud_state_stream(const volatile uint32_t* s2c) {
     if (s2c[S_AS + AS_MAGIC_W] != AS_MAGIC || s2c[S_AS + AS_MODE_W] != AS_MODE_STREAM) return 0;
     return s2c[S_AS + AS_MS_W];
+}
+
+/* A stream (re)start: BARD has reset its counter, but publishes it only after its next render, so the bank
+ * still holds the previous stream's count. ZIGGY notes that word once BARD has taken the start (acked) and
+ * answers 0 until the word moves: a cart never reads the old stream's position as the new one's. */
+typedef struct aud_stream_view {
+    uint32_t stale; /* the word at the start's ack */
+    int fresh;      /* 0 until the word differs from it */
+} aud_stream_view;
+
+static inline void aud_stream_restart(aud_stream_view* v, const volatile uint32_t* s2c) {
+    v->stale = aud_state_stream(s2c);
+    v->fresh = 0;
+}
+
+static inline uint32_t aud_stream_read(aud_stream_view* v, const volatile uint32_t* s2c) {
+    uint32_t w = aud_state_stream(s2c);
+    if (!v->fresh && w == v->stale) return 0;
+    v->fresh = 1;
+    return w;
 }
 
 #endif

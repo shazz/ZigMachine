@@ -57,6 +57,14 @@ int main(void) {
     frame(); dump("stream", aud_state_stream(s2c));
     s.mode = 4; s.ms = 777; s.stream = 99; aud_state_publish(s2c, &s);
     frame(); dump("song", aud_state_stream(s2c));
+    aud_stream_view v = {0};
+    s.mode = 3; s.ms = 0; s.stream = 5000; aud_state_publish(s2c, &s); /* the old stream, then a restart */
+    aud_stream_restart(&v, s2c);
+    dump("restarted", aud_stream_read(&v, s2c));
+    s.stream = 64; aud_state_publish(s2c, &s); /* BARD's first render of the new stream */
+    dump("new_stream", aud_stream_read(&v, s2c));
+    s.stream = 5000; aud_state_publish(s2c, &s); /* the new stream's count passes the old one's */
+    dump("new_stream_on", aud_stream_read(&v, s2c));
     return 0;
 }
 """
@@ -128,6 +136,8 @@ def check_stream(st: dict) -> None:
     assert mem[MODE] == 3 and ms(mem) == 0, "a stream's counter reached the cart's song_ms"
     n, words, mem = st["song"]
     assert n == 0 and words[2] == 777 and ms(mem) == 777, "a song's ms was read as a stream counter"
+    assert st["restarted"][0] == 0, "after a restart the old stream's count was read as the new one's"
+    assert st["new_stream"][0] == 64 and st["new_stream_on"][0] == 5000, "the new stream's count was not read"
 
 
 CHECKS = [check_bank, check_cart, check_bind, check_stream]
@@ -151,6 +161,7 @@ MUTANTS = [
     ("no_bounds", "bmirror.c", "return at && (uint64_t)at + len <= size ? at : 0u;", "return at;"),
     ("no_ms", "bmirror.c", "*ms = s->ms;", "(void)ms;"),
     ("no_stream_word", "aud_state.h", "s->mode == AS_MODE_STREAM ? s->stream : s->ms", "s->ms"),
+    ("no_stale", "aud_state.h", "if (!v->fresh && w == v->stale) return 0;", ""),
     ("stream_as_ms", "aud_state.h", "w[AS_MODE_W] == AS_MODE_STREAM ? 0u : w[AS_MS_W]", "w[AS_MS_W]"),
 ]
 BREAK = pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

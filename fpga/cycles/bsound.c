@@ -24,6 +24,7 @@ extern const uint8_t _binary_snd_bin_start[], _binary_snd_bin_end[];
 
 struct baudio baudio;
 static uint32_t g_seq, g_log_read;
+static aud_stream_view g_stream; /* zg.audioStreamPlayed across a restart (aud_state.h) */
 static void drain_log(void);
 #define READY_WAIT 200000000u /* sys clocks: the sound CPU's boot is its wasm2c instantiation */
 
@@ -125,7 +126,7 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
 #endif
     if (!baudio.on) return;
     for (uint32_t i = 0; i < n; i += C_FX_MAX) {
-        uint32_t k = n - i < C_FX_MAX ? n - i : C_FX_MAX, plays = 0;
+        uint32_t k = n - i < C_FX_MAX ? n - i : C_FX_MAX, plays = 0, starts = 0;
         wait_ack();
         for (uint32_t j = 0; j < k; j++) {
             const audio_fx* f = &fx[i + j];
@@ -134,13 +135,15 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
             w[1] = (uint32_t)f->pcm;
             w[2] = f->len;
             w[3] = f->rate;
+            starts += f->op == FX_STREAM_START; /* waited for: the counter's stale word (aud_state.h) */
             plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED || f->op == FX_SONG || f->op == FX_PAULA_WRITE ||
                      f->op == FX_MP3_FEED;
         }
         SND_REG(SND_C2S + C_OP) = OP_EFFECTS;
         SND_REG(SND_C2S + C_ARG) = k;
         SND_REG(SND_C2S + C_SEQ) = ++g_seq;
-        if (plays) wait_ack();
+        if (plays || starts) wait_ack();
+        if (starts) aud_stream_restart(&g_stream, &SND_REG(SND_S2C));
     }
 }
 
@@ -179,7 +182,7 @@ uint32_t audio_mp3_status(uint32_t which) {
 }
 
 /* zg.audioStreamPlayed: BARD's counter in the audio state's MS word while a stream plays (aud_state.h). */
-uint32_t audio_stream_played(void) { return baudio.on ? aud_state_stream(&SND_REG(SND_S2C)) : 0u; }
+uint32_t audio_stream_played(void) { return baudio.on ? aud_stream_read(&g_stream, &SND_REG(SND_S2C)) : 0u; }
 
 void baudio_report(void) {
     if (!baudio.on) return;

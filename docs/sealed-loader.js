@@ -428,13 +428,14 @@ async function instantiateCart(bytes, what) {
         // Without this, Escape out of a screen and its tune plays on over the
         // next one. The audio half lives on the worklet thread, so it is a
         // message rather than a call.
-        if (audioNode) audioNode.port.postMessage({ type: "reset" });
+        if (audioNode) postStream({ type: "reset" });
         paulaCart = null; // the reset gives the Paula channels back to the machine
         bardCart = null; // ...and ends the outgoing cart's BARD queue (its ring is gone)
         jobCart = false; // ...and its BARD jobs (its block is gone)
         mp3Pending.length = 0; // ...and the outgoing cart's MP3 stream ends with it (the worklet's reset stopped it)
         mp3State = [0, 0, 0];
         streamPlayed = 0; // ...and its stream (the worklet's reset stopped it)
+        streamChannels = 1; // ...and the next cart's stream is mono until it starts a stereo one
         sndhResident = null; // ...and the new cart's first zg.sndhCall loads its image
         cartTrapped = false; // a fresh cart runs again
         return mod;
@@ -1225,6 +1226,14 @@ let streamStarted = false; // have we issued streamStart to the CURRENT audioNod
 let recentChunks = [];     // rolling copies of recent fed blocks, to pre-fill the ring on (re)start
 let streamChannels = 1;    // 1: the mono ring; 2: the stereo stream's two (interleaved L,R feeds)
 let streamPlayed = 0;      // the worklet's audioStreamPlayed(), from its last audioState (0 before sound)
+// Stream messages posted to this audioNode (streamStart / streamStop / reset). The worklet echoes how
+// many it has handled in its audioState: one posted before it handled the last of them carries the
+// previous stream's count, so streamPlayed only takes an audioState whose epoch is ours.
+let streamEpoch = 0;
+function postStream(msg) {
+    streamEpoch++;
+    audioNode.port.postMessage(msg);
+}
 // The SNDH the worklet has (or is about to have) loaded, for zg.sndhCall:
 // { name, gen, ready } where `ready` resolves once its loadSndh is POSTED, so a
 // call chained on it reaches the worklet after the load. null = none.
@@ -1250,6 +1259,7 @@ function startAudio() {
         // Does the browser honour the requested 44100 Hz? (A suspect for choppy streamed music.)
         console.log("audio: context sampleRate", audioCtx.sampleRate);
         await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js" + BUST);
+        streamEpoch = 0; // a new worklet has handled none
         audioNode = new AudioWorkletNode(audioCtx, "zig-audio-sealed", {
             numberOfInputs: 0,
             numberOfOutputs: 1,
@@ -1340,7 +1350,7 @@ function startAudio() {
                         new Uint8Array(memory.buffer, demo.getAudioModePointer(), 1)[0] = msg.mode;
                     }
                     if (msg.mp3 && !mp3Pending.length) mp3State = msg.mp3;
-                    streamPlayed = msg.streamPlayed >>> 0; // zg.audioStreamPlayed (table 1.27)
+                    if (msg.streamEpoch === streamEpoch) streamPlayed = msg.streamPlayed >>> 0; // zg.audioStreamPlayed (table 1.27)
                     if (msg.bard && bardCart) bardPublish(new Uint32Array(memory.buffer), bardCart.block >>> 2, msg.bard);
                     if (demo && demo.getSongMsPointer) {
                         new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = msg.songMs | 0;
@@ -1603,7 +1613,7 @@ function hostAudioStreamStart(rate, channels = 1) {
 function flushPendingStream() {
     if (streamRate === null || !audioNode || streamStarted) return;
     streamStarted = true;
-    audioNode.port.postMessage({ type: "streamStart", rate: streamRate, channels: streamChannels });
+    postStream({ type: "streamStart", rate: streamRate, channels: streamChannels });
     sndhResident = null; // the ring is written over the SNDH's 68000 RAM
     for (const chunk of recentChunks) {
         const bytes = chunk.slice().buffer;
@@ -1616,9 +1626,10 @@ function hostAudioStreamStop() {
     streamRate = null;
     streamStarted = false;
     streamPlayed = 0; // no stream: the counter reads 0, as the worklet's will
+    streamChannels = 1; // a feed before the next start is the mono ring's (its pre-fill)
     recentChunks.length = 0; // nothing to pre-fill a restart with
     // A cart holding the Paula channels: its claim already silenced the ring, and song RAM is its chip RAM.
-    if (audioNode && !paulaCart) audioNode.port.postMessage({ type: "streamStop" });
+    if (audioNode && !paulaCart) postStream({ type: "streamStop" });
 }
 function hostAudioFeed(ptr, len, channels = 1) {
     if (len <= 0 || channels !== streamChannels) return; // a feed of the other layout than the stream started

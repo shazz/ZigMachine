@@ -2108,3 +2108,7 @@ that is someone else's, for one word the MS word holds already); the MP3 status 
 **Consequences:** a cart gets stereo PCM with the mono pacing rules and a sample clock. The counter is RENDERED, not heard:
 the board renders a lead (~67 ms) ahead of the speaker, the page one output buffer; the page's value moves in ~12 ms
 steps. Stubs (sim, scene_hash) answer 0. The stereo stream takes channels 0 and 1, as the mono one takes the sound.
+A restart is guarded on both carriers: the page takes an audioState only when its stream epoch (streamStart / streamStop
+/ reset messages handled) is the loader's, ZIGGY answers 0 after a start until BARD's word moves. Two board-only edges
+are accepted: a BARD resync (it fell behind the sound) leaves the count that many samples off the RTL channel for good,
+and a read between BARD's MODE and MS stores on a mode change can show one frame's wrong value.

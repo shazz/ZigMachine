@@ -92,9 +92,16 @@ function checkCounter(w) {
         now = d.audioStreamPlayed();
     }
     expect(st && st.streamPlayed === now && now > 0, `the counter is in the worklet's audioState (${st?.streamPlayed} = ${now})`);
+    // A restart: the audioState posted before it carries the old count under the old epoch, so the
+    // loader (msg.streamEpoch === streamEpoch) never takes the previous stream's count for the new one's.
+    const epoch = st?.streamEpoch;
     w.send({ type: "streamStop" });
+    w.posted.length = 0;
     w.render(4);
+    const after = w.posted.filter((m) => m.type === "audioState").pop();
     expect(d.audioStreamPlayed() === 0, "after a stop the counter reads 0");
+    expect(after && after.streamEpoch === epoch + 1 && after.streamPlayed === 0,
+        `each stream message moves the worklet's epoch (${epoch} -> ${after?.streamEpoch}), the loader takes only its own`);
     const mono = Math.trunc(Math.fround(Math.fround(RATE / 44100) * 65536)); // demo_audio_raw.zig's f32 step
     w.send({ type: "streamStart", rate: RATE });
     w.render(10);
