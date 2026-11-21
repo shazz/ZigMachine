@@ -123,6 +123,10 @@ load follows the live channels: the core skips released channels and operators a
 Two steps took the player from 77 % to 58 % on the GHZ window: the per-output-frame stage (resample + hi/lo
 split) moved from wasm2c'd Zig into native C (`zm_vgm_out.c`), and the EG's update masks cached per operator.
 
+**On the board** (21 Nov, astro bitstream, table 1.27, Matt reading the OSD): Sonic 1 on our core runs BARD at
+**~50 % average, 61 % peak**, against the Gens spike's 66 % / 83 % on the same board (13 Nov). The board beats
+the sim's 57.7 / 64.8 %, so the BARD has room for sound effects beside the music. Matt: "we are FAR better!!".
+
 **Not proven:** the board (glass's OSD fps / BARD load) and Matt's ear; the <= 65 % target holds for GHZ's mean
 (57.7 %, ~62 % over the whole tune), Special Stage's mean is 65.5 %, and the busiest frames reach 64.8 % and
 73 % (absorbed by the 4-frame output lead, as the spike's 114 % peaks were); SSG-EG (the references disagree with each other); a VGM over
