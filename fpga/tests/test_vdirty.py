@@ -138,14 +138,19 @@ MPP_FRAMES = "1500"  # mpp_truecolor's modes switch every 480 frames: 1, 1 and 4
 
 
 def test_palref_planes_skip_their_borders_uncompared() -> None:
-    """mpp_truecolor: every plane's list opens with a PALREF. Its covered lines are new, its rows
+    """mpp_truecolor (modes 0-2 and 4): every plane's list opens with a PALREF. Its covered lines are new, its rows
     uncompared, and its 80 border lines a frame skip in every mode and across the switches; the
     frames are planned without vadapt (none bypassed: a 1 -> 4 plane switch reads as no slow window)."""
     for adapt in (False, True):
         out = proof_n("mpp_truecolor", MPP_FRAMES, adapt=adapt)
         lines, skipped, moved, bad, bypassed, palref = out
         assert bad == 0 and moved == 0
-        assert skipped >= 80 * (int(MPP_FRAMES) - 10) and bypassed == 0 and palref == int(MPP_FRAMES)
+        assert skipped >= 80 * (int(MPP_FRAMES) - 10) 
+        # mode 3 (frames 960..1439) is one RGB565 plane, no PALREF list (d80aeaa9, HW 1.15.0): its 480 frames are
+        # planned by the ordinary rules (279 of 280 lines skip there), every other frame carries a PALREF plane.
+        # The PALREF frames are never bypassed; vadapt starts that window with its VA_FIRST_OFF (8) bypassed frames.
+        assert bypassed <= (8 if adapt else 0)
+        assert palref == int(MPP_FRAMES) - 480
 
 
 def test_palref_frames_that_cannot_skip_are_not_probed() -> None:
@@ -167,7 +172,8 @@ def test_a_forgotten_palref_rule_is_caught() -> None:
     go back to vadapt, and the plan, which cannot pay, is bypassed: the borders stop skipping."""
     lines, skipped, moved, bad, bypassed, palref = proof_n("mpp_truecolor", MPP_FRAMES, "PALREF", adapt=True)
     assert palref == 0 and bypassed > 0
-    assert skipped < 80 * (int(MPP_FRAMES) - 10)  # test_palref_planes_skip_their_borders_uncompared fails on it
+    # the RGB565 window (no PALREF) skips its lines either way, so compare with the unbroken run's skips
+    assert skipped < proof_n("mpp_truecolor", MPP_FRAMES, adapt=True)[1]
 
 
 def copper_case(mutant: str = "") -> tuple[int, int, int]:

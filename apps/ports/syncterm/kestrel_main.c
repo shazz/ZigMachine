@@ -3,10 +3,11 @@
 /* The cart's entry points for SyncTERM. SyncTERM is threaded (its main loop, the telnet pumps, ciolib's
  * mouse thread); each thread is a fiber (../kestrel_sdl2/src/opt/kestrel_fiber.c), and frame() runs
  * every fiber that can make progress, then draws what changed (kestrel_cio.c). boot() starts SyncTERM's
- * main as the first fiber, with the fake BBS's URL on its command line, so it dials at once. */
+ * main as the first fiber: on its dialing directory (C:), or dialling the fake BBS at once (no C:). */
 #include <stdint.h>
 #include <string.h>
 #include "kestrel_fiber.h"
+#include "kestrel_dialdir.h"
 
 __attribute__((import_module("env"), import_name("consoleLogJS"))) extern void consoleLogJS(const char *p, int len);
 int syncterm_main(int argc, char **argv);
@@ -21,10 +22,18 @@ uint64_t SDL_GetPerformanceCounter(void) { return kfib_now_us(); }
 uint64_t SDL_GetPerformanceFrequency(void) { return 1000000; }
 uint32_t SDL_GetTicks(void) { return (uint32_t)(kfib_now_us() / 1000); }
 
-/* The URL dialled at boot: the fake BBS, or, when a ZIGNIC card answers (kestrel_zignic.c), DIAL.TXT's first
- * line off the disk (a real BBS: telnet://host[:port]). */
-static char a0[] = "syncterm", a1[160] = "telnet://fakebbs.zig";
-static char *argv0[] = { a0, a1, 0 };
+/* What SyncTERM is started with. With C: (the card's HD, the page's ?c=): no URL, its ini and list on
+ * C:\SYNCTERM (-n / -b, kestrel_dialdir.c), so its dialing directory opens, keeps what is added and
+ * edited, and comes back after every hang-up; Alt+X there quits to GEM. With no C: the directory could
+ * keep nothing, so it dials at once as before: the in-cart BBS, or, when a ZIGNIC card answers
+ * (kestrel_zignic.c), DIAL.TXT's first line off the floppy (a real BBS: telnet://host[:port]).
+ * -n and -b are given joined to their path: given apart, upstream's second pass over the arguments
+ * does not skip the path, and dials it as a URL ("Cannot resolve /C/SYNCTERM/SYNCTERM.LST!"). */
+static char a0[] = "syncterm", a1[160] = "telnet://" KESTREL_FAKEBBS,
+            ini[] = "-n" KESTREL_DIALDIR_INI, lst[] = "-b" KESTREL_DIALDIR_LST;
+static char *argv_url[] = { a0, a1, 0 }, *argv_dir[] = { a0, ini, lst, 0 };
+static char **argv0 = argv_url;
+static int argc0 = 2;
 int kestrel_zignic_present(void);
 
 static void pick_url(void)
@@ -44,7 +53,7 @@ static int finished;
 static void run_main(void *arg)
 {
     (void)arg;
-    int rc = syncterm_main(2, argv0);
+    int rc = syncterm_main(argc0, argv0);
     finished = 1;
     kestrel_log(rc == 0 ? "syncterm: quit" : "syncterm: exited with an error");
     kestrel_quit();   /* back to the GEM desktop (kestrel_sdl2/src/kestrel_quit.c) */
@@ -53,10 +62,12 @@ static void run_main(void *arg)
 __attribute__((export_name("boot"))) void boot(void)
 {
     kestrel_desk_boot();
-    pick_url();
+    if (kestrel_dialdir_ready()) { argv0 = argv_dir; argc0 = 3; }
+    else pick_url();
     if (kestrel_desk_on()) {
         static char status[200];
-        snprintf(status, sizeof status, " SyncTERM 1.9 - %s - network: %s", a1,
+        snprintf(status, sizeof status, " SyncTERM 1.9 - %s - network: %s",
+                 argv0 == argv_dir ? "directory on C:\\SYNCTERM" : a1,
                  kestrel_zignic_present() ? "ZIGNIC (the card)" : "MOCK (an in-cart BBS, no TCP/IP)");
         kestrel_desk_status(status);
     }
