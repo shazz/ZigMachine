@@ -8,12 +8,14 @@
 // gradients, the side bar). st/io.zig logs each write with its line; latch()
 // takes the frame's log and the plane's own HBL handler replays it, line by
 // line, into the plane's palette before that line is composited: a register
-// changed per scanline, as on the ST. A frame without rasters runs no handler.
+// changed per scanline, as on the ST. A frame without rasters runs no handler
+// (except in the ZIG mode, below, which rewrites colour 0 on every line).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const k = @import("st/cpu.zig");
 const io = @import("st/io.zig");
+const frame = @import("st/frame.zig");
 
 const LINE: usize = 160;
 const LINES: usize = 200;
@@ -63,8 +65,15 @@ pub fn latch() void {
 
 pub fn present(fb: *zg.LogicalFB) void {
     plane = fb;
-    if (nwrites == 0) {
-        if (hbl_on) fb.clearFrameBufferHBLHandler();
+    if (zig_mode) {
+        const r = k.mem[frame.BASE + 0x543]; // the round ($540, its low byte)
+        if (r != sky_round) buildSky(r);
+    }
+    if (nwrites == 0 and !zig_mode) {
+        if (hbl_on) {
+            fb.clearFrameBufferHBLHandler();
+            pal_shown = .{0xFFFF} ** 16; // the handler left its last line's colours: set them all
+        }
         hbl_on = false;
         for (0..16) |i| if (pal_shown[i] != top[i]) { // only a colour that changed
             fb.palette[i] = stColor(top[i]);
@@ -119,10 +128,40 @@ fn convertLine(src: *const [LINE]u8, dst: *[320]u8) void {
 fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     if (line == 0) {
         for (0..16) |i| fb.palette[i] = stColor(top[i]);
-        return;
+        back = top[0];
+    } else if (line < LINES) {
+        for (writes[start[line - 1]..start[line]]) |w| {
+            fb.palette[w.reg] = stColor(w.value);
+            if (w.reg == 0) back = w.value;
+        }
+    } else return;
+    // ZIG MODE: where the game's background (colour 0) is black, a 24-bit sky, a colour a line
+    if (zig_mode and back == 0) fb.palette[0] = sky[line];
+}
+
+// ---- ZIG MODE (Z) ------------------------------------------------------------
+// The same game, on KESTREL's own palette: colour 0 rewritten on every line by the
+// plane's HBL (a copper sky, 24-bit, far past the ST's 512 colours) wherever the game
+// leaves it black, tinted by the round (one of eight hues, a new one every round).
+pub var zig_mode: bool = false;
+var back: u16 = 0;
+var sky: [LINES]u32 = undefined;
+var sky_round: u32 = 0xFFFF_FFFF;
+
+/// The sky for round `r`: a dark ramp from the hue's deep tone at the top to near black.
+fn buildSky(r: u32) void {
+    const HUES = [8][3]u32{ .{ 40, 60, 140 }, .{ 120, 40, 110 }, .{ 30, 110, 100 }, .{ 130, 70, 30 }, .{ 60, 40, 150 }, .{ 30, 100, 40 }, .{ 140, 40, 50 }, .{ 70, 70, 90 } };
+    const h = HUES[r % 8];
+    for (&sky, 0..) |*c, y| {
+        const k8: u32 = @intCast(LINES - y); // 200 at the top, 1 at the bottom
+        c.* = (0xFF << 24) | (h[2] * k8 / LINES) << 16 | (h[1] * k8 / LINES) << 8 | (h[0] * k8 / LINES);
     }
-    if (line > LINES) return;
-    for (writes[start[line - 1]..start[line]]) |w| fb.palette[w.reg] = stColor(w.value);
+    sky_round = r;
+}
+
+/// The sky's colour at a line (the harness reads it).
+pub fn skyAt(line: usize) u32 {
+    return sky[line];
 }
 
 /// An ST colour register ($0RGB, three bits a gun) as the plane's RGBA.

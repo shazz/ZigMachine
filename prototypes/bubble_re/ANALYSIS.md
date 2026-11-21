@@ -165,8 +165,12 @@ with four copies of the top row above it and of the bottom row below it, for the
 - Left: registers and flags in locals inside a routine (the biggest code-size lever), `movem` as
   one bulk copy, the screen compare from write tracking instead of reads.
 
-## 7. What KESTREL could lift (the ZIG mode, not done)
+## 7. The ZIG mode (Z) and what KESTREL could lift next
 
-The game logic stays the translated program; a ZIG mode changes what is shown: open borders with
-the side bar moved out of the playfield picture, copper gradients behind the rounds, the
-round-to-round scroll as a hardware scroll of the plane, 60 Hz presentation.
+- **Done (first step)**: Z toggles a 24-bit copper sky: the plane's HBL rewrites colour 0 on
+  every line (a ramp from one of eight hues to black, a new hue each round) wherever the game
+  leaves its background black. The game's code, pixels and timing are untouched (the harness
+  checks the plane is still the ST screen with it on).
+- **Next**: open borders with the side bar moved out of the playfield picture, the round-to-round
+  scroll as a hardware scroll of the plane, the background drawn once and the sprites as CHISEL
+  bobs on a second plane (what would also cut the board's cost), 60 Hz presentation.

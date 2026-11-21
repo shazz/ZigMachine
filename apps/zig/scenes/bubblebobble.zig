@@ -22,6 +22,8 @@
 // CONTROLS (keys.zig). Bub: the arrows, fire = Space / Enter. Bob: W A S D,
 // fire = Tab / left Ctrl. 1 / 2 start one or two players, P pauses (the game's
 // F1), Escape quits a game (F10) and, on the title, leaves the cart.
+// Z toggles the ZIG MODE: the same game under a 24-bit copper sky (colour 0
+// rewritten on every line by the plane's HBL where the game leaves it black).
 //
 // SOUND (sound.zig). bubble_bobble_st.sndh is the game's own driver and the
 // Follins' MUSIC.DAT: each tune or effect the game's code starts is started
@@ -138,6 +140,10 @@ pub const Demo = struct {
         if (cp == keys.K_ESC and onTitle()) {
             self.wants_quit = true;
             sound.stop();
+            return;
+        }
+        if (cp == 'z' or cp == 'Z') { // the ZIG mode: KESTREL's copper sky (present.zig)
+            present.zig_mode = !present.zig_mode;
             return;
         }
         _ = self.pad.key(cp, true);

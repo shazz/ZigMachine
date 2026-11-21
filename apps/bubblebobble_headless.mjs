@@ -18,9 +18,9 @@
 //            tunes and the 6 effects, started as the game starts them, leaves
 //            the SNDH's driver RAM equal to the cart's own copy, tick for tick
 //   live     the host path: the plane IS the ST screen (palette indices pixel
-//            for pixel), the colour registers follow the rasters, '1' starts,
-//            50 Hz ST frames on a 60 Hz host, Escape quits a game and leaves
-//            from the title
+//            for pixel), '1' starts, 50 Hz ST frames on a 60 Hz host, Z toggles
+//            the ZIG mode (a 24-bit copper sky on colour 0, the pixels the same),
+//            Escape quits a game and leaves from the title
 //
 //   node apps/bubblebobble_headless.mjs [outdir] [--break rounds|soak|sound|plane]
 //   --break rounds  the decoder drops the airflow mirror: the rounds check fails
@@ -448,6 +448,13 @@ async function live() {
     demo.input(3); step(2, 20);
     if (ram(ctx)[BASE + 0x3ca3] !== 8) errors.push(`the right arrow did not set joystick 1 right ($3CA3 = ${ram(ctx)[BASE + 0x3ca3]})`);
     demo.inputRelease(3); step(2, 20);
+    // Z: the ZIG mode -- a sky on colour 0, a colour a line, and the picture itself unchanged
+    demo.key(0x7a); demo.keyUp(0x7a); step(2, 20);
+    const sky = [0, 100, 199].map((y) => demo.bbTestSky(y) >>> 0);
+    if (!(sky[0] !== sky[1] && sky[1] !== sky[2] && (sky[0] & 0xffffff) !== 0)) errors.push(`ZIG mode: no sky (${sky.map((c) => c.toString(16))})`);
+    if (compare()) errors.push("ZIG mode changed the picture's pixels");
+    demo.key(0x7a); demo.keyUp(0x7a); step(2, 20);
+    if (demo.bbTestSky(100) !== 0) errors.push("Z again did not leave the ZIG mode");
     demo.key(0xe012); step(10, 20); demo.keyUp(0xe012); // a key held 0.2 s
     step(600, 20);
     if (ram(ctx)[BASE + 0x58a] === 0) errors.push("Escape in a game did not quit to the title ($58A, the title loop's flag)");
@@ -455,7 +462,7 @@ async function live() {
     if (demo.pollCartRequest() !== -1) errors.push("Escape on the title did not leave");
     if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
     console.log(`  live: the plane = the ST screen pixel for pixel (title, round 1), ${frames} ST frames in 10 s at 60 Hz, ` +
-        `'1' starts, the arrows are joystick 1, Escape quits the game, then leaves`);
+        `'1' starts, the arrows are joystick 1, Z = the ZIG mode's sky and back, Escape quits the game, then leaves`);
     return errors;
 }
 

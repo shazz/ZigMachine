@@ -76,6 +76,10 @@ export fn bbTestStat(i: u32) u32 {
         else => 0,
     };
 }
+/// ZIG mode: the sky colour the HBL gives colour 0 at `line` (0 when off).
+export fn bbTestSky(line: u32) u32 {
+    return if (present.zig_mode) present.skyAt(line) else 0;
+}
 /// Run one of the game's routines (TEXT offset) as a subroutine, d0 = `d0`.
 export fn bbTestCall(offset: u32, d0: u32) void {
     k.d[0] = d0;
