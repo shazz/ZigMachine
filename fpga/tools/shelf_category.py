@@ -44,7 +44,7 @@ _BY_CATEGORY = {
     "system": ("gem",),  # KOS's desktop
     "tutorials": ("tutorial", "tutorial_steps"),
     "tests": (
-        "music", "badflicker", "stream", "scrolllab", "sap_test", "xm_test", "linebase_test", "tc_test", "kt_test", "sid_test", "tri_test", "desk_test", "mp3_player", "bard_sid", "copro",
+        "music", "badflicker", "stream", "scrolllab", "sap_test", "xm_test", "linebase_test", "tc_test", "kt_test", "sid_test", "vgm_test", "tri_test", "desk_test", "mp3_player", "bard_sid", "copro",
         "replicants",  # REPS OLD: kept to compare with replicants_garfield
         "polkadots_f32", "replicants_emlyn_f32",  # the FPU twins (raytrace's f32 is its mode 2)
         "hello", "hello_asm", "bench",  # native carts (cycles/native)
