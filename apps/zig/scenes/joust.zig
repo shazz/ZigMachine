@@ -22,8 +22,8 @@
 // elapsed time, has reached it. The original's speed, variable as it was.
 //
 // CONTROLS. The ST's joysticks: P1 = the arrow keys, fire = Enter (or 0);
-// P2 = W A S D, fire = Space. With one player, W A S D and Space drive P1
-// too. On the title: 1 or 2 (or fire). P pauses (any key resumes), R
+// P2 = W A S D, fire = Space, or the second USB pad (input2, R83). With one
+// player, W A S D, Space and the second pad drive P1 too. On the title: 1 or 2 (or fire). P pauses (any key resumes), R
 // restarts, and the high-score name is typed on the keyboard, Return ends it.
 // ^C left the original; Escape leaves here.
 //
@@ -101,6 +101,7 @@ pub const Demo = struct {
     skipped: i64,
     arrows: u8, // P1: the arrow keys
     wasd: u8, // P2: W A S D
+    pad2: u8, // P2: the second USB pad (input2, R83), directions and fire
     fire1: bool, // Enter / 0
     fire2: bool, // Space
     held: u128, // the character keys down now
@@ -111,6 +112,7 @@ pub const Demo = struct {
         self.skipped = 0;
         self.arrows = 0;
         self.wasd = 0;
+        self.pad2 = 0;
         self.fire1 = false;
         self.fire2 = false;
         self.held = 0;
@@ -178,7 +180,7 @@ pub const Demo = struct {
     /// The two joystick bytes the IKBD would report now: [P1 (port 1), P2 (port 0)].
     fn joystick(self: *Demo) [2]u8 {
         const typing = self.m.mode == .name_entry;
-        const wasd: u8 = if (typing) 0 else self.wasd;
+        const wasd: u8 = if (typing) 0 else self.wasd | self.pad2;
         const f1: u8 = if (self.fire1 and !typing) J_FIRE else 0;
         const f2: u8 = if (self.fire2 and !typing) J_FIRE else 0;
         // The glass's joystick fire arrives with the arrows (direction 5); held back while typing, as fire1 is.
@@ -203,6 +205,14 @@ pub const Demo = struct {
     }
     pub fn inputRelease(self: *Demo, dir: u8) void {
         self.arrows &= ~arrowBit(dir);
+    }
+    /// The second USB pad (input2, R83): P2, as W A S D + Space are; its own bits, so a key
+    /// and the pad never release each other.
+    pub fn input2(self: *Demo, dir: u8) void {
+        self.pad2 |= arrowBit(dir);
+    }
+    pub fn inputRelease2(self: *Demo, dir: u8) void {
+        self.pad2 &= ~arrowBit(dir);
     }
 
     pub fn key(self: *Demo, cp: u32) void {
