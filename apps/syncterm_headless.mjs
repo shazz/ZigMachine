@@ -20,8 +20,8 @@ const CART = "docs/demo-syncterm.wasm", DISK = "docs/demo-syncterm.zmd";
 const FRAMES = 200, SCREEN_AT = 90, ECHO_AT = 140, QUIT_AT = 160, AFTER_QUIT = 60;
 const ALT = 0xe013, ENTER = 13;
 // The desk's pixel rows: the 80x25 cells are 8x16; the BBS screen is rows 1..20, the negotiation line row 22,
-// the prompts rows 23..24 (1-based); the status line under the cells is drawn at y 432.
-const SCREEN_ROWS = [0, 351], PROMPT_ROWS = [352, 383], STATUS_ROWS = [432, 447];
+// the prompts rows 23..24 (1-based); the status line right under the cells is drawn at y 400 (432 until 21 Nov: a 2-row gap).
+const SCREEN_ROWS = [0, 351], PROMPT_ROWS = [352, 383], STATUS_ROWS = [400, 415];
 const PIN_SCREEN = "f938e38a09305fbf4f8b506d5075b5a48b6d6b0f009ede7043a5e5a7a9521578";
 const PIN_ECHO = "addc08465215b806305b94961c2496bbaaaeaba744b4d6d388989cebaec57b0f";
 

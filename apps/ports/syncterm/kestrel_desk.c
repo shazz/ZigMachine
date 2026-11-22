@@ -1,6 +1,6 @@
 /* The text screen (kcio, kestrel_cio.c) drawn into plane 0 in the desk mode (HW 1.17.0, docs/HW_API.md
  * "Desk mode"): 640x480 palette indices at 1:1, the 80x25 cells of 8x16 in rows 0..399, the status line in
- * the 80 rows under them. Only what changed is stored: each frame compares every cell with the one drawn
+ * the 16 rows right under them (y 400). Only what changed is stored: each frame compares every cell with the one drawn
  * (a 16-byte compare), and a changed cell is 16 rows of two word stores. A colour gets a palette entry the
  * first time it is drawn (the board's palette mirror sees stores only, so each entry is stored once).
  * Where the machine has no desk mode (an older board bitstream: hwDeskAvailable 0) the plane is medium
@@ -100,7 +100,7 @@ static void draw_cell(int x, int y, int cursor)
 static void draw_status(void)
 {
     uint8_t fg = pal_entry(0xC0C0C0), bg = pal_entry(0x0000A8);
-    int py = desk ? 432 : 0, tall;
+    int py = desk ? 400 : 0, tall; /* right under the 25 rows (Matt, 21 Nov: no gap between the two bars) */
     for (int x = 0; x < KCIO_COLS; x++) {
         uint8_t ch = (uint8_t)(status[x] ? status[x] : ' ');
         glyph(x, py, bits_of(0, ch, &tall), tall, fg, bg, 99, -1);
