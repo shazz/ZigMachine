@@ -24,6 +24,8 @@
 //            passes only if the replay checks catch it
 //   node apps/joust_headless.mjs --break clock   4 extra CPU cycles once (a
 //            one-instruction slip): passes only if the replay checks catch it
+//   node apps/joust_headless.mjs --break pad2    the second pad (input2, R83) sent as
+//            the first pad's input(): passes only if the live check catches it
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -34,7 +36,7 @@ const MUSIC = "joust_sfx.sndh";
 const W = 400, RW = 800, RH = 280; // the physical frame: 320x200 at (40, 40), x doubled
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
-if (broke && broke !== "joy" && broke !== "clock") throw new Error("--break joy | clock");
+if (broke && !["joy", "clock", "pad2"].includes(broke)) throw new Error("--break joy | clock | pad2");
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/joust";
 const BREAK_AT = 500;
 
@@ -225,12 +227,35 @@ async function live() {
     demo.key(0x72);
     step(20, 20);
     if (demo.joustTestVal(4) !== 0) errors.push(`R did not restart to the title (mode ${demo.joustTestVal(4)})`);
+    demo.keyUp(0x72);
+    // the second USB pad (input2, R83) is P2: in a 2-player game its byte is P2's and P1's stays
+    // put; P1's pad held at the same time stays P1's
+    const pad2 = broke === "pad2" ? { down: (d) => demo.input(d), up: (d) => demo.inputRelease(d) }
+        : { down: (d) => demo.input2(d), up: (d) => demo.inputRelease2(d) };
+    let p2ok = false;
+    if (!demo.input2 || !demo.inputRelease2) errors.push("the cart has no input2/inputRelease2 export");
+    else {
+        demo.key(0x32); // '2'
+        demo.keyUp(0x32);
+        step(150, 20);
+        if (demo.joustTestVal(4) !== 1) errors.push(`'2' did not start a game (mode ${demo.joustTestVal(4)})`);
+        const p = (i) => demo.joustTestVal(0x100 + i);
+        pad2.down(3); pad2.down(5); step(1, 20);
+        if (p(1) !== 0x88 || p(0) !== 0) errors.push(`pad 2 right+fire: P1 $${p(0).toString(16)} P2 $${p(1).toString(16)}, want P1 0 P2 $88`);
+        input(demo, 2); step(1, 20);
+        if (p(0) !== 0x04 || p(1) !== 0x88) errors.push(`pad 1 left with pad 2 held: P1 $${p(0).toString(16)} P2 $${p(1).toString(16)}, want $4 / $88`);
+        demo.inputRelease(2); pad2.up(3); pad2.up(5); step(1, 20);
+        if (p(0) !== 0 || p(1) !== 0) errors.push(`releasing both pads left P1 $${p(0).toString(16)} P2 $${p(1).toString(16)}`);
+        p2ok = true;
+        demo.key(0x72); // R: back to the title
+        step(20, 20);
+    }
     demo.key(0xe012);
     step(1, 20);
     if (demo.pollCartRequest() !== -1) errors.push("Escape did not leave for the menu");
     if (songs.at(-1)?.[0] !== "none") errors.push(`Escape did not stop the sound: ${JSON.stringify(songs.at(-1))}`);
     console.log(`  live: title (${colours.size} colours, tune requested), '1' starts the game, ` +
-        `${dv} ST VBLs in 10 s at 60 Hz, ${sfx.length} SFX requests in 3 s of flapping, joystick fire combines with the held direction ` +
+        `${dv} ST VBLs in 10 s at 60 Hz, ${sfx.length} SFX requests in 3 s of flapping, joystick fire combines with the held direction${p2ok ? ", pad 2 is P2 in a 2-player game" : ""} ` +
         `(subtunes ${[...new Set(sfx.map(([, t]) => t))].sort((a, b) => a - b).join(",")})`);
     return errors;
 }
@@ -332,6 +357,11 @@ async function sound() {
 
 await mkdir(outdir, { recursive: true });
 let bad = 0;
+if (broke === "pad2") { // a live-check mutant: the replays don't use the pads
+    const e = (await live()).filter((m) => m.startsWith("pad "));
+    console.log(e.length ? `joust: PASS (--break pad2 caught: ${e.join("; ")})` : "joust: FAILED -- --break pad2 was not caught");
+    process.exit(e.length ? 0 : 1);
+}
 for (const name of Object.keys(fixture.runs)) bad += await replay(name);
 if (broke) {
     console.log(bad ? `joust: PASS (--break ${broke} caught: ${bad} failures)` : `joust: FAILED -- --break ${broke} was not caught`);
