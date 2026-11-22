@@ -1,7 +1,8 @@
 // --------------------------------------------------------------------------
 // The Shifter: the screen at the latched video base (32000 bytes, 16-pixel
-// groups of four interleaved plane words) shown through the 16 colour
-// registers, as one plane of palette indices.
+// groups of four interleaved plane words), each line as the beam read it
+// (io.beam), shown through the 16 colour registers, as one plane of palette
+// indices.
 //
 // THE RASTERS ARE REAL. The game changes colour registers in the middle of the
 // picture from its MFP Timer B handlers (the title's and hi-score table's
@@ -84,9 +85,8 @@ pub fn present(fb: *zg.LogicalFB) void {
         hbl_on = true;
         pal_shown = .{0xFFFF} ** 16; // the handler rewrites them: set them all again after
     }
-    const base = io.shown_base;
-    if (base + LINE * LINES > k.mem.len) return;
-    const scr = k.mem[base..][0 .. LINE * LINES];
+    if (io.beam.len < LINE * LINES) return; // no frame run yet
+    const scr = io.beam[0 .. LINE * LINES]; // what the beam showed (st/io.zig)
     if (shown.len == 0) shown = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, LINE * LINES / 4)[0 .. LINE * LINES / 4]);
     converted = 0;
     for (0..LINES) |y| {

@@ -27,6 +27,7 @@
 //   --break soak    a byte of the program's data is corrupted: the soak sees a stuck run
 //   --break sound   the SNDH plays the next tune: the driver RAM check fails
 //   --break plane   the plane check compares against the other screen: it fails
+//   --break beam    the picture is the screen as the frame leaves it: the drop-in check fails
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -39,7 +40,7 @@ const ASSETS = "apps/zig/assets/screens/bubblebobble";
 const BASE = 0x10000; // st_prg.BASE: where TEXT is loaded
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
-const BREAKS = ["rounds", "soak", "sound", "plane"];
+const BREAKS = ["rounds", "soak", "sound", "plane", "beam"];
 if (bi > 0 && !BREAKS.includes(broke)) { console.error(`--break ${BREAKS.join("|")}`); process.exit(2); }
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/bubblebobble";
 const dec = new TextDecoder();
@@ -207,11 +208,13 @@ function crc32(buf) {
     return ~c >>> 0;
 }
 
-/// The shown ST screen as palette indices (320 x 200), from RAM.
+/// The picture as palette indices (320 x 200): what the beam showed last frame (bbTestBeam),
+/// or, given a base, an ST screen in RAM.
 function stIndices(ctx, base) {
-    const m = ram(ctx), out = new Uint8Array(320 * 200);
+    const m = base === undefined ? new Uint8Array(ctx.memory.buffer, ctx.demo.bbTestBeam(), 32000) : ram(ctx);
+    const at = base === undefined ? 0 : base, out = new Uint8Array(320 * 200);
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
-        const g = base + y * 160 + (x >> 4) * 8, b = 15 - (x & 15);
+        const g = at + y * 160 + (x >> 4) * 8, b = 15 - (x & 15);
         let c = 0;
         for (let p = 0; p < 4; p++) c |= (((m[g + 2 * p] << 8 | m[g + 2 * p + 1]) >> b) & 1) << p;
         out[y * 320 + x] = c;
@@ -235,7 +238,7 @@ function png(path, w, h, rgb) {
 
 /// The shown screen with its per-line palette (the rasters), as RGB.
 function shot(ctx) {
-    const idx = stIndices(ctx, ctx.demo.bbTestShown());
+    const idx = stIndices(ctx);
     const pal = Array.from(new Uint16Array(ctx.memory.buffer, ctx.demo.bbTestPalette(), 16));
     const n = ctx.demo.bbTestRasterCount();
     const rw = new Uint8Array(ctx.memory.buffer, ctx.demo.bbTestRasters(), n * 4);
@@ -254,6 +257,52 @@ function shot(ctx) {
 const OBJ = 0x20e80, OBJ_SIZE = 0x23e; // the object table ($96F0): Bub first
 const word = (m, a) => (m[a] << 8 | m[a + 1]) << 16 >> 16;
 
+// The round's entry: Bub in his bubble drifts down to his spot under "ROUND 01 / READY !".
+// The game draws both straight into the SHOWN screen after its frame wait and erases them
+// before the next, so they exist only while the beam passes (st/io.zig beam). Every frame of
+// the drop: the text's box is lit, the bubble is a whole bubble (>= 120 lit pixels: an arc
+// is ~15), and over the drop the bubble moves down. --break beam shows the screen as the frame
+// leaves it, which is what drew only an arc and no text on the board (21 Nov).
+const TEXT_BOX = [88, 86, 168, 110]; // x0, y0, x1, y1 of "ROUND 01 / READY !" (round 1)
+async function dropIn(ctx) {
+    const errors = [];
+    // lit = not black on screen (the picture's RGB, through the palette and its rasters)
+    const lit = (rgb, [x0, y0, x1, y1]) => {
+        let n = 0;
+        for (let y = Math.max(0, y0); y < Math.min(200, y1); y++) for (let x = x0; x < x1; x++) {
+            const o = (y * 320 + x) * 3;
+            if (rgb[o] | rgb[o + 1] | rgb[o + 2]) n++;
+        }
+        return n;
+    };
+    // Bub's bubble, where his object says it is (+8: the screen offset of its 16 lines, 32 pixels)
+    const bubBox = () => {
+        const m = ram(ctx), off = (m[OBJ + 8] << 24 | m[OBJ + 9] << 16 | m[OBJ + 10] << 8 | m[OBJ + 11]) | 0;
+        const line = Math.floor(off / 160), x = ((off - line * 160) >> 3) * 16;
+        return [x, line, x + 32, line + 16];
+    };
+    let frames = 0, textFrames = 0, bubbleFrames = 0, worst = 1e9;
+    const y0 = bubBox()[1];
+    for (let i = 0; i < 60; i++) {
+        ctx.demo.bbTestFrames(1);
+        const rgb = shot(ctx), box = bubBox();
+        frames++;
+        if (lit(rgb, TEXT_BOX) > 150) textFrames++;
+        if (box[1] >= 0) { // (it starts above the picture)
+            const n = lit(rgb, box);
+            if (n >= 100) bubbleFrames++; else worst = Math.min(worst, n);
+        } else bubbleFrames++;
+        if (i === 30) await png(`${outdir}/03b_dropin.png`, 320, 200, rgb);
+    }
+    const y1 = bubBox()[1];
+    if (textFrames < frames) errors.push(`drop-in: "ROUND 01 READY !" lit on ${textFrames} of ${frames} frames`);
+    if (bubbleFrames < frames) errors.push(`drop-in: Bub's bubble whole on ${bubbleFrames} of ${frames} frames (fewest lit pixels ${worst})`);
+    if (!(y1 > y0 + 5)) errors.push(`drop-in: the bubble did not drift down (line ${y0} -> ${y1})`);
+    dropInfo = `${frames} frames: the text on ${textFrames}, a whole bubble on ${bubbleFrames}, line ${y0} -> ${y1}`;
+    return errors;
+}
+let dropInfo = "";
+
 async function play(ctx) {
     const errors = [];
     const d = ctx.demo;
@@ -262,7 +311,7 @@ async function play(ctx) {
     };
     d.bbTestPowerOn();
     d.bbTestFrames(50);
-    const title = stIndices(ctx, d.bbTestShown());
+    const title = stIndices(ctx);
     const titleInk = title.reduce((a, v) => a + (v ? 1 : 0), 0);
     if (titleInk < 20000) errors.push(`frame 50: the title picture (SPIC.PI1) is not up (${titleInk} lit pixels)`);
     await png(`${outdir}/01_title.png`, 320, 200, shot(ctx));
@@ -276,7 +325,9 @@ async function play(ctx) {
     const m = ram(ctx);
     if (m[BASE + 0x598] === 0) errors.push("'1' did not start a game (Bub's lives $598 = 0)");
     let f = 0;
-    while (ram(ctx)[BASE + 0x573] === 0 && f < 1000) { d.bbTestFrames(10); f += 10; } // $572: enemies in the round
+    if (broke === "beam") d.bbTestBeamAtEnd(1);
+    while (ram(ctx)[BASE + 0x573] === 0 && f < 2000) { d.bbTestFrames(1); f++; } // $572: enemies in the round
+    errors.push(...await dropIn(ctx));
     if (ram(ctx)[BASE + 0x573] !== 3) errors.push(`round 1 has ${ram(ctx)[BASE + 0x573]} enemies, not its three Zen-Chans`);
     d.bbTestFrames(150); // they drop in, Bub is set down
     await png(`${outdir}/04_round1.png`, 320, 200, shot(ctx));
@@ -317,7 +368,7 @@ async function play(ctx) {
     await png(`${outdir}/07_round2.png`, 320, 200, shot(ctx));
     if (ram(ctx)[BASE + 0x543] !== 1) errors.push("round 2 did not follow");
     health("play");
-    console.log(`  play: title (${titleInk} px), hi-scores, story, '1' -> round 1 with ` +
+    console.log(`  play: title (${titleInk} px), hi-scores, story, '1' -> the drop-in (${dropInfo}) -> round 1 with ` +
         `three Zen-Chans, Bub walks ${bx0} -> ${bx1}, fire blows a bubble (${b0} -> ${b1}), up jumps (${by0} -> ${by1}) with effect 5; ` +
         `round won -> the scroll to round 2 (${rasterFrames} frames of rasters, ${writes} colour writes mid-picture) -> round 2`);
     return errors;
@@ -425,8 +476,7 @@ async function live() {
     const stride = demo.bbTestPlaneStride();
     if (!stride) { errors.push("the plane was never presented"); return errors; }
     const compare = () => {
-        const base = broke === "plane" ? demo.bbTestShown() ^ (0x78000 ^ 0x6e200) : demo.bbTestShown();
-        const want = stIndices(ctx, base);
+        const want = broke === "plane" ? stIndices(ctx, demo.bbTestShown() ^ (0x78000 ^ 0x6e200)) : stIndices(ctx);
         const plane = new Uint8Array(memory.buffer, demo.bbTestPlanePtr(), stride * 200);
         let diff = 0;
         for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) if (plane[y * stride + x] !== want[y * 320 + x]) diff++;
@@ -471,7 +521,7 @@ const ctx = await boot();
 console.log("boot ok");
 let errors = [];
 // A --break runs the one check it breaks.
-const BREAK_CHECK = { rounds: "rounds", soak: "soak", sound: "sound", plane: "live" };
+const BREAK_CHECK = { rounds: "rounds", soak: "soak", sound: "sound", plane: "live", beam: "play" };
 const only = broke ? [BREAK_CHECK[broke]] : process.env.BB_ONLY ? process.env.BB_ONLY.split(",") : null;
 for (const [name, fn] of [["rounds", rounds], ["play", play], ["soak", soak], ["sound", sound], ["live", live]]) {
     if (only && !only.includes(name)) continue;

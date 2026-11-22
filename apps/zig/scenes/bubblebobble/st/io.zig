@@ -30,6 +30,27 @@ pub var frame_start: u64 = 0;
 /// The screen being displayed (latched at the VBL).
 pub var shown_base: u32 = 0;
 
+/// What the beam showed this frame: each line of the shown screen as it was when the beam
+/// read it (frame.zig copies it at the line's end), not the screen as the frame leaves it.
+/// The game draws some objects (the entry bubbles, the round text, EXTEND letters, potions,
+/// water) straight into the SHOWN screen after its frame wait and erases them before the
+/// next: on the ST they are lit while the beam passes them; a picture of the RAM at the end
+/// of the frame would show only what the erase missed. The host allocates it (32000 bytes).
+pub var beam: []u8 = &.{};
+
+/// Copy line `l` of the shown screen into `beam`, as the Shifter reads it.
+pub fn beamLine(l: usize) void {
+    if (beam_at_end) return;
+    beamCopy(l);
+}
+/// The harness's --break beam: the picture as the frame leaves RAM (the bug this fixed).
+pub var beam_at_end: bool = false;
+pub fn beamCopy(l: usize) void {
+    if (beam.len < 32000 or shown_base + 32000 > k.mem.len) return;
+    const o = l * 160;
+    @memcpy(beam[o..][0..160], k.mem[shown_base + o ..][0..160]);
+}
+
 /// Palette writes inside the picture this frame: line, register, value.
 pub const RasterWrite = extern struct { line: u8, reg: u8, value: u16 };
 pub var rasters: [1024]RasterWrite = undefined;

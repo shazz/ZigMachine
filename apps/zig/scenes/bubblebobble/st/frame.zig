@@ -104,9 +104,11 @@ pub fn runFrame() void {
     io.palette_top = io.palette;
     for (0..io.LINES) |l| {
         runMain(f0 + (io.TOP_LINE + l) * io.LINE_CYC + 400);
+        io.beamLine(l);
         if (io.timerBLine()) interrupt(0x120);
     }
     runMain(f0 + io.FRAME_CYC);
+    if (io.beam_at_end) for (0..io.LINES) |l| io.beamCopy(l);
     io.frame_start = f0 + io.FRAME_CYC;
     if (k.cy > io.frame_start + io.FRAME_CYC) k.cy = io.frame_start; // a stuck handler: resync
     frames += 1;

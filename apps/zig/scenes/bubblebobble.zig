@@ -66,6 +66,8 @@ fn keyUpExport(cp: u32) callconv(.c) void {
 /// Power-on: the game's memory, its data loaded, the 68000 at its entry.
 pub fn powerOn() void {
     if (k.mem.len == 0) k.mem = zg.mem.mustAlloc(u8, k.RAM)[0..k.RAM];
+    if (io.beam.len == 0) io.beam = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, 8000)[0..8000]);
+    @memset(io.beam, 0);
     tos.files = &assets.files;
     sound.install();
     frame.reset(assets.text);

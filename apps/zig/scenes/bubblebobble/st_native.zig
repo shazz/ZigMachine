@@ -32,6 +32,7 @@ pub fn main(init: std.process.Init) !void {
     const tp = try std.fmt.allocPrint(gpa, "{s}/text.bin", .{re});
     const text = try cwd.readFileAlloc(io_, tp, gpa, .limited(1 << 20));
     k.mem = try gpa.alloc(u8, k.RAM);
+    io.beam = try gpa.alloc(u8, 32000);
     frame.reset(text);
     cwd.createDirPath(io_, out) catch {};
     var f: u32 = 0;
@@ -74,13 +75,12 @@ fn dump(gpa: std.mem.Allocator, io_: std.Io, out: []const u8, f: u32) !void {
         while (ri < io.raster_n and io.rasters[ri].line < y) : (ri += 1) cur[io.rasters[ri].reg] = io.rasters[ri].value;
         pal[y] = cur;
     }
-    const base = io.shown_base;
     for (0..200) |y| for (0..320) |x| {
-        const g = base + @as(u32, @intCast(y * 160 + (x / 16) * 8));
+        const g = @as(usize, y * 160 + (x / 16) * 8);
         const bitn: u4 = @intCast(15 - (x % 16));
         var c: u4 = 0;
         for (0..4) |pl| {
-            const w = k.rw(g + @as(u32, @intCast(pl * 2)));
+            const w = @as(u16, io.beam[g + pl * 2]) << 8 | io.beam[g + pl * 2 + 1];
             c |= @as(u4, @intCast((w >> bitn) & 1)) << @intCast(pl);
         }
         const col = pal[y][c];

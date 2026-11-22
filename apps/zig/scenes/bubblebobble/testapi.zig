@@ -42,6 +42,14 @@ export fn bbTestMem() [*]u8 {
 export fn bbTestBase() u32 {
     return frame.BASE;
 }
+/// 1: show the screen as the frame leaves it, not as the beam read it (--break beam).
+export fn bbTestBeamAtEnd(on: u32) void {
+    io.beam_at_end = on != 0;
+}
+/// The picture the beam showed last frame (32000 bytes, ST planar).
+export fn bbTestBeam() [*]u8 {
+    return io.beam.ptr;
+}
 export fn bbTestShown() u32 {
     return io.shown_base;
 }

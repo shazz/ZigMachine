@@ -138,6 +138,15 @@ with four copies of the top row above it and of the bottom row below it, for the
   only polls RAM (the frame wait, the pause) skips to the next interrupt.
 - **Data, not code, in the repo**: `text.bin` is TEXT with every translated instruction zeroed
   (the game runs identically on it); the `GRAPHICS\` files as far as the game reads them.
+- **The picture is what the beam read** (`io.beam`): each frame, every line of the shown screen
+  is copied when the beam reaches its end. The game draws its "special" objects -- the entry
+  bubbles and "ROUND n / READY !", EXTEND letters, potions, water -- straight into the SHOWN
+  screen after its frame wait (`$9252`, `$9398`: the drawn `$DEC`, not the back buffer `$DF0`)
+  and erases them before the next frame: on the ST they are lit while the beam passes them. The
+  first cart showed the screen as the frame left RAM, which kept only what the erase missed: on
+  the board an arc instead of Bub's bubble, no round text, and the items flashing (21 Nov). Not
+  compared with Hatari yet (keys sent through shirazmcp did not reach the Pasti original's title),
+  so whether any of these items flicker on a real ST is still open.
 - **The rasters are real**: the per-line log is replayed by the plane's HBL handler into the
   plane's palette (`present.zig`); a frame without one runs no handler.
 - **Sound**: every call the game's code makes to its driver is mirrored on
