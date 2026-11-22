@@ -17,6 +17,7 @@
 #include "kestrel_net.h"
 #include "kestrel_fiber.h"
 #include "kestrel_fakebbs.h"
+#include "kestrel_fakexfer.h"
 
 #define BBS_IP 0x0a000002u
 #define RXCAP 32768
@@ -35,6 +36,7 @@ static struct peer {
     int nline;
     char ttype[33];
     int cols, rows;
+    struct xfer xf;                  /* a file being sent to the client (X / Y / W / K at the prompt) */
 } peers[KNET_SOCKETS];
 static unsigned typed;               /* data bytes the client sent (the harness reads it) */
 
@@ -46,6 +48,17 @@ static void out(struct peer *p, const void *b, int n)
     p->wr += n;
 }
 static void outs(struct peer *p, const char *s) { out(p, s, (int)strlen(s)); }
+static void prompt(struct peer *p) { outs(p, "\r\n\x1b[1;33m> \x1b[0;37m"); }
+
+/* Transfer bytes go out telnet-escaped: a 255 is sent twice (RFC 854), whatever the file holds. */
+static void xfer_out(void *vp, const uint8_t *b, int n)
+{
+    for (int i = 0; i < n; i++) { if (b[i] == IAC) out(vp, &b[i], 1); out(vp, &b[i], 1); }
+}
+static void xfer_in(struct peer *p, uint8_t b)
+{
+    if (kestrel_xfer_in(&p->xf, b, xfer_out, p)) prompt(p);   /* the transfer is over */
+}
 
 static void send_screen(struct peer *p)
 {
@@ -112,9 +125,11 @@ static void echo(struct peer *p, uint8_t ch)
     p->last_cr = ch == '\r';
     if (ch == '\r') {
         int bye = (p->nline == 3 && strncasecmp(p->line, "BYE", 3) == 0) || (p->nline == 1 && (p->line[0] | 32) == 'g');
+        int sending = !bye && p->nline == 1 && kestrel_xfer_line(&p->xf, p->line[0], xfer_out, p);
         p->nline = 0;
+        if (sending) return;
         if (bye) { outs(p, "\r\n\x1b[1;31mGoodbye.\x1b[0m\r\n"); p->state = KNET_CLOSED; return; }   /* sent, then EOF */
-        outs(p, "\r\n\x1b[1;33m> \x1b[0;37m");
+        prompt(p);
     } else if (ch == 8 || ch == 127) {
         if (p->nline) p->nline--;
         outs(p, "\b \b");
@@ -129,12 +144,17 @@ static void from_client(struct peer *p, const uint8_t *b, int n)
 {
     for (int i = 0; i < n; i++) {
         if (p->ncmd || b[i] == IAC) {
-            if (p->ncmd == 1 && b[i] == IAC) { p->ncmd = 0; echo(p, IAC); continue; }   /* IAC IAC: a 255 */
+            if (p->ncmd == 1 && b[i] == IAC) {   /* IAC IAC: a 255 */
+                p->ncmd = 0;
+                if (kestrel_xfer_active(&p->xf)) xfer_in(p, IAC); else echo(p, IAC);
+                continue;
+            }
             if (p->ncmd < (int)sizeof p->cmd) p->cmd[p->ncmd++] = b[i];
             if (cmd_done(p)) { command(p); p->ncmd = 0; }
             continue;
         }
-        if (p->phase == ONLINE) echo(p, b[i]);
+        if (kestrel_xfer_active(&p->xf)) xfer_in(p, b[i]);
+        else if (p->phase == ONLINE) echo(p, b[i]);
     }
 }
 

@@ -7,3 +7,7 @@ s/"r+b"/"rb"/
 s/^\(\t*\)iniRemoveSection(&inifile, bbs->name);$/&\n\1listfile = kestrel_rewrite(listfile, listpath);/
 }
 /Open with write permissions so it fails if you can't edit/{n;s/"r+b"/"rb"/}
+# Downloads land on C: (kestrel_dialdir.c, kestrel_dldir): a list entry DownloadPath is kept only when it
+# names a folder of C:; otherwise (upstream default under HOME, or one saved before this) it is C:\DOWNLOAD.
+/iniGetSString(sys ? NULL : section, NULL, "DownloadPath", home, entry->dldir, sizeof(entry->dldir));/a\
+	kestrel_dldir(entry->dldir, sizeof(entry->dldir));

@@ -24,6 +24,23 @@
 void kestrel_log(const char *m);
 int kestrel_c_mounted(void); /* ../kestrel_sdl2/src/opt/kestrel_wasi_c.c */
 
+static void download_ready(void)   /* C:\DOWNLOAD, made once, the first time a list entry names it */
+{
+    static int done;
+    struct stat st;
+    if (done) return;
+    done = 1;
+    if (stat(KESTREL_DOWNLOAD, &st) == 0 && S_ISDIR(st.st_mode)) return;
+    if (mkdir(KESTREL_DOWNLOAD, 0777) != 0) kestrel_log("syncterm: no " KESTREL_DOWNLOAD " on C:");
+}
+
+void kestrel_dldir(char *dldir, size_t size)
+{
+    if (!kestrel_c_mounted()) return;   /* no C:, nowhere to put a download: upstream's path fails as it did */
+    if (strncmp(dldir, "/C/", 3) != 0) snprintf(dldir, size, "%s", KESTREL_DOWNLOAD);
+    if (strcmp(dldir, KESTREL_DOWNLOAD) == 0) download_ready();
+}
+
 int kestrel_dialdir_ready(void)
 {
     if (!kestrel_c_mounted()) return 0;
