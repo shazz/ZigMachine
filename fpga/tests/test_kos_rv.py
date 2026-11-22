@@ -17,6 +17,7 @@ import pytest
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 # A clean tree has no gen/ (the gate's fresh worktree): the memmap split_image imports, made first.
+from host_make import lock_argv  # noqa: E402
 if not (FPGA / "gen" / "glass_cart.py").exists():
     subprocess.run([*lock_argv(), "make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
 sys.path.insert(0, str(FPGA / "tools"))
@@ -26,7 +27,6 @@ import glass_map
 import kos_rv
 from glass_shelf import Images
 from glass_zx0 import zx0unpack
-from host_make import lock_argv  # noqa: E402
 
 V1 = 1 << 16
 ZIG = shutil.which("zig") or str(Path.home() / ".local/zig/0.16.0/zig")

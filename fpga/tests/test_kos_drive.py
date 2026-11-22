@@ -14,12 +14,12 @@ import pytest
 
 FPGA = Path(__file__).resolve().parent.parent
 # A clean tree has no gen/ (the gate's fresh worktree): the memmap the tools import, made first.
+from host_make import lock_argv  # noqa: E402
 if not (FPGA / "gen" / "glass_cart.py").exists():
     subprocess.run([*lock_argv(), "make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
 sys.path.insert(0, str(FPGA / "gen"))
 import glass_cart as gc  # noqa: E402  (after gen/ exists)
 import glass_map  # noqa: E402
-from host_make import lock_argv  # noqa: E402
 
 M = 0xFFFF_FFFF
 

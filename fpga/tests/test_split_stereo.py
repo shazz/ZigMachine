@@ -14,6 +14,7 @@ import pytest
 
 FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA / "tools"))
+from host_make import lock_argv  # noqa: E402
 if not (FPGA / "gen" / "glass_cart.py").exists():  # a clean tree: the memmap split_image imports
     subprocess.run([*lock_argv(), "make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
 import host_bridges  # noqa: E402  (after gen/ exists)
@@ -23,7 +24,6 @@ import sys_abi  # noqa: E402
 from host_stereo import STEREO
 from sys_abi_c import env_rows
 from sys_abi_manifest import parse
-from host_make import lock_argv  # noqa: E402
 
 ROWS = {n: ("host", r, p) for n, (r, p, _) in STEREO.items()}
 
