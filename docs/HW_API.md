@@ -672,6 +672,31 @@ void hostPaulaRelease(void);                     // give them back (the next car
   Paula channels`, the board logs `ZM PAULA ... refused`).
 - No read-back (POS) in 1.14.0: a cart that shows scopes keeps its own (pt2's are its replayer's).
 
+### Player 2 input (two optional cart exports, not a HW version, no system table bump)
+
+A second joystick is two optional exports of the cart, with the same direction codes as `input`/`inputRelease`
+(0 up, 1 down, 2 left, 3 right, 5 fire):
+
+```c
+void input2(u32 dir);         // player 2's direction or fire goes down
+void inputRelease2(u32 dir);  // ...and comes up
+```
+
+- **Both or neither.** `apps/zig/demo_main.zig` exports them only for a scene that declares both `input2` and
+  `inputRelease2`, so every other cart's wasm is unchanged. Bubble Bobble is the first: pad 2 is Bob, ST joystick
+  port 0, fire included (`keys.zig`); pad 1 stays Bub, port 1; the keyboard mapping is unchanged.
+- **A cart without them gets player 2 merged into player 1**, exactly the one-stick behaviour: the host sends
+  `input()`/`inputRelease()` for the edges of the UNION of both pads, so a pad letting go never releases a direction the
+  other still holds. Every existing cart works unchanged.
+- **Players are plug order**: the first pad is player 1, the second player 2 (the browser: the first two connected
+  Gamepad API pads by index, `docs/gamepad.js`, polled once a frame; the board: the first two evdev nodes that sent an
+  event, `fpga/glass/src/pads.zig`). A third pad drives the board's OSD only.
+- **Why no HW or system table bump.** The exports are optional and looked up by name in the cart's export table
+  (`host_exports`), so neither `machine-video.wasm`'s version nor `host_input_bridge` (the layout the board's system
+  image and its carts share, `fpga/cycles/sys_abi.txt`) changes: an old system never calls `input2`, a new one finds
+  none in an old cart. On the board player 2 travels as a state word in the key FIFO (`KEY_P2_STATE | JOY_*`,
+  `fpga/glass/src/map.zig`; `docs/FPGA_GLASS.md` "The joypad"), so the PL is unchanged too.
+
 ---
 
 ## 6. What you build against this

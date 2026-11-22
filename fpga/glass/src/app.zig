@@ -10,6 +10,8 @@ const map = @import("map.zig");
 const bus = @import("bus.zig");
 const keymap = @import("keymap.zig");
 const pad = @import("pad.zig");
+const pads = @import("pads.zig");
+const app_pad = @import("app_pad.zig");
 const mouse = @import("mouse.zig");
 const osd = @import("osd.zig");
 const menu = @import("menu.zig");
@@ -45,7 +47,7 @@ pub const App = struct {
     menu: menu.Menu,
     osd: osd.Osd = .{},
     mods: keymap.Mods = .{},
-    pad: pad.Pad = .{},
+    pads: pads.Pads = .{},
     mouse: mouse.Mouse = .{},
     open: bool = true,
     current: ?usize = null, // the shelf disk the running cart came from (null: none, or KOS's empty drive)
@@ -184,7 +186,7 @@ pub const App = struct {
     fn releaseAll(self: *App) void {
         for (self.held[0..self.n_held]) |code| self.regs.write(map.REG_KEY_PUSH, code);
         self.n_held = 0;
-        self.regs.write(map.REG_JOY, 0);
+        app_pad.releaseAll(self);
         if (self.mouse.release()) |w| self.regs.write(map.REG_POINTER, w);
     }
 
@@ -204,24 +206,10 @@ pub const App = struct {
         for (words[0..n]) |w| self.regs.write(map.REG_POINTER, w);
     }
 
-    /// One evdev pad record; `range` is the device's own stick range, `name`
-    /// its evdev name (the debug page shows the last pad heard from).
-    pub fn padEvent(self: *App, ev_type: u16, code: u16, value: i32, x: pad.Range, y: pad.Range, name: []const u8) void {
-        self.pad_name_len = @min(name.len, self.pad_name.len);
-        @memcpy(self.pad_name[0..self.pad_name_len], name[0..self.pad_name_len]);
-        const before = self.pad.bits;
-        self.pad.x = x;
-        self.pad.y = y;
-        if (!self.pad.update(ev_type, code, value)) return;
-        if (splash.skip(self, null, self.pad.bits & ~before != 0)) return;
-        if (!self.open) return self.regs.write(map.REG_JOY, self.pad.bits);
-        const pressed = self.pad.bits & ~before; // the menu takes the pad's down edges as keys
-        const keys = [_][2]u32{
-            .{ map.JOY_UP, map.KEY_ARROW_UP },     .{ map.JOY_DOWN, map.KEY_ARROW_DOWN },
-            .{ map.JOY_LEFT, map.KEY_ARROW_LEFT }, .{ map.JOY_RIGHT, map.KEY_ARROW_RIGHT },
-            .{ map.JOY_FIRE, map.KEY_ENTER },
-        };
-        for (keys) |k| if (pressed & k[0] != 0) cart.act(self, self.menu.key(k[1] | map.KEY_DOWN));
+    /// One evdev pad record from event node `dev`; `x`, `y` are the device's own stick ranges,
+    /// `name` its evdev name (the debug page shows the last pad heard from). app_pad.zig.
+    pub fn padEvent(self: *App, dev: u16, ev_type: u16, code: u16, value: i32, x: pad.Range, y: pad.Range, name: []const u8) void {
+        app_pad.event(self, dev, ev_type, code, value, x, y, name);
     }
 
     /// Called about ten times a second (main.zig): the watchdog, the frame-rate

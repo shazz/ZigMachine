@@ -98,6 +98,12 @@ int main(void) {
         printf("FAIL joy: \"%s\"\n", log_buf);
         failures++;
     }
+    /* Player 2 (R83): the pad's whole state as one word, never a key, whatever owns the keyboard. */
+    expect(KEY_P2_STATE | JOY_LEFT | JOY_FIRE, 0, "pad2(36)");
+    expect(KEY_P2_STATE | JOY_LEFT | JOY_FIRE, 1, "pad2(36)");
+    expect(KEY_DOWN | KEY_P2_STATE | JOY_UP, 0, "pad2(1)"); /* the flag is not part of the meaning */
+    expect(KEY_P2_STATE, 0, "pad2(0)");                      /* released: all clear is a state too */
+    expect(KEY_DOWN | (KEY_P2_STATE + KEY_P2_MASK + 1), 0, "key(57664)"); /* one past the range: an ordinary key code */
     test_pointer();
     if (failures) return 1;
     printf("glass_input: ok\n");

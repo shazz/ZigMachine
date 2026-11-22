@@ -20,13 +20,15 @@
 //   live     the host path: the plane IS the ST screen (palette indices pixel
 //            for pixel), '1' starts, 50 Hz ST frames on a 60 Hz host, Z toggles
 //            the ZIG mode (a 24-bit copper sky on colour 0, the pixels the same),
-//            Escape quits a game and leaves from the title
+//            Escape quits a game and leaves from the title; the second pad (input2) is
+//            Bob's joystick, fire included, and leaves Bub's alone
 //
 //   node apps/bubblebobble_headless.mjs [outdir] [--break rounds|soak|sound|plane]
 //   --break rounds  the decoder drops the airflow mirror: the rounds check fails
 //   --break soak    a byte of the program's data is corrupted: the soak sees a stuck run
 //   --break sound   the SNDH plays the next tune: the driver RAM check fails
 //   --break plane   the plane check compares against the other screen: it fails
+//   --break pad2    the second pad drives Bub instead of Bob: the live check fails
 //   --break beam    the picture is the screen as the frame leaves it: the drop-in check fails
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
@@ -40,7 +42,7 @@ const ASSETS = "apps/zig/assets/screens/bubblebobble";
 const BASE = 0x10000; // st_prg.BASE: where TEXT is loaded
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
-const BREAKS = ["rounds", "soak", "sound", "plane", "beam"];
+const BREAKS = ["rounds", "soak", "sound", "plane", "beam", "pad2"];
 if (bi > 0 && !BREAKS.includes(broke)) { console.error(`--break ${BREAKS.join("|")}`); process.exit(2); }
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/bubblebobble";
 const dec = new TextDecoder();
@@ -498,6 +500,19 @@ async function live() {
     demo.input(3); step(2, 20);
     if (ram(ctx)[BASE + 0x3ca3] !== 8) errors.push(`the right arrow did not set joystick 1 right ($3CA3 = ${ram(ctx)[BASE + 0x3ca3]})`);
     demo.inputRelease(3); step(2, 20);
+    // Player 2 (R83): the second pad is Bob's joystick (port 0, $3CA2), fire included; Bub's stays put.
+    const joy = (port) => ram(ctx)[BASE + 0x3ca2 + port];
+    const pad2 = broke === "pad2" ? { down: (d) => demo.input(d), up: (d) => demo.inputRelease(d) } : { down: (d) => demo.input2(d), up: (d) => demo.inputRelease2(d) };
+    if (!demo.input2 || !demo.inputRelease2) errors.push("the cart has no input2/inputRelease2 export");
+    else {
+        pad2.down(3); pad2.down(5); step(2, 20);
+        if (joy(0) !== 0x88) errors.push(`pad 2 right+fire did not set Bob's joystick 0 ($3CA2 = ${joy(0)}, want 136)`);
+        if (joy(1) !== 0) errors.push(`pad 2 moved Bub's joystick 1 ($3CA3 = ${joy(1)})`);
+        demo.input(2); step(2, 20); // pad 1 at the same time: Bub only
+        if (joy(1) !== 4 || joy(0) !== 0x88) errors.push(`pad 1 left with pad 2 held: $3CA3 = ${joy(1)} (want 4), $3CA2 = ${joy(0)} (want 136)`);
+        demo.inputRelease(2); pad2.up(3); pad2.up(5); step(2, 20);
+        if (joy(0) !== 0 || joy(1) !== 0) errors.push(`releasing both pads left a joystick held ($3CA2 = ${joy(0)}, $3CA3 = ${joy(1)})`);
+    }
     // Z: the ZIG mode -- a sky on colour 0, a colour a line, and the picture itself unchanged
     demo.key(0x7a); demo.keyUp(0x7a); step(2, 20);
     const sky = [0, 100, 199].map((y) => demo.bbTestSky(y) >>> 0);
@@ -521,7 +536,7 @@ const ctx = await boot();
 console.log("boot ok");
 let errors = [];
 // A --break runs the one check it breaks.
-const BREAK_CHECK = { rounds: "rounds", soak: "soak", sound: "sound", plane: "live", beam: "play" };
+const BREAK_CHECK = { rounds: "rounds", soak: "soak", sound: "sound", plane: "live", beam: "play", pad2: "live" };
 const only = broke ? [BREAK_CHECK[broke]] : process.env.BB_ONLY ? process.env.BB_ONLY.split(",") : null;
 for (const [name, fn] of [["rounds", rounds], ["play", play], ["soak", soak], ["sound", sound], ["live", live]]) {
     if (only && !only.includes(name)) continue;

@@ -23,6 +23,7 @@ WORK = FPGA / "build" / "glass" / "mutants"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
 
 M, A, P, E = "src/mouse.zig", "src/app.zig", "src/pad.zig", "src/evdev.zig"
+PS, AP = "src/pads.zig", "src/app_pad.zig"
 # (id, file under fpga/glass, text, broken text)
 ZIG_MUTANTS = [
     ("mouse_clamp", M, "std.math.clamp(self.fx +| value *| self.scale, 0, MAX_X)", "self.fx +| value *| self.scale"),
@@ -40,6 +41,14 @@ ZIG_MUTANTS = [
     ("pad_dpad", P, "BTN_DPAD_UP + 2 => self.set(map.JOY_LEFT", "BTN_DPAD_UP + 2 => self.set(map.JOY_RIGHT"),
     ("pad_trigger", P, "BTN_TRIGGER, BTN_SOUTH, BTN_EAST =>", "BTN_SOUTH, BTN_EAST =>"),
     ("evdev_stick", E, "return prop_bits & NOT_A_STICK == 0;", "return prop_bits == prop_bits;"),
+    # Two joysticks (R83): the players, player 2's key word, and letting go of it when the OSD opens.
+    ("pads_player_2", PS, "return if (p < self.n) self.slots[p].pad.bits else 0;", "return if (p < self.n) self.slots[0].pad.bits else 0;"),
+    ("pads_node_key", PS, "if (s.num == num) return i;", "if (s.num == num or true) return i;"),
+    ("pads_unknown_once", PS, "for (self.logged[0..self.n_logged]) |k| if (k == key) return false;", ""),
+    ("pad_p2_word", AP, "if (now[1] != app.pads.sent[1]) app.regs.write(map.REG_KEY_PUSH, pads.p2Word(now[1]));", ""),
+    ("pad_p1_register", AP, "if (now[0] != app.pads.sent[0]) app.regs.write(map.REG_JOY, now[0]);", ""),
+    ("pad_release_p2", AP, "if (app.pads.sent[1] != 0) app.regs.write(map.REG_KEY_PUSH, pads.p2Word(0));", ""),
+    ("pad_osd_any_pad", AP, "for (menu_keys) |k| if (pressed", "if (i == 0) for (menu_keys) |k| if (pressed"),
 ]
 
 L, C, K, Q, S, T, H = (
@@ -105,6 +114,8 @@ C_MUTANTS = [
     ("fw_ptr_once", F, "if (seq == *seen) return -1;", ""),
     ("fw_ptr_no_export", F, "*seen = seq;\n    if (pointer) {", "if (!pointer) return -1;\n    *seen = seq;\n    {"),
     ("fw_ptr_y", F, "(ptr >> PTR_Y_SHIFT)", "(ptr >> PTR_X_SHIFT)"),
+    ("fw_p2_route", F, "r.p2 = (int)(c - KEY_P2_STATE);", "r.p2 = (int)(c - KEY_P2_STATE) & 1;"),
+    ("fw_p2_not_a_key", F, "        return r;\n    }\n    if (!(ev & KEY_DOWN)) {", "    }\n    if (!(ev & KEY_DOWN)) {"),
 ]
 
 BREAK = pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

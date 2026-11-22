@@ -902,6 +902,8 @@ function start() {
     // the loop for good, so no later swap could ever show a picture again.
     const loop = function (timestamp) {
         try {
+            // Gamepads (docs/gamepad.js): pad 1 = input(), pad 2 = input2() or merged (R83).
+            if (typeof ZMPad !== "undefined" && cartCallable() && navigator.getGamepads) ZMPad.poll(navigator.getGamepads(), demo);
             step(timestamp);
         } catch (e) {
             cartTrapped = true;
@@ -1070,6 +1072,7 @@ window.document.body.addEventListener('keyup', function (evt) {
 });
 // Focus loss swallows the keyup: release everything still held.
 function releaseAll() {
+    if (typeof ZMPad !== "undefined" && cartCallable()) ZMPad.release(demo);
     if (cartCallable() && demo.inputRelease) for (const d of heldDirs) demo.inputRelease(d);
     heldDirs.clear();
     if (cartCallable() && demo.keyUp) for (const c of heldKeys) demo.keyUp(c);

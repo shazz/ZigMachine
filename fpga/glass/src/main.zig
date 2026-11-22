@@ -219,9 +219,9 @@ fn dispatch(app: *App, inputs: *evdev.Inputs, r: evdev.Raw) void {
     } else if (mouse.isMouse(r.type, r.code)) {
         app.mouseEvent(r.type, r.code, r.value, r.ms);
     } else if (r.type == pad.EV_ABS) {
-        if (d.stick) app.padEvent(r.type, r.code, r.value, d.x, d.y, d.name());
+        if (d.stick) app.padEvent(d.num, r.type, r.code, r.value, d.x, d.y, d.name());
     } else if (r.type == pad.EV_KEY and r.code >= 0x100) { // a pad's buttons: 0x100 (BTN_MISC) up
-        app.padEvent(r.type, r.code, r.value, d.x, d.y, d.name());
+        app.padEvent(d.num, r.type, r.code, r.value, d.x, d.y, d.name());
     } else if (r.type == pad.EV_KEY) {
         app.key(r.code, r.value);
     }

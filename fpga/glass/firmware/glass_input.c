@@ -21,8 +21,12 @@ static int direction(uint32_t c, int owns) {
 }
 
 glass_route_t glass_route(uint32_t ev, int owns) {
-    glass_route_t r = {-1, -1, -1, -1, -1};
+    glass_route_t r = {-1, -1, -1, -1, -1, -1};
     uint32_t c = CODE(ev);
+    if (c >= KEY_P2_STATE && c <= KEY_P2_STATE + KEY_P2_MASK) { /* player 2's pad: a level, not a key (R83) */
+        r.p2 = (int)(c - KEY_P2_STATE);
+        return r;
+    }
     if (!(ev & KEY_DOWN)) {
         r.release = direction(c, owns);
         r.key_up = is_arrow(c) ? -1 : (int)c; /* keyUpCode(): no code for an arrow */
@@ -41,6 +45,7 @@ glass_route_t glass_route(uint32_t ev, int owns) {
 
 void glass_dispatch(uint32_t ev, int owns, glass_call_fn call, void* ctx) {
     glass_route_t r = glass_route(ev, owns);
+    if (r.p2 >= 0) call(ctx, "pad2", r.p2);
     if (r.input >= 0) call(ctx, "input", r.input);
     if (r.shade >= 0) call(ctx, "setShadeMode", r.shade);
     if (r.key >= 0) call(ctx, "key", r.key);

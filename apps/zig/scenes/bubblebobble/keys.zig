@@ -1,8 +1,9 @@
 // --------------------------------------------------------------------------
 // The two joysticks and the keyboard, as the game hears them.
 //
-//   Bub (1UP)  joystick port 1 ($3CA3): the arrows, fire = Space / Enter / 0
-//   Bob (2UP)  joystick port 0 ($3CA2): W A S D, fire = Tab / left Ctrl / G
+//   Bub (1UP)  joystick port 1 ($3CA3): the arrows, fire = Space / Enter / 0; the first USB pad
+//   Bob (2UP)  joystick port 0 ($3CA2): W A S D, fire = Tab / left Ctrl / G; the second USB pad
+//              (input2, R83: with one pad only Bub moves, as before)
 //              Fire on a stick also joins its player in (the game's $AFCA).
 //   1, 2       Crawio, as the title reads them: one or two players
 //   P          F1, the game's pause (press again to resume)
@@ -34,6 +35,15 @@ pub const Pad = struct {
 
     /// The host's arrows (0 up, 1 down, 2 left, 3 right, 5 the board's fire button): Bub.
     pub fn arrow(self: *Pad, dir: u8, down: bool) void {
+        self.pad(1, dir, down);
+    }
+
+    /// The second joystick pad (input2, R83): the same codes, Bob.
+    pub fn arrow2(self: *Pad, dir: u8, down: bool) void {
+        self.pad(0, dir, down);
+    }
+
+    fn pad(self: *Pad, port: u1, dir: u8, down: bool) void {
         const b: u8 = switch (dir) {
             0 => UP,
             1 => DOWN,
@@ -42,7 +52,7 @@ pub const Pad = struct {
             5 => FIRE,
             else => 0,
         };
-        self.set(1, b, down);
+        self.set(port, b, down);
     }
 
     /// A key event; true for a FRESH press (not the host's auto-repeat).

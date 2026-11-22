@@ -291,6 +291,23 @@ export fn inputRelease(dir: Direction) void {
     if (booted and @hasDecl(Cart, "inputRelease")) cart.inputRelease(@intFromEnum(dir));
 }
 
+// Player 2's pad (R83, docs/HW_API.md "Player 2 input"): input2(dir) / inputRelease2(dir) with
+// the same Direction codes as input()/inputRelease(). Exported ONLY by a scene that declares
+// both, so every other cart's wasm is unchanged; a host that finds no input2 merges the second
+// pad into input() (host/input_bridge.c; the browser, docs/gamepad.js).
+fn input2(dir: Direction) callconv(.c) void {
+    if (booted) cart.input2(@intFromEnum(dir));
+}
+fn inputRelease2(dir: Direction) callconv(.c) void {
+    if (booted) cart.inputRelease2(@intFromEnum(dir));
+}
+comptime {
+    if (@hasDecl(Cart, "input2") and @hasDecl(Cart, "inputRelease2")) {
+        @export(&input2, .{ .name = "input2" });
+        @export(&inputRelease2, .{ .name = "inputRelease2" });
+    }
+}
+
 // Character keyboard input (printable + 8=Backspace, 13=Enter). For text entry
 // like GEM rename. Forwarded to scenes that declare key() (e.g. the desktop).
 // The ST keyboard's ESCAPE. The host FORWARDS it like any other key and no longer

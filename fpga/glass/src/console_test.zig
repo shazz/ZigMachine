@@ -136,7 +136,7 @@ test "the debug page shows the live cart, the pad, and n/a for a board Linux lac
     defer a.deinit();
     a.sys_root = r.dir; // no /proc or /sys there
     press(&a, keymap.KEY_ENTER);
-    a.padEvent(pad.EV_KEY, pad.BTN_SOUTH, 1, .{}, .{}, "8BitDo Pro 2");
+    a.padEvent(0, pad.EV_KEY, pad.BTN_SOUTH, 1, .{}, .{}, "8BitDo Pro 2");
     press(&a, keymap.OSD_HOTKEY);
     press(&a, keymap.KEY_RIGHT);
     for (0..4) |_| press(&a, keymap.KEY_DOWN);

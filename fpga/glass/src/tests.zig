@@ -11,6 +11,7 @@ test {
     _ = @import("keymap.zig");
     _ = @import("pad.zig");
     _ = @import("pad_test.zig");
+    _ = @import("pads_test.zig");
     _ = @import("mouse_test.zig");
     _ = @import("mouse_box_test.zig");
     _ = @import("osd.zig");

@@ -156,6 +156,14 @@ test "Page Up/Down reach a cart as the browser's codes, other keys unchanged" {
     try std.testing.expectEqual(@as(u32, 'q') | KEY_DOWN, cartKey('q' | KEY_DOWN));
 }
 
+// --- player 2 (R83): a state word in the key FIFO, no new register ---------------
+// REG_JOY is 8 bits in the PL and holds player 1. Player 2's pad is sent through the key FIFO as
+// KEY_P2_STATE | JOY_* bits (the LEVEL, not an edge: a word the full FIFO drops is healed by the
+// next one). The cart CPU's firmware (glass_input.c) turns the changes into the cart's
+// input2()/inputRelease2(); a cart without them gets player 2 merged into input(). No PL change.
+pub const KEY_P2_STATE: u32 = 0xE100;
+pub const KEY_P2_MASK: u32 = 0x3F; // the JOY_* bits: up, down, left, right, (4 unused), fire
+
 // --- joypad (REG_JOY): the demo.input() directions, as held bits -------------
 pub const JOY_UP: u32 = 1 << 0;
 pub const JOY_DOWN: u32 = 1 << 1;

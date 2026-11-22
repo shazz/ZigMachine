@@ -130,7 +130,7 @@ void host_io_glass_keys(struct w2c_env* e, long f) {
         at += used + (at[used] == ',');
         if (frame == f && n < 32) ev[n++] = (uint32_t)event;
     }
-    input_events(&e->cart, ev, n);
+    input_events(e, ev, n);
 }
 
 /* ZM_GLASS_POINTER: this frame's REG_POINTER, polled and acked as cycles/binput.c does. */

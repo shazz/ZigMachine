@@ -18,6 +18,15 @@ pub const BTN_SOUTH = 0x130; // a gamepad's A / cross
 pub const BTN_EAST = 0x131;
 pub const BTN_DPAD_UP = 0x220; // up, down, left, right = 0x220..0x223
 
+/// Whether update() gives this event a meaning (the rest is logged once, for an odd adapter).
+pub fn known(ev_type: u16, code: u16) bool {
+    return switch (ev_type) {
+        EV_ABS => code == ABS_X or code == ABS_Y or code == ABS_HAT0X or code == ABS_HAT0Y,
+        EV_KEY => code == BTN_TRIGGER or code == BTN_SOUTH or code == BTN_EAST or (code >= BTN_DPAD_UP and code <= BTN_DPAD_UP + 3),
+        else => true, // EV_SYN, EV_MSC...: not a button
+    };
+}
+
 pub const Range = struct { min: i32 = -1, max: i32 = 1 };
 
 pub const Pad = struct {

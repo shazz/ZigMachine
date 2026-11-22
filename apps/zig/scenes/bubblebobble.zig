@@ -137,6 +137,12 @@ pub const Demo = struct {
     pub fn inputRelease(self: *Demo, dir: u8) void {
         self.pad.arrow(dir, false);
     }
+    pub fn input2(self: *Demo, dir: u8) void {
+        self.pad.arrow2(dir, true);
+    }
+    pub fn inputRelease2(self: *Demo, dir: u8) void {
+        self.pad.arrow2(dir, false);
+    }
 
     pub fn key(self: *Demo, cp: u32) void {
         if (cp == keys.K_ESC and onTitle()) {

@@ -14,7 +14,8 @@
 #include <stdint.h>
 
 /* One cart call: export name ("input", "inputRelease", "key", "keyUp",
- * "setShadeMode") and its argument. A cart without that export ignores it. */
+ * "setShadeMode", and "pad2": player 2's whole state, which the bridge turns into input2()/
+ * inputRelease2() edges, or merges into player 1's input() for a cart without them) and its argument. A cart without that export ignores it. */
 typedef void (*glass_call_fn)(void* ctx, const char* export_name, int arg);
 
 /* What one event becomes; -1 = nothing of that kind. */
@@ -24,6 +25,7 @@ typedef struct {
     int key;     /* demo.key(code) */
     int key_up;  /* demo.keyUp(code) */
     int shade;   /* demo.setShadeMode(n) */
+    int p2;      /* player 2's pad: the JOY_* bits it holds now (KEY_P2_STATE word), else -1 */
 } glass_route_t;
 
 glass_route_t glass_route(uint32_t event, int owns_keyboard);

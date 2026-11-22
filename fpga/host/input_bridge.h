@@ -2,7 +2,9 @@
  * turned into the cart's export calls by fpga/glass/firmware/glass_input.c, whose rules are
  * docs/sealed-loader.js's. The board firmware feeds it the glass CSRs (cycles/binput.c); the
  * native host feeds it a script (host/main.c ZM_GLASS_KEYS), which is how it is tested. A cart
- * without an export gets nothing for it (host_input's NULLs, tools/host_gen.py). */
+ * without an export gets nothing for it (host_input's NULLs, tools/host_gen.py).
+ * Player 2 (R83): a KEY_P2_STATE event is the second pad's whole state; it reaches the cart's optional
+ * input2()/inputRelease2() exports, or, for a cart without them, is merged into input() with player 1's. */
 #ifndef ZM_INPUT_BRIDGE_H
 #define ZM_INPUT_BRIDGE_H
 
@@ -10,8 +12,8 @@
 
 #include "host.h"
 
-void input_events(w2c_cart* cart, const uint32_t* events, uint32_t n); /* KEY_* events, oldest first */
-void input_joy(w2c_cart* cart, uint32_t before, uint32_t now);         /* JOY_* bits held */
+void input_events(struct w2c_env* e, const uint32_t* events, uint32_t n); /* KEY_* events, oldest first */
+void input_joy(struct w2c_env* e, uint32_t before, uint32_t now);         /* player 1's JOY_* bits held */
 int input_pointer(w2c_cart* cart, uint32_t ptr, uint32_t* seen);       /* PTR_*: the SEQ to ack, or -1 */
 
 /* 1: the firmware draws GEM's arrow over this cart (cycles/bcursor.c). A cart that takes the mouse

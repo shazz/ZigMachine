@@ -17,6 +17,8 @@ CART = "union_beatdis"  # owns the keyboard: SPACE answers its loader's question
 HOST = FPGA / f"build/host/{CART}/host"
 KEY_DOWN = 0x1000000  # gen/glass_map.py
 SPACE_DOWN, SPACE_UP = f"{KEY_DOWN | 0x20:x}", "20"
+P2 = 0xE100  # gen/glass_map.py KEY_P2_STATE: player 2's pad as a level word (R83)
+FIRE, RIGHT = 0x20, 0x08  # JOY_FIRE, JOY_RIGHT
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -46,11 +48,9 @@ def test_a_key_up_alone_and_an_unbound_export_do_nothing() -> None:
     assert hashes(keys="200:1000007") == quiet  # a key the screen ignores (code 7)
 
 
-def test_a_router_that_drops_key_is_caught(tmp_path: Path) -> None:
-    src = (FPGA / "host/input_bridge.c").read_text()
-    old = "if (b->key) b->key(c, v);"
-    assert src.count(old) == 1
-    (tmp_path / "input_bridge.c").write_text(src.replace(old, "(void)b;"))
+def build_mutant(tmp_path: Path, mutated: str) -> None:
+    """Link the host with `mutated` as host/input_bridge.c: tmp_path/host."""
+    (tmp_path / "input_bridge.c").write_text(mutated)
     obj = FPGA / f"build/host/{CART}"
     wabt = FPGA / ".tools/wabt"
     inc = [
@@ -70,6 +70,7 @@ def test_a_router_that_drops_key_is_caught(tmp_path: Path) -> None:
         ["clang", *cflags, *inc, "-c", str(tmp_path / "input_bridge.c"), "-o", str(tmp_path / "in.o")], check=True
     )
     common = [FPGA / f"build/host/common/{n}.o" for n in ("machine", "rom", "rt", "rt-mem", "rt-exc", "sha256")]
+    common.append(FPGA / "build/host/common/kfs.a")  # C:'s writer, pulled in by main.c (Makefile: last)
     objs = [obj / n for n in ("host.o", "env.o", "boot.o", "host_io.o", "in_glass_router.o", "cart.o")]
     objs += sorted(obj.glob("bs_*.o"))  # host/main.c's --bootsec and --kos (Makefile HOST_BOOTSEC)
     mutant = tmp_path / "host"
@@ -77,4 +78,34 @@ def test_a_router_that_drops_key_is_caught(tmp_path: Path) -> None:
         ["clang", *map(str, objs), str(tmp_path / "in.o"), *map(str, common), "-lm", "-lpthread", "-o", str(mutant)],
         check=True,
     )
-    assert hashes(mutant, keys=f"200:{SPACE_DOWN}") == hashes()  # the key never reached the cart: caught
+
+
+def test_a_router_that_drops_key_is_caught(tmp_path: Path) -> None:
+    src = (FPGA / "host/input_bridge.c").read_text()
+    old = "if (b->key) b->key(c, v);"
+    assert src.count(old) == 1
+    build_mutant(tmp_path, src.replace(old, "(void)b;"))
+    assert hashes(tmp_path / "host", keys=f"200:{SPACE_DOWN}") == hashes()  # the key never reached the cart: caught
+
+
+def test_player_2_is_merged_into_input_for_a_cart_without_input2() -> None:
+    """union_beatdis has no input2: the second pad's word is the browser's input()/inputRelease()."""
+    quiet = hashes()
+    pad2 = hashes(keys=f"200:{P2 | FIRE:x},230:{P2:x}")
+    assert pad2 == hashes(call="200:input:5,230:inputRelease:5")  # as the browser with one stick
+    assert pad2 != quiet  # and it is not nothing (the cart answers fire)
+
+
+def test_player_2_is_a_level_not_an_edge() -> None:
+    """The word is the pad's whole state (a full FIFO may drop one): all clear with nothing held is no call, and the
+    same word again is no second press. (REG_JOY, player 1, is a CSR the native host does not script.)"""
+    assert hashes(keys=f"200:{P2:x}") == hashes()  # released with nothing held: nothing
+    assert hashes(keys=f"200:{P2 | FIRE:x},201:{P2 | FIRE:x},230:{P2:x}") == hashes(call="200:input:5,230:inputRelease:5")
+
+
+def test_a_router_that_forgets_the_merge_is_caught(tmp_path: Path) -> None:
+    src = (FPGA / "host/input_bridge.c").read_text()
+    old = "else glass_joy(old[0] | old[1], held[0] | held[1], call, e);"
+    assert src.count(old) == 1
+    build_mutant(tmp_path, src.replace(old, "(void)old;"))
+    assert hashes(tmp_path / "host", keys=f"200:{P2 | FIRE:x},230:{P2:x}") == hashes()  # player 2 never reached input()

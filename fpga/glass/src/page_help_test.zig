@@ -125,8 +125,8 @@ fn expectPad(a: *App, bit: u32) !void {
         map.JOY_FIRE => .{ pad.EV_KEY, pad.BTN_SOUTH },
         else => return error.TestUnexpectedResult, // a pad bit this test cannot send
     };
-    a.padEvent(ev[0], ev[1], 1, .{}, .{}, "pad");
-    a.padEvent(ev[0], ev[1], 0, .{}, .{}, "pad");
+    a.padEvent(0, ev[0], ev[1], 1, .{}, .{}, "pad");
+    a.padEvent(0, ev[0], ev[1], 0, .{}, .{}, "pad");
     try std.testing.expect(a.menu.page != .console or a.menu.console.cursor != 4);
 }
 

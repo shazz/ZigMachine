@@ -258,6 +258,22 @@ the same `--call F:pointer:40,30,b`, byte for byte.
 
 ### The joypad (`JOY`, `glass/src/pad.zig`)
 
+**Two joysticks (R83, 22 Nov).** `glass/src/pads.zig` keeps one `Pad` per evdev node (keyed by its event number, which
+survives a rescan) and gives the players in the order the pads were first heard: the first is player 1, written to
+`REG_JOY` as before; the second is player 2. A third and later pad drives the OSD only. The OSD takes the d-pad edges of
+EITHER pad, and opening it lets go of both players. **There is no `JOY2` register:** `REG_JOY` is 8 bits in the PL and
+a new register would need a new bitstream, so player 2 is a STATE WORD in the key FIFO, `KEY_P2_STATE (0xE100) |
+JOY_*` bits (`map.zig`). It is a level, not an edge, so a word the full FIFO drops is healed by the next one.
+`glass_input.c` routes it as `pad2`, and `host/input_bridge.c` keeps both players' held bits and turns the changes into
+the cart's optional `input2()`/`inputRelease2()` exports (found by name in the cart's export table, so
+`host_input_bridge` and `sys_abi.txt` do not change); a cart without both gets the UNION of the two pads' edges as
+`input()`/`inputRelease()`, exactly one stick's behaviour (`docs/HW_API.md` "Player 2 input"). A button or axis code
+`pad.zig` does not know is logged once per code (`std.log` info `pad <name> (eventN, player P): no meaning for type ...
+code ...`, at most 16 in all) so an odd adapter can be diagnosed from the console. Tests: `glass/src/pads_test.zig`
+(plug order, the key word, one pad changes nothing, the OSD with either pad), `tests/tb/glass_input_test.c` (the word is
+never a key), `tests/test_board_input.py` (the router on the native host: player 2 merged for a cart without `input2`),
+`apps/gamepad_check.mjs` (the browser's pads) and `apps/bubblebobble_headless.mjs` (pad 2 drives Bob).
+
 `pad.zig` folds a pad's events into the held `JOY_*` bits, which the firmware
 turns into `input()`/`inputRelease()` edges (`glass_joy()`):
 
