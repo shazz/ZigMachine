@@ -130,6 +130,7 @@ fn stopPlayers() void {
     m.kt_exports.kt.stop();
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     m.ym.stop();
     m.sap_exports.sap.stop();
     m.hip_exports.hip.abandon();

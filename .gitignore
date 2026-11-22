@@ -31,6 +31,8 @@ HANDOFF.md
 # A song the owner keeps on their own machine only (music_debug key 6, fpga/tools/song_pack.py
 # LOCAL_SONGS): for a tune whose licence does not allow bundling it. Never commit one.
 docs/music/local.xm
+docs/music/local.vgm
+docs/music/sonic1_*.vgm
 # SID TEST's HVSC tunes (keys 1-4): PSIDs from the High Voltage SID Collection, the owner's card only.
 docs/music/cybernoid_ii.sid
 docs/music/wizball.sid

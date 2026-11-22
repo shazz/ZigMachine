@@ -24,6 +24,7 @@ export fn audioLoadSap(len: u32) bool {
     m.kt_exports.kt.stop(); // its tables were in the song RAM just staged over
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     return sap.load(len);
 }
 

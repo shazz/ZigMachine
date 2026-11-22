@@ -52,6 +52,7 @@ static inline uint32_t sndinfo_player(const char* name) {
     if (sndinfo_ends(name, n, ".hip")) return PLAYER_HIP;
     if (sndinfo_ends(name, n, ".kt")) return PLAYER_KT;
     if (sndinfo_ends(name, n, ".sid")) return PLAYER_SID;
+    if (sndinfo_ends(name, n, ".vgm") || sndinfo_ends(name, n, ".vgz")) return PLAYER_VGM;
     return PLAYER_UNKNOWN;
 }
 

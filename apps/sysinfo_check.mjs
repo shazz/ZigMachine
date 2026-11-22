@@ -14,10 +14,11 @@
 //   menu     Space opens the GEM dialog over the page, a click on F4 shows the disk page, and the
 //            page comes back whole; Q asks the host to go back to the OS (request 4)
 //   sound    page 3's sound files are the disk's, each plays off the disk (apps/sysinfo_sound.mjs)
-//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound|ref|mouse]
+//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound|vgm|ref|mouse]
 //     ref: the Mega STE's percentages expected at 1.92 / 3.60, so the reference check must fail
 //     free: the FREE line expected 4 KB off what hwRamFree() says, so the check must fail
 //     sound: the drive serves JINKS.SND with one byte changed, so the bytes check must fail
+//     vgm: the same for KESTREL.VGZ (the .vgm player's file)
 //     mouse: graf_mouse does nothing (the cart before 14 Nov: no arrow in the desk), so the pointer check must fail
 import { mkdir } from "node:fs/promises";
 import { boot, frames, page, field, glassMismatches, glass, mode, K } from "./sysinfo_machine.mjs";
@@ -26,7 +27,7 @@ import { parseDisk } from "../docs/zmdisk.js";
 import { soundPage } from "./sysinfo_sound.mjs";
 import { ident, pagesTwoThree, reference, modes, pointer } from "./sysinfo_modes.mjs";
 
-const BREAKS = ["free", "sound", "ref", "mouse"];
+const BREAKS = ["free", "sound", "vgm", "ref", "mouse"];
 const BROKE = process.argv.includes("--break") ? (BREAKS.find((b) => process.argv.includes(b)) ?? "free") : null;
 const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && !BREAKS.includes(a));
 const errors = [];
@@ -137,7 +138,7 @@ async function menu(s) {
 }
 
 if (OUT) await mkdir(OUT, { recursive: true });
-let s = await boot("none", BROKE === "sound" ? "JINKS.SND" : null);
+let s = await boot("none", BROKE === "sound" ? "JINKS.SND" : BROKE === "vgm" ? "KESTREL.VGZ" : null);
 frames(s, 2);
 await memoryPage(s);
 await ident(s, expect, "unclocked");
@@ -165,7 +166,7 @@ await show(s, 1, "system_board");
 
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
-    const hit = errors.find((e) => e.startsWith({ free: "FREE", sound: "JINKS.SND: the bytes", ref: "the Mega STE's", mouse: "desk: the arrow" }[BROKE]));
+    const hit = errors.find((e) => e.startsWith({ free: "FREE", sound: "JINKS.SND: the bytes", vgm: "KESTREL.VGZ: the bytes", ref: "the Mega STE's", mouse: "desk: the arrow" }[BROKE]));
     console.log(hit ? `sysinfo_check: PASS (--break ${BROKE} caught: ${hit})` : `sysinfo_check: FAILED -- --break ${BROKE} not caught`);
     process.exitCode = hit ? 0 : 1;
 } else {

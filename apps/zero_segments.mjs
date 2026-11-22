@@ -66,7 +66,9 @@ const ALLOW = {
     // (demo_audio_sidlive.zig, sid.zig); the queue itself (21 KB: its ring, stage, events) lives in song RAM.
     // +17 B (2026-11-20): the stream's sample counter (its 16.16 position, its step) and the stereo
     // flag (demo_audio_raw.zig, table 1.27); the two rings live in song RAM.
-    "demo-audio.wasm": 591416,
+    // +16 B (2026-11-21): the .vgm player's refusal count and its all-zero state (demo_audio_vgm.zig,
+    // vgm.zig); the file, its chunk and the engine's state are song RAM / machine-audio's.
+    "demo-audio.wasm": 591432,
 };
 
 function uleb(b, p) {

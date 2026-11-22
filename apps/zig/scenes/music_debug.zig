@@ -15,7 +15,8 @@
 // run in Q4 (stars.zig), the scope in Q8; CHISEL clears the window and the
 // scroller's band each frame.
 //
-// Keys 1..6 play MOD / YM / sample / SNDH / XM / a local XM. The host only forwards a digit to
+// Keys 1..7 play MOD / YM / sample / SNDH / XM / a local XM / a VGM (KESTREL FM, our own YM2612 +
+// SN76489; 7 again: docs/music/local.vgm, the owner's own, never committed). The host only forwards a digit to
 // setShadeMode (docs/sealed-loader.js in the browser, fpga/glass/firmware/glass_input.c on
 // the board, the same rule in both) and this cart asks for the song itself with
 // zg.requestSong: the browser fetches it from docs/music/, the board plays it on BARD from
@@ -66,12 +67,13 @@ const SCROLL_Y: i32 = (HEIGHT - 28) + VBORD; // physical baseline
 const MenuLine = struct { text: []const u8, dy: i32, dphase: f64 };
 const MENU = [_]MenuLine{
     .{ .text = "1  MOD     LOLLAPALOOZA", .dy = 0, .dphase = 0 },
-    .{ .text = "2  YM2149  CONCERTO", .dy = 14, .dphase = 0.4 },
-    .{ .text = "3  SAMPLE  DIGI 12517HZ", .dy = 28, .dphase = 0.8 },
-    .{ .text = "4  SNDH    CRYSTALLIZED", .dy = 42, .dphase = 1.2 },
-    .{ .text = "5  XM      TEST SONG", .dy = 56, .dphase = 1.6 },
-    .{ .text = "6  XM      LOCAL.XM", .dy = 70, .dphase = 2.0 },
-    .{ .text = "PRESS 1 TO 6", .dy = 88, .dphase = 2.4 },
+    .{ .text = "2  YM2149  CONCERTO", .dy = 12, .dphase = 0.4 },
+    .{ .text = "3  SAMPLE  DIGI 12517HZ", .dy = 24, .dphase = 0.8 },
+    .{ .text = "4  SNDH    CRYSTALLIZED", .dy = 36, .dphase = 1.2 },
+    .{ .text = "5  XM      TEST SONG", .dy = 48, .dphase = 1.6 },
+    .{ .text = "6  XM      LOCAL.XM", .dy = 60, .dphase = 2.0 },
+    .{ .text = "7  VGM     KESTREL FM", .dy = 72, .dphase = 2.2 },
+    .{ .text = "PRESS 1 TO 7", .dy = 88, .dphase = 2.4 },
 };
 // Everything is drawn inside the 320x200 window but the scroller, whose rows (6 px of
 // wobble either side of its 16) cross the borders: the two areas cleared each frame.
@@ -112,10 +114,12 @@ pub const Demo = struct {
     scope: scope.Scope = .{},
     blit: zg.Blitter = .{}, // CHISEL: the per-frame clears
     starfield: stars.Stars(NB_STARS) = undefined,
+    last_key: u32 = 0xFF, // key 7 twice in a row: the local VGM
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("music debug init", .{});
         self.scroll_x = WIDTH;
+        self.last_key = 0xFF;
         self.phase = 0;
         self.logo_phase = .{};
         raster_offset = 0;
@@ -167,12 +171,19 @@ pub const Demo = struct {
     // only (gitignored), for a tune whose licence does not allow bundling it. A
     // checkout without one plays nothing on 6, and the board's song table leaves
     // it out (fpga/tools/song_pack.py LOCAL_SONGS). See docs/MUSIC.md.
+    //
+    // Key 7 is KESTREL FM (docs/music/kestrel_fm.vgm, written by libs/c/vgm/make_tune.py for this repo) on our
+    // own YM2612 + SN76489 (libs/c/vgm). Pressed again straight after, it asks for docs/music/local.vgm: a Mega
+    // Drive VGM the owner keeps on their own machine only (gitignored, song_pack.py LOCAL_SONGS), as key 6's XM.
     const TUNES = [_][]const u8{
-        "lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh", "keygen_9000.xm", "local.xm",
+        "lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh", "keygen_9000.xm", "local.xm", "kestrel_fm.vgm",
     };
+    pub const LOCAL_VGM = "local.vgm";
     pub fn setShadeMode(self: *Demo, mode: u32) void {
-        _ = self;
-        if (mode < TUNES.len) zg.requestSong(TUNES[mode]);
+        if (mode >= TUNES.len) return;
+        const again = mode == TUNES.len - 1 and self.last_key == mode;
+        zg.requestSong(if (again) LOCAL_VGM else TUNES[mode]);
+        self.last_key = if (again) 0xFF else mode;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {

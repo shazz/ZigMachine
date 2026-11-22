@@ -1,8 +1,9 @@
 // Drive A in the desktop's file operations and its selection (Matt on the board, 13 Nov, GEM 5.0):
-//   zmd    A: is a .zmd data disk (docs/demo-sysinfo.zmd: BOOT.WSM and six sound files), the listing the
+//   zmd    A: is a .zmd data disk (docs/demo-sysinfo.zmd: BOOT.WSM and eight sound files), the listing the
 //          host hands, its bytes through env.diskReadBlock. BOOT.WSM dragged from A:\ into a folder of
 //          C:\ (NET) must be copied byte for byte (it raised "The disk cannot be read": KOS GEMDOS does
-//          not mount A: over a .zmd, so the shell's count answered EDRIVE), then KEYGEN.XM (18 KB) too.
+//          not mount A: over a .zmd, so the shell's count answered EDRIVE), then KESTREL.VGZ (the disk's last
+//          file, its end not block-aligned; KEYGEN.XM until R12 put the VGZ in row 4) too.
 //          A Control-drag (a move) copies and keeps the write-protected source, and says so.
 //   grafx2 A: demo-grafx2.zmd, the disk of Matt's board copy (14 Nov): BOOT.WSM (480 KB: 15 requests, FIRST,
 //          middle, LAST) and ZIGPLASM.PI1 (one request) onto C:\NET, byte for byte
@@ -66,10 +67,11 @@ async function zmd() {
     check("BOOT.WSM dragged from A:\\ (a .zmd) onto C:\\NET: counted 1 item, ended with no error", r.counted.files === 1 && r.status === 0, JSON.stringify(r));
     check("...C:\\NET\\BOOT.WSM holds the disk's bytes", same(read(c, "HD/NET/BOOT.WSM"), fileOf("BOOT.WSM")), `${read(c, "HD/NET/BOOT.WSM")?.length} of ${DISK["BOOT.WSM"].len}`);
     ui.click(150, 180); // A:\ on top again
-    // rows sorted by name: BOOT.WSM GAUNTLET.SAP HERMINI.SID JINKS.SND KEYGEN.XM ... (0..4 in view)
+    // rows sorted by name: BOOT.WSM GAUNTLET.SAP HERMINI.SID JINKS.SND KESTREL.VGZ KEYGEN.XM ... (0..4 in view).
+    // KESTREL.VGZ (R12) is the disk's LAST file, its end not block-aligned: the read that must stop at the image's end.
     r = op(ui, [X, row(4, 124)], [X, row(3, CY)]);
     ui.save();
-    check("KEYGEN.XM (18,619 bytes, not block-aligned on the disk's end) onto NET, byte for byte", r.status === 0 && same(read(c, "HD/NET/KEYGEN.XM"), fileOf("KEYGEN.XM")), JSON.stringify(r));
+    check("KESTREL.VGZ (5,152 bytes, the disk's last file, its end not block-aligned) onto NET, byte for byte", r.status === 0 && same(read(c, "HD/NET/KESTREL.VGZ"), fileOf("KESTREL.VGZ")), JSON.stringify(r));
     ui.click(150, 180);
     r = op(ui, [X, row(3, 124)], [X, row(2, CY)], true); // JINKS.SND Control-dragged onto MUSIC
     ui.save();

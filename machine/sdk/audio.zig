@@ -58,6 +58,14 @@ pub extern fn machineAyReset() void; // every chip off
 pub extern fn machineAyWrite(a: u32, value: u32) u32; // offset a = chip x 16 + reg (14 configure, 15 pans), 0x80 + chip the gain; 1 applied
 pub extern fn machineAyRender(dst_abs: u32, n: u32) void; // n stereo s16 frames (L, R) at 44100 Hz
 
+// The VGM engine (libs/c/vgm: our own YM2612 + SN76489, MIT): machine-audio.wasm on the page, BARD's native C on
+// the board (fpga/host/audio_vgm.c), the same code. It renders stereo PCM at its own rate (the YM2612's clock / 288,
+// 26.6 kHz) into the caller's buffer, which the .vgm player puts on Paula (libs/zig/players/vgm.zig).
+pub extern fn machineVgmLoad(file_abs: u32, len: u32, cap: u32) u32; // 0 ok, 1 not a VGM, 2 no chip, 3 truncated, 4 bad .vgz
+pub extern fn machineVgmRate() u32; // the engine's rate, Hz
+pub extern fn machineVgmRender(dst_abs: u32, n: u32) void; // n stereo s16 frames (L, R) at machineVgmRate
+pub extern fn machineVgmRenderPaula(hl_abs: u32, hr_abs: u32, ll_abs: u32, lr_abs: u32, n: u32) void; // n 44.1 kHz frames as Paula hi/lo bytes
+
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.
 pub extern fn machinePaulaTrigger(ch: u32, data_abs: u32, data_len: u32, loop_start: u32, loop_len: u32, pan: f32) void;

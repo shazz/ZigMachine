@@ -508,6 +508,7 @@ pub fn build(b: *std.Build) void {
     machine_audio.max_memory = audio_bytes;
     addCrsid(b, machine_audio.root_module);
     addAyumi(b, machine_audio.root_module);
+    addVgm(b, machine_audio.root_module);
     installTo(b, machine_audio, sealed_step);
 
     // docs/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
@@ -660,6 +661,7 @@ pub fn build(b: *std.Build) void {
         "", // 136: reserved (spike/rift-* branches)
         "", // 137: reserved (spike/rift-* branches)
         "demo-nfo_viewer", // 138 — NFO VIEWER: the zigdemo NFO / ASCII-art viewer (an Amiga ASCII viewer's look) on the desk plane: a sample NFO painted once into a tall buffer, panned 1 px a step, a fixed prompt bar, keys A/B
+        "demo-vgm_test", // 139 — VGM TEST: a Mega Drive VGM (KESTREL FM, our own tune, libs/c/vgm/make_tune.py) on our own YM2612 + SN76489 (libs/c/vgm, MIT): native on BARD, machine-audio.wasm on the page; keys 1-3 by name (.vgm, .vgz) and as bytes, 4 stops; BARD load on screen
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -857,6 +859,17 @@ fn addAyumi(b: *std.Build, mod: *std.Build.Module) void {
     const flags = [_][]const u8{ "-std=c99", "-ffreestanding", "-fno-builtin", "-Wall", "-Werror" };
     for ([_][]const u8{ "zm_ay.c", "zm_ay_cfg.c", "zm_ay_bank.c" }) |f|
         mod.addCSourceFile(.{ .file = b.path(b.fmt("libs/c/ayumi/{s}", .{f})), .flags = &flags });
+}
+
+// The VGM engine (libs/c/vgm/README.md): our own YM2612 + SN76489 and the VGM sequencer, compiled into
+// machine-audio.wasm as the page's copy of the same C BARD runs natively (fpga/host/audio_vgm.c).
+fn addVgm(b: *std.Build, mod: *std.Build.Module) void {
+    const flags = [_][]const u8{ "-std=c99", "-ffreestanding", "-fno-builtin", "-Wall", "-Werror" };
+    for ([_][]const u8{
+        "vgm/zm_vgm.c",       "vgm/vgm_seq.c",          "vgm/vgm_stream.c",  "vgm/zm_inflate.c",
+        "vgm/zm_vgm_out.c",   "ym2612/ym2612.c",        "ym2612/ym2612_eg.c", "ym2612/ym2612_render.c",
+        "sn76489/sn76489.c",
+    }) |f| mod.addCSourceFile(.{ .file = b.path(b.fmt("libs/c/{s}", .{f})), .flags = &flags });
 }
 
 // TC TEST's `tc_art` module: the pictures tools/tc_art.py converts from `dir`, or none (the

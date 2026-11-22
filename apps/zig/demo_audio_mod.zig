@@ -32,6 +32,7 @@ export fn audioLoadMod(len: u32) bool {
     m.kt_exports.kt.stop();
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     m.mod.load(m.songSlice(len)) catch |e| {
         mod_rejected +%= 1;
         mod_error = players.mod_format.code(e);
@@ -55,6 +56,7 @@ export fn audioModPlay() void {
     m.kt_exports.kt.stop();
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     audio.machinePaulaClearScopes();
     m.mod.start();
     m.current_mode = 1;
@@ -72,6 +74,7 @@ export fn audioModPlayBpm(bpm: u32) void {
     m.kt_exports.kt.stop();
     m.mp3_exports.mp3.stop();
     m.sid_exports.sid.stop();
+    m.vgm_exports.vgm.stop();
     m.mod.startAtBpm(@intCast(bpm));
     m.current_mode = 1;
 }

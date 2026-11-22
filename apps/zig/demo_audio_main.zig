@@ -21,7 +21,7 @@ pub var sfx: sfx_voice.SfxVoice = .{};
 pub var ym: YmPlayer = .{};
 pub var sndh: SndhPlayer = .{};
 pub var xm: XmPlayer = .{};
-// Active player: 0 none, 1 MOD (and XM, HIP, KT, MP3, SID: the same four Paula channels), 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
+// Active player: 0 none, 1 MOD (and XM, HIP, KT, MP3, SID, VGM: the same four Paula channels), 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
 pub var current_mode: u8 = 0;
 
 // The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*),
@@ -34,6 +34,7 @@ comptime {
 pub const kt_exports = @import("demo_audio_kt.zig"); // klystrack (.kt): cyd on the four Paula channels
 pub const mp3_exports = @import("demo_audio_mp3.zig"); // MP3 (pvmp3) on the four Paula channels
 pub const sid_exports = @import("demo_audio_sid.zig"); // .sid (cRSID: BARD native, machine-audio.wasm) on the four Paula channels
+pub const vgm_exports = @import("demo_audio_vgm.zig"); // .vgm / .vgz (our YM2612 + SN76489: BARD native, machine-audio.wasm) on the four Paula channels
 pub const sap_exports = @import("demo_audio_sap.zig");
 pub const hip_exports = @import("demo_audio_hip.zig");
 pub const raw_exports = @import("demo_audio_raw.zig"); // the raw sample and the stream rings (mono, stereo)
@@ -50,6 +51,7 @@ pub fn stopAll() void {
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     sap_exports.sap.stop();
     hip_exports.hip.abandon(); // the module's code is not run on the way out
 }
@@ -73,6 +75,7 @@ export fn audioInit() void {
     kt_exports.kt.active = false; // not `.{}`: a 10 KB default would be a data segment
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     sfx = .{};
     cart_paula.release();
     current_mode = 0;
@@ -100,6 +103,8 @@ export fn audioRender(frames: u32) void {
         kt_exports.kt.renderStereo(n);
     } else if (mp3_exports.mp3.active) {
         mp3_exports.mp3.renderStereo(n);
+    } else if (vgm_exports.vgm.active) {
+        vgm_exports.vgm.renderStereo(n);
     } else if (sid_exports.sid.active) {
         sid_exports.sid.renderStereo(n);
     } else {
@@ -141,6 +146,7 @@ export fn audioLoadYm(len: u32) bool {
     kt_exports.kt.stop(); // and the KT's tables
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     return ym.load(songSlice(len));
 }
 export fn audioYmPlay() void {
@@ -151,6 +157,7 @@ export fn audioYmPlay() void {
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     audio.machinePaulaClearScopes();
     ym.start();
     current_mode = 2;
@@ -166,6 +173,7 @@ export fn audioLoadSndh(len: u32) bool {
     kt_exports.kt.stop(); // the KT's tables are in that RAM
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     return sndh.load(len);
 }
 export fn audioSndhPlay(tune: u8) void {
@@ -176,6 +184,7 @@ export fn audioSndhPlay(tune: u8) void {
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
     sndh.start(tune);
@@ -191,6 +200,7 @@ export fn audioSndhPlayRaw(d0: u32) void {
     kt_exports.kt.stop();
     mp3_exports.mp3.stop();
     sid_exports.sid.stop();
+    vgm_exports.vgm.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
     sndh.startRaw(d0);

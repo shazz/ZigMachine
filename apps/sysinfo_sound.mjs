@@ -1,7 +1,7 @@
 // SYSINFO's SOUND page, for apps/sysinfo_check.mjs: the sound files on its disk, selected and
 // played off the disk. Run over a booted SysInfo (apps/sysinfo_machine.mjs):
-//   list     page 3 lists the disk's seven sound files (JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW,
-//            KEYGEN.XM, THALION.HIP, STARPORT.KT, HERMINI.SID) with their FAT sizes and kinds; the selected one is in
+//   list     page 3 lists the disk's eight sound files (JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW,
+//            KEYGEN.XM, THALION.HIP, STARPORT.KT, HERMINI.SID, KESTREL.VGZ) with their FAT sizes and kinds; the selected one is in
 //            inverse, Down moves it
 //   drive    P reads the selection through the drive into the cart's RAM: the bytes the host is
 //            handed (the sfx queue's pointer) are the FAT file's, byte for byte; the SNDH, the
@@ -26,6 +26,8 @@ const FILES = [
     { name: "STARPORT.KT", kind: "KT (KLYSTRACK + PAULA)", op: 8, a: 5, msg: "loadKt", mode: 1 },
     // The .sid player (cRSID on BARD; SID TEST's bytes path, kind 6): unpacked, a PSID.
     { name: "HERMINI.SID", kind: "SID (6502 + SID)", op: 8, a: 6, msg: "loadSid", mode: 1 },
+    // The .vgm player (our YM2612 + SN76489 on BARD; VGM TEST's bytes path, kind 7): a .vgz, the engine inflates it.
+    { name: "KESTREL.VGZ", kind: "VGM (YM2612 + SN76489)", op: 8, a: 7, msg: "loadVgm", mode: 1 },
 ];
 const FILES_ROW = 15; // page_av.zig FILES_ROW + 1
 
@@ -75,6 +77,7 @@ async function audioModule() {
             if (msg.type === "loadHip") return d.audioLoadHip(len) && (d.audioHipPlay(msg.tune || 0), true);
             if (msg.type === "loadKt") return d.audioLoadKt(len) && (d.audioKtPlay(msg.tune || 0), true);
             if (msg.type === "loadSid") return !!d.audioLoadSid(len, msg.tune >>> 0);
+            if (msg.type === "loadVgm") return !!d.audioLoadVgm(len);
             return d.audioLoadSap(len) && (d.audioSapPlay(msg.tune || 0), true);
         },
         peak() { let p = 0; for (let b = 0; b < 43; b++) { d.audioRender(1024); for (const v of left) p = Math.max(p, Math.abs(v)); } return p; },

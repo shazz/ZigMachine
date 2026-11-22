@@ -595,6 +595,11 @@
   "type": "atari st"
  },
  {
+  "tag": "vgm_test",
+  "title": "VGM TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "xm_test",
   "title": "XM TEST",
   "type": "zigmachine"

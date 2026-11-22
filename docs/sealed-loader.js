@@ -1315,6 +1315,9 @@ function startAudio() {
                         "a bad pattern or program", "its FX delay lines do not fit the song RAM"][msg.error] || `error ${msg.error}`;
                     console.error(`KT REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);
                 }
+                else if (msg.type === "vgmLoaded" && !msg.ok) {
+                    console.error(`VGM REJECTED (${msg.len} bytes): ${msg.error}`);
+                }
                 else if (msg.type === "sidLoaded" && !msg.ok) {
                     console.error(`SID REJECTED (${msg.len} bytes): ${msg.error}`); // "RSID not supported": PSID only
                 }
@@ -1479,6 +1482,17 @@ async function playSid(url, tune, gen) {
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 
+// A Mega Drive .vgm / .vgz: our YM2612 + SN76489 render it (libs/zig/players/vgm.zig); vgmLoaded says why
+// one is refused. A .vgz goes as it is: the engine inflates it.
+async function playVgm(url, gen) {
+    await startAudio();
+    if (!audioNode) return; // no audio in this context
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
+    audioNode.port.postMessage({ type: "loadVgm", bytes: bytes }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+
 // Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
 // sealed chip has no raw-stop, so this overwrites it with silence.
 function stopRaw() {
@@ -1519,6 +1533,7 @@ function playSongByName(name, tune) {
     else if (name.endsWith(".hip")) playHip(url, tune, gen);
     else if (name.endsWith(".kt")) songPosted = playKt(url, gen).catch(() => {});
     else if (name.endsWith(".sid")) songPosted = playSid(url, tune, gen).catch(() => {}); // a subtune from 1, 0 = default
+    else if (name.endsWith(".vgm") || name.endsWith(".vgz")) songPosted = playVgm(url, gen).catch(() => {});
     else if (name.endsWith(".raw")) playRaw(url, 12517, false, gen);
 }
 // zg.sndhCall(name, d0): INIT(d0) on the SNDH already playing, no fetch and no
@@ -1546,7 +1561,7 @@ function sndhCallByName(name, d0) {
 let songPosted = Promise.resolve();
 let sfxChain = Promise.resolve();
 function postSfx(mem, at, n) {
-    const SONG_KINDS = [null, "loadSndh", "loadSap", "loadXm", "loadHip", "loadKt", "loadSid"]; // requestSongBytes' kind -> message
+    const SONG_KINDS = [null, "loadSndh", "loadSap", "loadXm", "loadHip", "loadKt", "loadSid", "loadVgm"]; // requestSongBytes' kind -> message
     const dv = new DataView(mem.buffer, at, n * 16);
     const msgs = [];
     for (let i = 0; i < n; i++) {

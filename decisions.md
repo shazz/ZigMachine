@@ -2112,3 +2112,41 @@ A restart is guarded on both carriers: the page takes an audioState only when it
 / reset messages handled) is the loader's, ZIGGY answers 0 after a start until BARD's word moves. Two board-only edges
 are accepted: a BARD resync (it fell behind the sound) leaves the count that many samples off the RTL channel for good,
 and a read between BARD's MODE and MS stores on a mode change can show one frame's wrong value.
+
+## 2026-11-21 — Our own YM2612 + SN76489 (MIT) and a VGM player, native on BARD
+
+**Status:** accepted
+**Context:** R12 (Matt, 21 Nov: "push next our own ym2612/sn76489 bard player"). The 13 Nov spike proved FM fits
+BARD with the Gens core (66-74 % at 26,634 Hz on the board), but Gens is GPL-2: it cannot enter this MIT repo,
+the SDK or a public cart (fpga/review/YM2612_BARD_STUDY.md). ymfm (BSD) costs ~4x Gens: it does not fit.
+**Decision:** A clean-room core, written from the hardware documentation (the YM2608 application manual, the
+Sega YM2612 chapter, Nemesis's SpritesMind notes, TI's SN76489 sheet and SMS Power's Sega notes, the VGM
+specification, RFC 1951/1952), never from an emulator's source; emulator cores (Gens, Genesis Plus GX, Nuked
+OPN2 through libvgm) only as black-box sample references on Matt's machine (`libs/c/vgm/gens_compare.sh`),
+nothing of them committed. Where the references disagree, the hardware notes decide: the attack stays the
+documented `>> 4` although Gens fits `>> 3` (GPGX and Nuked both prefer `>> 4`).
+- `libs/c/ym2612` (log-sin + exp tables from a committed generator, the EG's rate patterns, SSG-EG, LFO,
+  channel 3 special, the DAC), `libs/c/sn76489` (box-filtered), `libs/c/vgm` (sequencer, DAC streams, an
+  inflate for .vgz, the door, the output stage). Integers, no divide per sample, ~1.3 KB of tables.
+- It renders at clock / 288 (26,634 Hz, `div` 2: phases, EG and LFO advance two chip samples a render, exactly),
+  the rate the spike settled on. The output stage (mp3_resample's linear to 44.1 kHz, mp3_out's hi/lo bytes) is
+  C as well (`zm_vgm_out.c`): through wasm2c it was a fifth of BARD.
+- The SID pattern: `machineVgm*` imports answered by machine-audio.wasm on the page and by the same C natively on
+  BARD and the native host (fpga/host/audio_vgm.c). `.vgm` / `.vgz` by name (zg.requestSong) and
+  `requestSongBytes(.vgm)` (SongKind 7, FX_SONG_VGM): a value, not a new entry, so the system table stays 1.27
+  (sys_abi --check). PLAYER_VGM = 13 for the glass's pages.
+- The file is staged whole in song RAM (983,040 bytes at most, refused with a status beyond), as the SID's: the
+  board's songs are in DDR already, and a ring would add a refill path for files that fit anyway.
+- The gate pins only our own output (`apps/vgm_expected.json`) and wasm = native; the test tune is ours
+  (`libs/c/vgm/make_tune.py`), so nothing third-party is needed or shipped.
+**Alternatives considered:** Gens (GPL: private only, kept as the spike); ymfm (BSD, ~4x the cost); a port of
+MAME's or Nuked's core (GPL / LGPL, and not clean-room); 44.1 kHz rendering (Gens there was ~107 % of BARD);
+a disk-streamed ring (see above); the Zig player's own resampler (wasm2c'd: 77 % instead of 58 % on GHZ);
+fitting the attack to Gens (one reference against two and the documentation).
+**Consequences:** Mega Drive music on any cart, in the browser and on the board, MIT. Against Gens (FM only,
+Sonic 1's 19 tunes) correlation 0.89-0.996 at the chip's rate, 0.86-0.991 at 26.6 kHz; against Genesis Plus GX
+0.95-0.998 and 0.93-0.996. FB 6-7 (chaotic) and the LFO's PM phase keep some below 0.95 while level and spectrum
+match. BARD (snd-bench, v1.3's core model, the whole player): 57.7 % mean / 64.8 % peak frame on Green Hill
+Zone's busy part, 65.5 % / 73 % with all six FM channels. Not modelled: timers / CSM, the DAC's ladder
+distortion, second chips; SSG-EG unproven (the references disagree). A card needs the new system.rv32 (BARD's
+image carries the player): an older 1.27 system plays nothing for a .vgm. The snd image has ~52 KB left.
