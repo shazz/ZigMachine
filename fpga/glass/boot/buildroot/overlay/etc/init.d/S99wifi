@@ -8,12 +8,14 @@
 # The watchdog (docs/FPGA_GLASS.md, "Wi-Fi at boot"): the BCM43143 dongle has died twice on the
 # board (14 Nov): wlan0 gone after 3.3 h, and once joined with an address but deaf, `iw` saying
 # "Power save: on". So power save goes off after every join, and every TICK s `watch` checks:
+#   the USB controller's interrupts frozen         -> rebind the controller (kwifi_usb, R80)
 #   wlan0 gone, or the driver logged a -5 (EIO)   -> re-probe: modules out, the dongle's USB
-#                                                    authorized 0/1, modules in, join again
+#                                                    authorized 0/1, modules in, join again;
+#                                                    once a re-probe did not help: the rebind
 #   the gateway silent MISS ticks running          -> join again; still silent MISS more -> re-probe
-# Re-probes are at least REPROBE_GAP s apart. Everything is logged (logger -t kwifi: logread,
-# /tmp/messages). It never reboots. An OSD join under way (glass's osd.conf, osd.log) is left
-# alone, and a Forget (no wifi.conf) stops the watching.
+# Re-probes are at least REPROBE_GAP s apart, rebinds REBIND_GAP s, and 3 failed rebinds give up.
+# Everything is logged (logger -t kwifi: logread, /tmp/messages). It never reboots. An OSD join
+# under way (glass's osd.conf, osd.log) is left alone, and a Forget (no wifi.conf) stops the watching.
 # The paths are variables so fpga/tests/test_s99wifi.py runs it against fakes.
 CONF=${KWIFI_CONF:-/mnt/sd/KESTREL/wifi.conf}
 RUN=${KWIFI_RUN:-/tmp/wifi}
@@ -61,30 +63,8 @@ join() {
     return 0
 }
 
-# The dongle off the bus and back (its firmware reloaded by the probe), the driver with it.
-reprobe() {
-    echo "$(now)" > $RUN/reprobe.at
-    log "re-probe: $1"
-    [ -f $RUN/udhcpc.pid ] && kill "$(cat $RUN/udhcpc.pid)" 2>/dev/null
-    killall -q wpa_supplicant 2>/dev/null
-    # A wedged USB driver can hang rmmod (in D state, unkillable): waited for 20 s at most, so the
-    # watchdog lives on and says so (the board's busybox has no `timeout`).
-    for m in brcmfmac_wcc brcmfmac brcmutil; do
-        rmmod $m 2>/dev/null &
-        p=$! i=0
-        while kill -0 $p 2>/dev/null && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
-        kill -0 $p 2>/dev/null && log "rmmod $m: no answer in 20 s"
-    done
-    for d in $SYS/bus/usb/devices/*; do
-        [ "$(cat $d/idVendor 2>/dev/null)" = $BRCM_VENDOR ] || continue
-        log "USB ${d##*/} ($BRCM_VENDOR:$(cat $d/idProduct 2>/dev/null)) re-authorized"
-        echo 0 > $d/authorized
-        sleep 1
-        echo 1 > $d/authorized
-    done
-    load_modules
-    if wait_wlan; then join && log "re-probe: wlan0 back, joining"; else log "re-probe: still no wlan0"; fi
-}
+# reprobe, rebind, lost, check_usb, usb_rearm: the USB side, beside this script.
+. "${0%/*}/kwifi_usb"
 
 # The gateway DHCP gave, if any.
 gateway() { ip route 2>/dev/null | awk '$1 == "default" { print $3; exit }'; }
@@ -92,15 +72,16 @@ gateway() { ip route 2>/dev/null | awk '$1 == "default" { print $3; exit }'; }
 # The driver's -5 (EIO) lines in the kernel log, counted.
 eio_count() { dmesg 2>/dev/null | grep -c -E 'brcmf.*-5([^0-9]|$)'; }
 
-# A new -5 since the last look: true when it re-probed.
+# A new -5 since the last look: true when it acted on it.
 check_driver() {
     eio=$(eio_count)
     seen=$(cat $RUN/eio 2>/dev/null || echo 0)
     echo $eio > $RUN/eio
     [ "$eio" -gt "$seen" ] || return 1
     log "the driver logged -5 ($eio lines)"
-    [ $may = 1 ] || return 1
-    reprobe "driver -5"
+    [ $held = 0 ] || return 1 # the controller may be wedged: the next look decides
+    [ $may = 1 ] || [ -e $RUN/reprobed ] || return 1
+    lost "driver -5"
     echo 0 > $RUN/miss
 }
 
@@ -109,12 +90,17 @@ check_gateway() {
     gw=$(gateway)
     if [ -n "$gw" ] && ping -c 1 -W 2 "$gw" >/dev/null 2>&1; then
         echo 0 > $RUN/miss
+        usb_rearm
         return 0
     fi
-    miss=$(( $(cat $RUN/miss 2>/dev/null || echo 0) + 1 ))
+    # Traffic the controller must have seen (check_usb), if wlan0 has a carrier: with none (the AP off,
+    # deauthenticated) the ping may never reach the bus, and a still count is then an idle bus.
+    [ -n "$gw" ] && [ "$(cat $SYS/class/net/wlan0/carrier 2>/dev/null)" = 1 ] && touch $RUN/pinged
+    miss=$(($(cat $RUN/miss 2>/dev/null || echo 0) + 1))
     echo $miss > $RUN/miss
-    if [ $miss -ge $((2 * MISS)) ] && [ $may = 1 ]; then
-        reprobe "gateway ${gw:-none} silent for $miss ticks after a rejoin"
+    if [ $miss -ge $((2 * MISS)) ] && [ $may = 1 ] && [ $held = 0 ]; then
+        # No USB evidence here (the AP may just be off): a plain re-probe, never a rebind.
+        [ -e $RUN/gaveup ] || reprobe "gateway ${gw:-none} silent for $miss ticks after a rejoin"
         echo 0 > $RUN/miss
     elif [ $miss -eq $MISS ]; then
         log "gateway ${gw:-none} silent for $miss ticks: joining again"
@@ -123,7 +109,8 @@ check_gateway() {
 }
 
 # One look (`watch` calls it every TICK s). State in $RUN: miss (silent ticks), eio (the -5 count
-# last seen, seeded at start), reprobe.at (the last re-probe's uptime), tick.at (the last look).
+# last seen, seeded at start), reprobe.at (the last re-probe's uptime), tick.at (the last look);
+# kwifi_usb's: irq, pinged, frozen, reprobed, rebind.at, rebinds, gaveup.
 tick() {
     [ -f "$CONF" ] || return 0 # forgotten from the OSD: nothing to keep up
     # An OSD join owns wpa_supplicant for ~30 s (wifi_job.zig): not this tick.
@@ -131,9 +118,11 @@ tick() {
     touch $RUN/tick.at
     [ -z "$busy" ] || return 0
     last=$(cat $RUN/reprobe.at 2>/dev/null || echo -$REPROBE_GAP)
-    may=$(( $(now) - last >= REPROBE_GAP ))
+    may=$(($(now) - last >= REPROBE_GAP))
+    held=0
+    check_usb && return 0
     if ! have_wlan; then
-        [ $may = 1 ] && reprobe "no wlan0"
+        [ $held = 0 ] && lost "no wlan0"
         return 0
     fi
     check_driver && return 0
@@ -154,7 +143,7 @@ start)
     else
         echo "wifi: $CONF is there but no wlan0 (no supported dongle yet; the watchdog re-probes)" >&2
     fi
-    rm -f $RUN/watch.stop
+    rm -f $RUN/watch.stop $RUN/irq $RUN/pinged $RUN/frozen $RUN/reprobed $RUN/rebinds $RUN/gaveup
     touch $RUN/tick.at
     eio_count > $RUN/eio # a -5 from before the watch (a probe that then came up) is not news
     "$0" watch </dev/null >/dev/null 2>&1 &

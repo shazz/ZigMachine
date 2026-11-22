@@ -1709,8 +1709,22 @@ work on this board:
    `-5` already in the boot log is counted at start, not news. Every action is logged (`logger -t kwifi`:
    `logread`, `/tmp/messages`; and `/tmp/wifi/watch.log`); it never reboots. An OSD join under way
    (`/tmp/wifi/osd.log` newer than the last look) is left alone, a Forget (no `wifi.conf`) stops
-   it. `fpga/tests/test_s99wifi.py` runs it against stubs. It ships in the rootfs's appended
-   archive (`fpga/glass/boot/wifi/mk_wifi_rootfs.sh`), with the overlay's S99glass.
+   it. **The USB controller rebind** (R80, 22 Nov; `etc/init.d/kwifi_usb`, sourced by S99wifi): on
+   21 Nov the dongle died during SyncTERM traffic and ~290 re-probes in 16 h never brought it back,
+   then the ChipIdea EHCI (`e0002000.usb`) wedged: its `/proc/interrupts` count froze and the
+   keyboard, mouse and joystick died with it. So a re-probe that did not help (wlan0 still missing
+   with the dongle on the bus, or a `-5` again before the gateway has answered) escalates to the fix
+   proven by hand: `e0002000.usb` unbound from `chipidea-usb2`, bound again, then `killall glass`
+   (S99glass restarts it, and it reopens the input devices). The same rebind, and no re-probe first,
+   when the controller's count stays still across 2 looks that each sent it an unanswered ping over
+   a wlan0 with a carrier (a
+   live EHCI interrupts for every transfer that ends or is unlinked; an idle bus need not, so a
+   still count alone is not a wedge). At most one rebind per 10 min; after 3 in a row it logs
+   "gave up" once and stops re-probing and rebinding (rejoins only) until the gateway answers, which
+   re-arms it. A silent gateway with wlan0 up and the bus interrupting (the AP off) never rebinds.
+   Not the dongle's USB id: a healthy BCM43143 also reads `0a5c:bd1e`.
+   `fpga/tests/test_s99wifi.py` and `test_s99wifi_usb.py` run it against stubs. It ships in the
+   rootfs's appended archive (`fpga/glass/boot/wifi/mk_wifi_rootfs.sh`), with the overlay's S99glass.
    **glass's log in syslog** (14 Nov): S99glass pipes glass's stderr through `logger -s -t glass`,
    so `logread` / `/tmp/messages` hold it beside the console (the serial line is not always
    captured).
