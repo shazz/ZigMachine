@@ -1,8 +1,9 @@
 #!/bin/sh
 # mk_wifi_rootfs.sh BASE.cpio.uboot OUT.cpio.uboot: append a second newc cpio holding the Wi-Fi driver,
 # firmware, tools, S99wifi (the overlay's: it insmods /usr/lib/kwifi when wlan0 is missing, and its
-# watchdog re-probes a dead dongle) and the overlay's S99glass (glass's log to syslog too, 14 Nov:
-# the later archive's file wins over the base's) to a rootfs image. The kernel unpacks concatenated
+# watchdog re-probes a dead dongle, then rebinds the USB controller: kwifi_usb, beside it) and the
+# overlay's S99glass (glass's log to syslog too, 14 Nov: the later archive's file wins over the
+# base's) to a rootfs image. The kernel unpacks concatenated
 # archives in order; the base stays byte for byte. ZM_WIFI_BIN and ZM_MKIMAGE: the built driver/tools
 # and U-Boot's mkimage (a worktree has neither; the main checkout's serve).
 # Until the Buildroot image builds Wi-Fi in, this is what lets the board rejoin by itself at boot.
@@ -14,9 +15,10 @@ cp $S/cfg80211.ko $S/brcmutil.ko $S/brcmfmac.ko $S/brcmfmac-wcc.ko $r/usr/lib/kw
 cp $here/kwifi_modprobe $r/usr/lib/kwifi/modprobe
 cp $S/brcmfmac43143.bin $r/lib/firmware/brcm/; cp $S/regulatory.db $S/regulatory.db.p7s $r/lib/firmware/
 cp $S/wpa_supplicant $S/iw $S/wpa_cli $r/usr/sbin/; cp $S/libnl-3.so.200 $S/libnl-genl-3.so.200 $r/usr/lib/
-cp $repo/fpga/glass/boot/buildroot/overlay/etc/init.d/S99wifi $repo/fpga/glass/boot/buildroot/overlay/etc/init.d/S99glass $r/etc/init.d/
+o=$repo/fpga/glass/boot/buildroot/overlay/etc/init.d
+cp $o/S99wifi $o/kwifi_usb $o/S99glass $r/etc/init.d/  # kwifi_usb: S99wifi's USB half, sourced (R80)
 find $r -type d -exec chmod 755 {} +   # the kernel chmods existing dirs to the archive's modes
-chmod 755 $r/usr/lib/kwifi/modprobe $r/etc/init.d/S99wifi $r/etc/init.d/S99glass $r/usr/sbin/*; chmod 644 $r/usr/lib/kwifi/*.ko
+chmod 755 $r/usr/lib/kwifi/modprobe $r/etc/init.d/S99wifi $r/etc/init.d/S99glass $r/usr/sbin/*; chmod 644 $r/usr/lib/kwifi/*.ko $r/etc/init.d/kwifi_usb
 (cd $r && find . -mindepth 1 | sed 's|^\./||' | sort | cpio -o -H newc -R 0:0 --quiet) > $w/wifi.cpio
 dd if="$1" of=$w/base.cpio bs=64 skip=1 status=none
 cat $w/base.cpio $w/wifi.cpio > $w/all.cpio

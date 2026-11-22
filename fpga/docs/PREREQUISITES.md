@@ -56,6 +56,10 @@ network={
 - At boot, `/etc/init.d/S99wifi` copies it to `/tmp/wifi/wpa.conf`, starts `wpa_supplicant`
   on `wlan0` and asks for an address by DHCP in the background: a missing network never
   delays the boot. No file, or no dongle: nothing happens.
+- A watchdog then looks every 30 s (`logread | grep kwifi`): a dead dongle is re-probed, and when
+  that does not help, or the USB controller stops interrupting, the controller is unbound and
+  bound again and glass restarted (at most every 10 min, 3 times in a row; it never reboots).
+  Details: docs/FPGA_GLASS.md, "Wi-Fi at boot, and its watchdog".
 - The password is in clear text on the card. To keep it off the card, store the hashed form
   instead: `wpa_passphrase "YourNetwork"` (on any Linux, or on the board) prints a
   `network={...}` block whose `psk=` is the 64-hex key; paste that block and delete the

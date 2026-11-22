@@ -1,0 +1,127 @@
+# kwifi_usb: the USB half of S99wifi's watchdog, sourced by it (not an S?? script: rcS skips it).
+# R80 (21-22 Nov): the dongle died during SyncTERM traffic (-5, "Txctl wait timed out") and never came
+# back from the authorize cycle: ~290 plain re-probes in 16 h, all "still no wlan0". Then the ChipIdea
+# EHCI (e0002000.usb) wedged: its interrupt count stopped, keyboard, mouse and joystick dead with it.
+# What brought both back, by hand, five times: the controller unbound from chipidea-usb2 and bound
+# again, then glass restarted (its input devices were the old bus's; S99glass respawns it).
+# So a re-probe that did not help escalates to that rebind, and so does the controller's count frozen
+# across looks that sent it traffic. At most one rebind per REBIND_GAP s; after REBIND_MAX in a row
+# without the gateway answering, it gives up (no more re-probes or rebinds, rejoins only) until it does.
+# Not the dongle's idProduct: a healthy BCM43143 also shows 0a5c:bd1e after its firmware download.
+USB_CTRL=${KWIFI_USB_CTRL:-e0002000.usb}
+CI_DRV=$SYS/bus/platform/drivers/chipidea-usb2
+REBIND_GAP=${KWIFI_REBIND_GAP:-600}
+REBIND_MAX=3
+FROZE=2
+
+# "$@" in the background, waited for 20 s at most: a wedged USB driver can hang rmmod or a sysfs
+# write in D state (unkillable), and the watchdog must live on and say so (busybox has no `timeout`).
+bounded() {
+    "$@" &
+    p=$! i=0
+    while kill -0 $p 2>/dev/null && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+    kill -0 $p 2>/dev/null && log "$*: no answer in 20 s"
+}
+put() { echo "$1" > "$2"; }
+
+stop_net() {
+    [ -f $RUN/udhcpc.pid ] && kill "$(cat $RUN/udhcpc.pid)" 2>/dev/null
+    killall -q wpa_supplicant 2>/dev/null
+}
+
+# The controller's interrupts so far, all CPUs; nothing when its line is not there (mid-rebind).
+usb_irqs() {
+    awk -v c="$USB_CTRL" '$NF == c { s = 0; for (i = 2; i <= NF && $i ~ /^[0-9]+$/; i++) s += $i; print s; exit }' \
+        $PROC/interrupts 2>/dev/null
+}
+
+# A Broadcom device on the bus: a dongle the driver could not bring up (not one that was unplugged).
+dongle_on_bus() { grep -qx $BRCM_VENDOR $SYS/bus/usb/devices/*/idVendor 2>/dev/null; }
+
+# The dongle off the bus and back (its firmware reloaded by the probe), the driver with it.
+reprobe() {
+    echo "$(now)" > $RUN/reprobe.at
+    touch $RUN/reprobed # cleared when the gateway answers: until then the next trouble escalates
+    log "re-probe: $1"
+    stop_net
+    for m in brcmfmac_wcc brcmfmac brcmutil; do bounded rmmod $m; done
+    for d in $SYS/bus/usb/devices/*; do
+        [ "$(cat $d/idVendor 2>/dev/null)" = $BRCM_VENDOR ] || continue
+        log "USB ${d##*/} ($BRCM_VENDOR:$(cat $d/idProduct 2>/dev/null)) re-authorized"
+        bounded put 0 $d/authorized
+        sleep 1
+        bounded put 1 $d/authorized
+    done
+    load_modules
+    if wait_wlan; then join && log "re-probe: wlan0 back, joining"; else log "re-probe: still no wlan0"; fi
+    eio_count > $RUN/eio # the teardown's own -5 lines are not news; a -5 from here on is
+}
+
+# The controller unbound and bound again, glass restarted. Rate-limited; gives up after REBIND_MAX.
+rebind() {
+    n=$(cat $RUN/rebinds 2>/dev/null || echo 0)
+    if [ "$n" -ge $REBIND_MAX ]; then
+        [ -e $RUN/gaveup ] || log "gave up: $n USB controller rebinds in a row did not bring Wi-Fi back ($1); rejoins only until the gateway answers"
+        touch $RUN/gaveup
+        return 0
+    fi
+    last=$(cat $RUN/rebind.at 2>/dev/null || echo -$REBIND_GAP)
+    [ $(($(now) - last)) -ge $REBIND_GAP ] || return 0
+    echo "$(now)" > $RUN/rebind.at
+    echo $((n + 1)) > $RUN/rebinds
+    log "USB rebind $((n + 1))/$REBIND_MAX: $1"
+    stop_net
+    bounded put $USB_CTRL $CI_DRV/unbind
+    sleep 2
+    bounded put $USB_CTRL $CI_DRV/bind
+    sleep 6
+    killall -q glass 2>/dev/null
+    log "USB rebind: $USB_CTRL bound again, glass restarted (it reopens the input devices)"
+    rm -f $RUN/irq
+    echo 0 > $RUN/frozen
+    if wait_wlan; then join && log "USB rebind: wlan0 back, joining"; else log "USB rebind: still no wlan0"; fi
+    eio_count > $RUN/eio # the unbind's own -5 lines are not news
+}
+
+# Trouble with the dongle (wlan0 gone, a -5): a plain re-probe first; once one did not help (no
+# gateway answer since), and while the dongle is still on the bus, the rebind instead.
+lost() {
+    [ -e $RUN/gaveup ] && return 0
+    if [ -e $RUN/reprobed ] && dongle_on_bus; then
+        rebind "$1 after a re-probe"
+        return 0
+    fi
+    [ $may = 1 ] || return 0
+    reprobe "$1"
+    have_wlan || ! dongle_on_bus || rebind "still no wlan0 after a re-probe"
+}
+
+# The controller's count against the last look's. A live EHCI interrupts for every transfer that ends
+# or is unlinked, but an idle bus (HID devices polling, all NAKed) need not interrupt at all: so a
+# look counts as frozen only when the one before sent traffic (a ping over wlan0 that went
+# unanswered, $RUN/pinged). FROZE such looks running: true when it rebound (or the rate limit held it);
+# held=1 for the looks before that, so a re-probe does not poke a bus that may be wedged.
+check_usb() {
+    irq=$(usb_irqs)
+    was=$(cat $RUN/irq 2>/dev/null)
+    echo "$irq" > $RUN/irq
+    if [ -z "$irq" ] || [ "$irq" != "$was" ] || [ ! -e $RUN/pinged ]; then
+        rm -f $RUN/pinged
+        echo 0 > $RUN/frozen
+        return 1
+    fi
+    rm -f $RUN/pinged
+    f=$(($(cat $RUN/frozen 2>/dev/null || echo 0) + 1))
+    echo $f > $RUN/frozen
+    log "USB $USB_CTRL: no interrupt ($irq) across an unanswered ping ($f/$FROZE)"
+    held=1
+    [ $f -ge $FROZE ] && [ ! -e $RUN/gaveup ] || return 1
+    rebind "$USB_CTRL interrupts frozen for $f looks"
+}
+
+# The gateway answered: whatever escalation was under way is over.
+usb_rearm() {
+    [ -e $RUN/reprobed ] || [ -e $RUN/rebinds ] || [ -e $RUN/gaveup ] || return 0
+    log "gateway answers: Wi-Fi back ($(cat $RUN/rebinds 2>/dev/null || echo 0) USB rebinds), the watchdog re-armed"
+    rm -f $RUN/reprobed $RUN/rebinds $RUN/gaveup
+}
