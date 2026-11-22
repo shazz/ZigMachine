@@ -37,9 +37,9 @@ ping)
 iw) [ "$4" = power_save ] && [ "$3" = get ] && cat "$FAKE/power_save" 2>/dev/null ;;
 dmesg) cat "$FAKE/dmesg" 2>/dev/null ;;
 logger) shift 2; echo "$*" >> "$FAKE/syslog" ;;
-insmod) [ -e "$FAKE/insmod_brings_wlan0" ] && mkdir -p "$FAKE/sys/class/net/wlan0" ;;
+insmod) [ -e "$FAKE/insmod_brings_wlan0" ] && mkdir -p "$FAKE/sys/class/net/wlan0" && echo 1 > "$FAKE/sys/class/net/wlan0/carrier" ;;
 rmmod) [ "$1" = brcmfmac ] && rm -rf "$FAKE/sys/class/net/wlan0" ;;
-killall) [ "$2" = glass ] && [ -e "$FAKE/rebind_brings_wlan0" ] && mkdir -p "$FAKE/sys/class/net/wlan0" ;;
+killall) [ "$2" = glass ] && [ -e "$FAKE/rebind_brings_wlan0" ] && mkdir -p "$FAKE/sys/class/net/wlan0" && echo 1 > "$FAKE/sys/class/net/wlan0/carrier" ;;
 sleep) [ "$1" = %s ] && touch "$FAKE/run/watch.stop" ;;
 esac
 exit 0
@@ -71,6 +71,7 @@ def make_fake(tmp_path: Path) -> Path:
     (tmp_path / "proc/sys/kernel").mkdir(parents=True)
     (tmp_path / "proc/uptime").write_text("1000.50 1999.00\n")
     (tmp_path / "sys/class/net/wlan0").mkdir(parents=True)
+    (tmp_path / "sys/class/net/wlan0/carrier").write_text("1\n")
     _usb_device(tmp_path, "1-1.1", "0a5c", "bd1e")
     _usb_device(tmp_path, "1-1.2", "2516", "0004")
     (tmp_path / "sys/bus/platform/drivers/chipidea-usb2").mkdir(parents=True)

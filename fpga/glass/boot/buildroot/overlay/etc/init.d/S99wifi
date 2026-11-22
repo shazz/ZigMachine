@@ -93,7 +93,9 @@ check_gateway() {
         usb_rearm
         return 0
     fi
-    [ -n "$gw" ] && touch $RUN/pinged # traffic the controller must have seen (check_usb)
+    # Traffic the controller must have seen (check_usb), if wlan0 has a carrier: with none (the AP off,
+    # deauthenticated) the ping may never reach the bus, and a still count is then an idle bus.
+    [ -n "$gw" ] && [ "$(cat $SYS/class/net/wlan0/carrier 2>/dev/null)" = 1 ] && touch $RUN/pinged
     miss=$(($(cat $RUN/miss 2>/dev/null || echo 0) + 1))
     echo $miss > $RUN/miss
     if [ $miss -ge $((2 * MISS)) ] && [ $may = 1 ] && [ $held = 0 ]; then

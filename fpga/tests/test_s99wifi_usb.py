@@ -109,6 +109,19 @@ def test_an_ap_that_is_off_rejoins_and_reprobes_but_never_rebinds(fake: Path) ->
     assert rebinds(fake) == 0 and "no interrupt" not in syslog(fake)
 
 
+def test_a_still_count_with_no_carrier_is_an_ap_gone_not_a_wedge(fake: Path) -> None:
+    (fake / "ping_rc").write_text("1")
+    (fake / "sys/class/net/wlan0/carrier").write_text("0\n")  # deauthenticated: the ping may not reach the bus
+    (fake / "insmod_brings_wlan0").write_text("")
+    set_irqs(fake, 700)
+    for t in range(6):
+        uptime(fake, 1000 + 30 * t)
+        run(fake, "tick")
+        (fake / "sys/class/net/wlan0/carrier").write_text("0\n")
+    assert "no interrupt" not in syslog(fake)
+    assert rebinds(fake) == 0
+
+
 def no_wlan0_looks(fake: Path, start: int, step: int, n: int) -> None:
     for t in range(n):
         lose_wlan0(fake)

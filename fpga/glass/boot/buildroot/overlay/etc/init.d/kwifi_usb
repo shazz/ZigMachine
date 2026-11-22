@@ -98,8 +98,8 @@ lost() {
 
 # The controller's count against the last look's. A live EHCI interrupts for every transfer that ends
 # or is unlinked, but an idle bus (HID devices polling, all NAKed) need not interrupt at all: so a
-# look counts as frozen only when the one before sent traffic (a ping over wlan0 that went
-# unanswered, $RUN/pinged). FROZE such looks running: true when it rebound (or the rate limit held it);
+# look counts as frozen only when the one before sent traffic (a ping over wlan0, carrier up, that
+# went unanswered, $RUN/pinged). FROZE such looks running: true when it rebound (or the rate limit held it);
 # held=1 for the looks before that, so a re-probe does not poke a bus that may be wedged.
 check_usb() {
     irq=$(usb_irqs)

@@ -1700,7 +1700,8 @@ work on this board:
    with the dongle on the bus, or a `-5` again before the gateway has answered) escalates to the fix
    proven by hand: `e0002000.usb` unbound from `chipidea-usb2`, bound again, then `killall glass`
    (S99glass restarts it, and it reopens the input devices). The same rebind, and no re-probe first,
-   when the controller's count stays still across 2 looks that each sent it an unanswered ping (a
+   when the controller's count stays still across 2 looks that each sent it an unanswered ping over
+   a wlan0 with a carrier (a
    live EHCI interrupts for every transfer that ends or is unlinked; an idle bus need not, so a
    still count alone is not a wedge). At most one rebind per 10 min; after 3 in a row it logs
    "gave up" once and stops re-probing and rebinding (rejoins only) until the gateway answers, which
