@@ -15,6 +15,7 @@
 //   medium the old path in medium: PICTURES onto MUSIC
 //   full   a card with 50 KB free: PAIR onto NET stops at B.DAT (the alert, -10), A.TXT copied, no B.DAT,
 //          no temporary file, fsck clean
+//   hidden a double-click on A:\'s empty rows, over C:'s icon, opens nothing (Matt, 21 Nov: it opened C:)
 //   keep   a host that refuses renames: the Control-drag of ECHO.REQ onto NET leaves it where it was
 //   node apps/gem_fileops_check.mjs [--break copy|delete|rename|click] [--png <dir>]   (mutants: the host answers 0 to that
 //   kind of request and writes nothing; each must be caught)
@@ -160,6 +161,19 @@ async function clicks() {
     check("a double-click on BOOT.WSM runs it (request 3), nothing posted", gem.swaps === 1 && ui.box("seq") === seq, `swaps ${gem.swaps}`);
 }
 
+// Matt on the board, 21 Nov (GEM 5.0): a double-click on an EMPTY part of a window over a drive icon
+// opened that drive. Below A:\'s last row (y 80), still in its window over C:'s icon: nothing opens.
+async function hidden() {
+    console.log("hidden (low, a double-click in A:\\'s empty rows over C:'s icon)");
+    const c = card(DIR, "hidden"), ui = await desktop(c, null, "low", hook, bits), gem = ui.gem;
+    gem.mount(["AAA.DAT", "BBB.DAT", "BOOT.WSM"].map((name, i) => ({ name, type: name.endsWith(".WSM") ? 0 : 1, size: 100 + i, date: 20261110 })));
+    ui.open(20, 30);
+    const m = gem.machine, screen = () => { m.hwRenderPlane(0); return Buffer.from(new Uint8Array(gem.memory.buffer, m.hwPhysicalPtr(), m.hwPhysWidth() * m.hwPhysHeight() * 4)); };
+    const before = screen();
+    ui.open(20, 80); // the loader's double-click (before the fix: C:\\ opened in A:\\'s place)
+    check("a double-click on A:\\'s empty rows over C:'s icon opens nothing (the screen is unchanged)", Buffer.compare(before, screen()) === 0);
+}
+
 async function medium() {
     console.log("medium (the old path)");
     const c = card(DIR, "medium"), ui = await desktop(c, null, "medium", hook);
@@ -196,7 +210,7 @@ async function keep() {
 }
 
 console.log(`gem_fileops_check: C:'s file operations through the desktop${brk ? ` (--break ${brk})` : ""}`);
-for (const s of brk === "click" ? [clicks, deskEngine] : [low, drive, deskEngine, medium, full, keep, clicks]) await s();
+for (const s of brk === "click" ? [clicks, deskEngine] : [low, drive, deskEngine, medium, full, keep, clicks, hidden]) await s();
 rmSync(DIR, { recursive: true, force: true });
 if (brk) {
     console.log(fails ? `\ngem_fileops_check: PASS (--break ${brk} was caught)` : `\ngem_fileops_check: FAILED - --break ${brk} was not caught`);

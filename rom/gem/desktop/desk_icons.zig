@@ -142,6 +142,9 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
             .none => {},
         }
     }
+    // Inside any window but on no item (Matt, 21 Nov: a double-click in a window over drive A opened A):
+    // the icons under a window are hidden, so nothing opens.
+    if (inAnyWindow(d, x, y)) return;
     for (&d.items, 0..) |*it, i| {
         if (!shown(d, i) or !it.hitAt(x, y)) continue;
         desksel.clearSel(d);
@@ -153,6 +156,13 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
         }
         return;
     }
+}
+
+fn inAnyWindow(d: *const Desktop, x: i32, y: i32) bool {
+    for (d.wm.wins[0..d.wm.n]) |w| {
+        if (w.open and x >= w.r.x and x < w.r.x + w.r.w and y >= w.r.y and y < w.r.y + w.r.h) return true;
+    }
+    return false;
 }
 
 pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
