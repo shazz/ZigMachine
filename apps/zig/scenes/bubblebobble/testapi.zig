@@ -1,280 +1,93 @@
 // --------------------------------------------------------------------------
 // The headless harness's door into the game (apps/bubblebobble_headless.mjs):
-// drive the SAME sim.Game the scene plays, one 60 Hz tick at a time with a
-// scripted key mask, and read the whole world back for assertions. Pulled in
-// only when this scene IS the cart (bubblebobble.zig checks cart.Cart), so
-// these exports never leak into another cart.
+// power on, run whole 50 Hz frames in lockstep with scripted input, read the
+// machine back (RAM, the shown screen, the palette, the counters that must
+// stay 0). Pulled in only when this scene IS the cart.
 // --------------------------------------------------------------------------
-const sim = @import("sim.zig");
-const art = @import("art.zig");
-const audio = @import("audio.zig");
+const k = @import("st/cpu.zig");
+const io = @import("st/io.zig");
+const tos = @import("st/tos.zig");
+const frame = @import("st/frame.zig");
+const present = @import("present.zig");
+const sound = @import("sound.zig");
 const scene = @import("../bubblebobble.zig");
 
-/// mask: bit0 left, bit1 right, bit2 jump, bit3 fire (held, not an edge).
-fn decode(mask: u32) sim.Input {
-    var in = sim.Input{};
-    if (mask & 1 != 0) in.move -= 1;
-    if (mask & 2 != 0) in.move += 1;
-    in.jump = mask & 4 != 0;
-    in.fire = mask & 8 != 0;
-    return in;
+export fn bbTestPowerOn() void {
+    scene.powerOn();
 }
-
-export fn bbTestStart(seed: u32) void {
-    scene.game.reset(@as(u64, seed) | 1, 1);
-    scene.game.paused = false;
+/// Run `n` frames; returns the frame count.
+export fn bbTestFrames(n: u32) u32 {
+    for (0..n) |_| {
+        frame.runFrame();
+        sound.sync();
+    }
+    present.latch();
+    return @intCast(frame.frames);
 }
-export fn bbTestLoadLevel(n: u32) void {
-    scene.game.loadLevel(@intCast(n));
-    scene.game.state = .playing;
+export fn bbTestJoy(port: u32, state: u32) void {
+    frame.setJoystick(@intCast(port & 1), @truncate(state));
 }
-/// One 60 Hz tick. Returns the game state as a number.
-export fn bbTestTick(mask: u32) u32 {
-    scene.game.step(decode(mask));
-    return stateCode();
+/// The ACIA byte the VBL reads (a scancode, | $80 released).
+export fn bbTestKey(scancode: u32) void {
+    io.kbd_byte = @truncate(scancode);
 }
-export fn bbTestState() u32 {
-    return stateCode();
+/// A key for Crawio (the title's 1 / 2).
+export fn bbTestType(ascii: u32) void {
+    tos.typeKey(@truncate(ascii));
 }
-fn stateCode() u32 {
-    return switch (scene.game.state) {
-        .ready => 0,
-        .playing => 1,
-        .clearing => 2,
-        .game_over => 3,
-        .won => 4,
+/// RAM (absolute ST address).
+export fn bbTestMem() [*]u8 {
+    return k.mem.ptr;
+}
+export fn bbTestBase() u32 {
+    return frame.BASE;
+}
+export fn bbTestShown() u32 {
+    return io.shown_base;
+}
+export fn bbTestPalette() [*]const u16 {
+    return &io.palette_top;
+}
+export fn bbTestRasterCount() u32 {
+    return @intCast(io.raster_n);
+}
+export fn bbTestRasters() [*]const io.RasterWrite {
+    return &io.rasters;
+}
+/// The counters a healthy run keeps at 0: unknown jumps, unmodelled hardware,
+/// unanswered TOS calls, interrupt handlers that never returned.
+export fn bbTestStat(i: u32) u32 {
+    return switch (i) {
+        0 => k.bad_pcs,
+        1 => k.last_bad,
+        2 => io.dropped,
+        3 => tos.unknown,
+        4 => frame.stuck_irqs,
+        5 => @truncate(k.cy),
+        6 => io.psg_writes,
+        7 => @intFromBool(tos.terminated),
+        8 => sound.tunes,
+        9 => sound.effects,
+        10 => sound.last_tune,
+        11 => sound.last_effect,
+        12 => io.last_dropped,
+        13 => frame.pc,
+        14 => present.converted,
+        else => 0,
     };
 }
-export fn bbTestScore() i32 {
-    return scene.game.score;
+/// ZIG mode: the sky colour the HBL gives colour 0 at `line` (0 when off).
+export fn bbTestSky(line: u32) u32 {
+    return if (present.zig_mode) present.skyAt(line) else 0;
 }
-export fn bbTestLevel() u32 {
-    return scene.game.level.number;
+/// Run one of the game's routines (TEXT offset) as a subroutine, d0 = `d0`.
+export fn bbTestCall(offset: u32, d0: u32) void {
+    k.d[0] = d0;
+    frame.call(frame.BASE + offset);
 }
-export fn bbTestLevelIndex() u32 {
-    return @intCast(scene.game.level_index);
+export fn bbTestPlanePtr() [*]u8 {
+    return if (present.plane) |p| p.fb else undefined;
 }
-export fn bbTestLives() u32 {
-    return @intCast(@max(0, scene.game.players[0].lives));
+export fn bbTestPlaneStride() u32 {
+    return if (present.plane) |p| p.stride else 0;
 }
-export fn bbTestEnemies() u32 {
-    return @intCast(scene.game.remainingEnemies());
-}
-export fn bbTestEnemyCount() u32 {
-    return scene.game.enemy_count;
-}
-export fn bbTestTrapped() u32 {
-    var n: u32 = 0;
-    for (scene.game.enemies[0..scene.game.enemy_count]) |e| {
-        if (e.state == .trapped) n += 1;
-    }
-    return n;
-}
-export fn bbTestDefeated() u32 {
-    var n: u32 = 0;
-    for (scene.game.enemies[0..scene.game.enemy_count]) |e| {
-        if (e.state == .defeated) n += 1;
-    }
-    return n;
-}
-export fn bbTestBubbles() u32 {
-    return scene.game.bubble_count;
-}
-export fn bbTestItems() u32 {
-    return scene.game.item_count;
-}
-export fn bbTestEffects() u32 {
-    return scene.game.effect_count;
-}
-export fn bbTestParticles() u32 {
-    return scene.game.particle_count;
-}
-export fn bbTestHurry() u32 {
-    return if (scene.game.hurry) 1 else 0;
-}
-export fn bbTestTickCount() i32 {
-    return scene.game.tick;
-}
-export fn bbTestPX() i32 {
-    return scene.game.players[0].body.x;
-}
-export fn bbTestPY() i32 {
-    return scene.game.players[0].body.y;
-}
-export fn bbTestPVY() i32 {
-    return scene.game.players[0].body.vy;
-}
-export fn bbTestGround() u32 {
-    return if (scene.game.players[0].body.ground) 1 else 0;
-}
-export fn bbTestDir() i32 {
-    return scene.game.players[0].dir;
-}
-export fn bbTestWalked() i32 {
-    return scene.game.counters.walked;
-}
-export fn bbTestBlown() i32 {
-    return scene.game.counters.blown;
-}
-export fn bbTestPopped() i32 {
-    return scene.game.counters.popped;
-}
-/// The nearest bubble to the player, or -1. The harness teleports onto it.
-export fn bbTestNearestBubble() i32 {
-    var best: i32 = -1;
-    var bestd: i64 = std.math.maxInt(i64);
-    const p = scene.game.players[0].body;
-    for (scene.game.bubbles[0..scene.game.bubble_count], 0..) |b, i| {
-        const d = @as(i64, @intCast(@abs(b.body.x - p.x))) + @as(i64, @intCast(@abs(b.body.y - p.y)));
-        if (d < bestd) {
-            bestd = d;
-            best = @intCast(i);
-        }
-    }
-    return best;
-}
-export fn bbTestBubbleX(i: u32) i32 {
-    if (i >= scene.game.bubble_count) return 0;
-    return scene.game.bubbles[i].body.x;
-}
-export fn bbTestBubbleY(i: u32) i32 {
-    if (i >= scene.game.bubble_count) return 0;
-    return scene.game.bubbles[i].body.y;
-}
-/// Put the player on the bubble and pop it, the way touching one does.
-export fn bbTestPopAt(i: u32) void {
-    if (i >= scene.game.bubble_count) return;
-    const b = scene.game.bubbles[i];
-    const p = &scene.game.players[0];
-    p.body.x = b.body.x;
-    p.body.y = b.body.y;
-    p.dead = 0;
-    scene.game.bubblePopForTest(@intCast(i));
-}
-/// The first trapped enemy's bubble index, or -1.
-export fn bbTestTrappedBubble() i32 {
-    for (scene.game.bubbles[0..scene.game.bubble_count], 0..) |b, i| {
-        if (b.enemy_id != 0) return @intCast(i);
-    }
-    return -1;
-}
-/// Teleport the player under an enemy so a blown bubble traps it.
-export fn bbTestAimAtEnemy(i: u32) void {
-    if (i >= scene.game.enemy_count) return;
-    const e = scene.game.enemies[i];
-    const p = &scene.game.players[0];
-    p.body.x = e.body.x - (20 << 16);
-    p.body.y = e.body.y;
-    p.dir = 1;
-}
-export fn bbTestEnemyX(i: u32) i32 {
-    if (i >= scene.game.enemy_count) return 0;
-    return scene.game.enemies[i].body.x;
-}
-export fn bbTestEnemyY(i: u32) i32 {
-    if (i >= scene.game.enemy_count) return 0;
-    return scene.game.enemies[i].body.y;
-}
-export fn bbTestEnemyKind(i: u32) u32 {
-    if (i >= scene.game.enemy_count) return 0;
-    return @intFromEnum(scene.game.enemies[i].kind);
-}
-export fn bbTestItemX(i: u32) i32 {
-    if (i >= scene.game.item_count) return 0;
-    return scene.game.items[i].body.x;
-}
-export fn bbTestItemY(i: u32) i32 {
-    if (i >= scene.game.item_count) return 0;
-    return scene.game.items[i].body.y;
-}
-export fn bbTestItemIsPower(i: u32) u32 {
-    if (i >= scene.game.item_count) return 0;
-    return if (scene.game.items[i].power == .none) 0 else 1;
-}
-/// Stand the dragon on an item, the way walking onto it does.
-export fn bbTestWalkToItem(i: u32) void {
-    if (i >= scene.game.item_count) return;
-    const it = scene.game.items[i];
-    const p = &scene.game.players[0];
-    p.body.x = it.body.x;
-    p.body.y = it.body.y;
-    p.body.vy = 0;
-    p.body.ground = true;
-    p.dead = 0;
-}
-export fn bbTestPowerCount() u32 {
-    var n: u32 = 0;
-    for (scene.game.items[0..scene.game.item_count]) |it| {
-        if (it.power != .none) n += 1;
-    }
-    return n;
-}
-export fn bbTestPending() u32 {
-    return scene.game.counters.pending_count;
-}
-/// Grant a power-up the way collecting one does.
-export fn bbTestGrantPower(p: u32) void {
-    _ = scene.game.testApplyPower(@enumFromInt(p));
-}
-export fn bbTestSetLevelTicks(t: i32) void {
-    scene.game.level_ticks = t;
-}
-// --- the chip ---------------------------------------------------------------
-export fn bbTestMusic(track: u32) void {
-    if (track > 4) return;
-    audio.play(@enumFromInt(track));
-}
-export fn bbTestYmReg(i: u32) u32 {
-    return audio.regAt(i);
-}
-export fn bbTestYmRefused() u32 {
-    return audio.refused;
-}
-export fn bbTestMusicApplied() u32 {
-    return audio.appliedFrames();
-}
-export fn bbTestSfx(id: u32) void {
-    audio.sfx(@intCast(id));
-}
-export fn bbTestSfxFed() u32 {
-    return audio.fed;
-}
-export fn bbTestMuted() u32 {
-    return if (audio.muted) 1 else 0;
-}
-
-// --- the pages --------------------------------------------------------------
-export fn bbTestPage(n: u32) void {
-    scene.setPageForTest(n);
-}
-export fn bbTestSel(n: u32) void {
-    scene.selectForTest(n);
-}
-export fn bbTestPalettePtr() [*]u32 {
-    return art.palettePtr();
-}
-
-export fn bbTestRamPtr() [*]u8 {    return @ptrCast(&scene.game);
-}
-export fn bbTestRamLen() u32 {
-    return @sizeOf(sim.Game);
-}
-/// The overscan plane's char buffer (400 x 280 indexed pixels).
-export fn bbTestScreenPtr() [*]u8 {
-    return art.screenPtr();
-}
-export fn bbTestScreenStride() u32 {
-    return art.screenStride();
-}
-/// A CRC of the live world, so two runs of the same script can be compared.
-export fn bbTestCRC() u32 {
-    const words: [*]const u8 = @ptrCast(&scene.game);
-    var h: u32 = 2166136261;
-    var i: usize = 0;
-    while (i < @sizeOf(sim.Game)) : (i += 1) {
-        h = (h ^ words[i]) *% 16777619;
-    }
-    return h;
-}
-
-const std = @import("std");

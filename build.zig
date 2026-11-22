@@ -619,7 +619,7 @@ pub fn build(b: *std.Build) void {
         "demo-grodan_kvack", // 94 — GRODAN & KVACK KVACK, The Carebears (1989): layered rasters, big/vertical/small scrollers, swinging sprites (ported from the Go re-creation)
         "demo-larcociel5", // 95 — DMA INTRO 5 by Larcociel (demozoo 79464, DMA 1990): the ribbon trail, the perspective glyph raster and the YM-volume Batmen (ported from the Go re-creation)
         "demo-larcociel2", // 96 — DMA INTRO 2 by Larcociel (demozoo 79461, DMA 1990): the animated background band, projected ball trail and slice-stream scrolltext (ported from the Go re-creation)
-        "demo-bubblebobble", // 97 — BUBBLE BOBBLE (Taito 1986): the Go remake's 25-round campaign, six enemy kinds, bubbles, elements, power-ups and the level editor (ported from the Go re-creation)
+        "demo-bubblebobble", // 97 — BUBBLE BOBBLE (Firebird 1987, the Atari ST game): BUBBLE.PRG's 68000 code translated to Zig (tools/bubblebobble/st_recomp.py) on a model of the ST it uses; 100 rounds, 1-2 players, the real rasters, the game's own sound driver as an SNDH
         "demo-chonchon", // 98 — DMA "CHONCHON INTRO" (demozoo 79458): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume music meters and the per-line raster (ported from the Go re-creation)
         "demo-ikplus", // 99 — THE REPLICANTS / "INTERNATIONAL KARATE PLUS" (IK+) cracktro: a four-size scrolltext, the logo outline, eight stars and two REAL per-scanline raster bars (ported from the Go re-creation of the ST binary)
         "demo-chonchon2", // 100 — CHONCHON 2, the Go re-creation's sliding panels, two sprite paths, multicoloured ribbon and YM meters, with the produced replacement tracks
