@@ -1,0 +1,77 @@
+# Phase 2 hand patches (format: tools/reorg/patches.py). Paths are AFTER the move, and the
+# old text is what the path rewriter has already produced.
+
+# The narrowed gate's classifier: a harness is apps/harness/<name>.mjs now.
+=== tools/gate_scope.py
+<<<
+MJS_REF = re.compile(r"apps/([A-Za-z0-9_]+\.mjs)")
+---
+MJS_REF = re.compile(r"apps/harness/([A-Za-z0-9_]+\.mjs)")
+>>>
+<<<
+    if name in seen or not (root / "apps" / name).is_file():
+---
+    if name in seen or not (root / "apps" / "harness" / name).is_file():
+>>>
+<<<
+    text = (root / "apps" / name).read_text(errors="replace")
+---
+    text = (root / "apps" / "harness" / name).read_text(errors="replace")
+>>>
+<<<
+    """A top-level apps/ file (a harness, a helper, a fixture): who reads it?"""
+    base = path.split("/", 1)[1]
+---
+    """An apps/harness/ file (a harness, a helper, a fixture): who reads it?"""
+    base = path.rsplit("/", 1)[1]
+>>>
+<<<
+    if parts[0] == "apps" and len(parts) == 2:
+---
+    if path.startswith("apps/harness/") and len(parts) == 3:
+>>>
+
+=== tools/tests/test_gate_scope.py
+<<<
+    "big_demo_machine.mjs": 'const f = "apps/big_fixture.json";',
+---
+    "big_demo_machine.mjs": 'const f = "apps/harness/big_fixture.json";',
+>>>
+<<<
+    (root / "apps").mkdir()
+---
+    (root / "apps" / "harness").mkdir(parents=True)
+>>>
+<<<
+        (root / "apps" / name).write_text(text)
+---
+        (root / "apps" / "harness" / name).write_text(text)
+>>>
+<<<
+        self.assertEqual(self.scope("M\tapps/big_fixture.json"), ["big_demo"])
+---
+        self.assertEqual(self.scope("M\tapps/harness/big_fixture.json"), ["big_demo"])
+>>>
+
+# The repo root, from a harness one level deeper than before.
+=== apps/harness/sdk_check.mjs
+<<<
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+---
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+>>>
+
+# Fixture writers: their default output is the fixture the harness reads.
+=== tools/skystrike/make_fixture.py
+<<<
+OUT = os.path.join(ROOT, 'apps', 'skystrike_fixture.json')
+---
+OUT = os.path.join(ROOT, 'apps', 'harness', 'skystrike_fixture.json')
+>>>
+
+=== tools/rick_dangerous/make_fixture.py
+<<<
+    ap.add_argument('--out', default=os.path.join(ROOT, 'apps', 'rick_dangerous_fixture.json.gz'))
+---
+    ap.add_argument('--out', default=os.path.join(ROOT, 'apps', 'harness', 'rick_dangerous_fixture.json.gz'))
+>>>

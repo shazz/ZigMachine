@@ -1,0 +1,73 @@
+# Phase 1 hand patches (format: tools/reorg/patches.py). Paths are AFTER the move, and the
+# old text is what the path rewriter has already produced.
+
+# The generated pages link the .md they are rendered from. Relative .md links worked only
+# while the site and the docs shared docs/; they become github.com blob URLs, so they work
+# from GitHub Pages, from site/ (phase 3) and from a local server alike.
+=== tools/docgen/__init__.py
+<<<
+ROOT = Path(__file__).resolve().parents[2]
+---
+ROOT = Path(__file__).resolve().parents[2]
+BLOB = "https://github.com/shazz/ZigMachine/blob/main/"
+MD_HREF = re.compile(r'href="(?![a-zA-Z][a-zA-Z0-9+.-]*:|#|/)([^"#?]+\.md)((?:#[^"]*)?)"')
+>>>
+<<<
+def render_markdown_file(rel: str) -> str:
+    """Render a repo markdown file to HTML (fenced code + tables) for a page section."""
+    return render_markdown((ROOT / rel).read_text())
+---
+def blob_links(markup: str, src_rel: str) -> str:
+    """Point the .md links of markup rendered from repo file `src_rel` at GitHub.
+
+    The pages are served from a directory that holds no .md (site/, phase 3 of the repo
+    reorganisation), so a relative ZIGOS_API.md link would 404 there.
+    """
+    base = posixpath.dirname(src_rel)
+
+    def repl(m: re.Match[str]) -> str:
+        return f'href="{BLOB}{posixpath.normpath(posixpath.join(base, m.group(1)))}{m.group(2)}"'
+
+    return MD_HREF.sub(repl, markup)
+
+
+def render_markdown_file(rel: str) -> str:
+    """Render a repo markdown file to HTML (fenced code + tables) for a page section."""
+    return blob_links(render_markdown((ROOT / rel).read_text()), rel)
+>>>
+<<<
+import html
+import re
+---
+import html
+import posixpath
+import re
+>>>
+
+=== tools/docgen/tutorial_render.py
+<<<
+from . import ROOT, esc, render_markdown, unstamped  # noqa: F401  (unstamped: gen_tutorial.py's guard)
+---
+from . import ROOT, blob_links, esc, render_markdown, unstamped  # noqa: F401  (unstamped: gen_tutorial.py's guard)
+>>>
+<<<
+    t = parse((ROOT / "docs" / "TUTORIAL.md").read_text())
+    return TEMPLATE.format(
+---
+    t = parse((ROOT / "docs" / "guide" / "TUTORIAL.md").read_text())
+    return blob_links(TEMPLATE.format(
+>>>
+<<<
+        sections="\n".join(render_section(s) for s in t.sections),
+    )
+---
+        sections="\n".join(render_section(s) for s in t.sections),
+    ), "docs/guide/TUTORIAL.md")
+>>>
+
+=== tools/tests/test_tutorial_parse.py
+<<<
+REAL = (ROOT / "docs" / "TUTORIAL.md").read_text()
+---
+REAL = (ROOT / "docs" / "guide" / "TUTORIAL.md").read_text()
+>>>

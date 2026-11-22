@@ -1,0 +1,22 @@
+# Phase 4: the port write-ups into docs/, then prototypes/ untracked (tools/reorg/run_all.sh).
+# prototypes/ is git-ignored already; 326 files were force-added over time. They stay on disk
+# (git rm --cached); only the seven ANALYSIS.md write-ups are documentation and move.
+# Columns are TAB-separated. Every tracked */ANALYSIS.md must be classified (the `check` line).
+#
+# The folder is the CART tag (what build.zig, the channel list and docs/ports/ call the screen),
+# not the RE folder's name: 1988_re is the c64_1988 cart. tos4x_re is not a port but the study of
+# Atari's TOS 2-4 sources (GEM 5's reference): it goes with the OS docs.
+# No stubs: prototypes/ is not in the repository any more, so nothing outside could link there.
+
+check	prototypes/*/ANALYSIS.md
+
+mv	prototypes/1988_re/ANALYSIS.md	docs/ports/c64_1988/ANALYSIS.md
+mv	prototypes/transmission64_re/ANALYSIS.md	docs/ports/c64_transmission64/ANALYSIS.md
+mv	prototypes/erfurt_re/ANALYSIS.md	docs/ports/erfurt_menu/ANALYSIS.md
+mv	prototypes/falcon_ays_re/ANALYSIS.md	docs/ports/falcon_ays/ANALYSIS.md
+mv	prototypes/mindwind_re/ANALYSIS.md	docs/ports/mindwind/ANALYSIS.md
+mv	prototypes/rno_natrium_re/ANALYSIS.md	docs/ports/rno_natrium/ANALYSIS.md
+mv	prototypes/tos4x_re/ANALYSIS.md	docs/os/tos4x/ANALYSIS.md
+
+# The convention itself, as the st-port / c64-port skills and the docs spell it
+rw	prototypes/<tag>_re/ANALYSIS.md	docs/ports/<tag>/ANALYSIS.md

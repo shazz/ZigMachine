@@ -1,0 +1,23 @@
+# Phase 2: the node harnesses out of the apps/ root, into apps/harness/ (tools/reorg/run_all.sh).
+# apps/ keeps the cart SOURCES (zig/, c/, rust/, ports/, tex_loader_fx/) and its README; the
+# harnesses, the fixtures they read and their perf/ library move together, so a harness's
+# ./sibling.mjs and ./perf/x.mjs imports stay as they are.
+# Columns are TAB-separated. Every file directly in apps/ must be classified (the `check` line).
+
+check	apps/*
+keep	apps/README.md
+
+glob	apps/*.mjs	apps/harness
+glob	apps/*.json	apps/harness
+glob	apps/*.json.gz	apps/harness
+glob	apps/*.bin.br	apps/harness
+dir	apps/perf	apps/harness/perf
+
+# Harnesses the docs name but the tree does not have (gone, or planned): they belong in harness/ too
+rw	apps/wasm_lint.mjs	apps/harness/wasm_lint.mjs
+rw	apps/zide_check.mjs	apps/harness/zide_check.mjs
+rw	apps/nic_check.mjs	apps/harness/nic_check.mjs
+
+# --verify: path joins no table can see (patched by hand in phase2_harness.patch)
+forbid	["']apps["']\s*,\s*["'][\w.-]+\.(?:mjs|json|gz|br)["']
+forbid	/\s*"apps"\s*/\s*name

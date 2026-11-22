@@ -1,0 +1,79 @@
+# Phase 3: the website (what GitHub Pages serves) out of docs/, into site/ (tools/reorg/run_all.sh).
+# Columns are TAB-separated. Every file directly in docs/ must be classified (the `check` line):
+# after phase 1 the only .md left there are the one-line stubs.
+#
+# site/            the pages, and the machine's own chips (fetched by bare name from the page root):
+#                  rom.wasm, machine-video.wasm, machine-audio.wasm, demo-audio.wasm (the audio
+#                  chip's program: the node harnesses load it from the same dir as machine-audio),
+#                  kos-cfs.wasm, channels.json, and the retired monolith's audio.wasm/bootloader.wasm
+#                  (debug.html). Harnesses keep MACHINE_DIR = site.
+# site/js/         every script (classic <script>, modules and the AudioWorklet modules)
+# site/carts/      every cart (demo-*.wasm), every disk (*.zmd) and the v2 boot sectors (boot-*.wasm,
+#                  which only tools/mkdisks.sh reads, beside the carts it packs)
+# site/disks/      the C: images (?c=kos-c.img ...)
+# site/music/, css/, fonts/, overlays/, logo/, wasm/   as they were
+
+check	docs/*
+keep	docs/*.md
+
+# the pages
+mv	docs/index.html	site/index.html
+mv	docs/sealed.html	site/sealed.html
+mv	docs/debug.html	site/debug.html
+mv	docs/TUTORIAL.html	site/TUTORIAL.html
+mv	docs/ZIGMACHINE_GUIDE.html	site/ZIGMACHINE_GUIDE.html
+
+# the machine's chips and the channel list, at the page root
+mv	docs/rom.wasm	site/rom.wasm
+mv	docs/machine-video.wasm	site/machine-video.wasm
+mv	docs/machine-audio.wasm	site/machine-audio.wasm
+mv	docs/demo-audio.wasm	site/demo-audio.wasm
+mv	docs/kos-cfs.wasm	site/kos-cfs.wasm
+mv	docs/audio.wasm	site/audio.wasm
+mv	docs/bootloader.wasm	site/bootloader.wasm
+mv	docs/channels.json	site/channels.json
+
+# scripts
+glob	docs/*.js	site/js
+
+# carts, disks, boot sectors (a glob never re-routes demo-audio.wasm, moved above)
+glob	docs/demo*.wasm	site/carts
+glob	docs/*.zmd	site/carts
+glob	docs/boot-*.wasm	site/carts
+glob	docs/*.img	site/disks
+rw	docs/demo-	site/carts/demo-
+
+# asset folders
+dir	docs/music	site/music
+dir	docs/css	site/css
+dir	docs/fonts	site/fonts
+dir	docs/overlays	site/overlays
+dir	docs/logo	site/logo
+dir	docs/wasm	site/wasm
+
+# git-ignored local directories the .gitignore names: their files move on disk (never committed).
+# Every dir/glob rule above also carries the untracked files it covers (docs/music/local.xm, the
+# HVSC .sid tunes, docs/demo-hello.*): tools/reorg/localfiles.py.
+dir	docs/.sdk	site/carts/.sdk
+dir	docs/.claude	site/.claude
+
+# A harness that boots the cart of an OLD revision (git show 82db48da:docs/...) keeps that revision's paths.
+allow	apps/harness/ancool_headless.mjs	OLD_REV
+allow	apps/harness/ancool_headless.mjs	gitShow(
+allow	apps/harness/ancool_headless.mjs	82db48da:docs/demo-ancool.wasm
+# The Pages workflow's header says where classic Pages publishes from TODAY.
+allow	.github/workflows/pages.yml	main:/docs
+# The 2026 code review describes a file that no longer exists (and never moves).
+allow	docs/project/REVIEW.md	docs/zigloader.js
+
+# --verify: the forms no path table sees (each patched by hand in phase3_site.patch)
+forbid	["'`]docs["'`](?!\s*[/,]\s*["'](?:guide|hardware|os|project|ports)["'])
+forbid	-- docs\b
+forbid	["'`]docs/["'`]
+forbid	\.\./docs["'/]
+forbid	/docs/["'$]
+forbid	\bOUT=docs\b
+forbid	docs/\$
+forbid	["']docs/["'] *\+
+forbid	[=/]docs(?=["' ]|$)
+forbid	\^docs/

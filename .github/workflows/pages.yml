@@ -1,0 +1,43 @@
+# GitHub Pages from site/ (the repo reorganisation, tools/reorg/run_all.sh, phase 3).
+#
+# DISABLED ON PURPOSE: it runs only by hand (workflow_dispatch). Today Pages is "classic",
+# publishing main:/docs (gh api repos/shazz/ZigMachine/pages). The site moves to site/ when
+# tools/reorg/phase3_site.py lands on main, and classic Pages can only serve / or /docs, so:
+#
+#   1. Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+#      (or: gh api -X PUT repos/shazz/ZigMachine/pages -f build_type=workflow)
+#   2. Add `push: branches: [main]` under `on:` below, in the SAME commit that lands phase 3,
+#      so the first push of site/ deploys it. Until step 1 is done that push would fail here,
+#      and from step 1 until site/ exists this workflow has nothing to publish: do steps 1-2
+#      together with the phase 3 push, or run it once by hand (Actions -> Pages -> Run workflow).
+#
+# Nothing is built here: site/ is committed build output (the pre-push hook refuses a push
+# whose site/ differs from a rebuild of its source), so the job only uploads the folder.
+name: Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

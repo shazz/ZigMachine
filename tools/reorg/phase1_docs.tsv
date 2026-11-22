@@ -1,0 +1,112 @@
+# Phase 1: human docs into docs/<area>/ (tools/reorg/run_all.sh). Reviewed by hand: every
+# docs/*.md is classified here, and phase1_docs.py STOPS on one that is not (the `check` line).
+# Columns are TAB-separated. `stub` leaves a one-line "Moved to <new>" file at the old path,
+# for links from outside the repo (artifacts, forums, GitHub blob URLs).
+#
+# Why every .md gets a stub, and the website's links do not need one: GitHub Pages will serve
+# site/ (phase 3), where no .md exists at all, so a stub in docs/ could never answer a page
+# link. The pages' .md links (TUTORIAL.html, ZIGMACHINE_GUIDE.html, rendered from the .md
+# sources) are made absolute github.com/.../blob/main/docs/... URLs by tools/docgen instead
+# (phase1_docs.patch), which work from any host.
+
+check	docs/*.md
+check	fpga/review/*.md
+keep	README.md
+
+
+# docs/guide/: writing software for the machine
+mv	docs/TUTORIAL.md	docs/guide/TUTORIAL.md	stub
+mv	docs/ZIGOS_API.md	docs/guide/ZIGOS_API.md	stub
+mv	docs/SDK.md	docs/guide/SDK.md	stub
+mv	docs/BUILDING.md	docs/guide/BUILDING.md	stub
+mv	docs/MUSIC.md	docs/guide/MUSIC.md	stub
+mv	docs/DEPACK.md	docs/guide/DEPACK.md	stub
+mv	docs/MEMORY.md	docs/guide/MEMORY.md	stub
+mv	docs/FLOPPY_DISK.md	docs/guide/FLOPPY_DISK.md	stub
+mv	docs/BAD_PATTERNS.md	docs/guide/BAD_PATTERNS.md	stub
+
+# docs/hardware/: the machine and the board
+mv	docs/HW_API.md	docs/hardware/HW_API.md	stub
+mv	docs/HARDWARE_SPEC.md	docs/hardware/HARDWARE_SPEC.md	stub
+mv	docs/BLITTER_HW_SPEC.md	docs/hardware/BLITTER_HW_SPEC.md	stub
+mv	docs/FPGA_AUDIO.md	docs/hardware/FPGA_AUDIO.md	stub
+mv	docs/FPGA_AUDIO_CPU.md	docs/hardware/FPGA_AUDIO_CPU.md	stub
+mv	docs/FPGA_GLASS.md	docs/hardware/FPGA_GLASS.md	stub
+mv	docs/FPGA_SOUND_CPU.md	docs/hardware/FPGA_SOUND_CPU.md	stub
+mv	docs/FPGA_STEPS.md	docs/hardware/FPGA_STEPS.md	stub
+mv	docs/FPGA_TUTORIAL.md	docs/hardware/FPGA_TUTORIAL.md	stub
+mv	docs/ZIGMACHINE_IN_FPGA.md	docs/hardware/ZIGMACHINE_IN_FPGA.md	stub
+mv	docs/PERF_AUDIT.md	docs/hardware/PERF_AUDIT.md	stub
+mv	docs/RETRO_HW_FEATURES.md	docs/hardware/RETRO_HW_FEATURES.md	stub
+
+# docs/os/: KOS, GEM and the ROM
+mv	docs/KOS_FAT.md	docs/os/KOS_FAT.md	stub
+mv	docs/KOS_GEMDOS.md	docs/os/KOS_GEMDOS.md	stub
+mv	docs/KOS_GEMDOS_WRITES.md	docs/os/KOS_GEMDOS_WRITES.md	stub
+mv	docs/GEM5_ENGINE.md	docs/os/GEM5_ENGINE.md	stub
+mv	docs/GEM5_PLAN.md	docs/os/GEM5_PLAN.md	stub
+mv	docs/GEM_DESK_MODE.md	docs/os/GEM_DESK_MODE.md	stub
+mv	docs/GEM_FILEOPS.md	docs/os/GEM_FILEOPS.md	stub
+mv	docs/GEM_NET.md	docs/os/GEM_NET.md	stub
+mv	docs/GEMTEST.md	docs/os/GEMTEST.md	stub
+mv	docs/ZIGTOS_BOOT.md	docs/os/ZIGTOS_BOOT.md	stub
+mv	docs/NOTEPAD.md	docs/os/NOTEPAD.md	stub
+mv	docs/DEVPAC_GAP.md	docs/os/DEVPAC_GAP.md	stub
+mv	docs/PHASE2_ROM_CHIP.md	docs/os/PHASE2_ROM_CHIP.md	stub
+
+# docs/project/: planning and records
+mv	docs/ROADMAP.md	docs/project/ROADMAP.md	stub
+mv	docs/ROADMAP_DONE.md	docs/project/ROADMAP_DONE.md	stub
+mv	docs/IDEAS.md	docs/project/IDEAS.md	stub
+mv	docs/REVIEW.md	docs/project/REVIEW.md	stub
+mv	decisions.md	docs/project/DECISIONS.md	stub
+mv	BUGS.md	docs/project/BUGS.md	stub
+mv	PORTS.md	docs/project/PORTS.md	stub
+
+# docs/ports/: the three existing port notes stay where they are (phase 4 adds <tag>/ANALYSIS.md beside them)
+keep	docs/ports/*
+
+# docs/hardware/studies/: the FPGA design studies and their evidence. fpga/review/tools/ is CODE and stays.
+mv	fpga/review/BARD_BRAM_STUDY.md	docs/hardware/studies/BARD_BRAM_STUDY.md	stub
+mv	fpga/review/BARD_CPI_STUDY.md	docs/hardware/studies/BARD_CPI_STUDY.md	stub
+mv	fpga/review/COPPER_LINEBASE.md	docs/hardware/studies/COPPER_LINEBASE.md	stub
+mv	fpga/review/COPPER_LIST.md	docs/hardware/studies/COPPER_LIST.md	stub
+mv	fpga/review/F3_ROW_ENCODING.md	docs/hardware/studies/F3_ROW_ENCODING.md	stub
+mv	fpga/review/FRESCO_OPTIONS.md	docs/hardware/studies/FRESCO_OPTIONS.md	stub
+mv	fpga/review/KESTREL_NEXT_ISA.md	docs/hardware/studies/KESTREL_NEXT_ISA.md	stub
+mv	fpga/review/LUT_DIET_STUDY.md	docs/hardware/studies/LUT_DIET_STUDY.md	stub
+mv	fpga/review/MP3_BARD_STUDY.md	docs/hardware/studies/MP3_BARD_STUDY.md	stub
+mv	fpga/review/MPP_COPPER.md	docs/hardware/studies/MPP_COPPER.md	stub
+mv	fpga/review/OPEN_colorshock_row0_race.md	docs/hardware/studies/OPEN_colorshock_row0_race.md	stub
+mv	fpga/review/PERFORMANCE_REVIEW.md	docs/hardware/studies/PERFORMANCE_REVIEW.md	stub
+mv	fpga/review/PLANE_INTERLEAVE.md	docs/hardware/studies/PLANE_INTERLEAVE.md	stub
+mv	fpga/review/prompt.md	docs/hardware/studies/prompt.md	stub
+mv	fpga/review/SID_BARD_STUDY.md	docs/hardware/studies/SID_BARD_STUDY.md	stub
+mv	fpga/review/SOC_REVIEW.md	docs/hardware/studies/SOC_REVIEW.md	stub
+mv	fpga/review/TRUECOLOR_PLANE.md	docs/hardware/studies/TRUECOLOR_PLANE.md	stub
+mv	fpga/review/ZIGGY_BIG_READS_STUDY.md	docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md	stub
+mv	fpga/review/ZIGGY_ISA_EXTENSIONS.md	docs/hardware/studies/ZIGGY_ISA_EXTENSIONS.md	stub
+dir	fpga/review/reports	docs/hardware/studies/reports
+dir	fpga/bench_results	docs/hardware/studies/bench_results
+
+# fpga-relative mentions (code comments and READMEs under fpga/ say review/X.md): repo-rooted from now on
+rw	review/BARD_BRAM_STUDY.md	docs/hardware/studies/BARD_BRAM_STUDY.md	scope=fpga/
+rw	review/BARD_CPI_STUDY.md	docs/hardware/studies/BARD_CPI_STUDY.md	scope=fpga/
+rw	review/COPPER_LINEBASE.md	docs/hardware/studies/COPPER_LINEBASE.md	scope=fpga/
+rw	review/COPPER_LIST.md	docs/hardware/studies/COPPER_LIST.md	scope=fpga/
+rw	review/F3_ROW_ENCODING.md	docs/hardware/studies/F3_ROW_ENCODING.md	scope=fpga/
+rw	review/FRESCO_OPTIONS.md	docs/hardware/studies/FRESCO_OPTIONS.md	scope=fpga/
+rw	review/KESTREL_NEXT_ISA.md	docs/hardware/studies/KESTREL_NEXT_ISA.md	scope=fpga/
+rw	review/LUT_DIET_STUDY.md	docs/hardware/studies/LUT_DIET_STUDY.md	scope=fpga/
+rw	review/MP3_BARD_STUDY.md	docs/hardware/studies/MP3_BARD_STUDY.md	scope=fpga/
+rw	review/MPP_COPPER.md	docs/hardware/studies/MPP_COPPER.md	scope=fpga/
+rw	review/OPEN_colorshock_row0_race.md	docs/hardware/studies/OPEN_colorshock_row0_race.md	scope=fpga/
+rw	review/PERFORMANCE_REVIEW.md	docs/hardware/studies/PERFORMANCE_REVIEW.md	scope=fpga/
+rw	review/PLANE_INTERLEAVE.md	docs/hardware/studies/PLANE_INTERLEAVE.md	scope=fpga/
+rw	review/prompt.md	docs/hardware/studies/prompt.md	scope=fpga/
+rw	review/SID_BARD_STUDY.md	docs/hardware/studies/SID_BARD_STUDY.md	scope=fpga/
+rw	review/SOC_REVIEW.md	docs/hardware/studies/SOC_REVIEW.md	scope=fpga/
+rw	review/TRUECOLOR_PLANE.md	docs/hardware/studies/TRUECOLOR_PLANE.md	scope=fpga/
+rw	review/ZIGGY_BIG_READS_STUDY.md	docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md	scope=fpga/
+rw	review/ZIGGY_ISA_EXTENSIONS.md	docs/hardware/studies/ZIGGY_ISA_EXTENSIONS.md	scope=fpga/
+rw	review/reports	../docs/hardware/studies/reports	scope=fpga/review/tools/

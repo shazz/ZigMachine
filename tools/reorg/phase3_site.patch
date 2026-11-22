@@ -1,0 +1,522 @@
+# Phase 3 hand patches (format: tools/reorg/patches.py). Paths are AFTER the move, and the
+# old text is what the path rewriter has already produced.
+
+# ---------------------------------------------------------------- the page itself
+# A page fetches by URL relative to the DOCUMENT (site/), so the scripts' fetches of
+# carts and disks gain their folder. A bare name in ?demo= / ?disk= / ?c= (every link
+# made before site/ had folders, the SDK's `make run`, the tutorial's Run button) still
+# works: siteUrl() puts it in its folder.
+=== site/js/sealed-loader.js
+<<<
+async function mountDisk(url) {
+---
+// A bare file name from a URL parameter (?disk=demo-x.zmd, ?demo=demo-x.wasm, ?c=kos-c.img: links
+// made before the site had folders) lives in its folder; a path with a "/" is taken as given.
+function siteUrl(name, dir) {
+    return name.includes("/") ? name : dir + name;
+}
+
+async function mountDisk(url) {
+>>>
+<<<
+                await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer()),
+---
+                await fetch("carts/demo-gem.wasm" + BUST).then((r) => r.arrayBuffer()),
+>>>
+<<<
+            url = "demo-" + tag + ".zmd";
+        } else {
+            url = "demo.zmd"; // back to the menu
+---
+            url = "carts/demo-" + tag + ".zmd";
+        } else {
+            url = "carts/demo.zmd"; // back to the menu
+>>>
+<<<
+        const bytes = bootable ? cart : await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+---
+        const bytes = bootable ? cart : await fetch("carts/demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+>>>
+<<<
+    let diskUrl = params.get("disk");
+---
+    let diskUrl = params.get("disk");
+    if (diskUrl && diskUrl !== "none") diskUrl = siteUrl(diskUrl, "carts/");
+>>>
+<<<
+            diskUrl = "demo-" + tag + ".zmd";
+---
+            diskUrl = "carts/demo-" + tag + ".zmd";
+>>>
+<<<
+    const demoWasm = params.get("demo") || "demo.wasm";
+---
+    const demoWasm = siteUrl(params.get("demo") || "demo.wasm", "carts/");
+>>>
+<<<
+        kosMountC(new Uint8Array(await fetch(cUrl + BUST).then((r) => r.arrayBuffer())));
+---
+        kosMountC(new Uint8Array(await fetch(siteUrl(cUrl, "disks/") + BUST).then((r) => r.arrayBuffer())));
+>>>
+<<<
+    const bytes = own ? d.cart : await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+---
+    const bytes = own ? d.cart : await fetch("carts/demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+>>>
+<<<
+    const d = url ? await mountDisk(url) : null;
+---
+    const d = url ? await mountDisk(siteUrl(url, "carts/")) : null; // window.kosInsert("demo-x.zmd") still works
+>>>
+<<<
+        await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js" + BUST);
+---
+        await audioCtx.audioWorklet.addModule("js/audio-worklet-sealed.js" + BUST);
+>>>
+
+=== site/js/upload-cart.js
+<<<
+        if (!bootable) bytes = await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+---
+        if (!bootable) bytes = await fetch("carts/demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+>>>
+
+=== site/js/loader.js
+<<<
+        await audioCtx.audioWorklet.addModule("audio-worklet.js");
+---
+        await audioCtx.audioWorklet.addModule("js/audio-worklet.js");
+>>>
+
+# The generated pages' own script tags (the CSS links were already relative to the page).
+=== tools/docgen/tutorial_theme.py
+<<<
+<script src="tutorial.js"></script>
+---
+<script src="js/tutorial.js"></script>
+>>>
+
+=== tools/docgen/guide_theme.py
+<<<
+<script src="guide.js"></script>
+---
+<script src="js/guide.js"></script>
+>>>
+
+# ---------------------------------------------------------------- the producers
+=== build.zig
+<<<
+        rom_chip.getEmittedBin(), .{ .custom = "../docs" }, "rom.wasm").step);
+---
+        rom_chip.getEmittedBin(), .{ .custom = "../site" }, "rom.wasm").step);
+>>>
+<<<
+        fn add(bld: *std.Build, art: *std.Build.Step.Compile, step: *std.Build.Step) void {
+            const inst = bld.addInstallArtifact(art, .{ .dest_dir = .{ .override = .{ .custom = "../docs" } } });
+---
+        // dir: "../site" for the machine's chips (the page fetches them from its root),
+        // "../site/carts" for carts and boot sectors (relative to the install prefix, zig-out).
+        fn add(bld: *std.Build, art: *std.Build.Step.Compile, step: *std.Build.Step, dir: []const u8) void {
+            const inst = bld.addInstallArtifact(art, .{ .dest_dir = .{ .override = .{ .custom = dir } } });
+>>>
+<<<
+    installTo(b, machine_video, sealed_step);
+---
+    installTo(b, machine_video, sealed_step, "../site");
+>>>
+<<<
+    installTo(b, machine_audio, sealed_step);
+---
+    installTo(b, machine_audio, sealed_step, "../site");
+>>>
+<<<
+    installTo(b, kos_cfs, sealed_step);
+---
+    installTo(b, kos_cfs, sealed_step, "../site");
+>>>
+<<<
+        installTo(b, exe, sealed_step);
+---
+        installTo(b, exe, sealed_step, "../site/carts");
+>>>
+<<<
+    installTo(b, demo_audio, sealed_step);
+---
+    installTo(b, demo_audio, sealed_step, "../site");
+>>>
+
+=== tools/mkdisks.sh
+<<<
+OUT=docs
+---
+OUT=site/carts
+>>>
+<<<
+$OUT/music/
+---
+site/music/
+>>>
+
+=== tools/pack_floppies.sh
+<<<
+    python3 tools/mkdisk.py "$w" -o "docs/$base.zmd" \
+---
+    python3 tools/mkdisk.py "$w" -o "site/carts/$base.zmd" \
+>>>
+<<<
+echo "packed $n floppies -> docs/*.zmd"
+---
+echo "packed $n floppies -> site/carts/*.zmd"
+>>>
+
+=== tools/cache_bust.py
+<<<
+DOCS = Path(__file__).resolve().parent.parent / "docs"
+---
+DOCS = Path(__file__).resolve().parent.parent / "site"
+>>>
+
+=== tools/gen_docs.py
+<<<
+    out = ROOT / "docs" / "ZIGMACHINE_GUIDE.html"
+---
+    out = ROOT / "site" / "ZIGMACHINE_GUIDE.html"
+>>>
+
+=== tools/gen_tutorial.py
+<<<
+    out = ROOT / "docs" / "TUTORIAL.html"
+---
+    out = ROOT / "site" / "TUTORIAL.html"
+>>>
+
+=== apps/c/build.sh
+<<<
+OUT=../../docs
+---
+OUT=../../site/carts
+>>>
+
+=== apps/rust/build.sh
+<<<
+OUT=../../docs
+---
+OUT=../../site/carts
+>>>
+
+=== sdk/template/Makefile
+<<<
+DOCS := $(KESTREL)/docs
+---
+DOCS := $(KESTREL)/site/carts
+>>>
+
+=== serve.sh
+<<<
+cd "$(dirname "$0")/docs" || exit 1
+---
+cd "$(dirname "$0")/site" || exit 1
+>>>
+
+=== tools/skystrike/levels_disk.py
+<<<
+CART = os.path.join(ROOT, 'docs', 'demo-skystrike.wasm')
+---
+CART = os.path.join(ROOT, 'site', 'carts', 'demo-skystrike.wasm')
+>>>
+
+# ---------------------------------------------------------------- the gate and the hooks
+# What GitHub Pages serves is site/ now: the "rebuilt files not committed" checks look there.
+=== .githooks/pre-push
+<<<
+stale=$(git status --porcelain -- docs)
+---
+stale=$(git status --porcelain -- site)
+>>>
+<<<
+rebuilt docs/ files this push does not contain:"
+---
+rebuilt site/ files this push does not contain:"
+>>>
+<<<
+s, docs/ up to date ✅"
+---
+s, site/ up to date ✅"
+>>>
+
+=== tools/prepare_pages.sh
+<<<
+stale=$(git status --porcelain -- docs)
+---
+stale=$(git status --porcelain -- site)
+>>>
+<<<
+docs/
+---
+site/
+>>>
+
+=== .githooks/pre-commit
+<<<
+docs/channels\.json
+---
+site/channels\.json
+>>>
+<<<
+grep -qE '^docs/.*\.(wasm|zmd)$'
+---
+grep -qE '^site/.*\.(wasm|zmd)$'
+>>>
+<<<
+rebuilt docs/ carts
+---
+rebuilt site/ carts
+>>>
+
+# The gate stamp hashes the build's inputs: the site is one of them now.
+=== tools/gate_stamp.sh
+<<<
+INPUTS="apps libs rom machine tools docs .githooks build.zig build.sh"
+---
+INPUTS="apps libs rom machine tools docs site .githooks build.zig build.sh"
+>>>
+
+=== tools/gate_scope.py
+<<<
+    if parts[0] == "docs" and path.startswith("site/music/"):
+---
+    if path.startswith("site/music/"):
+>>>
+
+# ---------------------------------------------------------------- harnesses: the machine dir
+# MACHINE_DIR holds the chips (rom.wasm, machine-*.wasm, demo-audio.wasm): site/ now.
+=== apps/harness/ancool_boot.mjs
+<<<
+machineDir = "docs"
+---
+machineDir = "site"
+>>>
+
+=== apps/harness/composite_hash.mjs
+<<<
+process.env.MACHINE_DIR || "docs"
+---
+process.env.MACHINE_DIR || "site"
+>>>
+
+=== apps/harness/scene_hash.mjs
+<<<
+process.env.MACHINE_DIR || "docs"
+---
+process.env.MACHINE_DIR || "site"
+>>>
+
+=== apps/harness/frame_cost.mjs
+<<<
+process.env.MACHINE_DIR || "docs"
+---
+process.env.MACHINE_DIR || "site"
+>>>
+
+=== apps/harness/hippel_musicdisk_headless.mjs
+<<<
+const audioDir = opt("--audio") ?? "docs";
+---
+const audioDir = opt("--audio") ?? "site";
+>>>
+
+=== apps/harness/sndh_relocate_check.mjs
+<<<
+const DIR = process.argv[2] ?? "docs";
+---
+const DIR = process.argv[2] ?? "site";
+>>>
+
+=== apps/harness/perf/isa_census.mjs
+<<<
+    const machineDir = o.machineDir ?? "docs";
+---
+    const machineDir = o.machineDir ?? "site";
+>>>
+<<<
+shelf("docs")
+---
+shelf("site")
+>>>
+
+# The perf shelf: the carts are in <machine dir>/carts.
+=== apps/harness/perf/run_all.mjs
+<<<
+export function shelf(dir = "docs") {
+    return readdirSync(dir).filter((f) => /^demo-.+\.wasm$/.test(f) && existsSync(`${dir}/${f.replace(/\.wasm$/, ".zmd")}`))
+        .map((f) => `${dir}/${f}`).sort();
+---
+export function shelf(dir = "site") {
+    const carts = `${dir}/carts`; // the machine dir holds the chips, its carts/ the carts and disks
+    return readdirSync(carts).filter((f) => /^demo-.+\.wasm$/.test(f) && existsSync(`${carts}/${f.replace(/\.wasm$/, ".zmd")}`))
+        .map((f) => `${carts}/${f}`).sort();
+>>>
+<<<
+    const carts = shelf(o.machineDir ?? "docs");
+---
+    const carts = shelf(o.machineDir ?? "site");
+>>>
+
+=== apps/harness/perf/run_cart.mjs
+<<<
+machineDir = "docs"
+---
+machineDir = "site"
+>>>
+
+# The named twin (tools/perf_names.sh) mirrors site/: chips at its root, carts in carts/.
+=== apps/harness/perf/names.mjs
+<<<
+"zig-out/perf-names/docs"
+---
+"zig-out/perf-names/site"
+>>>
+<<<
+    const twin = `${dir}/${basename(wasmPath)}`;
+---
+    const twin = `${dir}${wasmPath.includes("/carts/") ? "/carts" : ""}/${basename(wasmPath)}`;
+>>>
+
+=== tools/perf_names.sh
+<<<
+echo "perf names: $(ls zig-out/perf-names/docs/*.wasm | wc -l) modules in zig-out/perf-names/docs"
+---
+echo "perf names: $(ls zig-out/perf-names/site/*.wasm zig-out/perf-names/site/carts/*.wasm | wc -l) modules in zig-out/perf-names/site"
+>>>
+
+# ---------------------------------------------------------------- harnesses that read the shelf
+=== apps/harness/disk_check.mjs
+<<<
+    : (await readdir("docs")).filter((f) => f.endsWith(".zmd")).sort().map((f) => `docs/${f}`);
+---
+    : (await readdir("site/carts")).filter((f) => f.endsWith(".zmd")).sort().map((f) => `site/carts/${f}`);
+>>>
+
+=== apps/harness/raytrace_headless.mjs
+<<<
+    const cartBytes = await readFile(`docs/${name}.wasm`);
+---
+    const cartBytes = await readFile(`site/carts/${name}.wasm`);
+>>>
+
+=== apps/harness/tutorial_steps_check.mjs
+<<<
+    const args = ["apps/harness/scene_hash.mjs", `docs/${cart}`,
+---
+    const args = ["apps/harness/scene_hash.mjs", `site/carts/${cart}`,
+>>>
+
+# The page as the browser runs it: its fetches are relative to site/.
+=== apps/harness/kos_boot_check.mjs
+<<<
+            const bytes = await readFile((url.startsWith("/") ? "" : "docs/") + url.replace(/\?.*$/, ""));
+---
+            const bytes = await readFile((url.startsWith("/") ? "" : "site/") + url.replace(/\?.*$/, ""));
+>>>
+<<<
+        let src = execFileSync("cat", ["docs/" + f], { encoding: "utf8" });
+---
+        let src = execFileSync("cat", ["site/js/" + f], { encoding: "utf8" });
+>>>
+<<<
+    const drive = disk === "none" || disk.startsWith("/") ? disk : `docs/${disk}`;
+    const args = ["apps/harness/scene_hash.mjs", `docs/${cart}`,
+---
+    const drive = disk === "none" || disk.startsWith("/") ? disk : `site/carts/${disk}`;
+    const args = ["apps/harness/scene_hash.mjs", `site/carts/${cart}`,
+>>>
+
+=== apps/harness/upload_check.mjs
+<<<
+        const bytes = await readFile("docs/" + url.replace(/\?.*$/, ""));
+---
+        const bytes = await readFile("site/" + url.replace(/\?.*$/, ""));
+>>>
+<<<
+const disks = (await readdir("docs")).filter((f) => f.endsWith(".zmd")).sort();
+for (const name of disks) {
+    const image = new Uint8Array(await readFile("docs/" + name));
+---
+const disks = (await readdir("site/carts")).filter((f) => f.endsWith(".zmd")).sort().map((f) => "carts/" + f);
+for (const name of disks) {
+    const image = new Uint8Array(await readFile("site/" + name));
+>>>
+
+# ---------------------------------------------------------------- the board tools (Python)
+=== fpga/tests/test_board_disk.py
+<<<
+(ROOT / "docs").glob("demo-*.zmd")
+---
+(ROOT / "site" / "carts").glob("demo-*.zmd")
+>>>
+
+=== fpga/tests/test_glass.py
+<<<
+ROOT / "docs" / f"demo-{tag}.zmd"
+---
+ROOT / "site" / "carts" / f"demo-{tag}.zmd"
+>>>
+<<<
+ROOT / "docs" / "demo-stniccc.zmd"
+---
+ROOT / "site" / "carts" / "demo-stniccc.zmd"
+>>>
+
+=== fpga/tests/test_kos_boot.py
+<<<
+DOCS = ROOT / "docs"
+---
+DOCS = ROOT / "site" / "carts"
+>>>
+
+=== fpga/tools/bard_load_survey.py
+<<<
+(ROOT / "docs").glob("demo-*.wasm")
+---
+(ROOT / "site" / "carts").glob("demo-*.wasm")
+>>>
+
+=== fpga/tools/cycles_run.py
+<<<
+ROOT / "docs" / f"demo-{tag}.zmd"
+---
+ROOT / "site" / "carts" / f"demo-{tag}.zmd"
+>>>
+
+=== fpga/tools/glass_shelf.py
+<<<
+ROOT / "docs" / f"demo-{tag}.zmd"
+---
+ROOT / "site" / "carts" / f"demo-{tag}.zmd"
+>>>
+
+=== fpga/tools/glass_zx0.py
+<<<
+(ROOT / "docs").glob("demo-*.wasm")
+---
+(ROOT / "site" / "carts").glob("demo-*.wasm")
+>>>
+<<<
+ROOT / "docs" / f"demo-{cart}.wasm"
+---
+ROOT / "site" / "carts" / f"demo-{cart}.wasm"
+>>>
+
+=== fpga/tools/hp_sim_variant.py
+<<<
+ROOT / "docs" / f"demo-{self.data_disk}.zmd"
+---
+ROOT / "site" / "carts" / f"demo-{self.data_disk}.zmd"
+>>>
+
+=== fpga/tools/kos_rv.py
+<<<
+ROOT / "docs" / f"demo-{cart}.wasm"
+---
+ROOT / "site" / "carts" / f"demo-{cart}.wasm"
+>>>
