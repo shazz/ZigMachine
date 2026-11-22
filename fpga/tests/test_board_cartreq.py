@@ -24,6 +24,7 @@ import glass_cart
 import glass_map
 import glass_shelf
 import zmd_fat
+from host_make import lock_argv  # noqa: E402
 
 ST_REPLAY = ROOT / "docs/demo-st_replay.zmd"
 
@@ -118,7 +119,7 @@ def test_the_launched_program_quits_back_to_gem_as_scene_hash_says() -> None:
     """ST Replay as GEM launched it (--program: the disk in, no listing): X asks for GEM (request 4)."""
     if not (shutil.which("wasm2c") or (FPGA / ".tools/wabt/bin/wasm2c").exists()):
         pytest.skip("wasm2c (wabt) missing: `make -C fpga setup` installs it into fpga/.tools, absent in a fresh worktree")
-    subprocess.run(["make", "-s", "memmap", "build/host/st_replay/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/st_replay/host"], cwd=FPGA, check=True, capture_output=True)
     args = ["20", "5", "--data-disk", str(ST_REPLAY), "--program", "--call", "10:key:120"]
     nat = subprocess.run([str(FPGA / "build/host/st_replay/host"), "st_replay", *args], capture_output=True, text=True,
                          check=True)  # fmt: skip

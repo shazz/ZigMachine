@@ -21,6 +21,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
@@ -36,7 +37,7 @@ def calls(after: int) -> list[str]:
 
 
 def host(cart: str) -> Path:
-    subprocess.run(["make", "-s", "memmap", f"build/host/{cart}/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", f"build/host/{cart}/host"], cwd=FPGA, check=True, capture_output=True)
     return FPGA / f"build/host/{cart}/host"
 
 

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from test_sndh_native import FPGA, MUSIC, first_difference, modes_run, native_status, run
+from host_make import lock_argv  # noqa: E402
 
 MONTY = "auf_weidersehen_monty_digi.sndh"
 DRUMS = 2_300  # the first drum's frame, about (b848353: 38.4 s)
@@ -21,7 +22,7 @@ HANDLER_LSR = 0x44C + 0x52  # the Timer D handler's `lsr.w #1,d0` (digi_monty.zi
 
 @pytest.fixture(scope="module", autouse=True)
 def oracle() -> None:
-    subprocess.run(["make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
 
 
 def test_monty_native_writes_the_same_as_musashi_over_the_whole_song(tmp_path: Path) -> None:

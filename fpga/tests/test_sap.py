@@ -17,6 +17,7 @@ import wave
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
@@ -51,7 +52,7 @@ def synthetic(tags: str = "TYPE B\r\nINIT 3000\r\nPLAYER 3010\r\n") -> bytes:
 
 @pytest.fixture(scope="module", autouse=True)
 def oracle() -> None:
-    subprocess.run(["make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
 
 
 def play(tmp: Path, music: Path, name: str, frames: int) -> tuple[list[list[str]], str, Path]:

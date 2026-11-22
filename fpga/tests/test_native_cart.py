@@ -25,6 +25,7 @@ import glass_shelf
 import native_cart
 import split_image
 import zmd_fat
+from host_make import lock_argv  # noqa: E402
 
 V1 = 1 << 16
 NATIVE = FPGA / "build/hcycles/split/native_fpu"
@@ -32,7 +33,7 @@ needs_rv = pytest.mark.skipif(shutil.which("riscv64-unknown-elf-gcc") is None, r
 
 
 def build(name: str) -> Path:
-    subprocess.run(["make", "-s", "native-cart", f"NAME={name}", "ZM_FPU=1"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "native-cart", f"NAME={name}", "ZM_FPU=1"], cwd=FPGA, check=True, capture_output=True)
     return NATIVE / name
 
 

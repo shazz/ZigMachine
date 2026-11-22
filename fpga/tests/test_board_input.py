@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 CART = "union_beatdis"  # owns the keyboard: SPACE answers its loader's question (key(32))
@@ -23,7 +24,7 @@ FIRE, RIGHT = 0x20, 0x08  # JOY_FIRE, JOY_RIGHT
 
 @pytest.fixture(scope="module", autouse=True)
 def host() -> None:
-    subprocess.run(["make", "-s", "memmap", f"build/host/{CART}/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", f"build/host/{CART}/host"], cwd=FPGA, check=True, capture_output=True)
 
 
 def hashes(binary: Path = HOST, keys: str = "", call: str = "") -> list[str]:

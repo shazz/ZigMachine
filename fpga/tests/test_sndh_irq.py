@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 from test_sndh_native import FPGA, MUSIC, first_difference, native_status
+from host_make import lock_argv  # noqa: E402
 
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
 SURVEY = FPGA / "build/host/oracle/sndh_survey"
@@ -54,7 +55,7 @@ MUTANTS = [("union/thalion_forever.sndh", 5), ("digital/Ace_2.sndh", 5), ("snyd9
 
 @pytest.fixture(scope="module", autouse=True)
 def oracle() -> None:
-    subprocess.run(["make", "-s", "sndh-oracle", "sndh-survey"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "sndh-oracle", "sndh-survey"], cwd=FPGA, check=True, capture_output=True)
 
 
 def run(tmp: Path, song: str, tune: int, frames: int, *, musashi: bool = False, mutant: int = 0,

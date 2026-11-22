@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 CART = "gem"  # the desktop boots in LOW res: pointer() halves x (gem_desktop.zig)
@@ -36,7 +37,7 @@ CALLS = [f"{f}:pointer:{X},{Y},{b}" for f, b in SCRIPT]
 
 @pytest.fixture(scope="module", autouse=True)
 def host() -> None:
-    subprocess.run(["make", "-s", "memmap", f"build/host/{CART}/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", f"build/host/{CART}/host"], cwd=FPGA, check=True, capture_output=True)
 
 
 def run(binary: Path = HOST, pointer: str = "", calls: list[str] | None = None) -> subprocess.CompletedProcess[str]:

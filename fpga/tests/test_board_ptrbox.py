@@ -17,12 +17,13 @@ import pytest
 
 FPGA = Path(__file__).resolve().parent.parent
 WORK = FPGA / "build" / "board_ptrbox"
-subprocess.run(["make", "-s", "gen/glass_cart.h", "gen/glass_map.py"], cwd=FPGA, check=True)  # VBOX_*, fresh
+subprocess.run([*lock_argv(), "make", "-s", "gen/glass_cart.h", "gen/glass_map.py"], cwd=FPGA, check=True)  # VBOX_*, fresh
 sys.path.insert(0, str(FPGA / "gen"))
 sys.path.insert(0, str(FPGA / "tools"))
 import glass_cart
 import glass_map
 import video_dump  # writes build/vdump/zm_memmap.h
+from host_make import lock_argv  # noqa: E402
 
 NORMAL, FULLSCREEN, SCROLL, MEDIUM, OVERSCAN, TRUECOLOR, TC_FULL = range(7)
 W, H, BX, BY = glass_map.PTR_WIDTH, glass_map.PTR_HEIGHT, glass_map.PTR_BORDER_X, glass_map.PTR_BORDER_Y

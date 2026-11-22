@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
@@ -25,7 +26,7 @@ PLAY_ADD = 0x64 + 0x146 + 3  # the immediate of play's `addi.w #1,(a2)` (prototy
 
 @pytest.fixture(scope="module", autouse=True)
 def oracle() -> None:
-    subprocess.run(["make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
 
 
 def run(

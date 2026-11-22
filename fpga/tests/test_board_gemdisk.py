@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 from gemdisk_util import ROOT, browser_find, browser_list, v1, v2
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 WORK = FPGA / "build" / "board_gemdisk"
@@ -149,7 +150,7 @@ def _run(cmd: list[str], env: dict[str, str] | None = None) -> subprocess.Comple
 
 @pytest.fixture(scope="module")
 def gem_host() -> Path:
-    subprocess.run(["make", "-s", "memmap", "build/host/gem/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/gem/host"], cwd=FPGA, check=True, capture_output=True)
     return HOST
 
 

@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 from test_sndh_native import FPGA, MUSIC, correlation, first_difference, left, modes_run, native_status, run
+from host_make import lock_argv  # noqa: E402
 
 WOW = "union/wow_scroller.sndh"
 # 15 segments, 253,473 bytes at 7585.19 Hz = 33.4 s = ~2,005 frames: twice round and more.
@@ -23,7 +24,7 @@ WHOLE = 4_500
 
 @pytest.fixture(scope="module", autouse=True)
 def oracle() -> None:
-    subprocess.run(["make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
 
 
 def test_wow_native_writes_the_same_as_musashi_over_the_whole_tune(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 WABT = FPGA / ".tools/wabt"
@@ -22,7 +23,7 @@ CFLAGS = ["-std=c11", "-D_POSIX_C_SOURCE=200809L", "-O1", "-w", "-DWASM_RT_USE_M
 @pytest.fixture(scope="module", autouse=True)
 def built() -> None:
     targets = [f"build/host/{c}/host" for c in CARTS]
-    subprocess.run(["make", "-s", "memmap", *targets], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", *targets], cwd=FPGA, check=True, capture_output=True)
 
 
 def arrow(tmp: Path, cart: str, bridge: Path | None = None) -> int:

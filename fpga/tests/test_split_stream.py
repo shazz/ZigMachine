@@ -20,6 +20,7 @@ import sys_abi
 from host_bridges import STREAM
 from sys_abi_c import env_rows
 from sys_abi_manifest import parse
+from host_make import lock_argv  # noqa: E402
 
 HOST_ROWS = {n: ("host", r, p) for n, (r, p, _) in STREAM.items()}
 
@@ -50,7 +51,7 @@ def test_the_system_serves_the_stream_entries_with_its_hooks() -> None:
 
 def test_st_replays_lean_cart_links() -> None:
     """The regression: make split-cart failed on undefined HOST_AUDIO_FEED / _STREAM_START / _STOP."""
-    out = subprocess.run(["make", "-s", "memmap", "split-cart", "CART=st_replay"], cwd=FPGA, capture_output=True,
+    out = subprocess.run([*lock_argv(), "make", "-s", "memmap", "split-cart", "CART=st_replay"], cwd=FPGA, capture_output=True,
                          text=True, check=False)  # fmt: skip
     assert out.returncode == 0, out.stdout[-2000:] + out.stderr[-2000:]
     env = (FPGA / "build/host/st_replay/cart_env.c").read_text()

@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
@@ -58,7 +59,7 @@ def hashes(cmd: list[str]) -> list[str]:
 
 
 def both(*args: str) -> list[str]:
-    subprocess.run(["make", "-s", "memmap", "build/host/grafx2/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/grafx2/host"], cwd=FPGA, check=True, capture_output=True)
     common = ["340", "30", "--disk", DISK, *args]  # the program GEM launched, its floppy in the drive
     nat = hashes([str(FPGA / "build/host/grafx2/host"), "grafx2", *common])
     js = hashes(["node", "apps/scene_hash.mjs", "docs/demo-grafx2.wasm", *common])
@@ -76,7 +77,7 @@ def test_grafx2_loads_a_picture_from_c_in_both_hosts_as_from_the_floppy() -> Non
 
 
 def test_grafx2_saves_a_picture_to_c_in_both_hosts_alike() -> None:
-    subprocess.run(["make", "-s", "memmap", "build/host/grafx2/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/grafx2/host"], cwd=FPGA, check=True, capture_output=True)
     with tempfile.TemporaryDirectory() as tmp:
         nat_img, js_img = Path(tmp) / "nat.img", Path(tmp) / "js.img"
         shutil.copy(C_IMAGE, nat_img)

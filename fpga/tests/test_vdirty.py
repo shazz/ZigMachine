@@ -24,6 +24,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 FRAMES = "300"
@@ -43,7 +44,7 @@ def proof_n(
     cart: str, frames: str, mutant: str = "", adapt: bool = False, calls: tuple[str, ...] = ()
 ) -> tuple[int, int, int, int, int, int]:
     """proof() over `frames` frames; `calls` are the host's --call FRAME:EXPORT:ARGS."""
-    subprocess.run(["make", "-s", "memmap", "host-vdirty", f"CART={cart}", f"VD_BREAK={mutant}"], cwd=FPGA,
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", "host-vdirty", f"CART={cart}", f"VD_BREAK={mutant}"], cwd=FPGA,
                    check=True, capture_output=True)  # fmt: skip
     binary = FPGA / f"build/host/{cart}/host_vdirty{'_' + mutant if mutant else ''}"
     env = dict(os.environ, ZM_VD_CURSOR="1" if cart == "gem" else "0", ZM_VD_ADAPT="1" if adapt else "0")
@@ -178,7 +179,7 @@ def test_a_forgotten_palref_rule_is_caught() -> None:
 
 def copper_case(mutant: str = "") -> tuple[int, int, int]:
     """host/vdirty_copper_test.c: (exit code, skipped lines, skipped lines holding a record)."""
-    subprocess.run(["make", "-s", "host-vdcopper", f"VD_BREAK={mutant}"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "host-vdcopper", f"VD_BREAK={mutant}"], cwd=FPGA, check=True, capture_output=True)
     binary = FPGA / f"build/host/vdcopper/host_vdcopper{'_' + mutant if mutant else ''}"
     out = subprocess.run([str(binary)], capture_output=True, text=True, check=False)
     m = re.search(r"VDCOPPER skipped (\d+) recskip (\d+)", out.stdout)

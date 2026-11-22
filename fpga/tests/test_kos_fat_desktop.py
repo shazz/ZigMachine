@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
@@ -38,7 +39,7 @@ def hashes(cmd: list[str]) -> list[str]:
 
 
 def both(*args: str) -> list[str]:
-    subprocess.run(["make", "-s", "memmap", "build/host/gem/host"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/gem/host"], cwd=FPGA, check=True, capture_output=True)
     nat = hashes([str(FPGA / "build/host/gem/host"), "gem", "40", "5", *args])
     js = hashes(["node", "apps/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", *args])
     assert nat == js

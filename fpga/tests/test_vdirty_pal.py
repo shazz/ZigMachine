@@ -9,6 +9,7 @@ import subprocess
 
 import pytest
 from test_vdirty import FPGA, FRAMES, proof
+from host_make import lock_argv  # noqa: E402
 
 
 def test_pal_lists_are_compared_and_skip_their_unchanged_lines() -> None:
@@ -29,7 +30,7 @@ def test_a_list_read_with_its_colours_as_ops_is_caught() -> None:
 
 def pal_case(arg: str, mutant: str = "") -> int:
     """host/vdirty_copper_test.c pal / palstatic: covered lines skipped after the first frames."""
-    subprocess.run(["make", "-s", "host-vdcopper", f"VD_BREAK={mutant}"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "host-vdcopper", f"VD_BREAK={mutant}"], cwd=FPGA, check=True, capture_output=True)
     binary = FPGA / f"build/host/vdcopper/host_vdcopper{'_' + mutant if mutant else ''}"
     out = subprocess.run([str(binary), arg], capture_output=True, text=True, check=False)
     m = re.search(r"VDPAL covered_skipped (\d+)", out.stdout)

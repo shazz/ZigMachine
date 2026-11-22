@@ -13,7 +13,7 @@ FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA / "tools"))
 # A clean tree has no gen/ (the gate's fresh worktree): the memmap split_image imports, made first.
 if not (FPGA / "gen" / "glass_cart.py").exists():
-    subprocess.run(["make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
+    subprocess.run([*lock_argv(), "make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
 import host_bridges  # noqa: E402  (after gen/ exists)
 import host_split  # noqa: E402
 import split_image  # noqa: E402
@@ -21,6 +21,7 @@ import sys_abi  # noqa: E402
 from host_scopes import SCOPES
 from sys_abi_c import env_rows
 from sys_abi_manifest import parse
+from host_make import lock_argv  # noqa: E402
 
 GETTERS = {n: ("u32", []) for n in [*host_bridges.MIRROR_FIELDS, "getScopesPointer"]}
 

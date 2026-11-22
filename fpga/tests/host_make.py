@@ -14,6 +14,14 @@ FPGA = Path(__file__).resolve().parents[1]
 LOCK = FPGA / "build/bardq/make.lock"
 
 
+def lock_argv() -> list[str]:
+    """`flock LOCK`, to put in front of any other `make` a test runs in fpga/: every native host build
+    writes build/host/common (rt.o, aplayer.o...), and an unlocked one raced make_host's (22 Nov: the
+    R80 and R83 push gates both failed on "unable to open output file 'build/host/common/rt.o'")."""
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    return ["flock", str(LOCK)]
+
+
 def make_host(*targets: str) -> None:
     """`make -s TARGETS` in fpga/, one at a time across every harness of the gate."""
     LOCK.parent.mkdir(parents=True, exist_ok=True)
