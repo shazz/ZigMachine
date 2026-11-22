@@ -110,3 +110,7 @@ rw	review/TRUECOLOR_PLANE.md	docs/hardware/studies/TRUECOLOR_PLANE.md	scope=fpga
 rw	review/ZIGGY_BIG_READS_STUDY.md	docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md	scope=fpga/
 rw	review/ZIGGY_ISA_EXTENSIONS.md	docs/hardware/studies/ZIGGY_ISA_EXTENSIONS.md	scope=fpga/
 rw	review/reports	../docs/hardware/studies/reports	scope=fpga/review/tools/
+mv	docs/OTHER_BOARDS.md	docs/hardware/boards/OTHER_BOARDS.md	stub
+mv	docs/PEREGRINE_IDEAS.md	docs/hardware/boards/PEREGRINE_IDEAS.md	stub
+mv	docs/ARM_FPU_COPROC.md	docs/hardware/studies/ARM_FPU_COPROC.md	stub
+mv	fpga/review/YM2612_BARD_STUDY.md	docs/hardware/studies/YM2612_BARD_STUDY.md	stub
