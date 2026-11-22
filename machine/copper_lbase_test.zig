@@ -1,4 +1,4 @@
-// Tests for the copper list's LBASE (HW 1.10.0, fpga/review/COPPER_LINEBASE.md): the line source a
+// Tests for the copper list's LBASE (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md): the line source a
 // record sets, the VRAM check that stops a list, the last of several winning, and the persistence
 // rule (row r reads off + (r - r0) * stride) the renderers and the RTL share.
 const std = @import("std");

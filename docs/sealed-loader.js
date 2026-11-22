@@ -60,7 +60,7 @@ function consoleLogJS(ptr, len) {
 }
 
 // --------------------------------------------------------------------------
-// Floppy drive: mount a ZigMachine disk image (docs/FLOPPY_DISK.md), verify the
+// Floppy drive: mount a ZigMachine disk image (docs/guide/FLOPPY_DISK.md), verify the
 // executable boot sector ($1234 checksum, ST-style), and return the boot cart's
 // wasm bytes. v1 reads the whole image up front; block streaming comes later.
 // --------------------------------------------------------------------------
@@ -107,7 +107,7 @@ function diskFile(name) {
 
 // Disk DRIVE: copy one 512-byte block from the mounted disk into shared memory at
 // dstOff (a raw wasm address = byte offset). The machine never holds the disk — it
-// asks the drive for a block at a time (docs/FLOPPY_DISK.md "Drive ABI"). Returns
+// asks the drive for a block at a time (docs/guide/FLOPPY_DISK.md "Drive ABI"). Returns
 // bytes copied (0 = past end / no disk).
 function diskReadBlock(block, dstOff) {
     if (!mountedDisk) return 0;
@@ -118,14 +118,14 @@ function diskReadBlock(block, dstOff) {
     return src.length;
 }
 
-// KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead(unit, sector, count, dst) copies `count`
+// KOS's C: (docs/os/KOS_FAT.md F5): env.kosDriveRead(unit, sector, count, dst) copies `count`
 // 512-byte sectors of unit 2 from the C: image (kosMountC) into shared memory at dst; the
 // answer is the sectors read, 0 for any refusal (no image, another unit, count 0 or over 64, a
 // run past the image, a dst off a word or past the memory), all or nothing: the rules of the
 // native host (fpga/host/disk.h host_kos_drive_read) and of the board's glass (kos_drive.zig).
 let kosC = null;
 function kosMountC(buf) { kosC = buf; }
-// C:'s writes (docs/KOS_GEMDOS.md §7): env.kosFileOp(req) hands KFS (docs/kos-cfs.wasm, through
+// C:'s writes (docs/os/KOS_GEMDOS.md §7): env.kosFileOp(req) hands KFS (docs/kos-cfs.wasm, through
 // docs/kos-cfile.js) a whole-file request; it edits the image above in memory, as glass edits the
 // card on the board. No image: EDRIVE. The page's clock stamps what it writes.
 let kosCOp = null;
@@ -137,7 +137,7 @@ async function kosMountCWrites() {
         (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate());
 }
 function kosFileOp(req) { return kosCOp ? kosCOp(req) : -46; }
-// ZIGNIC, the network card (docs/GEM_NET.md, machine/sdk/net_abi.zig): env.netOp(req) answers from docs/net-host.js.
+// ZIGNIC, the network card (docs/os/GEM_NET.md, machine/sdk/net_abi.zig): env.netOp(req) answers from docs/net-host.js.
 // The page has a card only when asked: ?net=peer (the scripted LAN, docs/net-peer.js); a WebSocket relay later.
 // Without one every op answers no_card (-1), and a cart says "no network card".
 let netCard = null;
@@ -208,7 +208,7 @@ async function swapCart(req, channelTag) {
         if (req === 3) {
             const name = text_decoder.decode(
                 new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
-            // A FAT disk's program (KOS, docs/KOS_FAT.md): found by its 8.3 name, read along its chain.
+            // A FAT disk's program (KOS, docs/os/KOS_FAT.md): found by its 8.3 name, read along its chain.
             const fat = mountedDisk && mountedDisk.fat ? ZMKos.fatFile(mountedDisk.buf, name) : null;
             const entry = mountedDisk && !mountedDisk.fat && mountedDisk.files[name];
             if (!entry && !fat) throw new Error(`no program "${name}" on the mounted disk`);
@@ -536,7 +536,7 @@ async function boot() {
             hostMp3Feed: (ptr, len) => hostMp3Feed(ptr, len),
             hostMp3Status: (which) => hostMp3Status(which),
             // The four Paula channels lent to the cart (HW 1.14.0): claim, chip RAM uploads,
-            // timed register writes, release (apps/zig/demo_audio_paula.zig, docs/HW_API.md 5).
+            // timed register writes, release (apps/zig/demo_audio_paula.zig, docs/hardware/HW_API.md 5).
             hostPaulaClaim: (lead) => hostPaulaClaim(lead),
             hostPaulaUpload: (src, off, len) => hostPaulaUpload(src, off, len),
             hostPaulaWrite: (ptr, n) => hostPaulaWrite(ptr, n),
@@ -548,10 +548,10 @@ async function boot() {
             // The pointer's box (table 1.21, HW_API "The pointer's box"): where the cart's picture is,
             // for the board's mouse. The page's pointer is the host's own: nothing to do here.
             hostPointerBox: () => {},
-            netOp: (req) => netOp(req), // ZIGNIC, the network card (table 1.22, docs/GEM_NET.md)
+            netOp: (req) => netOp(req), // ZIGNIC, the network card (table 1.22, docs/os/GEM_NET.md)
             // Free-running microseconds, u32 (wraps every ~71 min). A BENCHMARK aid
             // (the raytrace carts): carts stay frame-locked, never time-driven.
-            // decisions.md 2026-10-10.
+            // docs/project/DECISIONS.md 2026-10-10.
             hostMicros: () => Math.floor(performance.now() * 1000) >>> 0,
             // RETIRED imports, kept as no-ops. The env object is an ABI: every
             // cart ever built links against the names that existed when it was
@@ -591,7 +591,7 @@ async function boot() {
     demo.boot();
 
     // ?step=N: run a cart at an intermediate state. docs/TUTORIAL.html uses it to
-    // boot the tutorial screen as it stands at each step of docs/TUTORIAL.md, so
+    // boot the tutorial screen as it stands at each step of docs/guide/TUTORIAL.md, so
     // "what you should see" is literally what you see. It rides the existing
     // per-scene mode switch (setShadeMode) rather than adding an ABI point, and a
     // cart that ignores the mode simply runs as usual.
@@ -625,14 +625,14 @@ let kosDrive = null; // { url, bootable, v2, cart } of the disk in drive A at po
 let kosDesktop = false; // the running cart is KOS's desktop (demo-gem.wasm) over drive A
 
 async function kosPowerOn(url, params) {
-    // ?c=kos-c.img: KOS's C: (docs/KOS_FAT.md F5) from a FAT image, as the board's SD card; none by
+    // ?c=kos-c.img: KOS's C: (docs/os/KOS_FAT.md F5) from a FAT image, as the board's SD card; none by
     // default, so the desktop shows no C: icon (its shell finds nothing to mount).
     const cUrl = params.get("c");
     if (cUrl && cUrl !== "none") {
         kosMountC(new Uint8Array(await fetch(cUrl + BUST).then((r) => r.arrayBuffer())));
         await kosMountCWrites();
     }
-    netMount(); // ?net=peer: ZIGNIC over the scripted LAN (docs/GEM_NET.md)
+    netMount(); // ?net=peer: ZIGNIC over the scripted LAN (docs/os/GEM_NET.md)
     kosDrive = url ? { url, ...(await mountDisk(url)) } : null;
     if (!url) mountedDisk = null;
     ZMKos.power(rom, machine, kosDrive, mountedDisk, params.get("warm") === "1"); // ?warm=1: the reset button
@@ -659,7 +659,7 @@ async function kosBootDrive() {
     console.log(own ? `Drive A: ${d.url} boots` : d ? `Drive A: ${d.url} is a data disk: the desktop` : "Drive A is empty: the desktop");
 }
 
-// KOS's media change (docs/ZIGTOS_BOOT.md 4.1): drive A takes the disk at `url` (null:
+// KOS's media change (docs/os/ZIGTOS_BOOT.md 4.1): drive A takes the disk at `url` (null:
 // ejected) under the running cart, which is not reset; the drive reads the new disk from now
 // on. The desktop opens a data disk (its FLOPPY, the listing handed again); KOS counts the
 // change (sysvars.drive_a). The board's glass does the same (I / E on the shelf).
@@ -676,7 +676,7 @@ window.kosInsert = (url) => kosMedia(url);
 window.kosEject = () => kosMedia(null);
 
 // --------------------------------------------------------------------------
-// The desk mode (HW 1.17.0, docs/HW_API.md "Desk mode"): while the machine says so, canvas 0
+// The desk mode (HW 1.17.0, docs/hardware/HW_API.md "Desk mode"): while the machine says so, canvas 0
 // shows the 640x480 picture 1:1 where the board shows it, in the middle of the 800x600 frame
 // (the plane canvases cover its lines 20..579, so 80 px in and 40 down, at 1 CSS px a pixel).
 // Canvas 1, above it, holds the bars around it in REG_BACKGROUND's colour (hwDeskBars, as the
@@ -818,7 +818,7 @@ function start() {
 
         // Tell GEM whether an app-disk is inserted (idempotent; takes effect once
         // the cart is booted) so its FLOPPY icon opens the app.
-        // 2: a FAT disk (KOS: the desktop shell reads it itself, docs/KOS_FAT.md).
+        // 2: a FAT disk (KOS: the desktop shell reads it itself, docs/os/KOS_FAT.md).
         if (demo.insertDisk) demo.insertDisk(diskApp ? (mountedDisk && mountedDisk.fat ? 2 : 1) : 0);
 
         // Hand GEM the mounted disk's FAT directory for its FLOPPY window (once

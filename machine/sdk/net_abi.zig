@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ZIGNIC, the network card (docs/GEM_NET.md): a socket-offload card like the WIZnet W5500 a retro machine
+// ZIGNIC, the network card (docs/os/GEM_NET.md): a socket-offload card like the WIZnet W5500 a retro machine
 // plugs in, or the ESP32 of a FujiNet / WiC64 — the TCP/IP stack is in the card, the cart drives 8 sockets.
 // On KESTREL "the card" is the host: glass on the board (Linux's sockets), the page (a WebSocket relay or a
 // scripted peer), the native host. The cart never runs a protocol: no TCP state, no checksums, no DNS, no TLS.

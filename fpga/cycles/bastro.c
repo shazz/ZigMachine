@@ -1,4 +1,4 @@
-/* env.hwAstro on the board (SPIKE, docs/ARM_FPU_COPROC.md): ASTROLABE's descriptors handed to
+/* env.hwAstro on the board (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): ASTROLABE's descriptors handed to
  * the ARM's VFPv3 over the mailbox (soc/zm_astro.py), the machine's own code (soft f64 on ZIGGY)
  * when nobody serves them. The board link wraps the machine's export
  * (-Wl,--wrap=w2c_machine_hwAstro, cycles/board.mk), as bblit.c wraps hwBlit.

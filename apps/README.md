@@ -1,6 +1,6 @@
 # `apps/` — carts / scenes (per language)
 
-**New here?** [`docs/TUTORIAL.md`](../docs/TUTORIAL.md) builds one screen from
+**New here?** [`docs/guide/TUTORIAL.md`](../docs/guide/TUTORIAL.md) builds one screen from
 scratch, step by step, in Zig, C and Rust (`zig/scenes/tutorial.zig`,
 `c/scenes/tutorial.c`, `rust/scenes/tutorial.rs`).
 

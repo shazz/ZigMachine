@@ -1,4 +1,4 @@
-/* Line-major groups (vseq.h vseq_group; fpga/PLANES_PLAN.md §3, decisions.md 2026-10-18).
+/* Line-major groups (vseq.h vseq_group; fpga/PLANES_PLAN.md §3, docs/project/DECISIONS.md 2026-10-18).
  *
  * Plane-major, a plane's 280 passes each load the PFB row and the picture's row from DDR and
  * store them back, so a line composited by N planes moves its rows N times. Between the passes of
@@ -10,7 +10,7 @@
  * layer (`nopfb`: the picture is what is shown; nothing reads this frame's PFB after it).
  *
  * A PURE handler (vseq_plane_pure: it writes only its own plane's palette and bumps RES_FLICKER,
- * fpga/review/FRESCO_OPTIONS.md) may join a group too: it runs right before its plane's pass of
+ * docs/hardware/studies/FRESCO_OPTIONS.md) may join a group too: it runs right before its plane's pass of
  * the line, as in video.zig, and nothing another plane's pass reads changes, but for RES_FLICKER,
  * which is one register for every plane. An overscan pass flickers when RES_FLICKER differs from
  * what that plane's pass before saw (zm_video_plane.v), i.e. in video.zig's plane-major order when
@@ -38,7 +38,7 @@ static uint16_t g_true; /* RES_FLICKER as video.zig has it: the handlers' own bu
  * copper, linepal and setFrameBufferHBLHandlerPure set it; the gate replays every flagged cart in
  * this order, fpga/tools/video_order_pure.py). */
 int vseq_plane_pure(int p) {
-#ifdef ZM_GROUP_HBL_ALL /* the experiment: every handler trusted (fpga/review/FRESCO_OPTIONS.md) */
+#ifdef ZM_GROUP_HBL_ALL /* the experiment: every handler trusted (docs/hardware/studies/FRESCO_OPTIONS.md) */
     (void)p;
     return 1;
 #else

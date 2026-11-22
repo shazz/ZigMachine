@@ -16,7 +16,7 @@ the machine — and none of it happens in the page.
 | Upstream | <https://github.com/kstenerud/Musashi> (`master`, v4.60) |
 | Fetched | 2026-09-12 |
 | Licence | MIT — see `upstream/readme.txt` |
-| Local changes to `upstream/` | **one**, in `m68kcpu.c`, below (decisions.md 2026-10-10) |
+| Local changes to `upstream/` | **one**, in `m68kcpu.c`, below (docs/project/DECISIONS.md 2026-10-10) |
 
 `upstream/` holds only what a 68000 build needs: `m68k.h`, `m68kconf.h`,
 `m68kcpu.[ch]`, `m68kfpu.c`, `m68kmmu.h`, `m68k_in.c`, `m68kmake.c`, `softfloat/`
@@ -31,7 +31,7 @@ rebuild, run `node apps/sndh_headless.mjs`.
 bus error can restore them. Only `m68k_pulse_bus_error` reads them back, and the SNDH
 player never calls it. On the FPGA that copy was the player's biggest single cost (16
 loads and 16 stores per emulated instruction: beat_dis.sndh 8.0 -> 6.5 Mcycles a frame on
-the cart CPU, docs/FPGA_SOUND_CPU.md). The loop is now inside `#ifndef ZM_NO_DA_SAVE`,
+the cart CPU, docs/hardware/FPGA_SOUND_CPU.md). The loop is now inside `#ifndef ZM_NO_DA_SAVE`,
 which `config/zm_musashi.h` defines; upstream's behaviour is one `#undef` away. The
 player's chip writes are byte-identical with and without it (sos, wow_scroller,
 beat_dis: 10 s each).

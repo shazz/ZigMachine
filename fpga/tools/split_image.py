@@ -1,4 +1,4 @@
-"""The board's split images as files (decisions.md 2026-10-15): the lean cart's header, the
+"""The board's split images as files (docs/project/DECISIONS.md 2026-10-15): the lean cart's header, the
 SD card's system file (system.rv32, before ZX0), and where the pair puts the disk. Used by
 the sim's DDR image (tools/ddr_init.py --cart) and the card's shelf (tools/glass_shelf.py);
 glass reads the same bytes in Zig (glass/src/system.zig). map_cart.zig holds every number.

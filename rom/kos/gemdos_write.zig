@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// GEMDOS's writes (docs/KOS_GEMDOS.md §7), methods of gemdos.Dos: Fcreate, Fwrite, and the write
+// GEMDOS's writes (docs/os/KOS_GEMDOS.md §7), methods of gemdos.Dos: Fcreate, Fwrite, and the write
 // half of Fclose and Fseek. A cart never writes sectors: a save goes to the host whole, through
 // env.kosFileOp (kfs_abi.zig), which writes a temporary file and renames it over the real one at
 // Fclose. Fwrite buffers DATA_MAX (32 KB) in the cart, one buffer for every handle (the handle that

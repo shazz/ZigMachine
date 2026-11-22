@@ -1,4 +1,4 @@
-// The boot screen at power-on (docs/FPGA_GLASS.md, "Boot splash"; prototypes/boot_screen/STUDY.md):
+// The boot screen at power-on (docs/hardware/FPGA_GLASS.md, "Boot splash"; prototypes/boot_screen/STUDY.md):
 // the first glass after a power cycle runs KESTREL BOOT (WINDHOVER, cart 131) before KOS, then
 // powers KOS on as it always did (app_drive.powerOn). It is a plain cart load: no KOS boot words.
 //

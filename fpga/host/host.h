@@ -4,7 +4,7 @@
 #ifndef HOST_H
 #define HOST_H
 
-/* The board's split images (decisions.md 2026-10-15) compile this header two more ways:
+/* The board's split images (docs/project/DECISIONS.md 2026-10-15) compile this header two more ways:
  * ZM_SPLIT_SYS, the system image, which has no cart.h (its cart is the cart image's, reached
  * through zm_cart, the image's header); ZM_SPLIT_CART, the cart image, which has only cart.h
  * and never looks inside the system's env. HOST_CART(e) is the cart instance either way. */

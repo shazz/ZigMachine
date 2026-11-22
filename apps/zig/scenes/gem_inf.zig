@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// DESKTOP.INF on a real disk (docs/GEM5_PLAN.md P1.2). The ROM's Save Desktop writes the
+// DESKTOP.INF on a real disk (docs/os/GEM5_PLAN.md P1.2). The ROM's Save Desktop writes the
 // text into its own buffer (deskInfPtr/deskInfLen) and reports `.save_inf`; only a cart can
 // reach a disk, so the shell writes it to C:\DESKTOP.INF through KOS GEMDOS (the card's /HD
 // on the board, the ?c= image on the page) and reads it back at every start: a boot, and the

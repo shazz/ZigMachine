@@ -1,4 +1,4 @@
-"""Write shelf.txt: what the glass's OSD shows about each cart (docs/FPGA_GLASS.md).
+"""Write shelf.txt: what the glass's OSD shows about each cart (docs/hardware/FPGA_GLASS.md).
 
     uv run python tools/shelf_meta.py [--out DIR] [--check]
 

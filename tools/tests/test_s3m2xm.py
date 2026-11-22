@@ -1,7 +1,7 @@
 """s3m2xm: a tiny S3M built in memory, converted, and the XM read back.
 
 The conversion is also checked end to end against libopenmpt on a real song
-(docs/MUSIC.md records it); these tests pin the byte-level rules.
+(docs/guide/MUSIC.md records it); these tests pin the byte-level rules.
 """
 import struct
 import unittest

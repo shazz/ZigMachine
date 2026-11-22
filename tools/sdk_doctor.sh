@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The KESTREL SDK's doctor (docs/SDK.md): checks every tool a cart build needs, with its version,
+# The KESTREL SDK's doctor (docs/guide/SDK.md): checks every tool a cart build needs, with its version,
 # and says how to install what is missing, on Linux (Ubuntu / Arch) and macOS.
 #
 #   tools/sdk_doctor.sh                 check; exit 1 if something the browser build needs is missing

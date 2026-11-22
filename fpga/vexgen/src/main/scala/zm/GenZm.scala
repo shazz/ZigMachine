@@ -27,11 +27,11 @@ case class ZmArgs(
     historyRamSizeLog2: Int = 10, // DYNAMIC_TARGET's BTB: 2^n entries (TIMING_FABLE.md pass 3: 8 routes)
     fpu: Boolean = false, // RV32F, single precision only (fpga/CYCLES.md "f32 FPU")
     prefix: String = "", // prepended to every module name: a second core in the same SoC (the sound CPU)
-    noDiv: Boolean = false, // Zmmul: MUL/MULH only, DIV/REM trap (the sound CPU: docs/FPGA_SOUND_CPU.md)
-    zmx: Boolean = false, // ZM-X v1 custom ops (review/KESTREL_NEXT_ISA.md): ZmXPlugin + ZmMulPlugin's mulsh
+    noDiv: Boolean = false, // Zmmul: MUL/MULH only, DIV/REM trap (the sound CPU: docs/hardware/FPGA_SOUND_CPU.md)
+    zmx: Boolean = false, // ZM-X v1 custom ops (docs/hardware/studies/KESTREL_NEXT_ISA.md): ZmXPlugin + ZmMulPlugin's mulsh
     zmxEarly: Boolean = false, // ZmXPlugin writes in EXECUTE (bypassed at once) instead of MEMORY
     dTcm: Boolean = false, // a tightly coupled data port (ZmTcm.scala): the BARD scratchpad study
-    earlyBranch: Boolean = false, // branches resolved in EXECUTE, not MEMORY (review/BARD_CPI_STUDY.md)
+    earlyBranch: Boolean = false, // branches resolved in EXECUTE, not MEMORY (docs/hardware/studies/BARD_CPI_STUDY.md)
     shiftEarly: Boolean = false, // the barrel shifter's result in EXECUTE (bypassable at once)
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."

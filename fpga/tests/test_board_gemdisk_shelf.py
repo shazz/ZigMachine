@@ -1,4 +1,4 @@
-"""The tooling around GEM over a data disk (docs/FPGA_GLASS.md, "GEM over a data disk"):
+"""The tooling around GEM over a data disk (docs/hardware/FPGA_GLASS.md, "GEM over a data disk"):
 the shelf stages a data disk with GEM's board image, the generated bridge finds the cart's
 disk exports, and the board SoC sim's variant (scripted mouse + data disk) names its files
 apart from the plain run's."""

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assemble a KESTREL SDK release (docs/SDK.md, "The release"): ONE tarball an outside coder downloads.
+# Assemble a KESTREL SDK release (docs/guide/SDK.md, "The release"): ONE tarball an outside coder downloads.
 #
 #   sdk/release.sh --version v1.1 --hw 1.16.0 --out DIR [--card CARD_DIR] [--rev REV]
 #
@@ -42,7 +42,7 @@ git -C "$ROOT" diff --quiet "$REV" -- sdk build.zig fpga/cycles/sys_abi.txt ||
 # The table REV's carts are built for (sys_abi.txt "version X.Y").
 abi_version() { awk '$1 == "version" { split($2, v, "."); printf "0x%x\n", v[1] * 65536 + v[2]; exit }'; }
 TABLE="$(git -C "$ROOT" show "$SHA:fpga/cycles/sys_abi.txt" | abi_version)"
-# A blank board needs every one of these (docs/FPGA_GLASS.md "Boot flow", "The SD card's layout").
+# A blank board needs every one of these (docs/hardware/FPGA_GLASS.md "Boot flow", "The SD card's layout").
 CARD_NEEDS="BOOT.BIN boot.scr zigmachine.bit zImage zigmachine.dtb rootfs.cpio.uboot KESTREL/system.rv32
     KESTREL/kos/desktop.rv32 CARTS/shelf.txt HD"
 # Never published: the owner's own pictures and song, old card files, an ARM glass override (the rootfs has it).
@@ -99,7 +99,7 @@ KESTREL SDK $VERSION (HW $HW): write carts for the ZigMachine and the KESTREL bo
   3. make floppy / make board            a disk image / the board image + an SD folder (template/zig-out/sd)
 
 Start a new cart: copy template/ to a sibling directory (it finds the SDK at ../zigmachine).
-The guide: zigmachine/docs/SDK.md
+The guide: zigmachine/docs/guide/SDK.md
 EOF
 tar -C "$OUT" -czf "$OUT/$NAME.tar.gz" "$NAME"
 echo "release: $OUT/$NAME.tar.gz ($(du -h "$OUT/$NAME.tar.gz" | cut -f1)), commit ${SHA:0:12}, table $TABLE"

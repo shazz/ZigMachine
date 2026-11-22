@@ -1,7 +1,7 @@
 """List the primitive cells and modes in a Yosys JSON netlist, and fail on any not proven on silicon.
 
 openXC7 has twice written a wrong bitstream for a primitive mode that simulates right (the
-OSERDESE2 10:1 cascade, the RAMB36E1 in 72-bit SDP mode: docs/FPGA_STEPS.md "2026-10-04"). So
+OSERDESE2 10:1 cascade, the RAMB36E1 in 72-bit SDP mode: docs/hardware/FPGA_STEPS.md "2026-10-04"). So
 every cell type, and for the block RAMs and DSPs every mode, has an entry in fpga/silicon_prims.json:
   proven   checked on the board (by `make prim-test`, or a design that works there)
   pending  a `make prim-test` lane covers it, no board result yet: a warning (an error with --strict)

@@ -1,4 +1,4 @@
-// ASTROLABE from C (SPIKE, docs/ARM_FPU_COPROC.md): the descriptor of machine/sdk/astro.zig and
+// ASTROLABE from C (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): the descriptor of machine/sdk/astro.zig and
 // env.hwAstro (HW 1.18.0). A cart fills descriptors in its own memory and calls hwAstro(list, n).
 #ifndef ASTRO_H
 #define ASTRO_H

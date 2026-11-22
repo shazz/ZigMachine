@@ -4,7 +4,7 @@ Mihaly Horvath's ("Hermit") cRSID: an integer-only Commodore 64 SID emulator wit
 and VIC, made for weak CPUs (Rockbox carries it). The .sid player (`libs/zig/players/sid.zig`) uses
 its **light engine at 22.05 kHz mono, PSID only**. BARD runs this C natively (`fpga/host/crsid.c`),
 the page runs it in `machine-audio.wasm` (`machine/audio/sid.zig`), and `apps/sid_check.mjs` holds the
-two to the same samples. Chosen and measured in `fpga/review/SID_BARD_STUDY.md`: 48-60 % of BARD on
+two to the same samples. Chosen and measured in `docs/hardware/studies/SID_BARD_STUDY.md`: 48-60 % of BARD on
 PSID tunes; RSID tunes (real C64 programs) cost ~2x BARD and are refused.
 
 ## Provenance

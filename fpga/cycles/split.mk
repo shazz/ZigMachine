@@ -1,4 +1,4 @@
-# The board's split images (decisions.md 2026-10-15): ONE system image per variant (firmware,
+# The board's split images (docs/project/DECISIONS.md 2026-10-15): ONE system image per variant (firmware,
 # machine, ROM, BARD's image) and a lean image per cart, bound by the versioned table of
 # cycles/sys_abi.txt. glass writes both (glass/src/loader.zig). Included by fpga/Makefile after
 # sound.mk, whose BARD blob and board.mk's fw.a, flags and songs it reuses.
@@ -30,7 +30,7 @@ CART_LDFLAGS = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -nostd
 	-Wl,--defsym=ZM_CART_BASE=$(CART_BASE) -Tcycles/cart.ld
 # The cart's only library: libgcc's soft-double and 64-bit helpers (no libc: -nostdlib). A gcc with no
 # rv32imf/ilp32f multilib (Arch's riscv64-elf-gcc, xPack) gets Zig's compiler_rt for rv32imf/ilp32f
-# instead: the KESTREL SDK passes CART_RTLIB=<its zrt_cart.o> (sdk/build_cart.zig, docs/SDK.md).
+# instead: the KESTREL SDK passes CART_RTLIB=<its zrt_cart.o> (sdk/build_cart.zig, docs/guide/SDK.md).
 CART_RTLIB  ?= -lgcc
 CARTS_DIR   := $(SPLIT)/carts$(HSUF)$(if $(ZM_CART_VERSION),_v$(ZM_CART_VERSION))
 SYS_ABI_DEPS := cycles/sys_abi.txt $(wildcard tools/sys_abi*.py) tools/wasm_sig.py tools/host_bridges.py tools/host_scopes.py tools/host_stereo.py \

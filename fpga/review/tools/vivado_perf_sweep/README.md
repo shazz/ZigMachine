@@ -46,10 +46,10 @@ Target Device: `xc7z010clg400-1` (Zynq-7000 speed grade -1).
 python3 fpga/review/tools/vivado_perf_sweep.py --candidate zm_blit_px --period 10.0
 
 # Run sweep across multiple target frequencies and export JSON
-python3 fpga/review/tools/vivado_perf_sweep.py --candidate zm_video_plane --json fpga/review/reports/plane_sweep.json
+python3 fpga/review/tools/vivado_perf_sweep.py --candidate zm_video_plane --json docs/hardware/studies/reports/plane_sweep.json
 
 # Run all candidates across their default periods
-python3 fpga/review/tools/vivado_perf_sweep.py --json fpga/review/reports/vivado_sweep.json
+python3 fpga/review/tools/vivado_perf_sweep.py --json docs/hardware/studies/reports/vivado_sweep.json
 ```
 
 ---

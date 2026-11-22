@@ -1,5 +1,5 @@
 """Disk streaming on the board: ZWINDOW places the cart's shelf disk in the cart window
-and ZIGGY's firmware serves env.diskReadBlock from it (docs/FPGA_GLASS.md, "The disk in
+and ZIGGY's firmware serves env.diskReadBlock from it (docs/hardware/FPGA_GLASS.md, "The disk in
 DDR"), exactly as docs/sealed-loader.js serves it in the browser.
 
 - The drive (host/disk.h, the code the firmware and the native host link) against the

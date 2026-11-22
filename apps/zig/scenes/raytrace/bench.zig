@@ -5,7 +5,7 @@
 // board through fpga/tools/host_gen.py's HOST_MICROS hook). A host that does
 // not provide it answers 0 (the harnesses' and host_gen's no-op stub), and the
 // cart then does a FIXED amount of work a frame instead, which is what keeps
-// the gate's frame counts and fingerprints deterministic. decisions.md
+// the gate's frame counts and fingerprints deterministic. docs/project/DECISIONS.md
 // 2026-10-10: a benchmark aid only, never a screen's choreography.
 //
 // With a clock, a frame traces until BUDGET_US of it is spent, reading the

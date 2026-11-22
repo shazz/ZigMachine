@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // The VRAM pool's bump allocator (zigos.zig vramAlloc / vramWords): region offsets from
 // OFF_VRAM up to OFF_VRAM + VRAM_BYTES, where the PFB starts. It had no guard: an allocation
-// past the end was handed out anyway and the plane drew over the PFB (docs/GEM_DESK_MODE.md §5:
+// past the end was handed out anyway and the plane drew over the PFB (docs/os/GEM_DESK_MODE.md §5:
 // a 640x480 desk plane takes 307,200 of the 1 MiB). Now one past the end is refused.
 // --------------------------------------------------------------------------
 

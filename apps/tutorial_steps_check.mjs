@@ -1,6 +1,6 @@
 // The stepped tutorial carts must not drift from the finished ones.
 //
-// docs/TUTORIAL.html puts a "Run step N" button on every step of docs/TUTORIAL.md
+// docs/TUTORIAL.html puts a "Run step N" button on every step of docs/guide/TUTORIAL.md
 // and boots demo-<lang>-tutorial_steps.wasm?step=N to show it. Those carts are
 // deliberate COPIES of the finished tutorial carts (apps/*/scenes/tutorial.*),
 // because every snippet in TUTORIAL.md is quoted verbatim from the finished file

@@ -53,7 +53,7 @@ def words(data: bytes) -> list[str]:
 def init_lines(
     image: bytes, disk: bytes | None, magic: int = glass_map.DISK_MAGIC, cart: bytes | None = None
 ) -> list[str]:
-    """The image at 0; a lean `cart` at CART_IMG_AT (image = the system, decisions.md 2026-10-15),
+    """The image at 0; a lean `cart` at CART_IMG_AT (image = the system, docs/project/DECISIONS.md 2026-10-15),
     the disk then after the cart's .bss; the disk and its descriptor."""
     lines, end = words(image), len(image)
     if cart is not None:

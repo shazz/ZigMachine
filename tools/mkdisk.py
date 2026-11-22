@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pack a wasm cart into a ZigMachine .zmd disk image.
 
-See docs/FLOPPY_DISK.md. Two formats:
+See docs/guide/FLOPPY_DISK.md. Two formats:
   v1 (default):  512 B boot sector (magic + $1234 checksum + direct boot pointer)
                  · 1 KB descriptor + FAT · contiguous data from block 3.
   v2 (--boot-wasm): 1 KB boot sector = an EXECUTABLE wasm module whose 512 BE words

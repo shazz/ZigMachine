@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The MP3 player (zg.mp3Ctl / mp3Feed / mp3Status, docs/ZIGOS_API.md): a
+// The MP3 player (zg.mp3Ctl / mp3Feed / mp3Status, docs/guide/ZIGOS_API.md): a
 // cart streams an .mp3's bytes in, pvmp3 (libs/c/pvmp3, integer) decodes
 // them, and the 16-bit PCM plays on the four Paula channels as kt.zig's:
 // a high and a low byte a side. Two channels a side can only carry x >> 1

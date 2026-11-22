@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS's FAT reader (docs/KOS_FAT.md): FAT12, FAT16 and FAT32, read-only, GEMDOS-style 8.3 names,
+// KOS's FAT reader (docs/os/KOS_FAT.md): FAT12, FAT16 and FAT32, read-only, GEMDOS-style 8.3 names,
 // over a 512-byte sector reader the host provides (the drive ABI's diskReadBlock for drive A,
 // kosDriveRead for C:). Pure Zig with no allocator, no float and no imports beyond std, so the ROM
 // (rom.wasm), glass (finding a floppy program's bytes) and the native tests share it.

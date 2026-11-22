@@ -1,6 +1,6 @@
 """A board SoC sim run of one cart with a scripted mouse and another shelf disk in DDR
 (tools/hp_sim_run.py --pointer / --data-disk): GEM opening ST Replay's data disk, as the
-browser boots GEM for it (docs/FPGA_GLASS.md, "GEM over a data disk").
+browser boots GEM for it (docs/hardware/FPGA_GLASS.md, "GEM over a data disk").
 
 - the image is built with ZM_SIM_POINTER (cycles/board.mk), the mouse the ARM would move;
 - the DDR holds the data disk where ZWINDOW puts it (tools/ddr_init.py), next to the image;

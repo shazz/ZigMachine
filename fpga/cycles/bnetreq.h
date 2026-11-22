@@ -1,5 +1,5 @@
 /* ZIGNIC's request block (glass/src/map_cart.zig NET_*, served by glass/src/net_card.zig): what ZIGGY's firmware
- * writes to hand glass one env.netOp request (docs/GEM_NET.md N2), and how it reads the answer. The words first,
+ * writes to hand glass one env.netOp request (docs/os/GEM_NET.md N2), and how it reads the answer. The words first,
  * the magic last, so a block whose magic and check hold is whole; the answer is NB_OUT.. and NB_DONE, then
  * NB_ACK = the sequence last. Header-only so tests/tb/netreq_test.c runs it over a plain buffer. `f` is the
  * request's words NB_OP .. NB_HOST_LEN (op, sock, a0, a1, buf, len, host, host_len; buf/host window offsets). */

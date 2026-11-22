@@ -1,4 +1,4 @@
-"""GEM over a data disk on the board (docs/FPGA_GLASS.md, "GEM over a data disk"): the FAT
+"""GEM over a data disk on the board (docs/hardware/FPGA_GLASS.md, "GEM over a data disk"): the FAT
 listing the firmware and the native host hand GEM (host/zmd_dir.h, host/disk_app.h) is the
 browser's, byte for byte.
 

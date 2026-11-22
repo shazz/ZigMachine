@@ -28,4 +28,4 @@ Compiled as a named module by the top-level build — no separate artifact:
 zig build -Dwasm -Drelease=true      # -> docs/demo.wasm (+ machine, audio)
 cd docs && python3 -m http.server 3333
 ```
-See `docs/ZIGOS_API.md` for the full API.
+See `docs/guide/ZIGOS_API.md` for the full API.

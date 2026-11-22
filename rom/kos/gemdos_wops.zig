@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// GEMDOS's one-request writes (docs/KOS_GEMDOS.md §7), methods of gemdos.Dos: Fdelete, Frename,
+// GEMDOS's one-request writes (docs/os/KOS_GEMDOS.md §7), methods of gemdos.Dos: Fdelete, Frename,
 // Dcreate, Ddelete, and Fattrib's set. Each is checked here first, as TOS would answer it (the host
 // checks again: a cart is not trusted), then sent whole through the drive's env.kosFileOp. A drive
 // with no host writes (A:, a host that serves none) answers EWRPRO.

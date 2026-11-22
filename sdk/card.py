@@ -1,4 +1,4 @@
-"""Stage an SDK cart for the KESTREL SD card (docs/SDK.md, "Put it on the board").
+"""Stage an SDK cart for the KESTREL SD card (docs/guide/SDK.md, "Put it on the board").
 
     python3 sdk/card.py --tag hello --cart zig-out/board/hello/cart.bin --disk zig-out/demo-hello.zmd \
         --zx0pack zig-out/bin/zx0pack --out zig-out/sd [--card <release>/card] [--release <release>/RELEASE.txt]

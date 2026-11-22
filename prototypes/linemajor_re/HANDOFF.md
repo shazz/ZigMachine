@@ -3,7 +3,7 @@
 ## Done
 - 124f9f99: the RTL `hold` / `keep` / `nopfb` bits and the sticky `dirty` / `filled` (zm_video_pass.v), the cmd CSR fields, the replay testbench's line-major mode.
 - 8e9f541a: the firmware groups (cycles/bplanes.c, cycles/vseq_group.c), the FW_OPT switch bits in bdiag, glass `run --fw-opt=N`, `board_run.py --w64`, docs.
-- ac507c7e: merged origin/main (f635ed98: perf/ziggy-posted, posted=8 is the board default). decisions.md keeps both ADRs.
+- ac507c7e: merged origin/main (f635ed98: perf/ziggy-posted, posted=8 is the board default). docs/project/DECISIONS.md keeps both ADRs.
 - Tests on the merged tree (2026-10-19, logs in prototypes/linemajor_re/logs/):
   - tests/test_rtl_video.py: 78 pass (52 break tests skipped). Break run `ZM_RTL_BREAK=1 -k broken`: 52 of 52 mutants caught.
   - tests/test_rtl_linemajor.py + tests/test_video_order_group.py: 92 pass. Break run: 7 of 7 caught.
@@ -27,14 +27,14 @@
 - Copy boards/microphase_z7_7010/board.xdc (ignored by git).
 - Copy build/vexgen/VexRiscv_SndNd.v from agent-ab658730c7d2f9a7a (same vexgen/ tree).
 
-## W64 root cause (2026-10-19 night, decisions.md 2026-10-19)
+## W64 root cause (2026-10-19 night, docs/project/DECISIONS.md 2026-10-19)
 - Not the RTL. HP1's AFI switched 32 -> 64 at run time (glass --fw-opt=2 after boot.cmd's 0xF01 and traffic)
   writes words 0 and 3 of every 16 bytes only; 64-bit from boot writes every word. 64 -> 32 at run time is fine.
 - Fix: glass refuses W64 on a 32-bit channel (error.W64NeedsBoot); uboot_serial sets HP1 0xF00 in one write.
 - Proof tools in prototypes/w64_re/: fbpeek.c (marker fill + per-word counts, on the board's Linux),
   fbcmp.c (picture vs picture), boot_w64.py (reboot + boot.cmd replayed with HP1 0xF00, serial only).
-- Valid A/B: fpga/bench_results/2026-10-19_README.md (w64boot vs w32same).
-- W64 IS THE DEFAULT since 2026-10-19 late (418fdebc, decisions.md "W64 is the board default"): boot.cmd sets
+- Valid A/B: docs/hardware/studies/bench_results/2026-10-19_README.md (w64boot vs w32same).
+- W64 IS THE DEFAULT since 2026-10-19 late (418fdebc, docs/project/DECISIONS.md "W64 is the board default"): boot.cmd sets
   HP1 0xF00, a plain `glass run` on 0xF00 runs W64, and the card's rootfs carries that glass
   (tools/rootfs_glass.py). A plain reboot needs no `cp` and no `gopt.sh`. Card now: boot.scr 96e29243,
   rootfs.cpio.uboot 2011585d (its /usr/bin/glass 82376563 = glass 0d23f3f6 stripped), glass 0d23f3f6.

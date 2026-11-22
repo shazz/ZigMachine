@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // zg.tc: drawing into a TRUE-COLOUR plane (HW 1.15.0, FB_MODE_TRUECOLOR /
-// FB_MODE_TRUECOLOR_FULL, docs/HW_API.md). A pixel is a little-endian u16
+// FB_MODE_TRUECOLOR_FULL, docs/hardware/HW_API.md). A pixel is a little-endian u16
 // R5 G6 B5 that the machine expands by bit replication; there is no palette.
 // LogicalFB.setTruecolorPlane(.window | .full) turns a plane into one and
 // returns its Fb; `alloc` gives a second buffer to draw the next frame in, and
@@ -25,7 +25,7 @@ pub inline fn rgb565(r: u8, g: u8, b: u8) u16 {
     return (@as(u16, r >> 3) << 11) | (@as(u16, g >> 2) << 5) | (b >> 3);
 }
 
-/// The fade (HW 1.16.0, docs/HW_API.md "True-colour fade"): toward black or toward white.
+/// The fade (HW 1.16.0, docs/hardware/HW_API.md "True-colour fade"): toward black or toward white.
 pub const Dir = enum(u1) { black, white };
 
 /// REG_TC_FADE's byte: coef 0 (none) .. 31 (full black / white), bit 5 the direction.

@@ -1,6 +1,6 @@
-// The copper list engine (HW 1.9.0, fpga/review/COPPER_LIST.md): applies a plane's line record to
+// The copper list engine (HW 1.9.0, docs/hardware/studies/COPPER_LIST.md): applies a plane's line record to
 // its palette (and HSCROLL, the line's FLICK, and from 1.10.0 the line's source, LBASE:
-// fpga/review/COPPER_LINEBASE.md) before that plane's pass paints the line, exactly
+// docs/hardware/studies/COPPER_LINEBASE.md) before that plane's pass paints the line, exactly
 // as machine/copper.zig does in the browser, every rule that stops a list included.
 //
 //   LATCH plane p    REG_FB_COPPER[p] = v: the list's first HEAD at region OFF_VRAM + 16 v (one beat)

@@ -5,7 +5,7 @@
 // clamped 0..255); the colour previews live via the DESK palette entry.
 //
 // The resolution is a row of three radio buttons: Low, Medium, and Desk (the
-// 640x480 desk mode at 1:1, HW 1.17.0, docs/GEM_DESK_MODE.md). Desk is greyed
+// 640x480 desk mode at 1:1, HW 1.17.0, docs/os/GEM_DESK_MODE.md). Desk is greyed
 // where the machine has no desk mode (the shell asked hwDeskAvailable).
 //
 // Laid out on the 8px character-cell grid engine (gui.Grid / gui.hspread) so the

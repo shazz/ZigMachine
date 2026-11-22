@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // NOTEPAD: a windowed text editor for GEM 5 on KOS, written as a TOS program was,
-// to VALIDATE GEM 5's program API (docs/NOTEPAD.md has what that turned up).
+// to VALIDATE GEM 5's program API (docs/os/NOTEPAD.md has what that turned up).
 // Everything GEM is the ROM's, through rom_sdk: the window and its gadgets, the
 // menu bar, form_alert, the ITEM SELECTOR, graf_mouse (aes.zig, table 1.17); the
 // files are KOS GEMDOS's (C:\*.TXT, any folder of C:). The program draws only its text, and only

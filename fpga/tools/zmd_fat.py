@@ -1,5 +1,5 @@
 """Make a "fat" .zmd: a shelf disk plus the cart's rv32 board image, for the
-FPGA console's SD card (docs/FPGA_GLASS.md, "The fat disk").
+FPGA console's SD card (docs/hardware/FPGA_GLASS.md, "The fat disk").
 
     uv run python tools/zmd_fat.py DISK.zmd BOARD_IMAGE OUT.zmd
 

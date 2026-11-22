@@ -1,4 +1,4 @@
-"""U-Boot SPL's ps7_init_gpl.c, read back out of a Zynq-7000 BOOT.BIN's FSBL (docs/FPGA_GLASS.md, "Plan A").
+"""U-Boot SPL's ps7_init_gpl.c, read back out of a Zynq-7000 BOOT.BIN's FSBL (docs/hardware/FPGA_GLASS.md, "Plan A").
 
     uv run python tools/ps7_from_bootbin.py BOOT.BIN OUT_ps7_init_gpl.c
 

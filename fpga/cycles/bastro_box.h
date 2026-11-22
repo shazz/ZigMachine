@@ -1,4 +1,4 @@
-/* ASTROLABE's mailbox words (SPIKE, docs/ARM_FPU_COPROC.md): glass/src/astro_box.zig's layout
+/* ASTROLABE's mailbox words (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): glass/src/astro_box.zig's layout
  * and machine/sdk/astro.zig's descriptor, as ZIGGY's firmware (cycles/bastro.c) sees them.
  * tests/test_astro_box.py checks every number here against those two files and soc/zm_astro.py. */
 #ifndef ZM_BASTRO_BOX_H

@@ -42,7 +42,7 @@ UP_SRC := syncterm/bbslist syncterm/uifcinit syncterm/fonts syncterm/rip_icons s
 UP_HDR := $(patsubst $(UP)/%,%,$(foreach d,$(DIRS),$(wildcard $(UP)/$(d)/*.h)))
 GENALL := $(addprefix $(GEN)/,$(UP_HDR) $(addsuffix .c,$(UP_SRC)))
 # The shared layer: the core (heap, WASI over the floppy, quit), the opt-in fibers, and C: (KOS GEMDOS,
-# docs/KOS_GEMDOS.md §5: "/C" = the card's HD, -DKESTREL_CDRIVE above, as ../grafx2), where the dialing
+# docs/os/KOS_GEMDOS.md §5: "/C" = the card's HD, -DKESTREL_CDRIVE above, as ../grafx2), where the dialing
 # directory lives (kestrel_dialdir.c). Not its input.c: kestrel_keys.c maps the keys to ciolib codes directly.
 KSDL_OBJ := kestrel_heap kestrel_wasi kestrel_quit opt/kestrel_fiber opt/kestrel_pthread \
             opt/kestrel_wasi_c opt/kestrel_wasi_cdir opt/kestrel_wasi_cfile

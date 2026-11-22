@@ -1,4 +1,4 @@
-// KOS's drive A and resets (docs/ZIGTOS_BOOT.md: KOS, the KESTREL Operating System, is its
+// KOS's drive A and resets (docs/os/ZIGTOS_BOOT.md: KOS, the KESTREL Operating System, is its
 // "ZigTOS"). The shelf is the box of disks next to the drive, not a launcher:
 //
 //   power-on  ZIGGY starts at once, the OSD closed, drive A holding glass.cfg's drive_a=

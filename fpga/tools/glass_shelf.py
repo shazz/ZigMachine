@@ -2,11 +2,11 @@
 browser mounts plus the rv32 board image ZWINDOW loads (tools/zmd_fat.py), and shelf.txt, in the
 card's CARTS/; the system files (system.rv32, KOS's desktop, the programs) in KESTREL/ (sd_layout.py).
 
-A DATA disk (not bootable: ST Replay's) is what KOS boots its desktop over (docs/ZIGTOS_BOOT.md,
+A DATA disk (not bootable: ST Replay's) is what KOS boots its desktop over (docs/os/ZIGTOS_BOOT.md,
 KOS = ZigTOS), as the browser does: the card carries the desktop ONCE, as KESTREL/kos/desktop.rv32
 (OS_CART's board image, ZX0-packed), and a data disk is staged as it is, just files: the glass puts
 the desktop and the disk in DDR (glass/src/app_drive.zig), and the desktop's firmware does the rest
-from the disk itself (cycles/bdiskapp.c: docs/FPGA_GLASS.md, "GEM over a data disk"). Nothing else
+from the disk itself (cycles/bdiskapp.c: docs/hardware/FPGA_GLASS.md, "GEM over a data disk"). Nothing else
 marks it: the boot sector says, as in the browser.
 
 A program on a data disk (a type-0 FAT file: ST Replay's BOOT.WSM) is wasm GEM asks the
@@ -58,7 +58,7 @@ SHELF = (
     # The MP3 jukebox (tools): C:\\MUSIC through KOS GEMDOS, decoded on BARD (system table 1.11).
     "mp3_player",
     # The GEM 5 programs (tools): data disks as st_replay and sysinfo are, the cart is BOOT.WSM: NOTEPAD
-    # (C:\\*.TXT) and GEMTEST (every GEM 5 component, docs/GEMTEST.md).
+    # (C:\\*.TXT) and GEMTEST (every GEM 5 component, docs/os/GEMTEST.md).
     "notepad", "gemtest",
     # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.
     "sid_test",
@@ -79,7 +79,7 @@ SYS_FILE = "system.rv32"  # glass/src/system.zig FILE
 @dataclass(frozen=True)
 class Images:
     """Where the board images come from: <fw_dir>/<cart>/fw.bin, monolithic; or, given the
-    system's table version, the lean <fw_dir>/<cart>/cart.bin that system runs (decisions.md
+    system's table version, the lean <fw_dir>/<cart>/cart.bin that system runs (docs/project/DECISIONS.md
     2026-10-15: the card then carries the system once, as system.rv32)."""
 
     fw_dir: Path

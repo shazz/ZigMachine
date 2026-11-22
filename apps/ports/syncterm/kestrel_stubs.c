@@ -44,7 +44,7 @@ int32_t __imported_wasi_snapshot_preview1_clock_res_get(int32_t id, int32_t out)
 }
 /* ftruncate: xpdev's iniWriteFile truncates the file it has just written at its end (chsize). On a C: file
  * being written (made "wb", so it is exactly what was written) that is already so: answered, as nothing
- * to do. Any other truncation is refused, a C: file is written whole (docs/KOS_GEMDOS.md §7). */
+ * to do. Any other truncation is refused, a C: file is written whole (docs/os/KOS_GEMDOS.md §7). */
 #include "../kestrel_sdl2/src/opt/kestrel_wasi_c.h"
 int32_t __imported_wasi_snapshot_preview1_fd_filestat_set_size(int32_t fd, int64_t size)
 {

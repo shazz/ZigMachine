@@ -5,7 +5,7 @@ Parses the sealed HW ABI headers (machine/sdk/*.zig) and the open ZigOS library
 (libs/zig/*.zig) for their public surface + doc comments, and emits a single
 self-contained reference (docs/ZIGMACHINE_GUIDE.html) with a register map, an
 ABI/library reference, hand-written examples, and the disk/cart-format prose
-rendered from docs/FLOPPY_DISK.md and the music guide from docs/MUSIC.md.
+rendered from docs/guide/FLOPPY_DISK.md and the music guide from docs/guide/MUSIC.md.
 
 The reference is generated from source so signatures never drift; the prose and
 examples live in tools/docgen/guide_content.py. The teaching half is a separate

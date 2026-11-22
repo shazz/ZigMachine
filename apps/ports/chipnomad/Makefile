@@ -32,7 +32,7 @@ CFLAGS := $(FLAGS) -std=gnu11
 MEM := 8388608
 LDFLAGS := -Wl,--no-entry -Wl,--import-memory -Wl,--initial-memory=$(MEM) -Wl,--max-memory=$(MEM) \
            -Wl,--global-base=1048576 -Wl,-z,stack-size=262144 -Wl,--strip-debug
-# C: (KOS GEMDOS, docs/KOS_GEMDOS.md §5): "/C" = the card's HD, as ../grafx2 (-DKESTREL_CDRIVE in FLAGS).
+# C: (KOS GEMDOS, docs/os/KOS_GEMDOS.md §5): "/C" = the card's HD, as ../grafx2 (-DKESTREL_CDRIVE in FLAGS).
 CDRIVE := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o $(OUT)/ksdl/opt/kestrel_wasi_cfile.o $(OUT)/gemdos.o
 GEMDOS := ../../../rom/kos
 OBJS   := $(patsubst %,$(OUT)/up/%.o,$(UP_SRC)) $(patsubst %,$(OUT)/%.o,$(wildcard kestrel_*.cpp)) \

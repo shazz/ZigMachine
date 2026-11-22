@@ -32,7 +32,7 @@ typedef struct {
     uint32_t kind; /* insertDisk's argument: 1 a .zmd (the listing is handed), 2 a FAT image; bit 8 the real floppy */
 } disk_app_t;
 
-/* A raw FAT disk image (KOS, docs/KOS_FAT.md; docs/kos-boot.js ZMKos.fatImage): whole 512-byte
+/* A raw FAT disk image (KOS, docs/os/KOS_FAT.md; docs/kos-boot.js ZMKos.fatImage): whole 512-byte
  * sectors and a BPB saying 512. A data disk the desktop shell reads itself: insertDisk(2), no listing. */
 static inline int disk_app_fat_image(const uint8_t* b, uint32_t size) {
     return size >= 4096 && size % 512 == 0 && (b[11] | b[12] << 8) == 512;

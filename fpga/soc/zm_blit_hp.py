@@ -1,4 +1,4 @@
-"""The blitter's memory master on HP2 (docs/BLITTER_HW_SPEC.md 10.2-10.3): rtl/blitter's
+"""The blitter's memory master on HP2 (docs/hardware/BLITTER_HW_SPEC.md 10.2-10.3): rtl/blitter's
 byte-wide read and write ports -> one 64-bit AXI3 HP port, the way soc/zm_hp.py's
 WishboneHP drives HP0.
 

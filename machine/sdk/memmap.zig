@@ -48,7 +48,7 @@ pub const TRUECOLOR_STRIDE: u16 = 2 * WIDTH; // 640
 pub const TRUECOLOR_FULL_STRIDE: u16 = 2 * PHYSICAL_WIDTH; // 800
 pub const TRUECOLOR_FB_BYTES: usize = 2 * NORMAL_FB_BYTES; // 128000
 pub const TRUECOLOR_FULL_FB_BYTES: usize = 2 * FULLSCREEN_FB_BYTES; // 224000
-// The desk mode (RESOLUTION = RES_DESK, HW 1.17.0, docs/GEM_DESK_MODE.md): plane 0 alone, 640x480
+// The desk mode (RESOLUTION = RES_DESK, HW 1.17.0, docs/os/GEM_DESK_MODE.md): plane 0 alone, 640x480
 // bytes at stride 640 through palette 0, shown 1:1 in the middle of the 800x600 output (black bars).
 pub const DESK_WIDTH: u16 = 640;
 pub const DESK_HEIGHT: u16 = 480;
@@ -88,7 +88,7 @@ pub const REG_RESOLUTION: usize = 0x00; // u8   0 = planes, 1 = truecolor (borde
 pub const REG_NB_PLANES: usize = 0x01; // u8   (ro) = 4
 pub const REG_BACKGROUND: usize = 0x04; // u32  border/background RGBA
 pub const REG_PLANE_ENABLE: usize = 0x08; // u8 x4 (informational in v1; host gates blits)
-// --- TRUE-COLOUR FADE (1.16.0, docs/HW_API.md "True-colour fade"; machine/video_tc_fade.zig) ---
+// --- TRUE-COLOUR FADE (1.16.0, docs/hardware/HW_API.md "True-colour fade"; machine/video_tc_fade.zig) ---
 // Applied to a true-colour plane's 888 pixel after the 565 expansion, every line (a copper REG
 // may rewrite them per line): a coefficient toward black or white, then a signed offset per
 // channel, clamped to 0..255. All zero (the reset) is the identity; other modes ignore them.
@@ -122,7 +122,7 @@ pub const REG_ROM_HIGH: usize = 0x60; // u32  (0x60..0x63)
 // picture. The GLOBAL HBL for physical line y queues up to BEAM_MAX writes;
 // clear() paints the line in spans from them, then consumes the list. The
 // machine enforces the 68000's limits and COUNTS every write that breaks them
-// (docs/HARDWARE_SPEC.md, "BEAM"). BEAM_COUNT = 0 is the pre-1.6.0 path exactly.
+// (docs/hardware/HARDWARE_SPEC.md, "BEAM"). BEAM_COUNT = 0 is the pre-1.6.0 path exactly.
 pub const REG_BEAM_COUNT: usize = 0x64; // u16  entries queued for the CURRENT line (0x64..0x65; 0x66..0x67 free)
 pub const REG_BEAM_DROPPED: usize = 0x68; // u32  running count of rejected writes (0x68..0x6B)
 
@@ -143,7 +143,7 @@ pub const REG_RAM_ALLOC_FAILS: usize = 0x70; // u32  (ro) refused hwRamAlloc/hwR
 // byte; the browser machine ignores it: its plane-major order is the reference.
 pub const REG_FB_HBL_PURE: usize = 0x74; // u8 x4  1 = plane p's HBL handler is pure (0x74..0x77)
 // --- COPPER LIST (1.9.0) -------------------------------------------------------
-// Plane p's per-line register writes (machine/copper.zig, fpga/review/COPPER_LIST.md): the list
+// Plane p's per-line register writes (machine/copper.zig, docs/hardware/studies/COPPER_LIST.md): the list
 // is at region offset OFF_VRAM + 16 * v; v = 0: none. Read when the plane's frame starts.
 pub const REG_FB_COPPER: usize = 0x78; // u16 x4 (0x78..0x7F, the register block's last bytes)
 // The table is 256 bytes, too big for the register block, so it sits directly
@@ -174,7 +174,7 @@ pub const FB_MODE_TRUECOLOR_FULL: u8 = 6; // 400x280 RGB565 plane over the whole
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
 pub const RES_MEDIUM: u8 = 2; // 640x200, 2 planes, no border (ST-medium style)
-pub const RES_DESK: u8 = 3; // HW 1.17.0: plane 0 only, 640x480 at 1:1 (DESK_*, docs/HW_API.md "Desk mode")
+pub const RES_DESK: u8 = 3; // HW 1.17.0: plane 0 only, 640x480 at 1:1 (DESK_*, docs/hardware/HW_API.md "Desk mode")
 
 // --- overscan / border-opening trick (authentic ST timing exploit) ---
 // A FB_MODE_OVERSCAN plane draws only its visible 320x200 window until the scene
@@ -189,7 +189,7 @@ pub const OVERSCAN_MAGIC_X: u16 = HORIZONTAL_BORDERS_WIDTH; // 40 — the visibl
 pub const OVERSCAN_X_TOL: u16 = 4; // +/- tolerance the flicker column must hit
 
 // --------------------------------------------------------------------------
-// Blitter register block (see docs/BLITTER_HW_SPEC.md).
+// Blitter register block (see docs/hardware/BLITTER_HW_SPEC.md).
 //
 // A fixed-function 2D coprocessor living inside machine-video.wasm. ZigOS sets
 // these registers then calls the sealed `hwBlit()` export to execute COMMAND.
@@ -386,7 +386,7 @@ pub const CART_RAM_BASE: usize = 0x100000; // = build.zig demo_global_base
 pub const CART_RAM_TOP: usize = HW_VIDEO_BASE;
 pub const CART_RAM_BYTES: usize = CART_RAM_TOP - CART_RAM_BASE; // 3 MiB
 
-// The ROM chip's own RAM window (Phase 2 — see docs/PHASE2_ROM_CHIP.md). Placed
+// The ROM chip's own RAM window (Phase 2 — see docs/os/PHASE2_ROM_CHIP.md). Placed
 // ABOVE the video region, never carved out of the cart's: the whole point is that
 // an app's window stays the app's. The video region ends at HW_VIDEO_BASE + OFF_PFB
 // + PFB_BYTES = 0x5DBFE0, so 0x600000 clears it with room to spare.
@@ -407,7 +407,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // rebuild the C/Rust carts; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 128;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_1200; // 1.18.0 — ASTROLABE (SPIKE): env.hwAstro(desc, count), the f64 coprocessor's descriptors (machine/sdk/astro.zig, decisions.md 2026-11-09 "ASTROLABE"); 1.17.0 — the desk mode: RESOLUTION = RES_DESK, plane 0 alone at 640x480 1:1, hwRenderDesk/hwDeskActive/hwDeskAvailable (decisions.md 2026-11-08 "GEM desk mode"); 1.16.0 — the true-colour fade: REG_TC_FADE + REG_TC_OFS_R/G/B per plane, also copper REG targets (decisions.md 2026-11-03 "True-colour fade"); 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (decisions.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; decisions.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
+pub const ZM_HW_VERSION: u32 = 0x0001_1200; // 1.18.0 — ASTROLABE (SPIKE): env.hwAstro(desc, count), the f64 coprocessor's descriptors (machine/sdk/astro.zig, docs/project/DECISIONS.md 2026-11-09 "ASTROLABE"); 1.17.0 — the desk mode: RESOLUTION = RES_DESK, plane 0 alone at 640x480 1:1, hwRenderDesk/hwDeskActive/hwDeskAvailable (docs/project/DECISIONS.md 2026-11-08 "GEM desk mode"); 1.16.0 — the true-colour fade: REG_TC_FADE + REG_TC_OFS_R/G/B per plane, also copper REG targets (docs/project/DECISIONS.md 2026-11-03 "True-colour fade"); 1.15.0 — the true-colour plane: FB_MODE_TRUECOLOR (5) / _FULL (6), RGB565 through FRESCO's painter (docs/project/DECISIONS.md 2026-11-02 "True-colour plane"); 1.14.0 — a cart may claim the four Paula channels (env.hostPaula*: chip RAM uploads, timed Amiga register writes; docs/project/DECISIONS.md 2026-11-02); 1.13.0 — the cart RAM window is 3 MiB [0x100000..0x400000), video at 0x400000, ROM RAM at 0x600000, 8 MiB in all (1.12.0: 4 MiB, never on the board; 1.11.0: CHISEL v2 QUEUE/AFFINE/MAP/mirror/collision/area fill; 1.10.0: copper LBASE + HSCROLL on overscan; 1.9.0: REG_FB_COPPER)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.

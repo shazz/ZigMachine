@@ -1,4 +1,4 @@
-/* The system image's side of the board's split (decisions.md 2026-10-15): find the lean cart
+/* The system image's side of the board's split (docs/project/DECISIONS.md 2026-10-15): find the lean cart
  * image ZWINDOW placed at ZM_CART_IMG_AT, refuse one built for another table version, bind it,
  * and boot the three modules exactly as host/boot.c does in the monolithic image, the cart
  * through its header. Lines (sim): "ZM CART tag table a.b", or "ZM CART none at addr" /

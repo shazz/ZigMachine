@@ -1,4 +1,4 @@
-// One ZIGNIC socket on Linux (net_card.zig, docs/GEM_NET.md N2): a non-blocking TCP or UDP socket, or a UDP socket
+// One ZIGNIC socket on Linux (net_card.zig, docs/os/GEM_NET.md N2): a non-blocking TCP or UDP socket, or a UDP socket
 // asking DNS (Mode.resolve). Every call returns at once; `tick` (at each op on the socket) moves a connect or a
 // lookup on and gathers the events. TLS and ICMP are not served yet (Err.invalid), and listening is denied (no
 // port is forwarded until KESTREL/net.conf exists).

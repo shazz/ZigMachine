@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS GEMDOS's writes to C: on the page and in node's harnesses (docs/KOS_GEMDOS.md §7): the host
+// KOS GEMDOS's writes to C: on the page and in node's harnesses (docs/os/KOS_GEMDOS.md §7): the host
 // half of env.kosFileOp where C: is an image in memory. A cart never writes sectors: it hands the
 // host a request (rom/kos/kfs_abi.zig: 12 words, then the path, a second path and the data, all in
 // its own memory) and KFS (docs/kos-cfs.wasm, rom/kos/kfs*.zig) edits the image at the file level,

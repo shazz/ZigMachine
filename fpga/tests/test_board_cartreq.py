@@ -1,4 +1,4 @@
-"""Programs off a data disk on the board (docs/FPGA_GLASS.md, "Programs off a data disk"):
+"""Programs off a data disk on the board (docs/hardware/FPGA_GLASS.md, "Programs off a data disk"):
 the request block ZIGGY writes is the one ZWINDOW reads (glass/src/map_cart.zig; the glass's
 side is glass/src/app_request_test.zig), the shelf prebuilds each program's fat disk under
 progs/, and a program's sim image carries the program's descriptor magic."""

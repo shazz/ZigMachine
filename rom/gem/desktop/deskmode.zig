@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The desktop's screen modes (docs/GEM_DESK_MODE.md §8, DEVPAC_GAP §3b): low,
+// The desktop's screen modes (docs/os/GEM_DESK_MODE.md §8, DEVPAC_GAP §3b): low,
 // medium and, where the machine has it, the 640x480 desk. The shell switches the
 // plane and calls deskSetScreen; the ROM re-binds and lands here, which moves
 // everything that was laid out for the old screen onto the new one:

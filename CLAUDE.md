@@ -30,9 +30,9 @@ agents don't get `.claude/` (it is gitignored), so read them by absolute path:
 
 ## Roadmap
 
-- **`docs/ROADMAP.md` is the source of truth for open work** (Matt, 2026-10-31); finished items move
-  to `docs/ROADMAP_DONE.md` with their commit. Update it in the same commit as the work. The roadmap
+- **`docs/project/ROADMAP.md` is the source of truth for open work** (Matt, 2026-10-31); finished items move
+  to `docs/project/ROADMAP_DONE.md` with their commit. Update it in the same commit as the work. The roadmap
   artifact is Matt's view, regenerated from the file.
 - **Every unmerged branch has a row.** At the start of every lead session, and before any branch
   cleanup, run the forgotten-branch review (the command is at the top of ROADMAP.md).
-- Put "update docs/ROADMAP.md" in every agent brief.
+- Put "update docs/project/ROADMAP.md" in every agent brief.

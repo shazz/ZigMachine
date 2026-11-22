@@ -2,7 +2,7 @@
 
 These are measured costs of ZIGGY, CHISEL and FRESCO on the real board. They come from the native bench
 cart (`fpga/cycles/native/bench/`, built with `make native-cart NAME=bench`), not from models. Each run
-appends a section here and its raw log goes in `fpga/bench_results/`.
+appends a section here and its raw log goes in `docs/hardware/studies/bench_results/`.
 
 ## Method
 
@@ -27,7 +27,7 @@ appends a section here and its raw log goes in `fpga/bench_results/`.
   comp 125 MHz, ZIGGY rv32imf with the FPU, HP0 stores **not posted**.
 - **System image:** system.rv32 table 1.1, from before perf/chisel-burst, so it still has the old hwBlit
   overhead.
-- **Raw log:** `fpga/bench_results/2026-10-18_v6fpu_posted0.{txt,csv}` (113 results).
+- **Raw log:** `docs/hardware/studies/bench_results/2026-10-18_v6fpu_posted0.{txt,csv}` (113 results).
 
 ### Headline findings
 

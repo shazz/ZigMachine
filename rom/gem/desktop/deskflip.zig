@@ -3,7 +3,7 @@
 // mouse moved). The board's desk scanout reads plane 0 LIVE from cart RAM, and every drawn frame
 // of the desktop repaints the whole screen (fill, icons, windows: deskdraw.drawScene), so the
 // half-drawn frame was on the screen while the ROM drew it. The browser shows only finished
-// frames and never saw it (docs/GEM_DESK_MODE.md §3).
+// frames and never saw it (docs/os/GEM_DESK_MODE.md §3).
 //
 // So in the desk the shell hands the ROM two buffers (deskSetBuffers); a frame the desktop draws
 // goes into the one NOT on screen, and FB_BASE moves to it once the frame is complete. The board

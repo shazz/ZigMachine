@@ -8,7 +8,7 @@
 // only sees the total, not that it is air). demo-swedish_newyear.wasm carried a
 // 922,018-byte segment that was 100% zeros. Since HW 1.7.0 such a buffer comes
 // from the machine's RAM arena instead: zg.mem.alloc(T, n) in Zig, zm_alloc() in
-// C, zigmachine_mem::alloc() in Rust (docs/MEMORY.md).
+// C, zigmachine_mem::alloc() in Rust (docs/guide/MEMORY.md).
 //
 // ALLOW lists the carts that exceeded the limit when the gate landed, with the
 // zero bytes they carried in over-limit runs then. Each entry is a TODO: migrate
@@ -140,7 +140,7 @@ function judge(name, runs, allow) {
     }
     if (allowed === undefined) {
         console.log(`FAIL  ${name}  ${total} B of zero-filled statics in the data section (${where}).`);
-        console.log(`      Allocate the buffer at boot instead: zg.mem.alloc(T, n) / zm_alloc / zigmachine_mem::alloc (docs/MEMORY.md)`);
+        console.log(`      Allocate the buffer at boot instead: zg.mem.alloc(T, n) / zm_alloc / zigmachine_mem::alloc (docs/guide/MEMORY.md)`);
         return false;
     }
     if (total > allowed) {

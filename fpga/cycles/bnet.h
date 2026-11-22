@@ -1,4 +1,4 @@
-/* env.netOp on the board (ZIGNIC, docs/GEM_NET.md N2): force-included into the generated env.c and the system's
+/* env.netOp on the board (ZIGNIC, docs/os/GEM_NET.md N2): force-included into the generated env.c and the system's
  * sys_env.c (cycles/board.mk), where tools/host_bridges.py leaves HOST_NET_OP answering no_card. ZIGGY has no
  * network; glass has Linux's: bnet.c hands it the cart's Req over the window's NET block (bnetreq.h). */
 #ifndef ZM_BNET_H

@@ -1,4 +1,4 @@
-// zg.net: ZIGNIC's sockets for carts (docs/GEM_NET.md; the ABI: machine/sdk/net_abi.zig). The card does the
+// zg.net: ZIGNIC's sockets for carts (docs/os/GEM_NET.md; the ABI: machine/sdk/net_abi.zig). The card does the
 // networking (the host's own stack: glass on the board, the page's relay or scripted LAN); a cart opens up to 8
 // sockets and polls them from its frame loop. Nothing here blocks: an op that would wait returns error.Again or 0.
 //

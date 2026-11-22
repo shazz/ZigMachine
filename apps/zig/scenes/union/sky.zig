@@ -49,7 +49,7 @@ pub const SKY: [PH]u32 = blk: {
 // 400-wide plane, so borders must stay open every line too. Both effects are
 // per-scanline palette/latch writes with no pixel-column sensitivity, so they
 // share one HBL handler registered at OVERSCAN_MAGIC_X (a single per-plane
-// handler slot — see docs/HW_API.md "Opening the borders").
+// handler slot — see docs/hardware/HW_API.md "Opening the borders").
 pub fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
     _ = zigos;
     _ = x;

@@ -4,7 +4,7 @@
 // CoreMark, Dhrystone 2.1, Whetstone and LINPACK (double AND single/f32 builds) and a RAM read/write/copy test,
 // one after another, each in slices of about 8 ms so no frame holds the machine for long (the board's glass
 // calls a frame that finishes nothing for 2 s a stall). The clock is env.hostMicros, the only clock a cart has
-// (decisions.md 2026-10-10); a host without one answers 0, and then every rate reads "no clock", never a number.
+// (docs/project/DECISIONS.md 2026-10-10); a host without one answers 0, and then every rate reads "no clock", never a number.
 // Each result is drawn with the ROM's text API and logged ONCE as "ZM BENCH <name>=<value> <unit>".
 //
 // Keys: 1 reruns, Escape leaves. Times in a browser are the browser's, not the board's.

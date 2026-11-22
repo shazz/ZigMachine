@@ -65,7 +65,7 @@ pub const spanfont = @import("effects/spanfont.zig"); // big 1-bit font as ink r
 const glyph_line = @import("effects/glyph_line.zig");
 pub const linepal = @import("effects/linepal.zig"); // rgb(); LinePalette below
 pub const tc = @import("truecolor.zig"); // HW 1.15.0 RGB565 planes: Fb, rgb565 (LogicalFB.setTruecolorPlane)
-pub const astro = @import("astro.zig"); // HW 1.18.0 SPIKE: ASTROLABE, f64 and batches on the ARM (docs/ARM_FPU_COPROC.md)
+pub const astro = @import("astro.zig"); // HW 1.18.0 SPIKE: ASTROLABE, f64 and batches on the ARM (docs/hardware/studies/ARM_FPU_COPROC.md)
 /// Up to `n` palette entries per visible line, allocated per pixel colour, replayed by an HBL.
 pub fn LinePalette(comptime n: usize) type {
     return linepal.LinePalette(LogicalFB, ZigOS, .{ .rows = HEIGHT, .visible_top = VERTICAL_BORDERS_HEIGHT }, n);
@@ -198,7 +198,7 @@ pub fn vramWords(n: usize) ?VramWords {
 
 /// A second desk buffer from the VRAM pool (64-aligned, cleared), for a cart that draws whole
 /// frames and flips plane 0's FB_BASE between it and setDeskPlane's (the board scans plane 0 out
-/// live in the desk and latches FB_BASE at the VBL: docs/GEM_DESK_MODE.md §3). A region offset,
+/// live in the desk and latches FB_BASE at the VBL: docs/os/GEM_DESK_MODE.md §3). A region offset,
 /// null when the pool has no room. Each call allocates: the cart keeps the one it got.
 pub fn deskBuffer() ?usize {
     const off = vramTry(hw.DESK_FB_BYTES, 64) orelse return null;
@@ -337,7 +337,7 @@ pub fn requestModVolume(gain: f32) bool {
 /// song requested before it. A tune with no native driver plays 1 whatever is
 /// asked (the audio thread says so on the console). False when refused (not
 /// 1..3, the queue full): counted in sfxDropped(). The board's song bridge
-/// carries it to the players too (docs/FPGA_SOUND_CPU.md "Effects").
+/// carries it to the players too (docs/hardware/FPGA_SOUND_CPU.md "Effects").
 pub fn requestSndhMode(mode: u8) bool {
     return g_sfx.sndhMode(mode);
 }
@@ -401,7 +401,7 @@ pub fn songNameLen() usize {
     return g_song_len;
 }
 
-// --- Disk drive (block reads) + streaming audio (docs/FLOPPY_DISK.md) ----------
+// --- Disk drive (block reads) + streaming audio (docs/guide/FLOPPY_DISK.md) ----------
 // The mounted disk lives in the host; these bridges let a scene STREAM a file off
 // it block-by-block into RAM (never holding it whole) and feed it to the audio
 // ring. Addresses passed to the host are raw wasm addresses = byte offsets into
@@ -415,7 +415,7 @@ pub const DISK_BLOCK: usize = 512;
 
 // The machine-side disk reader (FAT lookup + file streaming) built on readBlock.
 pub const disk = @import("disk.zig");
-pub const net = @import("net.zig"); // ZIGNIC sockets (docs/GEM_NET.md): the card does the networking, the cart polls
+pub const net = @import("net.zig"); // ZIGNIC sockets (docs/os/GEM_NET.md): the card does the networking, the cart polls
 pub const bard = @import("bard.zig"); // the BARD queue (table 1.12): timed commands to the sound side, events back
 
 // --- Cart RAM arena (HW 1.7.0): zg.mem ---------------------------------------
@@ -467,7 +467,7 @@ pub const audioFeedStereo = audio_stereo.feedStereo;
 pub const audioStreamPlayed = audio_stereo.played;
 pub const AUDIO_STREAM_RING = audio_stereo.RING;
 
-// --- MP3 stream (system table 1.11, libs/zig/players/mp3.zig, docs/ZIGOS_API.md) -------------
+// --- MP3 stream (system table 1.11, libs/zig/players/mp3.zig, docs/guide/ZIGOS_API.md) -------------
 // The cart reads the file (KOS GEMDOS, a disk) and feeds its bytes; the sound side (BARD on the
 // board, the AudioWorklet on the page) decodes them onto the four Paula channels. Flow control: the
 // cart knows what it fed, mp3Status(.used) what the player took; keep fed - used <= MP3_RING.
@@ -631,7 +631,7 @@ pub const LogicalFB = struct {
     // (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window
     // shows — until the scene "opens" a border with the authentic resolution-flicker
     // trick: call flickerBorder() from this plane's HBL handler, at OVERSCAN_MAGIC_X,
-    // on the scanline of the border you want. See docs/HW_API.md "Opening the borders".
+    // on the scanline of the border you want. See docs/hardware/HW_API.md "Opening the borders".
     pub fn setOverscanBuffer(self: *LogicalFB) void {
         self.stride = PHYSICAL_WIDTH;
         self.fb_w = PHYSICAL_WIDTH;
@@ -834,7 +834,7 @@ pub const LogicalFB = struct {
         writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
     }
 
-    // The desk mode (HW 1.17.0, docs/HW_API.md "Desk mode"): plane 0 alone, 640x480 at 1:1, for
+    // The desk mode (HW 1.17.0, docs/hardware/HW_API.md "Desk mode"): plane 0 alone, 640x480 at 1:1, for
     // GEM and tools. Allocates its 307,200 bytes 64-aligned from the VRAM pool (once a scene: it
     // keeps the buffer when it leaves and comes back), clears it, and stores all 256 entries of
     // palette 0 again: the board shows them from a mirror that only CPU stores fill. Errors (and

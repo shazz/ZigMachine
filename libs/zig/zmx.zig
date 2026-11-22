@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // ZM-X v1: the SPEC of ZIGGY's custom integer ops, and their software twin.
-// (fpga/review/KESTREL_NEXT_ISA.md 1.2-1.3; step 0 of its section 4.)
+// (docs/hardware/studies/KESTREL_NEXT_ISA.md 1.2-1.3; step 0 of its section 4.)
 //
 // Every function below is the exact integer semantics of one instruction.
 // Today it is plain Zig (wasm in the browser, rv32im on the board); step 2

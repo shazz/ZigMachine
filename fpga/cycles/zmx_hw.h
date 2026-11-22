@@ -1,4 +1,4 @@
-/* ZM-X v1 as instructions (fpga/review/KESTREL_NEXT_ISA.md section 5): a cart's env.zm*
+/* ZM-X v1 as instructions (docs/hardware/studies/KESTREL_NEXT_ISA.md section 5): a cart's env.zm*
  * imports, compiled to the custom-0 ops when the image is built with ZM_ZMX (zm_variant.h
  * maps each w2c_env_zm* call here). Non-volatile asm with no memory clobber: GCC may CSE,
  * hoist and schedule an op like any ALU instruction. The browser and the native host run

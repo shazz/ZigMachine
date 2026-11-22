@@ -1,4 +1,4 @@
-"""The SD card's folders: which one each cart's fat disk goes in (docs/FPGA_GLASS.md, "The menu").
+"""The SD card's folders: which one each cart's fat disk goes in (docs/hardware/FPGA_GLASS.md, "The menu").
 
     uv run python tools/shelf_category.py [--check] [--path TAG]
 

@@ -1,5 +1,5 @@
-// Where glass finds things on the SD card (docs/FPGA_GLASS.md "The SD card's layout";
-// decisions.md 2026-11-06). Every SD path glass reads is under one of two directories:
+// Where glass finds things on the SD card (docs/hardware/FPGA_GLASS.md "The SD card's layout";
+// docs/project/DECISIONS.md 2026-11-06). Every SD path glass reads is under one of two directories:
 //
 //   sys    system.rv32, kos/desktop.rv32, glass.cfg, progs/ (by-hash and per-disk programs)
 //   carts  the OSD's shelf: <category>/demo-<tag>.zmd and shelf.txt

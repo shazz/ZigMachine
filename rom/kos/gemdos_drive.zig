@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// One GEMDOS drive (docs/KOS_GEMDOS.md §4): a FAT volume over a run reader, the folder that is the
+// One GEMDOS drive (docs/os/KOS_GEMDOS.md §4): a FAT volume over a run reader, the folder that is the
 // drive's root (C: is the card's /HD), its current folder, and a sector cache. A request to C: costs
 // one round trip to glass (~0.5 ms on the board) whatever its length up to 64 sectors, so the cache
 // holds RUNS of 8 sectors (a directory's next sectors, the FAT's), SLOTS of them, oldest replaced;
@@ -12,7 +12,7 @@ const gp = @import("gemdos_path.zig");
 const abi = @import("kfs_abi.zig");
 
 /// `count` sectors from `sector` into `dst` (word-aligned): `count` or 0, all or nothing (the
-/// kosDriveRead rule, docs/KOS_FAT.md §4).
+/// kosDriveRead rule, docs/os/KOS_FAT.md §4).
 pub const RunFn = *const fn (ctx: *anyopaque, sector: u32, count: u32, dst: [*]align(4) u8) u32;
 
 /// A write request to the host (kfs_abi.zig, env.kosFileOp): its TOS answer. The binding puts the

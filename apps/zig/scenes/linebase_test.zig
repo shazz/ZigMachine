@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// LINE LIST TEST: the STE line list (HW 1.10.0, fpga/review/COPPER_LINEBASE.md): every line's source
+// LINE LIST TEST: the STE line list (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md): every line's source
 // address (copper LBASE, the STE video counter), its fine scroll (REG HSCROLL, now honoured on
 // overscan planes) and colour 0 come from a list zg.linelist rebuilds each frame; no HBL handler.
 // Two phases of PHASE frames each, A first (the board sims see it in their few frames):

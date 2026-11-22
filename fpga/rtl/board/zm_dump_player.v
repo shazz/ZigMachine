@@ -1,4 +1,4 @@
-// The sound-chip lab's player (docs/FPGA_AUDIO.md): a register dump in a ROM,
+// The sound-chip lab's player (docs/hardware/FPGA_AUDIO.md): a register dump in a ROM,
 // played into any chip through a register-write port, one frame a `tick`. The
 // ROM format is tools/ym_rom.py's (16-bit words):
 //   0rrrrrrr vvvvvvvv   write v to register r

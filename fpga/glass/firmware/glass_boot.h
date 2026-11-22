@@ -1,4 +1,4 @@
-/* The cart CPU's boot, cold or warm (docs/FPGA_GLASS.md, "Cold and warm reset").
+/* The cart CPU's boot, cold or warm (docs/hardware/FPGA_GLASS.md, "Cold and warm reset").
  *
  * COLD (the ARM reloaded the image and zeroed the rest of the window): crt0
  * copies .data and zeroes .bss, then main() lays out the machine's memory

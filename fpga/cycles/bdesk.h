@@ -1,4 +1,4 @@
-/* The desk mode on the board (HW 1.17.0, RESOLUTION = RES_DESK, docs/GEM_DESK_MODE.md).
+/* The desk mode on the board (HW 1.17.0, RESOLUTION = RES_DESK, docs/os/GEM_DESK_MODE.md).
  * The scanout shows plane 0 itself (rtl/video/zm_video_desk.v), so a desk frame has no pass:
  * the sequencer only counts the frame (video.zig's clear() does no more) and paces it on the
  * swap, as vseq_mix_only does. */

@@ -1,4 +1,4 @@
-"""The glass (rtl/glass/) as LiteX blocks, for the board (docs/FPGA_GLASS.md).
+"""The glass (rtl/glass/) as LiteX blocks, for the board (docs/hardware/FPGA_GLASS.md).
 
 - `ZMGlass`: the register block. Its AXI3 slave hangs off the PS's M_AXI_GP0
   (`ps7_gp0` wires a PS7 instance to it, clocked from sys so the whole block
@@ -52,7 +52,7 @@ class ZMGlass(LiteXModule):
         self.cart_state = CSRStorage(32, description="The firmware's state for the ARM (CART_*).")
         self.cart_beat = CSRStorage(32, description="Frames the firmware has finished: the ARM's watchdog.")
         self.boot_warm = CSRStatus(1, description="CTRL.WARM: this boot keeps the cart's memory (glass_boot.h).")
-        # {mute, volume}: for the audio mixer to multiply into the mix (docs/FPGA_GLASS.md, "Volume").
+        # {mute, volume}: for the audio mixer to multiply into the mix (docs/hardware/FPGA_GLASS.md, "Volume").
         self.audio_vol = Signal(9)
         # ASTROLABE's mailbox, port B (soc/zm_astro.py); rdata stays 0 on a SoC without it.
         self.astro = {"we": Signal(), "re": Signal(), "waddr": Signal(10), "raddr": Signal(10),

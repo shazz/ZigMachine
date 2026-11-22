@@ -255,7 +255,7 @@
     },
     "RAMB36E1 SDP r72/0 w0/72 RF/RF reg0/0 we1": {
       "status": "bad",
-      "evidence": "A half (bits 0-35) of every word wrong on silicon under openXC7; sim right (docs/FPGA_STEPS.md 2026-10-04)",
+      "evidence": "A half (bits 0-35) of every word wrong on silicon under openXC7; sim right (docs/hardware/FPGA_STEPS.md 2026-10-04)",
       "prim_test": [
         "b36_sdp72",
         "b36_sdp72_d256"

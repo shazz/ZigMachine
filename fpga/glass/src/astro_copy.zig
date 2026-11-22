@@ -1,5 +1,5 @@
 // Bulk word copies between the cart's DDR window and ordinary memory (ASTROLABE's staging,
-// astro_stage.zig; docs/ARM_FPU_COPROC.md section 4).
+// astro_stage.zig; docs/hardware/studies/ARM_FPU_COPROC.md section 4).
 //
 // The window is DDR inside the kernel's memory map but outside its System RAM, so ARM Linux
 // maps it write-combine (Normal non-cacheable) with O_SYNC and CACHED without (phys_mem_access_prot);

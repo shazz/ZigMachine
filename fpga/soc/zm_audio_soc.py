@@ -1,4 +1,4 @@
-"""The machine's sound on the board SoC (docs/FPGA_AUDIO.md "The SoC"): rtl/audio's
+"""The machine's sound on the board SoC (docs/hardware/FPGA_AUDIO.md "The SoC"): rtl/audio's
 core behind its stamped write queue (zm_audio_soc.v), a register window on the
 cart CPU's bus, its PCM memory on HP3, its samples out through HDMI (zm_hdmi_out).
 

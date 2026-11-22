@@ -1,7 +1,7 @@
 // GEMTEST's rig (apps/gemtest_check.mjs, apps/gemtest_shots.mjs): notepad_lib.mjs's machine + ROM, C: a
 // copy of docs/gemdos-c.img (KOS GEMDOS), the cart started from GEM off its data disk or straight after a
 // desktop that ran in a given mode (aes.screenMode). Input as the page sends it. A component is opened
-// deterministically by the cart's gemtestShow(id) (docs/GEMTEST.md), or by its ^key as Matt would.
+// deterministically by the cart's gemtestShow(id) (docs/os/GEMTEST.md), or by its ^key as Matt would.
 // The plane comes out 1:1 (low 320x200, medium 640x200, desk 640x480) through palette 0.
 import { readFile } from "node:fs/promises";
 import { machine, startCart, step, sha } from "./ports_machine.mjs";

@@ -1,6 +1,6 @@
 // What a load writes into the cart window, worked out before anything is touched (steps 2
 // and 3 of loader.zig): a monolithic board image at 0, or the system image at 0 and a lean
-// cart at map_cart.CART_IMG_AT (system.zig, decisions.md 2026-10-15); the shelf disk on the
+// cart at map_cart.CART_IMG_AT (system.zig, docs/project/DECISIONS.md 2026-10-15); the shelf disk on the
 // first DISK_ALIGN boundary after the image (after a lean cart's .bss), its descriptor near
 // the top (map.zig, "the disk in the cart window"). Everything else is zero.
 const std = @import("std");
@@ -123,7 +123,7 @@ pub fn diskAt(image_end: usize, disk_len: usize, window: usize) Error!u32 {
     return @intCast(at);
 }
 
-/// A raw FAT disk image (KOS, docs/KOS_FAT.md): whole 512-byte sectors and a BPB saying 512.
+/// A raw FAT disk image (KOS, docs/os/KOS_FAT.md): whole 512-byte sectors and a BPB saying 512.
 pub fn fatImage(b: []const u8) bool {
     return b.len >= 4096 and b.len % 512 == 0 and std.mem.readInt(u16, b[11..13], .little) == 512;
 }

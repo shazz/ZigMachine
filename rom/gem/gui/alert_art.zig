@@ -4,7 +4,7 @@
 // stop octagon with the word). Our own drawing, generated here from shapes at
 // compile time: 32 x 32, 1 bpp, rows of 4 bytes MSB first, the data only (an
 // alert draws them in black on its white face, as a BITBLK). The shapes are
-// TOS 1.0's ideas; no bitmap of TOS's is in the tree (docs/GEM5_PLAN.md licence).
+// TOS 1.0's ideas; no bitmap of TOS's is in the tree (docs/os/GEM5_PLAN.md licence).
 // A local asset set's NOTE / QUES / STOP images replace them (assets.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");

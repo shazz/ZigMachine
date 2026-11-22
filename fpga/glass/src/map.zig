@@ -4,7 +4,7 @@
 // into gen/glass_map.vh (the RTL) and gen/glass_map.py (LiteX, the tests), so
 // an offset is never typed twice. Same rule as machine/sdk/memmap.zig, which
 // this deliberately does NOT extend: the glass is the console's front panel,
-// not part of the machine a cart sees. docs/FPGA_GLASS.md explains each field.
+// not part of the machine a cart sees. docs/hardware/FPGA_GLASS.md explains each field.
 //
 // Pure integer constants only: the exporter skips anything else.
 
@@ -45,7 +45,7 @@ pub const OSD_ROWS: u32 = 16;
 pub const OSD_CHARS: u32 = OSD_COLS * OSD_ROWS; // 512
 pub const OSD_INVERSE: u32 = 0x100; // bit 8 of a character word: swap ink and paper
 
-// ASTROLABE's mailbox (SPIKE, docs/ARM_FPU_COPROC.md): a 4 KiB block RAM, ZIGGY's other side at
+// ASTROLABE's mailbox (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): a 4 KiB block RAM, ZIGGY's other side at
 // ASTRO_WINDOW (soc/zm_astro.py). Its words are glass/src/astro_box.zig's. Reads take a clock
 // more than a register's; a PL without it reads the page as 0 (glass then never serves it).
 pub const OFF_ASTRO: u32 = 0x2000;
@@ -248,7 +248,7 @@ pub const CART_CPU_BASE: u32 = 0x4000_0000;
 // (a 32 MiB-aligned window, soc/zm_board_mem.py hp_slice).
 pub const LOAD_BASE_RESET: u32 = 0x0400_0000;
 
-// --- the disk in the cart window (docs/FPGA_GLASS.md, "The disk in DDR") -----
+// --- the disk in the cart window (docs/hardware/FPGA_GLASS.md, "The disk in DDR") -----
 // ZWINDOW places the whole shelf disk (the .zmd the browser mounts: the fat
 // disk minus its board image) in the window, after the image, so ZIGGY's
 // firmware serves env.diskReadBlock from DDR as sealed-loader.js serves it from

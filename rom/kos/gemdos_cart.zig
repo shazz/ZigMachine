@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS GEMDOS in a cart (docs/KOS_GEMDOS.md §4): the library bound to the sector imports every host
+// KOS GEMDOS in a cart (docs/os/KOS_GEMDOS.md §4): the library bound to the sector imports every host
 // serves. A: is the drive's disk through env.diskReadBlock (a FAT image: a real floppy, an .ST; a
 // .zmd has no BPB, so A: does not mount over one); C: is the SD card's /HD through env.kosDriveRead
 // (unit 2, up to 64 sectors a request: ~0.5 ms a round trip to glass on the board, a copy on the page
@@ -14,12 +14,12 @@ pub const Dos = gemdos.Dos;
 pub const Dta = gemdos.Dta;
 pub const err = gemdos.err;
 pub const search = gemdos.search;
-/// KOS's FAT reader (docs/KOS_FAT.md), for a cart that mounts a volume itself (the desktop shell, gem_fat.zig).
+/// KOS's FAT reader (docs/os/KOS_FAT.md), for a cart that mounts a volume itself (the desktop shell, gem_fat.zig).
 pub const fat = @import("fat.zig");
 
 extern "env" fn diskReadBlock(block: u32, dst_off: u32) i32;
 extern "env" fn kosDriveRead(unit: u32, sector: u32, count: u32, dst: u32) u32;
-// C:'s writes (docs/KOS_GEMDOS.md §7): the host owns them at the file level (glass on the board).
+// C:'s writes (docs/os/KOS_GEMDOS.md §7): the host owns them at the file level (glass on the board).
 // System table 1.10: a cart that writes needs it; one that only reads still runs on 1.8.
 extern "env" fn kosFileOp(req: u32) u32;
 

@@ -46,7 +46,7 @@ colours (pepto x 1.5).
 Upstream's C64 key map (manual: "CONTROL is Tab, C= is Control, RUN-STOP is Esc, ` (back-arrow)", the piano keys
 by position). The machine's key ABI had no Tab, Home, End, PageUp or PageDown, which SID-Wizard needs (Tab steps
 tracks, switches the file dialog's fields): they were added as **owner-only codes** 0xE019..0xE01D
-(`docs/sealed-loader.js` `OWNER_KEY_CODES`, the board glass's `map.zig` and firmware `glass_input.c`; decisions.md
+(`docs/sealed-loader.js` `OWNER_KEY_CODES`, the board glass's `map.zig` and firmware `glass_input.c`; docs/project/DECISIONS.md
 2026-11-07), sent only to a cart that owns the keyboard. Upstream's PC-side keys: Shift+F8 the exit dialog (Y
 quits back to GEM), Shift+F7 / Shift+F9 reset the editor, Shift+Up/Down the main volume (upstream's F11/F12 too,
 but the machine sends no code for them: the board keeps them for its OSD). A click positions the cursor as upstream's mouse code does (the left
@@ -120,7 +120,7 @@ timer underflow or I/O access, exactly when upstream would have seen the event; 
 sample when the SID is here); `patches/libcRSID__C64__*.sed` hook it in, and the key matrix is computed on a
 `$DC01` read only.
 
-## The SID on BARD (decisions.md 2026-11-08)
+## The SID on BARD (docs/project/DECISIONS.md 2026-11-08)
 
 `kestrel_sw_sid.h` `SW_SID_ON_BARD` is 1: the cart renders no SID. Every write the 6502 makes to `$D400-$D7FF`
 goes on the BARD queue (`kestrel_sw_bard.c`, a C copy of `libs/zig/bard.zig`'s ring, `hostBardAttach`) after the

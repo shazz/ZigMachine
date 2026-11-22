@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // The per-line palettes as copper lists (HW 1.9.0, machine/copper.zig;
-// fpga/review/MPP_COPPER.md): the machine loads each line's palette run itself,
+// docs/hardware/studies/MPP_COPPER.md): the machine loads each line's palette run itself,
 // so the CPU makes no palette store a frame. On the board the HBL handler's
 // stores (up to 305 a line, ~30 cycles each) were the whole frame: 53 fps
 // PER-LINE, 27 fps 4 PLANES.

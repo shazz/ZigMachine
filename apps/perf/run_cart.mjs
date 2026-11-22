@@ -67,7 +67,7 @@ function blitter(machine, memory, base, hw, mods) {
 }
 
 // An HBL handler, counted with the stores it makes: on the board they run inside FRESCO's
-// line passes, which wait for them to drain (docs/FPGA_STEPS.md, the sequencer).
+// line passes, which wait for them to drain (docs/hardware/FPGA_STEPS.md, the sequencer).
 // Palette stores are SNOOPED to the compositor through a 16-entry queue; one handler's
 // stores beyond it are counted apart (cost_model.mjs SNOOP_OVERFLOW).
 // `by`: calls per plane 0..3, and [4] the global (border/background) handler's.
@@ -113,7 +113,7 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
         const img = new Uint8Array(await readFile(cImage));
         const c = makeCDrive(memory, img);
         env.kosDriveRead = (...a) => { hw.kosReads++; return c(...a); };
-        const w = makeCFile(memory, img); // C:'s writes (docs/KOS_GEMDOS.md §7), each a round trip too
+        const w = makeCFile(memory, img); // C:'s writes (docs/os/KOS_GEMDOS.md §7), each a round trip too
         env.kosFileOp = (req) => { hw.kosReads++; return w(req); };
     }
     const noop = () => {};

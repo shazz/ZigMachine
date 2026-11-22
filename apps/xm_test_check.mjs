@@ -6,7 +6,7 @@
 //             for "none" (zg.SONG_STOP); the committed ones are git-tracked files in docs/music/
 //             (the board's song table is built from those names: fpga/tools/song_pack.py)
 //   songs     the two bundled modules are The Mod Archive's files byte for byte (the md5 its
-//             page gives: their Public Domain licence is for THAT file, docs/MUSIC.md), have
+//             page gives: their Public Domain licence is for THAT file, docs/guide/MUSIC.md), have
 //             the channel count the screen shows, and play in the real audio modules
 //             (mode 1, not silent). The generated test songs (apps/xm_song.mjs) are covered
 //             in memory by apps/xm_check.mjs and are not shipped.

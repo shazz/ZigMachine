@@ -1,4 +1,4 @@
-// The BARD queue's ring (decisions.md 2026-11-07 "The BARD queue"; libs/zig/bard.zig is the reference for this C
+// The BARD queue's ring (docs/project/DECISIONS.md 2026-11-07 "The BARD queue"; libs/zig/bard.zig is the reference for this C
 // copy, as SID-WIZARD's kestrel_sw_bard.c is): commands {t, addr, value, seq} in the cart's memory, seq written
 // last; a full ring drops the write (counted in the header); the cart never waits. The sound side (BARD on the
 // board, the AudioWorklet on the page, host/audio_bardq.c natively) plays each at its sample, a lead behind the

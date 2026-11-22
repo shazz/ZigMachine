@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// DESK TEST: the desk mode (HW 1.17.0, docs/HW_API.md "Desk mode"): plane 0 alone, 640x480
+// DESK TEST: the desk mode (HW 1.17.0, docs/hardware/HW_API.md "Desk mode"): plane 0 alone, 640x480
 // palette indices shown 1:1. It boots into the desk and draws a known picture once:
 //
 //   - 256 cells of 40x30 pixels, cell c = column + 16 * row in colour c (all of palette 0);

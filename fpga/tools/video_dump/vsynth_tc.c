@@ -1,4 +1,4 @@
-/* vsynth's true-colour scenario (HW 1.15.0, fpga/review/TRUECOLOR_PLANE.md): RGB565 planes of both
+/* vsynth's true-colour scenario (HW 1.15.0, docs/hardware/studies/TRUECOLOR_PLANE.md): RGB565 planes of both
  * modes, layered with an 8-bit plane, every frame:
  *   plane 0 TRUECOLOR_FULL, stride 800, an odd FB_BASE: pixel i of the buffer is i & 0xFFFF, so its
  *            112,000 pixels show every 565 value; a copper list on border AND visible lines: an

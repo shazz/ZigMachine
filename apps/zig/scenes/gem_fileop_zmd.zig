@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // Drive A as a .zmd data disk, for the shell's file operations (gem_fileop.zig). The desktop
 // lists a .zmd's files (the host hands the listing: insertDisk(1)), but KOS GEMDOS does not mount
-// A: over one (no BPB, docs/KOS_GEMDOS.md §3), so a copy out of it went to GEMDOS and stopped at
+// A: over one (no BPB, docs/os/KOS_GEMDOS.md §3), so a copy out of it went to GEMDOS and stopped at
 // EDRIVE: "The disk cannot be read" (Matt on the board, 13 Nov: BOOT.WSM onto C:\GEMTESTS). A
 // source on A: while the drive holds a .zmd is read here instead, through the disk's own flat
 // directory (zg.disk, the reader every cart has); a FAT floppy still goes through GEMDOS. A .zmd

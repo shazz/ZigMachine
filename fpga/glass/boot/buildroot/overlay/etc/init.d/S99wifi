@@ -5,7 +5,7 @@
 # before this runs. No file, or no wlan0: nothing happens, the console boots as before.
 # The address comes by DHCP in the background, so a missing network never delays the boot.
 #
-# The watchdog (docs/FPGA_GLASS.md, "Wi-Fi at boot"): the BCM43143 dongle has died twice on the
+# The watchdog (docs/hardware/FPGA_GLASS.md, "Wi-Fi at boot"): the BCM43143 dongle has died twice on the
 # board (14 Nov): wlan0 gone after 3.3 h, and once joined with an address but deaf, `iw` saying
 # "Power save: on". So power save goes off after every join, and every TICK s `watch` checks:
 #   the USB controller's interrupts frozen         -> rebind the controller (kwifi_usb, R80)

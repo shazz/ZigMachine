@@ -289,18 +289,18 @@ What the budget forced (mechanisms from the code; the reasons are **inferred**):
   load (`240e4b17`): cart RAM 723 KB to 645 KB.
 - **Ending:** at `$1E00` the intro starts over, music restarted; the harness checks frame `$150` of
   the second run equals the first. Escape leaves (Space quit the original).
-- **Board:** 60 fps (`fpga/review/ZIGGY_ISA_EXTENSIONS.md`), the planar expansion ~0.46 Mc a frame
+- **Board:** 60 fps (`docs/hardware/studies/ZIGGY_ISA_EXTENSIONS.md`), the planar expansion ~0.46 Mc a frame
   there. Two dated regressions were recorded: 60 to 47 with the dirty-line compositor (18 Oct, adaptive
   bypass requested) and 60 to 55 with the combined-bitstream firmware (`PERFORMANCE_REVIEW.md` row 9,
   not merged until bisected).
 
 ## 6. What KESTREL could lift: the ZIG mode
 
-Matt's request (`docs/ROADMAP.md`, `8574a604`): a key toggles a KESTREL mode, the original stays the
+Matt's request (`docs/project/ROADMAP.md`, `8574a604`): a key toggles a KESTREL mode, the original stays the
 default (harness-pinned): fullscreen (open borders), the env-mapped cube and prism rendered every VBL
 with no dither, the tunnels and the rotozoom at 1 VBL and full screen. A showcase for the 16 KB D$,
 ZM-X (`tex2d`, `mulsh`) and CHISEL v2 (AFFINE / MAP). Figures below are from
-`fpga/review/KESTREL_NEXT_ISA.md` and `docs/HW_API.md`, not measured on this cart.
+`docs/hardware/studies/KESTREL_NEXT_ISA.md` and `docs/hardware/HW_API.md`, not measured on this cart.
 
 - **Drop the ST screens in ZIG mode.** Render chunky straight into an overscan plane; the planar
   buffers and `toChunky` (~0.46 Mc on the board) go. The original path stays for the default mode.

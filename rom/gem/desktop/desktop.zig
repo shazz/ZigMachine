@@ -10,7 +10,7 @@
 //   deskops.zig    the File / Options commands those menus run
 //   desk_icons.zig desktop icons: select / drag / open; deskdrive.zig A: and C: (KOS)
 //   deskdrop.zig   where a window item's drag lands; fileop*.zig C:'s copy / move / delete /
-//                  rename / New Folder, done by the shell (docs/GEM_FILEOPS.md); deskkey.zig keys
+//                  rename / New Folder, done by the shell (docs/os/GEM_FILEOPS.md); deskkey.zig keys
 // --------------------------------------------------------------------------
 const zsrc = @import("zigos");
 const gui = @import("../gui.zig");

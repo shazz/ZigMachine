@@ -1,5 +1,5 @@
 // The OSD's home page: the shelf of carts on top, the selected one's details
-// below (docs/FPGA_GLASS.md, "The menu").
+// below (docs/hardware/FPGA_GLASS.md, "The menu").
 //
 //   row 0       title bar: page name (or the folder), cursor/count, '>' to the console page
 //   rows 1..9   the rows (shelf_view.zig): the folders, then the carts by title; in a
@@ -92,7 +92,7 @@ pub const State = struct {
             map.KEY_ENTER, ' ' => return if (n > 0) .open else .none,
             'i', 'I' => return if (n > 0) .insert else .none,
             'e', 'E' => return .eject,
-            'd', 'D' => return .floppy_a, // the real floppy itself in drive A (docs/KOS_FAT.md)
+            'd', 'D' => return .floppy_a, // the real floppy itself in drive A (docs/os/KOS_FAT.md)
             'r', 'R' => return .cold,
             'w', 'W' => return .warm,
             'f', 'F' => return .source,

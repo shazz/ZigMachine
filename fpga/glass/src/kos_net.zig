@@ -1,4 +1,4 @@
-// The network spike (docs/ROADMAP.md, "Wi-Fi ... TCP/IP for GEM 5"): a cart reaches the network
+// The network spike (docs/project/ROADMAP.md, "Wi-Fi ... TCP/IP for GEM 5"): a cart reaches the network
 // through C:, with no new ABI. A program saves <NAME>.REQ (C:\NET\ by convention, any folder works): its first line is
 // "<a.b.c.d> <port>", the rest is sent over TCP. glass (kos_file.zig, after the write) connects,
 // sends, collects the reply until the peer closes or goes quiet, and writes it to <NAME>.ANS beside it,

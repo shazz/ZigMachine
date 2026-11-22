@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
-// zg.bard.job: jobs for a coprocessor (system table 1.24, docs/ZIGOS_API.md
-// "BARD jobs", decisions.md 2026-11-13). The cart posts a job (an op and its
+// zg.bard.job: jobs for a coprocessor (system table 1.24, docs/guide/ZIGOS_API.md
+// "BARD jobs", docs/project/DECISIONS.md 2026-11-13). The cart posts a job (an op and its
 // arrays, all in its own memory) and goes on with its frame; a server outside
 // the cart's frame runs it and answers in the job's slot:
 //   board   BARD, the sound CPU, between its audio renders (it reads and writes

@@ -1,4 +1,4 @@
-/* env.kosFileOp on the board (KOS GEMDOS's writes to C:, docs/KOS_GEMDOS.md §7): force-included into the
+/* env.kosFileOp on the board (KOS GEMDOS's writes to C:, docs/os/KOS_GEMDOS.md §7): force-included into the
  * generated env.c and the system's sys_env.c (cycles/board.mk), where tools/host_bridges.py leaves
  * HOST_KOS_FILE_OP calling host_kos_file_hook (null on the board: EDRIVE). ZIGGY cannot see the SD card;
  * glass can: bkosfile.c hands it the cart's request over the window's file block (bkosfreq.h). */

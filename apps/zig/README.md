@@ -23,4 +23,4 @@ pre-reorg relative imports and need migrating when selected.
 zig build -Dwasm -Drelease=true          # -> docs/demo.wasm
 cd docs && python3 -m http.server 3333   # http://localhost:3333/sealed.html
 ```
-Hard-reload after every rebuild. See `docs/ZIGOS_API.md` + `docs/HW_API.md`.
+Hard-reload after every rebuild. See `docs/guide/ZIGOS_API.md` + `docs/hardware/HW_API.md`.

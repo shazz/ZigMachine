@@ -10,7 +10,7 @@
  *   fr.static.pN   planes 0..N-1 on and unchanged: vplan compares their rows and skips them
  *   fr.dirty.pN    one byte of every row of each enabled plane changed every frame: every line
  *                  is composited again, as on a cart that animates its whole plane
- *   fr.ilv.pN      fr.dirty with the N planes LINE-INTERLEAVED (fpga/review/PLANE_INTERLEAVE.md):
+ *   fr.ilv.pN      fr.dirty with the N planes LINE-INTERLEAVED (docs/hardware/studies/PLANE_INTERLEAVE.md):
  *                  plane p's row y at BENCH_VRAM_OFF + (y * N + p) * 320, stride N * 320, so a
  *                  line's N fetches read one contiguous run of DDR. Same passes, same bytes.
  * Each setting logs three figures: the frame's system cycles (sys), `.comp` FRESCO's COMP_BUSY

@@ -1,4 +1,4 @@
-"""KOS's power-on (docs/ZIGTOS_BOOT.md: KOS, the KESTREL Operating System, is its "ZigTOS"): the
+"""KOS's power-on (docs/os/ZIGTOS_BOOT.md: KOS, the KESTREL Operating System, is its "ZigTOS"): the
 native host's --kos (host/kos_host.c) equals scene_hash.mjs --kos (apps/scene_hash_kos.mjs, the
 browser's steps) frame for frame, for every kind of drive A:
 

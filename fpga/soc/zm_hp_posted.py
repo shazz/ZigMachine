@@ -3,7 +3,7 @@
 The D-cache is write-through, so every store crosses the bridge. Acknowledged on its
 AXI write response, a store costs a whole DDR round trip; a CPU that keeps state in
 memory (the SNDH player's Musashi: the 68000's registers) then spends half its time
-waiting (docs/FPGA_SOUND_CPU.md "Where the cycles go"). Here a store is acknowledged
+waiting (docs/hardware/FPGA_SOUND_CPU.md "Where the cycles go"). Here a store is acknowledged
 as soon as it is in an N-entry buffer, and the buffer drains on its own, one 1-beat
 write after another, several in flight (the HP port accepts 8 write commands).
 

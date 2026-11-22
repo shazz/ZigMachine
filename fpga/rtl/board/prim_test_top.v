@@ -3,7 +3,7 @@
 // and comparing it with a reference built in the fabric, the results on the
 // PS's M_AXI_GP0 at 0x43C0_0000 for U-Boot (tools/prim_test_read.py,
 // boards/microphase_z7_7010/README.md "prim-test"). openXC7 wrote a wrong
-// bitstream twice for a mode that simulates right (docs/FPGA_STEPS.md
+// bitstream twice for a mode that simulates right (docs/hardware/FPGA_STEPS.md
 // "2026-10-04"); this design shows such a mode in minutes, and the modes it
 // proves go into fpga/silicon_prims.json (tools/prim_allowlist.py).
 //

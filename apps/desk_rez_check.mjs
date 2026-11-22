@@ -1,4 +1,4 @@
-// The desktop's mode across a program load (rom/rom_deskmode.zig, docs/GEM_DESK_MODE.md §9).
+// The desktop's mode across a program load (rom/rom_deskmode.zig, docs/os/GEM_DESK_MODE.md §9).
 // Matt on the board, 9 Nov: "i ran notepad from deskmode but it seems it switched to medium res".
 // The page's ROM outlives the cart swap, so Getrez had its answer; the board loads a program as a
 // new image with a fresh ROM, which said "no desktop ran" (0xFF: Notepad's medium). The board's

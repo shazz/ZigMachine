@@ -135,7 +135,7 @@ class ZigMachineSoC(SoCCore):
             lanes = ["D0", "D1", "D2", "CLK"]  # zm_dvi_out's {clock, red, green, blue}, low bit first
             pads = {s.lower(): Cat(*[req(f"HDMI1_{lane}_{s}") for lane in lanes]) for s in ("P", "N")}
         overlay = None
-        if glass:  # the ARM's front panel (docs/FPGA_GLASS.md): GP0 registers, the OSD, the cart CPU's reset
+        if glass:  # the ARM's front panel (docs/hardware/FPGA_GLASS.md): GP0 registers, the OSD, the cart CPU's reset
             self.glass = ZMGlass(platform)
             if hp is None:  # with HP ports, soc/zm_board_mem.py makes the one PS7 (GP0 + HP0 + HP1)
                 self.specials += ps7_gp0(self.glass.axi)
@@ -214,7 +214,7 @@ def main() -> None:
     )
     p.add_argument(
         "--ziggy-reads", choices=("base", "fast", "prefetch"), default="prefetch",
-        help="z7: ZIGGY's refill path (soc/zm_board_mem.py READ_MODES; review/ZIGGY_BIG_READS_STUDY.md)",
+        help="z7: ZIGGY's refill path (soc/zm_board_mem.py READ_MODES; docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md)",
     )  # fmt: skip
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
     p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")

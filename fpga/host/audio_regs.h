@@ -1,5 +1,5 @@
 /* The machine's audio ABI (machine/sdk/audio.zig) as the audio core's register
- * writes (rtl/audio/zm_audio_core.v, docs/FPGA_AUDIO.md "The register map").
+ * writes (rtl/audio/zm_audio_core.v, docs/hardware/FPGA_AUDIO.md "The register map").
  * One encoding for both hosts: the board firmware queues these writes for the
  * RTL (cycles/baudio.c), and the native host logs them next to the machine's own
  * samples (host/audio_soft.c), so the two logs compare word for word.
@@ -29,7 +29,7 @@ static inline uint32_t zma_ch(uint32_t ch, uint32_t field) { return ZMA_CH + 0x4
 
 /* VOLUME is VOL / 256 (0..511) and PAN is PAN / 128 (-128..128): the forms in
  * which the core's integer mix equals engine.zig's f32 mix exactly. A volume
- * or pan off that grid is rounded to the nearest step (docs/FPGA_AUDIO.md). */
+ * or pan off that grid is rounded to the nearest step (docs/hardware/FPGA_AUDIO.md). */
 static inline uint32_t zma_vol(float v) {
     float q = v * 256.0f;
     if (!(q > 0.0f)) return 0; /* NaN and negatives: silent */

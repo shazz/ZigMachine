@@ -1,4 +1,4 @@
-"""The audio RTL (rtl/audio/, rtl/board/ym_test_*, docs/FPGA_AUDIO.md) against the
+"""The audio RTL (rtl/audio/, rtl/board/ym_test_*, docs/hardware/FPGA_AUDIO.md) against the
 Zig machine. tests/audio_ref/audio_ref.zig runs machine/audio (engine.zig,
 ym.zig) on a stimulus script; the CXXRTL testbenches play the same script or
 dump into the RTL and compare:

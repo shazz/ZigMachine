@@ -36,7 +36,7 @@ pub fn flash(f: u32) i8 {
     return @intCast((ARRIVE + FLASH_FRAMES - f) * 4);
 }
 
-/// One channel through the TC fade's formula (docs/HW_API.md "True-colour fade"), toward black.
+/// One channel through the TC fade's formula (docs/hardware/HW_API.md "True-colour fade"), toward black.
 pub fn fadeChannel(x: u8, c: u5) u8 {
     const w: u32 = @as(u32, c) + (c >> 4);
     return @intCast((@as(u32, x) * (32 - w) + 16) >> 5);

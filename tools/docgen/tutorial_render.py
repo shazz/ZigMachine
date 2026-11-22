@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import ROOT, esc, render_markdown, unstamped  # noqa: F401  (unstamped: gen_tutorial.py's guard)
+from . import ROOT, blob_links, esc, render_markdown, unstamped  # noqa: F401  (unstamped: gen_tutorial.py's guard)
 from .codeblocks import code_blocks
 from .tutorial_parse import LANGS, Section, Tutorial, parse
 from .tutorial_theme import LANG_NAMES, PREPAINT, TEMPLATE, comparepick, langpick
@@ -107,8 +107,8 @@ def cards() -> str:
 
 
 def build() -> str:
-    t = parse((ROOT / "docs" / "TUTORIAL.md").read_text())
-    return TEMPLATE.format(
+    t = parse((ROOT / "docs" / "guide" / "TUTORIAL.md").read_text())
+    return blob_links(TEMPLATE.format(
         prepaint=PREPAINT,
         title=esc(t.title),
         intro=_prose(t.intro),
@@ -118,4 +118,4 @@ def build() -> str:
         rail=rail(t),
         cards=cards(),
         sections="\n".join(render_section(s) for s in t.sections),
-    )
+    ), "docs/guide/TUTORIAL.md")

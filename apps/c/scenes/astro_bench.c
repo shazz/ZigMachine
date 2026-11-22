@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// ASTRO BENCH — what ASTROLABE (SPIKE, docs/ARM_FPU_COPROC.md), the f64 coprocessor, costs and
+// ASTRO BENCH — what ASTROLABE (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md), the f64 coprocessor, costs and
 // whether its answers are right, against the cart's own maths on the same host.
 //
 // One job a frame: the round trip (NOP), ADD / MUL / DIV / SQRT / SIN each as one ASTROLABE call

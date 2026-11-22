@@ -3,7 +3,7 @@
 The fantasy console as real logic on a **MicroPhase Z7 (XC7Z010)**. The cart CPU
 is a RISC-V core in the fabric, carts stay wasm and are translated to RISC-V
 before they reach the board, and the ARM does I/O only. The reasoning, the LUT
-budget and the plan are in [`docs/ZIGMACHINE_IN_FPGA.md`](../docs/ZIGMACHINE_IN_FPGA.md).
+budget and the plan are in [`docs/hardware/ZIGMACHINE_IN_FPGA.md`](../docs/hardware/ZIGMACHINE_IN_FPGA.md).
 
 **Status: plan step 0, before any board work.** Four things are proven:
 - every cart translates and compiles for `rv32imf`
@@ -25,7 +25,7 @@ make -C fpga carts   # every docs/demo-*.wasm -> wasm2c -> rv32imf
 make -C fpga host CART=stniccc  # native C host: machine + rom + cart via wasm2c (host/README.md)
 make -C fpga host-check         # its fingerprints == apps/scene_hash.mjs, every cart
 make -C fpga cycles CARTS="union_beatdis blitter"  # cycles/frame on VexRiscv in Verilator (cycles/README.md, CYCLES.md)
-make -C fpga glass               # the ARM program, host + arm-linux-musleabihf (docs/FPGA_GLASS.md)
+make -C fpga glass               # the ARM program, host + arm-linux-musleabihf (docs/hardware/FPGA_GLASS.md)
 make -C fpga sd                  # stage the SD card in build/glass/sd (BR_OUT=<buildroot output> for plan A)
 ```
 
@@ -42,7 +42,7 @@ writes to it.
 | `tests/` | pytest. RTL testbenches are C++ in `tests/tb/`, compiled through Yosys CXXRTL (no system simulator needed). |
 | `host/` | The native host (plan step 0b-i): wasm2c'd machine + rom + one cart, driven like `apps/scene_hash.mjs`. |
 | `cycles/` | Plan step 0b-ii: that host bare-metal on the SoC's VexRiscv in Verilator, every frame timed and split cart / machine / blitter. Results in [`CYCLES.md`](CYCLES.md). |
-| `glass/` | The ARM side ([`docs/FPGA_GLASS.md`](../docs/FPGA_GLASS.md)): `glass`, the Zig program that loads carts off the SD card and drives the OSD menu (`src/`), the cart CPU's input routing (`firmware/`), and U-Boot, the device tree and Buildroot (`boot/`). |
+| `glass/` | The ARM side ([`docs/hardware/FPGA_GLASS.md`](../docs/hardware/FPGA_GLASS.md)): `glass`, the Zig program that loads carts off the SD card and drives the OSD menu (`src/`), the cart CPU's input routing (`firmware/`), and U-Boot, the device tree and Buildroot (`boot/`). |
 | `rtl/glass/` | The PL's front panel: the GP0 register block and the OSD overlay. |
 | `tools/` | `setup.sh`, `memmap_export.zig` (memmap.zig to Verilog/Python), `util.py` (synthesis cost per block), `wasm2rv.sh` (cart translation). |
 | `boards/microphase_z7_7010/` | Where the vendor's `board.xdc` and `ps7_init` go. Nothing in it is guessed. |
@@ -72,7 +72,7 @@ needs), `riscv64-unknown-elf-gcc` + picolibc (the cycles firmware), openXC7 (Doc
 
 ## Bitstreams: Vivado for the board, openXC7 kept as the open flow
 
-**Board builds use Vivado** (ML Standard 2026.1, free licence) since 2026-10-09 (ADR in `decisions.md`).
+**Board builds use Vivado** (ML Standard 2026.1, free licence) since 2026-10-09 (ADR in `docs/project/DECISIONS.md`).
 The same RTL that openXC7 turned into a broken picture gave the first clean one under Vivado, in about
 3 min instead of 19+.
 
@@ -232,4 +232,4 @@ estimated from their widths, not counted separately).
 **What Vivado would settle** (not installed: about 50 GB): a timing-driven
 place and route with `phys_opt_design`, the CDC constraints honoured, pblocks
 for VexRiscv and the compositor, and fmax without a seed lottery.
-- [FPGA_TUTORIAL.md](../docs/FPGA_TUTORIAL.md): running your Zig screen on the real board, step by step.
+- [FPGA_TUTORIAL.md](../docs/hardware/FPGA_TUTORIAL.md): running your Zig screen on the real board, step by step.

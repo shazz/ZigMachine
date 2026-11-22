@@ -2,7 +2,7 @@
  * ZM_AUDIO=1 and the native host. The players' machineSidLoad / machineSidRender imports
  * (machine/sdk/audio.zig) are answered here by cRSID itself (host/crsid.c: libs/c/crsid/zm_sid.c on the patched
  * tree fpga/build/crsid from libs/c/crsid/patch.sh), not by the wasm2c of machine-audio.wasm's
- * copy: the same integer C, native, which is what makes it fit BARD (fpga/review/SID_BARD_STUDY.md).
+ * copy: the same integer C, native, which is what makes it fit BARD (docs/hardware/studies/SID_BARD_STUDY.md).
  * The page runs the wasm copy; apps/sid_check.mjs holds the two to the same samples.
  * On BARD host/crsid.c is built -march=rv32im -mno-div (cycles/sound.mk): GCC then turns cRSID's
  * constant divides into multiplies instead of calls to the core's 400-cycle __divsi3. */

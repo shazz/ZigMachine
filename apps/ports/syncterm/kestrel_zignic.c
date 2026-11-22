@@ -1,4 +1,4 @@
-/* SyncTERM's sockets over ZIGNIC (docs/GEM_NET.md, machine/sdk/net_abi.zig): the second knet transport
+/* SyncTERM's sockets over ZIGNIC (docs/os/GEM_NET.md, machine/sdk/net_abi.zig): the second knet transport
  * (kestrel_net.h). The card does TCP/IP and DNS (glass on the board, the page's ?net=peer, ...); this only opens
  * card sockets, polls them and copies bytes. Routing per socket: "fakebbs.zig" (and its address) stays on the
  * in-cart BBS (kestrel_fakebbs.c), anything else goes to the card. With no card (the page without ?net=, a sim)

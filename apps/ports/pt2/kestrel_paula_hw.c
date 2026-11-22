@@ -1,4 +1,4 @@
-/* pt2's Paula on the machine's four HARDWARE Paula channels (HW 1.14.0, decisions.md 2026-11-02
+/* pt2's Paula on the machine's four HARDWARE Paula channels (HW 1.14.0, docs/project/DECISIONS.md 2026-11-02
  * "Paula channels for carts"): the replayer's register writes go to the host as they are, Amiga
  * addresses and all, stamped with the sample they were made at; the audio side plays them (in the
  * browser the worklet, on the board BARD into the PCM core). No mixing on the cart CPU.

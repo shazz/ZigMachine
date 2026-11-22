@@ -1,4 +1,4 @@
-"""BARD's data scratchpad (fpga/review/BARD_BRAM_STUDY.md): a BRAM on the core's tightly coupled
+"""BARD's data scratchpad (docs/hardware/studies/BARD_BRAM_STUDY.md): a BRAM on the core's tightly coupled
 data port, for the `tcm` core (vexgen/gen.sh `SndNdT:...:snd,nodiv,tcm`, vexgen ZmTcm.scala).
 
 - **Where**: TCM_BASE, decoded by the core itself (a 256 KiB window); `size` bytes of BRAM behind

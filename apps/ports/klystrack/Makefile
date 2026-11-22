@@ -33,7 +33,7 @@ KLY_C  := $(patsubst $(UP)/klystron/src/%,klystron/%,$(wildcard $(UP)/klystron/s
 APP_C  := $(filter-out src/midi.c,$(patsubst $(UP)/%,%,$(wildcard $(UP)/src/*.c $(UP)/src/import/*.c $(UP)/src/view/*.c)))
 UP_H   := $(patsubst $(UP)/klystron/src/%,klystron/%,$(wildcard $(UP)/klystron/src/*.h $(UP)/klystron/src/*/*.h)) \
           $(patsubst $(UP)/%,%,$(wildcard $(UP)/src/*.h $(UP)/src/*/*.h))
-# C: (KOS GEMDOS, docs/KOS_GEMDOS.md §5): "/C" = the card's HD, built as ../grafx2 does (-DKESTREL_CDRIVE above).
+# C: (KOS GEMDOS, docs/os/KOS_GEMDOS.md §5): "/C" = the card's HD, built as ../grafx2 does (-DKESTREL_CDRIVE above).
 # The floppy's own opt-in modules are the rest of src/opt/.
 KOPT   := $(filter-out %/kestrel_wasi_c.c %/kestrel_wasi_cdir.c %/kestrel_wasi_cfile.c,$(wildcard $(KSDL)/opt/*.c))
 CDRIVE := $(OUT)/ksdl/opt/kestrel_wasi_c.o $(OUT)/ksdl/opt/kestrel_wasi_cdir.o $(OUT)/ksdl/opt/kestrel_wasi_cfile.o $(OUT)/gemdos.o

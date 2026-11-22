@@ -1,4 +1,4 @@
-// GEM in the desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8): ZigGEM over the real machine + ROM,
+// GEM in the desk mode (HW 1.17.0, docs/os/GEM_DESK_MODE.md §8): ZigGEM over the real machine + ROM,
 // driven as the page drives it (gem_headless.mjs's bootGem: one shared memory, the host's
 // pointer in PHYSICAL-VISIBLE coordinates, 0..639 x 0..479 in the desk).
 //   prefs    Options > Set Preferences has a Desk button; pressing it and OK puts plane 0 in the
@@ -77,7 +77,7 @@ function lowPicture(gem) {
     return out;
 }
 
-// A v1 .zmd (docs/FLOPPY_DISK.md: "ZMDISK" at 0, file count at $2E4, the FAT at $300, 32-byte
+// A v1 .zmd (docs/guide/FLOPPY_DISK.md: "ZMDISK" at 0, file count at $2E4, the FAT at $300, 32-byte
 // entries) holding DESKTOP.INF at $400, served as the drive serves it (diskReadBlock).
 function infDisk(text) {
     const disk = new Uint8Array(0x400 + 512);

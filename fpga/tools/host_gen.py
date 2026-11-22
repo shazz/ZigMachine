@@ -11,7 +11,7 @@ it declares, resolved by apps/scene_hash.mjs's rules:
   - every other env.X: rom.X if rom exports it (the JS spreads `...rom` last),
     else machine.X if X is in the JS's explicit list (MACHINE_ENV),
     else a no-op returning what `undefined` converts to (0, NaN; an i64 throws).
-  - env.hostMicros (the benchmark clock, decisions.md 2026-10-10) -> HOST_MICROS(),
+  - env.hostMicros (the benchmark clock, docs/project/DECISIONS.md 2026-10-10) -> HOST_MICROS(),
     0 in the native host like the JS stub; the board firmware defines it.
   - env.diskReadBlock (the drive) -> host/disk.h, over `host_disk`: empty, so 0 as the
     stub, until the native host's --disk or the board firmware's DDR disk fills it.
@@ -70,7 +70,7 @@ SPAN_HOOKS = """/* Span hooks: empty in the native host. fpga/cycles/prof.h (-in
 """
 
 # The board's hwBlit may return while CHISEL still runs (BLIT_ASYNC, a QUEUE: cycles/bchisel.h).
-# The lazy-wait contract (decisions.md 2026-10-23): an entry waits for it first when it can touch
+# The lazy-wait contract (docs/project/DECISIONS.md 2026-10-23): an entry waits for it first when it can touch
 # memory a lazy op reads or writes -- the ROM (it draws and reads with the CPU), the drive (it may
 # land a block in a lazy op's source), the arena's alloc/mark/release (alloc zeroes memory a
 # released source may still be) -- and an HBL handler's lazy op is over before the compositor goes

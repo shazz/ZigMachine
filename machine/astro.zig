@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ASTROLABE in the machine (HW 1.18.0, SPIKE: docs/ARM_FPU_COPROC.md): env.hwAstro.
+// ASTROLABE in the machine (HW 1.18.0, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md): env.hwAstro.
 //
 // hwAstro(desc, count) runs `count` descriptors (machine/sdk/astro.zig) laid end to end at
 // cart address `desc`, in order, synchronously: each one's W_STATUS and W_R are written

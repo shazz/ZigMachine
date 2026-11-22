@@ -1,4 +1,4 @@
-// A PROGRAM's form_alert on the GEM 5 engine (rom/gem/gui/alert_obj.zig, docs/GEMTEST.md; Matt's GEMTEST
+// A PROGRAM's form_alert on the GEM 5 engine (rom/gem/gui/alert_obj.zig, docs/os/GEMTEST.md; Matt's GEMTEST
 // findings on the board, 9 Nov: G19 the icons, G18 the malformed string), over GEMTEST, in low, medium and
 // the desk, in both looks (flat TOS 1, and TOS 4's 3D rules asked for with deskSetEngine(2), the built-in
 // art: the gate has no local asset set):

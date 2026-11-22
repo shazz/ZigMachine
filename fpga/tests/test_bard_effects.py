@@ -1,6 +1,6 @@
 """The cart's effects queue (libs/zig/sfx_queue.zig: zg.requestSndhMode, sfxPlay, ymWrite,
 requestModVolume) off the board's song bridge (host/audio_bridge.c) and into the players, as the
-browser's worklet applies it (docs/FPGA_SOUND_CPU.md "Effects").
+browser's worklet applies it (docs/hardware/FPGA_SOUND_CPU.md "Effects").
 
 - Natively: union_beatdis's own key 3 (through the glass's router, ZM_GLASS_KEYS) switches Beat Dis
   to mode 3 exactly as the oracle's direct switch at the same sample does, write for write; key 2

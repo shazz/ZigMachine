@@ -5,7 +5,7 @@
 // something changes, so the cart costs nothing a frame.
 //
 // Keys 1-4 are four classics from the High Voltage SID Collection, all PSID
-// (cRSID's light engine plays them at 48-60 % of BARD, fpga/review/SID_BARD_STUDY.md).
+// (cRSID's light engine plays them at 48-60 % of BARD, docs/hardware/studies/SID_BARD_STUDY.md).
 // They are NOT ours to ship: like docs/music/local.xm they live on the owner's
 // machine only, gitignored (fpga/tools/song_pack.py LOCAL_SONGS packs each one
 // that is there, a clean checkout builds without them). Copy them from the

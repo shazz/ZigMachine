@@ -1,4 +1,4 @@
-"""The sound CPU's register block (docs/FPGA_SOUND_CPU.md "Registers"), seen by both CPUs
+"""The sound CPU's register block (docs/hardware/FPGA_SOUND_CPU.md "Registers"), seen by both CPUs
 at SOUND_WINDOW: two 32-word mailbox banks, the sound CPU's run bit, its counters, and a
 console for the sim.
 

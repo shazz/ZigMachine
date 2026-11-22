@@ -5,7 +5,7 @@ const std = @import("std");
 const tc = @import("video_tc.zig");
 const expectEqual = std.testing.expectEqual;
 
-// The study's formula (fpga/review/TRUECOLOR_PLANE.md), in floats-free integer form: scale the
+// The study's formula (docs/hardware/studies/TRUECOLOR_PLANE.md), in floats-free integer form: scale the
 // 5/6-bit channel to 8 bits by replicating its top bits into the low ones.
 fn reference(px: u32) [3]u32 {
     const r = px >> 11 & 31;

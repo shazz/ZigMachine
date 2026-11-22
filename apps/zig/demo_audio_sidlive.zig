@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// demo-audio.wasm: the BARD queue's player side (decisions.md 2026-11-07 "The
+// demo-audio.wasm: the BARD queue's player side (docs/project/DECISIONS.md 2026-11-07 "The
 // BARD queue"). A cart's zg.bard ring is drained by its host (docs/sealed-
 // loader.js + audio-worklet-sealed.js; fpga/host/bardq_pump.c on the native
 // host and on BARD) into this module: the host copies a batch of 16-byte

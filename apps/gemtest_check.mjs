@@ -1,4 +1,4 @@
-// GEMTEST (apps/zig/scenes/gemtest.zig, docs/GEMTEST.md) end to end, over the real machine + ROM, C: a
+// GEMTEST (apps/zig/scenes/gemtest.zig, docs/os/GEMTEST.md) end to end, over the real machine + ROM, C: a
 // copy of docs/gemdos-c.img:
 //   launch   GEM boots over demo-gemtest.zmd, BOOT.WSM is the committed cart; it opens in GEM's low res
 //            with the Windows area: four ROM windows, the fourth on top and larger than the screen

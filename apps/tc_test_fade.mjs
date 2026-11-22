@@ -2,7 +2,7 @@
 // apps/tc_test_check.mjs. Over one whole 256-frame cycle:
 //   model     every composited frame equals an independent model of the fade applied to the
 //             plane's 565 pixels as they sit in memory, under the registers the cart left
-//             (docs/HW_API.md "True-colour fade": the formula written with divisions)
+//             (docs/hardware/HW_API.md "True-colour fade": the formula written with divisions)
 //   pixels    the plane's buffer (FB_BASE) hashes the same every frame and the view has no copper
 //             list: only the registers move the picture (and the board's planner sees static lines)
 //   reaches   a frame of full black, one of full white, a flash (a positive red offset) and one

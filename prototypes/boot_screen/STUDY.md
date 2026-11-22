@@ -163,7 +163,7 @@ its hold covers the kernel, or whether the hold is most of it.
    the hand-off becomes "glass writes FADE, splash answers FINISHED".
 6. **C as the fallback.** Without a splash image on the card, `boot.cmd` writes the OSD banner (zeST
    study C): KESTREL in the OSD's 32x16 text in the same cream on black.
-7. **Docs and proofs.** FPGA_GLASS.md boot flow, decisions.md (U-Boot owns the window, the splash is
+7. **Docs and proofs.** FPGA_GLASS.md boot flow, docs/project/DECISIONS.md (U-Boot owns the window, the splash is
    part of the card), the board check: the splash visible from U-Boot through `bootz`, the kernel's
    `printk.time` with and without it (DDR sharing), glass adopting it with no flash.
 
@@ -187,7 +187,7 @@ on the board its YM writes still go through the effects queue (step 2).
 ## 6. At the board's boot (14 Nov 2026, branch `feat/fast-boot-splash`)
 
 Matt, 14 Nov: "is it possible to add it at the board boot?". Done the simple way, not option B: glass
-plays the cart (`fpga/glass/src/app_splash.zig`, docs/FPGA_GLASS.md "Boot splash") as the first thing
+plays the cart (`fpga/glass/src/app_splash.zig`, docs/hardware/FPGA_GLASS.md "Boot splash") as the first thing
 it does after a power cycle, then powers KOS on as before. No U-Boot, kernel or RTL change; the cart
 ends itself by asking to leave at its black frame 290 (`wants_quit`, the board's REQ_BACK). Skippable
 with any key or pad button, `splash=0` in glass.cfg turns it off, a glass restart or a missing or

@@ -1,5 +1,5 @@
 // The console's settings, kept on the SD card in glass.cfg next to the shelf
-// (docs/FPGA_GLASS.md, "Settings"). Plain `key=value` lines, `#` comments:
+// (docs/hardware/FPGA_GLASS.md, "Settings"). Plain `key=value` lines, `#` comments:
 //
 //   volume=200      0..255, 255 = unity (REG_AUDIO_VOL)
 //   mute=0          0 or 1
@@ -96,7 +96,7 @@ fn flag(val: []const u8) ?bool {
 }
 
 pub fn format(s: Settings, buf: []u8) []const u8 {
-    const fmt = "# glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)\nvolume={d}\nmute={d}\nfps={d}\ndrive_a={s}\npost={d}\nsplash={d}\n";
+    const fmt = "# glass.cfg: the console's settings, written by glass (docs/hardware/FPGA_GLASS.md)\nvolume={d}\nmute={d}\nfps={d}\ndrive_a={s}\npost={d}\nsplash={d}\n";
     const args = .{ s.volume, @intFromBool(s.mute), @intFromBool(s.fps), s.drive_a.slice(), @intFromBool(s.post), @intFromBool(s.splash) };
     return std.fmt.bufPrint(buf, fmt, args) catch unreachable;
 }

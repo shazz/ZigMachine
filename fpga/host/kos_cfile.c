@@ -1,4 +1,4 @@
-/* KOS GEMDOS's writes to C: in the native host (docs/KOS_GEMDOS.md §7): env.kosFileOp's host half, as
+/* KOS GEMDOS's writes to C: in the native host (docs/os/KOS_GEMDOS.md §7): env.kosFileOp's host half, as
  * docs/kos-cfile.js is the page's. KFS (docs/kos-cfs.wasm, rom/kos/kfs*.zig), wasm2c'd as `kfs`, edits
  * host_cdisk's image (--c-image) at the file level; --c-image-rw also writes each sector it changes
  * back to the image file. The cart's request (12 words, rom/kos/kfs_abi.zig) is bounded and copied into

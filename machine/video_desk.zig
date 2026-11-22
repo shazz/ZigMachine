@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The desk mode (HW 1.17.0, RESOLUTION = RES_DESK, docs/GEM_DESK_MODE.md): plane 0
+// The desk mode (HW 1.17.0, RESOLUTION = RES_DESK, docs/os/GEM_DESK_MODE.md): plane 0
 // alone, 640x480 palette indices at stride 640 from FB_BASE[0] & ~7, through
 // palette 0, shown 1:1. Nothing is composited: no other plane, no HBL handler,
 // no copper, no BEAM, no border. The picture is a pure function of plane 0's

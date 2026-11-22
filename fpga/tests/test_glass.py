@@ -162,7 +162,7 @@ def test_boot_script_sets_every_hp_ports_write_width_including_the_sound_cpus() 
 
 
 def test_boot_script_sets_hp1_64_bit_once_right_after_the_bitstream() -> None:
-    # W64 is the default (decisions.md 2026-10-19): HP1 0xf00 before any HP1 traffic, never 0xf01 first.
+    # W64 is the default (docs/project/DECISIONS.md 2026-10-19): HP1 0xf00 before any HP1 traffic, never 0xf01 first.
     lines = glass_sd.script_text(glass_sd.BOOT_CMD.read_bytes()).decode().splitlines()
     hp1 = [i for i, ln in enumerate(lines) if "0xf8009014" in ln]
     assert len(hp1) == 1 and "mw.l 0xf8009014 0xf00" in lines[hp1[0]]

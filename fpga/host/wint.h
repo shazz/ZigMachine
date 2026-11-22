@@ -1,5 +1,5 @@
 /* wint: a small, sandboxed WebAssembly interpreter for a disk's 1 KB executable boot sector
- * (ZigCart format v2, docs/FLOPPY_DISK.md), so the board runs the sector's OWN bytes as the
+ * (ZigCart format v2, docs/guide/FLOPPY_DISK.md), so the board runs the sector's OWN bytes as the
  * browser does (host/bootsec.h). Not a general engine: the integer MVP, the f32/f64 bit moves
  * (const, load, store, reinterpret), sign extension, memory.fill/copy, multi-value blocks.
  * Float arithmetic, call_indirect, tables and passive data are refused when the module loads.

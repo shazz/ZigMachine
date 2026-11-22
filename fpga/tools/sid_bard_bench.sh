@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The BARD SID study (fpga/review/SID_BARD_STUDY.md): build cRSID for the host (the per-frame PCM hashes
+# The BARD SID study (docs/hardware/studies/SID_BARD_STUDY.md): build cRSID for the host (the per-frame PCM hashes
 # BARD must match, plus a 60 s WAV of each tune to listen to) and for BARD (the snd-cbench image; run it
 # with tools/cycles_sim.sh on a soc_hp_snd model). Needs tools/sid_bard_fetch.sh first.
 #   tools/sid_bard_bench.sh <tag> [host|bard|all] [extra CFLAGS for both builds, e.g. -DSID_HQ=0]

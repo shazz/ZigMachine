@@ -1,15 +1,15 @@
-"""Stage the ZigMachine console's SD card in a DIRECTORY (docs/FPGA_GLASS.md).
+"""Stage the ZigMachine console's SD card in a DIRECTORY (docs/hardware/FPGA_GLASS.md).
 
     uv run python tools/glass_sd.py [--out build/glass/sd] [--buildroot BR_OUTPUT_DIR]
     uv run python tools/glass_sd.py --shelf      # the shelf's carts (SHELF), what `make board-shelf` builds
     uv run python tools/glass_sd.py --system build/hcycles/split/board_snd/sys.bin --fw-dir build/hcycles/split/carts
-                                                 # the split card (decisions.md 2026-10-15): `make board-split`
+                                                 # the split card (docs/project/DECISIONS.md 2026-10-15): `make board-split`
 
 Nothing is written to a device: copy the directory's contents onto the card's
 first (FAT32) partition yourself. MANIFEST.txt in it lists every file, where it
 came from, and what is still missing.
 
-On the card (the layout: tools/sd_layout.py, decisions.md 2026-11-06; the root holds the boot files only):
+On the card (the layout: tools/sd_layout.py, docs/project/DECISIONS.md 2026-11-06; the root holds the boot files only):
     BOOT.BIN                 zeST's (FSBL + U-Boot): DDR, clocks and MIO without Vivado
     boot.scr                 fpga/glass/boot/boot.cmd, compiled
     zigmachine.bit           the board SoC (--bit; default the blitter one, build/board_hp/zm_blit_vivado_100.bit)

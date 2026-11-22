@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan A, the whole boot stack from source (docs/FPGA_GLASS.md, "Plan A"): our own BOOT.BIN
+# Plan A, the whole boot stack from source (docs/hardware/FPGA_GLASS.md, "Plan A"): our own BOOT.BIN
 # (U-Boot SPL + u-boot.img), the kernel, its DTB and the rootfs with /usr/bin/glass.
 #
 #   fpga/glass/boot/build_planA.sh [--stage DIR [--stage-only]]

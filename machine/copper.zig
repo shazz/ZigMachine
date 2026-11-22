@@ -1,4 +1,4 @@
-// The copper list (HW 1.9.0, memmap REG_FB_COPPER; fpga/review/COPPER_LIST.md): a plane's per-line
+// The copper list (HW 1.9.0, memmap REG_FB_COPPER; docs/hardware/studies/COPPER_LIST.md): a plane's per-line
 // register writes, applied by the machine on each line the plane covers, after its HBL handler and
 // before the line is composited. The board's compositor parses the same words
 // (rtl/video/zm_video_copper.v), so every rule here is one the RTL keeps: a list that breaks one
@@ -16,7 +16,7 @@
 //                                         of k palette words for entries first..first+k-1 (a table
 //                                         the cart keeps in VRAM: a scrolling per-row palette costs
 //                                         one changed word a line, not k)
-//   LBASE 0x5 << 28 | v                  (1.10.0, fpga/review/COPPER_LINEBASE.md) bits 27..21 zero,
+//   LBASE 0x5 << 28 | v                  (1.10.0, docs/hardware/studies/COPPER_LINEBASE.md) bits 27..21 zero,
 //                                         v (21 bits) a region offset in VRAM, any byte: from this
 //                                         line on, row r reads v + (r - r0) * stride (+ HSCROLL), r0
 //                                         this line's row (the STE video counter); every frame starts

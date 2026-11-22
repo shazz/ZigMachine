@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # zrt_cart.sh <riscv prefix> <zrt.o> <out.o>: the board cart's libgcc from Zig's compiler_rt
-# (docs/SDK.md, "The riscv toolchain"), for a gcc with no rv32imf/ilp32f multilib.
+# (docs/guide/SDK.md, "The riscv toolchain"), for a gcc with no rv32imf/ilp32f multilib.
 #
 # Zig builds compiler_rt (rv32imf, ilp32f, no C extension) as ONE object: linked as it is, a cart
 # would carry all ~290 KB of it, and its stack-protector guard is .data, which a lean cart may not

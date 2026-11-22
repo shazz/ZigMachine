@@ -1,5 +1,5 @@
 // Headless LINE LIST TEST (cart 110, apps/zig/scenes/linebase_test.zig): the proof cart of the
-// copper LBASE + overscan HSCROLL (HW 1.10.0, fpga/review/COPPER_LINEBASE.md). Boots the sealed
+// copper LBASE + overscan HSCROLL (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md). Boots the sealed
 // machine + the cart as sealed-loader.js does and, every frame of a run, reads back the list the
 // cart built for the plane it shows and checks:
 //   - the picture equals apps/linebase_model.mjs's rule applied to that list, pixel for pixel,

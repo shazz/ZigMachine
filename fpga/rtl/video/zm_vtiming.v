@@ -11,7 +11,7 @@
 // `zm_vbl` fires once a frame, at pixel 0 of output line 580 (the first after the
 // raster).
 //
-// Desk mode (`desk`, RES_DESK, HW 1.17.0, docs/GEM_DESK_MODE.md): the raster is
+// Desk mode (`desk`, RES_DESK, HW 1.17.0, docs/os/GEM_DESK_MODE.md): the raster is
 // 640x480, every line shown ONCE, in the middle of the output (80-pixel sides,
 // 60-line bars), so zm_x counts from output pixel 80 and an HBL announces every
 // line. The VESA timing never changes (the sink never resyncs), and neither does

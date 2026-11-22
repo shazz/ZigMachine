@@ -78,7 +78,7 @@ The SDK's three commands, from `template/` (or a copy of it next to `zigmachine/
 
 `zigmachine/tools/sdk_doctor.sh --board` lists the tools to install first. Then copy the contents
 of `zig-out/sd/` onto the card (it is the whole card again, with your cart and its line in
-`CARTS/shelf.txt`), and your cart is in the menu. The guide: `zigmachine/docs/SDK.md`.
+`CARTS/shelf.txt`), and your cart is in the menu. The guide: `zigmachine/docs/guide/SDK.md`.
 
 ## If it does not boot
 

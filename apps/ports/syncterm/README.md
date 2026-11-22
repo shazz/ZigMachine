@@ -4,7 +4,7 @@
 ANSI-BBS, Atari ST VT52, ATASCII, PETSCII, RIP, telnet / rlogin / SSH, X/Y/ZMODEM. This is a SPIKE (Matt, 9 Nov
 2026: "do a spike for syncterm to try to compile it even if the ip stack is mocked up"): it compiles, runs in the
 desk mode (640x480: the 80x25 screen of 8x16 cells at 1:1, a status line under it), and talks to a BBS that lives
-inside the cart, because the machine has no network yet (ZIGNIC, `docs/GEM_NET.md` on `feat/board-wifi`). The
+inside the cart, because the machine has no network yet (ZIGNIC, `docs/os/GEM_NET.md` on `feat/board-wifi`). The
 cart is `docs/demo-syncterm.wasm`, a GEM program on `docs/demo-syncterm.zmd`; what the spike found, stubbed and
 still needs is `prototypes/syncterm/SPIKE.md`.
 
@@ -55,7 +55,7 @@ files (`kestrel_dialdir.c`). So:
 Without C: there is nowhere to keep a directory: SyncTERM dials at once, as the spike did (`telnet://fakebbs.zig`,
 or `DIAL.TXT`'s first line when a ZIGNIC card answers), and Alt+X, No quits.
 
-C: writes a file whole (`docs/KOS_GEMDOS.md` §7: `fopen "r+"`, changing a file in place, is refused), so the
+C: writes a file whole (`docs/os/KOS_GEMDOS.md` §7: `fopen "r+"`, changing a file in place, is refused), so the
 three places upstream rewrites the list in place (the LastConnected/TotalCalls update after a connect,
 deleting an entry, the comment editor's probe) are patched to read it, then write it again
 (`patches/syncterm.c.sed`, `patches/bbslist.c.sed`, `kestrel_rewrite`). Its other path (the XDG cache, for the
@@ -69,7 +69,7 @@ detects) is written to `C:\DOWNLOAD` (made if missing). Upstream keeps the folde
 (`kestrel_dialdir.c`, called from `read_item` by `patches/bbslist.c.sed`) keeps it only when it names a folder of C:
 (`/C/...`, set in the entry's editor) and otherwise makes it `/C/DOWNLOAD`, so lists saved before this are fixed too.
 Without C: nothing changes (a download fails on the floppy, as before). How a receive meets KOS GEMDOS (C: writes a
-file whole at `fclose` and refuses to open an existing file for "r+" or append, `docs/KOS_GEMDOS.md` §7):
+file whole at `fclose` and refuses to open an existing file for "r+" or append, `docs/os/KOS_GEMDOS.md` §7):
 
 - XMODEM and YMODEM open the file `"wb"` (Fcreate), write the blocks in order and `fclose` it: nothing in place. A
   YMODEM file is cut to its header's length by not writing the padding, so no truncate is asked of C:.

@@ -1,5 +1,5 @@
 // What a control-channel command (ctl.zig) does to the console: the same paths the OSD
-// and the keyboard take (docs/FPGA_GLASS.md, "The control channel"), so a script on the
+// and the keyboard take (docs/hardware/FPGA_GLASS.md, "The control channel"), so a script on the
 // serial console drives exactly what Matt drives. Every reply ends in a line starting
 // `ok` or `err` (`stats` replies with its ZMSTAT line, `list` with a line a disk first).
 const std = @import("std");

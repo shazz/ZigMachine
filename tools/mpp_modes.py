@@ -5,7 +5,7 @@
   3 TRUE COLOUR  one RGB565 plane (HW 1.15.0, FB_MODE_TRUECOLOR): each pixel the nearest 565
                  colour, no palette. Until 2 Nov 2026 mode 3 was 4 planes of 255 per-line
                  colours each (1020 a line, lossless), which cost FRESCO four plane passes;
-                 the true-colour plane is one (fpga/review/TRUECOLOR_PLANE.md, Matt's decision).
+                 the true-colour plane is one (docs/hardware/studies/TRUECOLOR_PLANE.md, Matt's decision).
 
 A line's colours are sorted by luminance in mode 2; it merges only the lines that carry
 more than 256.

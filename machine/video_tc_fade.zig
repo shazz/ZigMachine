@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The true-colour fade (HW 1.16.0, docs/HW_API.md "True-colour fade"): a TRUECOLOR plane's pixel,
+// The true-colour fade (HW 1.16.0, docs/hardware/HW_API.md "True-colour fade"): a TRUECOLOR plane's pixel,
 // after the 565 -> 888 expansion (video_tc.zig expand), goes through a brightness fade toward
 // black or white (GBA BLDY / SNES INIDISP) then a signed per-channel offset (Saturn colour
 // offset), clamped. A fade or a flash is one register write: the pixels are never rewritten.

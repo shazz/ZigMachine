@@ -137,9 +137,9 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "MP3 PLAYER", .tag = "mp3_player" }, // system — a jukebox for C:\MUSIC (KOS GEMDOS), decoded by the sound side
     .{ .name = "KESTRAMP", .tag = "kestramp" }, // system — a classic desktop MP3 window for C:\MUSIC (KOS GEMDOS), decoded by the sound side
     .{ .name = "NFO VIEWER", .tag = "nfo_viewer" }, // zigmachine — zigdemo's NFO / ASCII-art viewer (an Amiga ASCII viewer's look) on the desk plane
-    .{ .name = "GEMTEST", .tag = "gemtest" }, // system — every GEM 5 component on one disk, to see them on the board (docs/GEMTEST.md)
+    .{ .name = "GEMTEST", .tag = "gemtest" }, // system — every GEM 5 component on one disk, to see them on the board (docs/os/GEMTEST.md)
     .{ .name = "SCA KARATE KID II", .tag = "sca_karatekid2" }, // amiga
-    .{ .name = "NOTEPAD", .tag = "notepad" }, // system — a windowed text editor for C:\*.TXT, the GEM 5 program API's proof (docs/NOTEPAD.md)
+    .{ .name = "NOTEPAD", .tag = "notepad" }, // system — a windowed text editor for C:\*.TXT, the GEM 5 program API's proof (docs/os/NOTEPAD.md)
     .{ .name = "KESTREL BOOT", .tag = "kestrel_boot" }, // zigmachine — WINDHOVER, the console's boot screen prototype: a kestrel stoops into a dawn sky and hovers, a YM chord (prototypes/boot_screen/STUDY.md)
     .{ .name = "SITTING COMFORTABLY?", .tag = "falcon_ays" }, // atari falcon — Reservoir Gods' 2004 intro (Chosneck #2), ported from the depacked original
     .{ .name = "1988", .tag = "c64_1988" }, // c64 — Tristar & Red Sector Inc.'s Only Sprites intro (2021, code Shazz), ported from the depacked original
@@ -152,7 +152,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "KLYSTRACK (C)", .tag = "klystrack" }, // pc — kometbomb's chiptune tracker (MIT), apps/ports/klystrack
     .{ .name = "CHIPNOMAD (C++)", .tag = "chipnomad" }, // pc — Megus's AY tracker (MIT), apps/ports/chipnomad
     .{ .name = "SID-WIZARD (C)", .tag = "sidwizard" }, // pc — Hermit's C64 SID tracker, its PC version (WTF licence), apps/ports/sidwizard
-    .{ .name = "ASTRO BENCH (C)", .tag = "c-astro_bench" }, // zigmachine — SPIKE: ASTROLABE, the f64 coprocessor on the ARM (docs/ARM_FPU_COPROC.md), timed against ZIGGY's own f64 and f32; log lines "ZM ASTRO ..."
+    .{ .name = "ASTRO BENCH (C)", .tag = "c-astro_bench" }, // zigmachine — SPIKE: ASTROLABE, the f64 coprocessor on the ARM (docs/hardware/studies/ARM_FPU_COPROC.md), timed against ZIGGY's own f64 and f32; log lines "ZM ASTRO ..."
     .{ .name = "SYNCTERM (C)", .tag = "syncterm" }, // pc — Deuce's BBS terminal (GPLv2), the network mocked by an in-cart BBS (the spike), apps/ports/syncterm
     .{ .name = "BENCH (C)", .tag = "c-bench" }, // zigmachine — CoreMark, Dhrystone, Whetstone, LINPACK (double and f32) and RAM speed, the Hatari suite on env.hostMicros; log lines "ZM BENCH name=value unit"
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT

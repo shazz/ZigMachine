@@ -1,7 +1,7 @@
 /* The VGM engine where the players are native C's neighbours: BARD (snd.elf), ZIGGY with ZM_AUDIO=1 and the
  * native host. The players' machineVgm* imports (machine/sdk/audio.zig) are answered by libs/c/vgm itself
  * (our own YM2612 + SN76489, included here as one unit), not by the wasm2c of machine-audio.wasm's copy: the
- * same integer C, native, which is what makes it fit BARD (fpga/review/YM2612_BARD_STUDY.md). The page runs
+ * same integer C, native, which is what makes it fit BARD (docs/hardware/studies/YM2612_BARD_STUDY.md). The page runs
  * the wasm copy; apps/vgm_check.mjs holds the two to the same samples. */
 #include <stdio.h>
 

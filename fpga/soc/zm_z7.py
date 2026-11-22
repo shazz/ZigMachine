@@ -60,7 +60,7 @@ class Z7CRG(Module):
         pll.create_clkout(self.cd_sys, sys_hz, reset_buf="bufg")
         if comp_hz == sys_hz:
             # One clock: every sys<->comp crossing becomes a TIMED same-clock path. The board's
-            # failures moved with placement on the crossings nextpnr never times (docs/FPGA_STEPS.md).
+            # failures moved with placement on the crossings nextpnr never times (docs/hardware/FPGA_STEPS.md).
             self.comb += [self.cd_comp.clk.eq(self.cd_sys.clk), self.cd_comp.rst.eq(self.cd_sys.rst)]
         else:
             pll.create_clkout(self.cd_comp, comp_hz, reset_buf="bufg")
@@ -110,7 +110,7 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
         getattr(args, "sound_core", None),
         getattr(args, "ziggy_reads", zm_board_mem.READS),
     )
-    if getattr(args, "astro", False):  # ASTROLABE's mailbox (SPIKE, docs/ARM_FPU_COPROC.md)
+    if getattr(args, "astro", False):  # ASTROLABE's mailbox (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md)
         if args.no_glass:
             raise SystemExit("zm_z7: --astro needs the glass (its ARM side is on GP0)")
         from soc.zm_astro import add_astro

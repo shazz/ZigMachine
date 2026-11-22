@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// STREAM — block-streaming a sample off the disk (docs/FLOPPY_DISK.md phase E).
+// STREAM — block-streaming a sample off the disk (docs/guide/FLOPPY_DISK.md phase E).
 // --------------------------------------------------------------------------
 // The disk carries MICROMIX.RAW (signed 8-bit mono @ 12517 Hz) — far bigger than
 // the audio ring buffer, so it is NEVER loaded whole. Each frame the scene pulls a
@@ -9,7 +9,7 @@
 // S toggles the STEREO stream (system table 1.27, zg.audioStreamStartStereo): the clip then plays
 // on ONE side at a time, left for 48 blocks (~2 s), then right, and so on (a white box marks the
 // side), and the console prints zg.audioStreamPlayed once a second: the board check of the stereo
-// API (docs/ROADMAP.md "Stereo PCM streaming API").
+// API (docs/project/ROADMAP.md "Stereo PCM streaming API").
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");

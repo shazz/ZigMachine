@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// SID live: the BARD queue's first device (decisions.md 2026-11-07 "The BARD
+// SID live: the BARD queue's first device (docs/project/DECISIONS.md 2026-11-07 "The BARD
 // queue"). A cart writes the SID's registers itself, as a C64 player does
 // (a GoatTracker replay ticking at 50 Hz), through zg.bard: a ring in its own
 // memory that the host drains without anyone waiting. Each write is stamped

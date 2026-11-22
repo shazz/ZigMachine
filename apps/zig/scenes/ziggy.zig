@@ -17,7 +17,7 @@
 //               and the Mc line is a clean A/B)
 //   Esc         back to the menu
 // Under the picture: FPS, the cart's own time a frame in Mc at 100 MHz, and
-// cycles a pixel (fpga/review/KESTREL_NEXT_ISA.md's roto128 and voxel256
+// cycles a pixel (docs/hardware/studies/KESTREL_NEXT_ISA.md's roto128 and voxel256
 // loops, now on the hardware they asked for). The CHISEL V2 cart does the
 // rotozoom with the blitter instead; this one is the CPU's.
 // Everything is generated at init (ziggy/maps.zig), but the photo, converted at

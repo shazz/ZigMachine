@@ -1,4 +1,4 @@
-// KOS GEMDOS's proof in a real program (docs/KOS_GEMDOS.md §6): GrafX2, started from GEM over its floppy as
+// KOS GEMDOS's proof in a real program (docs/os/KOS_GEMDOS.md §6): GrafX2, started from GEM over its floppy as
 // the machine starts it (apps/ports_gem.mjs), with docs/gemdos-c.img as C: (tools/gemdos_c_image.py: the
 // card's HD folder, the page's ?c=, the native host's --c-image). Through GrafX2's own file selector:
 //   F3 (Load picture), "Select drive": the drive list offers "/C" (C: mounted) beside "/" (the floppy)

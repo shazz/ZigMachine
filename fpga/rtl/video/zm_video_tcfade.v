@@ -1,4 +1,4 @@
-// The true-colour fade (HW 1.16.0, machine/video_tc_fade.zig, docs/HW_API.md "True-colour fade"):
+// The true-colour fade (HW 1.16.0, machine/video_tc_fade.zig, docs/hardware/HW_API.md "True-colour fade"):
 // a 565 pixel expanded to 888 by bit replication, faded toward black or white, then offset per
 // channel and clamped, in two registered stages (the painter's stage 3 and its output):
 //   x  = 888 channel, inverted toward white (255 - x == ~x)

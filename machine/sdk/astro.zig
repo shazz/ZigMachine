@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ASTROLABE (ASTRO) — the f64 coprocessor's ABI (HW 1.18.0, SPIKE: docs/ARM_FPU_COPROC.md)
+// ASTROLABE (ASTRO) — the f64 coprocessor's ABI (HW 1.18.0, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md)
 //
 // The Mega ST's SFP004 put a 68881 beside the 68000, driven through a few memory-mapped
 // registers. ASTROLABE is the same idea for KESTREL: the cart describes work in

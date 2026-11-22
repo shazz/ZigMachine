@@ -70,12 +70,12 @@ export async function bootGem(opts = {}) {
             diskReadBlock: opts.diskReadBlock ? opts.diskReadBlock(memory) : noop,
             hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
-            // KOS's C: (docs/KOS_FAT.md F5) and its writes (docs/KOS_GEMDOS.md §7): none (no C: icon,
+            // KOS's C: (docs/os/KOS_FAT.md F5) and its writes (docs/os/KOS_GEMDOS.md §7): none (no C: icon,
             // EDRIVE) unless opts.cImage, a FAT image read and written in place as the page does it
             // (gem_desk_bugs_check.mjs: Save Desktop to C:\DESKTOP.INF, then a boot over the same image)
             kosDriveRead: opts.cImage ? makeCDrive(memory, opts.cImage) : () => 0,
             kosFileOp: opts.cFileOp ? opts.cFileOp(memory) : opts.cImage ? makeCFile(memory, opts.cImage) : () => -46,
-            hostMicros: () => 0, // ST Replay's BOOT.WSM imports it (decisions.md 2026-10-17); 0 = frame time
+            hostMicros: () => 0, // ST Replay's BOOT.WSM imports it (docs/project/DECISIONS.md 2026-10-17); 0 = frame time
             // SYSINFO's BOOT.WSM asks what the machine is (sysinfo/ident.zig): ASTROLABE computed by the
             // machine, no job coprocessor (the cart serves its own), no network card
             hwAstro: machine.hwAstro, hostBardJob: () => 0, netOp: () => -1,

@@ -1,4 +1,4 @@
-// The F11 frame-rate overlay (docs/FPGA_GLASS.md, "The frame-rate overlay").
+// The F11 frame-rate overlay (docs/hardware/FPGA_GLASS.md, "The frame-rate overlay").
 // While the menu is closed, the OSD window moves to the top-left corner under
 // CTRL_OSD_STATS, where every plain-space cell is transparent: only one line,
 // "FPS 38.2  BARD SNDH nat 43%" (the rate, then who plays the music, the player and

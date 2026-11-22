@@ -124,7 +124,7 @@ stage = "docs/demo-c-screen34.wasm";
 let ok = await checkPlays("docs/demo-c-screen34.wasm", "sos.sndh", 0);
 stage = "docs/demo-rust-v8_populous.wasm";
 ok = (await checkPlays("docs/demo-rust-v8_populous.wasm", "custodian.sndh", 1)) && ok;
-// docs/TUTORIAL.md step 7: the tutorial screens request So Watt in both languages.
+// docs/guide/TUTORIAL.md step 7: the tutorial screens request So Watt in both languages.
 stage = "docs/demo-c-tutorial.wasm";
 ok = (await checkPlays("docs/demo-c-tutorial.wasm", "sos.sndh", 0)) && ok;
 stage = "docs/demo-rust-tutorial.wasm";

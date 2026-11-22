@@ -58,7 +58,7 @@
 // perpendicular to the axis the twelve balls are strung along, and widening the
 // ramp over the borders does not shift them.
 //
-// THE COPPER PLAYS IT (HW 1.9.0, machine/copper.zig, fpga/review/COPPER_LIST.md).
+// THE COPPER PLAYS IT (HW 1.9.0, machine/copper.zig, docs/hardware/studies/COPPER_LIST.md).
 // The table holds every physical line's bucket colours as the palette words
 // themselves, a row a line, in VRAM; the plane's copper list says on every
 // line FLICK (the border trick openBorders(.all)'s handler did) and PALREF

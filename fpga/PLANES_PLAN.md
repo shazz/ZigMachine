@@ -2,14 +2,14 @@
 
 > **Status (perf/fresco-linemajor):** ranks 1 and 2 are built. W64 is proven on the board
 > (2026-10-19) with HP1's write channel 64-bit FROM BOOT, never switched there at run time
-> (decisions.md 2026-10-19): fr.dirty.p4 1.13 -> 1.00 Mc, automation442 30 -> 60 fps. Line-major
+> (docs/project/DECISIONS.md 2026-10-19): fr.dirty.p4 1.13 -> 1.00 Mc, automation442 30 -> 60 fps. Line-major
 > groups follow a wider rule than §3's: every run of consecutive handler-free planes, not only
 > the planes below the first handler plane, since the carts this plan targets have a handler on
 > their lowest plane (overscan flicker, rasters) and §3's group is empty there. Option 3 applies
 > when a group is the top layer.
 
 Read-only study on `integrate/2026-10-17` (04655ae1, perf/fresco-probe merged). Inputs:
-`BENCH_REPORTS.md` (board v6, posted=0), `review/PERFORMANCE_REVIEW.md` §8, the RTL in
+`BENCH_REPORTS.md` (board v6, posted=0), `docs/hardware/studies/PERFORMANCE_REVIEW.md` §8, the RTL in
 `rtl/video/`, `soc/zm_video_axi.py`, `cycles/vseq.c` / `vplan.c` / `vdirty.c`, `machine/video.zig`,
 and the probe's analysis (`cycles/vcal.c`, `vstat.c`). Numbers are sys cycles (100 MHz) unless
 said; comp runs at 125 MHz (0.8 sys cycle per comp clock). No sim or Vivado was run.
@@ -69,7 +69,7 @@ Savings are per frame against today's 1.17 Mc per redrawn plane (R = redrawn pla
 
 | # | Option | Saving (Mc/frame) | LUT / BRAM | Risk |
 |---|---|---|---|---|
-| 1 | **W64**: 8-byte write beats (`hp_cfg` bit 1) with HP1's AFI write channel set 64-bit (`mw.l 0xf8009014 0xf00` instead of `0xf01`, PL idle) | −0.22 per redrawn plane and −0.25 on the first layer (800 W beats fewer a line); R=2: −0.45, R=4: −0.9 | 0 / 0 | the 2026-10-03 and 10-19 "odd columns" were a channel switched 32 -> 64 after 32-bit traffic (words 0 and 3 of 16 written); proven on the board 10-19 with HP1 0xf00 from boot (decisions.md 2026-10-19) |
+| 1 | **W64**: 8-byte write beats (`hp_cfg` bit 1) with HP1's AFI write channel set 64-bit (`mw.l 0xf8009014 0xf00` instead of `0xf01`, PL idle) | −0.22 per redrawn plane and −0.25 on the first layer (800 W beats fewer a line); R=2: −0.45, R=4: −0.9 | 0 / 0 | the 2026-10-03 and 10-19 "odd columns" were a channel switched 32 -> 64 after 32-bit traffic (words 0 and 3 of 16 written); proven on the board 10-19 with HP1 0xf00 from boot (docs/project/DECISIONS.md 2026-10-19) |
 | 2 | **Line-major for the handler-free group** (§3): all planes of line y while the row stays in the line buffer + accumulator; one load/store pair a line | per extra redrawn plane: 0.20 instead of 1.17 (−0.97). R=1: 0; R=2: −0.97; R=3: −1.94; R=4: −2.9 | ~30-50 / 0 | exactness (§3 gives the rule and the proof); vdirty unchanged in principle |
 | 3 | **No PFB row store on the board** (only with 2, and only when the group is the whole plane phase: a plane-major layer above it LOADs the row the group stored). No ZigOS or cart code reads the PFB (`zigos.physical_framebuffer` is set and never used; checked over libs/, apps/, rom/); on the board only the debug dump (`board_shot --what pfb`) and hashed sim frames do | −0.25 (280 × 880 WR32; −0.12 under W64) whatever R | ~5 / 0 | none on pixels (the picture is what is shown); keep it on in sims and hashed frames |
 | 4 | **Hardware dirty bitmap** (§4): CPU stores (the snoop) and CHISEL writes set a bit per 4 KB VRAM granule; palette-bank and register-word touched masks | −0.33 per static plane on all-static frames (the compares go), −6 K for the palettes; on mixed screens the compares were hidden, so the gain is the planner staying ON always (vadapt's OFF/PROBE frames go) and ZIGGY time back for the cart | ~150-250 LUT, ~350 FF / 0 | a writer the taps miss = silent stale rows: the writer list must be closed (§4) |

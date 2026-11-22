@@ -12,7 +12,7 @@ UP     ?= ../upstream
 PT2    := $(UP)/pt2-clone/src
 OUT    := build
 GEN    := $(OUT)/gen
-# KESTREL_CDRIVE: the POSIX layer's "/C" (C: = the card's HD, KOS GEMDOS, docs/KOS_GEMDOS.md §5), see CDRIVE below.
+# KESTREL_CDRIVE: the POSIX layer's "/C" (C: = the card's HD, KOS GEMDOS, docs/os/KOS_GEMDOS.md §5), see CDRIVE below.
 CFLAGS := $(EXTRA) -target wasm32-wasi -O2 -g0 -mbulk-memory -std=gnu11 -I../kestrel_sdl2/include -include kestrel_port.h \
           -D__KESTREL__ -DKESTREL_CDRIVE -Wno-unused-parameter -Wno-unused-but-set-variable
 # The cart's memory layout, as apps/c/build.sh: the machine's one memory, data from 0x100000.

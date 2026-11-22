@@ -1,4 +1,4 @@
-// GEMTEST's screenshots: every component (docs/GEMTEST.md) in LOW, MEDIUM and the DESK, one PNG each at
+// GEMTEST's screenshots: every component (docs/os/GEMTEST.md) in LOW, MEDIUM and the DESK, one PNG each at
 // 1:1 framebuffer pixels (low 320x200, medium 640x200, desk 640x480) plus a copy as the screen shows it
 // (low and medium rows doubled, low columns too: 640x400), and an index.html contact sheet putting each
 // component's three modes side by side. Headless, deterministic: GEMTEST started after a desktop in the

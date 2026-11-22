@@ -1,4 +1,4 @@
-// Reading a .zmd disk (docs/FLOPPY_DISK.md) on the board: its title for the
+// Reading a .zmd disk (docs/guide/FLOPPY_DISK.md) on the board: its title for the
 // menu, and the files the loader needs. v1 (descriptor + FAT at $200) and v2
 // (an executable wasm boot sector, descriptor at $400, FAT at $800) are both
 // read; every offset and length is checked against the image, so a truncated

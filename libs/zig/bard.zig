@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
-// zg.bard: the BARD queue (system table 1.12, decisions.md 2026-11-07 "The BARD
-// queue", docs/ZIGOS_API.md 8d). A ring of timed commands from the cart to the
+// zg.bard: the BARD queue (system table 1.12, docs/project/DECISIONS.md 2026-11-07 "The BARD
+// queue", docs/guide/ZIGOS_API.md 8d). A ring of timed commands from the cart to the
 // sound side (BARD on the board, the AudioWorklet on the page) and a ring of
 // events back, in the cart's own memory: the cart writes and never waits; its
 // host takes the commands once a frame (on the board BARD reads them in DDR)

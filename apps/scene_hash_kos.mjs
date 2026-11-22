@@ -1,4 +1,4 @@
-// scene_hash.mjs --kos X.zmd|none: KOS's power-on (docs/ZIGTOS_BOOT.md, KOS = ZigTOS), as
+// scene_hash.mjs --kos X.zmd|none: KOS's power-on (docs/os/ZIGTOS_BOOT.md, KOS = ZigTOS), as
 // docs/sealed-loader.js runs it and the native host's --kos (fpga/host/kos_host.c) and the
 // board firmware (fpga/cycles/bkos.c) reproduce it:
 //

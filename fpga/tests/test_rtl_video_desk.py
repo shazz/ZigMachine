@@ -1,4 +1,4 @@
-"""The desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §7) on the wire: zm_video_out showing plane 0
+"""The desk mode (HW 1.17.0, docs/os/GEM_DESK_MODE.md §7) on the wire: zm_video_out showing plane 0
 through the mirror of palette 0, against the machine's own picture (machine/video_desk.zig, built
 into tools/desk_ref.zig's reference), across a switch to desk and back mid-frame.
 

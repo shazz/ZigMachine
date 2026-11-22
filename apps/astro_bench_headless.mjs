@@ -1,4 +1,4 @@
-// ASTRO BENCH (docs/demo-c-astro_bench.wasm, SPIKE: docs/ARM_FPU_COPROC.md): ASTROLABE through the
+// ASTRO BENCH (docs/demo-c-astro_bench.wasm, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md): ASTROLABE through the
 // machine's hwAstro, as docs/sealed-loader.js binds it, checked against the cart's own maths and JS's.
 //
 //   1. the real clock: every job runs once and logs once, no "ZM ASTRO FAIL", every ulp = 0 (the

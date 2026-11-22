@@ -1,7 +1,7 @@
 """The whole video pipeline (rtl/video/zm_video_out.v, + zm_dvi_out.v on the board)
 as a LiteX peripheral: compositor, double-buffered picture, scanout, timing, DVI.
 
-The video architecture (decisions.md, 2026-10-02): every frame is composited
+The video architecture (docs/project/DECISIONS.md, 2026-10-02): every frame is composited
 into a picture in memory, in the machine's own order and at the compositor's
 speed, and the scanout shows the previous, completed picture. Around the RTL:
 
@@ -95,7 +95,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
     ) -> None:
         cd_pix, cd_pix5x, cd_comp = cds
         self.specials += Instance("zm_video_out", p_TUBE=self.tube, **self._out_ports(p, cd_pix, cd_comp))
-        # GLASS HOOK (docs/FPGA_GLASS.md): the OSD sits on the finished picture,
+        # GLASS HOOK (docs/hardware/FPGA_GLASS.md): the OSD sits on the finished picture,
         # between the scanout and DVI, so it never touches the machine's pixels.
         self.pic = {k: p[k] for k in ("r", "g", "b", "de", "hsync", "vsync")}
         if overlay is not None:

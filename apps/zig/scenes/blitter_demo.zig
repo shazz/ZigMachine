@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // Blitter demo — a rotating vector cube drawn entirely through the sealed 2D
-// blitter (docs/BLITTER_HW_SPEC.md), switchable between seven modes that exercise
+// blitter (docs/hardware/BLITTER_HW_SPEC.md), switchable between seven modes that exercise
 // the hardware's fill / minterm / halftone / block-copy paths:
 //
 //   key 1  FLAT      one solid COLOR per face (painter's sort)

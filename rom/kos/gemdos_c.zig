@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS GEMDOS for C carts (docs/KOS_GEMDOS.md §5): the calls under TOS's names with C linkage, built
+// KOS GEMDOS for C carts (docs/os/KOS_GEMDOS.md §5): the calls under TOS's names with C linkage, built
 // as one wasm object a C cart links (apps/ports/kestrel_sdl2/include/kestrel_gemdos.h declares them;
 // apps/ports/grafx2/Makefile builds it). The cart's own POSIX layer (kestrel_sdl2/src/opt/
 // kestrel_wasi_c.c) is written over these, so fopen("/C/PICTURES/X.PI1") is GEMDOS underneath.

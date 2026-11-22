@@ -1,4 +1,4 @@
-/* The BARD MP3 study's bench (fpga/review/MP3_BARD_STUDY.md): one decoder behind a three-call adapter,
+/* The BARD MP3 study's bench (docs/hardware/studies/MP3_BARD_STUDY.md): one decoder behind a three-call adapter,
  * the same loop on BARD (mp3bench.c, snd-cbench) and on the host (tools/mp3_bard_host.c), so the two
  * print the same per-frame PCM hash. The decoders are third-party (tools/mp3_bard_fetch.sh) and never
  * committed; the adapters (mp3a_helix.c, mp3a_pv.c) are ours. */

@@ -4,7 +4,7 @@
 > with a pinned seed, the compositor on its own clock, and static prediction
 > kept (no prediction costs more cycles than it buys clock). Results and the
 > current flow: `fpga/README.md` "Timing under openXC7", `fpga/CYCLES.md`
-> "Branch prediction and the clock", `docs/FPGA_STEPS.md` 2026-10-03.
+> "Branch prediction and the clock", `docs/hardware/FPGA_STEPS.md` 2026-10-03.
 
 Scope: the glass SoC (`soc/zigmachine_soc.py --target z7`, PS7 + GP0 + DDR-framebuffer
 video) on the XC7Z010-1 through the pinned openXC7 image (Yosys 0.67, openXC7/nextpnr

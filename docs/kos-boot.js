@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS, the KESTREL Operating System: the browser's power-on (docs/ZIGTOS_BOOT.md, where
+// KOS, the KESTREL Operating System: the browser's power-on (docs/os/ZIGTOS_BOOT.md, where
 // "ZigTOS" is KOS). docs/sealed-loader.js's boot() uses it when the page powers on with a
 // disk in drive A (?disk=X.zmd, or a TV channel's disk) or none (?disk=none):
 //
@@ -55,7 +55,7 @@ globalThis.ZMKos = (function () {
         return rom.kosPostFrames ? rom.kosPostFrames(asked) : asked;
     }
 
-    // A raw FAT disk image (an .ST, a dumped floppy: docs/KOS_FAT.md): whole 512-byte sectors and a
+    // A raw FAT disk image (an .ST, a dumped floppy: docs/os/KOS_FAT.md): whole 512-byte sectors and a
     // BPB saying 512 bytes a sector. The drive serves it as any disk; the desktop shell reads its FAT.
     function fatImage(buf) {
         if (buf.length < 4096 || buf.length % 512 !== 0 || (buf[11] | buf[12] << 8) !== 512) return null;

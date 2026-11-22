@@ -60,4 +60,4 @@ must fail that feature's pinned hash. `apps/vgm_test_check.mjs`: the VGM TEST ca
 
 `fpga/cycles/sound/svgmbench.c` (the engine alone, `snd-cbench`) and `snd-bench SONG=<x>.vgm` (the whole
 player), on the board core's model (`build/soc_hp_snd_dyn8sx`, KESTREL v1.3's BARD). Numbers:
-`fpga/review/YM2612_BARD_STUDY.md` section 6.
+`docs/hardware/studies/YM2612_BARD_STUDY.md` section 6.

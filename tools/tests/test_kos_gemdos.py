@@ -1,4 +1,4 @@
-"""KOS GEMDOS (rom/kos/gemdos.zig, docs/KOS_GEMDOS.md) against mtools, the independent oracle, on cards
+"""KOS GEMDOS (rom/kos/gemdos.zig, docs/os/KOS_GEMDOS.md) against mtools, the independent oracle, on cards
 mkfs.fat makes: FAT16 and FAT32 (the board's SD card), laid out as the board's (boot files and KESTREL/ at
 the root, C:\\ = HD/), with folders three deep, a fragmented file, a long name (GEMDOS shows its 8.3
 alias), a folder of 150 files (many directory clusters) and a 300 KB file (merged requests). Every file

@@ -136,13 +136,13 @@ pub extern fn deskSetFileCount(n: u32) void;
 pub extern fn deskFatReset() void;
 pub extern fn deskFatFolder(parent: i32, name: u32, len: u32, cluster: u32) i32;
 pub extern fn deskLaunchName(out: u32, out_cap: u32) u32;
-// KOS's C: (docs/KOS_FAT.md F5): the model calls for a unit (0 drive A, 2 C:), and C:'s icon.
+// KOS's C: (docs/os/KOS_FAT.md F5): the model calls for a unit (0 drive A, 2 C:), and C:'s icon.
 pub extern fn deskDriveDirPtr(unit: u32) u32;
 pub extern fn deskDriveSetFileCount(unit: u32, n: u32) void;
 pub extern fn deskDriveReset(unit: u32) void;
 pub extern fn deskDriveFolder(unit: u32, parent: i32, name: u32, len: u32, cluster: u32) i32;
 pub extern fn deskSetDriveC(present: u32) void;
-// The desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8): the capability, the host's pointer mapped
+// The desk mode (HW 1.17.0, docs/os/GEM_DESK_MODE.md §8): the capability, the host's pointer mapped
 // in the ROM, DESKTOP.INF read back at boot (its #E code, 0xFF for none) and the last one saved.
 pub extern fn deskSetDeskAvailable(available: u32) void;
 pub extern fn deskHostPointer(x: i32, y: i32, buttons: u32) void;
@@ -151,7 +151,7 @@ pub extern fn deskInfPtr() u32;
 pub extern fn deskInfLen() u32;
 // The desk's two buffers (system table 1.15, rom/gem/desktop/deskflip.zig): drawn frames flip FB_BASE.
 pub extern fn deskSetBuffers(a: u32, b: u32) void;
-// C:'s file operations (system table 1.18, docs/GEM5_PLAN.md P1.1): the mailbox's address (deskop.zig).
+// C:'s file operations (system table 1.18, docs/os/GEM5_PLAN.md P1.1): the mailbox's address (deskop.zig).
 pub extern fn deskFileOp() u32;
 /// The desktop's file-operation mailbox (deskFileOp): the shell carries out what the ROM posts there.
 pub const deskop = @import("deskop.zig");

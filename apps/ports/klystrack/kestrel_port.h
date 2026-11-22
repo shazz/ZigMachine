@@ -18,7 +18,7 @@ int kestrel_vsnprintf(char *b, size_t n, const char *fmt, __builtin_va_list va);
 /* toolutil.c expands "~/" through the password database; the cart has none (no config path uses "~" here). */
 #include <sys/types.h>
 static inline uid_t getuid(void) { return 0; }
-/* C: (KOS GEMDOS, docs/KOS_GEMDOS.md §5): "/C" is the card's HD. getcwd folds "." and ".." (kestrel_wasi_cdir.c,
+/* C: (KOS GEMDOS, docs/os/KOS_GEMDOS.md §5): "/C" is the card's HD. getcwd folds "." and ".." (kestrel_wasi_cdir.c,
  * as grafx2's kestrel_port.h), so ".." from "/C" leads back to "/", the floppy. The file box lists "C" at the
  * floppy's root when C: mounts (patches/filebox.c.sed). */
 #include <stddef.h>

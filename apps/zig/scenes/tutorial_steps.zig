@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// tutorial_steps.zig: the tutorial screen, stopped at any step of docs/TUTORIAL.md.
+// tutorial_steps.zig: the tutorial screen, stopped at any step of docs/guide/TUTORIAL.md.
 //
 // WHY THIS IS A SEPARATE FILE FROM tutorial.zig:
 // docs/TUTORIAL.html puts a "Run step N" button on every step, and running the
@@ -46,7 +46,7 @@ const TEXT_W: i32 = TEXT.len * 8; // the 8x8 system font
 
 const MUSIC = "sos.sndh"; // a file under docs/music/
 
-// Which step of docs/TUTORIAL.md to stop at. 7 = the whole screen, i.e. exactly
+// Which step of docs/guide/TUTORIAL.md to stop at. 7 = the whole screen, i.e. exactly
 // what tutorial.zig draws. Set before init() by the host, via setShadeMode.
 const LAST_STEP: u32 = 7;
 var step: u32 = LAST_STEP;

@@ -1,4 +1,4 @@
-"""The Paula scopes on the board (host/audio_scope.c, table 1.26, decisions.md 2026-11-14): the players'
+"""The Paula scopes on the board (host/audio_scope.c, table 1.26, docs/project/DECISIONS.md 2026-11-14): the players'
 `machinePaula*` calls rebuild what machine/audio/engine.zig's Channel.mixInto captures into `scope`, the
 128 f32 a channel the browser's loader mirrors into the cart's zigos.scopes (music_debug's MOD, sample
 and XM curves). On the board no CPU runs that mix (Paula is RTL), so before this they stayed flat.

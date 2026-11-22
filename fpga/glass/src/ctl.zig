@@ -1,4 +1,4 @@
-// The control channel's language (docs/FPGA_GLASS.md, "The control channel"): one
+// The control channel's language (docs/hardware/FPGA_GLASS.md, "The control channel"): one
 // line a command, as `glass ctl ...` sends it over the socket (ctl_sock.zig). It lets
 // a script on the serial console do what Matt does with the OSD and a keyboard, so
 // carts can be measured with nobody at the board. Pure: app_ctl.zig runs a Cmd.

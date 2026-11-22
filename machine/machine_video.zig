@@ -132,7 +132,7 @@ export fn hwRomRamUsed() u32 {
 export fn hwRomRamFree() u32 {
     return video.romRamFree();
 }
-// ASTROLABE (HW 1.18.0, SPIKE: docs/ARM_FPU_COPROC.md): the f64 coprocessor's descriptors.
+// ASTROLABE (HW 1.18.0, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md): the f64 coprocessor's descriptors.
 // Here the machine computes them itself; the board's firmware wraps this export and hands
 // them to the ARM (fpga/cycles/bastro.c), falling back to this code.
 export fn hwAstro(desc: u32, count: u32) u32 {

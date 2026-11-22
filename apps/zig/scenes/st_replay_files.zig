@@ -3,7 +3,7 @@
 // is disabled in ST Replay"). A: stays on the floppy path (st_replay.zig walks
 // the FAT through zg.disk, as it always has); every other drive GEMDOS answers
 // (Dsetdrv's map) is listed with Fsfirst / Fsnext (the folder's sub-folders, then
-// the .RAW files) and loaded with Fopen / Fread / Fclose (docs/KOS_GEMDOS.md).
+// the .RAW files) and loaded with Fopen / Fread / Fclose (docs/os/KOS_GEMDOS.md).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const gemdos = @import("kos_gemdos");

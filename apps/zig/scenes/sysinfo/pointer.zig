@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // SysInfo — the pointer. In low and medium the host draws it (the page's cursor,
-// the board's arrow). In the desk nobody does (docs/GEM_DESK_MODE.md §4): the
+// the board's arrow). In the desk nobody does (docs/os/GEM_DESK_MODE.md §4): the
 // ROM draws TOS's ARROW into the plane at graf_mouse M_ON and puts the screen
 // back at M_OFF, keeping what was under it in scratch the program lends
 // (aes.lendScratch). Matt on the board, 14 Nov: "no mouse, hard to click".

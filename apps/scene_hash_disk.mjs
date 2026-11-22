@@ -67,7 +67,7 @@ export function makeDataDisk(memory, rom, mountedDisk, program = false) {
 
         // Tell GEM whether an app-disk is inserted (idempotent; takes effect once
         // the cart is booted) so its FLOPPY icon opens the app.
-        // 2: a FAT disk (KOS: the desktop shell reads it itself, docs/KOS_FAT.md).
+        // 2: a FAT disk (KOS: the desktop shell reads it itself, docs/os/KOS_FAT.md).
         if (demo.insertDisk) demo.insertDisk(diskApp ? (mountedDisk && mountedDisk.fat ? 2 : 1) : 0);
 
         // Hand GEM the mounted disk's FAT directory for its FLOPPY window (once
@@ -106,7 +106,7 @@ export async function mountDataDisk(path) {
     try {
         d = parseDisk(buf, path);
     } catch (e) {
-        const fat = globalThis.ZMKos.fatImage(buf); // a FAT image: the desktop reads it (docs/KOS_FAT.md)
+        const fat = globalThis.ZMKos.fatImage(buf); // a FAT image: the desktop reads it (docs/os/KOS_FAT.md)
         if (fat) return fat;
         throw e;
     }

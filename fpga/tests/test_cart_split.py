@@ -1,4 +1,4 @@
-"""The board's split images (decisions.md 2026-10-15): the system table's record and its
+"""The board's split images (docs/project/DECISIONS.md 2026-10-15): the system table's record and its
 gate (tools/sys_abi.py), the images as files (tools/split_image.py), where the sim's DDR
 image puts them (tools/ddr_init.py --cart), the card's shelf (tools/glass_shelf.py with a
 system), and the one version rule the firmware (cycles/bsys_abi.h), the tools and glass

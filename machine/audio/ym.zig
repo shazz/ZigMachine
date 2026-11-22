@@ -29,7 +29,7 @@ pub const YM_CLOCK: f32 = 2000000.0; // Atari ST PSG clock (2 MHz)
 // linear sum of this curve is within 0.95 dB for half the combinations and
 // 1.74 dB for 90 %, 4.0 dB at worst (all three at 15). Linear is kept: it is
 // what the FPGA's mixer does, and only loud chords are affected
-// (decisions.md, "The YM DAC curve and envelope hold").
+// (docs/project/DECISIONS.md, "The YM DAC curve and envelope hold").
 pub const DB_STEP: f64 = 1.6025;
 pub const FLOOR: f64 = 0.0018;
 pub const VOL_TABLE = blk: {

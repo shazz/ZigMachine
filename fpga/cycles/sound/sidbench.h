@@ -1,4 +1,4 @@
-/* The BARD SID study's bench (fpga/review/SID_BARD_STUDY.md): cRSID (Hermit's light SID + 6502
+/* The BARD SID study's bench (docs/hardware/studies/SID_BARD_STUDY.md): cRSID (Hermit's light SID + 6502
  * player) renders a tune 60 Hz frame by 60 Hz frame, the same loop on BARD (sidbench.c, snd-cbench)
  * and on the host (tools/sid_bard_host.c), so both print the same per-frame PCM hash. cRSID and the
  * HVSC tunes stay local (tools/sid_bard_fetch.sh, prototypes/sid_re/): never committed. */

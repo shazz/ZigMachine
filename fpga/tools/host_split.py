@@ -1,4 +1,4 @@
-"""The board's split env (decisions.md 2026-10-15): what tools/host_gen.py's env.c does for
+"""The board's split env (docs/project/DECISIONS.md 2026-10-15): what tools/host_gen.py's env.c does for
 the monolithic image, cut along the system table (fpga/cycles/sys_abi.txt).
 
     uv run python tools/host_split.py system build/host/common/sys_env.c       # once: the system image's

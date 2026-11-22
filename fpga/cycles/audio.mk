@@ -1,4 +1,4 @@
-# The machine's audio side (host/haudio.h, docs/FPGA_AUDIO.md "The SoC"): the
+# The machine's audio side (host/haudio.h, docs/hardware/FPGA_AUDIO.md "The SoC"): the
 # open players (demo-audio.wasm, the SNDH player on Musashi) through wasm2c, for
 # the native host (the oracle, with the machine's own chips) and for the board
 # firmware (the audio core's write queue, cycles/baudio.c). Included by

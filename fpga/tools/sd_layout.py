@@ -1,4 +1,4 @@
-"""The KESTREL SD card's layout (decisions.md 2026-11-06; docs/FPGA_GLASS.md "The SD card's layout"):
+"""The KESTREL SD card's layout (docs/project/DECISIONS.md 2026-11-06; docs/hardware/FPGA_GLASS.md "The SD card's layout"):
 the names every staging tool writes, the same as glass reads them (fpga/glass/src/layout.zig).
 
     /            the boot files only (BootROM / U-Boot read them there)

@@ -1,5 +1,5 @@
 // isa_census: which RISC-V extension / custom-instruction patterns the shelf EXECUTES, per frame
-// (fpga/review/ZIGGY_ISA_EXTENSIONS.md). It runs a cart instrumented as frame_cost does, then
+// (docs/hardware/studies/ZIGGY_ISA_EXTENSIONS.md). It runs a cart instrumented as frame_cost does, then
 // matches each executed segment's wasm against peephole patterns (operand producers, flow.mjs) and
 // weighs each match by the segment's count over the window. A pattern's `save` is the rv32
 // instructions GCC's output loses when the extension is on (rv32imf -> +Zba/Zbb/Zbs/custom),

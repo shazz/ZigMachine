@@ -1,4 +1,4 @@
-"""The split images (decisions.md 2026-10-15) in the board SoC sim with the sound CPU
+"""The split images (docs/project/DECISIONS.md 2026-10-15) in the board SoC sim with the sound CPU
 (build/soc_hp_snd, ZM_AUDIO=snd: the shelf's audio): the sim's system image at 0, the cart's
 lean image at CART_IMG_AT, its shelf disk after it (tools/ddr_init.py --cart), and the
 verdict tools/hp_sim_run.py gives the monolithic image: ran to the end, no underrun, the

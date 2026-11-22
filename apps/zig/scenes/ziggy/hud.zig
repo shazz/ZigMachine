@@ -5,7 +5,7 @@
 //   line 1   the mode, the texture size and name (GEN / PHOTO), ZM-X on/off, the keys
 //   line 2   FPS, the cart's own time a frame in Mc (cycles at 100 MHz, the
 //            board's ZIGGY) and cycles a pixel of the picture area
-// The clock is env.hostMicros (decisions.md 2026-10-10): the browser and the
+// The clock is env.hostMicros (docs/project/DECISIONS.md 2026-10-10): the browser and the
 // board answer it, the harnesses answer 0 and line 2 then stays blank, so
 // their frames are deterministic. In the browser the numbers are the host's
 // wasm speed, not ZIGGY's: they mean something on the board.

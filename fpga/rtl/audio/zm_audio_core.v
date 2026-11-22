@@ -7,7 +7,7 @@
 // crystal) takes samples at exactly the rate they are made.
 //
 // The registers mirror the sealed audio ABI (machine/sdk/audio.zig); the map is
-// in docs/FPGA_AUDIO.md. Byte addresses, 32-bit words:
+// in docs/hardware/FPGA_AUDIO.md. Byte addresses, 32-bit words:
 //   0x000 + 4r  YM register r (machineYmWrite; R13 = 0xFF does not retrigger the
 //               envelope and is not passed on, as ym.zig); reads the last value
 //   0x040       CTRL: write bit 0 = machineAudioReset (mixer off, A/B/C volume 0,

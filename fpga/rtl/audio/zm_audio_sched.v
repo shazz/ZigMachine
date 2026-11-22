@@ -1,5 +1,5 @@
 // The audio core's write queue: register writes stamped with the sample they
-// land before, applied to zm_audio_core exactly there (docs/FPGA_AUDIO.md "The
+// land before, applied to zm_audio_core exactly there (docs/hardware/FPGA_AUDIO.md "The
 // SoC"). The players run on the cart CPU ahead of the sound (cycles/baudio.c
 // keeps them a few frames ahead) and stamp every chip call with its sample in
 // the machine's stream (host/audio_imports.c); here each write waits for its

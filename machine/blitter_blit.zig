@@ -2,7 +2,7 @@
 // ZigMachine — SEALED blitter: BLIT, the 3-source block transfer / cookie-cut
 // bob (§4.1), with the CHISEL v2 (1.11.0) extras every other op shares in
 // blitter_px.zig: MIRROR_X/Y (the sources read flipped) and the area fill
-// (CON.IFE/EFE). See docs/BLITTER_HW_SPEC.md.
+// (CON.IFE/EFE). See docs/hardware/BLITTER_HW_SPEC.md.
 // --------------------------------------------------------------------------
 const memmap = @import("sdk/memmap.zig");
 const regs = @import("blitter_regs.zig");

@@ -1,4 +1,4 @@
-/* The system image's side of the board's split (decisions.md 2026-10-15, cycles/bsys.c): the
+/* The system image's side of the board's split (docs/project/DECISIONS.md 2026-10-15, cycles/bsys.c): the
  * cart is the lean image at ZM_CART_IMG_AT, called through its header. Without ZM_SPLIT_SYS
  * (the monolithic image) the cart is linked in and called by name. bmain.c uses the macros. */
 #ifndef ZM_BSYS_H

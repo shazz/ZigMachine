@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // A game's sound effects OVER a MOD (zg.sfxPlay / zg.sfxStop / zg.ymWrite;
-// docs/MUSIC.md "Sound effects over a MOD").
+// docs/guide/MUSIC.md "Sound effects over a MOD").
 //
 // The audio module plays one song at a time, and a MOD holds all four Paula
 // channels. So an effect BORROWS one: the song's quiet channel, the one with

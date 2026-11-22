@@ -1,4 +1,4 @@
-// The desk mode on the wire (HW 1.17.0, docs/GEM_DESK_MODE.md §7): zm_video_out with no pass
+// The desk mode on the wire (HW 1.17.0, docs/os/GEM_DESK_MODE.md §7): zm_video_out with no pass
 // at all, its CPU port playing a cart that switches RESOLUTION to RES_DESK and back mid-frame.
 //
 //   video_desk_tb [--starve N] [--desk-only] <comp clocks> <pixel clocks> <ref dir> <FB_BASE>

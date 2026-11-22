@@ -1,11 +1,11 @@
-"""KOS GEMDOS in the native host (docs/KOS_GEMDOS.md §6): GrafX2 (wasm2c'd, as the board runs it) with
+"""KOS GEMDOS in the native host (docs/os/KOS_GEMDOS.md §6): GrafX2 (wasm2c'd, as the board runs it) with
 docs/gemdos-c.img as C: (--c-image) and its floppy in the drive (--disk) equals scene_hash.mjs frame for frame through the session
 apps/gemdos_grafx2_check.mjs drives: F3, Select drive, /C, PICTURES, PLASMA, ZIGPLASM.PI1 loaded. Both
 hosts serve C: by the same rules (fpga/host/disk.h host_kos_drive_read, apps/scene_hash_disk.mjs), and
 the same GEMDOS (rom/kos/gemdos*.zig, linked in the cart) answers in both. The picture loaded off C:
 equals the floppy's own copy loaded (as in the harness), and a host with no C: never gets there.
 
-Phase 2 (docs/KOS_GEMDOS.md §7): GrafX2 SAVES the picture as C:\\PICTURES\\NEW.PI1 (apps/gemdos_grafx2_save.mjs's
+Phase 2 (docs/os/KOS_GEMDOS.md §7): GrafX2 SAVES the picture as C:\\PICTURES\\NEW.PI1 (apps/gemdos_grafx2_save.mjs's
 session) in both hosts: the same frames, and the two C: images afterwards are byte-identical (the native
 host's KFS, wasm2c'd from docs/kos-cfs.wasm, wrote through --c-image-rw; the page's into --c-out), with
 NEW.PI1 the floppy's picture byte for byte (mtools, when installed).

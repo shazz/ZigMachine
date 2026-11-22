@@ -1,5 +1,5 @@
-//! The stereo PCM stream and the stream's sample counter (system table 1.27, decisions.md
-//! 2026-11-20, docs/ZIGOS_API.md "Streaming audio"). zigos re-exports these as
+//! The stereo PCM stream and the stream's sample counter (system table 1.27, docs/project/DECISIONS.md
+//! 2026-11-20, docs/guide/ZIGOS_API.md "Streaming audio"). zigos re-exports these as
 //! zg.audioStreamStartStereo / zg.audioFeedStereo / zg.audioStreamPlayed.
 //!
 //! The mono stream (zg.audioStreamStart / audioFeed) loops ONE signed-8-bit ring on Paula channel

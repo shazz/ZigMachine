@@ -1,4 +1,4 @@
-// The system image and lean carts (decisions.md 2026-10-15): the SD card carries the
+// The system image and lean carts (docs/project/DECISIONS.md 2026-10-15): the SD card carries the
 // firmware + machine + ROM + BARD once, as zigmachine/system.rv32, and each fat disk only
 // its cart. glass reads and depacks the system once, at start-up; a load writes it at the
 // window's start and the cart at map_cart.CART_IMG_AT. A cart built for another table

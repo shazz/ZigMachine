@@ -28,7 +28,7 @@ const PLANE: u32 = 0; // GEM owns plane 0
 const WHITE = zg.Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
 
 /// The desktop's screen (Options > Set Preferences), numbered as DESKTOP.INF's #E codes.
-/// desk is the 640x480 desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md), where the machine has it.
+/// desk is the 640x480 desk mode (HW 1.17.0, docs/os/GEM_DESK_MODE.md), where the machine has it.
 const Mode = enum(u8) { low = 0, medium = 1, desk = 2 };
 
 pub const Demo = struct {
@@ -39,7 +39,7 @@ pub const Demo = struct {
     os: *ZigOS = undefined,
     plane_bg: zg.Color = WHITE, // REG_BACKGROUND before the desk: what leaving it puts back
     // The program the desktop asked us to run, held until the host polls for it.
-    // 16 bytes because that is a FAT entry's name field (docs/FLOPPY_DISK.md).
+    // 16 bytes because that is a FAT entry's name field (docs/guide/FLOPPY_DISK.md).
     run_name: [16]u8 = [_]u8{0} ** 16,
     run_len: u8 = 0,
     fat_loaded: bool = false, // drive A's FAT disk is in the model (gem_fat.zig)
@@ -63,7 +63,7 @@ pub const Demo = struct {
         const back = rom.aes.returnMode(); // a program quit: its desktop's mode (initPlane forgets it)
         rom.Desktop.initPlane(PLANE, 640, 200);
         rom.Desktop.setDeskAvailable(self.desk_ok);
-        // KOS's C: (docs/KOS_FAT.md F5): the SD card, if a host serves it. Before the mode is
+        // KOS's C: (docs/os/KOS_FAT.md F5): the SD card, if a host serves it. Before the mode is
         // set: DESKTOP.INF's C:\ window reopens at that deskSetScreen, on C:'s listing.
         self.c_ok = @import("gem_fat.zig").loadC();
         self.mode = bootMode(self.desk_ok, back);

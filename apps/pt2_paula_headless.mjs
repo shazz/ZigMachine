@@ -1,4 +1,4 @@
-// Gate: pt2-clone plays on the machine's four HARDWARE Paula channels (HW 1.14.0, decisions.md
+// Gate: pt2-clone plays on the machine's four HARDWARE Paula channels (HW 1.14.0, docs/project/DECISIONS.md
 // 2026-11-02 "Paula channels for carts"). The committed cart docs/demo-pt2.wasm boots off its floppy
 // (apps/ports_machine.mjs) with env.hostPaula* wired to the real audio worklet (apps/paula_lib.mjs),
 // loads RONKEN.MOD (DISK OP, the second file; HYBRID.MOD, the first, opens on one pad for 20 s) and

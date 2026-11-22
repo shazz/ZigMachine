@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS GEMDOS (docs/KOS_GEMDOS.md): TOS's file calls for KESTREL carts, read-only in phase 1, over
+// KOS GEMDOS (docs/os/KOS_GEMDOS.md): TOS's file calls for KESTREL carts, read-only in phase 1, over
 // drives A: (a FAT floppy image) and C: (the SD card's /HD). It runs in the cart, over the sector
 // imports every host already serves (diskReadBlock, kosDriveRead): no host code, the same on the
 // page, the native host and the board. gemdos_cart.zig binds it to those imports, the tests to an

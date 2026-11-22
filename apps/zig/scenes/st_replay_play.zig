@@ -18,7 +18,7 @@
 // constant 16.6 ms while ST Replay draws at ~15 fps, so a feed paced by dt
 // would hand over a quarter of what the ring plays. A host without the clock
 // answers 0 (scene_hash.mjs, the native host, the harnesses): dt paces it, and
-// the frames stay deterministic. decisions.md 2026-10-17.
+// the frames stay deterministic. docs/project/DECISIONS.md 2026-10-17.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 

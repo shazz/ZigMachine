@@ -1,4 +1,4 @@
-// GEM 5 step 1 (docs/GEM5_ENGINE.md): the desk mode painted by the engine — object trees, damage
+// GEM 5 step 1 (docs/os/GEM5_ENGINE.md): the desk mode painted by the engine — object trees, damage
 // per buffer, a layer compositor (rom/gem/engine, rom/gem/desktop/eng). Each check below runs the
 // real ROM with A:\ open in the desk, the engine on, in both looks (deskSetEngine 1: flat TOS 1; 2: TOS 4 3D).
 //   desk      the engine painted the desk: the menu bar, A:\'s frame, the desktop colour, the arrow

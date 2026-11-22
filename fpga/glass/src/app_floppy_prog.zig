@@ -1,4 +1,4 @@
-// A program off the real floppy in drive A (docs/KOS_FAT.md F3, Matt: .WSM on a real floppy
+// A program off the real floppy in drive A (docs/os/KOS_FAT.md F3, Matt: .WSM on a real floppy
 // launches). GEM asks for it by name (request 3); a program is wasm and the board runs native code,
 // so glass finds its board image by what the program IS: it reads the file off the floppy image
 // with KOS's own reader (rom/kos/fat.zig, breadth first, the desktop's listing order), depacks it if

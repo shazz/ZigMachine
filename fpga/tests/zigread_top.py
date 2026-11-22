@@ -1,5 +1,5 @@
 """The board's read path around the real cart core, for tests/test_ziggy_reads.py
-(review/ZIGGY_BIG_READS_STUDY.md): VexRiscv (the board netlist) -> LiteX's shared Wishbone
+(docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md): VexRiscv (the board netlist) -> LiteX's shared Wishbone
 (Arbiter + Decoder, as the SoC builds it) -> WishboneHP (posted=8, as the board) -> the HP
 register slices (zm_board_mem.hp_slice's shape) -> ZMSimAXIRAM with an AR-to-first-beat
 latency. Only the cart window is DDR; byte address bit 31 is a device the C++ harness

@@ -1,4 +1,4 @@
-"""docs/TUTORIAL.md structure contract — see tools/docgen/tutorial_parse.py.
+"""docs/guide/TUTORIAL.md structure contract — see tools/docgen/tutorial_parse.py.
 
 Run: python3 -m unittest discover -s tools/tests -t tools
 """
@@ -9,7 +9,7 @@ import unittest
 from docgen import ROOT
 from docgen.tutorial_parse import LANGS, TutorialFormatError, parse
 
-REAL = (ROOT / "docs" / "TUTORIAL.md").read_text()
+REAL = (ROOT / "docs" / "guide" / "TUTORIAL.md").read_text()
 
 
 class ParseRealFile(unittest.TestCase):

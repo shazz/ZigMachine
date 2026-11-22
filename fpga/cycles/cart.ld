@@ -1,4 +1,4 @@
-/* The lean cart image (decisions.md 2026-10-15, cycles/split.mk): linked at ZM_CART_BASE
+/* The lean cart image (docs/project/DECISIONS.md 2026-10-15, cycles/split.mk): linked at ZM_CART_BASE
  * (CART_CPU_BASE + map_cart.zig CART_IMG_AT, --defsym), its header first, then code and
  * constants; its .bss follows and is zeroed by the system at every boot. No crt0, no libc.
  * What the cart must not have fails the link: .data (a warm boot could not restore it), TLS

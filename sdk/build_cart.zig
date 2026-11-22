@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The KESTREL SDK's cart builder (docs/SDK.md): a cart that lives OUTSIDE this
+// The KESTREL SDK's cart builder (docs/guide/SDK.md): a cart that lives OUTSIDE this
 // repository, in a coder's own directory with its own build.zig, which depends
 // on this repository as a Zig package (a path dependency) and calls addCart.
 //
@@ -52,7 +52,7 @@ fn libs(b: *std.Build, dep: *std.Build.Dependency, target: std.Build.ResolvedTar
         .depackers = m(b, dep, "libs/zig/depackers/depackers.zig", target, optimize),
         .boot_rom = m(b, dep, "machine/boot.zig", target, optimize),
         .tvnoise = m(b, dep, "libs/zig/tvnoise/tvnoise.zig", target, optimize),
-        .kos_gemdos = m(b, dep, "rom/kos/gemdos_cart.zig", target, optimize), // files on A: and C: (docs/KOS_GEMDOS.md)
+        .kos_gemdos = m(b, dep, "rom/kos/gemdos_cart.zig", target, optimize), // files on A: and C: (docs/os/KOS_GEMDOS.md)
     };
     l.zigos.addImport("hardware", l.hardware);
     l.zigos.addImport("depackers", l.depackers); // zg.bard.job's server depacks ZX0

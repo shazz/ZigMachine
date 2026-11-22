@@ -1,6 +1,6 @@
 package zm
 
-// ZM-X v1, the one-cycle half (fpga/review/KESTREL_NEXT_ISA.md 1.2-1.3): R-type ops
+// ZM-X v1, the one-cycle half (docs/hardware/studies/KESTREL_NEXT_ISA.md 1.2-1.3): R-type ops
 // on custom-0 (opcode 0x0B). The integer semantics are the spec the software twins
 // implement (libs/zig/zmx.zig, fpga/cycles/zmx_twin.h); tests/test_zmx.py runs every
 // op on the core against them. zm.mulsh is the other half (ZmMulPlugin: MulPlugin's DSPs).

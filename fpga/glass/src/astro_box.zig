@@ -1,4 +1,4 @@
-// ASTROLABE's mailbox, the ARM's side (SPIKE, docs/ARM_FPU_COPROC.md): one request served.
+// ASTROLABE's mailbox, the ARM's side (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): one request served.
 //
 // The 4 KiB block RAM (rtl/glass/zm_astro_mbox.v) at map.OFF_ASTRO holds the protocol words
 // below and up to MAX_COUNT descriptors; ZIGGY's firmware (fpga/cycles/bastro.c, whose

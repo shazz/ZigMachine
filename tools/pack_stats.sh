@@ -4,7 +4,7 @@
 # Packed copies go to zig-out/packed/ (gitignored) and are only repacked when
 # their source is newer, so after the first run this costs a stat per file.
 # Carts do NOT use these copies: a scene adopts packing through build.zig's
-# packed_assets module (docs/DEPACK.md). This is the measurement that says which
+# packed_assets module (docs/guide/DEPACK.md). This is the measurement that says which
 # scenes are worth it.
 #
 #   tools/pack_stats.sh                     summary per screen/group + total

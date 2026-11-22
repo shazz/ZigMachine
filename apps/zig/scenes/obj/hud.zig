@@ -4,7 +4,7 @@
 // its text changes ("only modify what needs to be modified"); each is padded
 // to a fixed width so the glyphs' paper wipes the old text.
 //
-// The clock is env.hostMicros (a benchmark aid, decisions.md 2026-10-10): the
+// The clock is env.hostMicros (a benchmark aid, docs/project/DECISIONS.md 2026-10-10): the
 // browser and the board answer it, the harnesses answer 0 and the line then
 // shows V/F only, so their frames stay deterministic. FPS is frames over
 // 32-frame windows; CPU is the cart's own update+render time, averaged.

@@ -80,7 +80,7 @@ fn handler_vertical_borders(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u1
 
     // Overscan plane: this per-plane HBL fires on PHYSICAL lines 0..279. MAXI's
     // content is 320-wide (no side borders), so open only the TOP and BOTTOM borders
-    // by flickering the resolution register in those bands (see docs/HW_API.md). The
+    // by flickering the resolution register in those bands (see docs/hardware/HW_API.md). The
     // frame content is blitted into the plane in render() with a +40 x offset.
     if (line < 40 or line >= 240) fb.flickerBorder();
 }

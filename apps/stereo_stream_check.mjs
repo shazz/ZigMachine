@@ -1,4 +1,4 @@
-// Headless check: the stereo PCM stream (system table 1.27, libs/zig/audio_stereo.zig, decisions.md 2026-11-20).
+// Headless check: the stereo PCM stream (system table 1.27, libs/zig/audio_stereo.zig, docs/project/DECISIONS.md 2026-11-20).
 //
 // The real worklet (docs/audio-worklet-sealed.js, a stand-in AudioWorkletProcessor) over the real
 // demo-audio.wasm + machine-audio.wasm, driven by the messages docs/sealed-loader.js posts:

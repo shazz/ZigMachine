@@ -5,7 +5,7 @@
 // Only the cart binary knows this — it is baked in by the linker — so the HOST
 // measures it and declares it to the machine (hwSetCartHigh), which then answers
 // hwRamFree() for any cart in any language. See machine/sdk/memmap.zig
-// (REG_CART_HIGH) and docs/HW_API.md.
+// (REG_CART_HIGH) and docs/hardware/HW_API.md.
 //
 // Two layouts have to be handled, because wasm-lld places the shadow stack
 // either above the data (Zig's default here: data, then stack growing down from

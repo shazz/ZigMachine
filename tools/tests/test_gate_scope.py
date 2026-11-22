@@ -95,7 +95,7 @@ class GateScope(unittest.TestCase):
         self.assertIsNone(self.scope("M\tapps/check_fits.mjs"))
 
     def test_prose_selects_nothing_but_is_not_full(self) -> None:
-        self.assertEqual(self.scope("M\tdocs/ports/SKYSTRIKE.md", "M\tdecisions.md"), [])
+        self.assertEqual(self.scope("M\tdocs/ports/SKYSTRIKE.md", "M\tdocs/project/DECISIONS.md"), [])
 
     def test_a_new_tune_is_narrow_but_a_changed_one_is_full(self) -> None:
         self.assertEqual(self.scope("A\tdocs/music/new.sndh"), [])

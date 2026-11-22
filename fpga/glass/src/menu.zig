@@ -1,4 +1,4 @@
-// The OSD menu: five pages (docs/FPGA_GLASS.md, "The menu"), each in its own
+// The OSD menu: five pages (docs/hardware/FPGA_GLASS.md, "The menu"), each in its own
 // file, and the Action a key leaves for app.zig to carry out. Pure state and
 // drawing: nothing here touches a register.
 //

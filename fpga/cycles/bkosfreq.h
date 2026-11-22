@@ -1,5 +1,5 @@
 /* KOS's C: writes, the request block (glass/src/map_cart.zig KOS_FILE_*, served by glass/src/kos_file.zig):
- * what ZIGGY's firmware writes to hand glass a whole-file request (docs/KOS_GEMDOS.md §7), and how it
+ * what ZIGGY's firmware writes to hand glass a whole-file request (docs/os/KOS_GEMDOS.md §7), and how it
  * reads the answer. The words first, the magic last, so a block whose magic and check hold is whole; the
  * answer is KF_DONE (a TOS code) then KF_ACK = the sequence. Header-only so tests/tb/kosfreq_test.c runs
  * it over a plain buffer. `f` is the request's words KF_OP .. KF_PATH2_LEN, in that order. */

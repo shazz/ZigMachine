@@ -10,7 +10,7 @@
  * Word +8 = 0xc0f0000c (c = the video's hp_cfg: bit 0 UPSIZE, bit 1 W64) sets how the DMA
  * writes, for the cart too; anything else leaves the default 0 (4-byte beats, expanded). W64
  * needs HP1's AFI write channel 64-bit (WRCHAN_CTRL 0xf00) from boot, never switched 32 -> 64
- * after 32-bit traffic (decisions.md 2026-10-19).
+ * after 32-bit traffic (docs/project/DECISIONS.md 2026-10-19).
  * Its bits 4-5 are the system's other A/B switches (bdiag.h DIAG_OPT_*).
  * CART_STATE = 0x44 | mode << 8 when done (0x43c00010), CART_BEAT = the mode's result. */
 #include "bdiag.h"

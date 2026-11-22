@@ -1,6 +1,6 @@
 #!/bin/bash
 # vivado_ooc.sh TOP OUTDIR "DEFINES" FILE... : one block's size with Vivado, out of context (no pins,
-# no bitstream), the figure the SoC budget is kept in (docs/FPGA_SOUND_CPU.md). Paths may be relative.
+# no bitstream), the figure the SoC budget is kept in (docs/hardware/FPGA_SOUND_CPU.md). Paths may be relative.
 # PERIOD=<ns> (env) constrains the clock port CLOCK (env, default sys_clk) and reports WNS: a synthesis
 # estimate with no routing delay, unless IMPL=1, which also places and routes.
 # FLATTEN=none keeps every module's logic in it (an honest per-module bill, a little larger in total).

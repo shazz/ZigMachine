@@ -72,7 +72,7 @@ TypeError (here it traps). No console, no audio. Faithful to the oracle, not to
 the browser.
 
 The drive is empty unless both hosts get `--disk X.zmd`: then `diskReadBlock`
-reads X exactly as the browser does (`disk.h`; `docs/FPGA_GLASS.md`, "The disk
+reads X exactly as the browser does (`disk.h`; `docs/hardware/FPGA_GLASS.md`, "The disk
 in DDR"), and a screen that streams from disk (stniccc) plays in both. Without
 it, `diskReadBlock` returns 0 in both, and stniccc renders the same frame
 throughout. The board firmware fills the same `host_disk` from DDR.
@@ -100,7 +100,7 @@ for an f32. A missing argument converts as `undefined` does.
   `riscv32 -mcpu=generic_rv32+m+f` with `zig cc` unchanged. Linking for the sim
   needs a bare-metal libc (picolibc, which LiteX ships). Zig's musl cannot link
   rv32 without A and D. See the step 0b-ii notes in the top-level report and in
-  `docs/ZIGMACHINE_IN_FPGA.md`.
+  `docs/hardware/ZIGMACHINE_IN_FPGA.md`.
 
 ## Files
 

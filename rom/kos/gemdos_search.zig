@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// Fsfirst / Fsnext (docs/KOS_GEMDOS.md §2): the disk transfer address, TOS's 44 bytes. Its first
+// Fsfirst / Fsnext (docs/os/KOS_GEMDOS.md §2): the disk transfer address, TOS's 44 bytes. Its first
 // 21 bytes are the search's own state (TOS keeps its own there too), so a search needs no table
 // and as many run at once as the cart has DTAs. Multi-byte fields are in the cart's byte order
 // (little-endian: KESTREL's carts are wasm), at TOS's offsets.

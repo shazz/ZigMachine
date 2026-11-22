@@ -1,4 +1,4 @@
-// KOS's C: writes on the board (docs/KOS_GEMDOS.md §7, env.kosFileOp): a cart never writes sectors; glass
+// KOS's C: writes on the board (docs/os/KOS_GEMDOS.md §7, env.kosFileOp): a cart never writes sectors; glass
 // writes whole files under the card's /HD through Linux's FAT driver, so the card has one writer. The
 // firmware (cycles/bkosfile.c) writes a request block at window end - KOS_FILE_FROM_TOP (map_cart.zig
 // KOS_FILE_*); the C: thread (kos_drive.zig) polls it beside the sector block. A whole block (magic, check)

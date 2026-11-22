@@ -45,7 +45,7 @@ It quantifies the exact bandwidth and AXI transaction profiles across all four 6
 python3 fpga/review/tools/bandwidth_model.py
 
 # Export full structured JSON dataset
-python3 fpga/review/tools/bandwidth_model.py --json fpga/review/reports/bandwidth_summary.json
+python3 fpga/review/tools/bandwidth_model.py --json docs/hardware/studies/reports/bandwidth_summary.json
 
 # Drill down into detailed per-port metrics for a specific cart
 python3 fpga/review/tools/bandwidth_model.py --cart union_beatdis

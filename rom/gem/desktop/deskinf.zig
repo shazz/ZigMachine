@@ -18,7 +18,7 @@ const std = @import("std");
 pub const CellIcon = struct { col: i16, row: i16, label: []const u8 };
 pub const Win = struct { x: i16, y: i16, w: i16, h: i16, text_view: bool, path: []const u8 };
 
-/// #E's resolution code. 02 is the desk mode (640x480, HW 1.17.0, docs/GEM_DESK_MODE.md).
+/// #E's resolution code. 02 is the desk mode (640x480, HW 1.17.0, docs/os/GEM_DESK_MODE.md).
 pub const Res = enum(u8) { low = 0, medium = 1, desk = 2 };
 
 pub const Config = struct {

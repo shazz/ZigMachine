@@ -1,6 +1,6 @@
 """tools/rootfs_glass.py: the board's initramfs gets the card's glass, and nothing else in it moves.
 
-boot.cmd sets HP1 0xF00 (W64 by default, decisions.md 2026-10-19), so the /usr/bin/glass that S99glass
+boot.cmd sets HP1 0xF00 (W64 by default, docs/project/DECISIONS.md 2026-10-19), so the /usr/bin/glass that S99glass
 starts at boot must be one that knows afi.zig. These tests pin the archive surgery and the U-Boot wrap.
 """
 

@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KFS, the C: image writer (docs/KOS_GEMDOS.md §7): env.kosFileOp's host half where C: is an image,
+// KFS, the C: image writer (docs/os/KOS_GEMDOS.md §7): env.kosFileOp's host half where C: is an image,
 // on the page (docs/kos-cfs.wasm, kfs_wasm.zig) and in the native host (the same wasm, wasm2c'd).
 // On the board glass serves the same requests over Linux's own FAT driver (fpga/glass/src/
 // kos_file.zig); both check the path with kfs_path.zig and answer the same TOS codes.

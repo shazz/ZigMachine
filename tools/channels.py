@@ -43,8 +43,8 @@ EXCLUDE = {
     "replicants": "REPS OLD, the pre-CODEF Replicants kept only for side-by-side comparison",
     "badflicker": "deliberately broken overscan test",
     "stream": "audio block-streaming test",
-    # Still in the menu, so a newcomer can boot the screen docs/TUTORIAL.md builds.
-    "tutorial": "the docs/TUTORIAL.md teaching screen, not a demo",
+    # Still in the menu, so a newcomer can boot the screen docs/guide/TUTORIAL.md builds.
+    "tutorial": "the docs/guide/TUTORIAL.md teaching screen, not a demo",
 }
 
 # The Union Demo's screens are reached only through the union_demo hub's doors

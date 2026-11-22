@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// tutorial.rs: "your first screen", the Rust version of docs/TUTORIAL.md (step 7).
+// tutorial.rs: "your first screen", the Rust version of docs/guide/TUTORIAL.md (step 7).
 //
 // A sky with a copper bar, a bouncing block, a checkerboard floor, a scroller
 // and SNDH music, written straight against the sealed ABI (no_std, no crate):

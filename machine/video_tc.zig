@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // The true-colour plane (HW 1.15.0, FB_MODE_TRUECOLOR / FB_MODE_TRUECOLOR_FULL;
-// fpga/review/TRUECOLOR_PLANE.md option A0): a pixel is a little-endian u16
+// docs/hardware/studies/TRUECOLOR_PLANE.md option A0): a pixel is a little-endian u16
 // R5 G6 B5, no palette. It goes through the same line loop as every plane mode
 // (video.zig renderPlaneTruecolor: handler, copper record, LBASE, HSCROLL per
 // line), so planes over and under it, dirty lines and the PFB oracle all hold.

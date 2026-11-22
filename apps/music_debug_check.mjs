@@ -6,7 +6,7 @@
 //   names     key n asks for TUNES[n-1]; each committed one is a file in docs/music/
 //             (the board's song table is built from those names: fpga/tools/song_pack.py)
 //   local     key 6 asks for local.xm, which is gitignored and never committed
-//   xm        key 5's XM (keygen_9000.xm, a Public Domain module: docs/MUSIC.md) loads in
+//   xm        key 5's XM (keygen_9000.xm, a Public Domain module: docs/guide/MUSIC.md) loads in
 //             the real audio modules and plays (mode 1, not silent)
 //   vgm       key 7 asks for kestrel_fm.vgm (ours: libs/c/vgm/make_tune.py), which plays on our YM2612 +
 //             SN76489 (mode 1, not silent); 7 again asks for local.vgm (gitignored, never committed)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The BARD MP3 study's test streams (fpga/review/MP3_BARD_STUDY.md), all synthesised here, so CC0:
+# The BARD MP3 study's test streams (docs/hardware/studies/MP3_BARD_STUDY.md), all synthesised here, so CC0:
 # saw-wave chords + an arpeggio + noise hits ("music": a dense spectrum, like a mixed track), encoded by
 # LAME (ffmpeg libmp3lame) without ID3 or Xing/LAME frames, then their first bytes as C arrays.
 #   tools/mp3_bard_streams.sh [frames=8]   -> prototypes/mp3_bard_re/streams/{*.mp3,streams.c}

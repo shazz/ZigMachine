@@ -1,5 +1,5 @@
 // The desk mode's state beside the compositor (HW 1.17.0, RESOLUTION = RES_DESK,
-// docs/GEM_DESK_MODE.md): what the scanout needs to show plane 0 itself, taken
+// docs/os/GEM_DESK_MODE.md): what the scanout needs to show plane 0 itself, taken
 // from the CPU's stores (the snoop, as zm_video_comp.v takes them), so the
 // compositor's netlist does not change.
 //

@@ -5,7 +5,7 @@
 // and the shading, and ONE call a step for each lockstep march (march.zig): the
 // primary rays, their shadow rays, the chrome sphere's reflections and theirs.
 //
-// What hwAstro lacks, and what stands in for it (docs/ARM_FPU_COPROC.md has the ABI):
+// What hwAstro lacks, and what stands in for it (docs/hardware/studies/ARM_FPU_COPROC.md has the ABI):
 //   VMIN    the union of five spheres: min(a, b) = b + (d - |d|)/2, |d| = sqrt(d^2)
 //           (5 descriptors a merge instead of 1)
 //   VDIV    1/x as exp(-log x) (3 instead of 1): the floor's oy / -dy, a ray's 1/|d|

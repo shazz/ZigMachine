@@ -1,4 +1,4 @@
-# The sound CPU's firmware (cycles/sound/, docs/FPGA_SOUND_CPU.md) and the cart images that
+# The sound CPU's firmware (cycles/sound/, docs/hardware/FPGA_SOUND_CPU.md) and the cart images that
 # start it. Included by fpga/Makefile after board.mk, whose CSR header and fw.a it reuses.
 #
 #   make snd-fw                          build/hcycles/snd/play/snd.bin: the players, driven by the
@@ -46,7 +46,7 @@ BJOB_DEPS  := $(BJOB_SRC) $(wildcard $(ROOT)/libs/zig/bard_jobs/*.zig) $(ROOT)/l
 BJOB_ZIG   := -target riscv32-freestanding-none -mcpu=generic_rv32+zmmul -O ReleaseFast -fno-stack-check \
 	-fsingle-threaded -fno-unwind-tables
 # cRSID alone is built for rv32im with no DIV (-mno-div): GCC then turns its constant divides into MULH,
-# where -march=rv32i_zmmul calls the core's 400-cycle __divsi3 even for x / 5 (review/SID_BARD_STUDY.md).
+# where -march=rv32i_zmmul calls the core's 400-cycle __divsi3 even for x / 5 (docs/hardware/studies/SID_BARD_STUDY.md).
 # The DIV/REM guard below still holds; the link keeps SND_ARCH's rv32i multilib.
 SND_NODIV  := -march=rv32im -mno-div
 SND_DEPS   := $(SND_COMMON) $(SND_PLAY) $(BJOB_DEPS) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h cycles/aud_state.h cycles/bscope.h cycles/bsndinfo.h gen/glass_cart.h \

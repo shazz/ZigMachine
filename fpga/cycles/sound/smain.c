@@ -1,4 +1,4 @@
-/* The sound CPU's firmware (soc/zm_sound_cpu.py, docs/FPGA_SOUND_CPU.md): the machine's
+/* The sound CPU's firmware (soc/zm_sound_cpu.py, docs/hardware/FPGA_SOUND_CPU.md): the machine's
  * players (demo-audio.wasm through wasm2c, host/audio.c) into the audio core's write
  * queue (cycles/baudio.c), paced by the core's own sample counter and nothing else.
  *

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the third-party MP3 decoders the BARD MP3 study (fpga/review/MP3_BARD_STUDY.md) measured into
+# Fetch the third-party MP3 decoders the BARD MP3 study (docs/hardware/studies/MP3_BARD_STUDY.md) measured into
 # prototypes/mp3_bard_re/src/ (gitignored): their licences (RPSL/RCSL) are not ours to commit.
 #   tools/mp3_bard_fetch.sh
 set -euo pipefail

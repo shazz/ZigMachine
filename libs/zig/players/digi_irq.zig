@@ -3,7 +3,7 @@
 // play and exit left on Musashi.
 //
 // Why only the handler: on BARD a call into Musashi costs ~17.8 k cycles
-// whatever it runs (docs/FPGA_SOUND_CPU.md "Every cart's music"), and a digi
+// whatever it runs (docs/hardware/FPGA_SOUND_CPU.md "Every cart's music"), and a digi
 // tune makes one a sample: 120 to 270 a 60 Hz frame. Its 50 Hz play is one
 // call a frame. So the handler is where the cost is, and it is also the small,
 // fixed part of a replay: a sequencer is the composer's, a handler is the

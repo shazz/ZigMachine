@@ -1,4 +1,4 @@
-"""Splits docs/TUTORIAL.md into steps and per-language blocks.
+"""Splits docs/guide/TUTORIAL.md into steps and per-language blocks.
 
 The markdown stays the single source of truth and stays readable on GitHub; this
 module only recognises the structure the file already has:
@@ -30,7 +30,7 @@ FENCE_RE = re.compile(r"^\s*```")
 
 
 class TutorialFormatError(Exception):
-    """docs/TUTORIAL.md broke the contract above."""
+    """docs/guide/TUTORIAL.md broke the contract above."""
 
 
 @dataclass
@@ -126,7 +126,7 @@ def _section(header: str, body: list[str]) -> Section:
 
 
 def parse(text: str) -> Tutorial:
-    """docs/TUTORIAL.md source -> a Tutorial."""
+    """docs/guide/TUTORIAL.md source -> a Tutorial."""
     lines = text.splitlines()
     free = _outside_fence(lines)
     title = next((ln[2:].strip() for ln in lines if ln.startswith("# ")), "Tutorial")

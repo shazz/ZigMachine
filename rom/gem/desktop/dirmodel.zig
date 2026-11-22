@@ -15,7 +15,7 @@ pub const MAX_FILES: usize = 32;
 // Directory entry: 16-byte name · 1 type (0 = program/cart, 1 = data) · 4 size (u32 LE) ·
 // 4 date (u32 LE, YYYYMMDD) · 1 its folder + 1 (0: the root). The hosts pack the first 25 bytes
 // (docs/sealed-loader.js, host/zmd_dir.h) and ask deskDirEntryBytes for the stride: a .zmd is flat,
-// so the folder byte stays 0. A FAT disk (KOS, docs/KOS_FAT.md) is packed by the desktop's own
+// so the folder byte stays 0. A FAT disk (KOS, docs/os/KOS_FAT.md) is packed by the desktop's own
 // shell from rom/kos/fat.zig, folders included.
 pub const FILE_ENT: usize = 26;
 const ENT_DIR = 25;

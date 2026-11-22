@@ -85,7 +85,7 @@ module zm_video_regs (
     // BACKGROUND, BEAM_DROPPED, BEAM_COUNT, FRAME; vseq_group.c vseq_copper_end: HSCROLL x2 and,
     // since 1.16.0, the four TC fade words a copper REG may have written; the
     // testbench's replay reads the first four): every other word reads 0. A 32:1 mux of 32 bits
-    // was -138 LUT (OOC, the true-colour study, fpga/review/TRUECOLOR_PLANE.md "payer 1").
+    // was -138 LUT (OOC, the true-colour study, docs/hardware/studies/TRUECOLOR_PLANE.md "payer 1").
     localparam integer W_HS0 = ZM_REG_HSCROLL / 4, W_HS1 = ZM_REG_HSCROLL / 4 + 1;
     localparam [4:0] C_BG = W_BG, C_FRAME = W_FRAME, C_HS0 = W_HS0, C_HS1 = W_HS1, C_BCOUNT = W_BCOUNT, C_BDROP = W_BDROP;
     localparam [4:0] C_TCF = W_TCF, C_TCR = W_TCR, C_TCG = W_TCG, C_TCB = W_TCB;

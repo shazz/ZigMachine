@@ -5,7 +5,7 @@
 // from disc the way it would on real hardware instead of having the page fetch
 // and decode things on its behalf.
 //
-// Layouts (docs/FLOPPY_DISK.md), both detected by the "ZMDISK" magic:
+// Layouts (docs/guide/FLOPPY_DISK.md), both detected by the "ZMDISK" magic:
 //   v1  descriptor at $000  ·  file count $2E4  ·  FAT $300
 //   v2  descriptor at $400  ·  file count $4F4  ·  FAT $800   (boot sector at $0)
 // A FAT entry is 32 bytes: name[16], start u32, len u32, type u8 — `start` is a

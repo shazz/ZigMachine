@@ -1,4 +1,4 @@
-/* A disk's executable BOOT SECTOR (ZigCart format v2, docs/FLOPPY_DISK.md), run as the
+/* A disk's executable BOOT SECTOR (ZigCart format v2, docs/guide/FLOPPY_DISK.md), run as the
  * browser runs it (docs/sealed-loader.js): the sector's own 1 KB of wasm, through the wint
  * interpreter (host/wint.h), so the board shows sysinfo's "No virus" screen and
  * replicants_emlyn's crew note before their carts, with no per-disk build step.

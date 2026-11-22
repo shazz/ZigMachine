@@ -1,4 +1,4 @@
-# A KESTREL cart (docs/SDK.md). Copy this directory, rename NAME, edit src/hello.zig.
+# A KESTREL cart (docs/guide/SDK.md). Copy this directory, rename NAME, edit src/hello.zig.
 #   make            build, then serve the browser emulator with the cart (Ctrl-C stops it)
 #   make cart       build only: zig-out/demo-$(NAME).wasm
 #   make floppy     the cart on a disk: zig-out/demo-$(NAME).zmd (FILES="A.RAW=path ..." adds files)

@@ -2,7 +2,7 @@
 // SysInfo — the speed tests, run one a frame so the page shows each result as
 // it lands (and a frame never holds more than one test).
 //
-// Timed with env.hostMicros (decisions.md 2026-10-10: a host clock for
+// Timed with env.hostMicros (docs/project/DECISIONS.md 2026-10-10: a host clock for
 // BENCHMARKS only). A test repeats its kernel until BUDGET_US have passed, so
 // a fast host and a slow board both get a reading well above the browser's
 // ~0.1 ms clock grain. A host without the clock answers 0: each kernel then

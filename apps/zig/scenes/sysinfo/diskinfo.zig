@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // SysInfo — what the mounted disk says about itself: the ZMDISK descriptor
-// (docs/FLOPPY_DISK.md) and its boot sector's kind. The drive hands blocks
+// (docs/guide/FLOPPY_DISK.md) and its boot sector's kind. The drive hands blocks
 // over (zg.readBlock); this file only reads bytes, so it is tested natively.
 //
 //   v1  magic $000, total blocks $00A, boot block $00E, boot length $012,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ZigMachine tutorial-page generator.
 
-Renders docs/TUTORIAL.md into docs/TUTORIAL.html: the teaching page, split out
+Renders docs/guide/TUTORIAL.md into docs/TUTORIAL.html: the teaching page, split out
 of the reference guide so a newcomer and someone looking up a register no longer
 land on the same 1900-line document.
 
@@ -32,7 +32,7 @@ def main() -> None:
         # cache_bust.py's ?v= hashes, which it stamps in after generation.
         if not out.is_file() or unstamped(out.read_text()) != unstamped(fresh):
             sys.exit(f"{out.relative_to(ROOT)} is stale: run python3 tools/gen_tutorial.py and commit it")
-        print(f"{out.relative_to(ROOT)} matches docs/TUTORIAL.md")
+        print(f"{out.relative_to(ROOT)} matches docs/guide/TUTORIAL.md")
         return
     out.write_text(fresh)
     print(f"wrote {out.relative_to(ROOT)} ({len(fresh):,} bytes)")

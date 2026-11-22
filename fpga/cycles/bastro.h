@@ -1,4 +1,4 @@
-/* env.hwAstro on the board (bastro.c, SPIKE: docs/ARM_FPU_COPROC.md): ASTROLABE through the
+/* env.hwAstro on the board (bastro.c, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md): ASTROLABE through the
  * mailbox to the ARM, the machine's own code when nobody serves it. */
 #ifndef ZM_BASTRO_H
 #define ZM_BASTRO_H

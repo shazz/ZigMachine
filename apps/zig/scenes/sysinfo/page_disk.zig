@@ -70,7 +70,7 @@ fn files(g: *grid.Grid, c: *const pages.Ctx) void {
     }
 }
 
-/// The FAT's type byte (docs/FLOPPY_DISK.md).
+/// The FAT's type byte (docs/guide/FLOPPY_DISK.md).
 fn kind(k: u8) []const u8 {
     return switch (k) {
         0 => "PROGRAM",

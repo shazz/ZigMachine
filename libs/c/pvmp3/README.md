@@ -2,7 +2,7 @@
 
 PacketVideo's fixed-point MPEG-1/2/2.5 Layer III decoder, as AOSP carries it. Integer only: 32x32->64
 multiplies (MULH on BARD), no float, a handful of divides a frame. Chosen over Helix (RPSL) in the BARD
-MP3 study (`fpga/review/MP3_BARD_STUDY.md`): the same cost on BARD (34 % at 44.1 kHz stereo), 1-2 LSB
+MP3 study (`docs/hardware/studies/MP3_BARD_STUDY.md`): the same cost on BARD (34 % at 44.1 kHz stereo), 1-2 LSB
 from ffmpeg, and a licence that lets the decoder ship in the system image others download.
 
 ## Provenance

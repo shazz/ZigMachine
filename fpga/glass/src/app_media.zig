@@ -1,4 +1,4 @@
-// Drive A's media change while a cart runs (app_drive.zig I / E; docs/ZIGTOS_BOOT.md 4.1): the
+// Drive A's media change while a cart runs (app_drive.zig I / E; docs/os/ZIGTOS_BOOT.md 4.1): the
 // running cart is not reset. The new disk is read and placed on paper first (a disk that does not
 // fit after the running image changes nothing); then, in the window, the glass:
 //

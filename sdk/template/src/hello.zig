@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// hello.zig: the KESTREL SDK's template cart (docs/SDK.md). Rename it, keep the shape.
+// hello.zig: the KESTREL SDK's template cart (docs/guide/SDK.md). Rename it, keep the shape.
 //
 // One plane, three raster bars, a sine scroller and an SNDH tune:
 //   - the bars are REAL rasters: palette entry 0 is rewritten before every

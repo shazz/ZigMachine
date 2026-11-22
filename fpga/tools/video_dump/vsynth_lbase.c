@@ -1,4 +1,4 @@
-/* vsynth's line-list scenario (HW 1.10.0, fpga/review/COPPER_LINEBASE.md): copper LBASE on a plane
+/* vsynth's line-list scenario (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md): copper LBASE on a plane
  * of every mode, and HSCROLL on an overscan plane, rebuilt every frame (so frame 2 also proves that a
  * frame starts from FB_BASE again, not from frame 1's last LBASE):
  *   plane 0 overscan: FLICK every line (borders open, no handler), an LBASE every third line at an

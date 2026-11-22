@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // Auf Wiedersehen Monty - digidrums (Mad Max, 1987; ripped by Mr Styckx,
 // converted by Grazey): its whole replay, natively. The 68000 rip and the
-// offsets are in docs/FPGA_SOUND_CPU.md "Monty".
+// offsets are in docs/hardware/FPGA_SOUND_CPU.md "Monty".
 //
 // The image is a game driver assembled at $46A86 (image $40E) with its song
 // at $60000 (image $3A9E) and its drums at $40500 (image $F9E). Grazey's

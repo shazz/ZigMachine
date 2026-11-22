@@ -1,6 +1,6 @@
 """LUTs and FFs of ZIGGY's HP0 bridge (soc/zm_hp.py WishboneHP, posted=8, no read bypass: the
 board's combo16 build) per read mode (soc/zm_board_mem.py READ_MODES), from a Yosys
-synth_xilinx of the bridge alone (yowasp, no Vivado): review/ZIGGY_BIG_READS_STUDY.md.
+synth_xilinx of the bridge alone (yowasp, no Vivado): docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md.
 
     uv run python tools/hp_read_synth.py [mode ...]      default: base fast prefetch
 

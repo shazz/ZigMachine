@@ -11,7 +11,7 @@
 // blitter_queue.zig. It writes the logical framebuffers as chunky 8bpp palette
 // indices; the video machine composites them as usual.
 //
-// Coders never see this source. See docs/BLITTER_HW_SPEC.md for the model; the
+// Coders never see this source. See docs/hardware/BLITTER_HW_SPEC.md for the model; the
 // RTL (fpga/rtl/blitter) is proven equal to this file (fpga/tests/test_rtl_blitter.py).
 // --------------------------------------------------------------------------
 const memmap = @import("sdk/memmap.zig");

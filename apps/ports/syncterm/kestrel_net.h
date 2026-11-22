@@ -1,6 +1,6 @@
 /* The BSD sockets SyncTERM calls, and the one interface they run on (struct knet_transport).
  *
- * This is the shape docs/GEM_NET.md's N6 shim takes: kestrel_sock.c implements every call below over
+ * This is the shape docs/os/GEM_NET.md's N6 shim takes: kestrel_sock.c implements every call below over
  * `knet`, a transport of at most KNET_SOCKETS stream sockets. Today the transport is the in-cart fake BBS
  * (kestrel_fakebbs.c); ZIGNIC's 8 hardware sockets (OPEN / CONNECT / SEND / RECV / CLOSE / RESOLVE and
  * their rings) replace it by providing another struct knet_transport, with nothing above it changing.

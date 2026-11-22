@@ -12,13 +12,13 @@
 # (`make -C fpga vexgen-board` makes the board core and its `nopred` twin); `h8` sets
 # the dynamic predictor's BTB to 256 entries (TIMING_FABLE.md pass 3); `fpu` adds RV32F;
 # `snd` prefixes every module ZmSnd_ (the sound CPU next to the cart CPU in one SoC:
-# docs/FPGA_SOUND_CPU.md), so the two netlists' VexRiscv/DataCache/InstructionCache never clash;
+# docs/hardware/FPGA_SOUND_CPU.md), so the two netlists' VexRiscv/DataCache/InstructionCache never clash;
 # `nodiv` drops the divider (Zmmul: DIV/REM trap, so the firmware is built -march=rv32i_zmmul);
-# `zmx` adds the ZM-X v1 custom ops (review/KESTREL_NEXT_ISA.md, ZmXPlugin + ZmMulPlugin's mulsh),
+# `zmx` adds the ZM-X v1 custom ops (docs/hardware/studies/KESTREL_NEXT_ISA.md, ZmXPlugin + ZmMulPlugin's mulsh),
 # `zmxearly` the same with ZmXPlugin's result bypassed from EXECUTE (the timing comparison);
-# `tcm` adds a tightly coupled data port at 0x9E000000 (ZmTcm.scala, review/BARD_BRAM_STUDY.md);
+# `tcm` adds a tightly coupled data port at 0x9E000000 (ZmTcm.scala, docs/hardware/studies/BARD_BRAM_STUDY.md);
 # `eb` resolves branches in EXECUTE (one cycle less a mispredict), `shex` gives the shifter's result
-# in EXECUTE (review/BARD_CPI_STUDY.md).
+# in EXECUTE (docs/hardware/studies/BARD_CPI_STUDY.md).
 # Writes build/vexgen/VexRiscv_<name>.v for each spec; one sbt session for all.
 set -euo pipefail
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"

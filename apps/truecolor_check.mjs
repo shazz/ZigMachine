@@ -1,6 +1,6 @@
 // The true-colour plane (HW 1.15.0, FB_MODE_TRUECOLOR 5 / FB_MODE_TRUECOLOR_FULL 6), driven straight
 // through the sealed machine with no cart and checked pixel by pixel against an independent model
-// of the rule (fpga/review/TRUECOLOR_PLANE.md):
+// of the rule (docs/hardware/studies/TRUECOLOR_PLANE.md):
 //   - a pixel is a little-endian u16 R5 G6 B5, expanded by bit replication (0xFFFF white), alpha 255;
 //   - mode 6 covers the whole 800x280 raster from (0, 0), doubled, physical lines; mode 5 the
 //     320x200 window at (80, 40), logical lines; nothing else of the PFB changes;

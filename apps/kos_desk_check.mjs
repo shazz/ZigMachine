@@ -1,4 +1,4 @@
-// KOS's desktop on the board (docs/KOS_FAT.md, "The board's first run", 4 Nov 2026): the two bugs
+// KOS's desktop on the board (docs/os/KOS_FAT.md, "The board's first run", 4 Nov 2026): the two bugs
 // Matt found, held here so they stay fixed.
 //
 //  1. Redraw: the desktop repainted the whole screen, every icon and every open window each frame

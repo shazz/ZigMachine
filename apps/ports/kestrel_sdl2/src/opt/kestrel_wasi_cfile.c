@@ -1,4 +1,4 @@
-/* C:'s writes for a C port's POSIX calls (docs/KOS_GEMDOS.md §7; reads in kestrel_wasi_c.c, folders in
+/* C:'s writes for a C port's POSIX calls (docs/os/KOS_GEMDOS.md §7; reads in kestrel_wasi_c.c, folders in
  * kestrel_wasi_cdir.c): fopen "w" is Fcreate (the file is saved whole at fclose: the host writes it,
  * never the cart), fwrite is Fwrite, remove / rename / mkdir / rmdir are Fdelete / Frename / Dcreate /
  * Ddelete. A file is written whole or not at all: "r+" and "a" (changing a file in place) are refused

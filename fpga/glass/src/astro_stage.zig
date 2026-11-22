@@ -1,4 +1,4 @@
-// ASTROLABE's staging for one request (docs/ARM_FPU_COPROC.md section 4): the cart's arrays
+// ASTROLABE's staging for one request (docs/hardware/studies/ARM_FPU_COPROC.md section 4): the cart's arrays
 // between its memory in DDR and glass's cached mirror, each byte moved at most once a call.
 //
 // Before: every descriptor copied its inputs in and its outputs out, word by word through the

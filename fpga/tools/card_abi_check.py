@@ -1,4 +1,4 @@
-"""Which lean carts of a staged SD card a system table runs (decisions.md 2026-10-15: the same major, the
+"""Which lean carts of a staged SD card a system table runs (docs/project/DECISIONS.md 2026-10-15: the same major, the
 cart's minor at most the system's): every board image on the card (CARTS/**/*.zmd's CART.RV32,
 KESTREL/**/*.rv32 and *.zmd), ZX0-unpacked, its header read, held against the version given. A monolithic
 image (no cart header) needs no system and is counted apart. Used to say a system bump keeps a card's

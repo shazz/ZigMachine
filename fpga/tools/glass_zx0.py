@@ -57,7 +57,7 @@ def program_cart(packed: bytes, work: Path) -> str | None:
 def stage_by_hash(carts: list[str], image_path, problem, dest: Path) -> list[tuple[str, str]]:
     """KESTREL/progs/by-hash/<sha256 of docs/demo-<cart>.wasm>.rv32 (`dest` is KESTREL/): each cart's board image,
     ZX0-packed, named by what its wasm IS, for a program GEM finds on a real floppy (KOS,
-    docs/KOS_FAT.md; glass/src/app_floppy_prog.zig hashes the program the same way)."""
+    docs/os/KOS_FAT.md; glass/src/app_floppy_prog.zig hashes the program the same way)."""
     import hashlib
 
     rows = []

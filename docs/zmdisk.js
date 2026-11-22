@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ZigMachine disk image parsing (docs/FLOPPY_DISK.md), shared by the page and
+// ZigMachine disk image parsing (docs/guide/FLOPPY_DISK.md), shared by the page and
 // the node checks.
 //
 // WHY A MODULE: the page mounts disks two ways, from a URL (a channel, ?disk=)

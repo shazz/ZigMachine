@@ -1,4 +1,4 @@
-/* BARD jobs (zg.bard.job, system table 1.24, decisions.md 2026-11-13): the cart's job block as C sees it,
+/* BARD jobs (zg.bard.job, system table 1.24, docs/project/DECISIONS.md 2026-11-13): the cart's job block as C sees it,
  * the copy of libs/zig/bard_jobs/layout.zig (fpga/tests/test_bard_job.py holds the two equal). The cart
  * posts jobs in a ring in its own memory; a server outside its frame runs them (BARD on the board:
  * cycles/sound/sjobs.c running libs/zig/bard_jobs/server.zig, built rv32i + Zmmul). env.hostBardJob is

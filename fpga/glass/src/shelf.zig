@@ -6,7 +6,7 @@
 // copy is visible in the menu instead of silently missing. shelf.txt (meta.zig)
 // gives a disk its catalog title, group, year and description when it lists it.
 //
-// Folders (docs/FPGA_GLASS.md, "The menu"): a disk sits at the shelf's top (a flat,
+// Folders (docs/hardware/FPGA_GLASS.md, "The menu"): a disk sits at the shelf's top (a flat,
 // older card) or in a folder, up to MAX_DEPTH deep: a category (demos/, games/, ...) and,
 // for the demos, the platform they come from (demos/atari_st/, demos/amiga/, ...:
 // fpga/tools/shelf_category.py). Disk.folder is the PATH, "demos/atari_st". The menu shows
@@ -18,7 +18,7 @@ const std = @import("std");
 const zmd = @import("zmd.zig");
 const meta = @import("meta.zig");
 
-pub const MAX_DISK = 16 << 20; // the host's disk cap (docs/FLOPPY_DISK.md)
+pub const MAX_DISK = 16 << 20; // the host's disk cap (docs/guide/FLOPPY_DISK.md)
 const HEADER = 0xC00; // v2's boot sector + descriptor + FAT; v1 needs less
 pub const MAX_FOLDER = 24; // a longer directory name is not a shelf folder
 pub const MAX_DEPTH = 3; // CARTS/demos/atari_st/ is 2: one level to spare, and no runaway walk

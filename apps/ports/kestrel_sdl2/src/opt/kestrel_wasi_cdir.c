@@ -1,4 +1,4 @@
-/* C:'s path_open and fd_readdir (docs/KOS_GEMDOS.md §5; the rest in kestrel_wasi_c.c). A folder fd keeps
+/* C:'s path_open and fd_readdir (docs/os/KOS_GEMDOS.md §5; the rest in kestrel_wasi_c.c). A folder fd keeps
  * its GEMDOS path and a DTA: readdir is Fsfirst / Fsnext, its cookie the entries already handed out (a
  * cookie other than the next one restarts the search and skips that many, as a rewinddir or a seekdir
  * asks); the first entry is "..", as a POSIX folder lists it (GrafX2's way up; from C:\ it leads to "/",

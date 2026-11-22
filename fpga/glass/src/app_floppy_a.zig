@@ -1,4 +1,4 @@
-// The real floppy in KOS's drive A (docs/KOS_FAT.md F3): D on the shelf takes the USB floppy as it
+// The real floppy in KOS's drive A (docs/os/KOS_FAT.md F3): D on the shelf takes the USB floppy as it
 // is, a FAT12 disk (an Atari or a PC one, any files), not its .zmd carts (F, app_source.zig, lists
 // those). glass reads the whole device raw in one sequential pass (a 1.44 MB disk is 2,880
 // sectors) and drive A holds that image: a reset boots the desktop over it, a running cart sees

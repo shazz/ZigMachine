@@ -1,4 +1,4 @@
-"""KOS's FAT reader (rom/kos/fat.zig, docs/KOS_FAT.md) against mtools, the independent oracle, on
+"""KOS's FAT reader (rom/kos/fat.zig, docs/os/KOS_FAT.md) against mtools, the independent oracle, on
 images mkfs.fat makes: FAT12 1.44 MB, an Atari 720 KB floppy (TOS's BPB: no 55 AA, a BRA.S at 0),
 FAT16 and FAT32, with folders, a fragmented file, a deleted file and a long name (its 8.3 alias
 is what GEMDOS shows). Every file's path (8.3, as mshortname gives it), size and bytes must match;

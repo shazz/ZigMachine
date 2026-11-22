@@ -1,4 +1,4 @@
-/* The text screen (kcio, kestrel_cio.c) drawn into plane 0 in the desk mode (HW 1.17.0, docs/HW_API.md
+/* The text screen (kcio, kestrel_cio.c) drawn into plane 0 in the desk mode (HW 1.17.0, docs/hardware/HW_API.md
  * "Desk mode"): 640x480 palette indices at 1:1, the 80x25 cells of 8x16 in rows 0..399, the status line in
  * the 16 rows right under them (y 400). Only what changed is stored: each frame compares every cell with the one drawn
  * (a 16-byte compare), and a changed cell is 16 rows of two word stores. A colour gets a palette entry the

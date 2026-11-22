@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// NOTEPAD's files: text files on C: through KOS GEMDOS (docs/KOS_GEMDOS.md), as a
+// NOTEPAD's files: text files on C: through KOS GEMDOS (docs/os/KOS_GEMDOS.md), as a
 // TOS program reads and writes them: Fsfirst / Fsnext for the ITEM SELECTOR's list
 // (the folder's sub-folders, then the files its mask matches), Fopen / Fread /
 // Fclose to open, Fcreate / Fwrite / Fclose to save (the host writes the whole file

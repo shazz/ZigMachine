@@ -1,4 +1,4 @@
-// The glass: the ZigMachine console's ARM-side program (docs/FPGA_GLASS.md).
+// The glass: the ZigMachine console's ARM-side program (docs/hardware/FPGA_GLASS.md).
 //
 //   zig build test                                   host tests (simulated register file + fake DDR)
 //   zig build                                        host binary, `glass sim-*` commands

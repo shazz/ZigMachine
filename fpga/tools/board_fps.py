@@ -4,7 +4,7 @@
         [--keys keys.txt] [--only a.zmd,b.zmd] [--out fpga/build/board_fps]
 
 Over the board's Linux serial console (a root shell), through the running glass's control channel
-(`glass ctl`, docs/FPGA_GLASS.md "The control channel"): `load` each disk, play its key script, wait
+(`glass ctl`, docs/hardware/FPGA_GLASS.md "The control channel"): `load` each disk, play its key script, wait
 --secs from the load, read `stats <--window>` (the ZMSTAT line), next. Writes <out>/fps_<time>.csv and
 .md, a row a cart as it goes, so a run cut short keeps what it measured.
 A firmware with the video probe (cycles/vstat.h) adds its fields (vs_n= ... cal_fill2=): the CSV

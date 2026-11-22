@@ -60,7 +60,7 @@ export fn audioStreamStart(rate: f32) void {
     startCounter(step);
 }
 
-// --- the stereo stream (system table 1.27, decisions.md 2026-11-20) ---
+// --- the stereo stream (system table 1.27, docs/project/DECISIONS.md 2026-11-20) ---
 // Two rings of STREAM_RING bytes: the left at SONG_BASE on channel 0 panned hard left, the right
 // right after it on channel 1 panned hard right, both triggered here with the same step, so the
 // two channels read the same offset on every sample. The host deinterleaves a feed's L,R pairs

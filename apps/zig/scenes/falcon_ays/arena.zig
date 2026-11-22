@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // The parts' big tables (fields, textures, maps, pictures: ~1.1 MB) come from the cart RAM
 // arena at init (zg.mem), not from zero-filled statics: those would sit in the wasm data
-// section as zeros (docs/MEMORY.md; the zero_segments gate refuses runs over 64 KB).
+// section as zeros (docs/guide/MEMORY.md; the zero_segments gate refuses runs over 64 KB).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 

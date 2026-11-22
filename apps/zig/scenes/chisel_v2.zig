@@ -23,7 +23,7 @@
 // The modes cycle by themselves every MODE_FRAMES frames until a key is pressed.
 // Every pixel of a mode is drawn by CHISEL (the CPU only lays the fill's edge
 // pixels); the machine is the reference, the RTL is proven equal to it
-// (fpga/tests/test_rtl_blitter.py). docs/BLITTER_HW_SPEC.md §4.5-4.7.
+// (fpga/tests/test_rtl_blitter.py). docs/hardware/BLITTER_HW_SPEC.md §4.5-4.7.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");

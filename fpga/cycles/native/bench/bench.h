@@ -1,4 +1,4 @@
-/* ZIGGY bench (cycles/native/bench/, decisions.md 2026-10-18): a native KESTREL cart that times
+/* ZIGGY bench (cycles/native/bench/, docs/project/DECISIONS.md 2026-10-18): a native KESTREL cart that times
  * the board's memory and bus paths with the SoC's own cycle counter, so the store-cost model
  * (every store a blocking ~27-cycle DDR write, memset ~60 cycles a word, CHISEL ~1.85 cycles a
  * byte, ~1.09 Mc a FRESCO plane) is measured instead of fitted.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 // U-Boot's device tree for the MicroPhase Z7-Lite (XC7Z010), plan A's own BOOT.BIN
-// (docs/FPGA_GLASS.md, "Plan A"). Buildroot copies it into U-Boot's arch/arm/dts
+// (docs/hardware/FPGA_GLASS.md, "Plan A"). Buildroot copies it into U-Boot's arch/arm/dts
 // (BR2_TARGET_UBOOT_CUSTOM_DTS_PATH). U-Boot only needs the console and the SD card:
 // UART0 on MIO 14/15, SD0 on MIO 40..45 without card detect, as zeST's PS7 sets them
 // (ps7_init_gpl.c, read out of zeST's FSBL). Linux has its own tree

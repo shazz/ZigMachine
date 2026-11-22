@@ -1,4 +1,4 @@
-// The output half of a sound-chip lab player (docs/FPGA_AUDIO.md), chip-
+// The output half of a sound-chip lab player (docs/hardware/FPGA_AUDIO.md), chip-
 // agnostic: stereo 16-bit samples made in the system clock domain cross into
 // the pixel domain (zm_audio_fifo) and leave over HDMI at 44.1 kHz in data
 // islands (zm_hdmi_tx: N 6272, the CTS measured, 44444 / 44445), with the

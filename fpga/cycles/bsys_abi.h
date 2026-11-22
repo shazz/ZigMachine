@@ -1,4 +1,4 @@
-/* The one rule for which cart image a system image runs (decisions.md 2026-10-15): the
+/* The one rule for which cart image a system image runs (docs/project/DECISIONS.md 2026-10-15): the
  * versions are major << 16 | minor, as fpga/cycles/sys_abi.txt numbers them. The major must
  * be equal (anything but an appended table entry changed); the cart's minor at most the
  * system's (it may call entries appended after it was built, never ones the system lacks).

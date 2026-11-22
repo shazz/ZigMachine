@@ -9,7 +9,7 @@
 const std = @import("std");
 const abi = @import("kfs_abi.zig");
 
-pub const MAX_NAMES = 9; // 8 folders below C:\ (docs/KOS_GEMDOS.md §3) and a name
+pub const MAX_NAMES = 9; // 8 folders below C:\ (docs/os/KOS_GEMDOS.md §3) and a name
 
 pub const Path = struct {
     names: [MAX_NAMES][]const u8 = undefined,

@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ZIGNIC on the page and in node's harnesses (docs/GEM_NET.md): the host half of env.netOp. The cart writes a
+// ZIGNIC on the page and in node's harnesses (docs/os/GEM_NET.md): the host half of env.netOp. The cart writes a
 // Req (machine/sdk/net_abi.zig: 16 little-endian words) in its memory and passes its address; this answers at
 // once (>= 0 a value, < 0 an Err) and writes the socket's state, events and peer back into the Req. The network
 // behind the 8 sockets is pluggable: docs/net-peer.js (a scripted LAN, `?net=peer`) today, a WebSocket relay later.

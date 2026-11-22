@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// zg.astro — ASTROLABE, the f64 coprocessor (HW 1.18.0, SPIKE: docs/ARM_FPU_COPROC.md).
+// zg.astro — ASTROLABE, the f64 coprocessor (HW 1.18.0, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md).
 //
 // The rule: ZIGGY's own f32 (and fixed point) for fast, good-enough maths every frame; ASTRO for
 // f64 and for BATCHES. One call costs a round trip on the board (a mailbox to the ARM and back),

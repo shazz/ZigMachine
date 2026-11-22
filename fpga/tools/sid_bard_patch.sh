@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The BARD SID study (fpga/review/SID_BARD_STUDY.md): a patched copy of libcRSID 1.58 in
+# The BARD SID study (docs/hardware/studies/SID_BARD_STUDY.md): a patched copy of libcRSID 1.58 in
 # prototypes/sid_re/src_prof (local; from tools/sid_bard_fetch.sh), passed to sid_bard_bench.sh as SID_LIB
 # with -DSID_PROF -include src_prof/sidprof.h. Always: cycle-counter probes between the phases of
 # cRSID_emulateC64 (sidbench.c prints them: cpu = 6502+CIA+VIC(+ADSR), wave = HQ oscillators,

@@ -40,7 +40,7 @@ cd docs && python3 -m http.server 3333   # sealed.html -> menu -> GEM DESKTOP
 > polyglot claim is tested: `apps/verify.mjs` reads back a GEM panel that
 > `rom.wasm` drew for the C app (`apps/c`) and for the Rust app (`apps/rust`).
 > Left: step 2.4 (spend the freed RAM). See
-> [`docs/PHASE2_ROM_CHIP.md`](../docs/PHASE2_ROM_CHIP.md).
+> [`docs/os/PHASE2_ROM_CHIP.md`](../docs/os/PHASE2_ROM_CHIP.md).
 
 ## Layout (chip)
 - `rom_main.zig` — **rom.wasm's entry point**: the handle tables + the exported

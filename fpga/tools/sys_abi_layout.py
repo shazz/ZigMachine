@@ -2,7 +2,7 @@
 entries from the modules). Any change here changes the layout, so sys_abi.py --check fails
 until --update bumps the major version: rebuild every cart then.
 
-RUNTIME: what a lean cart takes from the system instead of linking it (decisions.md
+RUNTIME: what a lean cart takes from the system instead of linking it (docs/project/DECISIONS.md
 2026-10-15): the wasm2c runtime's shared state (the trap's jmp_buf, the heap the funcref
 tables are calloc'd from), libc/libm (whose errno lives in the system's TLS), and the two
 host hooks env.c served (hostMicros, the drive). Rows: (symbol, return, params, the cart

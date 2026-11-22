@@ -4,7 +4,7 @@
 //   MAP:    a box whose every pixel takes its texel from a (u, v) map (tunnels)
 // Both read the texture through channel A and combine the texel as B with the
 // destination: D = LF(0, texel, D). See memmap.zig "CHISEL v2" and
-// docs/BLITTER_HW_SPEC.md §4.5-4.6.
+// docs/hardware/BLITTER_HW_SPEC.md §4.5-4.6.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");

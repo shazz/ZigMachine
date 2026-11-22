@@ -32,7 +32,7 @@
 python3 fpga/review/tools/latency_sim.py
 
 # Export full structured JSON dataset
-python3 fpga/review/tools/latency_sim.py --json fpga/review/reports/latency_summary.json
+python3 fpga/review/tools/latency_sim.py --json docs/hardware/studies/reports/latency_summary.json
 ```
 
 ---

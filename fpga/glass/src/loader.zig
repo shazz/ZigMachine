@@ -1,5 +1,5 @@
 // Loading a cart: the .zmd's rv32 board image, depacked, placed in the cart
-// CPU's DDR window, and the CPU let out of reset (docs/FPGA_GLASS.md, "Cart
+// CPU's DDR window, and the CPU let out of reset (docs/hardware/FPGA_GLASS.md, "Cart
 // load"). Every step that can fail says which, and a failure leaves the cart
 // CPU HELD IN RESET: never running a half-written image.
 const std = @import("std");

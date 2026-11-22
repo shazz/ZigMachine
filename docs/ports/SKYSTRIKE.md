@@ -221,7 +221,7 @@ by `apps/skystrike_headless.mjs`.
   SNDH player's MFP ignores those bits and runs a timer on its control register alone, so SAMSTOP, and the
   end of a one-shot sample, left the digi running. The harness's sound check found this. `sound.s` now
   also writes TACR = 0, which makes no audible difference on an ST. The player's MFP has since been fixed
-  to honour IER/IMR (`libs/zig/players/mfp.zig`, decisions.md 2026-09-27): SAMSTOP now stops the digi
+  to honour IER/IMR (`libs/zig/players/mfp.zig`, docs/project/DECISIONS.md 2026-09-27): SAMSTOP now stops the digi
   without the TACR write. The write is kept anyway.
 
 ## 10. ZIG mode
@@ -454,7 +454,7 @@ The effects are synthesized by `tools/skystrike/make_sfx.py` (stdlib only, fixed
 seeds): filtered noise and a few sines under envelopes. They are signed 8-bit at the
 STE DMA rates, 28 KB in all (`apps/zig/assets/screens/skystrike/sfx/*.raw`). The cart
 embeds them (`zig_fx.zig`) and plays each with `zg.sfxPlay`, a machine addition made
-for this (docs/MUSIC.md, "Sound effects over a MOD"). The audio thread lends the
+for this (docs/guide/MUSIC.md, "Sound effects over a MOD"). The audio thread lends the
 effect the MOD's quietest channel: the one with the fewest notes over the song. The
 effect plays there at full volume and at that channel's pan. The song goes on reading
 the channel but writes nothing to it until the effect is over. A one-shot gives the

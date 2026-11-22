@@ -14,8 +14,8 @@
 // (video.zig's back-compat rule). Medium re-reads RESOLUTION per line: a
 // RES_MEDIUM line is 1:1, anything else doubled.
 // A copper LBASE (HW 1.10.0) moves the latched base and the row it is at: the row's address is
-// base + (row - lrow) * stride, lrow 0 from FB_BASE (fpga/review/COPPER_LINEBASE.md).
-// A true-colour line's address ignores bit 0 (fpga/review/TRUECOLOR_PLANE.md, both machines): the
+// base + (row - lrow) * stride, lrow 0 from FB_BASE (docs/hardware/studies/COPPER_LINEBASE.md).
+// A true-colour line's address ignores bit 0 (docs/hardware/studies/TRUECOLOR_PLANE.md, both machines): the
 // painter takes the half-word at byte align + 2c, which is pixel floor(addr / 2) + c for any align.
 `default_nettype none
 

@@ -1,11 +1,11 @@
 // --------------------------------------------------------------------------
-// The desktop shell's FAT drives (KOS, docs/KOS_FAT.md): when the host says drive A holds a FAT
+// The desktop shell's FAT drives (KOS, docs/os/KOS_FAT.md): when the host says drive A holds a FAT
 // image (insertDisk(2): a real floppy, an .ST), the shell reads it through the drive
 // (zg.readBlock, the same diskReadBlock every cart has) with KOS's reader (rom/kos/fat.zig) and
 // fills the ROM's desktop model: the folders and every file with its folder (the records, the
 // folder byte at +25). Once per insertion. C: (F5), the SD card, is read the same way through
 // the cart's own env.kosDriveRead, once at the shell's start, into C:'s model; its files are
-// data (nothing on C: launches in v1). C: is the card's HD folder, not the card (decisions.md
+// data (nothing on C: launches in v1). C: is the card's HD folder, not the card (docs/project/DECISIONS.md
 // 2026-11-06): glass serves the whole partition's sectors, and the walk starts at /HD's cluster,
 // so nothing above it (the boot files, KESTREL/, CARTS/) is ever listed. A card with no /HD has no C:.
 //
@@ -23,7 +23,7 @@ pub const UNIT_C: u32 = 2;
 /// The root folder C:\ is (fpga/glass/src/layout.zig HD), as FAT's 8.3 directory holds it.
 pub const C_ROOT = "HD";
 
-/// KOS's C: (docs/KOS_FAT.md F5): `count` sectors of `unit` into memory at `dst` (word-aligned);
+/// KOS's C: (docs/os/KOS_FAT.md F5): `count` sectors of `unit` into memory at `dst` (word-aligned);
 /// the sectors read, 0 for none. Served by every host (sealed-loader.js, host/disk.h, the board's
 /// glass), never by the ROM.
 extern fn kosDriveRead(unit: u32, sector: u32, count: u32, dst: u32) u32;

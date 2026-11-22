@@ -1,4 +1,4 @@
-/* The glass's input, once a frame, before cart.frame() (docs/FPGA_GLASS.md "Input"): drain the
+/* The glass's input, once a frame, before cart.frame() (docs/hardware/FPGA_GLASS.md "Input"): drain the
  * key FIFO (at most KEYS_A_FRAME, so a stuck FIFO cannot hold the frame), then the joypad's
  * changes, then the mouse, through host/input_bridge.c into the cart's exports. */
 #include "binput.h"

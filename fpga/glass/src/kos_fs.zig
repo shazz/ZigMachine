@@ -1,4 +1,4 @@
-// KOS's C: writes on the board (docs/KOS_GEMDOS.md §7): the file operations glass makes on the card's
+// KOS's C: writes on the board (docs/os/KOS_GEMDOS.md §7): the file operations glass makes on the card's
 // /HD through Linux's own FAT driver, for kos_file.zig. Every path is a CHECKED one (kos_kfs_path:
 // 8.3 names under C:\, nothing else), and it is walked from an fd on /HD one folder at a time with
 // O_NOFOLLOW | O_DIRECTORY, so nothing reaches outside /HD: no `..` gets here, an absolute path cannot

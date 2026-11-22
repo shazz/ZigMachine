@@ -13,7 +13,7 @@
 //     let m = zigmachine_mem::mark();  ...  unsafe { zigmachine_mem::release(m) };
 //
 // Nothing is freed singly. A new cart (boot, swap) starts with an empty arena.
-// See docs/MEMORY.md and machine/sdk/hardware.zig.
+// See docs/guide/MEMORY.md and machine/sdk/hardware.zig.
 // ---------------------------------------------------------------------------
 #![allow(dead_code)] // a cart uses the part it needs
 

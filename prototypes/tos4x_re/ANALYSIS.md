@@ -1,6 +1,6 @@
 # tos4x: what is in it, and where each GEM 2.x-5.0 mechanism lives
 
-Study notes behind [docs/GEM5_PLAN.md](../../docs/GEM5_PLAN.md). Source: https://github.com/mikrosk/tos4x,
+Study notes behind [docs/os/GEM5_PLAN.md](../../docs/os/GEM5_PLAN.md). Source: https://github.com/mikrosk/tos4x,
 cloned `--depth 1` on 2026-11-07 (master 4bad523b) into `prototypes/tos4x_re/src/`. That folder is listed in
 the repo's `info/exclude` and is never committed: re-clone it to follow the paths below.
 

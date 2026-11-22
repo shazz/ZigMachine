@@ -1,4 +1,4 @@
-"""ZIGGY's big reads on the board's read path (review/ZIGGY_BIG_READS_STUDY.md): the board's cart
+"""ZIGGY's big reads on the board's read path (docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md): the board's cart
 core (VexRiscv_I16w2D16w2SealFpuZmxE: I$ 16 KB 2-way, D$ 16 KB 2-way) in Verilator over the
 real WishboneHP (posted=8, no read bypass: the board's combo16 build), the HP register slices and
 the sim DDR with HP_LATENCY (20 cycles AR to first beat: the latency that makes a bare line miss

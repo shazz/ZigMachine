@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A FAT12 floppy image for KOS's desktop proofs (docs/KOS_FAT.md): an Atari 720 KB layout (TOS's
+"""A FAT12 floppy image for KOS's desktop proofs (docs/os/KOS_FAT.md): an Atari 720 KB layout (TOS's
 BPB: 9 sectors, 2 per cluster, 112 root entries, a BRA.S at 0 and no 55 AA), written here byte by
 byte, the same on every run and every box (fixed times, read as UTC). No mkfs.fat or mtools: the gate
 runs where they are not installed; tools/tests/test_kos_fat.py holds the image against KOS's reader

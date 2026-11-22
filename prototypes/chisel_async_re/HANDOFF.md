@@ -168,7 +168,7 @@ anywhere (the lazy single-op path loses its +98 cycles too).
 Q_START/Q_COUNT (block 0xE8/0xEA); ops on a working copy of the block taken at the call; the block
 left as it was; CYCLES = sum; refused (CYCLES 0) for an empty list or one past the ring; a descriptor
 cut short ends the list unrun; COMMAND 0 only sets words; a nested 5 is an unknown op. ZM_HW_VERSION
-1.8.0. docs/BLITTER_HW_SPEC.md §6/§10.1, HW_API.md, guide regenerated.
+1.8.0. docs/hardware/BLITTER_HW_SPEC.md §6/§10.1, HW_API.md, guide regenerated.
 
 **Firmware (bchisel.c):** a QUEUE is always lazy (GO word = 5 | start<<8 | count<<17, refused like the
 machine); its sync sweeps the whole D$ once per list (a list may touch the whole plane; a 4 KiB D$
@@ -203,7 +203,7 @@ scene_hash for stniccc in the gate.
   board_lm8 (+226, of which ~32 LUT RAM for the tap bank). Baseline posted build 15,045.
 - All constraints met: sys (clkout0) WNS +0.133 ns, comp (clkout1) +0.069 ns, others +1.178/+0.574.
 - CSR map byte-identical to board_lm8 (itself identical to 3ebb7381): table 1.2, every lean cart runs.
-- Line-major NOT merged: `git merge-tree` with 600e6cbd conflicts only in decisions.md, but it brings
+- Line-major NOT merged: `git merge-tree` with 600e6cbd conflicts only in docs/project/DECISIONS.md, but it brings
   its own firmware/glass (fw-opt) unproven on silicon; this bitstream is main's RTL + the queue.
 
 ### Tests

@@ -1,4 +1,4 @@
-"""The OSD's words for GEM and its data disk (tools/shelf_meta.py OVERRIDES, docs/FPGA_GLASS.md
+"""The OSD's words for GEM and its data disk (tools/shelf_meta.py OVERRIDES, docs/hardware/FPGA_GLASS.md
 "Cart descriptions"): the catalog calls GEM by the browser menu's verb, "EXIT TO GEM", which
 is no name for a shelf entry; an override names it, and an empty override field keeps what
 the repo says."""

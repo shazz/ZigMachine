@@ -19,7 +19,7 @@ const Action = dt.Action;
 
 pub const IC_FLOPPY = 0;
 pub const IC_TRASH = 1;
-pub const IC_HARD = 2; // KOS's C: (docs/KOS_FAT.md F5), under drive A
+pub const IC_HARD = 2; // KOS's C: (docs/os/KOS_FAT.md F5), under drive A
 
 // Disk windows: first one here, each further one cascaded right + down.
 pub const WIN_X0: i16 = 24;
@@ -40,7 +40,7 @@ pub fn placeDefaultIcons(d: *Desktop) void {
 
 /// Drive A's disk (insertDisk): bits 7:0 its kind (0 none, 1 a .zmd, 2 a FAT image), bit 8 a
 /// real floppy (glass's D). KOS shows the drive only with a disk in, labelled by where it came
-/// from (docs/KOS_FAT.md F4); DESKTOP.INF keeps the drive's cell either way.
+/// from (docs/os/KOS_FAT.md F4); DESKTOP.INF keeps the drive's cell either way.
 pub const DRIVE_FLOPPY: u32 = 0x100;
 pub fn setDrive(d: *Desktop, present: u32) void {
     if (present != d.dirty.drive_word) deskdirty.touch(d); // the hosts say it every frame: only a change repaints

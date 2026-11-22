@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The desktop's file operations, the ROM <-> shell mailbox (docs/GEM5_PLAN.md P1.1). The ROM
+// The desktop's file operations, the ROM <-> shell mailbox (docs/os/GEM5_PLAN.md P1.1). The ROM
 // desktop decides an operation (a drag, the TRASH, Show Info, New Folder) but reaches no disk:
 // rom.wasm imports only hwVideoBase and hwBlit. So, as Save Desktop does, it writes the request
 // here and the shell cart (apps/zig/scenes/gem_fileop*.zig) carries it out through KOS GEMDOS,

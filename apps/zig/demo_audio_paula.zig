@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // demo-audio.wasm: the four Paula channels lent to a CART (HW 1.14.0,
-// decisions.md 2026-11-02 "Paula channels for carts").
+// docs/project/DECISIONS.md 2026-11-02 "Paula channels for carts").
 //
 // A cart that wants the Amiga's sound chip (pt2-clone, a tracker, an Amiga-
 // style game) claims the channels and then writes Paula's registers, exactly

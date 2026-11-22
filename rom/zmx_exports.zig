@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ZM-X v1's twins as ROM exports (fpga/review/KESTREL_NEXT_ISA.md section 5).
+// ZM-X v1's twins as ROM exports (docs/hardware/studies/KESTREL_NEXT_ISA.md section 5).
 //
 // A cart that wants an op as ONE instruction on the board declares the import
 // (rom/sdk/zmx.zig); the browser, node and the native host bind it here, to the

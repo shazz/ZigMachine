@@ -53,7 +53,7 @@ def header(m: Manifest) -> str:
     table = TYPES[0][1].strip("{}").replace("; ", ";\n    ")
     return (
         f"""/* GENERATED from fpga/cycles/sys_abi.txt by fpga/tools/sys_abi_c.py. Do not edit.
- * The KESTREL system table (decisions.md 2026-10-15): the system image hands zm_sys_table to
+ * The KESTREL system table (docs/project/DECISIONS.md 2026-10-15): the system image hands zm_sys_table to
  * the cart image's bind(); the cart image starts with zm_cart_hdr at ZM_CART_IMG_AT. */
 #ifndef ZM_SYS_ABI_H
 #define ZM_SYS_ABI_H
@@ -107,7 +107,7 @@ def cart_rt(m: Manifest) -> str:
     rows = [forwarder(s, r, p, f"ZM_RT_{s}", s in NORETURN) for s, r, p, cart in RUNTIME if cart]
     return (
         "/* GENERATED from fpga/cycles/sys_abi.txt by fpga/tools/sys_abi_c.py. Do not edit.\n"
-        " * The cart image's runtime (decisions.md 2026-10-15): it links no libc, so wasm2c's runtime,\n"
+        " * The cart image's runtime (docs/project/DECISIONS.md 2026-10-15): it links no libc, so wasm2c's runtime,\n"
         " * libc and libm calls go to the system's own through the table bind() received. */\n"
         '#include <math.h>\n#include <string.h>\n#include "wasm-rt.h"\n#include "zm_sys_abi.h"\n\n'
         f"/* version {m.version[0]}.{m.version[1]} */\n"

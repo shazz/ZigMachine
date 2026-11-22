@@ -2,7 +2,7 @@
 // sample at a time, time-shared through ONE multiplier, in integers that equal
 // the engine's f32 arithmetic exactly:
 //   s = data[pos >> 16] / 128, gain = 0.5 x volume x min(1, 1 -/+ pan)
-// with volume = VOL / 256 and pan = PAN / 128 (the register forms, docs/FPGA_AUDIO.md)
+// with volume = VOL / 256 and pan = PAN / 128 (the register forms, docs/hardware/FPGA_AUDIO.md)
 // is, in units of 2^-23, s8 x VOL x min(128, 128 -/+ PAN). For VOL 0..256 and
 // PAN -128..128 every f32 product and partial sum of the engine is exact (at
 // most 22 significant bits, sums below 2^24 units), so the two agree bit for bit.

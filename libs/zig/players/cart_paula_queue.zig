@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The cart's Paula writes, waiting for their sample (HW 1.14.0, decisions.md
+// The cart's Paula writes, waiting for their sample (HW 1.14.0, docs/project/DECISIONS.md
 // 2026-11-02 "Paula channels for carts").
 //
 // A cart that holds the four Paula channels (env.hostPaulaClaim) hands the host

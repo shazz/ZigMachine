@@ -1,4 +1,4 @@
-"""KOS's C: writes (docs/KOS_GEMDOS.md §7, env.kosFileOp): the request block ZIGGY's firmware writes
+"""KOS's C: writes (docs/os/KOS_GEMDOS.md §7, env.kosFileOp): the request block ZIGGY's firmware writes
 (cycles/bkosfreq.h) is the one glass serves (glass/src/map_cart.zig KOS_FILE_*; glass's side, its path gate
 and its operations are glass/src/kos_file_test.zig's), the firmware takes only the answer to its own
 request, and the block, the C: generation word and the sector block never overlap in the window's top."""

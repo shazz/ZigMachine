@@ -1,4 +1,4 @@
-// The copper line-list rule (HW 1.10.0, fpga/review/COPPER_LINEBASE.md) as an independent model,
+// The copper line-list rule (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md) as an independent model,
 // for apps/linebase_check.mjs (machine-only) and apps/linebase_test_headless.mjs (the cart): from a
 // plane's records, each line's source address, palette and which of its pixels show.
 //   - LBASE v (in VRAM, else the list stops): row r reads v + (r - r0) * stride until the next one;

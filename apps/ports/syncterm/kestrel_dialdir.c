@@ -1,4 +1,4 @@
-/* SyncTERM's dialing directory on C: (KOS GEMDOS, "/C" = the card's HD, docs/KOS_GEMDOS.md §5).
+/* SyncTERM's dialing directory on C: (KOS GEMDOS, "/C" = the card's HD, docs/os/KOS_GEMDOS.md §5).
  *
  * kestrel_main.c starts SyncTERM with no URL and with -n / -b (upstream's own overrides of
  * get_syncterm_filename) naming C:\SYNCTERM\SYNCTERM.INI and C:\SYNCTERM\SYNCTERM.LST, so the directory

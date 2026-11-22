@@ -1,7 +1,7 @@
 # `rtl/seal/`: the cart CPU's bus windows
 
 The seal answers REVIEW_FABLE.md finding 2 and the ADR "the seal is a hardware
-bus window" (`decisions.md`, 2026-10-02). The cart, the ROM and the firmware all
+bus window" (`docs/project/DECISIONS.md`, 2026-10-02). The cart, the ROM and the firmware all
 run on one VexRiscv, and the board build drops wasm2c's bounds checks
 (`CYCLES.md`, `aligned`). Without the seal, a wild wasm offset reaches the video
 `cmd`/`mem_base` CSRs, the UART, the firmware's state, or any DDR the HP port

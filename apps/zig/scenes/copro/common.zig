@@ -16,7 +16,7 @@ pub const HUD_DIM: u8 = 35;
 
 extern fn hostMicros() u32;
 
-/// The board's clock in microseconds (decisions.md 2026-10-10); 0 in the harnesses: nothing timed.
+/// The board's clock in microseconds (docs/project/DECISIONS.md 2026-10-10); 0 in the harnesses: nothing timed.
 pub fn micros() u32 {
     return hostMicros();
 }

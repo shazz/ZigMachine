@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS GEMDOS's writes to C: (docs/KOS_GEMDOS.md §7): the request a cart hands env.kosFileOp. A cart
+// KOS GEMDOS's writes to C: (docs/os/KOS_GEMDOS.md §7): the request a cart hands env.kosFileOp. A cart
 // never writes sectors: the host owns every write at the FILE level (glass on the board, over Linux's
 // own FAT driver; kfs.zig over the C: image on the page and in the native host), so two writers never
 // share one FAT. The cart fills a Req in its own memory and passes its address; the host answers a

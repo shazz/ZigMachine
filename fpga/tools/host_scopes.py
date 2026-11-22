@@ -1,4 +1,4 @@
-"""The scopes' host entry (system table 1.26, decisions.md 2026-11-14): the cart's zigos.scopes
+"""The scopes' host entry (system table 1.26, docs/project/DECISIONS.md 2026-11-14): the cart's zigos.scopes
 (its getScopesPointer export), handed to the HOST_AUDIO_SCOPES hook once after its instantiation,
 as tools/host_bridges.py's MIRROR fields are. A separate entry appended to the table, so 1.2's
 hostAudioMirror row stands and a 1.25 cart still runs (its scopes stay flat on the board).

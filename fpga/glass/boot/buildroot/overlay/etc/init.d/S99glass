@@ -7,7 +7,7 @@
 # glass is given the card's root and picks its layout itself (glass/src/layout.zig):
 # KESTREL/ + CARTS/ (since 6 Nov 2026), or an old card's zigmachine/.
 # A glass at KESTREL/glass that differs from this rootfs's /usr/bin/glass is run
-# instead (the SD card overrides for development, docs/FPGA_GLASS.md), copied to
+# instead (the SD card overrides for development, docs/hardware/FPGA_GLASS.md), copied to
 # /tmp first and only if it runs on this board; the choice is logged.
 CARD=/mnt/sd
 GLASS=/usr/bin/glass

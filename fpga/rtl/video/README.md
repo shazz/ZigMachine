@@ -7,7 +7,7 @@ and on synthetic frames the real `machine-video` renders. `zm_video_out` adds
 the double-buffered picture, the scanout fetch, the timing and the scanout, and
 `zm_dvi_out` puts it on HDMI. `zm_vtiming`, `zm_tmds_enc` and `zm_video_sync`
 are documented in their headers. The architecture is the ADR of 2026-10-02 in
-`decisions.md` (Fable #1): **composite each frame into a frame buffer at the
+`docs/project/DECISIONS.md` (Fable #1): **composite each frame into a frame buffer at the
 compositor's speed, in the machine's order, and scan out the previous one.**
 
 ## The model: the machine's order, a pass at a time
@@ -74,7 +74,7 @@ otherwise, as in `video.zig`. A true-colour column is the half-word at byte
 `align + 2c` of the fetched line, expanded 565 -> RGBA by bit replication in
 place of the palette's answer (`zm_video_paint.v`, a clock behind like it); the
 half-word select makes bit 0 of the line address irrelevant, which is the rule
-(`fpga/review/TRUECOLOR_PLANE.md`). OOC synth at 8 ns: `zm_video_comp` +28 LUT,
+(`docs/hardware/studies/TRUECOLOR_PLANE.md`). OOC synth at 8 ns: `zm_video_comp` +28 LUT,
 +17 FF (2,422 -> 2,450). A medium line is 1:1 when `RESOLUTION` is
 `RES_MEDIUM` and doubled otherwise.
 

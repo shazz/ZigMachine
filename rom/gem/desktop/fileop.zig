@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// Real file operations on C: (docs/GEM5_PLAN.md P1.1): the ROM's half. The desktop decides what
+// Real file operations on C: (docs/os/GEM5_PLAN.md P1.1): the ROM's half. The desktop decides what
 // to copy, move, delete, rename or create and posts it in the mailbox (rom/sdk/deskop.zig); the
 // shell cart does it through KOS GEMDOS, a step a frame, and writes the counts back. Here: the
 // requests, the frame hook that repaints on the shell's changes, and the end (C:'s windows

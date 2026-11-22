@@ -25,7 +25,7 @@
 //   - soft-float routine costs: libgcc on rv32 (fpga/CYCLES.md "FPU estimate" for the f32
 //     FPU column: add/mul 5 dependent, div 18, sqrt 30; f64 has no hardware).
 //   - CHISEL: ~400 CPU clocks a call (start, spin, D$ flush) + clocks per CYCLES unit by
-//     op (docs/BLITTER_HW_SPEC.md 10.5: FILL 1.03, keyed BLIT 0.9-2.2, TRIANGLE 4.6-6.1);
+//     op (docs/hardware/BLITTER_HW_SPEC.md 10.5: FILL 1.03, keyed BLIT 0.9-2.2, TRIANGLE 4.6-6.1);
 //     the CPU spins on BUSY, so blitter time is cart time.
 
 // cycles per modelled rv32 instruction. 1.06 on the 2026-10-23 fit (56 carts' cart_c), when the cart
@@ -70,7 +70,7 @@ export const FRESCO_PLANE = 0.594e6;
 export const FRAME_BASE = 0.11e6;
 // FRESCO by LINE PASS (apps/perf/budget.mjs, frame_cost --budget): sys cycles the CPU waits for
 // the compositor, a pass of an enabled plane's layer and a BG pass of a global handler's clear,
-// fitted to the board probe's comp_busy (fpga/review/reports/frame_budget_2026-10-23.md).
+// fitted to the board probe's comp_busy (docs/hardware/studies/reports/frame_budget_2026-10-23.md).
 // A plane pass costs by the plane's WIDTH (a normal 320-pixel row, or a 400-pixel overscan /
 // fullscreen / medium row) and by whether its layer is the FIRST (it paints over the clear) or a
 // later one (it mixes into what is there).

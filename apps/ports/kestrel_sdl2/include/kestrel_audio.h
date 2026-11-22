@@ -1,4 +1,4 @@
-/* The ports' audio feed, paced by real time (decisions.md 2026-10-17, "hostMicros may pace a cart's
+/* The ports' audio feed, paced by real time (docs/project/DECISIONS.md 2026-10-17, "hostMicros may pace a cart's
  * audio feed"; extended to the C ports 2026-11-02).
  *
  * A port's SDL audio callback is also its replayer's clock (pt2's Paula ticks, klystrack's cyd, the

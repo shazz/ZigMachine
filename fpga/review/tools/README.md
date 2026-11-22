@@ -51,29 +51,29 @@ RAMB36-equiv = RAMB36 + RAMB18/2.
 Runs, sequentially: plane @8 ns and @6.67 ns, blit_px @10 ns and @6.67 ns, video_mix @8 ns,
 audio_soc @10 ns OOC sweeps, then the full-SoC build above. Per-sweep result dirs land in
 `/tmp/opencode/rev/ooc/<block>_<period>/`; the full-SoC result lands in `/tmp/opencode/rev/pletdir/`.
-Copy any `.rpt` you want to keep into `review/reports/` (that is how the committed evidence
+Copy any `.rpt` you want to keep into `../docs/hardware/studies/reports/` (that is how the committed evidence
 was produced).
 
 ## Evidence dir conventions
 
-- `review/reports/` — committed, curated `.rpt`-derived tables (per build, dated in text).
+- `../docs/hardware/studies/reports/` — committed, curated `.rpt`-derived tables (per build, dated in text).
 - `/tmp/opencode/rev/` — raw Vivado output (ooc dirs + pletdir). Kept until the review is done;
   the committed reports are what the review cites.
 
 ## `ooc_collect.py` — aggregate the OOC sweeps
 
-    python3 review/tools/ooc_collect.py [/tmp/opencode/rev/ooc] > review/reports/ooc_summary.md
+    python3 review/tools/ooc_collect.py [/tmp/opencode/rev/ooc] > ../docs/hardware/studies/reports/ooc_summary.md
 
 One row per sweep directory; fmax_est = 1000/(period − WNS) at post-route. The committed
-`review/reports/ooc_summary.md` is the exact output of the 2026-10-20 chain.
+`../docs/hardware/studies/reports/ooc_summary.md` is the exact output of the 2026-10-20 chain.
 
 ## `route_wns.py` — per-clock post-route timing of the full SoC
 
     python3 review/tools/route_wns.py /tmp/opencode/rev/pletdir/timing_route.rpt \
-        review/reports/soc_plet_timing.md
+        ../docs/hardware/studies/reports/soc_plet_timing.md
 
 Parses column POSITIONS from the header line (blank cells for non-critical domains cannot shift
 tokens), so it reads the SoC's whole Intra Clock Table (sys/comp/audio/HDMI domains) + the Clock
 Summary (period/frequency per domain). The post-route `timing_route.rpt` itself is regenerated
 from the route checkpoint by `finales.sh`-equivalent two-liner (open_checkpoint +
-report_timing_summary); committed under `review/reports/plet/`.
+report_timing_summary); committed under `../docs/hardware/studies/reports/plet/`.

@@ -9,7 +9,7 @@
 //
 // A ROM built with Matt's local assets (-Dgem_assets) replaces them with the
 // geometry its converter read from the reconstruction (fsel_draw.zig: geomFor);
-// that geometry is never committed (decisions.md 2026-11-09).
+// that geometry is never committed (docs/project/DECISIONS.md 2026-11-09).
 // Pure: no ZigOS, `zig test` covers it.
 // --------------------------------------------------------------------------
 

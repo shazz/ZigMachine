@@ -1,8 +1,8 @@
-"""The sound CPU (docs/FPGA_SOUND_CPU.md): a second VexRiscv that runs the machine's
+"""The sound CPU (docs/hardware/FPGA_SOUND_CPU.md): a second VexRiscv that runs the machine's
 players (the SNDH player = Musashi, via wasm2c) instead of the cart CPU.
 
 - **The core**: vexgen's `SndNdD16` netlist (`vexgen/gen.sh SndNdD16:16384:2:16384:2:snd,nodiv`): RV32I + Zmmul,
-  a 16 KB 2-way D$ since KESTREL v1.1 (3 Nov 2026, fpga/review/BARD_BRAM_STUDY.md; the old 4 KB core is `SndNd`)
+  a 16 KB 2-way D$ since KESTREL v1.1 (3 Nov 2026, docs/hardware/studies/BARD_BRAM_STUDY.md; the old 4 KB core is `SndNd`)
   (no divider, DIV/REM trap: the firmware divides in libgcc, cycles/sound.mk SND_ARCH), 16 KiB 2-way I$,
   4 KiB D$, every module prefixed ZmSnd_ so it sits next to the cart CPU's VexRiscv. Reset vector
   SOUND_BASE, in the cart window (cycles/sound.mk links there).
@@ -77,7 +77,7 @@ class SoundCPU(LiteXModule):
         self.regs = SoundRegs(self.cart, regs, ibus, dbus)
         rst = ResetSignal("sys") | ~self.regs.run | (~enable if enable is not None else 0)
         tcm_ports: dict[str, Any] = {}
-        if tcm:  # the `tcm` core's scratchpad (soc/zm_sound_tcm.py, review/BARD_BRAM_STUDY.md)
+        if tcm:  # the `tcm` core's scratchpad (soc/zm_sound_tcm.py, docs/hardware/studies/BARD_BRAM_STUDY.md)
             self.tcm = SoundTcm(tcm)
             tcm_ports = self.tcm.ports()
         self.specials += Instance(

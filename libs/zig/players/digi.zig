@@ -8,7 +8,7 @@
 //
 // Why: a digi tune interrupts 263 times a 60 Hz frame, and on the sound CPU each
 // interrupt costs ~14.6 k cycles on Musashi for ~26 instructions of 68000
-// (docs/FPGA_SOUND_CPU.md "Native players"). Natively it is a few hundred.
+// (docs/hardware/FPGA_SOUND_CPU.md "Native players"). Natively it is a few hundred.
 //
 // A driver is a timer HANDLER, often shared between tunes, plus a SEQUENCER
 // (init / play / exit), usually one tune's own. Recognition is all or nothing:

@@ -3,7 +3,7 @@
 //
 // A cart reads the player the host mirrors in (ZigOS.audio_mode, song_ms and
 // the YM registers: the page's worklet in the browser, BARD's S2C bank on the
-// board since system table 1.2, decisions.md 2026-10-18) and its own queues'
+// board since system table 1.2, docs/project/DECISIONS.md 2026-10-18) and its own queues'
 // drop counts. The chips are the audio SDK's set, which every host of this
 // machine plays; WHO plays them is the host's (ident.zig): BARD, the sound CPU,
 // and CHORUS's four Paula channels on the board, the AudioWorklet on the page.

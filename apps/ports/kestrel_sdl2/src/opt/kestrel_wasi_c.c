@@ -1,4 +1,4 @@
-/* C: for a C port's POSIX calls (docs/KOS_GEMDOS.md §5), opt-in: built with -DKESTREL_CDRIVE and linked
+/* C: for a C port's POSIX calls (docs/os/KOS_GEMDOS.md §5), opt-in: built with -DKESTREL_CDRIVE and linked
  * with KOS GEMDOS's object (rom/kos/gemdos_c.zig). wasi-libc finds its preopened folders by asking fd 3,
  * 4, ... until one is refused: fd 3 is the floppy ("/", kestrel_wasi.c), fd 4 is C: as "/C" when C:
  * mounts (the card has an HD folder; the page was given ?c=). libc resolves every path against the

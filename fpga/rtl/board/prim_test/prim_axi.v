@@ -1,7 +1,7 @@
 // The primitive self-test's GP0 slave (rtl/board/prim_test_top.v): AXI3 single
 // beats as the PS's M_AXI_GP0 makes them for a U-Boot md.l / mw.l. IDs echoed,
 // RLAST always set, every response OKAY. Every PS7 pin meets a flip-flop first
-// (nextpnr does not time the PS7's pins: docs/FPGA_STEPS.md "2026-10-04"), so a
+// (nextpnr does not time the PS7's pins: docs/hardware/FPGA_STEPS.md "2026-10-04"), so a
 // write lands one clock after both AW and W are held, and a read answers one
 // clock after AR: `rword` is the word at `raddr`, looked up from a register.
 `default_nettype none

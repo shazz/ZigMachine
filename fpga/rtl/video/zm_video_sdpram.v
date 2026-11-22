@@ -11,7 +11,7 @@
 //   openXC7 / prjxray bitstream): wider shapes lost data there: a 48/64-bit array (one RAMB36 in
 //   SDP x72 mode) lost bits 0-35; 32-bit SDP x36 and 16-bit TDP x18 slices with per-byte write
 //   enables lost whole byte lanes at fixed positions. The shapes proven on the board under openXC7
-//   write one enable per primitive or are byte-wide (docs/FPGA_STEPS.md). An openXC7 build
+//   write one enable per primitive or are byte-wide (docs/hardware/FPGA_STEPS.md). An openXC7 build
 //   defines ZM_SDPRAM_LANES (soc/openxc7.py).
 `default_nettype none
 

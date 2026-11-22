@@ -45,7 +45,7 @@ The shared layer `../kestrel_sdl2` gives the heap, WASI over the floppy (read-on
 ## C: (the card's HD, KOS GEMDOS)
 
 Built with `-DKESTREL_CDRIVE` (`Makefile`, the same wiring as `../grafx2`): the floppy is `/`, C: is `/C`
-when the card has an HD folder (docs/KOS_GEMDOS.md §5). Path convention:
+when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
 
 - `/` is the floppy (its root; the floppy is flat, so any folder typed on it lists the root).
 - `/C` is C:, the card's HD folder; `/C/MODS` is its MODS folder. C:'s names are GEMDOS's: any case, 8.3.

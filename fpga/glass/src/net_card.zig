@@ -1,4 +1,4 @@
-// ZIGNIC on the board (docs/GEM_NET.md N2): glass is the network card. ZIGGY's firmware (cycles/bnet.c) writes one
+// ZIGNIC on the board (docs/os/GEM_NET.md N2): glass is the network card. ZIGGY's firmware (cycles/bnet.c) writes one
 // request at window end - NET_FROM_TOP (map_cart.zig NET_*); the C: thread polls it (kos_drive.zig) beside C:'s
 // blocks. A whole, checked, unanswered block is COPIED out first (the cart may rewrite the window meanwhile), then
 // served on Linux's sockets (net_sock.zig: never blocking), its bytes moved in place in the cart's memory (send

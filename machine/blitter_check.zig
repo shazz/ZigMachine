@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // ZigMachine — SEALED blitter: what execute() checks before it draws. Where a
 // source may be read from (one readable window), and whether an op's clipped
-// box stays inside the video region. See docs/BLITTER_HW_SPEC.md §2.
+// box stays inside the video region. See docs/hardware/BLITTER_HW_SPEC.md §2.
 // --------------------------------------------------------------------------
 const memmap = @import("sdk/memmap.zig");
 const regs = @import("blitter_regs.zig");

@@ -1,5 +1,5 @@
 """Next-line prefetch for WishboneHP's line buffer (soc/zm_hp_read.py; WishboneHP `prefetch`):
-review/ZIGGY_BIG_READS_STUDY.md.
+docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md.
 
 ZIGGY's D$ is blocking: a sequential read pays the whole DDR round trip (~22 of a refill's ~43
 clocks) on every 32-byte line. Here, when a refill ends and its line is the one after the

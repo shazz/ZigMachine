@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // GEM 5's PROGRAM API: what a windowed GEM application needs from the ROM that the
-// flat ABI of Phase 2 lacked (found writing NOTEPAD, docs/NOTEPAD.md). Appended
+// flat ABI of Phase 2 lacked (found writing NOTEPAD, docs/os/NOTEPAD.md). Appended
 // exports (system table 1.17), the app's half is rom/sdk/aes.zig.
 //
 //   windows    win*: the desktop's window manager per program context, its gadgets'
@@ -123,7 +123,7 @@ export fn guiCell(h: u32) u32 {
     const f = g.screen.font;
     return @as(u32, @intCast(f.cell_w)) << 16 | @as(u32, @intCast(f.cell_h));
 }
-/// graf_mouse M_OFF (0) / M_ON (1): in the desk no host draws the arrow (docs/GEM_DESK_MODE.md
+/// graf_mouse M_OFF (0) / M_ON (1): in the desk no host draws the arrow (docs/os/GEM_DESK_MODE.md
 /// §4), so the ROM draws TOS's ARROW at the pointer with the screen under it kept, and puts it
 /// back at M_OFF. Call M_OFF before drawing a frame and M_ON after. Low and medium: nothing.
 export fn guiMouse(h: u32, on: u32) void {

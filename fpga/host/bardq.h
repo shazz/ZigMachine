@@ -1,4 +1,4 @@
-/* The BARD queue (system table 1.12, decisions.md 2026-11-07 "The BARD queue"): the cart's block
+/* The BARD queue (system table 1.12, docs/project/DECISIONS.md 2026-11-07 "The BARD queue"): the cart's block
  * (libs/zig/bard.zig, the layout below) and the two sides that serve it where native C runs.
  *   players side (host/bardq_pump.c): a batch of the ring's entries into demo-audio.wasm's queue
  *     (apps/zig/demo_audio_sidlive.zig), its position and events read back. On the native host and

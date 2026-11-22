@@ -56,7 +56,7 @@ fn tail(comptime Bus: type, v: u32, p: u32) void {
 
 /// $C48: by range, then $80..$B7 through CMDS ($CC6). A byte the table does not
 /// cover would send the 68000 into code as data; no row of the song has one
-/// (docs/FPGA_SOUND_CPU.md), and here it ends the row instead, counted.
+/// (docs/hardware/FPGA_SOUND_CPU.md), and here it ends the row instead, counted.
 const Next = struct { p: u32, ends: bool = false };
 
 fn command(comptime Bus: type, b: u32, v: u32, c: u8, p: u32) Next {

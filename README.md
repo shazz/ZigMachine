@@ -99,12 +99,12 @@ docs/               the web root, the built wasm, and the API docs
 
 ## Docs
 
-- `docs/HW_API.md` — the sealed hardware ABI
-- `docs/ZIGOS_API.md` — the open library
-- `docs/HARDWARE_SPEC.md` — design and status
-- `docs/FLOPPY_DISK.md` — the disk format
-- `docs/SDK.md` — the KESTREL SDK: write a cart in your own directory, run it in the browser, put it on the board
-- `decisions.md` — architecture decision records
+- `docs/hardware/HW_API.md` — the sealed hardware ABI
+- `docs/guide/ZIGOS_API.md` — the open library
+- `docs/hardware/HARDWARE_SPEC.md` — design and status
+- `docs/guide/FLOPPY_DISK.md` — the disk format
+- `docs/guide/SDK.md` — the KESTREL SDK: write a cart in your own directory, run it in the browser, put it on the board
+- `docs/project/DECISIONS.md` — architecture decision records
 
 ## Build
 
@@ -120,7 +120,7 @@ The only target is `wasm32-freestanding-musl`.
 ./build.sh
 ```
 
-That builds every module and cart, then runs the gate: RAM-window checks, the native tests, a repack of every floppy, and headless harnesses that drive the real machine end to end. Use it instead of a bare `zig build` — the failures it catches are the silent ones, like a cart overrunning its window and corrupting the video region instead of trapping. [docs/BUILDING.md](docs/BUILDING.md) covers the faster variants (`--changed`, `--only`, `--fast`) and what the pre-push hook runs.
+That builds every module and cart, then runs the gate: RAM-window checks, the native tests, a repack of every floppy, and headless harnesses that drive the real machine end to end. Use it instead of a bare `zig build` — the failures it catches are the silent ones, like a cart overrunning its window and corrupting the video region instead of trapping. [docs/guide/BUILDING.md](docs/guide/BUILDING.md) covers the faster variants (`--changed`, `--only`, `--fast`) and what the pre-push hook runs.
 
 ## Run
 

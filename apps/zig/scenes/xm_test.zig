@@ -8,7 +8,7 @@
 // so the cart costs nothing a frame and the music is all there is to hear.
 //
 // The songs are real modules from The Mod Archive, both by Drozerix and both
-// Public Domain, so they may be bundled (docs/MUSIC.md "Bundled modules"):
+// Public Domain, so they may be bundled (docs/guide/MUSIC.md "Bundled modules"):
 //   1  keygen_9000.xm          "Keygen 9000", 8 channels, 55 KB, chiptune
 //      https://modarchive.org/module.php?173938  md5 02b1f1dad70ea15a0b064c45468caa55
 //   2  poppy_flower_girls.xm   "Poppy Flower Girls", 12 channels, 91 KB, demo style
@@ -18,7 +18,7 @@
 // Keys 1-3 ask for a song BY NAME (zg.requestSong), key 4 stops it. They come in
 // through setShadeMode, as the loader and the board's glass send digits 1-7
 // (mode = digit - 1): no 0 reaches a cart, so stop is 4. local.xm is a song kept
-// on its owner's machine only (gitignored, docs/MUSIC.md): a checkout without
+// on its owner's machine only (gitignored, docs/guide/MUSIC.md): a checkout without
 // one plays nothing on 3.
 //
 // The player's refusal code (audioXmError) lives in the audio module, which no

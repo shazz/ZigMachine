@@ -1,4 +1,4 @@
-"""KOS F3b (docs/KOS_FAT.md): a floppy program's own board image, NAME.RV beside NAME.WSM, written by
+"""KOS F3b (docs/os/KOS_FAT.md): a floppy program's own board image, NAME.RV beside NAME.WSM, written by
 fpga/tools/kos_rv.py in glass/src/app_floppy_rv.zig's container ("ZMRV", version 1, the wasm's
 SHA-256, the ZX0-packed lean cart). A cart the system would refuse (another table major) is never
 written; `floppy` puts each cart's .WSM and .RV on an Atari FAT12 image KOS's reader lists."""

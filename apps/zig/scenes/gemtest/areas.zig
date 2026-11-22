@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // GEMTEST's areas: one window per part of GEM 5 (four for the windows), each
 // labelled with what it exercises. What the program API has is shown working;
-// what it lacks is a grey "not in the API yet: ..." line (docs/GEMTEST.md lists
+// what it lacks is a grey "not in the API yet: ..." line (docs/os/GEMTEST.md lists
 // them): the program never reaches into the ROM to fake one.
 // --------------------------------------------------------------------------
 const Pen = @import("pen.zig").Pen;

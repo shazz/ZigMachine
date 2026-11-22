@@ -95,7 +95,7 @@ static int find(const char *p, uint32_t len)
 /* --- file descriptors: 0-2 console, 3 the root (preopen), 4.. open files or directory handles --- */
 #define ROOT_FD 3
 #define MAX_FDS 12
-/* KESTREL_CDRIVE (a port linking KOS GEMDOS, docs/KOS_GEMDOS.md): the functions below are the floppy's
+/* KESTREL_CDRIVE (a port linking KOS GEMDOS, docs/os/KOS_GEMDOS.md): the functions below are the floppy's
  * half; opt/kestrel_wasi_c.c holds the WASI entry points, which hand fd 4 (C:, the preopen "/C") and
  * C:'s files to GEMDOS and the rest here. Without it they are the entry points, as before. */
 #ifdef KESTREL_CDRIVE

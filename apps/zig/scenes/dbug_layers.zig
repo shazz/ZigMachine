@@ -51,7 +51,7 @@ pub fn hbl(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = col;
     // Overscan plane: this per-plane HBL fires on PHYSICAL lines 0..279. The zoomed
     // scroller fills the whole 400-wide buffer, so open ALL borders by flickering the
-    // resolution register every line (the authentic trick; see docs/HW_API.md).
+    // resolution register every line (the authentic trick; see docs/hardware/HW_API.md).
     fb.flickerBorder();
     // Raster bars behind the scroller (physical line numbering).
     if (line > start_raster_line and line < start_raster_line + 192) {

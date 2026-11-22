@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The BARD SID study (fpga/review/SID_BARD_STUDY.md): fetch cRSID 1.58 (Hermit, WTF licence) and the
+# The BARD SID study (docs/hardware/studies/SID_BARD_STUDY.md): fetch cRSID 1.58 (Hermit, WTF licence) and the
 # six study tunes from HVSC into prototypes/sid_re/ (git-ignored: the tunes are never committed).
 #   tools/sid_bard_fetch.sh
 set -euo pipefail

@@ -1,5 +1,5 @@
 // `glass astro-bench`: what ASTROLABE's ARM side costs, measured on the board (SPIKE,
-// docs/ARM_FPU_COPROC.md). Runs beside a running glass and any bitstream: it reads the
+// docs/hardware/studies/ARM_FPU_COPROC.md). Runs beside a running glass and any bitstream: it reads the
 // register block, the mailbox page and the cart's DDR window, and writes only REG_SCRATCH
 // and the mailbox's last word (no protocol word: a running worker is not disturbed).
 //

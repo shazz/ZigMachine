@@ -1,5 +1,5 @@
 // The glass's register block: the ARM's view of the console, over the PS's M_AXI_GP0
-// (docs/FPGA_GLASS.md). The map is fpga/glass/src/map.zig, through gen/glass_map.vh.
+// (docs/hardware/FPGA_GLASS.md). The map is fpga/glass/src/map.zig, through gen/glass_map.vh.
 //
 // AXI3 as the GP port speaks it, single beats only (the ARM maps the block uncached,
 // 32-bit accesses). IDs are echoed, RLAST is always set, and every response is OKAY:

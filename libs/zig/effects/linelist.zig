@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// Line list (HW 1.10.0, fpga/review/COPPER_LINEBASE.md): the STE line-list screen
+// Line list (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md): the STE line-list screen
 // as a copper list. Each raster line names where its pixels come from (the video
 // counter $FF8205/07/09 an STE kernel rewrites in the border), a fine scroll
 // ($FF8264) and colour 0 ($FF8240); the machine applies them before the line, so

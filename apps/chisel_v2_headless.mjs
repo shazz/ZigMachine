@@ -1,6 +1,6 @@
 // Headless CHISEL V2 driver (cart 112): boots the sealed machine + demo-chisel_v2.wasm and
 // proves each mode draws what its HW 1.11.0 op promises, with a second model written here
-// from docs/BLITTER_HW_SPEC.md §4.5-4.7 (not from machine/blitter_tex.zig):
+// from docs/hardware/BLITTER_HW_SPEC.md §4.5-4.7 (not from machine/blitter_tex.zig):
 //
 //  ROTOZOOM, MODE 7  every AFFINE pixel equals the texel its span names (the list and the
 //                    texture read back from cart RAM), outside the mode's two label lines

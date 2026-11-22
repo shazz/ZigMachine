@@ -1,4 +1,4 @@
-"""The SD card's layout (decisions.md 2026-11-06): KESTREL/ (system), CARTS/ (the shelf), HD/ (KOS's C:),
+"""The SD card's layout (docs/project/DECISIONS.md 2026-11-06): KESTREL/ (system), CARTS/ (the shelf), HD/ (KOS's C:),
 the boot files alone at the root. One set of names (tools/sd_layout.py) = glass's (glass/src/layout.zig)
 = the desktop shell's C: root (apps/zig/scenes/gem_fat.zig); the staging tools write it; and
 tools/sd_migrate_layout.sh, run under busybox sh as on the board, moves an old card there and back.

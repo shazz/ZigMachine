@@ -1,4 +1,4 @@
-"""The stereo stream's host entries (system table 1.27, decisions.md 2026-11-20): zg.audioStreamStartStereo
+"""The stereo stream's host entries (system table 1.27, docs/project/DECISIONS.md 2026-11-20): zg.audioStreamStartStereo
 (two rings, Paula channels 0 / 1 panned hard left / right), zg.audioFeedStereo (interleaved L,R signed
 8-bit frames) and zg.audioStreamPlayed (the stream's sample counter, mono or stereo). Appended to the
 table after 1.26's hostAudioScopes, so every older index stands and a 1.26 cart still runs; a cart that

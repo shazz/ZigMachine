@@ -32,7 +32,7 @@ const modmate_pal = convertU8ArraytoColors(@embedFile("../assets/screens/fullscr
 // HBL handler registered at OVERSCAN_MAGIC_X fires on every scanline and calls
 // flickerBorder() — flickering in the top/bottom bands opens them, flickering on a
 // visible line opens both side borders. Miss the magic column and the border shows
-// garbage (see docs/HW_API.md "Opening the borders (overscan)").
+// garbage (see docs/hardware/HW_API.md "Opening the borders (overscan)").
 fn handler_overscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = line;

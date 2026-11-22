@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
-HEAD = """# fpga/cycles/sys_abi.txt: the KESTREL system table and cart header (decisions.md 2026-10-15).
+HEAD = """# fpga/cycles/sys_abi.txt: the KESTREL system table and cart header (docs/project/DECISIONS.md 2026-10-15).
 # GENERATED and checked by fpga/tools/sys_abi.py (build.sh runs --check): never edit by hand;
 # `python3 fpga/tools/sys_abi.py --update` rewrites it and bumps the version."""
 

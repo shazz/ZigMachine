@@ -1,4 +1,4 @@
-"""MP3 output path probe (fpga/review/MP3_BARD_STUDY.md, option b): can two Paula channels a side, a
+"""MP3 output path probe (docs/hardware/studies/MP3_BARD_STUDY.md, option b): can two Paula channels a side, a
 high byte at VOL 256 and a low byte at VOL v, carry a 16-bit sample through CHORUS to its 16-bit out?
 
 Plays one stimulus on the RTL (CXXRTL core bench) and on the Zig engine (the browser's machine-audio),

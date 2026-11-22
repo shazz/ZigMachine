@@ -24,7 +24,7 @@
 // `--kos X.zmd|none` boots as KOS powers on (scene_hash_kos.mjs): the ROM's POST for
 // --post-frames frames (default 180, 0 = none), then drive A decides what runs: X's boot
 // sector, X's cart (the cart given must be it) or the desktop (the cart given: demo-gem.wasm).
-// `--c-image X.img` is KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead serves X's sectors by the
+// `--c-image X.img` is KOS's C: (docs/os/KOS_FAT.md F5): env.kosDriveRead serves X's sectors by the
 // page's rules (docs/sealed-loader.js kosDriveRead, the page's ?c=X); without it, 0 (no C:). The
 // cart's writes go into it (env.kosFileOp, docs/kos-cfile.js); `--c-out Y.img` saves it after the run.
 // `--composite` hashes only the COMPOSED picture (each enabled plane's physical
@@ -73,7 +73,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program, kos) 
         ...rom,
     };
     if (cImage) env.kosDriveRead = makeCDrive(memory, cImage);
-    env.kosFileOp = cImage ? makeCFile(memory, cImage) : () => -46; // C:'s writes (docs/KOS_GEMDOS.md §7), into the image
+    env.kosFileOp = cImage ? makeCFile(memory, cImage) : () => -46; // C:'s writes (docs/os/KOS_GEMDOS.md §7), into the image
     // One cart over the shared memory; KOS instantiates the boot sector and then the cart.
     const instantiate = async (bytes) => {
         const e = { ...env };

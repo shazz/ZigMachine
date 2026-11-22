@@ -14,7 +14,7 @@
 const memmap = @import("memmap.zig");
 
 // --- geometry (re-exported under the names ZigOS/effects already use) ---
-pub const net_abi = @import("net_abi.zig"); // ZIGNIC, the network card (docs/GEM_NET.md): the Req a cart hands env.netOp
+pub const net_abi = @import("net_abi.zig"); // ZIGNIC, the network card (docs/os/GEM_NET.md): the Req a cart hands env.netOp
 pub const PHYSICAL_WIDTH = memmap.PHYSICAL_WIDTH;
 pub const PHYSICAL_HEIGHT = memmap.PHYSICAL_HEIGHT;
 pub const WIDTH = memmap.WIDTH;
@@ -65,13 +65,13 @@ pub const FB_MODE_FULLSCREEN = memmap.FB_MODE_FULLSCREEN;
 pub const FB_MODE_SCROLL = memmap.FB_MODE_SCROLL;
 pub const FB_MODE_MEDIUM = memmap.FB_MODE_MEDIUM;
 pub const FB_MODE_OVERSCAN = memmap.FB_MODE_OVERSCAN;
-pub const FB_MODE_TRUECOLOR = memmap.FB_MODE_TRUECOLOR; // 1.15.0 RGB565 planes (docs/HW_API.md)
+pub const FB_MODE_TRUECOLOR = memmap.FB_MODE_TRUECOLOR; // 1.15.0 RGB565 planes (docs/hardware/HW_API.md)
 pub const FB_MODE_TRUECOLOR_FULL = memmap.FB_MODE_TRUECOLOR_FULL;
 pub const TRUECOLOR_STRIDE = memmap.TRUECOLOR_STRIDE;
 pub const TRUECOLOR_FULL_STRIDE = memmap.TRUECOLOR_FULL_STRIDE;
 pub const TRUECOLOR_FB_BYTES = memmap.TRUECOLOR_FB_BYTES;
 pub const TRUECOLOR_FULL_FB_BYTES = memmap.TRUECOLOR_FULL_FB_BYTES;
-pub const REG_TC_FADE = memmap.REG_TC_FADE; // 1.16.0 the true-colour fade (docs/HW_API.md)
+pub const REG_TC_FADE = memmap.REG_TC_FADE; // 1.16.0 the true-colour fade (docs/hardware/HW_API.md)
 pub const REG_TC_OFS_R = memmap.REG_TC_OFS_R;
 pub const REG_TC_OFS_G = memmap.REG_TC_OFS_G;
 pub const REG_TC_OFS_B = memmap.REG_TC_OFS_B;
@@ -90,7 +90,7 @@ pub const RASTER_VIS_WIDTH = memmap.RASTER_VIS_WIDTH;
 pub const RASTER_VIS_HEIGHT = memmap.RASTER_VIS_HEIGHT;
 pub const RES_PLANES = memmap.RES_PLANES;
 pub const RES_TRUECOLOR = memmap.RES_TRUECOLOR;
-pub const RES_DESK = memmap.RES_DESK; // 1.17.0 the desk mode (docs/HW_API.md "Desk mode")
+pub const RES_DESK = memmap.RES_DESK; // 1.17.0 the desk mode (docs/hardware/HW_API.md "Desk mode")
 pub const DESK_WIDTH = memmap.DESK_WIDTH;
 pub const DESK_HEIGHT = memmap.DESK_HEIGHT;
 pub const DESK_FB_BYTES = memmap.DESK_FB_BYTES;
@@ -191,7 +191,7 @@ pub extern fn hwPhysWidth() u32;
 pub extern fn hwPhysHeight() u32;
 pub extern fn hwVersion() u32; // ZM_HW_VERSION
 pub extern fn hwDeskAvailable() u32; // 1.17.0: 1 where RES_DESK shows (0 on an older board bitstream)
-// 1.18.0, SPIKE: ASTROLABE, the f64 coprocessor (docs/ARM_FPU_COPROC.md): `count` descriptors at `desc`
+// 1.18.0, SPIKE: ASTROLABE, the f64 coprocessor (docs/hardware/studies/ARM_FPU_COPROC.md): `count` descriptors at `desc`
 pub extern fn hwAstro(desc: u32, count: u32) u32;
 pub const astro = @import("astro.zig"); // its descriptor and ops
 

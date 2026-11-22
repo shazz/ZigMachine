@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The BARD MP3 study (fpga/review/MP3_BARD_STUDY.md): build one decoder for the host (accuracy against
+# The BARD MP3 study (docs/hardware/studies/MP3_BARD_STUDY.md): build one decoder for the host (accuracy against
 # ffmpeg, the per-frame PCM hashes) and for BARD (the snd-cbench image, run it with tools/cycles_sim.sh
 # on a soc_hp_snd model). Needs tools/mp3_bard_fetch.sh and tools/mp3_bard_streams.sh first.
 #   tools/mp3_bard_bench.sh helix [host|bard|all] [extra CFLAGS for both builds]

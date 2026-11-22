@@ -1,4 +1,4 @@
-# Native KESTREL carts (decisions.md 2026-10-17): lean cart images written for ZIGGY directly,
+# Native KESTREL carts (docs/project/DECISIONS.md 2026-10-17): lean cart images written for ZIGGY directly,
 # in C or RV32 assembly, not compiled from wasm. Board only: the browser cannot run them.
 # They are called exactly as split.mk's wasm2c carts are (cycles/bsys.c, the zm_cart_hdr of
 # gen/zm_sys_abi.h), so the system image is unchanged. Included by fpga/Makefile after split.mk.

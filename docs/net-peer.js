@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ZIGNIC's scripted network (docs/GEM_NET.md, N1): a small deterministic LAN 10.77.0.0/24 the page and the
+// ZIGNIC's scripted network (docs/os/GEM_NET.md, N1): a small deterministic LAN 10.77.0.0/24 the page and the
 // harnesses use when no relay is given (`?net=peer`), so the card and its carts are tested with no network.
 // Time is the card's polls, never a clock: a connect is established on the next poll, a timeout after 3.
 //

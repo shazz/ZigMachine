@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// tutorial.zig: "your first screen", the Zig version of docs/TUTORIAL.md (step 7).
+// tutorial.zig: "your first screen", the Zig version of docs/guide/TUTORIAL.md (step 7).
 //
 // A sky with a copper bar, a bouncing block, a checkerboard floor, a scroller
 // and SNDH music. Zig scenes get ZigOS: planes, palettes, the copper helper,

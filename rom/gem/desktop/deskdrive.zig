@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The desktop's two drives (KOS, docs/KOS_FAT.md F5): A: the disk in the drive, C: the SD card,
+// The desktop's two drives (KOS, docs/os/KOS_FAT.md F5): A: the disk in the drive, C: the SD card,
 // each its own directory model (drives[0], drives[1]). Every directory window remembers its
 // drive (drv.win); `d.dir` is the model of the drive in FOCUS, which follows the top directory
 // window, so the code that reads `d.dir` (dirview, desksel, deskops) is unchanged. A change of

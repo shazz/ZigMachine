@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// GEMDOS paths (docs/KOS_GEMDOS.md §3): `C:\FOLDER\FILE.EXT`, `\` or `/` between names (TOS takes
+// GEMDOS paths (docs/os/KOS_GEMDOS.md §3): `C:\FOLDER\FILE.EXT`, `\` or `/` between names (TOS takes
 // both), a drive letter or the current drive, absolute from the drive's root or relative to its
 // current folder. `.` and `..` are resolved here, by name, never by following a folder's `..` entry
 // (so `..` at the root stays at the root, as TOS does). Names are 8.3, upper case; a longer name is
@@ -8,7 +8,7 @@
 const std = @import("std");
 const upper = @import("fat_dir.zig").upper;
 
-pub const MAX_DEPTH = 8; // folders below a drive's root (docs/KOS_FAT.md §2)
+pub const MAX_DEPTH = 8; // folders below a drive's root (docs/os/KOS_FAT.md §2)
 pub const NO_DRIVE: u8 = 0xFF;
 
 /// A name in a directory entry's own form: 8 + 3 bytes, space padded, upper case.

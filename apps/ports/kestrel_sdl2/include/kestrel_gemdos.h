@@ -1,4 +1,4 @@
-/* KOS GEMDOS for C carts (docs/KOS_GEMDOS.md): TOS's file calls over A: (a FAT
+/* KOS GEMDOS for C carts (docs/os/KOS_GEMDOS.md): TOS's file calls over A: (a FAT
  * floppy image in the drive) and C: (the SD card's /HD; the page's ?c= image; the native host's
  * --c-image). Implemented in Zig (rom/kos/gemdos*.zig), linked as one object built from
  * rom/kos/gemdos_c.zig (see apps/ports/grafx2/Makefile). Answers as TOS's: >= 0 a result, < 0 an error.
@@ -49,7 +49,7 @@ int32_t Fclose(int32_t handle);
 int32_t Fread(int32_t handle, int32_t count, void *buf);
 int32_t Fseek(int32_t offset, int32_t handle, int32_t mode); /* 0 SET, 1 CUR, 2 END; the new position */
 int32_t Fattrib(const char *path, int32_t wflag, int32_t attr); /* wflag 0: the attributes; 1: set them (C:) */
-/* Writes (phase 2, C: only; A: answers EWRPRO): the host writes whole files (docs/KOS_GEMDOS.md §7). */
+/* Writes (phase 2, C: only; A: answers EWRPRO): the host writes whole files (docs/os/KOS_GEMDOS.md §7). */
 int32_t Fcreate(const char *path, int32_t attr);  /* a handle open for writing; the file is saved at Fclose */
 int32_t Fwrite(int32_t handle, int32_t count, const void *buf); /* buffered (32 KB): the count, or an error */
 int32_t Fdelete(const char *path);

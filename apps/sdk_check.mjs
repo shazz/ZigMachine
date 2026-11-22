@@ -1,4 +1,4 @@
-// The KESTREL SDK's template cart, built the way an outside coder builds it (docs/SDK.md).
+// The KESTREL SDK's template cart, built the way an outside coder builds it (docs/guide/SDK.md).
 //
 // sdk/template is copied OUTSIDE the repository (a fresh temp dir), its build.zig.zon pointed back
 // at this checkout, and built with its own build.zig (sdk/build_cart.zig: the repo as a Zig

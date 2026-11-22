@@ -1,4 +1,4 @@
-// KOS C: in the C ports (docs/KOS_GEMDOS.md §5): pt2-clone and klystrack launched from GEM over their floppies,
+// KOS C: in the C ports (docs/os/KOS_GEMDOS.md §5): pt2-clone and klystrack launched from GEM over their floppies,
 // with C: = a copy of docs/gemdos-c.img that carries one song (HD/MODS/GLENZ.MOD for pt2, HD/SONGS/STARPORT.KT for
 // klystrack), and the program's own file browser reaches it: pt2 by its PATH field ("/C/MODS"), klystrack by its
 // Open song box (a "C" folder at the floppy's root, then SONGS). The ORACLE: the song loaded off C: gives the same

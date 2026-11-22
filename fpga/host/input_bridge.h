@@ -1,4 +1,4 @@
-/* The glass's input to the cart (docs/FPGA_GLASS.md "Input"): its key events, joypad and mouse
+/* The glass's input to the cart (docs/hardware/FPGA_GLASS.md "Input"): its key events, joypad and mouse
  * turned into the cart's export calls by fpga/glass/firmware/glass_input.c, whose rules are
  * docs/sealed-loader.js's. The board firmware feeds it the glass CSRs (cycles/binput.c); the
  * native host feeds it a script (host/main.c ZM_GLASS_KEYS), which is how it is tested. A cart

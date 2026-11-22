@@ -54,7 +54,7 @@ static u32 physbase;     // what Setscreen asked for; the VBL latches it
 static u16 st_color[16];
 
 // A register write: palette entry n, and the border when it is colour 0. An ST
-// colour is 3 bits a gun; the machine's grid is nibble*32 (docs/HARDWARE_SPEC.md).
+// colour is 3 bits a gun; the machine's grid is nibble*32 (docs/hardware/HARDWARE_SPEC.md).
 static void setcolor(int n, u16 c) {
     st_color[n] = c;
     const u32 rgba = 0xFF000000u | ((c & 7u) * 32u) << 16 | (((c >> 4) & 7u) * 32u) << 8 | ((c >> 8) & 7u) * 32u;

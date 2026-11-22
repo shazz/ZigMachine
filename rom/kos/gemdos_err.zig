@@ -1,4 +1,4 @@
-// GEMDOS's answers (docs/KOS_GEMDOS.md §2): TOS's own negative codes, so a ported ST program's
+// GEMDOS's answers (docs/os/KOS_GEMDOS.md §2): TOS's own negative codes, so a ported ST program's
 // error checks read the same. Inside the library they are a Zig error set; the calls return code().
 pub const E_OK: i32 = 0;
 pub const ERROR: i32 = -1; // a generic error

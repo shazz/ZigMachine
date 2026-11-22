@@ -1,4 +1,4 @@
-// The shelf as the menu lists it (docs/FPGA_GLASS.md, "The menu"): in a folder (the top is the
+// The shelf as the menu lists it (docs/hardware/FPGA_GLASS.md, "The menu"): in a folder (the top is the
 // folder ""), a ".." row unless at the top, then the folders right under it, then its own disks.
 // A flat, older card has no folder rows: the list is exactly the disks, row = disk index.
 //

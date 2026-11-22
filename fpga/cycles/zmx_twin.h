@@ -1,4 +1,4 @@
-/* ZM-X v1's software twin in C (fpga/review/KESTREL_NEXT_ISA.md 1.2-1.3): the integer
+/* ZM-X v1's software twin in C (docs/hardware/studies/KESTREL_NEXT_ISA.md 1.2-1.3): the integer
  * semantics the core's ZmXPlugin / ZmMulPlugin implement, written once for the board side.
  * It is what a cart runs where the instructions are absent: the native host and the sim
  * (the cart's env.zm* imports resolve to rom.wasm's twins, libs/zig/zmx.zig, the same

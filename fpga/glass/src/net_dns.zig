@@ -1,4 +1,4 @@
-// ZIGNIC's name lookups (net_card.zig, docs/GEM_NET.md N2): a DNS A query sent over a UDP socket to the board's
+// ZIGNIC's name lookups (net_card.zig, docs/os/GEM_NET.md N2): a DNS A query sent over a UDP socket to the board's
 // nameserver (/etc/resolv.conf, written by udhcpc), the answer's first A record parsed when it arrives. Never
 // blocks: the query goes out at RESOLVE, the reply is read at a later poll. No libc resolver in a static glass.
 const std = @import("std");

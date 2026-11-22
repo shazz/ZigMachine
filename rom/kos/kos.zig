@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// KOS, the KESTREL Operating System: the boot side of the ROM (docs/ZIGTOS_BOOT.md,
+// KOS, the KESTREL Operating System: the boot side of the ROM (docs/os/ZIGTOS_BOOT.md,
 // where "ZigTOS" is the same thing).
 //
 // What lives here is what every host shares: the POST screen (machine/boot.zig's

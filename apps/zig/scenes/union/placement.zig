@@ -40,7 +40,7 @@ const BG = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
 // Strips fly in from off-screen across the full 400-wide canvas, so the
 // borders must stay open for the whole animation — flicker every line, at
-// OVERSCAN_MAGIC_X, ST-style (see docs/HW_API.md "Opening the borders").
+// OVERSCAN_MAGIC_X, ST-style (see docs/hardware/HW_API.md "Opening the borders").
 fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = line;

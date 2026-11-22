@@ -1,4 +1,4 @@
-"""Put a glass binary into Buildroot's rootfs without re-running Buildroot (decisions.md 2026-10-19).
+"""Put a glass binary into Buildroot's rootfs without re-running Buildroot (docs/project/DECISIONS.md 2026-10-19).
 
     uv run python tools/rootfs_glass.py ROOTFS_CPIO GLASS OUT_UBOOT [--strip STRIP]
 

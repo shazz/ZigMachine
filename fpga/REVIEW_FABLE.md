@@ -1,6 +1,6 @@
 # FPGA design review (Fable, 2026-10-02)
 
-Adversarial read of `docs/ZIGMACHINE_IN_FPGA.md`, `docs/FPGA_STEPS.md`, `fpga/CYCLES.md`,
+Adversarial read of `docs/hardware/ZIGMACHINE_IN_FPGA.md`, `docs/hardware/FPGA_STEPS.md`, `fpga/CYCLES.md`,
 `fpga/rtl/video/*`, `fpga/soc/*.py`, the board README, `machine/video.zig`, `machine/sdk/memmap.zig`
 and the ADR, at `b99da65`. Read-only; nothing was built. **Verified** = read in the code or a
 measured number in the docs. **Hypothesis** = reasoning from them, to be tested.
@@ -64,7 +64,7 @@ the board" story ends at step 3.
 
 ### A2. The seal (B, #2)
 
-**Verified.** `decisions.md:25-26`: "The seal is enforced by the AXI interconnect (the cart master sees
+**Verified.** `docs/project/DECISIONS.md:25-26`: "The seal is enforced by the AXI interconnect (the cart master sees
 only its windows)". `boot.c:9-27`: machine, ROM and cart share one memory and one core; `CYCLES.md`
 recommends `aligned` (no bounds checks, −36 %). `zm_video_pipe.py:89`: `mem_base` is a CSR the DMA
 adds to every fetch address. `zigmachine_soc.py:118-120`: the video window and DMA are on the same

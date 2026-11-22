@@ -1,4 +1,4 @@
-// KOS GEMDOS phase 2's proof in a real program (docs/KOS_GEMDOS.md §7): GrafX2 SAVES a picture to C:, and it
+// KOS GEMDOS phase 2's proof in a real program (docs/os/KOS_GEMDOS.md §7): GrafX2 SAVES a picture to C:, and it
 // is there afterwards. GrafX2 is started from GEM over its floppy (apps/ports_gem.mjs), C: = a copy of
 // docs/gemdos-c.img, its writes served by KFS as the page serves them (docs/kos-cfile.js, kos-cfs.wasm).
 //   SAVE     F3, the floppy's ZIGPLASM.PI1 loaded; F2 (Save picture as), Select drive, /C, PICTURES, the

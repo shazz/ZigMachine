@@ -1,5 +1,5 @@
 /* The music block of the debug mailbox (glass/src/map_cart.zig "the music: who plays it",
- * docs/FPGA_GLASS.md): who runs the players, which player, the song, and what its renders
+ * docs/hardware/FPGA_GLASS.md): who runs the players, which player, the song, and what its renders
  * cost, for the glass's debug page. Written only by the CPU that runs the players
  * (cycles/baudio.c: BARD, or ZIGGY in a ZM_AUDIO=1 image), and by cycles/bsound.c when
  * BARD never answered. Each update is bracketed by SI_SEQ going odd then even.

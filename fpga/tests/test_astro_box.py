@@ -1,4 +1,4 @@
-"""ASTROLABE's mailbox protocol (SPIKE, docs/ARM_FPU_COPROC.md) across its three copies.
+"""ASTROLABE's mailbox protocol (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md) across its three copies.
 
 - cycles/bastro_box.h (ZIGGY's firmware) must say what glass/src/astro_box.zig (the ARM),
   machine/sdk/astro.zig (the descriptor) and soc/zm_astro.py (the window) say: every number.

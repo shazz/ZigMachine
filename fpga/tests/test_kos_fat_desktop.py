@@ -1,4 +1,4 @@
-"""KOS's desktop over a real FAT floppy (docs/KOS_FAT.md F2): an Atari 720 KB image
+"""KOS's desktop over a real FAT floppy (docs/os/KOS_FAT.md F2): an Atari 720 KB image
 (tools/kos_fat_fixture.py writes it, no mtools) in drive A, the desktop shell reading it with rom/kos/fat.zig.
 The native host equals scene_hash.mjs frame for frame while GEM opens drive A (DEMO.WSM, PIC.PI1,
 README.TXT, the GAMES folder) and then GAMES (SAVE.DAT, the LEVELS folder); the empty drive's
@@ -57,7 +57,7 @@ def test_a_fat_floppy_as_a_plain_data_disk_too(floppy: Path) -> None:
     both("--data-disk", str(floppy), *CALLS)  # the pre-KOS path (scene_hash_disk.mjs, host_io.c)
 
 
-# KOS's C: (docs/KOS_FAT.md F5): the empty drive's desktop with docs/kos-c.img as C:, its icon in
+# KOS's C: (docs/os/KOS_FAT.md F5): the empty drive's desktop with docs/kos-c.img as C:, its icon in
 # cell (0,1) double-clicked: the native host's --c-image = scene_hash.mjs's, and C: shows.
 OPEN_C = [(5, 40, 70, 0), (10, 40, 70, 1), (11, 40, 70, 0), (20, 40, 70, 2), (21, 40, 70, 0)]
 CALLS_C = [a for f, x, y, b in OPEN_C for a in ("--call", f"{f}:pointer:{x},{y},{b}")]
@@ -77,7 +77,7 @@ def test_a_and_c_together_in_both_hosts(floppy: Path) -> None:
     both("--kos", str(floppy), "--post-frames", "0", "--c-image", str(ROOT / "docs/kos-c.img"), *CALLS)
 
 
-# C: is the card's /HD, not the card (decisions.md 2026-11-06; apps/zig/scenes/gem_fat.zig): FAT32
+# C: is the card's /HD, not the card (docs/project/DECISIONS.md 2026-11-06; apps/zig/scenes/gem_fat.zig): FAT32
 # cards as the board's (mkfs.fat + mtools), the boot files, KESTREL/ and CARTS/ beside HD/. C:\ on the
 # whole card is pixel for pixel C:\ on a card holding only HD/ (so nothing above HD shows), differs from
 # another HD's, and a card with no HD/ has no C: icon at all.

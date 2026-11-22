@@ -3,7 +3,7 @@
 // from a QUEUE's descriptors (zm_blit_q), and the engine, behind a memory master with
 // separate read and write ports. Addresses are the machine's linear byte addresses (the video region is
 // ZM_HW_VIDEO_BASE + offset); the SoC adds its own base the way it does for the video DMA.
-// See docs/BLITTER_HW_SPEC.md "FPGA implementation".
+// See docs/hardware/BLITTER_HW_SPEC.md "FPGA implementation".
 `default_nettype none
 
 module zm_blit (

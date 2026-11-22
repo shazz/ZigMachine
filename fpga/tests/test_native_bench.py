@@ -1,4 +1,4 @@
-"""The ZIGGY bench cart (fpga/cycles/native/bench, decisions.md 2026-10-18): it builds into a lean
+"""The ZIGGY bench cart (fpga/cycles/native/bench, docs/project/DECISIONS.md 2026-10-18): it builds into a lean
 image the board's system runs, its log sits where the ARM looks for it, its kernels are the
 instruction sequences their figures claim to time, and its test table fits the screen and the
 results array. Nothing here runs the cart: the board is the profiler."""

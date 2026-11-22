@@ -610,7 +610,7 @@ export fn deskLaunchName(out: u32, out_cap: u32) u32 {
     @memcpy(dst[0..n], name[0..n]);
     return @intCast(n);
 }
-/// A FAT disk in drive A (KOS, docs/KOS_FAT.md): the shell (apps/zig/scenes/gem_fat.zig) reads it
+/// A FAT disk in drive A (KOS, docs/os/KOS_FAT.md): the shell (apps/zig/scenes/gem_fat.zig) reads it
 /// with rom/kos/fat.zig and fills the model itself: first the reset, then each folder (its index
 /// back, or -1 when full), then the files through deskDirPtr / deskSetFileCount.
 export fn deskFatReset() void {
@@ -628,7 +628,7 @@ export fn deskSetFileCount(n: u32) void {
     deskDriveSetFileCount(0, n);
 }
 
-// KOS's C: (docs/KOS_FAT.md F5): the same model calls for a unit (0 drive A, 2 C:), appended so
+// KOS's C: (docs/os/KOS_FAT.md F5): the same model calls for a unit (0 drive A, 2 C:), appended so
 // drive A's keep their meaning (sys_abi minor); the shell reads the SD card through its own
 // env.kosDriveRead and fills C:'s model with these, then says whether it mounted.
 fn driveModel(unit: u32) ?*gem.DirModel {
@@ -664,7 +664,7 @@ export fn deskSetDriveC(present: u32) void {
     if (desk_ready) gem.setDriveC(&desk, present);
 }
 
-// The desk mode (HW 1.17.0, docs/GEM_DESK_MODE.md §8), appended (sys_abi minor): the ROM cannot
+// The desk mode (HW 1.17.0, docs/os/GEM_DESK_MODE.md §8), appended (sys_abi minor): the ROM cannot
 // ask the machine (it imports only hwVideoBase and hwBlit), so the shell says whether the mode
 // exists; until it does, Set Preferences greys Desk.
 export fn deskSetDeskAvailable(available: u32) void {
@@ -696,7 +696,7 @@ export fn deskInfPtr() u32 {
 export fn deskInfLen() u32 {
     return if (desk_ready) desk.mode.inf_len else 0;
 }
-/// C:'s file operations (docs/GEM5_PLAN.md P1.1, system table 1.18): the address of the ROM <->
+/// C:'s file operations (docs/os/GEM5_PLAN.md P1.1, system table 1.18): the address of the ROM <->
 /// shell mailbox (rom/sdk/deskop.zig), where the desktop posts a copy, move, delete, rename or
 /// New Folder and the shell answers with counts and the result; 0 before the desktop is up.
 export fn deskFileOp() u32 {

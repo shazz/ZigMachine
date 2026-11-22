@@ -3,7 +3,7 @@
 // On the board the sequencer (fpga/cycles/vseq.c) runs AFTER cart.frame() and the CPU waits
 // for it, so a frame costs the cart's cycles PLUS the compositor's, end to end. The board's
 // own probe says so: cart_c + comp_busy + the HBL handlers' cycles puts 101 of the 103 carts
-// of the 2026-10-20 table on the right side of 60 fps (fpga/review/reports/frame_budget_2026-10-23.md).
+// of the 2026-10-20 table on the right side of 60 fps (docs/hardware/studies/reports/frame_budget_2026-10-23.md).
 //
 // FRESCO's share is counted in LINE PASSES, the way vseq.c issues them:
 //   - every enabled plane is one layer of ZM_RASTER_HEIGHT (280) passes, whatever its mode:
@@ -19,7 +19,7 @@ import { REG_GLOBAL_HBL_ID, REG_FB_HBL_ID, REG_FB_MODE } from "./run_cart.mjs";
 
 const LINES = 280; // ZM_RASTER_HEIGHT
 const MODES = ["normal", "fullscreen", "scroll", "medium", "overscan", "truecolor", "truecolor_full"];
-const WIDE = new Set(["fullscreen", "medium", "overscan", "truecolor_full"]); // 400-pixel rows (machine/sdk/memmap.zig STRIDE_FULLSCREEN); a 565 plane costs its geometry's pass (fpga/review/TRUECOLOR_PLANE.md)
+const WIDE = new Set(["fullscreen", "medium", "overscan", "truecolor_full"]); // 400-pixel rows (machine/sdk/memmap.zig STRIDE_FULLSCREEN); a 565 plane costs its geometry's pass (docs/hardware/studies/TRUECOLOR_PLANE.md)
 
 export class Budget {
     constructor(run) {

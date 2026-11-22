@@ -9,7 +9,7 @@
 //   collision: a sticky bit set by any op drawn with `coll = true`
 // Each call sets the block for one op and fires hwBlit(), as blitter.zig does.
 // The machine is the reference (machine/blitter_tex.zig, blitter_blit.zig,
-// blitter_px.zig); docs/BLITTER_HW_SPEC.md §4.5-4.7 has the rules.
+// blitter_px.zig); docs/hardware/BLITTER_HW_SPEC.md §4.5-4.7 has the rules.
 // --------------------------------------------------------------------------
 const hw = @import("hardware");
 const LogicalFB = @import("zigos.zig").LogicalFB;

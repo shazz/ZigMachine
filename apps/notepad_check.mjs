@@ -1,4 +1,4 @@
-// NOTEPAD (apps/zig/scenes/notepad.zig, docs/NOTEPAD.md) end to end, over the real machine + ROM with
+// NOTEPAD (apps/zig/scenes/notepad.zig, docs/os/NOTEPAD.md) end to end, over the real machine + ROM with
 // C: = a copy of docs/gemdos-c.img (KOS GEMDOS, the page's KFS for the writes):
 //   launch   GEM boots over demo-notepad.zmd, BOOT.WSM is the committed cart, it opens in the desktop's
 //            resolution (low: GEM's default), a window and a menu bar from the ROM (winGet answers)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KOS GEMDOS's C: for the proofs (docs/KOS_GEMDOS.md §6): a FAT12 image shaped like the board's SD card
+"""KOS GEMDOS's C: for the proofs (docs/os/KOS_GEMDOS.md §6): a FAT12 image shaped like the board's SD card
 (the boot files, KESTREL/, CARTS/ and HD/, which is C:\\), with pictures two and three levels down for
 GrafX2 to load: HD/PICTURES/ZIGWAVES.PI1 and HD/PICTURES/PLASMA/ZIGPLASM.PI1 + .NEO, our own art
 (apps/ports/grafx2/ownpics, the same files the GrafX2 floppy carries, so a picture loaded off C: can be

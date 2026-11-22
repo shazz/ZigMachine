@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // ZigMachine — SEALED blitter: the register block, the clip and the minterm,
 // shared by every op (machine/blitter.zig dispatches, blitter_ops.zig and
-// blitter_tex.zig draw). See docs/BLITTER_HW_SPEC.md.
+// blitter_tex.zig draw). See docs/hardware/BLITTER_HW_SPEC.md.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");

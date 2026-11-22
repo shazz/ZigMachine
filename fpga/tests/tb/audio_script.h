@@ -1,6 +1,6 @@
 // The audio stimulus script, as tests/audio_ref/audio_ref.zig reads it (its
 // header has the commands), turned into register writes on zm_audio_core's bus
-// (docs/FPGA_AUDIO.md has the map). One `Cmd` per line; `run` is the only one
+// (docs/hardware/FPGA_AUDIO.md has the map). One `Cmd` per line; `run` is the only one
 // that lets samples be made, so every write lands between two samples, as the
 // machine's players do it.
 #pragma once

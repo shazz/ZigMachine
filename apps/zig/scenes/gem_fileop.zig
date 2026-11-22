@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The desktop's file operations, the shell's half (docs/GEM5_PLAN.md P1.1). The ROM's desktop
+// The desktop's file operations, the shell's half (docs/os/GEM5_PLAN.md P1.1). The ROM's desktop
 // posts a copy, move, delete, rename or New Folder in its mailbox (rom/sdk/deskop.zig) and
 // reaches no disk; the shell carries it out through KOS GEMDOS, ONE step a frame (an entry, a
 // folder created or deleted, a 32 KB chunk), so on the board, where every write is a remount

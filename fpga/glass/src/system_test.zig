@@ -1,4 +1,4 @@
-// The split load (system.zig, plan.zig; decisions.md 2026-10-15) against the simulated glass:
+// The split load (system.zig, plan.zig; docs/project/DECISIONS.md 2026-10-15) against the simulated glass:
 // the system at 0, the lean cart at CART_IMG_AT, its disk after its .bss; a cart for another
 // table, or with no system on the card, refused before DDR or the CPU are touched.
 const std = @import("std");

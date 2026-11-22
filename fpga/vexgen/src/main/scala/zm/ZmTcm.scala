@@ -1,6 +1,6 @@
 package zm
 
-// --dTcm (fpga/review/BARD_BRAM_STUDY.md): a tightly coupled data memory on the D-bus,
+// --dTcm (docs/hardware/studies/BARD_BRAM_STUDY.md): a tightly coupled data memory on the D-bus,
 // DBusCachedPlugin's own TightlyCoupledDataPort. A load or store whose address falls in
 // the window never reaches the D$ or the Wishbone bus: the address leaves in EXECUTE and
 // the word is read in MEMORY, so a hit costs what a D$ hit costs and there is no miss.

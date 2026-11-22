@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ASTROLABE's kernels (SPIKE, docs/ARM_FPU_COPROC.md): what one descriptor does.
+// ASTROLABE's kernels (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): what one descriptor does.
 //
 // ONE source, compiled for every host: into machine-video.wasm (the browser; wasm2c'd into
 // the native host and the board's system, where it is ZIGGY's soft-f64 fallback) and into

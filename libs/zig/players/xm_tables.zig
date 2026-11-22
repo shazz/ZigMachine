@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // XM pitch and vibrato tables. Built at COMPILE time (comptime float is the
 // one place float is used: the tables are constants, and no per-frame or
-// per-tick code touches a float; the board has no FPU, see docs/MUSIC.md).
+// per-tick code touches a float; the board has no FPU, see docs/guide/MUSIC.md).
 //
 // A pitch is an XM "period". Linear songs (the default): 768 periods an
 // octave, the frequency 8363 * 2^((4608 - period) / 768) Hz, a semitone = 64

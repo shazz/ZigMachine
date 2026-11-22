@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// An open GEMDOS file (docs/KOS_GEMDOS.md §4): its entry, its position, and the cluster the
+// An open GEMDOS file (docs/os/KOS_GEMDOS.md §4): its entry, its position, and the cluster the
 // position is in (so a sequential read never walks the chain from the start again). A read of at
 // least a cache run (4 KB) of whole sectors into a word-aligned buffer goes straight from the drive
 // to the caller, contiguous clusters merged into one request of up to 64 sectors: a 32 KB picture

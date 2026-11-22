@@ -1,4 +1,4 @@
-"""A floppy program's own board image (KOS F3b, docs/KOS_FAT.md): NAME.RV beside NAME.WSM, so a real
+"""A floppy program's own board image (KOS F3b, docs/os/KOS_FAT.md): NAME.RV beside NAME.WSM, so a real
 floppy runs its programs on the board with no SD card behind it (Matt, 31 Oct). The container is
 glass/src/app_floppy_rv.zig's: "ZMRV", u32 LE version 1, the SHA-256 of the program's wasm (unpacked),
 then the cart's board image ZX0-packed, as progs/by-hash holds it. The image is checked against the

@@ -97,7 +97,7 @@ PAULA_DEFAULTS = """/* Paula hooks: no Paula for the cart (claim 0). host/hstrea
 """
 
 
-# KOS's C: (docs/KOS_FAT.md F5): kosDriveRead(unit, sector, count, dst) reads `count` 512-byte
+# KOS's C: (docs/os/KOS_FAT.md F5): kosDriveRead(unit, sector, count, dst) reads `count` 512-byte
 # sectors of drive `unit` (2: C:, the SD card) into the cart's memory at `dst` and answers how many
 # it read, 0 for none (no such drive, a sector past the end, a dst outside memory, a timeout). A
 # cart import (only KOS's desktop shell has it), served by the system: the default reads the image
@@ -111,7 +111,7 @@ KOS_DRIVE_DEFAULTS = """/* C: (KOS F5): host_cdisk's image unless cycles/bkosdri
 #endif
 """
 
-# C:'s writes (docs/KOS_GEMDOS.md §7, rom/kos/kfs_abi.zig): kosFileOp(req) hands the host a whole-file
+# C:'s writes (docs/os/KOS_GEMDOS.md §7, rom/kos/kfs_abi.zig): kosFileOp(req) hands the host a whole-file
 # request the cart wrote at `req` (12 words: op, flags, slot, attr, offset, len, data, path, path_len,
 # path2, path2_len, gen) and answers a TOS code. A system-table entry since 1.10. The default calls
 # host_kos_file_hook (host/disk.h): the native host sets it to KFS over host_cdisk (host/kos_cfile.c);
@@ -182,7 +182,7 @@ POINTER_BOX_DEFAULTS = """/* The pointer's box: a no-op unless cycles/bptrhost.h
 #endif
 """
 
-# ZIGNIC, the network card (docs/GEM_NET.md, machine/sdk/net_abi.zig, table 1.22): netOp(req) hands the host a
+# ZIGNIC, the network card (docs/os/GEM_NET.md, machine/sdk/net_abi.zig, table 1.22): netOp(req) hands the host a
 # 16-word socket request in the cart's memory and answers at once (>= 0 a value, < 0 an Err). Until glass
 # serves it on the board (N2: cycles/bnet.h, -include), every host answers no_card (-1).
 NET = {"netOp": ("u32", ["u32"], "HOST_NET_OP")}

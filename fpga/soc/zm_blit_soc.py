@@ -1,4 +1,4 @@
-"""The blitter on the board SoC (docs/BLITTER_HW_SPEC.md 10): rtl/blitter's zm_blit, its
+"""The blitter on the board SoC (docs/hardware/BLITTER_HW_SPEC.md 10): rtl/blitter's zm_blit, its
 register port fed from the CPU's stores, its memory on HP2 (soc/zm_blit_hp.py).
 
 - **The registers stay memory.** The cart writes the BLIT_* block where the machine

@@ -1,8 +1,8 @@
-"""Native KESTREL carts (decisions.md 2026-10-17, cycles/native/native.mk): the C and the
+"""Native KESTREL carts (docs/project/DECISIONS.md 2026-10-17, cycles/native/native.mk): the C and the
 hand-written assembly "hello world" build into lean images the board's system accepts, the
 header check refuses what glass or bsys.c would, the board-only disk is a bootable disk whose
 wasm only explains itself, and glass_sd's shelf stages it like any lean cart. Nothing here
-runs a cart: the board is the test (docs/FPGA_TUTORIAL.md, "A native cart")."""
+runs a cart: the board is the test (docs/hardware/FPGA_TUTORIAL.md, "A native cart")."""
 
 from __future__ import annotations
 
@@ -115,6 +115,6 @@ def test_a_table_index_the_assembly_got_wrong_fails_the_build(tmp_path: Path, ed
 
 @pytest.mark.parametrize("src", ["hello.c", "hello_asm.S"])
 def test_the_tutorial_shows_each_source_as_it_is(src: str) -> None:
-    md = (ROOT / "docs/TUTORIAL.md").read_text()
+    md = (ROOT / "docs/guide/TUTORIAL.md").read_text()
     blocks = re.findall(r"^```[a-z]*\n(.*?)^```$", md, re.M | re.S)
     assert (FPGA / "cycles/native" / src).read_text() in blocks

@@ -7,7 +7,7 @@
  *
  * A PALREF names palette words elsewhere in VRAM, which may change with the list unchanged: a list
  * with one is always treated as changed (tcb_colorshock's raster changes every frame anyway). An
- * LBASE (HW 1.10.0, fpga/review/COPPER_LINEBASE.md) the same: its lines show rows elsewhere in VRAM,
+ * LBASE (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md) the same: its lines show rows elsewhere in VRAM,
  * which vdrow.h's fetch() does not compare (it reads FB_BASE's), so such a list always counts as
  * changed and, when its first record holds one, the plane is planned uncompared. */
 #ifndef ZM_VDLIST_H

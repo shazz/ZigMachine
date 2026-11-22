@@ -1,5 +1,5 @@
 /* KESTREL-only "hello world": a lean cart written for ZIGGY itself, not compiled from wasm
- * (cycles/native/native.mk, decisions.md 2026-10-17). The browser cannot run it.
+ * (cycles/native/native.mk, docs/project/DECISIONS.md 2026-10-17). The browser cannot run it.
  *
  * It is called exactly as a wasm2c cart is (bsys.c): bind(table), instantiate(cart, env),
  * boot(cart), skip_boot(cart), then frame(cart, dt) and plane_enabled(cart, p) every frame.

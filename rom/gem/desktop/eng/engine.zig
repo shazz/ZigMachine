@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// GEM 5 step 1: the desk painted by the engine (docs/GEM5_ENGINE.md).
+// GEM 5 step 1: the desk painted by the engine (docs/os/GEM5_ENGINE.md).
 //
 // A frame runs ZigGEM's own step (input, menus, windows, dialogs: unchanged)
 // with the Gui MUTED, so the logic is exactly the old path's; then it builds the

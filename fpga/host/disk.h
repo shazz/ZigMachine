@@ -47,7 +47,7 @@ static inline int64_t host_disk_read(host_disk_t* d, uint32_t block, uint32_t ds
     return n;
 }
 
-/* KOS's C: (docs/KOS_FAT.md F5, env.kosDriveRead), the native host's half: `count` sectors of
+/* KOS's C: (docs/os/KOS_FAT.md F5, env.kosDriveRead), the native host's half: `count` sectors of
  * unit 2 from host_cdisk's image (--c-image) into the cart's memory at `dst`, as docs/sealed-loader.js
  * serves its C: image. The answer is the sectors read; 0 for any refusal, never a trap (the board's
  * answer to a timeout is 0 too): no image, another unit, count 0 or over HOST_KOS_MAX_SECTORS, a run
@@ -57,7 +57,7 @@ static inline int64_t host_disk_read(host_disk_t* d, uint32_t block, uint32_t ds
 
 extern host_disk_t host_cdisk;
 
-/* C:'s writes (docs/KOS_GEMDOS.md §7, env.kosFileOp): the request at `req` in the cart's memory, a
+/* C:'s writes (docs/os/KOS_GEMDOS.md §7, env.kosFileOp): the request at `req` in the cart's memory, a
  * TOS code back. Null until the native host's --c-image sets it (host/kos_cfile.c: KFS over
  * host_cdisk); null, a write answers EDRIVE. The board's firmware asks glass instead (cycles/bkosfile.h). */
 extern uint32_t (*host_kos_file_hook)(uint8_t* mem, uint64_t mem_size, uint32_t req);

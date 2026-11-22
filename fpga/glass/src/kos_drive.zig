@@ -1,4 +1,4 @@
-// KOS's C: (docs/KOS_FAT.md F5): ZIGGY cannot see the SD card, glass can. The cart's
+// KOS's C: (docs/os/KOS_FAT.md F5): ZIGGY cannot see the SD card, glass can. The cart's
 // env.kosDriveRead (cycles/bkosdrive.c) writes a request block at window end - KOS_DRIVE_FROM_TOP
 // (map_cart.zig) and spins; this server, polled from its own thread at ~2 kHz (startThread), reads
 // the sectors off the SD card's partition into the window at the request's offset, then answers:
@@ -86,7 +86,7 @@ pub fn startThread(words: []volatile u32) void {
         var handle: i32 = -1;
         var server: Server = undefined;
         var files: ?kos_file.Server = null;
-        var net: net_card.Card = undefined; // ZIGNIC (docs/GEM_NET.md N2): env.netOp served on Linux's sockets
+        var net: net_card.Card = undefined; // ZIGNIC (docs/os/GEM_NET.md N2): env.netOp served on Linux's sockets
         fn loop() void {
             const ts = linux.timespec{ .sec = 0, .nsec = 500_000 };
             while (true) {

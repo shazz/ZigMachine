@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The screen GEM lays out on (docs/DEVPAC_GAP.md §3b): ONE description, set by
+// The screen GEM lays out on (docs/os/DEVPAC_GAP.md §3b): ONE description, set by
 // the ROM when it binds a plane (rom_main.zig bindFb) and on every mode change
 // (deskSetScreen). Every layout reads it: no literal 200 or 640 anywhere else.
 //

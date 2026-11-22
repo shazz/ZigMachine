@@ -1,4 +1,4 @@
-// ASTROLABE's worker on the board (SPIKE, docs/ARM_FPU_COPROC.md): a thread pinned to the
+// ASTROLABE's worker on the board (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): a thread pinned to the
 // second Cortex-A9 that busy-polls the mailbox and serves each request (astro_box.zig) with
 // the VFPv3's f64 (glass is built -Dcpu=cortex_a9, hard-float: `zig build` targets
 // arm-linux-musleabihf).
@@ -8,7 +8,7 @@
 // astro_clock.zig), a 1 ms nap after IDLE_MS without one, so an idle console does not burn a core.
 // The first request after a nap waits up to that millisecond: bastro.c's TAKE timeout is
 // longer. For the least jitter the core can be kept from Linux altogether (isolcpus=1 in the
-// kernel's bootargs: docs/ARM_FPU_COPROC.md, "Jitter"); glass then still pins itself there.
+// kernel's bootargs: docs/hardware/studies/ARM_FPU_COPROC.md, "Jitter"); glass then still pins itself there.
 const std = @import("std");
 const linux = std.os.linux;
 const map = @import("map.zig");

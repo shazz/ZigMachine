@@ -7,7 +7,7 @@
 // canvases, hashed as scene_hash.mjs hashes the machine's, equal its samples. A media change
 // (kosMedia: window.kosInsert / kosEject) reaches the ROM's system variables. Exits 1 on the first difference.
 //
-// KOS's C: (docs/KOS_FAT.md F5): with ?c=kos-c.img the page's C: icon shows and opens over the
+// KOS's C: (docs/os/KOS_FAT.md F5): with ?c=kos-c.img the page's C: icon shows and opens over the
 // image's root = scene_hash.mjs --c-image, where the empty drive's desktop has no such icon.
 //
 // Usage: node apps/kos_boot_check.mjs [--break | --break c]
@@ -35,7 +35,7 @@ const CASES = [ // ?disk=, the cart scene_hash.mjs boots after drive A, frames
     ["none", "demo-gem.wasm", 40], ["demo-st_replay.zmd", "demo-gem.wasm", 40],
     ["demo-sysinfo.zmd", "demo-gem.wasm", 150], ["demo-replicants_emlyn.zmd", "demo-replicants_emlyn.wasm", 270],
     ["demo-tutorial.zmd", "demo-tutorial.wasm", 40],
-    // A real FAT floppy (docs/KOS_FAT.md, tools/kos_fat_fixture.py): drive A opened, then its GAMES folder.
+    // A real FAT floppy (docs/os/KOS_FAT.md, tools/kos_fat_fixture.py): drive A opened, then its GAMES folder.
     [FLOPPY, "demo-gem.wasm", 45, [[17, 40, 30, 0], [22, 40, 30, 1], [23, 40, 30, 0], [32, 40, 30, 2], [33, 40, 30, 0],
         [40, 505, 65, 0], [42, 505, 65, 2], [43, 505, 65, 0]]],
 ];

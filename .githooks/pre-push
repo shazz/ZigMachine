@@ -4,7 +4,7 @@
 # with `git push --no-verify`. Run it under the gate lock (one gate at a time on
 # this box): flock prototypes/_gate_logs/build.lock git push ...
 #
-# Three paths, cheapest first (docs/BUILDING.md has the reasoning and timings):
+# Three paths, cheapest first (docs/guide/BUILDING.md has the reasoning and timings):
 #
 # 1. GREEN STAMP. If the pushed commit's TREE passed the full gate before, in
 #    this clone, with the same zig/node (tools/gate_stamp.sh), nothing runs.

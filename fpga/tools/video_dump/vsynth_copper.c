@@ -1,4 +1,4 @@
-/* vsynth's copper scenario (HW 1.9.0, machine/copper.zig, fpga/review/COPPER_LIST.md): three
+/* vsynth's copper scenario (HW 1.9.0, machine/copper.zig, docs/hardware/studies/COPPER_LIST.md): three
  * planes with copper lists, built once in VRAM's fourth slot (no enabled plane reads it), that
  * reach every op and every stop:
  *   plane 0 overscan: its handler flickers on lines y % 3 == 0, its list FLICKs on y % 4 == 0 (the

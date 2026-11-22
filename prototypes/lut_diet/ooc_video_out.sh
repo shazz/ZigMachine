@@ -1,6 +1,6 @@
 #!/bin/bash
 # ooc_video_out.sh OUTDIR [DEFINES]: zm_video_out out of context, placed + routed, clk 8 ns /
-# pix_clk 25 ns (asynchronous groups), the recipe decisions.md 2026-11-08 measured the desk mode
+# pix_clk 25 ns (asynchronous groups), the recipe docs/project/DECISIONS.md 2026-11-08 measured the desk mode
 # with. DEFINES like "ZM_SDPRAM_LANES" select the RTL shape under test. Takes the Vivado lock.
 set -euo pipefail
 out=$2; defs=${3:-}; mkdir -p "$out"; out=$(realpath "$out")

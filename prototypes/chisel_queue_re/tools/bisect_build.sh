@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build main a9a032eb + perf/chisel-async up to each commit's firmware (system.rv32), for the
-# board A/B on lm8 (rno_natrium, union_l16). Conflicts are only decisions.md and binary disks: ours.
+# board A/B on lm8 (rno_natrium, union_l16). Conflicts are only docs/project/DECISIONS.md and binary disks: ours.
 set -e
 W=/home/matt/projects/ZigMachine/.claude/worktrees/main-fw
 O=/home/matt/projects/ZigMachine/prototypes/chisel_queue_re/bisect

@@ -1,4 +1,4 @@
-// What the menu's actions do to the console (docs/FPGA_GLASS.md): load a cart,
+// What the menu's actions do to the console (docs/hardware/FPGA_GLASS.md): load a cart,
 // cold and warm reset, the watchdog, the volume and its persistence, and the
 // debug page's numbers. Free functions over the App, so app.zig stays the
 // input path.

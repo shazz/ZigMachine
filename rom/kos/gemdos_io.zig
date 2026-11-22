@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// GEMDOS's file and search calls (docs/KOS_GEMDOS.md §2), methods of gemdos.Dos: Fopen, Fclose,
+// GEMDOS's file and search calls (docs/os/KOS_GEMDOS.md §2), methods of gemdos.Dos: Fopen, Fclose,
 // Fread, Fseek, Fsetdta, Fgetdta, Fsfirst, Fsnext. Handles are TOS's: 6 and up.
 // --------------------------------------------------------------------------
 const gemdos = @import("gemdos.zig");

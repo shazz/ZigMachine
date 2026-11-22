@@ -1,4 +1,4 @@
-/* The SID on the sound side (SW_SID_ON_BARD, kestrel_sw_sid.h): the BARD queue's ring (decisions.md 2026-11-07
+/* The SID on the sound side (SW_SID_ON_BARD, kestrel_sw_sid.h): the BARD queue's ring (docs/project/DECISIONS.md 2026-11-07
  * "The BARD queue"; libs/zig/bard.zig is the Zig side and the reference for this C copy of it: the same block,
  * the same rules). Included by kestrel_sw.c.
  *

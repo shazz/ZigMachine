@@ -1,7 +1,7 @@
 // Check that a ZigMachine cart wasm fits the demo window: its static data + stack
 // must end below the video region (memmap.CART_RAM_TOP), or it silently corrupts
 // VRAM at runtime (the linker only catches overflow past the whole shared memory,
-// not the subtler overflow into the video region). See docs/FLOPPY_DISK.md.
+// not the subtler overflow into the video region). See docs/guide/FLOPPY_DISK.md.
 //
 // The measurement is the same code the loader hands to hwSetCartHigh, so these
 // numbers match what a running cart reads back from hwRamFree() to the byte.

@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const memmap = @import("machine/sdk/memmap.zig");
-// The KESTREL SDK (docs/SDK.md): a coder's own project depends on this repo as a Zig
+// The KESTREL SDK (docs/guide/SDK.md): a coder's own project depends on this repo as a Zig
 // package and calls `@import("kestrel").addCart(b, dep, .{...})` to build ONE cart.
 pub const addCart = @import("sdk/build_cart.zig").addCart;
 pub const CartOptions = @import("sdk/build_cart.zig").CartOptions;
@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) void {
     // TC TEST's local pictures (tools/tc_art.py): the owner's own, not cleared to publish, so only
     // an explicit `-Dtc-art=<dir>` (build.sh: ZM_TC_ART=<dir>) puts them in the cart.
     const tc_art_dir = b.option([]const u8, "tc-art", "TC TEST: embed the pictures in this directory (local only: never commit that cart).");
-    // GEM 5's look (decisions.md 2026-11-09): a LOCAL asset directory (Matt's TOS 4 reconstruction) is
+    // GEM 5's look (docs/project/DECISIONS.md 2026-11-09): a LOCAL asset directory (Matt's TOS 4 reconstruction) is
     // converted into the build cache and compiled into the ROM. Unset: the TOS 1.0 set in the repo.
     // Never commit a docs/rom.wasm built with it: build such a ROM into a scratch prefix.
     const gem_assets_dir = b.option([]const u8, "gem_assets", "GEM: compile this LOCAL asset directory into the ROM (never commit the result).");
@@ -88,8 +88,8 @@ pub fn build(b: *std.Build) void {
     });
     // Runtime depackers (Pack-Ice &c). ST files arrive crunched, and opening one
     // is the machine's job, not a build step's.
-    // KOS GEMDOS (docs/KOS_GEMDOS.md): Fopen & co. over A: and C: in the cart; @import("kos_gemdos").dos().
-    // KOS's FAT reader (rom/kos/fat.zig, docs/KOS_FAT.md) is its `.fat`: ONE module, since GEMDOS reads
+    // KOS GEMDOS (docs/os/KOS_GEMDOS.md): Fopen & co. over A: and C: in the cart; @import("kos_gemdos").dos().
+    // KOS's FAT reader (rom/kos/fat.zig, docs/os/KOS_FAT.md) is its `.fat`: ONE module, since GEMDOS reads
     // through fat.zig too, and a file in two modules of a compilation is an error (every cart parses
     // every scene: the desktop shell's kos_fat and the MP3 player's kos_gemdos met there).
     const kos_gemdos_mod = b.createModule(.{ .root_source_file = b.path("rom/kos/gemdos_cart.zig"), .target = wasm_target, .optimize = optimize });
@@ -100,7 +100,7 @@ pub fn build(b: *std.Build) void {
     });
     // zg.bard.job's server depacks ZX0 (libs/zig/bard_jobs/server.zig): ZigOS takes the one depackers module.
     zigos_mod.addImport("depackers", depackers_mod);
-    // Cart assets that ship ZX0-packed (libs/zig/depackers/zx0.zig, docs/DEPACK.md).
+    // Cart assets that ship ZX0-packed (libs/zig/depackers/zx0.zig, docs/guide/DEPACK.md).
     // zx0pack runs on the HOST at build time, so a packed asset can never drift
     // from its source; a scene reaches it as @import("packed_assets").<name> and
     // depacks it at run time, with the effect chosen here (--fx).
@@ -512,7 +512,7 @@ pub fn build(b: *std.Build) void {
     installTo(b, machine_audio, sealed_step);
 
     // docs/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
-    // native host wasm2c's it). KOS GEMDOS's writes, docs/KOS_GEMDOS.md §7. Memory of its own.
+    // native host wasm2c's it). KOS GEMDOS's writes, docs/os/KOS_GEMDOS.md §7. Memory of its own.
     const kos_cfs = b.addExecutable(.{
         .name = "kos-cfs",
         .root_module = b.createModule(.{
@@ -564,7 +564,7 @@ pub fn build(b: *std.Build) void {
         "demo-tex_neoshow", // 39 — The Exceptions / Super Neo Demo Show (CODEF screen 473)
         "demo-elite_snooker", // 40 — ELITE / Jimmy White Snooker crack intro (CODEF screen 422)
         "demo-union_demo", // 41 — The Union / Union Demo main menu (melonJS remake hub)
-        "demo-tutorial", // 42 — docs/TUTORIAL.md: the newcomer's first screen (Zig version)
+        "demo-tutorial", // 42 — docs/guide/TUTORIAL.md: the newcomer's first screen (Zig version)
         "demo-mpp_truecolor", // 43 — truecolor picture via per-line palettes (MPP) and one RGB565 plane (HW 1.15.0)
         "demo-union_multifake", // 44 — The Union Demo / TCB3 MULTIFAKE scroller (melonJS remake)
         "demo-union_textracker", // 45 — The Union Demo hidden screen, TEX's Sample-Mon ST (melonJS remake)
@@ -650,7 +650,7 @@ pub fn build(b: *std.Build) void {
         "demo-tri_test", // 125 — TRI TEST: CHISEL TRIANGLE edge cases and a 300-frame stress run, the drawing area hashed on screen against the browser model's (OK / BAD), to compare bitstreams
         "demo-desk_test", // 126 — DESK TEST: the desk mode (HW 1.17.0): plane 0 alone at 640x480 1:1, 256 cells of palette 0, a 1-px checker and frame, text; key 1 desk, key 2 low res
         "demo-notepad", // 127 — NOTEPAD: a GEM program on GEM 5's program API (rom/sdk/aes.zig: a window with every gadget, a menu bar, form_alert, the ITEM SELECTOR), editing C:\*.TXT through KOS GEMDOS; low, medium and the desk
-        "demo-gemtest", // 128 — GEMTEST: every GEM 5 component on one disk (windows, menus, dialog objects, form_alert, the ITEM SELECTOR on A: and C:, text, icons, screen modes), the API's gaps shown as "not in the API yet"; docs/GEMTEST.md
+        "demo-gemtest", // 128 — GEMTEST: every GEM 5 component on one disk (windows, menus, dialog objects, form_alert, the ITEM SELECTOR on A: and C:, text, icons, screen modes), the API's gaps shown as "not in the API yet"; docs/os/GEMTEST.md
         "demo-sca_karatekid2", // 129 — SCA THE KARATE KID PART II, the Swiss Cracking Association crack intro (Amiga 1987; CODEF screen 495)
         "demo-copro", // 130 — COPRO: BARD as a coprocessor (zg.bard.job, table 1.24): the cart posts jobs (a ZX0 depack, a 3D morph of 4096 dots, 4096 particles, a CRC-32 of 64 KB) that BARD serves between its audio renders, and two f64 pages on ASTROLABE (hwAstro: a Mandelbrot zoom, a 16x16 LINPACK cloth); the same kernels on ZIGGY for every A/B; an SNDH plays all along
         "demo-kestrel_boot", // 131 — KESTREL BOOT (WINDHOVER): the console's boot screen, a kestrel stooping into a dawn sky on the true-colour plane (TC fade), CHISEL AFFINE dive, copper highlight, palette wordmark, a YM call + strummed chord; 4.8 s then black (prototypes/boot_screen/STUDY.md)
@@ -686,7 +686,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "depackers", .module = depackers_mod },
                 .{ .name = "packed_assets", .module = packed_assets_mod },
                 .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
-                .{ .name = "kos_gemdos", .module = kos_gemdos_mod }, // KOS GEMDOS (docs/KOS_GEMDOS.md): no cart pays unless it imports it
+                .{ .name = "kos_gemdos", .module = kos_gemdos_mod }, // KOS GEMDOS (docs/os/KOS_GEMDOS.md): no cart pays unless it imports it
                 .{ .name = "nfo", .module = nfo_mod }, // zigdemo's NFO viewer: pure, a cart pays only for what it uses
             },
         });

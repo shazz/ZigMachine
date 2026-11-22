@@ -98,7 +98,7 @@ var raster_tenths: u32 = 0; // raster_offset in tenths of a line, wraps at 4096 
 // the overscan trick: the scroller spills past 320px into the borders, so
 // they must stay open every line too — both are per-scanline palette/latch
 // writes with no pixel-column sensitivity, so they share this one HBL slot,
-// registered at OVERSCAN_MAGIC_X (see docs/HW_API.md "Opening the borders").
+// registered at OVERSCAN_MAGIC_X (see docs/hardware/HW_API.md "Opening the borders").
 fn scrollRasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = col;
@@ -166,11 +166,11 @@ pub const Demo = struct {
     //
     // Key 5's XM is "Keygen 9000" by Drozerix, 8 channels, Public Domain (The Mod
     // Archive, https://modarchive.org/module.php?173938, md5 02b1f1dad70ea15a0b064c45468caa55;
-    // docs/MUSIC.md "Bundled modules"). Key 6
+    // docs/guide/MUSIC.md "Bundled modules"). Key 6
     // asks for docs/music/local.xm: a song the owner keeps on their own machine
     // only (gitignored), for a tune whose licence does not allow bundling it. A
     // checkout without one plays nothing on 6, and the board's song table leaves
-    // it out (fpga/tools/song_pack.py LOCAL_SONGS). See docs/MUSIC.md.
+    // it out (fpga/tools/song_pack.py LOCAL_SONGS). See docs/guide/MUSIC.md.
     //
     // Key 7 is KESTREL FM (docs/music/kestrel_fm.vgm, written by libs/c/vgm/make_tune.py for this repo) on our
     // own YM2612 + SN76489 (libs/c/vgm). Pressed again straight after, it asks for docs/music/local.vgm: a Mega

@@ -93,7 +93,7 @@ pub const Pokey = struct {
     }
 
     /// STIMER: every counter reloads from its AUDF now, and the output and
-    /// high-pass flip-flops clear (a decision: see decisions.md, POKEY ADR).
+    /// high-pass flip-flops clear (a decision: see docs/project/DECISIONS.md, POKEY ADR).
     fn stimer(self: *Pokey) void {
         for (&self.ch, self.audf) |*c, f| c.* = .{ .cnt = f };
         self.hp = .{ 0, 0 };

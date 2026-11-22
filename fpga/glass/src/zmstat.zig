@@ -1,4 +1,4 @@
-// The control channel's `stats` line (docs/FPGA_GLASS.md, "The control channel"): what
+// The control channel's `stats` line (docs/hardware/FPGA_GLASS.md, "The control channel"): what
 // the F11 overlay and the debug page's music rows say, as one line a script parses:
 //
 //   ZMSTAT cart=<file> fps=<x.y> frame_ms=<x.y> bard=<now>/<peak> player=<who>:<player>

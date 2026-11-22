@@ -1,4 +1,4 @@
-// glass: the ZigMachine console's ARM-side program (docs/FPGA_GLASS.md).
+// glass: the ZigMachine console's ARM-side program (docs/hardware/FPGA_GLASS.md).
 //
 //   glass run [--no-wait] [--no-splash] [--mouse-scale=PCT] [--fw-opt=N] [CARD_DIR]
 //                                   the board: /dev/mem windows, evdev input, the OSD menu;
@@ -148,8 +148,8 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     var app = try App.initHidden(init.gpa, init.io, board.regs(), board.ddr(), dirs); // the splash decides first
     defer app.deinit();
     app.opt.fw_opt = fw_opt;
-    @import("kos_drive.zig").startThread(board.ddr().words); // KOS's C: (docs/KOS_FAT.md F5)
-    @import("astro.zig").startThread(board.regs_words, board.ddr().words); // ASTROLABE (SPIKE, docs/ARM_FPU_COPROC.md)
+    @import("kos_drive.zig").startThread(board.ddr().words); // KOS's C: (docs/os/KOS_FAT.md F5)
+    @import("astro.zig").startThread(board.regs_words, board.ddr().words); // ASTROLABE (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md)
     app.opt.idle = devmem.napMs;
     app.opt.wait_boot = opt.wait;
     app.mouse.scale = @max(1, opt.mouse_scale);

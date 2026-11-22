@@ -1,4 +1,4 @@
-"""KOS's C: sector by sector (docs/KOS_FAT.md F5, env.kosDriveRead): the request block ZIGGY's
+"""KOS's C: sector by sector (docs/os/KOS_FAT.md F5, env.kosDriveRead): the request block ZIGGY's
 firmware writes (cycles/bkosreq.h) is the one glass serves (glass/src/map_cart.zig KOS_DRIVE_*;
 glass's side is glass/src/kos_drive.zig's tests), it sits where nothing else of the window's top
 4 KiB does, and the native host's C: (host/disk.h) answers by the same rules as the page's

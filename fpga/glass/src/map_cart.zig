@@ -1,5 +1,5 @@
 // What ZWINDOW (the glass) and ZIGGY's firmware say to each other beyond map.zig's
-// registers, for a program launched off a data disk (docs/FPGA_GLASS.md, "Programs
+// registers, for a program launched off a data disk (docs/hardware/FPGA_GLASS.md, "Programs
 // off a data disk"). All of it is software over what the PL already has: a value of
 // REG_CART_STATE the firmware writes, words in the cart window's top 4 KiB, and a
 // second descriptor magic. No register, no RTL. Exported like map.zig
@@ -50,7 +50,7 @@ pub const BOOTSEC_SKIP_FROM_TOP: u32 = 0x3E0;
 pub const BOOTSEC_SKIP: u32 = 0x5342_4D5A; // "ZMBS"
 
 // --- KOS's boot words, at window end - KOS_BOOT_FROM_TOP (CPU 0x41FF_FC28) -------------
-// KOS, the KESTREL Operating System (docs/ZIGTOS_BOOT.md): a reset the glass makes (power-on,
+// KOS, the KESTREL Operating System (docs/os/ZIGTOS_BOOT.md): a reset the glass makes (power-on,
 // R, W, the shelf's Enter) writes KOS_BOOT_MAGIC, then flags: KOS_WARM for W, and in bits
 // 23:8 the POST's frames (0: none, glass.cfg post=0 or a key held). The firmware
 // (cycles/bkos.c) reads them once at boot. A load that is no reset (a program run off the
@@ -63,7 +63,7 @@ pub const KOS_WARM: u32 = 1 << 0;
 pub const KOS_POST_SHIFT: u32 = 8;
 pub const KOS_POST_MASK: u32 = 0xFFFF;
 pub const KOS_POST_FRAMES: u32 = 180; // rom/kos/kos.zig POST_FRAMES: 3 s
-// Drive A's media change while a cart runs (app_drive.zig, docs/ZIGTOS_BOOT.md 4.1): the glass
+// Drive A's media change while a cart runs (app_drive.zig, docs/os/ZIGTOS_BOOT.md 4.1): the glass
 // zeroes the disk descriptor, writes the new disk after the running image (or none: eject), the
 // descriptor again, then bumps this word: KOS_MEDIA_TAG | a count in bits 23:0. The firmware
 // (cycles/bdiskapp.c) reads it once a frame past its D-cache line; a new value means the drive
@@ -72,7 +72,7 @@ pub const KOS_POST_FRAMES: u32 = 180; // rom/kos/kos.zig POST_FRAMES: 3 s
 pub const KOS_MEDIA_FROM_TOP: u32 = 0x3D0;
 pub const KOS_MEDIA_TAG: u32 = 0x4D00_0000;
 pub const KOS_MEDIA_COUNT: u32 = 0x00FF_FFFF;
-// KOS's C:, sector by sector (docs/KOS_FAT.md F5, env.kosDriveRead), at window end -
+// KOS's C:, sector by sector (docs/os/KOS_FAT.md F5, env.kosDriveRead), at window end -
 // KOS_DRIVE_FROM_TOP (CPU 0x41FF_FCA0, between the media word and the request block). The
 // firmware (cycles/bkosreq.h) writes unit, first sector, count (1..KOS_DRIVE_MAX_SECTORS), the
 // window offset the sectors go to (the cart's dst), a sequence number, the check ~(magic ^ seq ^
@@ -94,7 +94,7 @@ pub const KD_ACK: u32 = 8;
 pub const KOS_DRIVE_UNIT_C: u32 = 2;
 pub const KOS_DRIVE_MAX_SECTORS: u32 = 64;
 pub const KOS_DRIVE_TIMEOUT_MS: u32 = 500;
-// KOS's C:, its writes (docs/KOS_GEMDOS.md §7, env.kosFileOp, rom/kos/kfs_abi.zig), at window end -
+// KOS's C:, its writes (docs/os/KOS_GEMDOS.md §7, env.kosFileOp, rom/kos/kfs_abi.zig), at window end -
 // KOS_FILE_FROM_TOP (CPU 0x41FF_FC40, 32-byte aligned, between the C: generation word and the sector
 // block). A cart never writes sectors: glass writes whole files under the card's /HD through Linux's FAT
 // (src/kos_file.zig, polled by the C: thread). The firmware (cycles/bkosfile.c) copies the cart's
@@ -136,7 +136,7 @@ pub const KOS_FILE_TIMEOUT_MS: u32 = 10000;
 pub const KOS_CGEN_FROM_TOP: u32 = 0x3CC; // CPU 0x41FF_FC34: the C: generation: glass bumps it after each write it made
 
 // --- ZIGNIC's request block, at window end - NET_FROM_TOP (CPU 0x41FF_FB80) ------------------
-// env.netOp on the board (docs/GEM_NET.md N2, machine/sdk/net_abi.zig): the firmware (cycles/bnet.c) copies
+// env.netOp on the board (docs/os/GEM_NET.md N2, machine/sdk/net_abi.zig): the firmware (cycles/bnet.c) copies
 // the cart's Req into NB_OP..NB_HOST_LEN (buf and host as WINDOW OFFSETS, checked against the cart's memory),
 // then NB_CHECK, then NB_MAGIC last, and spins; glass (src/net_card.zig, polled by the C: thread) copies the
 // block, checks it, runs the op on Linux's sockets (never blocking), writes NB_OUT.. (state, events, err,
@@ -159,7 +159,7 @@ pub const NB_OUT_WORDS: u32 = 6;
 pub const NET_TIMEOUT_MS: u32 = 100; // the firmware's wait: glass's ops never block, so it answers in < 1 ms
 
 // --- the video mode word, at window end - VMODE_FROM_TOP (CPU 0x41FF_FC38) -----
-// The pointer's geometry depends on the cart's screen mode (docs/GEM_DESK_MODE.md §4): the
+// The pointer's geometry depends on the cart's screen mode (docs/os/GEM_DESK_MODE.md §4): the
 // desk mode (RESOLUTION = RES_DESK, HW 1.17.0) is 640x480 at 1:1, the plane modes 640x200 on
 // the 800x280 raster with rows twice as tall. ZIGGY's firmware (cycles/bdesk.c) writes
 // VMODE_TAG, with VMODE_DESK while the cart is in the desk, at each frame it changes; glass
@@ -199,10 +199,10 @@ pub const VBOX_HI_SHIFT: u32 = 12;
 // it (the browser's diskDirSet is already true then: no listing).
 pub const DISK_MAGIC_PROGRAM: u32 = 0x5044_4D5A; // "ZMDP"
 // DISK_MAGIC_FLOPPY: as DISK_MAGIC, the disk being the real floppy (glass's D, KOS): the desktop
-// labels drive A FLOPPY, not SD IMAGE (docs/KOS_FAT.md F4; insertDisk's bit 8).
+// labels drive A FLOPPY, not SD IMAGE (docs/os/KOS_FAT.md F4; insertDisk's bit 8).
 pub const DISK_MAGIC_FLOPPY: u32 = 0x4644_4D5A; // "ZMDF"
 
-// --- the system image and lean carts (decisions.md 2026-10-15) ------------------
+// --- the system image and lean carts (docs/project/DECISIONS.md 2026-10-15) ------------------
 // A lean cart image is linked at window offset CART_IMG_AT and starts with its header:
 // CART_HDR_MAGIC, the system-table version it needs at CART_HDR_VERSION_AT (major << 16 |
 // minor), and the CPU address its .bss ends at CART_HDR_BSS_END_AT (the disk goes after
@@ -221,7 +221,7 @@ pub const SYS_HEAD_WORDS: u32 = 4;
 pub const TRAP_CART_ABI: u32 = 0xFF_FF02;
 pub const TRAP_NO_CART: u32 = 0xFF_FF03;
 
-// --- the music: who plays it (the debug page, docs/FPGA_GLASS.md "Who plays the music") --
+// --- the music: who plays it (the debug page, docs/hardware/FPGA_GLASS.md "Who plays the music") --
 // The debug mailbox (cycles/bmailbox.h) is the cart window's last MB_BYTES; its first words
 // are MB_MAGIC and the mailbox version. From MB_VERSION_SND_INFO, ZIGGY's firmware zeroes
 // the whole page at boot, and its last SND_INFO_WORDS words (window end - SND_INFO_FROM_TOP,

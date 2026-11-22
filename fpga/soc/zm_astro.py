@@ -1,4 +1,4 @@
-"""ASTROLABE's mailbox (SPIKE, docs/ARM_FPU_COPROC.md): rtl/glass/zm_astro_mbox.v on the SoC.
+"""ASTROLABE's mailbox (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): rtl/glass/zm_astro_mbox.v on the SoC.
 
 One 4 KiB block RAM with two ports: ZIGGY's, a Wishbone slave at ASTRO_WINDOW (uncached, so a
 store to it is held until ZIGGY's posted DDR stores have drained: soc/zm_io_fence.py, which

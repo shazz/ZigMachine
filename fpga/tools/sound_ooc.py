@@ -1,4 +1,4 @@
-"""The sound CPU block's size (docs/FPGA_SOUND_CPU.md "Size"): SoundCPU (soc/zm_sound_cpu.py:
+"""The sound CPU block's size (docs/hardware/FPGA_SOUND_CPU.md "Size"): SoundCPU (soc/zm_sound_cpu.py:
 the core, its decoder, the arbiter, the posted HP bridge, the register block) written as one
 Verilog top with its buses as ports, then Vivado out-of-context synthesis (tools/vivado_ooc.sh).
 

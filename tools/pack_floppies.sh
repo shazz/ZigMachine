@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pack every built cart wasm into a .zmd floppy image (docs/demo.zmd + demo-*.zmd).
-# Run after `zig build -Dwasm -Drelease=true`. See docs/FLOPPY_DISK.md.
+# Run after `zig build -Dwasm -Drelease=true`. See docs/guide/FLOPPY_DISK.md.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

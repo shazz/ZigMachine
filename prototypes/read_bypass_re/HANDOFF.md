@@ -106,7 +106,7 @@ the same `ZM_RTL_BREAK=1` gate as `test_rtl_*.py`.
   and `--no-read-bypass`.
 - `fpga/tests/hp_port_model.py`, `test_hp_bypass.py`, `test_hp_bypass_rate.py` (new);
   `test_hp_posted.py` and `test_io_fence.py` (Bench parameters only).
-- `decisions.md`: the 2026-10-19 ADR (including the AXI ordering argument), and a pointer from
+- `docs/project/DECISIONS.md`: the 2026-10-19 ADR (including the AXI ordering argument), and a pointer from
   the 10-18 ADR's stale consequence.
 
 ## Next

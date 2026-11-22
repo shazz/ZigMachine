@@ -1,4 +1,4 @@
-"""The SD card's folders (tools/shelf_category.py, docs/FPGA_GLASS.md "The menu"): every cart a card
+"""The SD card's folders (tools/shelf_category.py, docs/hardware/FPGA_GLASS.md "The menu"): every cart a card
 can carry gets a category, from the catalog's machine type or the explicit table, and a cart
 nothing places stops the staging instead of landing in a catch-all folder."""
 

@@ -1,4 +1,4 @@
-"""The board SoC's audio tooling (docs/FPGA_AUDIO.md "The SoC"): the import rename
+"""The board SoC's audio tooling (docs/hardware/FPGA_AUDIO.md "The SoC"): the import rename
 that keeps the players' memory apart (tools/wasm_env_rename.py), the cart's song
 bridge table (tools/host_gen.py), the songs linked into the firmware
 (tools/song_pack.py), the core's exact rates (soc/zm_audio_soc.py) and the sim

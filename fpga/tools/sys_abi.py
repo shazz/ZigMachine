@@ -1,5 +1,5 @@
 """The KESTREL system table: what a lean cart image binds to in the system image, and
-the version that says which carts a system runs (decisions.md 2026-10-15).
+the version that says which carts a system runs (docs/project/DECISIONS.md 2026-10-15).
 
     python3 fpga/tools/sys_abi.py --check      # the gate: fpga/cycles/sys_abi.txt is the layout of today's modules
     python3 fpga/tools/sys_abi.py --break      # ...and a changed layout without a version bump is caught

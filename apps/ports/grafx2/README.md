@@ -19,7 +19,7 @@ GrafX2 is free software under the GNU General Public License version 2 (`COPYING
   `include/zlib.h`) and the shared layer `../kestrel_sdl2/` (its `include/`, `src/*.c`, and C:'s
   `src/opt/kestrel_wasi_c.c`, `kestrel_wasi_cdir.c`, `kestrel_wasi_c.h`);
 - KOS GEMDOS, linked in as one object the `Makefile` builds with `zig build-obj` from this repository's
-  `rom/kos/gemdos*.zig` and `rom/kos/fat*.zig` (docs/KOS_GEMDOS.md);
+  `rom/kos/gemdos*.zig` and `rom/kos/fat*.zig` (docs/os/KOS_GEMDOS.md);
 - `Makefile` (the build, compiler flags and the binaryen 132 `--asyncify` pass) with Zig 0.16.0's
   `zig cc` and binaryen 132.0.0 (npm), which `../fetch.sh` fetches and checks.
 
@@ -53,7 +53,7 @@ Built without TrueType, Lua, recoil, libpng and libtiff (`DEFS` in the Makefile)
 
 ## Status (6 Nov 2026)
 
-- C: (KOS GEMDOS, docs/KOS_GEMDOS.md): built with `-DKESTREL_CDRIVE`, the file selector's Select drive lists
+- C: (KOS GEMDOS, docs/os/KOS_GEMDOS.md): built with `-DKESTREL_CDRIVE`, the file selector's Select drive lists
   `/C` when C: mounts (the board's card `HD/`, the page's `?c=gemdos-c.img`, the native host's `--c-image`);
   its folders open and pictures load from them (`apps/gemdos_grafx2_check.mjs`). Read-only.
 

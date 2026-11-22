@@ -35,7 +35,7 @@ const OPTIONS = {
     "--call": [true, (o, v) => { o.callSpecs.push(v); }, true],
     "--disk": [true, (o, v) => { o.disk = v; }, true],
     "--no-disk": [false, (o) => { o.disk = null; }, true],
-    // KOS's C: (docs/KOS_FAT.md F5): env.kosDriveRead over this image, each call billed a board round trip
+    // KOS's C: (docs/os/KOS_FAT.md F5): env.kosDriveRead over this image, each call billed a board round trip
     "--c-image": [true, (o, v) => { o.cImage = v; }, true],
     "--names": [true, (o, v) => { o.namesDir = v; }, true],
     "--machine": [true, (o, v) => { o.machineDir = v; }, true],

@@ -1,4 +1,4 @@
-// ZIGNIC N1 (docs/GEM_NET.md): the page's card (docs/net-host.js) over its scripted LAN (docs/net-peer.js),
+// ZIGNIC N1 (docs/os/GEM_NET.md): the page's card (docs/net-host.js) over its scripted LAN (docs/net-peer.js),
 // driven exactly as a cart drives it: a Req of 16 little-endian words in a memory, env.netOp(addr).
 // Covers: info, TCP connect -> established on the next poll, send/recv echo, the BBS banner, refused,
 // unreachable, timeout after 3 polls, resolve (name, dotted, not found), UDP echo with the sender,

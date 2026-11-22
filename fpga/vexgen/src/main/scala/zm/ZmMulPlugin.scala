@@ -1,7 +1,7 @@
 package zm
 
 // VexRiscv's MulPlugin (third_party/VexRiscv, pinned: not edited) with ZM-X's
-// zm.mulsh as one more leg of its writeback mux (fpga/review/KESTREL_NEXT_ISA.md 1.2):
+// zm.mulsh as one more leg of its writeback mux (docs/hardware/studies/KESTREL_NEXT_ISA.md 1.2):
 //
 //   funct7 0000001, funct3 000: rd = bits [47:16] of sext(rs1) * sext(rs2)  (Q16.16)
 //                   funct3 001: rd = bits [46:15]                           (Q15)

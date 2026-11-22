@@ -1,4 +1,4 @@
-/* Tell the host where the program's picture is (env.hostPointerBox, docs/HW_API.md "The pointer's
+/* Tell the host where the program's picture is (env.hostPointerBox, docs/hardware/HW_API.md "The pointer's
  * box"), so the board's mouse stops at its edge: a port draws a smaller picture centred in a 400x280
  * plane (pt2-clone 320x255, klystrack 320x240) and its cursor is drawn only over that picture, so
  * a pointer allowed over the whole plane vanished past it (Matt, 9 Nov). The browser ignores it.

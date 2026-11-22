@@ -18,7 +18,7 @@ const argv = process.argv.slice(2);
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && BREAK !== "beam") { console.error(`hip_check: unknown --break ${BREAK}`); process.exit(1); }
 
-// modland's files byte for byte (docs/MUSIC.md): name, md5, songs to play.
+// modland's files byte for byte (docs/guide/MUSIC.md): name, md5, songs to play.
 const SONGS = [
     { file: "shaolin_title.hip", md5: "48e2ebc6c7588bee78796281b677facc", tunes: [1] },
     { file: "rings_of_medusa.hip", md5: "024e14d61ff6c311a1d7df52a7d40700", tunes: [1, 2] },

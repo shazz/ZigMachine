@@ -29,7 +29,7 @@ from migen.genlib.cdc import MultiReg
 # (`ff=True`; all four queues in FFs did not place under openXC7). On the Z7-Lite
 # the compositor's read data reached the mixer as constants that depended only on the beat's
 # parity, while the AXI side and the write queue were proven clean (bdiag modes 1-4,
-# docs/FPGA_STEPS.md); the sys->comp LUTRAM queue was the one stage left between them.
+# docs/hardware/FPGA_STEPS.md); the sys->comp LUTRAM queue was the one stage left between them.
 
 
 def _gray(v: Signal) -> Signal:

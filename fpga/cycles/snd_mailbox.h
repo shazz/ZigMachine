@@ -1,6 +1,6 @@
 /* The sound CPU's register block as both firmwares see it (soc/zm_sound_regs.py, at
  * SOUND_WINDOW in both address maps), and the command protocol over its mailbox
- * (docs/FPGA_SOUND_CPU.md "Mailbox").
+ * (docs/hardware/FPGA_SOUND_CPU.md "Mailbox").
  *
  * One command at a time: the cart CPU (cycles/bsound.c) waits until ACK equals the last
  * SEQ it posted, writes the command's words, then SEQ last (a new value). The sound CPU

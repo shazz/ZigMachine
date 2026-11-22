@@ -15,7 +15,7 @@
 //     zm_mark m = zm_mark_now();  ...  zm_release(m);     // one region per demo part
 //
 // Nothing is freed singly. A new cart (boot, swap) starts with an empty arena.
-// See docs/MEMORY.md and machine/sdk/hardware.zig.
+// See docs/guide/MEMORY.md and machine/sdk/hardware.zig.
 // ---------------------------------------------------------------------------
 #ifndef ZIGMACHINE_MEM_H
 #define ZIGMACHINE_MEM_H

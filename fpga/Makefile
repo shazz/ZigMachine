@@ -6,7 +6,7 @@
 #   make host      plan step 0b-i: native host running one cart (CART=stniccc)
 #   make host-check  native host fingerprints == scene_hash.mjs, every cart
 #   make video-sim CARTS=..  the cart CPU + the RTL video in Verilator vs scene_hash (cycles/video.mk)
-#   make glass / sd  the ARM's program, the SD card (docs/FPGA_GLASS.md)
+#   make glass / sd  the ARM's program, the SD card (docs/hardware/FPGA_GLASS.md)
 #   make vexgen-board  the z7 board's CPU netlists (soc/zm_z7.py; ZM_VEXGEN=1 tools/setup.sh once)
 #   make soc-z7 / soc-dev / sweep / hp-test  bitstreams, fast loop: flow.mk, README.md "When is a full rebuild needed"
 ZIG      ?= $(HOME)/.local/zig/0.16.0/zig
@@ -25,7 +25,7 @@ gen/memmap.vh gen/memmap.py: $(MEMMAP) $(EXPORT)
 	$(ZIG) run --dep memmap -Mroot=$(EXPORT) -Mmemmap=$(MEMMAP) -- verilog gen/memmap.vh
 	$(ZIG) run --dep memmap -Mroot=$(EXPORT) -Mmemmap=$(MEMMAP) -- python gen/memmap.py
 
-# The glass (docs/FPGA_GLASS.md): its register map and the OSD font, generated
+# The glass (docs/hardware/FPGA_GLASS.md): its register map and the OSD font, generated
 # like the memmap so the RTL, LiteX and the ARM program share one definition.
 GLASS_MAP := glass/src/map.zig
 GLASS_X   := $(ZIG) run --dep glass_map -Mroot=tools/glass_export.zig -Mglass_map=$(GLASS_MAP) --
@@ -116,7 +116,7 @@ $(HOST)/common/machine.c: $(ROOT)/docs/machine-video.wasm
 $(HOST)/common/rom.c: $(ROOT)/docs/rom.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n rom -o $@
-# KFS, C:'s writer (docs/KOS_GEMDOS.md §7): the page's docs/kos-cfs.wasm, linked into the host (host/kos_cfile.c).
+# KFS, C:'s writer (docs/os/KOS_GEMDOS.md §7): the page's docs/kos-cfs.wasm, linked into the host (host/kos_cfile.c).
 $(HOST)/common/kfs.c: $(ROOT)/docs/kos-cfs.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n kfs -o $@
@@ -203,7 +203,7 @@ host-check: memmap
 include cycles/cycles.mk
 include cycles/video.mk
 
-# --- the glass: the ARM's program and the SD card (docs/FPGA_GLASS.md) -------
+# --- the glass: the ARM's program and the SD card (docs/hardware/FPGA_GLASS.md) -------
 #   make glass   host build (glass sim-load / sim-menu) + the board's static ARM binary
 #   make sd      stage the SD card in build/glass/sd (never a device; see its MANIFEST.txt)
 #   make sd ZM_SPLIT=1 ZM_AUDIO=snd   the same with system.rv32 once + lean carts (make board-split first)
@@ -333,7 +333,7 @@ osd-test-sim: memmap
 
 #   make ym-test   fifth: the YM2149 (jt49, the audio core) playing "Drooling" by 505 from a register dump in
 #                  BRAM, 44.1 kHz over HDMI with the test pattern -> build/ym_test/ym_test_top.bit
-#                  (docs/FPGA_AUDIO.md). Simulated against the Zig machine by `make test` (tests/test_rtl_audio.py).
+#                  (docs/hardware/FPGA_AUDIO.md). Simulated against the Zig machine by `make test` (tests/test_rtl_audio.py).
 YM_TUNE   := $(ROOT)/docs/music/union/Drooling.ymraw
 YM_TEST   := build/ym_test
 YM_TEST_V := $(addprefix rtl/board/,ym_test_top.v ym_test_clk.v ym_test_core.v ym_test_audio.v snd_lab_out.v \

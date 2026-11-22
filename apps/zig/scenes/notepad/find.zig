@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // NOTEPAD's Find dialog. GEM 5's API has no editable text field and no form_do
-// (an API finding, docs/NOTEPAD.md): this box is built from the ROM's panel,
+// (an API finding, docs/os/NOTEPAD.md): this box is built from the ROM's panel,
 // text and buttons, with the field and its caret kept here. Return fires Find
 // (the default button, through guiKey), Escape cancels. Drawn every frame while
 // it is up, as the ROM's own dialogs are; the window is repainted after it.

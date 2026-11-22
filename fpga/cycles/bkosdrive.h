@@ -1,4 +1,4 @@
-/* env.kosDriveRead on the board (KOS's C:, docs/KOS_FAT.md F5): force-included into the generated
+/* env.kosDriveRead on the board (KOS's C:, docs/os/KOS_FAT.md F5): force-included into the generated
  * env.c and the system's sys_env.c (cycles/board.mk, split.mk), where tools/host_bridges.py
  * leaves HOST_KOS_DRIVE_READ reading host_cdisk's image (empty on the board). ZIGGY cannot see
  * the SD card; glass can: bkosdrive.c asks it over the window's request block (bkosreq.h). */

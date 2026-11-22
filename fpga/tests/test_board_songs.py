@@ -1,5 +1,5 @@
 """Every song a cart requests through its input is in its board image (tools/song_pack.py,
-docs/FPGA_SOUND_CPU.md "Which songs a cart image holds"). The native host plays sap_test with the
+docs/hardware/FPGA_SOUND_CPU.md "Which songs a cart image holds"). The native host plays sap_test with the
 glass's keys through the board's router (ZM_GLASS_KEYS): each song it starts must be in the table
 the board firmware links, or BARD answers "ZM SONG MISSING" and the old song plays on."""
 

@@ -1,4 +1,4 @@
-// ASTROLABE's mailbox (SPIKE, docs/ARM_FPU_COPROC.md): one block RAM both CPUs see.
+// ASTROLABE's mailbox (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): one block RAM both CPUs see.
 //
 // 1024 words (4 KiB, one RAMB36). Port A is ZIGGY's, a Wishbone classic slave in an uncached
 // window (soc/zm_astro.py): one access at a time, acked the clock after the strobe with the

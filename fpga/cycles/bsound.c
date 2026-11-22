@@ -1,5 +1,5 @@
 /* The cart CPU's audio when the players run on the sound CPU (soc/zm_sound_cpu.py,
- * docs/FPGA_SOUND_CPU.md): the same baudio_* entry points as cycles/baudio.c, but the
+ * docs/hardware/FPGA_SOUND_CPU.md): the same baudio_* entry points as cycles/baudio.c, but the
  * players are not here. This side loads the sound image, starts it, forwards the cart's
  * song requests and effects as mailbox commands (cycles/snd_mailbox.h), and prints the
  * sound CPU's console between frames. The song bridge itself is host/audio_bridge.c's:

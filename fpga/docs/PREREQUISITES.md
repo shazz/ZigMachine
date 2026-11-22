@@ -3,7 +3,7 @@
 Two lists: the packages a machine needs to **build** the board's Linux image (Buildroot), and
 what the **board** needs for a device beyond the keyboards, pads, mice and the USB floppy
 (today: a Wi-Fi dongle). Everything else (Zig, uv, wabt, Verilator, Vivado) is in
-`fpga/README.md` and `docs/BUILDING.md`.
+`fpga/README.md` and `docs/guide/BUILDING.md`.
 
 ## 1. Building the board's Linux image
 
@@ -43,7 +43,7 @@ wireless wiki (wireless.docs.kernel.org) names the driver for an id.
 ### Setting the network
 
 From the board itself: F12, Console > `Wi-Fi...`, Scan networks, pick one, type its password
-(docs/FPGA_GLASS.md, "The Wi-Fi page"). Glass writes the file below for you, hashed key only,
+(docs/hardware/FPGA_GLASS.md, "The Wi-Fi page"). Glass writes the file below for you, hashed key only,
 once the join worked. Or by hand: put a file `KESTREL/wifi.conf` on the SD card's FAT partition, in wpa_supplicant's format:
 
 ```
@@ -59,7 +59,7 @@ network={
 - A watchdog then looks every 30 s (`logread | grep kwifi`): a dead dongle is re-probed, and when
   that does not help, or the USB controller stops interrupting, the controller is unbound and
   bound again and glass restarted (at most every 10 min, 3 times in a row; it never reboots).
-  Details: docs/FPGA_GLASS.md, "Wi-Fi at boot, and its watchdog".
+  Details: docs/hardware/FPGA_GLASS.md, "Wi-Fi at boot, and its watchdog".
 - The password is in clear text on the card. To keep it off the card, store the hashed form
   instead: `wpa_passphrase "YourNetwork"` (on any Linux, or on the board) prints a
   `network={...}` block whose `psk=` is the 64-hex key; paste that block and delete the
@@ -83,5 +83,5 @@ cat /tmp/wifi/wpa.log      # wpa_supplicant's log (it never prints the password)
 
 The RJ45 is not usable yet: the Linux side is configured (`eth0`, DHCP, dropbear, avahi),
 but the bitstream does not wire the PS's Ethernet controller (GEM0, through EMIO) to the
-RTL8201F PHY on the PL's pins (`docs/FPGA_GLASS.md`, "Remote shell over Ethernet"). A cable
+RTL8201F PHY on the PL's pins (`docs/hardware/FPGA_GLASS.md`, "Remote shell over Ethernet"). A cable
 gives a link light, because the PHY negotiates by itself, but no traffic.

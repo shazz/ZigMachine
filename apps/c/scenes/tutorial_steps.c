@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// tutorial_steps.c: the tutorial screen, stopped at any step of docs/TUTORIAL.md.
+// tutorial_steps.c: the tutorial screen, stopped at any step of docs/guide/TUTORIAL.md.
 //
 // The C twin of apps/zig/scenes/tutorial_steps.zig — see that file for WHY this
 // is a copy of tutorial.c rather than a flag inside it (short version: every
-// snippet in docs/TUTORIAL.md is quoted verbatim from tutorial.c, and gates in
+// snippet in docs/guide/TUTORIAL.md is quoted verbatim from tutorial.c, and gates in
 // there would make the tutorial's own code untrue). The copy is held to the
 // original by apps/tutorial_steps_check.mjs, which asserts that this cart at
 // step 7 renders frames byte-identical to demo-c-tutorial.wasm.

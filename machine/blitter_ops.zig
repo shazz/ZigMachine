@@ -3,7 +3,7 @@
 // LINE (Bresenham), TRIANGLE (deterministic odd-even scanline fill). Each
 // writes the destination as chunky 8bpp palette indices through a
 // blitter_px.Writer (collision, FILL's area fill) and adds its cost to CYCLES.
-// See docs/BLITTER_HW_SPEC.md §4.
+// See docs/hardware/BLITTER_HW_SPEC.md §4.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");

@@ -18,7 +18,7 @@
 # every job's full output IN QUEUE ORDER under its tag, then the serial jobs
 # stream as before. A failure is re-printed (tail) at the very end.
 #
-# GATE_JOBS (default: half the cores, max 6) bounds the pool: docs/BUILDING.md
+# GATE_JOBS (default: half the cores, max 6) bounds the pool: docs/guide/BUILDING.md
 # has the RAM and time measurements behind it. GATE_JOBS=1 is the old serial gate.
 # GATE_JOB_TIMEOUT (seconds, default 1800) kills a wedged harness: a hang must
 # fail the gate loudly, not stall a push for ever.

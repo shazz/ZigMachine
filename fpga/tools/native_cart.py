@@ -1,4 +1,4 @@
-"""Native KESTREL carts (cycles/native/native.mk, decisions.md 2026-10-17): lean cart images
+"""Native KESTREL carts (cycles/native/native.mk, docs/project/DECISIONS.md 2026-10-17): lean cart images
 written for ZIGGY directly (C or assembly), not compiled from wasm. Board only.
 
     uv run python tools/native_cart.py check build/hcycles/split/native_fpu/hello/cart.bin

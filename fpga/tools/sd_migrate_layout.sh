@@ -1,5 +1,5 @@
 #!/bin/sh
-# Move a KESTREL SD card to the layout of 6 Nov 2026 (decisions.md; fpga/tools/sd_layout.py,
+# Move a KESTREL SD card to the layout of 6 Nov 2026 (docs/project/DECISIONS.md; fpga/tools/sd_layout.py,
 # fpga/glass/src/layout.zig). Runs ON THE BOARD (busybox sh), over the serial console or ssh:
 #
 #   sh sd_migrate_layout.sh [--dry-run] [--back] [CARD]       CARD: default /mnt/sd

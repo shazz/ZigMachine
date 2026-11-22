@@ -2,7 +2,7 @@
 
     uv run python tools/bard_load_survey.py [--frames 1500] [--json out.json] [--only <song>...]
 
-BARD (the sound CPU, docs/FPGA_SOUND_CPU.md) has 1.67 Mc a 60 Hz frame. An SNDH on Musashi costs
+BARD (the sound CPU, docs/hardware/FPGA_SOUND_CPU.md) has 1.67 Mc a 60 Hz frame. An SNDH on Musashi costs
 two things there: the 68000 code itself, and a fixed glue per interrupt (the render block that is
 split at it, the MFP bookkeeping, m68k_execute's entry and exit). A digidrum tune's timer runs at
 several kHz, so the glue dominates: that is what put Wow Scroller (Timer A 7,585 Hz) at 125 % on
@@ -41,7 +41,7 @@ SOURCE_ONLY = {
     "c-tutorial_steps": ["sos.sndh"], "c-screen34": ["sos.sndh"], "c-fujiboink": ["fujiboink_thud.sndh"],
     "rust-tutorial": ["sos.sndh"], "rust-tutorial_steps": ["sos.sndh"],
 }
-# The fit (docs/FPGA_SOUND_CPU.md "Every cart's music"): Mc a 60 Hz frame on BARD (I16w2D4, 100 MHz,
+# The fit (docs/hardware/FPGA_SOUND_CPU.md "Every cart's music"): Mc a 60 Hz frame on BARD (I16w2D4, 100 MHz,
 # soc_hp_snd), from snd-bench on Musashi: sos.sndh 0.19-0.29 (0.8 calls, 294 instructions a frame),
 # Wow Scroller 2.65-2.69 (127 calls, 2,033), Monty 3.35-3.86 (177 calls, 3,166). The call is what
 # costs: ~17.8 k cycles of glue around it, against ~100 a 68000 instruction.

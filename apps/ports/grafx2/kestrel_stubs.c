@@ -7,7 +7,7 @@ int C64_LoadPrg(struct c64state *c64, FILE *f, unsigned short start) { (void)c64
 int C64_isBinaryProgram(FILE *f) { (void)f; return 0; }
 
 /* mountlist.c lists mounted volumes for the file selector's drive list, after "/" (the floppy): C:, the
- * SD card's /HD, as "/C" when it mounts (KOS GEMDOS, docs/KOS_GEMDOS.md; ../kestrel_sdl2/src/opt/
+ * SD card's /HD, as "/C" when it mounts (KOS GEMDOS, docs/os/KOS_GEMDOS.md; ../kestrel_sdl2/src/opt/
  * kestrel_wasi_c.c), with a hard disk's icon ("ext2fs" is a type GrafX2 draws one for). */
 int kestrel_c_mounted(void);
 static struct mntent c_drive = { "C:", "/C", "ext2fs", "ro", 0, 0 };

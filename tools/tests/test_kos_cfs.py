@@ -1,4 +1,4 @@
-"""KFS, KOS GEMDOS's C: image writer (rom/kos/kfs*.zig, docs/KOS_GEMDOS.md §7), against mtools and
+"""KFS, KOS GEMDOS's C: image writer (rom/kos/kfs*.zig, docs/os/KOS_GEMDOS.md §7), against mtools and
 fsck.fat, the independent oracles, on FAT16 and FAT32 cards mkfs.fat makes, laid out as the board's (C:\\ =
 HD/). Every case ends with `fsck.fat -n` clean. Cases: create, grow across clusters (several requests),
 overwrite (the old clusters come back), delete, rename (in a folder, across folders, a folder moved: its

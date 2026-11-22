@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// A directory walked one entry at a time (KOS GEMDOS, docs/KOS_GEMDOS.md): fat.zig's `list` fills an
+// A directory walked one entry at a time (KOS GEMDOS, docs/os/KOS_GEMDOS.md): fat.zig's `list` fills an
 // array, which a folder of hundreds of files would need whole; GEMDOS's Fsfirst/Fsnext and a POSIX
 // readdir need "the entry after this one" and "the entry named X" with no buffer at all. A cursor
 // is the raw 32-byte slot index in the directory, so it survives between calls (the DTA keeps it).

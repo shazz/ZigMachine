@@ -46,7 +46,7 @@ Keys are ChipNomad's desktop mapping (A = X, B = Z, START = Space, SELECT = Left
 ## C: (the card's HD, KOS GEMDOS)
 
 Built with `-DKESTREL_CDRIVE` and GEMDOS's object (`Makefile`, as `../grafx2`). The floppy is `/`; C: is `/C`
-when the card has an HD folder (docs/KOS_GEMDOS.md §5). Path convention:
+when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
 
 - `/` is the floppy's root. `/C` is C:, the card's HD folder; `/C/PROJECTS` its PROJECTS folder.
 - The LOAD PROJECT browser (PROJECT screen: SELECT + Up, then Load) lists a folder `[C]` first at `/` when C:
@@ -79,7 +79,7 @@ when the card has an HD folder (docs/KOS_GEMDOS.md §5). Path convention:
 Matt, 13 Nov: move the AY synthesis from ZIGGY to BARD, the way SID-WIZARD's SID went (`apps/ports/sidwizard/README.md`,
 "The SID on BARD"). The goal behind it is reuse: a ChipNomad song should play in ANY demo, so the AY player is a
 generic "AY chip on BARD" that any cart reaches through the BARD queue, and only the cart's playback code is
-ChipNomad's. **Built**: the sections below are the design as built; "Results" has the numbers (decisions.md
+ChipNomad's. **Built**: the sections below are the design as built; "Results" has the numbers (docs/project/DECISIONS.md
 2026-11-13).
 
 ### The queue and the message format

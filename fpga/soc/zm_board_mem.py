@@ -39,7 +39,7 @@ POSTED = 8
 # A refill skips the drain unless its line has a pending store (soc/zm_hp_bypass.py, 2026-10-19):
 # a memcpy line no longer waits for the last line's stores. Needs POSTED; off = every read drains.
 READ_BYPASS = True
-# ZIGGY's read path (review/ZIGGY_BIG_READS_STUDY.md): "fast" answers a refill a word a clock
+# ZIGGY's read path (docs/hardware/studies/ZIGGY_BIG_READS_STUDY.md): "fast" answers a refill a word a clock
 # (soc/zm_hp_read.py), "prefetch" also reads the next line ahead (soc/zm_hp_prefetch.py).
 READ_MODES: dict[str, dict[str, bool]] = {
     "base": {},

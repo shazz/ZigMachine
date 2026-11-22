@@ -1,4 +1,4 @@
-// A floppy program's own board image (KOS F3b, docs/KOS_FAT.md; Matt, 31 Oct: the floppy must not
+// A floppy program's own board image (KOS F3b, docs/os/KOS_FAT.md; Matt, 31 Oct: the floppy must not
 // need the SD card). Beside NAME.WSM, NAME.RV carries the program's board image in a small
 // container that says which program it was built from:
 //

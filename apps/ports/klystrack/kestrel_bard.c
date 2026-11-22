@@ -41,7 +41,7 @@ uint32_t kestrel_view_gen(void); /* kestrel_view.c */
 
 int kestrel_bard_owns(void) { return state == HANDED; }
 
-/* --- the cart's side of the song bridge and the effects queue (docs/MUSIC.md) --- */
+/* --- the cart's side of the song bridge and the effects queue (docs/guide/MUSIC.md) --- */
 static uint8_t queue[16];
 static uint32_t queued;
 static int stop_asked;

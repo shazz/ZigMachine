@@ -1,4 +1,4 @@
-// The control channel's transport (docs/FPGA_GLASS.md, "The control channel"): a unix
+// The control channel's transport (docs/hardware/FPGA_GLASS.md, "The control channel"): a unix
 // stream socket the running glass listens on, and `glass ctl ...`, the client a shell
 // line runs. One connection = one command line in, the reply out, then EOF: a script on
 // the serial console gets its answer on its own stdout, never mixed into glass's log.

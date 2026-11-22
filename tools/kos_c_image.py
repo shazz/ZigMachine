@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KOS's C: for the page and the harnesses (docs/KOS_FAT.md F5): a small FAT12 image standing in for
+"""KOS's C: for the page and the harnesses (docs/os/KOS_FAT.md F5): a small FAT12 image standing in for
 the board's SD card (?c=kos-c.img on the page, scene_hash.mjs and the native host's --c-image), shaped
 like the card (fpga/tools/sd_layout.py: the boot files at the root, KESTREL/, CARTS/ and HD/, which is
 what C: shows), every byte synthetic so it never changes with a rebuilt cart. Written by

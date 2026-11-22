@@ -11,7 +11,7 @@
 // the list re-reads it; a folder row (a name added with a trailing backslash)
 // opens the folder, the closer goes to the parent, a drive button re-roots the
 // spec at that drive. Each of those clears the list and answers `relist`: the
-// caller reads the spec (fileSelSpec) and adds the names again (decisions.md:
+// caller reads the spec (fileSelSpec) and adds the names again (docs/project/DECISIONS.md:
 // the program supplies the names; this file does not touch a disk). The drives
 // shown are the ones the program says are there (fileSelDrives, the GEMDOS
 // drive map), plus the spec's own.

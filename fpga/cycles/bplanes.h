@@ -1,7 +1,7 @@
 /* The board's plane phase (bmain.c frame(), after vplan_frame): each enabled plane in
  * machine/video.zig's order, its handler between its passes (vseq_plane), or, where that is exact,
  * line-major (vseq_group): every run of enabled planes that follow each other with no HBL handler
- * among them, since no cart code runs between their passes in either order (decisions.md
+ * among them, since no cart code runs between their passes in either order (docs/project/DECISIONS.md
  * 2026-10-18, "Line-major groups"). A handler plane is plane-major (its handler may write what a
  * lower plane's pass reads: RESOLUTION, RES_FLICKER, a palette, the LFB at line y) unless its
  * handler is PURE (vseq_plane_pure: own palette and RES_FLICKER bumps only, vseq_group.c), as the

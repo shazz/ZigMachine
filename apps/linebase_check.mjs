@@ -1,4 +1,4 @@
-// Copper LBASE + HSCROLL on overscan planes (HW 1.10.0, fpga/review/COPPER_LINEBASE.md), driven
+// Copper LBASE + HSCROLL on overscan planes (HW 1.10.0, docs/hardware/studies/COPPER_LINEBASE.md), driven
 // straight through the sealed machine with no cart: the STE line list (video counter, HSCROLL and
 // colour 0 rewritten every line) as copper records, checked pixel by pixel against the independent
 // model of the rule in apps/linebase_model.mjs:

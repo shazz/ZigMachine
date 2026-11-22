@@ -1,4 +1,4 @@
-// Shift+F12: read the shelf again (docs/FPGA_GLASS.md, "The menu"), so a cart copied to
+// Shift+F12: read the shelf again (docs/hardware/FPGA_GLASS.md, "The menu"), so a cart copied to
 // the card since glass started (scp, or the card moved to a PC and back) is listed without
 // restarting glass, which would kill the running cart.
 //

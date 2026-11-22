@@ -1,4 +1,4 @@
-/* ASTROLABE's request from ZIGGY's side (SPIKE, docs/ARM_FPU_COPROC.md): bastro.c's protocol,
+/* ASTROLABE's request from ZIGGY's side (SPIKE, docs/hardware/studies/ARM_FPU_COPROC.md): bastro.c's protocol,
  * here with the mailbox, the cart's memory and the clock passed in, so tests/tb/astro_post_test.c
  * runs it natively against a scripted glass. The words are bastro_box.h's. */
 #ifndef ZM_BASTRO_POST_H

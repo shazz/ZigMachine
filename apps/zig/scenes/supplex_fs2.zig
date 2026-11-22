@@ -68,7 +68,7 @@ const RASTER_RESET: i32 = -371;
 const RASTER_BACK: i32 = -22;
 
 // Open every border: the Amiga screen fills all 400x280, so the trick runs on
-// every scanline, at the magic column (see docs/HW_API.md).
+// every scanline, at the magic column (see docs/hardware/HW_API.md).
 fn handler_overscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = line;

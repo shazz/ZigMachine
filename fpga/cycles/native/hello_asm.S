@@ -1,5 +1,5 @@
 /* KESTREL-only "hello world", by hand in RV32 assembly: hello.c instruction for instruction
- * in spirit, the same header, calls and picture (cycles/native/native.mk, decisions.md
+ * in spirit, the same header, calls and picture (cycles/native/native.mk, docs/project/DECISIONS.md
  * 2026-10-17). The system calls it as it calls a wasm2c cart (cycles/bsys.c); a0 is always
  * the instance (16 bytes the system calloc's: env, mem, gui, frames), and frame's float dt
  * (fa0, or a1 on a soft-float system) is never read, so one image serves either ABI. Every

@@ -73,19 +73,19 @@ that builds and runs:</p>
 <td>Zig</td>
 <td><code>apps/zig/scenes/tutorial.zig</code></td>
 <td><code>demo-tutorial.wasm</code></td>
-<td><strong>ZigOS</strong>, the open library (<code>docs/ZIGOS_API.md</code>)</td>
+<td><strong>ZigOS</strong>, the open library (<code>docs/guide/ZIGOS_API.md</code>)</td>
 </tr>
 <tr>
 <td>C</td>
 <td><code>apps/c/scenes/tutorial.c</code></td>
 <td><code>demo-c-tutorial.wasm</code></td>
-<td>the raw sealed ABI (<code>docs/HW_API.md</code>)</td>
+<td>the raw sealed ABI (<code>docs/hardware/HW_API.md</code>)</td>
 </tr>
 <tr>
 <td>Rust</td>
 <td><code>apps/rust/scenes/tutorial.rs</code></td>
 <td><code>demo-rust-tutorial.wasm</code></td>
-<td>the raw sealed ABI (<code>docs/HW_API.md</code>)</td>
+<td>the raw sealed ABI (<code>docs/hardware/HW_API.md</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -867,7 +867,7 @@ Rust show a chunkier 10x14 font.</p>
 <strong>by name</strong>, a file under <code>docs/music/</code>. The host polls the cart every frame,
 fetches the file, and plays it on the audio thread. An SNDH carries the tune's
 own 68000 replay code, which the machine runs on an emulated 68000 driving its
-YM2149, as the ST did. The full guide is <code>docs/MUSIC.md</code>.</p>
+YM2149, as the ST did. The full guide is <code>docs/guide/MUSIC.md</code>.</p>
 <p>Request once, at start-up. Each request replaces the tune playing.</p>
 <p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> Zig calls <code>zg.requestSong</code>, and <code>demo_main.zig</code> already
 exports what the host polls. C and Rust include a small bridge that defines
@@ -928,7 +928,7 @@ screen, so the techniques can be judged against each other.</p>
 blits. You set up a block of registers at <code>0x80</code> in the video region — what to
 draw, where, in what colour, combined how — and call <code>hwBlit()</code>. It runs
 synchronously and reports what it cost in <code>BLIT_CYCLES</code>.
-<code>docs/BLITTER_HW_SPEC.md</code> is the full register map;
+<code>docs/hardware/BLITTER_HW_SPEC.md</code> is the full register map;
 <code>apps/zig/scenes/blitter_demo.zig</code> exercises the operations one at a time. The
 worked example here is <strong>POLKA DOTS</strong> (<code>apps/zig/scenes/polkadots/</code>), which you
 can run from the menu.</p>
@@ -1246,7 +1246,7 @@ you owing 100 KiB, feeding 100 KiB laps the 32 KiB ring three times and the
 listener hears only the last lap. Drop whole rings from the budget and move the
 <em>clip</em> position forward by the same amount — the song jumps, which is what
 actually happened, instead of playing three laps of stale audio in fast-forward.</p>
-<p class="lead lead-note"><strong>Finding the file.</strong> The disk is a flat FAT (<code>docs/FLOPPY_DISK.md</code>): a <code>ZMDISK</code>
+<p class="lead lead-note"><strong>Finding the file.</strong> The disk is a flat FAT (<code>docs/guide/FLOPPY_DISK.md</code>): a <code>ZMDISK</code>
 descriptor, a file count, then 32-byte entries of <code>name[16]</code>, <code>start: u32</code>,
 <code>len: u32</code>, <code>type: u8</code>. <code>start</code> is a <strong>byte offset into the image</strong>, not a block
 number — divide by 512 yourself. There are two layouts, v1 (descriptor <code>$000</code>,
@@ -2357,7 +2357,7 @@ console), with no wasm inside, so there is no Run button and no live demo
 here. If a browser mounts its disk, all it shows is "THIS DISK RUNS ON
 KESTREL ONLY". The board side (building, staging the SD card, what you
 should see and what a failure looks like) is in
-<a href="FPGA_TUTORIAL.md#10-a-native-cart-kestrel-only"><code>docs/FPGA_TUTORIAL.md</code></a>.</p>
+<a href="https://github.com/shazz/ZigMachine/blob/main/docs/hardware/FPGA_TUTORIAL.md#10-a-native-cart-kestrel-only"><code>docs/hardware/FPGA_TUTORIAL.md</code></a>.</p>
 <p>On the board, a cart is normally the same <code>.wasm</code> as in the browser,
 translated to C by wasm2c and compiled for RISC-V. The board keeps the
 firmware, the machine and the ROM in one <strong>system image</strong> and each cart in a
@@ -2384,7 +2384,7 @@ image, so the cart copies "HELLO WORLD" to the start of the cart window
 (<code>0x100000</code>) and says in its header that it owns the 256 bytes there.</p>
 <p>The C cart: an instance struct, the entry points, the header.</p>
 <figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">72 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">/* KESTREL-only &quot;hello world&quot;: a lean cart written for ZIGGY itself, not compiled from wasm
- * (cycles/native/native.mk, decisions.md 2026-10-17). The browser cannot run it.
+ * (cycles/native/native.mk, docs/project/DECISIONS.md 2026-10-17). The browser cannot run it.
  *
  * It is called exactly as a wasm2c cart is (bsys.c): bind(table), instantiate(cart, env),
  * boot(cart), skip_boot(cart), then frame(cart, dt) and plane_enabled(cart, p) every frame.
@@ -2462,7 +2462,7 @@ convention: <code>guiText</code> takes eight, <code>env</code> first). The table
 with the generated header, so a changed table fails the build instead of
 calling the wrong function.</p>
 <figure class="cb" data-lang=asm><figcaption><span class="cb-lang">asm</span><span class="cb-n">157 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>/* KESTREL-only &quot;hello world&quot;, by hand in RV32 assembly: hello.c instruction for instruction
- * in spirit, the same header, calls and picture (cycles/native/native.mk, decisions.md
+ * in spirit, the same header, calls and picture (cycles/native/native.mk, docs/project/DECISIONS.md
  * 2026-10-17). The system calls it as it calls a wasm2c cart (cycles/bsys.c); a0 is always
  * the instance (16 bytes the system calloc&#x27;s: env, mem, gui, frames), and frame&#x27;s float dt
  * (fa0, or a1 on a soft-float system) is never read, so one image serves either ABI. Every
@@ -2634,12 +2634,12 @@ holds everything else.</p>
 <code>HELLO WORLD</code> in white in the middle, sliding 64 pixels left and right. The
 two carts look the same.</p></div><div class="shared after"></div><div class="run-slot"></div></section>
 <section class="plain" id="where-next"><header class="step-h"><h2>Where next</h2></header><div class="shared"><ul>
-<li><a href="ZIGOS_API.md"><code>docs/ZIGOS_API.md</code></a>: the Zig library, including the copper,
+<li><a href="https://github.com/shazz/ZigMachine/blob/main/docs/guide/ZIGOS_API.md"><code>docs/guide/ZIGOS_API.md</code></a>: the Zig library, including the copper,
   <code>blit</code>, <code>scrollring</code> and wireframe helpers.</li>
-<li><a href="HW_API.md"><code>docs/HW_API.md</code></a>: the sealed ABI C and Rust carts use, the full
+<li><a href="https://github.com/shazz/ZigMachine/blob/main/docs/hardware/HW_API.md"><code>docs/hardware/HW_API.md</code></a>: the sealed ABI C and Rust carts use, the full
   register map, overscan and the RAM window.</li>
-<li><a href="MUSIC.md"><code>docs/MUSIC.md</code></a>: formats, subtunes and the headless checks.</li>
-<li><a href="BLITTER_HW_SPEC.md"><code>docs/BLITTER_HW_SPEC.md</code></a>: the blitter's registers and
+<li><a href="https://github.com/shazz/ZigMachine/blob/main/docs/guide/MUSIC.md"><code>docs/guide/MUSIC.md</code></a>: formats, subtunes and the headless checks.</li>
+<li><a href="https://github.com/shazz/ZigMachine/blob/main/docs/hardware/BLITTER_HW_SPEC.md"><code>docs/hardware/BLITTER_HW_SPEC.md</code></a>: the blitter's registers and
   operations.</li>
 <li>The CODEF port skill (<code>.claude/skills/codef-port/</code>, or <code>/convert_codef &lt;id&gt;</code>
   in Claude Code): how the real cracktro ports in <code>apps/zig/scenes/</code> were made,
