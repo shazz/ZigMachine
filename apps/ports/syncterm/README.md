@@ -16,7 +16,7 @@ distributed under the same licence. Its **corresponding source** is:
 
 - upstream Synchronet at tag `syncterm-1.9`, commit `5bd319427e4f58cd965b056c69bb96ed47db7a81`
   (<https://gitlab.synchro.net/main/sbbs>), unmodified, of which `../fetch.sh` checks out the directories used;
-- exactly the patches in `patches/` (`bbslist.c.sed`, `ciolib.c.sed`, `syncterm.c.sed`, `threadwrap.c.sed`), applied by the
+- exactly the patches in `patches/` (`bbslist.c.sed`, `ciolib.c.sed`, `syncterm.c.sed`, `threadwrap.c.sed`, `zmodem.c.sed`), applied by the
   `Makefile` to a mirror of upstream in `build/gen/`;
 - the glue in this directory (`kestrel_*.c`, `kestrel_*.h`, `include/`), the welcome screen `data/BBS.ANS` and
   its generator `mkansi.py`, and the shared layer `../kestrel_sdl2/` (`kestrel_heap.c`, `kestrel_wasi.c`,
@@ -58,8 +58,35 @@ or `DIAL.TXT`'s first line when a ZIGNIC card answers), and Alt+X, No quits.
 C: writes a file whole (`docs/KOS_GEMDOS.md` §7: `fopen "r+"`, changing a file in place, is refused), so the
 three places upstream rewrites the list in place (the LastConnected/TotalCalls update after a connect,
 deleting an entry, the comment editor's probe) are patched to read it, then write it again
-(`patches/syncterm.c.sed`, `patches/bbslist.c.sed`, `kestrel_rewrite`). Its other paths (XDG cache, downloads)
-fall on the read-only floppy and fail quietly, as upstream expects of a missing folder.
+(`patches/syncterm.c.sed`, `patches/bbslist.c.sed`, `kestrel_rewrite`). Its other path (the XDG cache, for the
+RIP icons) falls on the read-only floppy and fails quietly, as upstream expects of a missing folder.
+
+## Downloads (on C:\DOWNLOAD)
+
+With C: mounted, a file received by XMODEM / YMODEM / ZMODEM (Alt+D, or a ZMODEM the BBS starts, which SyncTERM
+detects) is written to `C:\DOWNLOAD` (made if missing). Upstream keeps the folder in each list entry's
+`DownloadPath` (default: `$HOME/Downloads`, which is on the read-only floppy here); `kestrel_dldir()`
+(`kestrel_dialdir.c`, called from `read_item` by `patches/bbslist.c.sed`) keeps it only when it names a folder of C:
+(`/C/...`, set in the entry's editor) and otherwise makes it `/C/DOWNLOAD`, so lists saved before this are fixed too.
+Without C: nothing changes (a download fails on the floppy, as before). How a receive meets KOS GEMDOS (C: writes a
+file whole at `fclose` and refuses to open an existing file for "r+" or append, `docs/KOS_GEMDOS.md` §7):
+
+- XMODEM and YMODEM open the file `"wb"` (Fcreate), write the blocks in order and `fclose` it: nothing in place. A
+  YMODEM file is cut to its header's length by not writing the padding, so no truncate is asked of C:.
+- ZMODEM opens `"ab"` upstream so that a half-received file is resumed from its end; on C: that is ENOTSUP for a
+  file that exists, so `patches/zmodem.c.sed` opens `"wb"`: a resume restarts from byte 0 (the CRC check that
+  decides to resume still reads the old file). No ZMODEM crash recovery.
+- A name already there is upstream's "Duplicate File Name" menu: Overwrite (`unlink`, then `"wb"`), Choose New Name, or
+  Cancel. A transfer that fails or is cancelled keeps what it had written (a partial file); only an EMPTY file of
+  a failed XMODEM / YMODEM is removed (upstream's rule, unchanged).
+- Telnet: SyncTERM asks for TRANSMIT-BINARY both ways at connect (so a CR is not sent as CR NUL) and doubles every
+  255 it sends (`st_telnet_expand`) and collapses every 255 255 it reads (`telnet_interpret`), upstream's, active on the
+  telnet connection the in-cart BBS and ZIGNIC give it.
+- The file's date is not set (C: has no utime; `setfdate` fails quietly).
+
+`apps/syncterm_download.mjs` pins XMODEM and YMODEM (and a name collision and a cancelled transfer) against a sender in
+the in-cart BBS (`kestrel_fakexfer.c`: type `X`, `Y`, `W` or `K` at its prompt). ZMODEM is NOT exercised (the BBS has no
+ZMODEM sender): its path is upstream's with the one `"wb"` patch.
 
 The in-cart BBS hangs up when a line `G` (its menu's Goodbye) or `BYE` is typed: the remote drop.
 
@@ -75,7 +102,7 @@ The in-cart BBS hangs up when a line `G` (its menu's Goodbye) or `BYE` is typed:
 | `kestrel_keys.c` | the cart's key exports as ciolib key codes |
 | `kestrel_net.h` | the BSD calls SyncTERM makes, and the one interface under them (`struct knet_transport`) |
 | `kestrel_sock.c`, `kestrel_resolve.c` | the sockets shim: socket / connect / recv / send / poll / select / ioctl / fcntl / getaddrinfo ... over `knet` |
-| `kestrel_fakebbs.c` | the only transport today: a scripted telnet BBS (fakebbs.zig, 10.0.0.2:23) |
+| `kestrel_fakebbs.c`, `kestrel_fakexfer.c` | the only transport today: a scripted telnet BBS (fakebbs.zig, 10.0.0.2:23), and its XMODEM-1K / YMODEM file sender |
 | `kestrel_stubs.c` | modem, serial, local shell, HTTPS list download, window icon, termios: not on this machine; `ftruncate` at a C: file's end |
 | `kestrel_port.h`, `include/` | force-included fixes for wasi-libc (no signals, no netdb.h, wasip2's socket declarations) |
 | `run.mjs` | headless runner: PNGs of the desk, `KEYS="frame:text"`, `CODES="frame:code"`, `INPUTS="frame:arrow"`, `C=<img>` a C: |
@@ -83,4 +110,5 @@ The in-cart BBS hangs up when a line `G` (its menu's Goodbye) or `BYE` is typed:
 Built without cryptlib (no SSH, no telnets, no HTTPS list), OOII, JPEG XL, modem / serial / shell, sound.
 The gate's harnesses (`build.sh`, tag `ports_syncterm`): `apps/syncterm_headless.mjs` (no C:: it dials at once, the
 spike's path) and `apps/syncterm_dialdir.mjs` (C:: the directory opens, dials the in-cart BBS, comes back after the
-BBS's hang-up and after Alt+H, an entry added is on C: and read back by a second session).
+BBS's hang-up and after Alt+H, an entry added is on C: and read back by a second session) and
+`apps/syncterm_download.mjs` (C:: XMODEM / YMODEM downloads land in C:\DOWNLOAD, byte for byte).
