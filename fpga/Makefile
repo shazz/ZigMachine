@@ -122,16 +122,21 @@ $(HOST)/common/kfs.c: $(ROOT)/docs/kos-cfs.wasm
 	wasm2c $< -n kfs -o $@
 $(HOST)/common/kfs.h: $(HOST)/common/kfs.c ;
 $(HOST)/common/kos_cfile.o: host/kos_cfile.c host/disk.h $(HOST)/common/kfs.h
+	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/kfs.a: $(HOST)/common/kfs.o $(HOST)/common/kos_cfile.o
 	rm -f $@ && ar rcs $@ $^
 $(HOST)/common/rt.o: $(W2C_RT)/wasm-rt-impl.c
+	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/rt-mem.o: $(W2C_RT)/wasm-rt-mem-impl.c
+	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/rt-exc.o: $(W2C_RT)/wasm-rt-exceptions-impl.c
+	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/sha256.o: host/sha256.c host/sha256.h
+	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 $(HOST)/common/%.o: $(HOST)/common/%.c
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
