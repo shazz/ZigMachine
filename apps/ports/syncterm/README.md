@@ -83,6 +83,9 @@ file whole at `fclose` and refuses to open an existing file for "r+" or append, 
   255 it sends (`st_telnet_expand`) and collapses every 255 255 it reads (`telnet_interpret`), upstream's, active on the
   telnet connection the in-cart BBS and ZIGNIC give it.
 - The file's date is not set (C: has no utime; `setfdate` fails quietly).
+- Names: GEMDOS names are 8.3 upper case, and KOS folds what the BBS sends (`mandelbrot.zmd` lands as `MANDELBR.ZMD`,
+  `xm.bin` as `XM.BIN`). Two long names with the same first 8 characters therefore name one file, and upstream's
+  "already exists" check (which looks for the long name) does not see it: the second replaces the first.
 
 `apps/syncterm_download.mjs` pins XMODEM and YMODEM (and a name collision and a cancelled transfer) against a sender in
 the in-cart BBS (`kestrel_fakexfer.c`: type `X`, `Y`, `W` or `K` at its prompt). ZMODEM is NOT exercised (the BBS has no

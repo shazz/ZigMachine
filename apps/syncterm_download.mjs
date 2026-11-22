@@ -7,7 +7,8 @@
 //   xmodem    X, Alt+D, XMODEM-CRC, "XM.BIN": C:\DOWNLOAD (made by the cart) holds XM.BIN = the 2500 bytes + the ^Z padding of
 //             XMODEM's last 1K block (3072 bytes); the 255 255 and CR NUL survived telnet (IAC doubling, binary mode)
 //   ymodem    Y, Alt+D, YMODEM: TEST.BIN = exactly the 2500 bytes (the header block gives the length)
-//   collision W (YMODEM again, other bytes, same name), Alt+D, YMODEM: "Duplicate File Name" -> Overwrite: TEST.BIN = the new bytes
+//   collision W (YMODEM again, other bytes, same name), Alt+D, YMODEM: "Duplicate File Name": Cancel Download leaves TEST.BIN as it
+//             was (so the dialog really was shown), then again with Overwrite (unlink + "wb"): TEST.BIN = the new bytes
 //   cancel    K (XMODEM the sender drops after block 2: CAN x5), Alt+D, XMODEM-CRC, "CAN.BIN": SyncTERM keeps what it had
 //             written (2048 bytes, a partial file); upstream removes only an EMPTY file of a failed transfer
 //   no r+     every C: write answered >= 0 (an "r+" / append on C: is ENOTSUP, a refused write is not an answer here)
@@ -49,8 +50,8 @@ const run = (n) => { for (let i = 0; i < n; i++) { step(m); serviceQuit(m); } };
 const keys = (what) => { for (const c of typeof what === "string" ? [...what].map((ch) => ch.charCodeAt(0)) : what) { m.demo.key(c); m.demo.keyUp(c); run(1); } };
 const arrow = (dir) => { m.demo.input(dir); m.demo.inputRelease(dir); run(2); };
 const frames = { n: 0 };
-function until(re, max, what) { // step until the cart logs a line matching re
-    for (let f = 0; f < max; f++) { if (m.log.some((l) => re.test(l))) return f; run(1); frames.n++; }
+function until(re, max, what, times = 1) { // step until the cart has logged `times` lines matching re
+    for (let f = 0; f < max; f++) { if (m.log.filter((l) => re.test(l)).length >= times) return f; run(1); frames.n++; }
     throw new Error(`${what}: no "${re}" in ${max} frames (the cart's last words: ${m.log.slice(-3).join(" / ")})`);
 }
 const download = (protocol, name) => { // Alt+D, the protocol's row in the menu, and XMODEM's filename
@@ -63,11 +64,11 @@ const download = (protocol, name) => { // Alt+D, the protocol's row in the menu,
 const ZMODEM = 0, YMODEM = 2, XMODEM_CRC = 3;
 const dump = () => m.log.filter((l) => /^(syncterm|fakebbs)/.test(l)).join(" / ");
 const snaps = {};
-function transfer(tag, line, protocol, name, doneRe, extra = () => {}) {
+function transfer(tag, line, protocol, name, doneRe, extra = () => {}, times = 1) {
     keys(line); keys([ENTER]); run(20);
     download(protocol, name);
     extra();
-    if (broke !== "skip") until(doneRe, 6000, tag);
+    if (broke !== "skip") until(doneRe, 6000, tag, times);
     run(60); keys([ENTER]); run(60);                        // the BBS is done; SyncTERM closes the file, "hit any key"
     snaps[tag] = img.slice();
 }
@@ -80,9 +81,11 @@ try {
     gem = await launchFromGem(m, CART);
     run(70); keys([ENTER]);                                  // the dialing directory: Enter dials fakebbs.zig
     run(150);
-    transfer("xmodem", "X", XMODEM_CRC, "XM.BIN", /fakebbs: xfer X done/);
+    transfer("xmodem", "X", XMODEM_CRC, process.env.XM_NAME || "XM.BIN", /fakebbs: xfer X done/);
     transfer("ymodem", "Y", YMODEM, "", /fakebbs: xfer Y done/);
-    transfer("collision", "W", YMODEM, "", /fakebbs: xfer W done/, () => { run(40); keys([ENTER]); });   // Overwrite is the menu's first row
+    const menu = (downs) => () => { run(40); for (let i = 0; i < downs; i++) arrow(DOWN); keys([ENTER]); };   // the Duplicate File Name menu
+    transfer("refused", "W", YMODEM, "", /fakebbs: xfer W done/, menu(2));                      // Cancel Download is its third row: TEST.BIN stays
+    transfer("collision", "W", YMODEM, "", /fakebbs: xfer W done/, menu(0), 2);                 // Overwrite is its first
     transfer("cancel", "K", XMODEM_CRC, "CAN.BIN", /fakebbs: xfer K done/);
     if (pngDir) { await mkdir(pngDir, { recursive: true }); await png(picture(m), `${pngDir}/download_end.png`); }
 } catch (e) { trap = String(e); }
@@ -104,7 +107,8 @@ check("the transfers ran (no trap)", !trap, trap || `${frames.n} frames waited f
 if (broke !== "skip") check("the image starts with no C:\\DOWNLOAD", ls("start").length === 0 && mtool("mdir", "start", "::HD/DOWNLOAD") === null, "folder absent");
 verify("xmodem (X, XMODEM-CRC, 1K blocks): C:\\DOWNLOAD\\XM.BIN, ^Z-padded last block, 255 255 / CR NUL intact", "xmodem", "XM.BIN", padded(content(0), 3072));
 verify("ymodem: C:\\DOWNLOAD\\TEST.BIN, exactly 2500 bytes", "ymodem", "TEST.BIN", content(0));
-verify("collision (Duplicate File Name, Overwrite): TEST.BIN replaced by the new bytes", "collision", "TEST.BIN", content(1));
+verify("collision, Cancel Download: TEST.BIN is still the first bytes (the dialog was shown, nothing replaced)", "refused", "TEST.BIN", content(0));
+verify("collision, Overwrite: TEST.BIN replaced by the new bytes", "collision", "TEST.BIN", content(1));
 verify("cancel (sender CAN x5 after block 2): CAN.BIN is the 2048 bytes received, kept", "cancel", "CAN.BIN", content(0, 2048));
 check("C:\\DOWNLOAD holds exactly CAN.BIN TEST.BIN XM.BIN", JSON.stringify(ls("cancel")) === JSON.stringify(["CAN.BIN", "TEST.BIN", "XM.BIN"]), ls("cancel").join(" ") || "empty");
 check("every C: write answered (no refused or unsupported open)", answers.length > 0 && answers.every((x) => x >= 0),
