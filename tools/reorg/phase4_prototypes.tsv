@@ -20,3 +20,4 @@ mv	prototypes/tos4x_re/ANALYSIS.md	docs/os/tos4x/ANALYSIS.md
 
 # The convention itself, as the st-port / c64-port skills and the docs spell it
 rw	prototypes/<tag>_re/ANALYSIS.md	docs/ports/<tag>/ANALYSIS.md
+mv	prototypes/bubble_re/ANALYSIS.md	docs/ports/bubblebobble/ANALYSIS.md
