@@ -8,7 +8,7 @@
 //   --assets  Matt's LOCAL GEM assets page (prototypes/gem_reconstructed/gem_assets): the sheet adds the
 //             matching TOS 4 reference images (manifest.json) beside each component. LOCAL ONLY: write
 //             <outdir> under prototypes/ (git-ignored); never commit the shots or the assets.
-//   ZM_ROM=<rom.wasm>  a scratch ROM (a -Dgem_assets build) instead of docs/rom.wasm; ZM_ENGINE=1 or 2: the
+//   ZM_ROM=<rom.wasm>  a scratch ROM (a -Dgem_assets build) instead of site/rom.wasm; ZM_ENGINE=1 or 2: the
 //   desktop in the desk on the engine, flat or TOS 4 3D (deskSetEngine; unset: the ROM's -Dgem_engine default).
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -90,5 +90,5 @@ for (const mode of [0, 1, 2]) {
     await desktopShot(mode, sheet);
 }
 const refs = assets ? await references(assets, out, Object.keys(sheet)) : null;
-await writeFile(`${out}/index.html`, sheetHtml(sheet, refs, process.env.ZM_ROM || "docs/rom.wasm"));
+await writeFile(`${out}/index.html`, sheetHtml(sheet, refs, process.env.ZM_ROM || "site/rom.wasm"));
 console.log(`gemtest_shots: ${Object.keys(sheet).length} components x 3 modes -> ${path.resolve(out)}/index.html`);

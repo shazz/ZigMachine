@@ -357,7 +357,7 @@ square's harmonics is a much smaller effect than a whole fundamental folded
 into the audible band. Hatari's output low-pass (the port is still 3-7 dB
 hotter above 10 kHz) was left alone: it is a separate question.
 
-**Consequences:** Across all 389 subtunes on the shelf (docs/music, big/,
+**Consequences:** Across all 389 subtunes on the shelf (site/music, big/,
 digital/, union/; 120 s each), 363 render byte-identical. 26 change, and each
 has an audible tone at period 5 or below (no other tune changed):
 auf_weidersehen_monty_digi #1, bangkok_knights #1, count_zero_2 #1, dugger #3
@@ -630,7 +630,7 @@ in), so the **host** measures it from the wasm and declares it via
 reports 0 when undeclared, deliberately indistinguishable from "full": an unknown
 window must read as *take nothing*.
 
-**Consequences:** One measurement routine (`docs/wasm_hiwater.js`) is shared by
+**Consequences:** One measurement routine (`site/js/wasm_hiwater.js`) is shared by
 the loader and the checkers, so the hardware and the tools agree to the byte. Each
 module is measured against **its own** map — the audio thread's window is half the
 size at the same address, and measuring it against the video map would let a cart
@@ -666,7 +666,7 @@ behind the wasm and froze an import list the host no longer had, so every disk
 failed to instantiate — recoverable only by reading the images back.
 
 **Decision:** `tools/mkdisks.sh` repacks them from the built carts, deriving the
-list from `docs/demo-*.wasm` and repacking only what is stale.
+list from `site/carts/demo-*.wasm` and repacking only what is stale.
 `apps/harness/disk_check.mjs` mounts every image and **instantiates** its cart against the
 host's real `env`. Both run from `build.sh`.
 
@@ -744,7 +744,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 **Status:** accepted
 **Context:** The raytrace carts are the FPGA CPU benchmark, so they have to report a measured rate (pixels per second) on both the browser and the board. No cart could read a clock: the machine ABI has the frame counter (`REG_FRAME`, one per host call) and `BLIT_CYCLES`. `dt` is wall time in the browser, but every FPGA host passes a constant 16.6. The board firmware does time `cart.frame()` with the SoC cycle counter, but the cart cannot see that number.
 **Decision:** Carts can import `env.hostMicros() u32`, a free-running microsecond counter that wraps about every 71 minutes. Like `diskReadBlock` or `hostAudioFeed`, the host provides it to the cart directly; it is not a machine register.
-- The browser (`docs/sealed-loader.js`) derives it from `performance.now()`. The board defines `HOST_MICROS()` from the cycle counter, and `fpga/tools/host_gen.py` calls that hook.
+- The browser (`site/js/sealed-loader.js`) derives it from `performance.now()`. The board defines `HOST_MICROS()` from the cycle counter, and `fpga/tools/host_gen.py` calls that hook.
 - A host that does not provide it answers **0**: the harness and `host_gen` no-op stub does, and so does `disk_check`'s env. A cart must treat 0 as "no clock" and fall back to a fixed amount of work per frame. That fallback keeps gate frame counts and fingerprints deterministic.
 - **It is a benchmark aid only.** No screen may use it for choreography, pacing or animation. Carts stay frame-locked: the machine runs at a fixed 60 Hz and a screen counts frames.
 
@@ -917,7 +917,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - **The table, cart → system** (`zm_sys_table`, in the system's rodata, handed to the cart's `bind()`): a magic, the version, a count, then function pointers in the order of `fpga/cycles/sys_abi.txt`. First the runtime (`env.memory`, `wasm_rt_trap`, funcref tables, `__assert_func`, `memcpy` & co, the libm calls wasm2c emits, `hostMicros`, the drive's `diskReadBlock`), then every `env.*` the browser binds a cart to: each `rom.wasm` export and the `MACHINE_ENV` list, as `ret f(struct w2c_env*, args)`. `tools/host_gen.py --split` writes the cart's forwarders (one indirect call each; `scene_hash.mjs`'s no-op stubs stay inline) and, once, the system's wrappers.
 - **The header, system → cart** (fixed offset 0 of the cart image): the version the cart needs, its `.bss` range, `SHARED_PAGES`, its RAM high-water, `sizeof(w2c_cart)` (the system callocs the instance), then the entry points (`instantiate`, `boot`, `skipBoot`, `frame`, `isPlaneEnabled`, `hblDispatch`) and the song, input and disk-app bridges, the `--call` table and the song files: everything `env.c` gave the firmware by name.
 - **Versioning:** `major.minor` in `sys_abi.txt`. A cart needs `major` equal and `minor` at most the system's. Adding a ROM export appends entries (minor + 1); removing, retyping or reordering anything, or changing the header, the bridges, the runtime list or `CART_IMG_AT`, is a major bump. Two refusals, both loud: glass compares the cart's header with `system.rv32`'s before touching DDR (`CartAbi` on the OSD, with both versions); the firmware compares again before binding (`ZM CARTABI need a.b have c.d` on the console, `CART_TRAPPED` with `TRAP_CART_ABI`, which glass names). No magic at `CART_IMG_AT` is `TRAP_NO_CART`.
-- **The gate:** `fpga/tools/sys_abi.py --check` (in `build.sh`, stdlib Python, no fpga toolchain) recomputes the layout from `docs/rom.wasm`, `docs/machine-video.wasm` and the fixed lists, and fails when it differs from `sys_abi.txt`, or when the file's body does not hash to the hash recorded for its version; `--update` rewrites it with the right bump; `--break` proves a changed layout is caught.
+- **The gate:** `fpga/tools/sys_abi.py --check` (in `build.sh`, stdlib Python, no fpga toolchain) recomputes the layout from `site/rom.wasm`, `site/machine-video.wasm` and the fixed lists, and fails when it differs from `sys_abi.txt`, or when the file's body does not hash to the hash recorded for its version; `--update` rewrites it with the right bump; `--break` proves a changed layout is caught.
 - **BARD:** its image stays a blob inside the system (`snd_img.o`), copied to `SND_BASE` at boot as today. It is system code: one copy on the card. The songs it plays are cart data: the cart's header points at them, and `bsound.c` reads them through it.
 - **The browser and the native host:** untouched. `host_gen.py` without `--split` writes the same `env.c` byte for byte; `scene_hash.mjs` and `build/host/<cart>/host` are the references the split images are held to.
 - **The monolithic image stays** (`board-fw`, `hp-sim`, `board_run.py`'s U-Boot flow) as the oracle the split is compared against; glass loads either (a lean cart is recognised by its magic).
@@ -957,7 +957,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - The shared memory (registers, palettes, planes, the cart window) is reached exactly as a wasm cart reaches it: the table's runtime entry `w2c_env_memory(env)->data` is byte 0, `hwVideoBase()` is the video registers' offset. The ROM reads text and buffers from that memory, so the cart copies its string into its own corner of the cart window (`CART_RAM_BASE`) and declares `cart_high` past it, as a wasm cart's statics do.
 - Bridges the cart does not use (songs, input, disk app, `--call` exports, song files) all point at one zeroed block: the system tests every bridge field for NULL and every list ends at a NULL name.
 - Build: `cycles/native/native.mk` (`make native-cart NAME=hello|hello_asm`), linked by the same `cycles/cart.ld` as the wasm2c carts. `tools/native_cart.py check` holds the image to glass's and `bsys.c`'s rules; `native_check.c` holds the assembly's plain numbers (table indices, header offsets) to the generated header, so a table change fails the build.
-- The disk: a native cart has no `docs/demo-<tag>.zmd`, so `native_cart.py disk` writes a v1 disk next to the image whose wasm boot cart only says "this disk runs on KESTREL only", and `glass_shelf.py` takes `<fw-dir>/<tag>/disk.zmd` before the docs shelf disk. `glass_sd.py --fw-dir build/hcycles/split/native_fpu` then stages it like any lean cart.
+- The disk: a native cart has no `site/carts/demo-<tag>.zmd`, so `native_cart.py disk` writes a v1 disk next to the image whose wasm boot cart only says "this disk runs on KESTREL only", and `glass_shelf.py` takes `<fw-dir>/<tag>/disk.zmd` before the docs shelf disk. `glass_sd.py --fw-dir build/hcycles/split/native_fpu` then stages it like any lean cart.
 
 **Alternatives considered:**
 - A "native" header flag or version and a simpler call path in `bsys.c` (no env, no instance): a few instructions fewer per call, but a new system image for every board, a second path to keep correct in `bsys.c`, glass and the tools, and a table bump; the wasm2c convention costs a native cart one saved pointer.
@@ -1245,7 +1245,7 @@ other people's code, under three licences, to a repo that changes them never (ev
 Makefile, the run rig, each port's disk data, and the upstream licence text; `apps/ports/kestrel_sdl2`
 is the shared layer. `apps/ports/fetch.sh` clones each upstream at its pinned SHA (klystrack and its
 klystron submodule as a pair) and binaryen 132 (npm, sha256-checked) into `apps/ports/upstream/`
-(gitignored), and refuses a checkout at another commit. The carts `docs/demo-<tag>.wasm` are committed
+(gitignored), and refuses a checkout at another commit. The carts `site/carts/demo-<tag>.wasm` are committed
 prebuilt, like the `c-*`/`rust-*` carts; `./build.sh` never needs the upstreams. A rebuild at the pins is
 byte-identical (`__DATE__` in ChipNomad is pinned to its upstream commit's date for that).
 `tools/mkdisks.sh` stays the one recipe for their disks (the ports' Makefiles lost their `disk`
@@ -1260,7 +1260,7 @@ C/Rust carts either): change a port, run `make -C apps/ports/<port> install` and
 upstream version is a new pin in `fetch.sh` plus patches that still apply (each must change its file or
 the build stops). GrafX2's cart is GPLv2 (`apps/ports/grafx2/README.md` names its corresponding source);
 the rest of the repo keeps its licence. Ripped test pictures (`prototypes/grafx2/port/testpics*`) stay
-local. `docs/demo-<tag>.wasm` changes to `docs/` for these tags are "shared or unknown" to
+local. `site/carts/demo-<tag>.wasm` changes to `docs/` for these tags are "shared or unknown" to
 `tools/gate_scope.py`, so they take the full gate, as the C carts do.
 
 ## 2026-11-02 — The C ports pace their audio by `hostMicros`; pt2's Paula in integers; the board pointer over the borders
@@ -1308,7 +1308,7 @@ takes effect, who owns the channels.
    DMA start and at the wrap, so attack-then-loop, sample swaps and 9xx offsets are the hardware's, and an
    Amiga replay ports by forwarding its register writes (pt2 does, verbatim). Not a register page: the cart's
    memory is not the audio side's in either host, and a batch import is one call a frame on the board's ABI.
-   Served by `docs/sealed-loader.js` + the worklet, and by `host/hstream.h` hooks where the players run in C
+   Served by `site/js/sealed-loader.js` + the worklet, and by `host/hstream.h` hooks where the players run in C
    (native host, BARD, ZIGGY without BARD): system table 1.6 (four host entries appended, carts for 1.5 run).
    HW 1.14.0, the version reserved for this and the coming true-colour plane (it joins the same number).
 2. *Samples* live in chip RAM = song RAM (1 MiB), uploaded by the cart, as an Amiga program copies samples to
@@ -1464,7 +1464,7 @@ FAT files?" The four ports booted as bootable disks: no desktop, no way to see o
 board no OS to return to (SysInfo's reason for becoming a data disk). Each program already read its files off
 the mounted floppy (`kestrel_wasi.c`), and a program GEM launches keeps the same disk mounted.
 **Decision:** each port's disk is a DATA disk (`tools/mkdisks.sh` `portdisk`: `--no-boot`, plus the shared
-"SDL" boot sector `docs/boot-sdl.wasm`, as SysInfo's "No virus": the sector runs, then GEM boots over it, its FLOPPY window lists
+"SDL" boot sector `site/carts/boot-sdl.wasm`, as SysInfo's "No virus": the sector runs, then GEM boots over it, its FLOPPY window lists
 `BOOT.WSM` and the program's files (8.3 names; GEM's 12-file cap), a double-click runs it. Quitting lives in the
 shared layer, `apps/ports/kestrel_sdl2/src/kestrel_quit.c`: `kestrel_quit()` makes the cart's `pollCartRequest`
 export answer 4 (SysInfo's and ST Replay's protocol); `SDL_Quit()` and `exit()` call it, and each port calls
@@ -1480,8 +1480,8 @@ the glass and its tests look for `BOOT.WSM` on a v2 data disk, so the ports foll
 **Consequences:** on the board the four programs are staged under `progs/demo-<tag>/BOOT.WSM.zmd`
 (`fpga/tools/glass_shelf.py`), and a board firmware built before `pollCartRequest` existed in these carts
 quits nothing: rebuild the four board firmwares with the carts. pt2's other `askBox` dialogs (CLEAR, the
-sampler's) still hang the cart, as before. The ports harness now also depends on GEM (`docs/demo-gem.wasm`,
-`docs/rom.wasm`).
+sampler's) still hang the cart, as before. The ports harness now also depends on GEM (`site/carts/demo-gem.wasm`,
+`site/rom.wasm`).
 
 ## 2026-11-03 — True-colour fade: brightness and colour offset in FRESCO's 565 expansion (HW 1.16.0)
 
@@ -1530,13 +1530,13 @@ FADE view + `VD_BREAK=FADE`.
 **Status:** accepted
 **Context:** Matt (31 Oct): a friend with a Z7-Lite wants to write demos without the SoC, Verilator or
 Vivado. A cart is registered in three places today (cart.zig's index, build.zig's cart matrix, catalog.zig),
-all inside the repo, and the board pipeline (`fpga/` split-cart) reads `docs/demo-<tag>.wasm`.
+all inside the repo, and the board pipeline (`fpga/` split-cart) reads `site/carts/demo-<tag>.wasm`.
 **Decision:** a cart outside the repo has its own `build.zig` + `build.zig.zon` with a PATH dependency on the
 repo, and calls `@import("kestrel").addCart(b, dep, .{ .name, .root_source_file })` (`sdk/build_cart.zig`,
 re-exported by `build.zig`). addCart builds that one cart from `apps/zig/demo_main.zig` with the matrix's
 modules and memory layout; it does not rebuild machine-video.wasm or rom.wasm (the card's system.rv32 was
 built from the shipped bytes). The template's Makefile copies the cart into the SDK's `docs/` (marked in
-`docs/.sdk/`, refusing a repo cart's name) for the browser and for `make -C fpga split-cart`, which takes
+`site/carts/.sdk/`, refusing a repo cart's name) for the browser and for `make -C fpga split-cart`, which takes
 the SDK's toolchain through command-line variables (RV_CC, RV_ARCH, WABT, `CART_RTLIB`, CARTS_DIR) and
 `UV_NO_PROJECT=1` (the split-cart scripts are stdlib-only: no LiteX venv). A riscv gcc without an
 rv32imf/ilp32f multilib (Arch, xPack) links Zig's compiler_rt, trimmed to libgcc's helpers
@@ -1557,7 +1557,7 @@ the helper, but one board run should confirm it.
 **Context:** everything glass reads lived in `/mnt/sd/zigmachine/` (system.rv32, kos/, progs/, glass.cfg, shelf.txt, the category folders), and the card's root had gathered ~25 `rollback_*` folders and loose files beside the boot files. KOS's C: (docs/os/KOS_FAT.md F5) showed the WHOLE partition in GEM: the boot files, the system, every rollback copy; `progs/by-hash` alone could fill the desktop's 32-file limit.
 **Decision:** four places. `/` holds the boot files only (the BootROM and U-Boot need them there; their `.prev` / `.<hash>` copies stay beside them for recovery from U-Boot). `/KESTREL/` holds the system (system.rv32, kos/desktop.rv32, glass.cfg, progs/, an optional `glass` override, `rollback/`). `/CARTS/` is the OSD's shelf. `/HD/` is C: (the future GEMDOS hard disk). The names are defined once a side (`fpga/glass/src/layout.zig`, `fpga/tools/sd_layout.py`), held equal by `fpga/tests/test_sd_layout.py`. glass detects the layout from the directory it is given (`KESTREL/` there, else `zigmachine/`, else the directory itself), so an old card and the card's rollback keep working with the new glass, and the old rootfs keeps working on a card migrated back. C: is rooted in the desktop shell (`gem_fat.zig` walks from `/HD`'s cluster); glass still serves raw sectors of the whole partition, so no host changed. No `/HD`: no C: icon (as a host with no C:), rather than an empty drive. S99glass runs `KESTREL/glass` instead of the rootfs's when the two differ and the SD one runs (the "a newer SD copy overrides for development" rule), and says so on the console. An old card moves with `fpga/tools/sd_migrate_layout.sh` on the board: mkdir and mv only, idempotent, `--back` to undo; a loose root `glass` goes to `rollback/`, never to `KESTREL/glass`, so a stale hand-copied binary cannot become the override.
 **Alternatives considered:** glass filtering C:'s sectors to `/HD` (glass would need to parse FAT and remap clusters: a second FAT implementation for nothing, the shell already runs KOS's reader); a second FAT partition for HD (repartitioning every card, and Linux mounts only p1); keeping `zigmachine/` and only adding `HD/` (the root stays cluttered, and the system and the shelf stay mixed, which "the OS in the boot image" wants apart).
-**Consequences:** every staging path moved (`KESTREL/...`, `CARTS/...`: MANIFEST rows, `sdk/release.sh`'s card check, `board_carts.sh`'s md5 list), and anything outside the repo that names `zigmachine/...` on the card is stale (the board-cart skill, prototypes' install scripts, card_full_re/planA/RECOVERY.md's plan-B line). The old rootfs on a migrated card runs glass on an empty shelf: restore both or neither (the old rootfs + `--back`). `docs/kos-c.img` is card-shaped, so the page's C:\ lists `HD/`'s four entries. An override glass older than this layout reads `/mnt/sd` as a flat shelf: S99glass checks that it runs, not what it knows.
+**Consequences:** every staging path moved (`KESTREL/...`, `CARTS/...`: MANIFEST rows, `sdk/release.sh`'s card check, `board_carts.sh`'s md5 list), and anything outside the repo that names `zigmachine/...` on the card is stale (the board-cart skill, prototypes' install scripts, card_full_re/planA/RECOVERY.md's plan-B line). The old rootfs on a migrated card runs glass on an empty shelf: restore both or neither (the old rootfs + `--back`). `site/disks/kos-c.img` is card-shaped, so the page's C:\ lists `HD/`'s four entries. An override glass older than this layout reads `/mnt/sd` as a flat shelf: S99glass checks that it runs, not what it knows.
 
 ## 2026-11-06 — KOS GEMDOS runs in the cart, over the sector imports; writes will go through glass at the file level
 
@@ -1566,7 +1566,7 @@ the helper, but one board run should confirm it.
 **Decision:** a GEMDOS library (`rom/kos/gemdos*.zig`: Fopen / Fread / Fseek / Fclose, Fsfirst / Fsnext / Fsetdta, Dgetdrv / Dsetdrv / Dgetpath / Dsetpath, Fattrib; TOS's names, handles, DTA and error codes) runs IN THE CART over KOS's FAT reader and the two sector imports every host already serves: `diskReadBlock` (A:, a FAT image) and `kosDriveRead` (C:, unit 2, a system-table entry since 1.8). C:\ is rooted at `/HD` as the desktop shell roots it. No host code and no system table change: the same Zig answers on the page, the native host and the board, and a cart using it needs table >= 1.8 (combo16 is 1.9). For the C ports the library is one wasm object (`gemdos_c.zig`, C linkage) under an opt-in WASI layer (`-DKESTREL_CDRIVE`, `kestrel_sdl2/src/opt/kestrel_wasi_c*.c`) that adds C: as wasi-libc's second preopen, `/C`: `fopen("/C/PICTURES/X.PI1")` is `Fopen("C:\PICTURES\X.PI1", 0)` with no change to a port's sources, and the other ports' carts stay byte-identical. Requests are what cost on the board (~0.5 ms a round trip: glass's 2 kHz poll), so the library caches 4 KB runs and reads 4 KB or more straight into the caller's buffer, contiguous clusters merged into requests of up to 32 KB. Writes (phase 2) will never be sectors from a cart: glass owns them at the file level (a second request block, paths under `/HD`, a C: generation word that drops the carts' caches).
 **Alternatives considered:** GEMDOS in glass at the file level for reads too (a round trip on every call, Fsnext included, and a file API written three times: the firmware's, the native host's, the page's); in rom.wasm behind new ROM exports (every host and ~100 harnesses instantiate rom.wasm with a fixed env: why KOS_FAT F2 kept the reader in the shell cart); `zg.gemdos` in `libs/zig` (the layering is machine < libs < ROM < apps and the reader is KOS's, so the module `kos_gemdos` sits beside `kos_fat`; moving fat.zig into libs is a separate refactor if wanted); a C reimplementation for the C ports (two FAT readers to keep equal).
 **Consequences:** a cart using GEMDOS carries ~10 KB of code and 16 KB of cache a drive; long file names show as their 8.3 aliases (name files on `/HD` in 8.3); A: does not mount over a `.zmd` (those keep their own reader). wasi-libc never folds `..` in its working folder, so the C layer offers `kestrel_getcwd` (a port maps `getcwd` to it) to fold it. Phase 2 bumps the system table (new imports) and needs glass to remount the card read-write for each write, with the desktop and every cart dropping their sector caches when glass bumps C:'s generation.
-**Phase 2 (6 Nov, built as designed, with these choices):** one import, `env.kosFileOp(req)` (table 1.10, appended: 1.9 carts still run), a 12-word request in the cart's memory (rom/kos/kfs_abi.zig). Where C: is an image (the page, the native host) the host half is KFS, a FAT12/16/32 writer in Zig (rom/kos/kfs*.zig) shipped as `docs/kos-cfs.wasm` and wasm2c'd into the native host, so the image writer exists once; on the board glass uses Linux's own vfat, remounted read-write per request, and never writes sectors itself (the kernel caches the FAT it mounted). The path gate (rom/kos/kfs_path.zig: plain 8.3 names under C:\, nothing else) is shared by both and runs on the host's own copy of the request. A save is written to `~KOS<slot>.TMP` and renamed at the last write; Fwrite buffers 32 KB so a picture is one request. The generation reaches the cart in each write's answer (wasm cannot read a window word), and the library drops its caches after each of its own requests instead of asking the generation on every call (a round trip each); the desktop re-reads C: at every start. Alternatives: glass writing raw sectors with KFS under the read-only mount (one writer for all hosts, but the kernel's cached FAT goes stale and any later rw mount would clobber it); a FAT writer in JS and in C (three writers); no temp name (a crash mid-save loses the old file).
+**Phase 2 (6 Nov, built as designed, with these choices):** one import, `env.kosFileOp(req)` (table 1.10, appended: 1.9 carts still run), a 12-word request in the cart's memory (rom/kos/kfs_abi.zig). Where C: is an image (the page, the native host) the host half is KFS, a FAT12/16/32 writer in Zig (rom/kos/kfs*.zig) shipped as `site/kos-cfs.wasm` and wasm2c'd into the native host, so the image writer exists once; on the board glass uses Linux's own vfat, remounted read-write per request, and never writes sectors itself (the kernel caches the FAT it mounted). The path gate (rom/kos/kfs_path.zig: plain 8.3 names under C:\, nothing else) is shared by both and runs on the host's own copy of the request. A save is written to `~KOS<slot>.TMP` and renamed at the last write; Fwrite buffers 32 KB so a picture is one request. The generation reaches the cart in each write's answer (wasm cannot read a window word), and the library drops its caches after each of its own requests instead of asking the generation on every call (a round trip each); the desktop re-reads C: at every start. Alternatives: glass writing raw sectors with KFS under the read-only mount (one writer for all hosts, but the kernel's cached FAT goes stale and any later rw mount would clobber it); a FAT writer in JS and in C (three writers); no temp name (a crash mid-save loses the old file).
 
 ## 2026-11-06 — MP3: pvmp3 in demo-audio, a fed byte stream, and a 15-bit output on the Paula channels
 

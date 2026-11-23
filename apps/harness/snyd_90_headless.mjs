@@ -1,5 +1,5 @@
 // Headless SWEDISH NEW YEAR DEMO 89-90 driver (apps/zig/scenes/snyd_90.zig):
-// boots the sealed machine + the cart as docs/sealed-loader.js does and plays
+// boots the sealed machine + the cart as site/js/sealed-loader.js does and plays
 // the key path -- intro, Space, the menu for 1200 VBLs (through a full slide
 // and the swap to the SYNC letters), F2 for 1500 VBLs, Space back to a fresh
 // menu, the same for F1, then the best-effort parts F3..F6 (checked for motion,

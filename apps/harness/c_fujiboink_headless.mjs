@@ -1,5 +1,5 @@
 // Headless FUJIBOINK! (C cart) driver: boots the sealed machine +
-// docs/demo-c-fujiboink.wasm the way docs/sealed-loader.js does and checks it
+// site/carts/demo-c-fujiboink.wasm the way site/js/sealed-loader.js does and checks it
 // against the REAL THING, FUJIBOIN.PRG run in Hatari (TOS 1.62, 1 MB ST) on the
 // FUJIBOIN.D8A its own generators made:
 //   frames    nine Hatari screenshots (apps/c/assets/screens/fujiboink/hatari/):
@@ -29,7 +29,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { boot, stFrame, hatariFrame, same, OFF_PAL, REG_FB_BASE } from "./c_fujiboink_machine.mjs";
 
-const CART = "docs/demo-c-fujiboink.wasm";
+const CART = "site/carts/demo-c-fujiboink.wasm";
 const REFS = "apps/c/assets/screens/fujiboink/hatari/";
 const THUD = "fujiboink_thud.sndh";
 const K_ESC = 0xe012, K_F1 = 0xe001, KEY_X = 0x78, SPACE = 0x20;
@@ -170,12 +170,12 @@ async function checkSound() {
 async function sndhRender(name) {
     const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) return { why: "audioLoadSndh refused it" };
     audio.audioSndhPlay(0);

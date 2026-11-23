@@ -17,7 +17,7 @@
 //   node apps/harness/gnomes_headless.mjs --break raster|sweep|scroll|page|vu|music|pixels   (each must FAIL)
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { inflateSync } from "node:zlib";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 import { loadAssets, Original, PW, PH } from "./gnomes_model.mjs";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
@@ -30,12 +30,12 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 // ---------------- boot (the ikplus shape) -----------------------------------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
-const cartBytes = await readFile("docs/demo-gnomes.wasm");
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
+const cartBytes = await readFile("site/carts/demo-gnomes.wasm");
 const env = { ...romEnv, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hwRam") || k.startsWith("hwRomRam")) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

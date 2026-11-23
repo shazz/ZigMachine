@@ -1,4 +1,4 @@
-/* ---- The full virtual keyboard (docs/vkbd.js)
+/* ---- The full virtual keyboard (site/js/vkbd.js)
    Opened from the touch pad's "Full" button; the pad itself (sealed-loader.js)
    only shows on a touch screen, so on a desktop neither is ever seen. */
 /* The keyboard replaces the pad while it is open; ?embed shows neither. */

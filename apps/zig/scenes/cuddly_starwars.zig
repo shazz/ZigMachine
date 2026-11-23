@@ -5,7 +5,7 @@
 // NoNameNo). Graphics, texts and the original ST screen belong to The
 // Carebears; UNION sprites Knight Hawks, font Amiga, music Mad Max.
 // Music: the remake's "Cuddly - Star-Wars.ym" is, by its own YM header, Bangkok
-// Knights (Hippel/Hubbard); played here from its SNDH, docs/music/bangkok_knights.sndh.
+// Knights (Hippel/Hubbard); played here from its SNDH, site/music/bangkok_knights.sndh.
 //
 // Reference kept at prototypes/codef/360/. Assets and tables.zig:
 // tools/cuddly_starwars_assets.py. Motion tables: cuddly_starwars/motion.zig.

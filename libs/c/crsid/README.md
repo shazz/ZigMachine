@@ -15,7 +15,7 @@ PSID tunes; RSID tunes (real C64 programs) cost ~2x BARD and are refused.
 | Author | Mihaly Horvath (Hermit), 2026 |
 | Licence | The archive has no LICENSE file. Its `README.txt` (here `cRSID-README.txt`) says: "License is still WTF: Do what the frick you want with this code, but it would be nice mentioning me as the original author." `upstream/README.txt` and `upstream/libcRSID.c` (line 2) say the same. Credit Hermit wherever the player is named. |
 | `upstream/` | the archive's `libcRSID/` directory, **unmodified** (less one prebuilt test binary, `tests/simple_app/testapp_shared`) |
-| Test tune | `upstream/tests/HerMiniSID.sid`, Hermit's own, shipped in the library: copied to `docs/music/hermini.sid` and `apps/zig/assets/sid/HERMINI.SID` for SID TEST |
+| Test tune | `upstream/tests/HerMiniSID.sid`, Hermit's own, shipped in the library: copied to `site/music/hermini.sid` and `apps/zig/assets/sid/HERMINI.SID` for SID TEST |
 
 ## What we build: `patch.sh`
 

@@ -26,7 +26,7 @@ const Player = @import("kestramp/player.zig").Player;
 const panel = @import("kestramp/panel.zig");
 const hit = @import("kestramp/hit.zig");
 
-const K_ESC: u32 = 0xE012; // docs/sealed-loader.js KEY_CODES
+const K_ESC: u32 = 0xE012; // site/js/sealed-loader.js KEY_CODES
 const RATES = [_]u32{ 0, 320, 441, 480, 0 }; // the status word's rate code, in tenths of a kHz
 
 pub const Demo = struct {

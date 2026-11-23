@@ -3,19 +3,19 @@
 // below 255 (tube blended in). Boots each cart as apps/harness/scene_hash.mjs does (no disk),
 // runs FRAMES frames and inspects the last one.
 //
-//   node prototypes/gray_bg_re/tube_survey.mjs [frames=120] docs/demo-*.wasm
+//   node prototypes/gray_bg_re/tube_survey.mjs [frames=120] site/carts/demo-*.wasm
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 112;
 
 async function boot(cartPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

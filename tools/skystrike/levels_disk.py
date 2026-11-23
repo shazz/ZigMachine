@@ -2,7 +2,7 @@
 
 The cart reads a disk's MISSIONS.DAT / SCRNDATA.DAT in place of its built-in
 ones (apps/zig/scenes/skystrike/levels.zig), so the disk carries the same cart
-as docs/demo-skystrike.zmd, ZX0-packed when zig-out/bin/zx0pack exists (a
+as site/carts/demo-skystrike.zmd, ZX0-packed when zig-out/bin/zx0pack exists (a
 tenth of the size; the loader takes a raw cart too).
 """
 import os
@@ -12,7 +12,7 @@ import tempfile
 from levels_model import LevelError
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-CART = os.path.join(ROOT, 'docs', 'demo-skystrike.wasm')
+CART = os.path.join(ROOT, 'site', 'carts', 'demo-skystrike.wasm')
 ZX0PACK = os.path.join(ROOT, 'zig-out', 'bin', 'zx0pack')
 MKDISK = os.path.join(ROOT, 'tools', 'mkdisk.py')
 

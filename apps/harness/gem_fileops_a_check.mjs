@@ -1,5 +1,5 @@
 // Drive A in the desktop's file operations and its selection (Matt on the board, 13 Nov, GEM 5.0):
-//   zmd    A: is a .zmd data disk (docs/demo-sysinfo.zmd: BOOT.WSM and eight sound files), the listing the
+//   zmd    A: is a .zmd data disk (site/carts/demo-sysinfo.zmd: BOOT.WSM and eight sound files), the listing the
 //          host hands, its bytes through env.diskReadBlock. BOOT.WSM dragged from A:\ into a folder of
 //          C:\ (NET) must be copied byte for byte (it raised "The disk cannot be read": KOS GEMDOS does
 //          not mount A: over a .zmd, so the shell's count answered EDRIVE), then KESTREL.VGZ (the disk's last
@@ -16,7 +16,7 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { card, desktop, runOut, read, fsck, temps, bytesOf, PHASE } from "./gem_fileops_lib.mjs";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 
 const args = process.argv.slice(2);
 const brk = args.includes("--break") ? args[args.indexOf("--break") + 1] : "";
@@ -30,7 +30,7 @@ const same = (a, b) => a !== null && b !== null && Buffer.compare(Buffer.from(a)
 const row = (i, y0) => y0 + 26 + 10 * i;
 const X = 60, CY = 24; // C:\'s window opens at (2, 24) (the cascade's first spot): its rows from y 50
 
-const ZMD = new Uint8Array(readFileSync("docs/demo-sysinfo.zmd"));
+const ZMD = new Uint8Array(readFileSync("site/carts/demo-sysinfo.zmd"));
 const DISK = parseDisk(ZMD, "demo-sysinfo.zmd").mounted.files;
 const fileOf = (name) => ZMD.subarray(DISK[name].start, DISK[name].start + DISK[name].len);
 const listing = () => Object.entries(DISK).map(([name, f]) => ({ name, type: f.type & 0xff, size: f.len, date: 20261113 }));
@@ -38,7 +38,7 @@ const listing = () => Object.entries(DISK).map(([name, f]) => ({ name, type: f.t
 // Both windows open, A:\ (text rows from y 150) below C:\ (rows from y 50), A:\ on top. --break zmd:
 // the listing is handed but no disk is behind it (the drive answers nothing): the copy must fail.
 async function twoWindows(c, aImg, zmd) {
-    const ui = await desktop(c, zmd && brk !== "zmd" ? "docs/demo-sysinfo.zmd" : aImg, "low", null, bits);
+    const ui = await desktop(c, zmd && brk !== "zmd" ? "site/carts/demo-sysinfo.zmd" : aImg, "low", null, bits);
     if (zmd) ui.gem.mount(listing());
     ui.open(20, 30); // A:\ at (2, 24)
     ui.drag([150, 28], [150, 128]); // its title bar: down to y 124
@@ -94,7 +94,7 @@ async function big() {
 // unaligned), the only multi-request copy off a .zmd here; ZIGPLASM.PI1 one request, a GrafX2 save's shape.
 async function grafx2() {
     console.log("grafx2 (A: demo-grafx2.zmd, Matt's disk on the board)");
-    const img = "docs/demo-grafx2.zmd", z = new Uint8Array(readFileSync(img)), files = parseDisk(z, "demo-grafx2.zmd").mounted.files;
+    const img = "site/carts/demo-grafx2.zmd", z = new Uint8Array(readFileSync(img)), files = parseDisk(z, "demo-grafx2.zmd").mounted.files;
     const c = card(DIR, "grafx2", 2880);
     const ui = await desktop(c, brk === "zmd" ? null : img, "low", null, bits);
     ui.gem.mount(Object.entries(files).map(([name, f]) => ({ name, type: f.type & 0xff, size: f.len, date: 20261114 })));

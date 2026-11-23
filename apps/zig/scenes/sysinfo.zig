@@ -38,7 +38,7 @@ const refresh = @import("sysinfo/refresh.zig");
 const arrow = @import("sysinfo/pointer.zig");
 const aes = rom.aes;
 
-// The page's server for BARD jobs (docs/sealed-loader.js): ident.zig's CRC-32 test job then
+// The page's server for BARD jobs (site/js/sealed-loader.js): ident.zig's CRC-32 test job then
 // runs outside the cart's code in the browser, as on BARD on the board.
 comptime {
     zg.bard.job.exportServer();

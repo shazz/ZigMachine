@@ -1,5 +1,5 @@
 /* KOS's power-on on the board (bkos.c): docs/os/ZIGTOS_BOOT.md, KOS = ZigTOS. What the browser
- * (docs/kos-boot.js), the native host (host/kos_host.c) and node (apps/harness/scene_hash_kos.mjs) do
+ * (site/js/kos-boot.js), the native host (host/kos_host.c) and node (apps/harness/scene_hash_kos.mjs) do
  * before drive A boots, from the same ROM exports (rom/kos/kos.zig):
  *
  *   kosSetBoot(kind, what boots, drive A full?, hwRamFree), hwInit, then the POST: kosPostFrame()

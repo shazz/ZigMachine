@@ -14,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
 const ci = process.argv.indexOf("--cart"); // another build of the cart, to see the pin fail
-const CART = ci > 0 ? process.argv[ci + 1] : "docs/demo-music.wasm";
+const CART = ci > 0 ? process.argv[ci + 1] : "site/carts/demo-music.wasm";
 const PIN = "apps/harness/music_debug_pin.json";
 // A YM tune's registers: three tones (periods 284, 142, 672), noise on voice C,
 // volumes 15 / 12 / envelope (the loader mirrors these from the playing song).

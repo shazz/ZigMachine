@@ -2,7 +2,7 @@
 // zigmachine_tvnoise.rs — the channel-change snow for a Rust cart.
 //
 // The Rust twin of apps/c/zigmachine_tvnoise.h. On +/- the host calls tuneIn(25)
-// instead of skipBoot() (docs/sealed-loader.js); a cart without tuneIn just
+// instead of skipBoot() (site/js/sealed-loader.js); a cart without tuneIn just
 // starts. This is apps/zig/demo_main.zig's snow BYTE-FOR-BYTE: tvnoise.zig's
 // xorshift32, ramp, band and tears, demo_main's seed and first index, on a 400x280
 // overscan plane 0 whose borders are flickered open on every line, in the buffer

@@ -12,8 +12,8 @@ const argv = process.argv.slice(2);
 const mi = argv.indexOf("--max");
 const MAX = mi >= 0 ? Number(argv.splice(mi, 2)[1]) : 4; // a few one-off header reads per load are fine
 // TEX loader (Union), Automation and plain depack users, each a different effect
-const carts = argv.length ? argv : ["docs/demo-union_texcopier.wasm", "docs/demo-union_tnt2.wasm",
-    "docs/demo-union_multifake.wasm", "docs/demo-union_deltaforce.wasm"];
+const carts = argv.length ? argv : ["site/carts/demo-union_texcopier.wasm", "site/carts/demo-union_tnt2.wasm",
+    "site/carts/demo-union_multifake.wasm", "site/carts/demo-union_deltaforce.wasm"];
 
 let failed = false;
 for (const cart of carts) {

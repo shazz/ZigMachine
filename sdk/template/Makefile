@@ -29,7 +29,7 @@ RELEASE ?= $(wildcard $(KESTREL)/../RELEASE.txt)
 OUT  := zig-out
 WASM := $(OUT)/demo-$(NAME).wasm
 ZMD  := $(OUT)/demo-$(NAME).zmd
-DOCS := $(KESTREL)/docs
+DOCS := $(KESTREL)/site/carts
 
 .PHONY: run cart floppy board doctor clean install-docs
 run: install-docs
@@ -47,8 +47,8 @@ $(ZMD): cart
 	rm -f $(OUT)/demo-$(NAME).zx0
 floppy: $(ZMD)
 
-# The browser emulator and the board build both read the SDK's docs/demo-<tag>.*: put ours there,
-# but never over one of the SDK's own carts (a marker in docs/.sdk/ says the file is ours).
+# The browser emulator and the board build both read the SDK's site/carts/demo-<tag>.*: put ours there,
+# but never over one of the SDK's own carts (a marker in site/carts/.sdk/ says the file is ours).
 install-docs: $(ZMD)
 	@if [ -e $(DOCS)/demo-$(NAME).wasm ] && [ ! -e $(DOCS)/.sdk/$(NAME) ]; then \
 		echo "error: '$(NAME)' is one of the SDK's own carts: pick another NAME"; exit 1; fi

@@ -19,7 +19,7 @@ sys.path.insert(0, str(FPGA / "tools"))
 import host_gen
 import wasm_info
 
-MODULES = sorted(ROOT.glob("docs/demo-*.wasm")) + [ROOT / "docs/rom.wasm", ROOT / "docs/machine-video.wasm"]
+MODULES = sorted(ROOT.glob("site/carts/demo-*.wasm")) + [ROOT / "site/rom.wasm", ROOT / "site/machine-video.wasm"]
 
 
 def _js_high_waters(paths: list[Path]) -> dict[str, int | None]:
@@ -28,7 +28,7 @@ def _js_high_waters(paths: list[Path]) -> dict[str, int | None]:
         "const out = {}; for (const p of process.argv.slice(2)) out[p] = m.cartHighWater(fs.readFileSync(p));"
         "console.log(JSON.stringify(out));"
     )
-    hiwater = (ROOT / "docs/wasm_hiwater.js").as_uri()
+    hiwater = (ROOT / "site/js/wasm_hiwater.js").as_uri()
     cmd = ["node", "--input-type=module", "-e", script, hiwater, *map(str, paths)]
     return json.loads(subprocess.run(cmd, check=True, capture_output=True, text=True).stdout)
 
@@ -50,7 +50,7 @@ def test_high_water_rejects_a_non_wasm_file() -> None:
 
 
 def test_memory_import_reads_the_shared_112_page_limits() -> None:
-    assert wasm_info.memory_import((ROOT / "docs/rom.wasm").read_bytes()) == (112, 112)
+    assert wasm_info.memory_import((ROOT / "site/rom.wasm").read_bytes()) == (112, 112)
 
 
 def test_link_check_refuses_a_module_whose_max_is_below_the_shared_memory(tmp_path: Path) -> None:

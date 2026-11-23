@@ -1,5 +1,5 @@
 // Headless STNICCC 2000 driver: boots the sealed machine + demo-stniccc.wasm the
-// way sealed-loader.js does, with ITS DISK in the drive (docs/demo-stniccc.zmd,
+// way sealed-loader.js does, with ITS DISK in the drive (site/carts/demo-stniccc.zmd,
 // which carries SCENE1.BIN), runs host frames and writes the visible screen as
 // PPM at chosen HOST frames. It also times every frame against the 16.6 ms
 // budget. The rewind replays up to ~100 frames from a keyframe in one VBL, and
@@ -18,8 +18,8 @@ const out = process.argv[2] || ".";
 const wanted = new Set((process.argv[3] || "300,650,800,880,950,1300,2000").split(",").map(Number));
 const FRAMES = Number(process.argv[4] || 3000);
 await mkdir(out, { recursive: true });
-const disk = new Uint8Array(await readFile("docs/demo-stniccc.zmd"));
-const { memory, machine, demo } = await boot("docs/demo-stniccc.wasm", disk);
+const disk = new Uint8Array(await readFile("site/carts/demo-stniccc.zmd"));
+const { memory, machine, demo } = await boot("site/carts/demo-stniccc.wasm", disk);
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const XS = W / 400; // physical pixels per logical column
 

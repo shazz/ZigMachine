@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { pickRes } from "./gem_desk_lib.mjs";
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
-const CART = "docs/demo-gem.wasm";
+const CART = "site/carts/demo-gem.wasm";
 const BAND_MC = 1.75; // the board's 60 fps band starts here (CLAUDE.md, Board speed)
 const FRAMES = 30;
 

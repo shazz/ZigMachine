@@ -11,7 +11,7 @@
 //   node apps/harness/cuddly_starwars_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1;
@@ -19,10 +19,10 @@ const PLANES = 1;
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -55,7 +55,7 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-const { memory, machine, demo } = await boot("docs/demo-cuddly_starwars.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-cuddly_starwars.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const pfb = () => new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
 let frames = 0;

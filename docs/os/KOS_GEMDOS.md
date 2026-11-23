@@ -127,7 +127,7 @@ opt-in so the other ports' carts stay byte-identical: built with `-DKESTREL_CDRI
 
 ## 6. Proof
 
-- `rom/kos/gemdos_test.zig` (native, in the gate's list): the calls over `docs/gemdos-c.img`: a nested
+- `rom/kos/gemdos_test.zig` (native, in the gate's list): the calls over `site/disks/gemdos-c.img`: a nested
   picture read whole in one request, names (either separator, any case, cut to 8.3, `..`, the current
   folder), Fsfirst / Fsnext as TOS lists, Fseek's three modes and ERANGE, every refusal's code, a drive
   that stops answering (EDRIVE, then EREADF), a card with no HD.
@@ -135,7 +135,7 @@ opt-in so the other ports' carts stay byte-identical: built with `-DKESTREL_CDRI
   `mkfs.fat` + mtools, FAT16 and FAT32 (small and big clusters), the board's layout, a fragmented
   file, a long name, 150 files in a folder, a 300 KB file: every byte under HD/ = mtools', in one read
   and in 1 KB pieces; nothing above HD/; no HD/, no C:.
-- `docs/gemdos-c.img` (`tools/gemdos_c_image.py`, `--check` in the gate): FAT12, shaped like the card,
+- `site/disks/gemdos-c.img` (`tools/gemdos_c_image.py`, `--check` in the gate): FAT12, shaped like the card,
   `HD/PICTURES/ZIGWAVES.PI1`, `HD/PICTURES/PLASMA/ZIGPLASM.PI1` + `.NEO` (our own art, the files the
   GrafX2 floppy carries), `HD/TEXTS/` (20 files, two directory sectors), `HD/EMPTY.DAT`.
 - `apps/harness/gemdos_grafx2_check.mjs` (gated): GrafX2 started from GEM over its floppy, C: = that image: F3,
@@ -151,14 +151,14 @@ opt-in so the other ports' carts stay byte-identical: built with `-DKESTREL_CDRI
 
 Built: docs/os/KOS_GEMDOS_WRITES.md. A cart never writes sectors; the host owns every write at the file
 level through a new import, `env.kosFileOp` (system table 1.10): glass on the board over Linux's FAT
-(remounted read-write for the write only), KFS (`rom/kos/kfs*.zig`, `docs/kos-cfs.wasm`) over the image
+(remounted read-write for the write only), KFS (`rom/kos/kfs*.zig`, `site/kos-cfs.wasm`) over the image
 on the page and in the native host. A save goes through a temporary name; paths are checked by
 `rom/kos/kfs_path.zig` on the host's own copy.
 
 ## 8. Try it
 
 On the page: `sealed.html?disk=demo-grafx2.zmd&c=gemdos-c.img`, double-click BOOT.WSM, OK, F3,
-Select drive, `/C`. In the native host: `--c-image docs/gemdos-c.img`.
+Select drive, `/C`. In the native host: `--c-image site/disks/gemdos-c.img`.
 
 On the board:
 

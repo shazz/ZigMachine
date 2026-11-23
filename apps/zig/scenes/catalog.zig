@@ -17,7 +17,7 @@
 // from: "atari st", "amiga", "pc" (a desktop program ported), "zigmachine" (an original screen or a tech demo),
 // "system" (GEM, ST Replay: not demos), or "unknown" where the scene's own source
 // does not say and nobody has checked. tools/channels.py parses it into
-// docs/channels.json, and the host's VHS name card (docs/cart-osd.js) prints it.
+// site/channels.json, and the host's VHS name card (site/js/cart-osd.js) prints it.
 // It is a COMMENT, not a field, on purpose: this is host presentation metadata,
 // which the menu cart would otherwise carry as dead bytes — and a comment on the
 // line you already edit when adding a screen cannot drift out of sync the way a

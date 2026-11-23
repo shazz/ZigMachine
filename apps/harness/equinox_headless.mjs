@@ -20,7 +20,7 @@
 //
 //   node apps/harness/equinox_headless.mjs [outdir] [cart.wasm]
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
@@ -36,10 +36,10 @@ const SCROLL = [600, 601, 602, 620];
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -206,7 +206,7 @@ function compose(layers) {
 
 // ---- the machine ----------------------------------------------------------
 const outdir = process.argv[2];
-const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-equinox.wasm");
+const { memory, machine, demo } = await boot(process.argv[3] || "site/carts/demo-equinox.wasm");
 const W = machine.hwPhysWidth(), size = W * machine.hwPhysHeight() * 4;
 const errors = [];
 

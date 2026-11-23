@@ -138,7 +138,7 @@ the four things a screen usually needs:
   for a bar, and the copper's `.flicker` opens every border, so the bars run the full width as
   they do on an ST;
 - **a scroller**: the 8x8 system font, one glyph at a time on a sine (`zg.fixtrig`);
-- **music**: `zg.requestSong("sos.sndh")`, a file under `zigmachine/docs/music/`. Put your own SNDH
+- **music**: `zg.requestSong("sos.sndh")`, a file under `zigmachine/site/music/`. Put your own SNDH
   there and request it by name. The board build packs every song the cart asks for.
 
 A cart can also read files from the hard disk, C: (the card's `HD/` folder, see "The card"), and
@@ -219,7 +219,7 @@ tarball. A new bitstream or system image means a new release.
 How v1.2's card was staged (6 Nov 2026): the system and **every committed cart** rebuilt from the
 release's commit in a clean worktree (`make board-split`'s system, `split-cart ZM_ZMX=1` per cart,
 `native-cart` for the three native carts), with the combo16 bitstream's `csr.json`. A clean
-worktree has no `docs/music/local.xm` and no TC TEST pictures, so no cart can carry them. Then
+worktree has no `site/music/local.xm` and no TC TEST pictures, so no cart can carry them. Then
 `glass_sd.py --system ... --fw-dir ... --bit ...` without `--buildroot`, and plan A's `zImage`,
 `zigmachine.dtb` and `boot.scr`, the layout's `rootfs.cpio.uboot` (its glass reads this layout),
 `KESTREL/glass.cfg` (the defaults) and `HD/README.TXT` laid over it; the MANIFEST names each.

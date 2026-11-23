@@ -67,7 +67,7 @@ def test_the_break_run_catches_every_unversioned_change() -> None:
 
 
 def test_wasm_sig_reads_the_roms_exports_and_refuses_a_non_wasm_file() -> None:
-    exports, imports = wasm_sig.signatures((ROOT / "docs/rom.wasm").read_bytes())
+    exports, imports = wasm_sig.signatures((ROOT / "site/rom.wasm").read_bytes())
     assert exports["romReset"] == ("void", []) and imports["hwVideoBase"] == ("u32", [])
     with pytest.raises(ValueError, match="not a wasm module"):
         wasm_sig.signatures(b"\x7fELF" + bytes(8))

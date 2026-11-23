@@ -1,5 +1,5 @@
 // Headless DUNE GEN4 DEMO driver -- boots the sealed machine as
-// docs/sealed-loader.js does, runs the cart one VBL a frame (dt = 20 ms) and
+// site/js/sealed-loader.js does, runs the cart one VBL a frame (dt = 20 ms) and
 // holds every frame that matters against the ORIGINAL: DUNE.PRG running in
 // Hatari (apps/harness/dune_gen4_ref.bin.br, made by prototypes/dune_gen4_re/mkref.py
 // from AVIs recorded one frame a VBL), compared as ST colour words over the
@@ -23,7 +23,7 @@
 //     --break sound   expects F3 to open on subtune 2
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { brotliDecompressSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { WALKS, music, soundMusic, walk } from "./dune_gen4_keys.mjs";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
@@ -37,13 +37,13 @@ const COST_MS = 4;
 const errors = [];
 const fail = (what, msg) => { errors.push(`${what}: ${msg}`); console.log(`  FAIL ${what}: ${msg}`); };
 
-async function boot(cart = "docs/demo-dune_gen4.wasm") {
+async function boot(cart = "site/carts/demo-dune_gen4.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);

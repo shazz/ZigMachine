@@ -11,7 +11,7 @@
 //   node apps/harness/composite_hash.mjs --compare a.json b.json      (scene_hash.mjs's compare)
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeDrive } from "./scene_hash_disk.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -67,7 +67,7 @@ async function fingerprint(argv) {
         } else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;
-    const { memory, machine, demo } = await boot(cart, process.env.MACHINE_DIR || "docs", disk);
+    const { memory, machine, demo } = await boot(cart, process.env.MACHINE_DIR || "site", disk);
     const px = machine.hwPhysWidth() * machine.hwPhysHeight();
     const planes = machine.hwPlanesNumber();
     const D = new Uint8Array(px * 3);

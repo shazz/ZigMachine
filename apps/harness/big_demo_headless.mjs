@@ -87,7 +87,7 @@ const silent = LIST.findIndex((e) => !e.song && /THALAMUS|DELTA +PREVIEW|V8 *#2/
 const want = LIST[playable];
 if (silent < 0) errors.push("no unmapped tune (Thalamus / Delta preview / V8 #2) found in big/list.zig");
 
-const { memory, machine, demo } = await boot(argv[0] || "docs/demo-big_demo.wasm");
+const { memory, machine, demo } = await boot(argv[0] || "site/carts/demo-big_demo.wasm");
 const PW = machine.hwPhysWidth(), dec = new TextDecoder(); // 800: the visible x is DOUBLED
 let frame = 0, song = null, tune = 0, songAt = -1, cartMs = 0;
 
@@ -524,7 +524,7 @@ if (brk) {
     process.exit(caught ? 0 : 1);
 }
 if (errors.length) { console.error(`big_demo: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`); process.exit(1); }
-if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in docs/music/big/ that no entry names: ${songs.orphans.join(" ")}`);
+if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in site/music/big/ that no entry names: ${songs.orphans.join(" ")}`);
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +

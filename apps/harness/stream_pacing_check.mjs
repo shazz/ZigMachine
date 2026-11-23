@@ -16,10 +16,10 @@
 // start + rate * elapsed wall time on EVERY frame.
 //
 //   node apps/harness/stream_pacing_check.mjs [--stream cart.wasm] [--st-replay cart.wasm]
-// Given origin/main's carts from before the dt pacing (git show <rev>:docs/demo-stream.wasm)
+// Given origin/main's carts from before the dt pacing (git show <rev>:site/carts/demo-stream.wasm)
 // the check must FAIL, which is how the harness proves it can.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const RING = 32768; // STREAM_RING (audio-worklet-sealed.js streamFeed)
@@ -35,8 +35,8 @@ function flag(name) {
     argv.splice(at, 2);
     return v;
 }
-const streamCart = flag("--stream") || "docs/demo-stream.wasm";
-const replayCart = flag("--st-replay") || "docs/demo-st_replay.wasm";
+const streamCart = flag("--stream") || "site/carts/demo-stream.wasm";
+const replayCart = flag("--st-replay") || "site/carts/demo-st_replay.wasm";
 
 /// A FAT entry off a ZigMachine disk image (v2 descriptor at $400, else v1 at $000).
 function findFile(disk, name) {
@@ -70,10 +70,10 @@ function frames({ hz, jitter = 0.4, stall = null, seed = 1 }) {
 async function boot(cartPath, disk) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -121,9 +121,9 @@ function drive(demo, times, rate, position) {
 }
 
 async function runStream(times) {
-    const disk = new Uint8Array(await readFile("docs/demo-stream.zmd"));
+    const disk = new Uint8Array(await readFile("site/carts/demo-stream.zmd"));
     const f = findFile(disk, "MICROMIX.RAW");
-    if (!f) throw new Error("MICROMIX.RAW is not on docs/demo-stream.zmd");
+    if (!f) throw new Error("MICROMIX.RAW is not on site/carts/demo-stream.zmd");
     const first = f.start / BLOCK, blocks = Math.ceil(f.len / BLOCK);
     const { demo, io } = await boot(streamCart, disk);
     // Unwrapped song position: blocks moved forward since the previous frame (a skip
@@ -143,9 +143,9 @@ async function runStream(times) {
 }
 
 async function runReplay(times) {
-    const disk = new Uint8Array(await readFile("docs/demo-st_replay.zmd"));
+    const disk = new Uint8Array(await readFile("site/carts/demo-st_replay.zmd"));
     const f = findFile(disk, K_ENTER_FIELD);
-    if (!f) throw new Error(`${K_ENTER_FIELD} is not on docs/demo-st_replay.zmd`);
+    if (!f) throw new Error(`${K_ENTER_FIELD} is not on site/carts/demo-st_replay.zmd`);
     const { demo, io } = await boot(replayCart, disk);
     const settle = () => { for (let i = 0; i < 3; i++) demo.frame(1000 / 60); };
     settle();

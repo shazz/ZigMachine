@@ -3,11 +3,11 @@
 (the boot files, KESTREL/, CARTS/ and HD/, which is C:\\), with pictures two and three levels down for
 GrafX2 to load: HD/PICTURES/ZIGWAVES.PI1 and HD/PICTURES/PLASMA/ZIGPLASM.PI1 + .NEO, our own art
 (apps/ports/grafx2/ownpics, the same files the GrafX2 floppy carries, so a picture loaded off C: can be
-held against the same picture loaded off the floppy). Its own image, not docs/kos-c.img: that one's
+held against the same picture loaded off the floppy). Its own image, not site/disks/kos-c.img: that one's
 listing is pinned by the desktop's proofs. Written by tools/kos_fat_fixture.py's Image, deterministic.
 
-    python3 tools/gemdos_c_image.py            # writes docs/gemdos-c.img
-    python3 tools/gemdos_c_image.py --check    # the gate: docs/gemdos-c.img is what this writes
+    python3 tools/gemdos_c_image.py            # writes site/disks/gemdos-c.img
+    python3 tools/gemdos_c_image.py --check    # the gate: site/disks/gemdos-c.img is what this writes
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import sd_layout  # after the path inserts
 from kos_fat_fixture import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "docs/gemdos-c.img"
+OUT = ROOT / "site/disks/gemdos-c.img"
 PICS = ROOT / "apps/ports/grafx2/ownpics"
 SECTORS = 640  # 320 KB
 
@@ -52,8 +52,8 @@ if __name__ == "__main__":
     want = image()
     if "--check" in sys.argv[1:]:
         if not OUT.exists() or OUT.read_bytes() != want:
-            sys.exit("gemdos_c_image: docs/gemdos-c.img is not what tools/gemdos_c_image.py writes: run it")
-        print("gemdos_c_image: docs/gemdos-c.img ok")
+            sys.exit("gemdos_c_image: site/disks/gemdos-c.img is not what tools/gemdos_c_image.py writes: run it")
+        print("gemdos_c_image: site/disks/gemdos-c.img ok")
     else:
         OUT.write_bytes(want)
         print(f"gemdos_c_image: wrote {OUT.relative_to(ROOT)} ({len(want)} bytes)")

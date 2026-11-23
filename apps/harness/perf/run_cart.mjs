@@ -3,7 +3,7 @@
 // board (wasm2c'd); the machine (FRESCO render, CHISEL blits) is hardware there, so it
 // runs as-is and only its blitter calls and HBL interrupts are counted.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../../site/js/wasm_hiwater.js";
 import { makeCDrive, makeCFile, makeDrive } from "../scene_hash_disk.mjs";
 import { instrument } from "./instrument.mjs";
 import { blitCycles, BLIT_CALL, BLIT_UNIT_ORDERED } from "./cost_model.mjs";
@@ -83,7 +83,7 @@ function hbl(hw, mods, call, by) {
 // cImage: KOS's C: (scene_hash.mjs --c-image), each kosDriveRead counted (a board round trip).
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
 // bard: the host answers the BARD queue (table 1.12) and takes every command a frame, as BARD does (frame_cost --bard).
-export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, cImage = null, pal = true, names = {}, paula = false, bard = false } = {}) {
+export async function bootInstrumented(cartBytes, { machineDir = "site", disk = null, cImage = null, pal = true, names = {}, paula = false, bard = false } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblBy: [0, 0, 0, 0, 0], hblStores: 0, snoopOverflow: 0, diskBlocks: 0, kosReads: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];

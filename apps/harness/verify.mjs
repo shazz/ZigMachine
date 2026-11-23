@@ -10,7 +10,7 @@
 // merely linking: the test reads the framebuffer back and requires the ROM's own
 // output to be there.
 import { readFile } from "node:fs/promises";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // memmap.SHARED_PAGES
 const VIDEO_BASE = 0x400000; // hwVideoBase() return value (HW_VIDEO_BASE)
@@ -50,10 +50,10 @@ async function check(path) {
     // as the loader does. Stubbing hwVideoBase here would test nothing about the
     // ROM, which is the point of the exercise.
     let live = { demo: null };
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (...a) => live.demo && live.demo.hblDispatch(...a) },
     })).instance.exports;
-    const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), {
+    const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwInit();
@@ -112,7 +112,7 @@ async function check(path) {
 }
 
 const targets = process.argv.slice(2);
-const files = targets.length ? targets : ["docs/demo-c.wasm", "docs/demo-rust.wasm"];
+const files = targets.length ? targets : ["site/carts/demo-c.wasm", "site/carts/demo-rust.wasm"];
 let allOk = true;
 for (const f of files) allOk = (await check(f)) && allOk;
 process.exit(allOk ? 0 : 1);

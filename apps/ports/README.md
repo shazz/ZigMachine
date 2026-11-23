@@ -1,11 +1,11 @@
 # C program ports
 
 Desktop programs in C/C++ on SDL2, rebuilt as ZigMachine carts. Each is a GEM program on its own DATA floppy
-(`docs/demo-<tag>.zmd`), as ST Replay and SysInfo are, and is listed in the menu like a screen: the machine
+(`site/carts/demo-<tag>.zmd`), as ST Replay and SysInfo are, and is listed in the menu like a screen: the machine
 boots GEM over the disk, the FLOPPY window shows the program (`BOOT.WSM`) beside its files (modules, pictures,
 songs; 8.3 names, GEM lists 12 at most), a double-click runs it (request 3), and the program's own quit brings
 the desktop back (request 4) with the disk still in the drive. The program reads its files off that disk.
-Each disk carries the "SDL" boot sector (`docs/boot-sdl.wasm`, `apps/zig/boot/sdl.zig`), which runs before GEM
+Each disk carries the "SDL" boot sector (`site/carts/boot-sdl.wasm`, `apps/zig/boot/sdl.zig`), which runs before GEM
 (as SysInfo's "No virus" sector; `tools/mkdisks.sh` `portdisk`).
 
 Quitting is in the shared layer, `kestrel_sdl2/src/kestrel_quit.c`: `kestrel_quit()` makes the cart's

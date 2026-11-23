@@ -1,7 +1,7 @@
 // The benchmark clock: how much tracing a frame does, and the measured rate.
 //
 // hostMicros() is a free-running microsecond counter the HOST provides
-// (performance.now() in docs/sealed-loader.js, the cycle counter on the FPGA
+// (performance.now() in site/js/sealed-loader.js, the cycle counter on the FPGA
 // board through fpga/tools/host_gen.py's HOST_MICROS hook). A host that does
 // not provide it answers 0 (the harnesses' and host_gen's no-op stub), and the
 // cart then does a FIXED amount of work a frame instead, which is what keeps

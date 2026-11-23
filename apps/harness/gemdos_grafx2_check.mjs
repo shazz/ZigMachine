@@ -1,5 +1,5 @@
 // KOS GEMDOS's proof in a real program (docs/os/KOS_GEMDOS.md §6): GrafX2, started from GEM over its floppy as
-// the machine starts it (apps/harness/ports_gem.mjs), with docs/gemdos-c.img as C: (tools/gemdos_c_image.py: the
+// the machine starts it (apps/harness/ports_gem.mjs), with site/disks/gemdos-c.img as C: (tools/gemdos_c_image.py: the
 // card's HD folder, the page's ?c=, the native host's --c-image). Through GrafX2's own file selector:
 //   F3 (Load picture), "Select drive": the drive list offers "/C" (C: mounted) beside "/" (the floppy)
 //   /C            C:\ lists its folders (PICTURES, TEXTS) and ".." (GrafX2's way back to "/")
@@ -17,7 +17,7 @@ import { machine, step, picture, sha, png } from "./ports_machine.mjs";
 import { launchFromGem } from "./ports_gem.mjs";
 import { makeCDrive } from "./scene_hash_disk.mjs";
 
-const CART = "docs/demo-grafx2.wasm", DISK = "docs/demo-grafx2.zmd", C_IMAGE = "docs/gemdos-c.img";
+const CART = "site/carts/demo-grafx2.wasm", DISK = "site/carts/demo-grafx2.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 const PICTURE = "apps/ports/grafx2/ownpics/ZIGPLASMA.PI1"; // on the floppy and on C: as ZIGPLASM.PI1
 const F3 = 0xe003, MAX_TRIPS = 16;
 const PINS = {

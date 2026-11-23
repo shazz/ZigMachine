@@ -14,7 +14,7 @@
 // first frame() — still before the host renders a plane, so no wrong frame shows.
 //
 // Build: bash apps/rust/build.sh tutorial_steps
-// Run:   docs/index.html?demo=demo-rust-tutorial_steps.wasm&step=3
+// Run:   site/index.html?demo=demo-rust-tutorial_steps.wasm&step=3
 // ---------------------------------------------------------------------------
 #![no_std]
 #![no_main]

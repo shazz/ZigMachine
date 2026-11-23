@@ -1,7 +1,7 @@
 // SKYSTRIKE ZIG-mode harness, the sound effects (apps/harness/skystrike_zig.mjs drives).
 //   events  the same flight in both modes: FIRE, an enemy hit, a bomb on the
 //           ground, a crash. The host's view of ZIG's effect commands
-//           (pollSfx, polled every frame as docs/sealed-loader.js does): each
+//           (pollSfx, polled every frame as site/js/sealed-loader.js does): each
 //           event plays its sample (gun looped, airburst, ground explosion or
 //           splash, crash), exactly that sample's bytes (sfx/*.raw) at its STE
 //           rate; ORIGINAL sends none, and ZIG sends nothing to skystrike.sndh
@@ -113,7 +113,7 @@ function cartChecks(z, o, raw, broke, errors) {
 
 async function audioMachine(log) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory }, t = { frames: 0 };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
     for (const n of ["machinePaulaSetStep", "machinePaulaSetVolume"]) env[n] = (ch, v) => { log.push({ ch, at: t.frames }); m[n](ch, v); };
@@ -121,9 +121,9 @@ async function audioMachine(log) {
         log.push({ ch, at: t.frames, bytes: new Uint8Array(memory.buffer, at, len).slice(), loop: ll > 0 });
         m.machinePaulaTrigger(ch, at, len, ls, ll, pan);
     };
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
-    const mod = new Uint8Array(await readFile("docs/music/skystrike_the_hawks_claw.mod"));
+    const mod = new Uint8Array(await readFile("site/music/skystrike_the_hawks_claw.mod"));
     new Uint8Array(memory.buffer, a.audioSongPtr(), mod.length).set(mod);
     if (!a.audioLoadMod(mod.length)) throw new Error("audioLoadMod refused the flight's MOD");
     a.audioModPlay();

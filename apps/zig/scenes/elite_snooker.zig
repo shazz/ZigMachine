@@ -4,7 +4,7 @@
 //
 // Ported from the CODEF HTML5 remake by Ayoros / Hemoroids (wab.com screen 422,
 // MIT). Graphics, scrolltext and the original ST intro belong to their
-// authors; music: Mad Max's "Master Blazer", docs/music/Masterblazer.sndh,
+// authors; music: Mad Max's "Master Blazer", site/music/Masterblazer.sndh,
 // subtune 10 — the remake's playNextSong2(songs, zic_choice[0].duration) hands
 // duration (10) to sc68 as the track number.
 //

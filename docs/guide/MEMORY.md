@@ -24,7 +24,7 @@ is not in it either: since Phase 2 the ROM chip has its own 2 MiB window above
 the video region, `[0x600000, 0x800000)`.
 
 The host measures where the data and stack end (the **high-water**) when it
-loads the cart (`docs/wasm_hiwater.js`) and declares it to the machine
+loads the cart (`site/js/wasm_hiwater.js`) and declares it to the machine
 (`hwSetCartHigh`). Everything below is arithmetic on that number.
 
 ```zig

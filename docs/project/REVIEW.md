@@ -25,7 +25,7 @@ scenes) is in working shape.
 - **Audio stubbed to silence** — the lost `.smp` embed is gone; `generateAudio()` now
   zero-fills. The exported audio surface (buffers/getters) is intact for the JS side.
   Full audio still needs a rethink (see below).
-- **Fixed an unrelated flicker bug**: `docs/css/crt.css` `.overlay` ran a 1ms
+- **Fixed an unrelated flicker bug**: `site/css/crt.css` `.overlay` ran a 1ms
   `overlay-anim` strobe whose hidden keyframe got sampled at a random phase each frame,
   blanking every canvas ~20% of frames ("black for a frame, all screens"). Removed.
 - **Verified in-browser**: the `dbug` scene renders at ~60fps; channel-switching to the
@@ -34,7 +34,7 @@ scenes) is in working shape.
 ## UPDATE 2026-08-22 (2) — all demo channels migrated & rebuilt
 
 Full per-scene migration completed. **Every scene wired as a channel now compiles on 0.16**,
-and all 16 channel binaries in `docs/wasm/*.wasm` were **rebuilt from fresh 0.16 source**
+and all 16 channel binaries in `site/wasm/*.wasm` were **rebuilt from fresh 0.16 source**
 (+ `bootloader.wasm` = dbug). `the_union.wasm` has no source scene, so it stays as the old
 prebuilt binary.
 
@@ -72,12 +72,12 @@ These four were left as-is; resurrecting them is optional future work.
 | | |
 |---|---|
 | Toolchain | **Zig 0.10.x** (this is Zig-0.10 source — `std.build.Builder`, `@intToFloat`, `@ptrCast(T, x)`, `for (xs) \|x, i\|`). It will **not** compile on Zig 0.11+. `zig` is not currently on PATH here. |
-| Build | `zig build -Drelease=true -Dwasm` → outputs `docs/bootloader.wasm` |
+| Build | `zig build -Drelease=true -Dwasm` → outputs `site/bootloader.wasm` |
 | Convenience | `build.sh` (builds + serves), `serve.sh` |
 | Serve | `cd docs && python3 -m http.server 3333` → open `/` or `/debug.html` |
-| Scene selection | Compile-time: edit `src/floppy.zig` to pick which scene the `.wasm` runs (currently `dbug`). The prebuilt per-scene `.wasm` files in `docs/wasm/` were each built with a different `floppy.zig` line. |
+| Scene selection | Compile-time: edit `src/floppy.zig` to pick which scene the `.wasm` runs (currently `dbug`). The prebuilt per-scene `.wasm` files in `site/wasm/` were each built with a different `floppy.zig` line. |
 
-**Prebuilt `.wasm` in `docs/wasm/` are stale** relative to source — they were built
+**Prebuilt `.wasm` in `site/wasm/` are stale** relative to source — they were built
 before the current (broken) audio state, which is why the live site still runs.
 
 ---
@@ -137,10 +137,10 @@ There are **three** artefacts from three different approaches, none complete:
 2. **`docs/zigloader.js`** — the matching JS front-end for approach (1). Uses the (deprecated)
    `ScriptProcessorNode` to call `generateAudio()` and pump `getLeftSoundBufferPointer()` to
    the speakers. It's an **ES module** exporting `toggle_sound` etc., but **no HTML loads it** —
-   `index.html` and `debug.html` both still `<script src="../loader.js">`, and `loader.js` has
+   `index.html` and `debug.html` both still `<script src="../../site/js/loader.js">`, and `loader.js` has
    zero audio code. So the audio path is written but never activated.
 
-3. **`docs/wasm-audio-worklet.js` + `src/sound/synth.zig`** — an earlier, more ambitious
+3. **`site/js/wasm-audio-worklet.js` + `src/sound/synth.zig`** — an earlier, more ambitious
    AudioWorklet-based synth (proper off-main-thread audio). `synth.zig` exports `sfxBuffer`
    and `u8ArrayToF32Array` and generates notes from `waveforms.zig` wavetables. But:
    - `synth.zig` is **orphaned** — not imported by `bootloader.zig` (which imports `waveforms`
@@ -174,7 +174,7 @@ plumbing)** — see question 3 below.
   neither `loader.js` nor `zigloader.js` defines `main()`. Dead onclick handlers.
 - **External CDN dependency**: `index.html` pulls `normalize.min.css` from cdnjs — the only
   non-self-contained asset; will break offline.
-- **Stale prebuilt binaries**: `docs/wasm/*.wasm` predate current source.
+- **Stale prebuilt binaries**: `site/wasm/*.wasm` predate current source.
 - **Toolchain pin**: nothing records the exact Zig 0.10.x used. A `zig 0.11+` will fail
   with confusing errors. Worth pinning in the README / a `.zigversion`.
 - **`floppy.zig` scene switching is compile-time only** — no runtime scene list inside a
@@ -186,7 +186,7 @@ plumbing)** — see question 3 below.
 
 | I want to… | Read |
 |---|---|
-| understand the whole data flow | `docs/loader.js` then `src/bootloader.zig` `boot`/`frame`/`renderPhysicalFrameBuffer` |
+| understand the whole data flow | `site/js/loader.js` then `src/bootloader.zig` `boot`/`frame`/`renderPhysicalFrameBuffer` |
 | understand the graphics model | `src/zigos.zig` (`Color`, `LogicalFB`, `ZigOS`) |
 | finish audio | this section + `bootloader.zig:28-54,443-469`, `zigloader.js`, `sound/synth.zig` |
 | add/port a scene | any `src/scenes/*.zig` (e.g. `deltaforce.zig`) + `src/effects/*` + `floppy.zig` |

@@ -1,5 +1,5 @@
 // GEMTEST (apps/zig/scenes/gemtest.zig, docs/os/GEMTEST.md) end to end, over the real machine + ROM, C: a
-// copy of docs/gemdos-c.img:
+// copy of site/disks/gemdos-c.img:
 //   launch   GEM boots over demo-gemtest.zmd, BOOT.WSM is the committed cart; it opens in GEM's low res
 //            with the Windows area: four ROM windows, the fourth on top and larger than the screen
 //   areas    each area's ^key (W E D A F T I R) shows its window: drawn (>= 3 colours), a hash of its own,
@@ -39,7 +39,7 @@ function same(d, what) {
 }
 const colours = (d) => new Set(d.indices().idx).size;
 
-console.log(`gemtest_check: GEMTEST off docs/demo-gemtest.zmd${brk ? ` (--break ${brk})` : ""}`);
+console.log(`gemtest_check: GEMTEST off site/carts/demo-gemtest.zmd${brk ? ` (--break ${brk})` : ""}`);
 
 // --- launch ---
 const g = await fromGem(img);

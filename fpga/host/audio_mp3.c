@@ -1,6 +1,6 @@
 /* The MP3 stream where the players run (BARD, the native host_audio, ZIGGY with ZM_AUDIO=1): a cart's
  * zg.mp3Ctl / mp3Feed, carried as effects (host/audio_bridge.c audio_mp3_*), applied as the worklet's
- * "mp3Ctl" / "mp3Feed" messages (docs/audio-worklet-sealed.js): a feed's bytes are copied from the
+ * "mp3Ctl" / "mp3Feed" messages (site/js/audio-worklet-sealed.js): a feed's bytes are copied from the
  * cart's memory into the player's staging, a staging's worth at a time, then appended to its ring
  * (libs/zig/players/mp3.zig). And zg.mp3Status where the players are this side's. */
 #include <string.h>

@@ -10,7 +10,7 @@
 // exactly (clear, frame, render every ENABLED plane): the TRSI animation is
 // depacked from HBL handlers, which only run inside hwRenderPlane. The first
 // TRSI frame is the first frame plane 0 is enabled (the RASTERS depack shows
-// none). Keys arrive the way docs/sealed-loader.js sends them to a cart that does
+// none). Keys arrive the way site/js/sealed-loader.js sends them to a cart that does
 // not own the keyboard: key n -> setShadeMode(n - 1). Requires, in order:
 //   - track 1, at or before the first TRSI frame;
 //   - key 3 during TRSI -> androids.sndh; key 4 -> drooling_505.sndh; key 5 -> lap_33.sndh;
@@ -20,7 +20,7 @@
 //   node apps/harness/union_intro_music_check.mjs              # the check
 //   node apps/harness/union_intro_music_check.mjs --fail-proof # must FAIL: another first tune wanted
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, FRAMES = 1200; // main starts around frame 960
 const FAIL_PROOF = process.argv.includes("--fail-proof");
@@ -32,10 +32,10 @@ const TRSI_PLANE = 0, MAIN_PLANE = 1; // the parts draw on plane 0 only; the mai
 async function bootCart(cartPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -79,7 +79,7 @@ function run({ memory, machine, demo }) {
     return seen;
 }
 
-const seen = run(await bootCart("docs/demo-union_intro.wasm"));
+const seen = run(await bootCart("site/carts/demo-union_intro.wasm"));
 console.log(`union_intro: first TRSI frame ${seen.trsi}, main screen from frame ${seen.main}`);
 for (const k of seen.keys) console.log(`  frame ${k.f}: key ${k.key}${k.owns ? " (cart owns the keyboard: not sent)" : ""}${k.inTrsi ? " during the intro" : ""}`);
 for (const r of seen.requests) console.log(`  frame ${r.f}: song request "${r.name}"`);

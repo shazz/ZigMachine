@@ -4,7 +4,7 @@ descriptor where ZWINDOW's loader puts them (fpga/glass/src/loader.zig `plan`; m
 "the disk in the cart window"), so ZIGGY's drive (cycles/bdisk.c) finds what it finds on
 the board.
 
-    uv run python tools/ddr_init.py build/hcycles/sim/<tag>/fw.bin OUT.init [--disk ../docs/demo-<tag>.zmd] [--program]
+    uv run python tools/ddr_init.py build/hcycles/sim/<tag>/fw.bin OUT.init [--disk ../site/carts/demo-<tag>.zmd] [--program]
     uv run python tools/ddr_init.py <split>/sim_snd/sys.bin OUT.init --cart <split>/carts/<tag>/cart.bin [--disk ...]
 
 --disk takes the SHELF disk (docs/), the one the browser mounts and the glass rebuilds

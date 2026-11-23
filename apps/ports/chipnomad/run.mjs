@@ -3,15 +3,15 @@
 // WASI imports are stubbed here (step 5 of README.md replaces them); consoleLogJS prints.
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../../site/js/wasm_hiwater.js";
 
 const FRAMES = +(process.argv[2] ?? 3), OUT = process.argv[3] ?? "apps/ports/chipnomad/build/frame";
 const CART = "apps/ports/chipnomad/build/demo-chipnomad.wasm";
-const DISK = await readFile("docs/demo-chipnomad.zmd").catch(() => null); // the drive's floppy
+const DISK = await readFile("site/carts/demo-chipnomad.zmd").catch(() => null); // the drive's floppy
 const CLICKS = (process.env.CLICKS ?? "").split(";").filter(Boolean).map((c) => c.split(",").map(Number)); // frame,x,y (pt2 coords)
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
 const cartBytes = await readFile(CART);

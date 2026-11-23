@@ -6,7 +6,7 @@
 // (tools/glass_export.zig) to gen/glass_cart.{py,h}.
 
 // --- REG_CART_STATE: the cart asks for a cart swap ----------------------------
-// Bits 31:8 = the request, as pollCartRequest() returned it (docs/sealed-loader.js
+// Bits 31:8 = the request, as pollCartRequest() returned it (site/js/sealed-loader.js
 // swapCart): REQ_RUN_PROGRAM runs the FAT file named in the request block as the next
 // cart, the disk staying in; REQ_BACK_TO_OS brings GEM back over the same disk.
 pub const CART_REQUEST: u32 = 4;

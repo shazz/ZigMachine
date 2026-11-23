@@ -8,7 +8,7 @@
 // Each result is drawn with the ROM's text API and logged ONCE as "ZM BENCH <name>=<value> <unit>".
 //
 // Keys: 1 reruns, Escape leaves. Times in a browser are the browser's, not the board's.
-// Build: bash apps/c/build.sh bench  ->  docs/demo-c-bench.wasm
+// Build: bash apps/c/build.sh bench  ->  site/carts/demo-c-bench.wasm
 // ---------------------------------------------------------------------------
 #include "../bench/kestrel/bench.h"
 #include <stdio.h>

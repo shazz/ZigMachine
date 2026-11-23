@@ -1,5 +1,5 @@
 // Headless TRSI / TRANSARCTICA driver: boots the sealed machine the way
-// docs/sealed-loader.js does, runs the cracktro at one 20 ms VBL per host frame
+// site/js/sealed-loader.js does, runs the cracktro at one 20 ms VBL per host frame
 // (the scene paces itself by real 50 Hz VBLs) and checks what the MACHINE shows
 // against the reverse-engineered reference model (model.py), which reproduces
 // the original's three Hatari RAM snapshots and seven screenshots exactly:
@@ -19,7 +19,7 @@
 //   node apps/harness/trsi_transarctica_headless.mjs --break skip   one VBL skipped: must FAIL the frames
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
@@ -55,13 +55,13 @@ const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (broke && broke !== "skip") throw new Error("--break skip");
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/trsi_transarctica";
 
-async function boot(cart = "docs/demo-trsi_transarctica.wasm") {
+async function boot(cart = "site/carts/demo-trsi_transarctica.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -132,11 +132,11 @@ if (broke) {
 // ---- music: requested on VBL 1 at BPM 123, and it plays on the audio modules ----
 async function audio() {
     const mem = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const chip = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
+    const chip = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
     const env = { memory: mem };
     for (const k of Object.keys(chip)) if (k.startsWith("machine")) env[k] = chip[k];
-    const d = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
-    const song = new Uint8Array(await readFile(`docs/music/${MUSIC}`));
+    const d = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
+    const song = new Uint8Array(await readFile(`site/music/${MUSIC}`));
     const render = (start) => { // 3 s of the left channel after a fresh start
         d.audioInit();
         new Uint8Array(mem.buffer, d.audioSongPtr(), song.length).set(song);

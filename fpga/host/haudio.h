@@ -1,8 +1,8 @@
 /* The machine's audio side for the native host and the board firmware: the
  * open players (demo-audio.wasm: MOD, YM dump, SNDH = the tune's own 68000 code
  * on Musashi) through wasm2c, in their own 3 MiB memory, driven the way
- * docs/audio-worklet-sealed.js drives them, and fed from the cart's song bridge
- * (zg.requestSong, zg.sndhCall) the way docs/sealed-loader.js forwards it.
+ * site/js/audio-worklet-sealed.js drives them, and fed from the cart's song bridge
+ * (zg.requestSong, zg.sndhCall) the way site/js/sealed-loader.js forwards it.
  *
  * The players drive the chips through the `machine*` imports (host/audio_imports.c),
  * which become the audio core's register writes (host/audio_regs.h), each
@@ -48,7 +48,7 @@ void audio_play(const char* name, uint32_t tune);
 void audio_sndh_call(const char* name, uint32_t d0);
 
 /* zg.sfxPlay / sfxStop / ymWrite / requestModVolume / requestSndhMode: one entry of the cart's
- * effects queue (libs/zig/sfx_queue.zig Entry), as docs/sealed-loader.js postSfx reads it. A
+ * effects queue (libs/zig/sfx_queue.zig Entry), as site/js/sealed-loader.js postSfx reads it. A
  * play's PCM is `pcm`, already a pointer this side can read (the cart's memory, bounds-checked). */
 enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7,
        FX_SONG = 8 };
@@ -78,7 +78,7 @@ typedef struct {
     uint32_t rate;    /* play: Hz */
 } audio_fx;
 
-/* The frame's effects, in the cart's order, applied as docs/audio-worklet-sealed.js applies
+/* The frame's effects, in the cart's order, applied as site/js/audio-worklet-sealed.js applies
  * each message: after the frame's song request and sndhCalls (audio_bridge's order). */
 void audio_effects(const audio_fx* fx, uint32_t n);
 
@@ -129,7 +129,7 @@ int audio_live(void);
 /* Render `n` samples (any n: chunks of MAX_FRAMES), advancing zma_ts() by n. */
 void audio_render(uint32_t n);
 
-/* The backend's song store: copy the file `name` (a path under docs/music/) to
+/* The backend's song store: copy the file `name` (a path under site/music/) to
  * `dst` (at most `cap` bytes) and return its length, or -1 if there is none. */
 int32_t audio_song(const char* name, uint8_t* dst, uint32_t cap);
 

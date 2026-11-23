@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 
 const LIST_ZIG = "apps/zig/scenes/big/list_data.zig"; // the GENERATED rows; list.zig is the provenance
 const SUBDIR = "big"; // what a `song` is relative to: the host fetches "music/" + name
-const MUSIC_DIR = `docs/music/${SUBDIR}`;
+const MUSIC_DIR = `site/music/${SUBDIR}`;
 // TEX's OWN table, ripped out of the running demo's memory: 118 rows, of which
 // 113 are tunes. The CODEF remake's 116 are a renamed, re-sorted, incomplete
 // copy of it (see big/list.zig's header) and are no longer what we ship.
@@ -29,7 +29,7 @@ export function readList(brk) {
     return list;
 }
 
-/// Every song the list names must BE in docs/music/big/.
+/// Every song the list names must BE in site/music/big/.
 ///
 /// This is the no-silent-substitution rule by another route: a tune the player
 /// cannot load plays SILENCE, and silence is indistinguishable from the four
@@ -39,7 +39,7 @@ export function readList(brk) {
 ///
 /// The other direction — a file shipped that no entry names — is NOT a failure
 /// (it may be staged on purpose), but it is reported: it means either dead
-/// weight in docs/music/ or an entry someone forgot to wire up.
+/// weight in site/music/ or an entry someone forgot to wire up.
 export function checkSongs(list) {
     const errors = [];
     const named = new Set(list.filter((e) => e.song).map((e) => e.song));

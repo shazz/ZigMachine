@@ -1,5 +1,5 @@
-// Headless SAP check: the browser's audio path (docs/machine-audio.wasm's POKEY driven by
-// docs/demo-audio.wasm's 6502 SAP player, wired as docs/audio-worklet-sealed.js wires them).
+// Headless SAP check: the browser's audio path (site/machine-audio.wasm's POKEY driven by
+// site/demo-audio.wasm's 6502 SAP player, wired as site/js/audio-worklet-sealed.js wires them).
 //
 // A synthetic TYPE B tune, assembled here: INIT sets SKCTL = 3, AUDCTL = 0 and a pure tone on
 // channel 1 (AUDF1 = $40, AUDC1 = $A8: volume 8, 64 kHz base); PLAYER writes CONSOL ($D01F),
@@ -37,11 +37,11 @@ function sap(tags) {
 
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
     if (BREAK === "ntsc") env.machinePokeyClock = () => machine.machinePokeyClock(0);
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
     return { memory, machine, audio };
 }

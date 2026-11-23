@@ -31,7 +31,7 @@
 // LHa archive holding ROLLOUT2.YM, a YM6 dump of Jochen Hippel's (= Mad Max's)
 // "Rollout" tune 2. The archive's Mad_Max/Games/Rollout.sndh subtune 2 plays
 // the same tune: its tone periods over the first 1500 frames are the dump's 79
-// distinct periods exactly (subtune 1: 0.30). docs/music/rollout.sndh is that
+// distinct periods exactly (subtune 1: 0.30). site/music/rollout.sndh is that
 // file (md5 0e9aa3d6), already shipped for tcb_weirddream. The 68000 replay
 // runs on the sound CPU (BARD on the board), not on the cart CPU. The three
 // meters read the machine's live YM mirror (zigos.ym_regs), as gen4_3615's VU

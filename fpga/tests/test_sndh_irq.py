@@ -7,7 +7,7 @@ stream handler's registers 9 and 10 swapped), 7 (SingSong's sample index unsigne
 handler's pointer kept past play's rewind), 10 (maxYMiser's 8-bit drum routine without its addi.b)
 and 12 (the B.I.G. PLAY's note lengths a frame short) must fail. A handler refused in RAM plays on
 Musashi and passes the digest trivially, so the survey (host/sndh_survey) must also show Musashi
-called only for PLAY, and never for status 16. The helpers are test_sndh_native.py's. Needs `make sndh-oracle sndh-survey` and docs/demo-audio.wasm."""
+called only for PLAY, and never for status 16. The helpers are test_sndh_native.py's. Needs `make sndh-oracle sndh-survey` and site/demo-audio.wasm."""
 
 from __future__ import annotations
 

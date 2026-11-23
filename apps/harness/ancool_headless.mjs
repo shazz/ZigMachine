@@ -33,7 +33,7 @@ const argv = process.argv.slice(2);
 const opt = (name, dflt) => { const i = argv.indexOf(name); return i < 0 ? dflt : argv[i + 1]; };
 const brk = opt("--break", null);
 if (brk && !["skip", "planes", "raster"].includes(brk)) throw new Error(`--break takes skip|planes|raster, not ${brk}`);
-let cartBytes = readFileSync(opt("--cart", "docs/demo-ancool.wasm"));
+let cartBytes = readFileSync(opt("--cart", "site/carts/demo-ancool.wasm"));
 const gitShow = (path) => execFileSync("git", ["show", `${OLD_REV}:${path}`], { maxBuffer: 16 << 20 });
 let m;
 if (brk === "planes") {

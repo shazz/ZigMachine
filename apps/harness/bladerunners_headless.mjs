@@ -23,7 +23,7 @@
 //     --write        (re)write the picture hashes from --cart (never in the gate)
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const FRAMES = 10500, BLOCK = 500; // the whole scroll text (625 letters x 16 frames) and its wrap
@@ -35,7 +35,7 @@ const argv = process.argv.slice(2);
 const opt = (name, dflt) => { const i = argv.indexOf(name); return i < 0 ? dflt : argv[i + 1]; };
 const brk = opt("--break", null);
 if (brk && brk !== "shift") throw new Error(`--break takes shift, not ${brk}`);
-const cart = opt("--cart", "docs/demo-bladerunners.wasm");
+const cart = opt("--cart", "site/carts/demo-bladerunners.wasm");
 
 // the RGBA words the machine stores (a<<24 | b<<16 | g<<8 | r) from the .dat tables
 const table = (f) => {
@@ -50,10 +50,10 @@ async function boot() {
     // --break shift: the global (border) handler, called from hwClear, sees line + 1
     const shift = (l) => (brk === "shift" && st.clearing && l >= 1 ? l + 1 : l);
     const hbl = (id, p, l, x) => st.demo.hblDispatch(id, p, shift(l), x);
-    const machine = (await WebAssembly.instantiate(readFileSync("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(readFileSync("site/machine-video.wasm"), {
         env: { memory, hblDispatch: hbl },
     })).instance.exports;
-    const romBytes = readFileSync("docs/rom.wasm");
+    const romBytes = readFileSync("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

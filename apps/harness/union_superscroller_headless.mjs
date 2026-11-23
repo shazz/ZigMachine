@@ -42,7 +42,7 @@ const at = argv.indexOf("--break");
 const brk = at >= 0 ? argv.splice(at, 2)[1] : null;
 if (brk !== null && !["speed", "snap", "music", "note"].includes(brk)) throw new Error(`--break takes speed, snap, music or note, not ${brk}`);
 const outDir = argv[0] || "/tmp/union_superscroller";
-const cartPath = argv[1] || "docs/demo-union_superscroller.wasm";
+const cartPath = argv[1] || "site/carts/demo-union_superscroller.wasm";
 const MUSIC = brk === "music" ? "union/thundercats.sndh" : "union/wow_scroller.sndh";
 
 const errors = [];

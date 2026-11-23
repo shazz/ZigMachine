@@ -1,5 +1,5 @@
 // Headless SWEDISH NEW YEAR DEMO driver (apps/zig/scenes/swedish_newyear.zig):
-// boots the sealed machine + the cart the way docs/sealed-loader.js does and
+// boots the sealed machine + the cart the way site/js/sealed-loader.js does and
 // plays the whole key path -- menu, F1 SYNC #1, Space SYNC #2, Space menu,
 // F2 TCB #1 (into its fullscreen), Space TCB #2 (then F3 F4 F5 F1 F5), Space
 // menu, F3 OMEGA, Space menu. Two references:
@@ -33,7 +33,7 @@
 //     meters  OMEGA's voices are fed one frame late: its LED meters fail
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { loadAssets } from "./swedish_newyear_assets.mjs";
 import { Remake, PW, PH } from "./swedish_newyear_replay.mjs";
 
@@ -62,7 +62,7 @@ const fail = (m) => { errors.push(m); console.log(`  FAIL ${m}`); };
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo, rec = null;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: {
             memory, hblDispatch: (id, p, l, x) => {
                 if (!(brk === "hbl" && rec)) demo.hblDispatch(id, p, l, x);
@@ -70,11 +70,11 @@ async function boot() {
             },
         },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const noop = () => {};
-    const cartBytes = await readFile("docs/demo-swedish_newyear.wasm");
+    const cartBytes = await readFile("site/carts/demo-swedish_newyear.wasm");
     demo = (await WebAssembly.instantiate(cartBytes, {
         env: {
             memory, jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop, consoleLogJS: noop,
@@ -364,17 +364,17 @@ async function checkTunes(set) {
     for (const k of set) {
         const [file, sub] = k.split("#");
         if (file === "none") continue; // the stop request, not a tune
-        const bytes = new Uint8Array(await readFile(`docs/music/${file}`));
+        const bytes = new Uint8Array(await readFile(`site/music/${file}`));
         if (!file.endsWith(".sndh")) {
             const ok = file.endsWith(".ymraw") ? dec.decode(bytes.subarray(0, 4)) === "YM5!" : bytes.length > 100000;
             if (!ok) fail(`${file} is not the expected dump/sample`);
             continue;
         }
         const mem = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-        const ma = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
+        const ma = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
         const env = { memory: mem };
         for (const x of Object.keys(ma)) if (x.startsWith("machine")) env[x] = ma[x];
-        const au = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+        const au = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
         au.audioInit();
         new Uint8Array(mem.buffer, au.audioSongPtr(), bytes.length).set(bytes);
         if (!au.audioLoadSndh(bytes.length)) { fail(`${file} is not an SNDH image`); continue; }

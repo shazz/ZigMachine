@@ -1,9 +1,9 @@
 """The songs a cart can ask for, linked into its board firmware (cycles/baudio.c).
 
-    uv run python tools/song_pack.py <cart.wasm> <out.c> [--log host_audio.w] [--music ../docs/music]
+    uv run python tools/song_pack.py <cart.wasm> <out.c> [--log host_audio.w] [--music ../site/music]
 
 The board has no file system for the players: the browser fetches a song by the
-name the cart passes to zg.requestSong (a path under docs/music/), the board
+name the cart passes to zg.requestSong (a path under site/music/), the board
 finds it in this table. The names: the songs the native host started when it
 ran the cart (`--log`, host_audio's "L ts writes name" lines: a short name is often
 built from immediates, never a string in the module), plus the module's own
@@ -14,7 +14,7 @@ song neither finds is missing on the board: the sound CPU's console says
 "ZM SONG MISSING <name>" and the old song stops.
 
 Some names are optional: LOCAL_SONGS (songs the owner keeps on their own machine
-only, never in git: docs/music/local.xm and SID TEST's HVSC tunes are gitignored). It is packed when the
+only, never in git: site/music/local.xm and SID TEST's HVSC tunes are gitignored). It is packed when the
 file is there and left out, with a note, when it is not, so a clean checkout
 builds and a personal one plays it.
 """
@@ -76,7 +76,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("cart", type=Path)
     ap.add_argument("out", type=Path)
-    ap.add_argument("--music", type=Path, default=FPGA.parent / "docs/music")
+    ap.add_argument("--music", type=Path, default=FPGA.parent / "site/music")
     ap.add_argument("--log", type=Path, help="host_audio's write log (<prefix>.w)")
     a = ap.parse_args()
     try:

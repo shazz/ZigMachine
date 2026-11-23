@@ -17,9 +17,9 @@
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
-const PAGES = 128, W = 640, H = 480, HALF = W * (H / 2) * 4, CART = "docs/demo-desk_test.wasm";
+const PAGES = 128, W = 640, H = 480, HALF = W * (H / 2) * 4, CART = "site/carts/demo-desk_test.wasm";
 const REG_RES = 0x00, REG_FRAME = 0x30, REG_FB_BASE = 0x44, OFF_VRAM = 0x1100, VRAM_BYTES = 1 << 20;
 const RES_DESK = 3, INK = 255;
 // The two 8x8 text lines (desk_test/picture.zig TITLE, HELP at TEXT_X, TEXT_Y and + 10): their cells.
@@ -30,10 +30,10 @@ const MUTANTS = ["palette", "checker", "halves", "frame", "older", "tag", "bars"
 async function boot(brk, available = 1) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

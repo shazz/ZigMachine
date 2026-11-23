@@ -26,7 +26,7 @@
 //
 // MUSIC: the Go streams assets/original/music.ym, an LHA holding ROLLOUT2.YM
 // ("Rollout tune 2", Jochen Hippel / Mad Max, YM6, 10650 frames). The matching
-// subtune 2 of docs/music/lockbuster2_rollout.sndh is requested; the meters
+// subtune 2 of site/music/lockbuster2_rollout.sndh is requested; the meters
 // visualise the host audio thread's YM mirror (`zigos.ym_regs`), exactly the
 // registers the Go read from its decoder each 960-sample block.
 //

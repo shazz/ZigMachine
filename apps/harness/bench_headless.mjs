@@ -1,5 +1,5 @@
-// BENCH (docs/demo-c-bench.wasm): the Hatari benchmark suite as a cart. Runs it to completion in the wasm host,
-// the way docs/sealed-loader.js loads a cart, and checks what the cart claims:
+// BENCH (site/carts/demo-c-bench.wasm): the Hatari benchmark suite as a cart. Runs it to completion in the wasm host,
+// the way site/js/sealed-loader.js loads a cart, and checks what the cart claims:
 //
 //   1. a deterministic clock (every hostMicros call advances 100 ms): the slice arithmetic gives exact rates, and
 //      CoreMark's CRCs, Dhrystone's final values, Whetstone's checksum and LINPACK's residual all pass;
@@ -11,7 +11,7 @@
 // --break proves the checks bite: a corrupted CoreMark CRC table, a corrupted Dhrystone value, a corrupted
 // LINPACK solution, and a run with no clock that the harness is told to expect numbers from.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, OFF_VRAM = 0x1100, W = 320, H = 200, PAPER = 1, KEY_1 = 0x31;
 const brk = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
@@ -34,10 +34,10 @@ function corruptCrc(bytes) {
 async function boot(clock, cartBytes) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const log = [];
@@ -144,7 +144,7 @@ async function noClockRun(bytes) {
 }
 
 const PIN = { whet_d: 7.62, whet_f: 7.62 };
-let bytes = new Uint8Array(await readFile("docs/demo-c-bench.wasm"));
+let bytes = new Uint8Array(await readFile("site/carts/demo-c-bench.wasm"));
 if (brk === "crc") bytes = corruptCrc(bytes);
 console.log("bench_headless:");
 await fakeClockRun(bytes);

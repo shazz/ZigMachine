@@ -6,9 +6,9 @@
 //     mask         which canvases are drawn (bit i = canvas i); the rest stay blank
 //     out.rgb      the 800x280 composite as RGB, from a screenshot of the tube
 //
-// The page is docs/index.html's tube: .container (its black background) holding
-// the four .canvas elements, styled by the real docs/css/crt.css and given their
-// pixels by putImageData, as docs/sealed-loader.js does. The CRT scanline veil
+// The page is site/index.html's tube: .container (its black background) holding
+// the four .canvas elements, styled by the real site/css/crt.css and given their
+// pixels by putImageData, as site/js/sealed-loader.js does. The CRT scanline veil
 // (.container::before) is hidden: it is a cosmetic filter over the whole tube,
 // not part of the machine's picture. Each raster line is shown twice (800x560);
 // the capture checks the two copies agree and keeps one.
@@ -19,7 +19,7 @@ import { inflateSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const W = 800, H = 280;
-const CSS = fileURLToPath(new URL("../../docs/css/crt.css", import.meta.url));
+const CSS = fileURLToPath(new URL("../../site/css/crt.css", import.meta.url));
 
 async function loadPlaywright() {
     if (process.env.PLAYWRIGHT_DIR) return createRequire(process.env.PLAYWRIGHT_DIR + "/")("playwright");

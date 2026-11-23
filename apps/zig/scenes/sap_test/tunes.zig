@@ -2,7 +2,7 @@
 // SAP TEST: the tunes, as their SAP headers give them.
 //
 // Five Atari 8-bit tunes from ASMA, the Atari SAP Music Archive
-// (https://asma.atari.org/), fetched 2026-10-10 and published in docs/music/
+// (https://asma.atari.org/), fetched 2026-10-10 and published in site/music/
 // under their ASMA names (Matt, 2026-10-10). prototypes/sap_asma/SOURCES.txt
 // holds each file's URL and sha256. Every field below is copied from the
 // file's own header (AUTHOR, NAME, DATE, TYPE, NTSC, SONGS, TIME): the screen
@@ -10,7 +10,7 @@
 // --------------------------------------------------------------------------
 
 pub const Tune = struct {
-    file: []const u8, // under docs/music/
+    file: []const u8, // under site/music/
     title: []const u8,
     composer: []const u8,
     year: []const u8,

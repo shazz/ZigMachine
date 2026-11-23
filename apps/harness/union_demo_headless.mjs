@@ -1,5 +1,5 @@
 // Headless Union Demo menu driver: boots the sealed machine + demo-union_demo.wasm
-// the way docs/sealed-loader.js does, walks Charly through a scripted timeline and
+// the way site/js/sealed-loader.js does, walks Charly through a scripted timeline and
 // dumps the visible 320x200 screen as PPMs, plus the frame cost. Then it CHECKS:
 //
 //   wrap   teleport to the last door (key 0), walk right with F1 but NO fire until
@@ -18,7 +18,7 @@
 //          used to hold until the seam, so the street stood still for half a
 //          screen and then lurched ~25 px a frame after him.
 //   keyup  with the host's key-up (demo.inputRelease), a 100 ms tap stops as fast.
-//          docs/sealed-loader.js sends it from its keyup listener (and releases
+//          site/js/sealed-loader.js sends it from its keyup listener (and releases
 //          every held direction on blur); `stop` models an older host without it.
 //          Both FAIL on a cart built before inputRelease existed.
 //   esc    Escape and Back ask the host for NOTHING (they used to ask for the
@@ -43,7 +43,7 @@
 //   node apps/harness/union_demo_headless.mjs --break wrap [outdir]     # fire from the start: must FAIL `wrap`
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const PREROLL = 3;
@@ -73,15 +73,15 @@ const TIMELINE = {
 const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const POS = process.argv.slice(2).filter((a, i, all) => a !== "--break" && all[i - 1] !== "--break");
 const outDir = POS[0] || "/tmp/union_demo";
-const CART = POS[1] || "docs/demo-union_demo.wasm";
+const CART = POS[1] || "site/carts/demo-union_demo.wasm";
 
 async function boot(loaded = true) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -377,7 +377,7 @@ async function checkKeyup() {
 
 // Boot the cart of the disk a door asked for, as swapCart does.
 async function loadDisk(m, t) {
-    const disk = new Uint8Array(await readFile(`docs/demo-${t}.zmd`));
+    const disk = new Uint8Array(await readFile(`site/carts/demo-${t}.zmd`));
     const dv = new DataView(disk.buffer, disk.byteOffset);
     const start = dv.getUint32(0x0e, true) * dv.getUint16(0x08, true);
     await load(m, disk.slice(start, start + dv.getUint32(0x12, true)), true);

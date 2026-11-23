@@ -3,7 +3,7 @@
 // scratch), the audio machine playing an SNDH, and a PNG writer.
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
@@ -21,10 +21,10 @@ function writeNote(buf, { scroll, door }) {
 export async function boot(cart, note = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -55,10 +55,10 @@ export async function boot(cart, note = null) {
 /// The SNDH on the audio machine, as the worklet would play it, for 4 seconds.
 export async function songPeak(file) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const k of Object.keys(machine)) if (k.startsWith("machine")) env[k] = machine[k];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
     const tune = new Uint8Array(await readFile(file));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), tune.length).set(tune);

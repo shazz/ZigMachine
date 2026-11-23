@@ -10,10 +10,10 @@ One subfolder per language:
 
 - **`zig/`** — the ZigOS demo: boot screen, the effects menu, and every scene
   (Union intro, cracktro ports, GEM desktop host, music debug, …). Compiles to
-  `docs/demo.wasm`.
-- **`c/`** — `hello.c`, a plasma proving apps are language-agnostic → `docs/demo-c.wasm`.
-- **`rust/`** — `hello.rs`, the same in `no_std` Rust → `docs/demo-rust.wasm`, plus
-  one cart per screen in `rust/scenes/` → `docs/demo-rust-<scene>.wasm` (CODEF 490,
+  `site/carts/demo.wasm`.
+- **`c/`** — `hello.c`, a plasma proving apps are language-agnostic → `site/carts/demo-c.wasm`.
+- **`rust/`** — `hello.rs`, the same in `no_std` Rust → `site/carts/demo-rust.wasm`, plus
+  one cart per screen in `rust/scenes/` → `site/carts/demo-rust-<scene>.wasm` (CODEF 490,
   V8's Populous intro, with its SNDH music).
 
 `verify.mjs` is a headless ABI check for the foreign-language apps (instantiates
@@ -30,10 +30,10 @@ import a caller-provided memory can write apps. See [[zigmachine-polyglot-apps]]
 ## Build & run
 ```bash
 # Zig demo (default):
-zig build -Dwasm -Drelease=true          # -> docs/demo.wasm
+zig build -Dwasm -Drelease=true          # -> site/carts/demo.wasm
 # C / Rust:
-bash apps/c/build.sh                      # -> docs/demo-c.wasm
-bash apps/rust/build.sh                   # -> docs/demo-rust.wasm
+bash apps/c/build.sh                      # -> site/carts/demo-c.wasm
+bash apps/rust/build.sh                   # -> site/carts/demo-rust.wasm
 node apps/harness/verify.mjs                       # headless check of demo-c/demo-rust
 
 cd docs && python3 -m http.server 3333

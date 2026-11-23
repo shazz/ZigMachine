@@ -4,8 +4,8 @@
 // The Rust twin of apps/c/zigmachine_music.h, and the same song bridge the Zig
 // scenes use (libs/zig/zigos.zig requestSong / requestSongTune). Nothing here
 // plays music: the SNDH player lives in demo-audio.wasm on the audio thread.
-// The cart only leaves a request in shared memory; docs/sealed-loader.js polls
-// the four exports below every frame, fetches docs/music/<name>, and the
+// The cart only leaves a request in shared memory; site/js/sealed-loader.js polls
+// the four exports below every frame, fetches site/music/<name>, and the
 // extension picks the player (.sndh / .mod / .ymraw / .raw). sndh_call() runs
 // the PLAYING SNDH's INIT again (a game's sound effect) instead of reloading
 // it; those calls are dropped, not kept, while sound is off.
@@ -40,7 +40,7 @@ static mut CALL_D0: [u32; SNDH_CALL_MAX] = [0; SNDH_CALL_MAX];
 static mut CALL_N: usize = 0;
 static mut CALL_DROPPED: u32 = 0;
 
-/// Request subtune `tune` of `name` (a file under docs/music/). Subtunes count
+/// Request subtune `tune` of `name` (a file under site/music/). Subtunes count
 /// from 1; 0 means "the image's own default". Only an SNDH has subtunes.
 /// For a .mod, a tune of 32..255 is instead its start BPM (zg.requestModBpm);
 /// 0..31 plays at ProTracker's 125.

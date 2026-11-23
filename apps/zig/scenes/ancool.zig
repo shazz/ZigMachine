@@ -22,7 +22,7 @@ const Coord = shapes.Coord;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // AN Cool's own "AN Bass" from the So Watt demo (1989) — the demo this very
 // cracktro's scrolltext announces. NOT the So Watt loader tune: that one is
 // flagged ~a (STE DMA samples), which the SNDH player does not emulate — it

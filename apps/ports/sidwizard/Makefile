@@ -97,9 +97,9 @@ data:
 	@mkdir -p data
 	cp $(UP)/native/examples/flashitback.swm data/FLASHBAK.SWM
 
-# The shipped cart: docs/demo-sidwizard.wasm, committed prebuilt (build.sh does not rebuild the C ports).
+# The shipped cart: site/carts/demo-sidwizard.wasm, committed prebuilt (build.sh does not rebuild the C ports).
 install: $(OUT)/demo-sidwizard.wasm
-	cp $< ../../../docs/demo-sidwizard.wasm
+	cp $< ../../../site/carts/demo-sidwizard.wasm
 	cd ../../.. && tools/mkdisks.sh
 
 clean:

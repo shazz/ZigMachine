@@ -9,7 +9,7 @@
 // Usage: node apps/harness/check_fits.mjs <cart.wasm> [more.wasm ...]   (exit 1 on any fail)
 import { readFile } from "node:fs/promises";
 import { cartRam, audioRam, romRam, CART_RAM_BASE, CART_RAM_TOP,
-         AUDIO_RAM_BASE, AUDIO_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP } from "../../docs/wasm_hiwater.js";
+         AUDIO_RAM_BASE, AUDIO_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP } from "../../site/js/wasm_hiwater.js";
 
 // Which memory map a module lives in. Getting this wrong is not cosmetic: the
 // AUDIO thread's window is HALF the size at the same address, so measuring

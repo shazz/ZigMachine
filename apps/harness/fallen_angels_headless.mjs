@@ -15,7 +15,7 @@
 //
 //   node apps/harness/fallen_angels_headless.mjs [outdir] [cart.wasm]
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40; // first visible physical row
@@ -25,10 +25,10 @@ const OVERLAY = new Set([0xc0c0c0, 0xe0e0e0, 0xa0a0a0, 0xff0000]); // logo_pal.d
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -61,7 +61,7 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-fallen_angels.wasm");
+const { memory, machine, demo } = await boot(process.argv[3] || "site/carts/demo-fallen_angels.wasm");
 const rasters = await readFile("apps/zig/assets/screens/fallen_angels/rasters.dat");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 for (let f = 0; f < FRAME; f++) demo.frame(1000 / 60);

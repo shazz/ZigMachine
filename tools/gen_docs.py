@@ -3,7 +3,7 @@
 
 Parses the sealed HW ABI headers (machine/sdk/*.zig) and the open ZigOS library
 (libs/zig/*.zig) for their public surface + doc comments, and emits a single
-self-contained reference (docs/ZIGMACHINE_GUIDE.html) with a register map, an
+self-contained reference (site/ZIGMACHINE_GUIDE.html) with a register map, an
 ABI/library reference, hand-written examples, and the disk/cart-format prose
 rendered from docs/guide/FLOPPY_DISK.md and the music guide from docs/guide/MUSIC.md.
 
@@ -26,7 +26,7 @@ from docgen.guide_render import build, undated  # noqa: E402
 
 
 def main() -> None:
-    out = ROOT / "docs" / "ZIGMACHINE_GUIDE.html"
+    out = ROOT / "site" / "ZIGMACHINE_GUIDE.html"
     fresh = build()
     if "--check" in sys.argv:
         # A doc edit (MUSIC.md, FLOPPY_DISK.md, a doc comment) that was never

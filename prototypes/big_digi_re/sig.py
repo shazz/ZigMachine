@@ -16,7 +16,7 @@ def masked(b):
     return h
 
 
-for n in ["Ace_2", "Labello", "Phantom_Of_The_Asteroid", "Sanxion", "Starpaws", "../../docs/music/big/Labello"]:
+for n in ["Ace_2", "Labello", "Phantom_Of_The_Asteroid", "Sanxion", "Starpaws", "../../site/music/big/Labello"]:
     d = open(n + ".sndh", "rb").read()
     play = 0xA + int.from_bytes(d[0xA:0xC], "big")
     print(f"{n}: play {play:#x} sig {masked(d[play:play + LEN]):#018X}")

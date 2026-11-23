@@ -1,6 +1,6 @@
 // Fifth bitstream (`make ym-test`): the YM2149 playing a real tune over HDMI.
 // jt49 (the machine's audio core, rtl/audio/) plays "Drooling" by 505, a YM5
-// register dump (docs/music/union/Drooling.ymraw, 6,433 frames, 2:08, looped)
+// register dump (site/music/union/Drooling.ymraw, 6,433 frames, 2:08, looped)
 // held in BRAM as register writes (tools/ym_rom.py, rtl/board/zm_dump_player.v),
 // 44.1 kHz stereo in HDMI data islands, with the bring-up test pattern on screen
 // (rtl/board/ym_test_core.v). Serialised as the proven audio bitstream: a

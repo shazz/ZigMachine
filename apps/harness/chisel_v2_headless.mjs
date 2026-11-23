@@ -17,7 +17,7 @@
 //     --break pixel  one ROTOZOOM pixel changed before the check: must be caught
 //     --break fill   the model fills exclusive instead of inclusive: must be caught
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, OFF_PAL = 0x100, REG_FB_BASE = 0x44, OFF_BLIT = 0x80;
 const W = 320, H = 200, FRAMES = 20;
@@ -33,7 +33,7 @@ function check(name, ok, detail = "") {
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const mem = () => new DataView(memory.buffer);
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 // this frame's ops: a copy of the block at each hwBlit, the collision byte after it, and
@@ -47,10 +47,10 @@ const hwBlit = () => {
     machine.hwBlit();
     ops.push({ block, coll: new Uint8Array(memory.buffer)[VB + 0xE6] & 1, before, after: fill ? Uint8Array.from(plane()) : null });
 };
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit } })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-const cartBytes = await readFile("docs/demo-chisel_v2.wasm"), env = { memory, ...rom };
+const cartBytes = await readFile("site/carts/demo-chisel_v2.wasm"), env = { memory, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
 env.hwBlit = hwBlit;
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

@@ -52,7 +52,7 @@
 //     text.raw $13c6c / $91d2 (the 2105-char scrolltext),
 //   * font_machine.bin + charmap.bin ($148e2 / $144a8; $9e48 / $9a0e): the
 //     scroller's own 32x16 font and its text-byte map,
-//   * "cracoucass.sndh" -> docs/music/hmd_cracoucass.sndh (md5-matched;
+//   * "cracoucass.sndh" -> site/music/hmd_cracoucass.sndh (md5-matched;
 //     maxYMiser, timer C, YM only).
 //
 // THE CUBE IS THE ORIGINAL'S, PIXEL FOR PIXEL. The face list at $2348c has

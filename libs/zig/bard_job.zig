@@ -5,7 +5,7 @@
 // the cart's frame runs it and answers in the job's slot:
 //   board   BARD, the sound CPU, between its audio renders (it reads and writes
 //           the cart's DDR; fpga/cycles/sound/sjobs.c)
-//   page    the loader, after the cart's frame (docs/sealed-loader.js)
+//   page    the loader, after the cart's frame (site/js/sealed-loader.js)
 //   none    (the native host, the harnesses, ZIGGY with no BARD): the cart
 //           serves its own jobs at once, inside its frame.
 // The same kernels everywhere (bard_jobs/kernels.zig), so the bytes a job
@@ -155,7 +155,7 @@ pub fn isRemote() bool {
     return remote;
 }
 
-/// The page's server (docs/sealed-loader.js): the loader calls it after the cart's frame and
+/// The page's server (site/js/sealed-loader.js): the loader calls it after the cart's frame and
 /// when the cart waits. A scene that posts jobs exports it: `comptime { zg.bard.job.exportServer(); }`.
 fn serve() callconv(.c) void {
     if (remote) _ = srv.step(hw(L.H.head).*, 0xFFFF_FFFF);

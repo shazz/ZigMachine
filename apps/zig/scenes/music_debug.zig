@@ -16,10 +16,10 @@
 // scroller's band each frame.
 //
 // Keys 1..7 play MOD / YM / sample / SNDH / XM / a local XM / a VGM (KESTREL FM, our own YM2612 +
-// SN76489; 7 again: docs/music/local.vgm, the owner's own, never committed). The host only forwards a digit to
-// setShadeMode (docs/sealed-loader.js in the browser, fpga/glass/firmware/glass_input.c on
+// SN76489; 7 again: site/music/local.vgm, the owner's own, never committed). The host only forwards a digit to
+// setShadeMode (site/js/sealed-loader.js in the browser, fpga/glass/firmware/glass_input.c on
 // the board, the same rule in both) and this cart asks for the song itself with
-// zg.requestSong: the browser fetches it from docs/music/, the board plays it on BARD from
+// zg.requestSong: the browser fetches it from site/music/, the board plays it on BARD from
 // the table fpga/tools/song_pack.py builds out of the names below. The audio state (mode,
 // YM regs, per-channel scopes) is mirrored into zigos for the scope.
 // --------------------------------------------------------------------------
@@ -157,7 +157,7 @@ pub const Demo = struct {
     }
 
     // Keys 1..6 pick MOD / YM / sample / SNDH / XM / local XM — request BY NAME (host plays
-    // it, no per-scene playlist in the glass). Files live under docs/music/.
+    // it, no per-scene playlist in the glass). Files live under site/music/.
     //
     // The SNDH is the odd one out and the point of having it here: the other
     // three are DATA the players interpret, while an SNDH is a PROGRAM — the
@@ -167,13 +167,13 @@ pub const Demo = struct {
     // Key 5's XM is "Keygen 9000" by Drozerix, 8 channels, Public Domain (The Mod
     // Archive, https://modarchive.org/module.php?173938, md5 02b1f1dad70ea15a0b064c45468caa55;
     // docs/guide/MUSIC.md "Bundled modules"). Key 6
-    // asks for docs/music/local.xm: a song the owner keeps on their own machine
+    // asks for site/music/local.xm: a song the owner keeps on their own machine
     // only (gitignored), for a tune whose licence does not allow bundling it. A
     // checkout without one plays nothing on 6, and the board's song table leaves
     // it out (fpga/tools/song_pack.py LOCAL_SONGS). See docs/guide/MUSIC.md.
     //
-    // Key 7 is KESTREL FM (docs/music/kestrel_fm.vgm, written by libs/c/vgm/make_tune.py for this repo) on our
-    // own YM2612 + SN76489 (libs/c/vgm). Pressed again straight after, it asks for docs/music/local.vgm: a Mega
+    // Key 7 is KESTREL FM (site/music/kestrel_fm.vgm, written by libs/c/vgm/make_tune.py for this repo) on our
+    // own YM2612 + SN76489 (libs/c/vgm). Pressed again straight after, it asks for site/music/local.vgm: a Mega
     // Drive VGM the owner keeps on their own machine only (gitignored, song_pack.py LOCAL_SONGS), as key 6's XM.
     const TUNES = [_][]const u8{
         "lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh", "keygen_9000.xm", "local.xm", "kestrel_fm.vgm",

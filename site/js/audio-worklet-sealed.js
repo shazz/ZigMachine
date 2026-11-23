@@ -298,7 +298,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
     }
 }
 
-// A cart's Paula (env.hostPaula*, docs/sealed-loader.js; apps/zig/demo_audio_paula.zig): the claim
+// A cart's Paula (env.hostPaula*, site/js/sealed-loader.js; apps/zig/demo_audio_paula.zig): the claim
 // (with the loader's copy of chip RAM: uploads made before sound was on), uploads into chip RAM,
 // and batches of 16-byte register writes, staged and queued for their samples.
 ZigAudioSealedProcessor.prototype.cartPaula = function (msg) {

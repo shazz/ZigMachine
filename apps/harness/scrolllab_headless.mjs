@@ -10,11 +10,11 @@
 //   node apps/harness/scrolllab_headless.mjs [outdir] [--cart X.wasm] [--record F.json]
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, MODES = 10, K_ESC = 0xe012, DIR_LEFT = 2, DIR_RIGHT = 3;
 const argv = process.argv.slice(2), opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv.splice(i, 2)[1]; };
-const CART = opt("--cart") ?? "docs/demo-scrolllab.wasm", RECORD = opt("--record");
+const CART = opt("--cart") ?? "site/carts/demo-scrolllab.wasm", RECORD = opt("--record");
 const HASHES = new URL("./scrolllab_hashes.json", import.meta.url);
 let failures = 0;
 function check(name, got, want) {
@@ -25,10 +25,10 @@ function check(name, got, want) {
 
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, {
     env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
 })).instance.exports;

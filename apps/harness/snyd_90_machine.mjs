@@ -1,7 +1,7 @@
-// The sealed machine + demo-snyd_90.wasm, booted as docs/sealed-loader.js
+// The sealed machine + demo-snyd_90.wasm, booted as site/js/sealed-loader.js
 // does (for apps/harness/snyd_90_headless.mjs), and an SNDH played on the sealed YM.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, REG_FB_BASE = 0x44;
 export const PW = 400, PH = 280;
@@ -10,14 +10,14 @@ export const PW = 400, PH = 280;
 export async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo, mute = false;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => { if (!mute) demo.hblDispatch(id, p, l, x); } },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const noop = () => {};
-    const cartBytes = await readFile("docs/demo-snyd_90.wasm");
+    const cartBytes = await readFile("site/carts/demo-snyd_90.wasm");
     const env = { memory, jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop, consoleLogJS: noop, ...rom };
     for (const k of Object.keys(machine)) if (/^hw(Video|Blit|Ram|RomRam)/.test(k)) env[k] = machine[k];
     for (const k of ["audioPlay", "audioStop", "loadSample", "beep", "diskReadBlock", "hostAudioStreamStart", "hostAudioFeed", "hostAudioStreamStop"]) env[k] = noop;
@@ -33,15 +33,15 @@ export async function boot() {
     };
 }
 
-/// Play docs/music/<file> #sub for two seconds on the sealed YM: null if it
+/// Play site/music/<file> #sub for two seconds on the sealed YM: null if it
 /// plays (its peak in `out.peak`), else why not.
 export async function tuneFault(file, sub, out = {}) {
-    const bytes = new Uint8Array(await readFile(`docs/music/${file}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${file}`));
     const mem = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const ma = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
+    const ma = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
     const env = { memory: mem };
     for (const x of Object.keys(ma)) if (x.startsWith("machine")) env[x] = ma[x];
-    const au = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const au = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     au.audioInit();
     new Uint8Array(mem.buffer, au.audioSongPtr(), bytes.length).set(bytes);
     if (!au.audioLoadSndh(bytes.length)) return `${file} is not an SNDH image`;

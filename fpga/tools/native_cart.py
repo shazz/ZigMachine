@@ -9,7 +9,7 @@ to, before a card carries it: the ZMCA header, a table version this tree's syste
 its header size and page count, a .bss end past the image and before the pictures, a tag.
 
 disk: the shelf disk glass_sd.py fattens with the cart (glass_shelf.py takes <fw-dir>/<tag>/
-disk.zmd before docs/demo-<tag>.zmd): a v1 disk whose boot cart is cycles/native/
+disk.zmd before site/carts/demo-<tag>.zmd): a v1 disk whose boot cart is cycles/native/
 browser_stub.c, so a browser that mounts it says "KESTREL only" instead of failing.
 """
 

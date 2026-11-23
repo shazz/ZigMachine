@@ -1,21 +1,21 @@
-// apps/harness/anima_headless.mjs's machine: boots the sealed machine + docs/demo-anima.wasm the way
-// docs/sealed-loader.js does (hwClear, frame, hwRenderPlane per enabled plane, every frame: the
+// apps/harness/anima_headless.mjs's machine: boots the sealed machine + site/carts/demo-anima.wasm the way
+// site/js/sealed-loader.js does (hwClear, frame, hwRenderPlane per enabled plane, every frame: the
 // HBL runs inside hwRenderPlane, so the raster and the borders are live), counts CHISEL ops,
 // records every song request, and reads the composed 800x280 picture.
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
-export const CART = "docs/demo-anima.wasm";
+export const CART = "site/carts/demo-anima.wasm";
 const PAGES = 128;
 
 export async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

@@ -2,7 +2,7 @@
 //
 //   INTERNAL  the cart feeds the stream ring every frame (zg.audioStreamStart / audioFeed)
 //   EXTERNAL  the cart hands the whole sample over once (zg.samplePlay: sfx queue op 6) and
-//             the audio thread refills the ring itself (docs/audio-worklet-sealed.js refillSample)
+//             the audio thread refills the ring itself (site/js/audio-worklet-sealed.js refillSample)
 //
 // 1. The cart: SAMPLE.RAW loaded off its disc, SPACE plays INTERNAL (a stream, an eighth of a
 //    second fed at once); Alt switches to EXTERNAL mid-replay (the stream stops, ONE samplePlay of
@@ -13,7 +13,7 @@
 //
 //   node apps/harness/st_replay_outputs_check.mjs [--break refill]   # --break: the worklet never refills
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, BLOCK = 512, RATE = 10000, K_ALT = 0xe013, K_F10 = 0xe00a;
 const BREAK = process.argv.includes("--break");
@@ -35,15 +35,15 @@ function findFile(disk, name) { // a FAT entry off a ZigMachine disk (v2 descrip
 async function bootCart(disk) { // the machine, the ROM and the cart over one memory, as stream_pacing_check.mjs
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-st_replay.wasm");
+    const cartBytes = await readFile("site/carts/demo-st_replay.wasm");
     const io = { starts: 0, stops: 0, feeds: [] };
     const env = {
         memory, ...rom,
@@ -75,9 +75,9 @@ async function bootCart(disk) { // the machine, the ROM and the cart over one me
 }
 
 async function checkCart() {
-    const disk = new Uint8Array(await readFile("docs/demo-st_replay.zmd"));
+    const disk = new Uint8Array(await readFile("site/carts/demo-st_replay.zmd"));
     const f = findFile(disk, "SAMPLE.RAW");
-    if (!f) throw new Error("SAMPLE.RAW is not on docs/demo-st_replay.zmd");
+    if (!f) throw new Error("SAMPLE.RAW is not on site/carts/demo-st_replay.zmd");
     const { demo, io, frame } = await bootCart(disk);
     const frames = (n) => { const q = []; for (let i = 0; i < n; i++) q.push(...frame()); return q; };
     frames(3);
@@ -117,9 +117,9 @@ async function bootWorklet() {
     let Proc;
     globalThis.AudioWorkletProcessor = class { constructor() { this.port = { postMessage() {} }; } };
     globalThis.registerProcessor = (_name, cls) => { Proc = cls; };
-    await import("../../docs/audio-worklet-sealed.js");
+    await import("../../site/js/audio-worklet-sealed.js");
     const p = new Proc({ processorOptions: {
-        machineBytes: await readFile("docs/machine-audio.wasm"), demoBytes: await readFile("docs/demo-audio.wasm") } });
+        machineBytes: await readFile("site/machine-audio.wasm"), demoBytes: await readFile("site/demo-audio.wasm") } });
     for (let i = 0; i < 200 && !p.ready; i++) await new Promise((r) => setTimeout(r, 10));
     if (!p.ready) throw new Error("the worklet never came up");
     if (BREAK) p.refillSample = () => {};

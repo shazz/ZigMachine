@@ -1,6 +1,6 @@
 {
  "frames": 3600,
- "from": "82db48da:docs/demo-ancool.wasm",
+ "from": "82db48da:site/carts/demo-ancool.wasm",
  "periods": [
   {
    "from": 1,

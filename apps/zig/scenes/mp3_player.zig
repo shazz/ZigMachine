@@ -20,7 +20,7 @@ const Stream = @import("mp3_player/stream.zig").Stream;
 const view = @import("mp3_player/view.zig");
 const id3 = @import("mp3_player/id3.zig");
 
-const K_ESC: u32 = 0xE012; // docs/sealed-loader.js KEY_CODES
+const K_ESC: u32 = 0xE012; // site/js/sealed-loader.js KEY_CODES
 const RATES = [_]u32{ 0, 32000, 44100, 48000, 0, 22050, 24000, 16000, 12000, 11025, 8000 }; // zg.mp3Status(0) rate codes
 
 pub const Demo = struct {

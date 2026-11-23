@@ -1,5 +1,5 @@
 // Headless SNDH driver — boots the sealed machine-audio.wasm + demo-audio.wasm
-// the way docs/audio-worklet-sealed.js does, stages a tune in song RAM, and
+// the way site/js/audio-worklet-sealed.js does, stages a tune in song RAM, and
 // renders a block.
 //
 // Why this exists: the SNDH player runs the tune's OWN 68000 code on Musashi,
@@ -50,12 +50,12 @@ function tinySndh() {
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
     const machine = (await WebAssembly.instantiate(
-        await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+        await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
 
     const env = { memory };
     for (const name of Object.keys(machine)) if (name.startsWith("machine")) env[name] = machine[name];
     const demo = (await WebAssembly.instantiate(
-        await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+        await readFile("site/demo-audio.wasm"), { env })).instance.exports;
 
     demo.audioInit();
     return { memory, machine, demo };

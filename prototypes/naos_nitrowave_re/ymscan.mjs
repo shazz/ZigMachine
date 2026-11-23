@@ -6,8 +6,8 @@ import { join } from "node:path";
 
 const FRAMES = 600;
 const [rip, ripSub, ...dirs] = process.argv.slice(2);
-const machineBin = await readFile("docs/machine-audio.wasm");
-const demoBin = await readFile("docs/demo-audio.wasm");
+const machineBin = await readFile("site/machine-audio.wasm");
+const demoBin = await readFile("site/demo-audio.wasm");
 
 async function log(path, sub) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });

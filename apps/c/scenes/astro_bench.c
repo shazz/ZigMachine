@@ -13,7 +13,7 @@
 // the effect page (astro_bench/zoom.h): a Julia set zoomed 1e12 deep, every pixel's f64 maths done by
 // ASTROLABE, SPACE swapping it for ZIGGY's soft f64, with ms a picture and pictures a second.
 //
-// Keys: 1 the bench (rerun), 2 the zoom, SPACE cycles the zoom's side (ASTROLABE, ZIGGY soft f64, ZIGGY f32 FPU), Escape leaves. Build: bash apps/c/build.sh astro_bench -> docs/demo-c-astro_bench.wasm
+// Keys: 1 the bench (rerun), 2 the zoom, SPACE cycles the zoom's side (ASTROLABE, ZIGGY soft f64, ZIGGY f32 FPU), Escape leaves. Build: bash apps/c/build.sh astro_bench -> site/carts/demo-c-astro_bench.wasm
 // ---------------------------------------------------------------------------
 #include "astro_bench/astro.h"
 #include "astro_bench/fmt.h"

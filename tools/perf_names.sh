@@ -9,4 +9,4 @@ set -e
 cd "$(dirname "$0")/.."
 mkdir -p zig-out/perf-names
 zig build -Drelease=true -Dwasm -Dnames=true -p zig-out/perf-names/zig-out
-echo "perf names: $(ls zig-out/perf-names/docs/*.wasm | wc -l) modules in zig-out/perf-names/docs"
+echo "perf names: $(ls zig-out/perf-names/site/*.wasm zig-out/perf-names/site/carts/*.wasm | wc -l) modules in zig-out/perf-names/site"

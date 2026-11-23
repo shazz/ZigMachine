@@ -1,7 +1,7 @@
 // Channel-change snow for the polyglot carts: a C or Rust channel must tune in
 // through the SAME TV snow as a Zig cart, then start exactly as skipBoot would.
 //
-// The host, on +/-: hwInit, boot, tuneIn(25) (docs/sealed-loader.js). A Zig cart
+// The host, on +/-: hwInit, boot, tuneIn(25) (site/js/sealed-loader.js). A Zig cart
 // (apps/zig/demo_main.zig) draws snow on frames 1..25 and starts the cart on
 // frame 26 as the first frame after skipBoot(). So, per cart, over the real host
 // loop (hwClear, frame, hwRenderPlane per enabled plane; see apps/harness/scene_hash.mjs):
@@ -24,23 +24,23 @@
 //   node apps/harness/tunein_check.mjs --fail-proof <cart> ...  # passes only if each FAILS
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
-const TUNE = 25; // TUNE_FRAMES in docs/sealed-loader.js
+const TUNE = 25; // TUNE_FRAMES in site/js/sealed-loader.js
 const AFTER = 60;
 const ESC_AT = 10;
 const DT = 16.6;
-const ZIG_REF = "docs/demo-tutorial.wasm"; // any Zig scene: demo_main.zig owns the snow
+const ZIG_REF = "site/carts/demo-tutorial.wasm"; // any Zig scene: demo_main.zig owns the snow
 const REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44, REG_FB_MODE = 0x54, OFF_PAL = 0x100, PH = 280;
 
 async function boot(path) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -183,9 +183,9 @@ const failProof = argv[0] === "--fail-proof";
 let carts = argv.filter((a) => a !== "--fail-proof");
 if (carts.length === 0) {
     // channels.json is a list of {tag, title, type} records (tools/channels.py).
-    const channels = JSON.parse(await readFile("docs/channels.json", "utf8"));
+    const channels = JSON.parse(await readFile("site/channels.json", "utf8"));
     carts = channels.map((c) => c.tag).filter((t) => /^(c|rust)-/.test(t))
-        .map((t) => `docs/demo-${t}.wasm`);
+        .map((t) => `site/carts/demo-${t}.wasm`);
 }
 const zig = await snowOf(ZIG_REF);
 const ref = zig.frames;

@@ -78,7 +78,7 @@ laid out as Matt's card (folders, ECHO.REQ, no .TXT at the root): the folders li
 Directory: line edited to `*.*`, a folder opened and left, a file in it opened and saved back there.
 
 `apps/harness/notepad_check.mjs` (gate `notepad`, + `--break write|bytes|ctrl`), over the real machine + ROM,
-C: a copy of `docs/gemdos-c.img` with the page's KFS for the writes. See its header for the checks. The
+C: a copy of `site/disks/gemdos-c.img` with the page's KFS for the writes. See its header for the checks. The
 central one: after each step (typing, a save, an alert, a menu, 60 lines, a scroll, a size, a paste, in
 low, medium and the desk) the screen as drawn incrementally equals a whole repaint, byte for byte.
 Native: `notepad/text.zig`, `doc.zig`, `names.zig` (scene_tests), `rom/gem/gui/formalert.zig`,

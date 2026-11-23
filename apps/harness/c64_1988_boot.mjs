@@ -1,18 +1,18 @@
 // 1988 (cart "c64_1988"): the committed cart booted over the real machine + ROM, past its boot
 // sector, for apps/harness/c64_1988_headless.mjs (the VICE pins) and apps/harness/c64_1988_zig.mjs (ZIG mode).
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128;
-export const CART = "docs/demo-c64_1988.wasm";
+export const CART = "site/carts/demo-c64_1988.wasm";
 
 export async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

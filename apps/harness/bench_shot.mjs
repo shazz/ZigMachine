@@ -1,17 +1,17 @@
-// Dev aid, not a gate: runs docs/demo-c-bench.wasm on the real clock and writes the final screen as a PNG.
+// Dev aid, not a gate: runs site/carts/demo-c-bench.wasm on the real clock and writes the final screen as a PNG.
 //   node apps/harness/bench_shot.mjs out.png
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-const bytes = await readFile("docs/demo-c-bench.wasm");
+const bytes = await readFile("site/carts/demo-c-bench.wasm");
 const env = { memory, ...rom, hostMicros: () => Math.floor(performance.now() * 1000) >>> 0, consoleLogJS: () => {} };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
 demo = (await WebAssembly.instantiate(bytes, { env })).instance.exports;

@@ -1,7 +1,7 @@
 {
  "frames": 10500,
  "block": 500,
- "cart": "docs/demo-bladerunners.wasm at 37477829 (before the raster fix)",
+ "cart": "site/carts/demo-bladerunners.wasm at 37477829 (before the raster fix)",
  "blocks": [
   "ab8fdfb0a7503ad17b67a264c8bd18c7b91fc6b381ea0eec9436f6286cfe894a",
   "74c43073d24ecf81e38fb2ce5d82ecf55b7b690448265e4b527c75a732c3ca7e",

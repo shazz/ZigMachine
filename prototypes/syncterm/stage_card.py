@@ -2,7 +2,7 @@
 
     uv run --project fpga python prototypes/syncterm/stage_card.py
 
-Reads the data disk docs/demo-syncterm.zmd and the lean board image
+Reads the data disk site/carts/demo-syncterm.zmd and the lean board image
 fpga/build/hcycles/split/carts_fpu/syncterm/cart.bin (make split-cart CART=syncterm ZM_ZMX=1, system table
 1.17 as on the card), and writes prototypes/syncterm/card/up/ as prototypes/notepad_card/up/ is laid out:
 
@@ -40,8 +40,8 @@ def pack(src: Path, dst: Path) -> bytes:
 
 
 def main() -> None:
-    disk = (ROOT / f"docs/demo-{TAG}.zmd").read_bytes()
-    wasm = (ROOT / f"docs/demo-{TAG}.wasm").read_bytes()
+    disk = (ROOT / f"site/carts/demo-{TAG}.zmd").read_bytes()
+    wasm = (ROOT / f"site/carts/demo-{TAG}.wasm").read_bytes()
     cart = CART_BIN.read_bytes()
     split_image.check_pair(SYSTEM_TABLE, cart)  # refuses an image the card's system cannot run
     files: dict[str, bytes] = {f"CARTS/tools/demo-{TAG}.zmd": disk}

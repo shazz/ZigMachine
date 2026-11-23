@@ -4,7 +4,7 @@
 // The screen is MAD VISION's intro for MAXI's crack of "Fred" (30/03/90), from
 // the Atari ST. Ported from NoNameNo's CODEF HTML5 remake (wab.com screen 34,
 // MIT). Graphics and music are the originals' authors'; the tune is Mad Max's
-// "So Watt - TCB", which the machine already carries as docs/music/sos.sndh.
+// "So Watt - TCB", which the machine already carries as site/music/sos.sndh.
 //
 // Why this exists in C: the seal is a wasm ABI, not a Zig API. This is the same
 // machine-video.wasm the Zig scenes drive, and everything below is plain C

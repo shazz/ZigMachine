@@ -1,4 +1,4 @@
-/* See glass_input.h. Each rule cites the line of docs/sealed-loader.js it
+/* See glass_input.h. Each rule cites the line of site/js/sealed-loader.js it
  * reproduces; that file stays the reference. */
 #include "glass_input.h"
 

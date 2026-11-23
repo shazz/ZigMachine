@@ -3,7 +3,7 @@ MAN Cool's tune for the Union Demo's TCB2 WOW!-SCROLLER, a Timer A digi at 7585 
 audio-core writes, digested a frame at a time (host/sndh_oracle.c), must be the same over the
 whole tune, past its wrap; mode 3 (sndh_pcm.zig) must follow the YM path and hand back on the
 same sample. The helpers are test_sndh_native.py's. Needs `make sndh-oracle` and
-docs/demo-audio.wasm."""
+site/demo-audio.wasm."""
 
 from __future__ import annotations
 

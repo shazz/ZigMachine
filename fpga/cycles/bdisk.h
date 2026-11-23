@@ -1,6 +1,6 @@
 /* ZIGGY's drive (bdisk.c): the shelf disk ZWINDOW placed in the cart window, found through
  * its descriptor (fpga/glass/src/map.zig, "the disk in the cart window") and served to the
- * cart as env.diskReadBlock by host/disk.h, exactly as docs/sealed-loader.js serves it.
+ * cart as env.diskReadBlock by host/disk.h, exactly as site/js/sealed-loader.js serves it.
  * Lines (sim): "ZM DISK offset bytes [program]" or "ZM DISK none" at boot, "ZM DISK reads n bytes b"
  * at the end. */
 #ifndef ZM_BDISK_H

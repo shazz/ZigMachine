@@ -25,7 +25,7 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // Mad Max's "Cybernoid 2" (1989).
 const MUSIC = "cybernoid2.sndh";
 

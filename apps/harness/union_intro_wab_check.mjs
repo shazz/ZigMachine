@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { mainCheckoutRoot } from "./union_remake_dir.mjs";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { replayWab, PLANE_W, PLANE_H, ENTRY_FRAMES, PART_FRAMES } from "./union_intro_wab_ref.mjs";
 
 const REMAKE = "prototypes/oldies/UnionDemoCracktro/intro";
@@ -101,10 +101,10 @@ function checkLogoRun(exact, first) {
 async function boot(cartPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile(cartPath);
@@ -186,7 +186,7 @@ if (args[0] === "--frames") {
     if (ref) checkPart(ref, got);
 } else {
     const b = args.indexOf("--baseline"), a = args.indexOf("--at");
-    await checkCart(ref, args[0] ?? "docs/demo-union_intro.wasm", b >= 0 ? args[b + 1] : null, a >= 0 ? Number(args[a + 1]) : null);
+    await checkCart(ref, args[0] ?? "site/carts/demo-union_intro.wasm", b >= 0 ? args[b + 1] : null, a >= 0 ? Number(args[a + 1]) : null);
 }
 console.log(failed ? "=> FAIL" : "=> PASS");
 process.exit(failed ? 1 : 0);

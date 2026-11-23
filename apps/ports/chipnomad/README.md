@@ -2,8 +2,8 @@
 
 [ChipNomad](https://github.com/Megus/chipnomad-tracker) (Megus, MIT) is an LSDJ-style tracker for the AY-3-8910 /
 YM2149, in C++17. Its text screen is drawn in the Atari ST's 8x8 system font in 8x10 cells: 40x20 cells =
-exactly a 320x200 plane. The cart is `docs/demo-chipnomad.wasm`, the program `BOOT.WSM` on the GEM data disk
-`docs/demo-chipnomad.zmd`, with three of upstream's example projects (`songs/`: `MICROEGG.CNM`, `MICROPIZ.CNM`,
+exactly a 320x200 plane. The cart is `site/carts/demo-chipnomad.wasm`, the program `BOOT.WSM` on the GEM data disk
+`site/carts/demo-chipnomad.zmd`, with three of upstream's example projects (`songs/`: `MICROEGG.CNM`, `MICROPIZ.CNM`,
 `WB7.CNM`, from `tracker/packaging/common/projects`, MIT as the tracker) for the PROJECT screen's Load. GEM boots
 over the disk, a double-click on `BOOT.WSM` runs ChipNomad (it starts on an empty project); SETTINGS (SELECT +
 Down from the song screen), "Quit ChipNomad", A goes back to the desktop (`../README.md`).
@@ -18,7 +18,7 @@ the repo): every `kestrel_*` file, `patches/*.sed`, `Makefile`, `run.mjs`.
 
     apps/ports/fetch.sh
     make -C apps/ports/chipnomad link         # build/demo-chipnomad.wasm (byte-identical to docs/ at the pin)
-    make -C apps/ports/chipnomad install      # copy it to docs/, repack docs/demo-chipnomad.zmd (tools/mkdisks.sh)
+    make -C apps/ports/chipnomad install      # copy it to docs/, repack site/carts/demo-chipnomad.zmd (tools/mkdisks.sh)
     node apps/harness/ports_headless.mjs chipnomad    # the gate's check: boot, UI pin, X puts a chain in the song
 
 Upstream's `version.cpp` shows `__DATE__`; the Makefile pins it to the upstream commit's date so a rebuild
@@ -54,7 +54,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
   `/C` it leads back to `/`.
 - Projects load off C: as off the floppy. Saving to C: is not proven yet: the SAVE PROJECT browser is the same
   browser over fopen for writing (the floppy is read-only).
-- `node apps/harness/ports_cdrive_check.mjs chipnomad`: a copy of docs/gemdos-c.img with `HD/PROJECTS/MICROEGG.CNM` (the
+- `node apps/harness/ports_cdrive_check.mjs chipnomad`: a copy of site/disks/gemdos-c.img with `HD/PROJECTS/MICROEGG.CNM` (the
   floppy's bytes); the browser opens C, PROJECTS, MICROEGG.CNM, and the frame equals the floppy's MICROEGG.CNM
   loaded the same way (`--break c|bytes|list` must fail).
 

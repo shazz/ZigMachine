@@ -1,5 +1,5 @@
 // Headless SCA - THE KARATE KID PART II driver (CODEF 495, apps/zig/scenes/sca_karatekid2.zig).
-// Boots the sealed machine as docs/sealed-loader.js does, renders every frame and
+// Boots the sealed machine as site/js/sealed-loader.js does, renders every frame and
 // checks what this screen is made of, against the CODEF source's own numbers:
 //   bar      the LEFT BORDER (physical x 3) on the 28 bar lines is raster.png's colours,
 //            black above and below: the register shows in the border, full width
@@ -8,10 +8,10 @@
 //   stars    star colours reach the bottom 40 content rows (the open bottom border)
 //   node apps/harness/sca_karatekid2_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
-const CART = "docs/demo-sca_karatekid2.wasm";
+const CART = "site/carts/demo-sca_karatekid2.wasm";
 const TOP = 40; // physical row of content line 0 (and column 40 of content x 0)
 const LEFT = 40;
 const BAR_Y = 50, BAR_LINES = 28;
@@ -39,10 +39,10 @@ async function boot(cart = CART) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);

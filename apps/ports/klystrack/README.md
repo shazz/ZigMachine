@@ -17,7 +17,7 @@ songs. Ours (MIT, as the repo): every `kestrel_*` file, `mkbundle.py`, `patches/
 
     apps/ports/fetch.sh
     make -C apps/ports/klystrack link             # build/demo-klystrack.wasm (byte-identical to docs/ at the pin)
-    make -C apps/ports/klystrack install          # copy it to docs/, repack docs/demo-klystrack.zmd (tools/mkdisks.sh)
+    make -C apps/ports/klystrack install          # copy it to docs/, repack site/carts/demo-klystrack.zmd (tools/mkdisks.sh)
     node apps/harness/ports_headless.mjs klystrack        # the gate's check: boot, UI pin, F5 plays STARPRT2.KT, Esc quits to GEM
     node apps/harness/klystrack_cost.mjs                  # the gate's repaint-cost ceilings (frame_cost est, playing and menu)
     node apps/ports/klystrack/run.mjs 240         # from the repo root: headless run, PNGs in build/
@@ -25,11 +25,11 @@ songs. Ours (MIT, as the repo): every `kestrel_*` file, `mkbundle.py`, `patches/
     CLICKS="30,270,87" node ...run.mjs 120            # click PLAY (klystrack 320x240 coordinates)
     CART=other.wasm node ...run.mjs 240               # the same run on another build (before/after)
     make -C apps/ports/klystrack names            # build/names/demo-klystrack.wasm: the cart with function names
-    node apps/harness/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd
+    node apps/harness/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk site/carts/demo-klystrack.zmd
                                                   # board cost per frame; add --call 30:key:57349 --call 33:keyUp:57349
                                                   # to play (F5), or --warmup 0 --frames 1 for boot()
 
-The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
+The cart: `site/carts/demo-klystrack.wasm` on `site/carts/demo-klystrack.zmd`.
 
 ## Layout
 
@@ -49,7 +49,7 @@ The cart: `docs/demo-klystrack.wasm` on `docs/demo-klystrack.zmd`.
 | `kestrel_port.h` | force-included: the pattern / sequence caps, `getuid` |
 | `mkbundle.py` | builds the `Default` theme bundle (klystron's `bnd!` format) like upstream's Makefile `theme_defs` |
 | `patches/*.sed` | see below |
-| `run.mjs` | headless runner (from pt2's): boots on `docs/machine-video.wasm` + `docs/rom.wasm` with the floppy, `CLICKS` (`frame,x,y[,buttons,hold]`: 4 = right button), `MOVES` (`frame,x,y,buttons`), `KEYS`, `SNAP`, `AUDIO`, `HASHES=file` (sha256 of every frame's picture: `CART=old.wasm HASHES=a.txt` then `HASHES=b.txt`, `cmp`) |
+| `run.mjs` | headless runner (from pt2's): boots on `site/machine-video.wasm` + `site/rom.wasm` with the floppy, `CLICKS` (`frame,x,y[,buttons,hold]`: 4 = right button), `MOVES` (`frame,x,y,buttons`), `KEYS`, `SNAP`, `AUDIO`, `HASHES=file` (sha256 of every frame's picture: `CART=old.wasm HASHES=a.txt` then `HASHES=b.txt`, `cmp`) |
 
 ### Patches (all small; each says why in its header)
 
@@ -127,7 +127,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
   `kestrel_getcwd`, as grafx2).
 - Songs and instruments open off C: as off the floppy. Saving to C: is not built yet (klystrack's save goes
   through the same fopen; to be proven with the write calls, docs/os/KOS_GEMDOS_WRITES.md).
-- `node apps/harness/ports_cdrive_check.mjs klystrack`: a copy of docs/gemdos-c.img with `HD/SONGS/STARPORT.KT` (the
+- `node apps/harness/ports_cdrive_check.mjs klystrack`: a copy of site/disks/gemdos-c.img with `HD/SONGS/STARPORT.KT` (the
   floppy's STARPORT2.KT bytes); the box opens C, SONGS, STARPORT.KT, and the frame equals the floppy's
   STARPORT2.KT opened the same way (`--break c|bytes|list` must fail).
 

@@ -25,7 +25,7 @@ thread, and the loader polls the cart once per frame for a request.
 ```c
 #include "../zigmachine_music.h"   // from exactly ONE .c file per cart
 void boot(void) {
-    zm_request_song("sos.sndh");                      // a file under docs/music/
+    zm_request_song("sos.sndh");                      // a file under site/music/
     // zm_request_song_tune("leavin_teramis.sndh", 9); // a subtune, counted from 1
 }
 ```
@@ -71,8 +71,8 @@ Proof: `node apps/harness/c_fujiboink_headless.mjs`, against Hatari captures.
 
 ## Build & run
 ```bash
-bash apps/c/build.sh                          # -> docs/demo-c.wasm (uses `zig cc`)
-node apps/harness/verify.mjs docs/demo-c.wasm         # headless ABI check
+bash apps/c/build.sh                          # -> site/carts/demo-c.wasm (uses `zig cc`)
+node apps/harness/verify.mjs site/carts/demo-c.wasm         # headless ABI check
 cd docs && python3 -m http.server 3333
 # open http://localhost:3333/sealed.html?demo=demo-c.wasm
 ```

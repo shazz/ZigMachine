@@ -1,7 +1,7 @@
 """The board firmware's input path (cycles/binput.c -> host/input_bridge.c -> glass_input.c ->
 the cart's exports), through the native host: ZM_GLASS_KEYS plays a key-FIFO script into the
 same router, and the frame hashes say what the cart did with it. The reference is the browser's
-own call (--call F:export:arg, docs/sealed-loader.js), and a mutant router must be caught."""
+own call (--call F:export:arg, site/js/sealed-loader.js), and a mutant router must be caught."""
 
 from __future__ import annotations
 

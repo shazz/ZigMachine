@@ -22,7 +22,7 @@ import re
 import sys
 from pathlib import Path
 
-DOCS = Path(__file__).resolve().parent.parent / "docs"
+DOCS = Path(__file__).resolve().parent.parent / "site"
 # A local src/href on a <script> or <link> tag: not a URL with a scheme, not
 # protocol-relative, not an in-page anchor. Only .js and .css are versioned; the
 # loader cache-busts the .wasm/.zmd it fetches itself (BUST in sealed-loader.js).

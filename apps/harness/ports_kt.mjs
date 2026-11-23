@@ -1,6 +1,6 @@
 // The klystrack cart's songs on the machine's .kt player (apps/ports/klystrack/kestrel_bard.c): what the
 // cart asks for through the song bridge and the effects queue each frame (ports_machine.mjs step), and the
-// handed-over .kt played on the real audio modules (docs/machine-audio.wasm + docs/demo-audio.wasm).
+// handed-over .kt played on the real audio modules (site/machine-audio.wasm + site/demo-audio.wasm).
 import { readFile } from "node:fs/promises";
 
 /** The frame's song requests: a name ("none" stops) or a requestSongBytes image ({kind, row, bytes}). */
@@ -24,10 +24,10 @@ export function drainSongs(m, frame) {
 /** The .kt played from `row` for `seconds` on the audio modules: refusal reason, mode and loudness. */
 export async function playKt(bytes, row, seconds = 2) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const mach = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const mach = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const k of Object.keys(mach)) if (k.startsWith("machine")) env[k] = mach[k];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
     if (!a.audioLoadKt(bytes.length)) return { ok: false, error: a.audioKtError() };

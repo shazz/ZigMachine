@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
     const tc_art_dir = b.option([]const u8, "tc-art", "TC TEST: embed the pictures in this directory (local only: never commit that cart).");
     // GEM 5's look (docs/project/DECISIONS.md 2026-11-09): a LOCAL asset directory (Matt's TOS 4 reconstruction) is
     // converted into the build cache and compiled into the ROM. Unset: the TOS 1.0 set in the repo.
-    // Never commit a docs/rom.wasm built with it: build such a ROM into a scratch prefix.
+    // Never commit a site/rom.wasm built with it: build such a ROM into a scratch prefix.
     const gem_assets_dir = b.option([]const u8, "gem_assets", "GEM: compile this LOCAL asset directory into the ROM (never commit the result).");
     const gem_trees_dir = b.option([]const u8, "gem_trees", "GEM: also compile the object trees of this LOCAL zig_extract directory.");
     const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
@@ -461,13 +461,15 @@ pub fn build(b: *std.Build) void {
     rom_chip.max_memory = video_shared_bytes;
     rom_chip.global_base = rom_global_base;
     b.getInstallStep().dependOn(&b.addInstallFileWithDir(
-        rom_chip.getEmittedBin(), .{ .custom = "../docs" }, "rom.wasm").step);
+        rom_chip.getEmittedBin(), .{ .custom = "../site" }, "rom.wasm").step);
 
     const sealed_step = b.step("sealed", "Compiles the sealed machine + open demo wasm");
 
     const installTo = struct {
-        fn add(bld: *std.Build, art: *std.Build.Step.Compile, step: *std.Build.Step) void {
-            const inst = bld.addInstallArtifact(art, .{ .dest_dir = .{ .override = .{ .custom = "../docs" } } });
+        // dir: "../site" for the machine's chips (the page fetches them from its root),
+        // "../site/carts" for carts and boot sectors (relative to the install prefix, zig-out).
+        fn add(bld: *std.Build, art: *std.Build.Step.Compile, step: *std.Build.Step, dir: []const u8) void {
+            const inst = bld.addInstallArtifact(art, .{ .dest_dir = .{ .override = .{ .custom = dir } } });
             bld.getInstallStep().dependOn(&inst.step);
             step.dependOn(&inst.step);
         }
@@ -490,7 +492,7 @@ pub fn build(b: *std.Build) void {
     machine_video.stack_size = machine_stack;
     machine_video.initial_memory = video_shared_bytes;
     machine_video.max_memory = video_shared_bytes;
-    installTo(b, machine_video, sealed_step);
+    installTo(b, machine_video, sealed_step, "../site");
 
     const machine_audio = b.addExecutable(.{
         .name = "machine-audio",
@@ -509,9 +511,9 @@ pub fn build(b: *std.Build) void {
     addCrsid(b, machine_audio.root_module);
     addAyumi(b, machine_audio.root_module);
     addVgm(b, machine_audio.root_module);
-    installTo(b, machine_audio, sealed_step);
+    installTo(b, machine_audio, sealed_step, "../site");
 
-    // docs/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
+    // site/kos-cfs.wasm: KFS, C:'s writer where C: is an image (the page, node's harnesses; the
     // native host wasm2c's it). KOS GEMDOS's writes, docs/os/KOS_GEMDOS.md §7. Memory of its own.
     const kos_cfs = b.addExecutable(.{
         .name = "kos-cfs",
@@ -523,7 +525,7 @@ pub fn build(b: *std.Build) void {
     });
     kos_cfs.entry = .disabled;
     kos_cfs.rdynamic = true;
-    installTo(b, kos_cfs, sealed_step);
+    installTo(b, kos_cfs, sealed_step, "../site");
 
     // ----------------------------------------------------------------------
     // apps/zig/ — OPEN coder binaries (import zigos / rom / players / audio_hw)
@@ -578,7 +580,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_tnt2", // 53 — The Union Demo / TNT2, the TNT-Crew's parallax superscroller (melonJS remake)
         "demo-union_beatdis", // 54 — The Union Demo / TCB1 BEAT DIS, 1 MB and 1/2 MB (melonJS remake)
         "demo-union_superscroller", // 55 — The Union Demo / TCB2 WOW!-SCROLLER (melonJS remake)
-        "demo-tutorial_steps", // 56 — tutorial.zig stopped at any step, for docs/TUTORIAL.html
+        "demo-tutorial_steps", // 56 — tutorial.zig stopped at any step, for site/TUTORIAL.html
         "demo-automation442", // 57 — AUTOMATION CD 442 PART A, the Ghostbusters II menu (CODEF screen 420)
         "demo-big_demo", // 58 — The Exceptions / The B.I.G. Demo jukebox (CODEF screen 23)
         "demo-tlb_spoon", // 59 — THE LOST BOYS / THE TWIDDLE DEMO, ULM Megademo (CODEF screen 122)
@@ -715,7 +717,7 @@ pub fn build(b: *std.Build) void {
         exe.initial_memory = video_shared_bytes;
         exe.max_memory = video_shared_bytes;
         exe.global_base = demo_global_base;
-        installTo(b, exe, sealed_step);
+        installTo(b, exe, sealed_step, "../site/carts");
     }
 
     // Executable boot-sector programs (ZigCart format v2): bare wasm — no ZigOS/ROM,
@@ -746,7 +748,7 @@ pub fn build(b: *std.Build) void {
         exe.initial_memory = video_shared_bytes;
         exe.max_memory = video_shared_bytes;
         exe.global_base = demo_global_base;
-        installTo(b, exe, sealed_step);
+        installTo(b, exe, sealed_step, "../site/carts");
     }
 
     const demo_audio = b.addExecutable(.{
@@ -769,7 +771,7 @@ pub fn build(b: *std.Build) void {
     demo_audio.max_memory = audio_bytes;
     demo_audio.global_base = audio_demo_base;
     if (keep_names) demo_audio.root_module.strip = false; // apps/harness/kt_cost.mjs ranks the players by function
-    installTo(b, demo_audio, sealed_step);
+    installTo(b, demo_audio, sealed_step, "../site");
 }
 
 // pvmp3 (PacketVideo, Apache-2.0: libs/c/pvmp3/README.md) and its door zm_mp3.cpp, compiled into a

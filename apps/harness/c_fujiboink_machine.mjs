@@ -4,20 +4,20 @@
 // two emulators' different gun scales (Hatari v*34, the machine v*32) compare.
 import { readFile } from "node:fs/promises";
 import { inflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 export const OFF_PAL = 0x0100, REG_FB_BASE = 0x44; // memmap.zig
 
-// Boot the cart the way docs/sealed-loader.js does. `hbl` wraps the cart's
+// Boot the cart the way site/js/sealed-loader.js does. `hbl` wraps the cart's
 // hblDispatch so a harness can watch (or sabotage) the per-line handler.
 export async function boot(cart, hbl = (demo, id, p, l, x) => demo.hblDispatch(id, p, l, x)) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => hbl(demo, id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

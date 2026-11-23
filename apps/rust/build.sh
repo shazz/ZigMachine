@@ -8,14 +8,14 @@
 # submodules in scenes/<name>/), its generated data under assets/screens/<name>/.
 # Each scene builds to its OWN cart, the way each Zig scene is its own cartridge.
 #
-#   hello.rs              -> docs/demo-rust.wasm         (the name verify.mjs uses)
-#   scenes/<name>.rs      -> docs/demo-rust-<name>.wasm
+#   hello.rs              -> site/carts/demo-rust.wasm         (the name verify.mjs uses)
+#   scenes/<name>.rs      -> site/carts/demo-rust-<name>.wasm
 #
 # Uses rustc's bundled rust-lld, so no system wasm-ld is needed. Requires the
 # wasm32-unknown-unknown target: rustup target add wasm32-unknown-unknown
 set -euo pipefail
 cd "$(dirname "$0")"
-OUT=../../docs
+OUT=../../site/carts
 
 # Layout MUST match build.zig's demo module (see apps/c/build.sh for the why).
 MEM=8388608; GLOBAL_BASE=1048576                 # 128*65536 (memmap.SHARED_PAGES) ; 0x100000
@@ -23,7 +23,7 @@ EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode input)
 # --no-stack-first: rustc's wasm32 default puts the 1 MiB stack FIRST, growing
 # down from --global-base -- i.e. from 0x100000 into the MACHINE's RAM below the
 # cart window -- and leaves .bss out of the data segments, so the host's
-# high-water (docs/wasm_hiwater.js: max(stack pointer, data end)) ended at the
+# high-water (site/js/wasm_hiwater.js: max(stack pointer, data end)) ended at the
 # initialised data and missed the cart's zeroed statics. hwRamFree() then
 # over-reported, and the RAM arena (HW 1.7.0) handed out the cart's own .bss.
 # Stack-last is the layout C and Zig carts already have: data, .bss, then the
@@ -51,4 +51,4 @@ else
     build hello.rs "$OUT/demo-rust.wasm"
     for src in scenes/*.rs; do build "$src" "$OUT/demo-rust-$(basename "$src" .rs).wasm"; done
 fi
-echo "OK — verify the ABI with: node apps/harness/verify.mjs docs/demo-rust.wasm"
+echo "OK — verify the ABI with: node apps/harness/verify.mjs site/carts/demo-rust.wasm"

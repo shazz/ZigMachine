@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan step 0a: translate every cart (docs/demo-*.wasm) to C with wasm2c and
+# Plan step 0a: translate every cart (site/carts/demo-*.wasm) to C with wasm2c and
 # compile it for rv32imf, the cart CPU's ISA. Proves the wasm -> RISC-V route
 # carries the whole shelf with no cart changes, and reports each cart's code size
 # (what the cart CPU's I-cache and the DDR cart window have to hold).
@@ -26,9 +26,9 @@ mkdir -p "$OUT"
 
 carts=()
 if [ $# -gt 0 ]; then
-    for tag in "$@"; do carts+=("$ROOT/docs/demo-$tag.wasm"); done
+    for tag in "$@"; do carts+=("$ROOT/site/carts/demo-$tag.wasm"); done
 else
-    carts=("$ROOT"/docs/demo-*.wasm)
+    carts=("$ROOT"/site/carts/demo-*.wasm)
 fi
 
 ok=0 failed=0

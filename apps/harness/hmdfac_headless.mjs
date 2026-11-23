@@ -33,7 +33,7 @@
 //   node apps/harness/hmdfac_headless.mjs [outdir]
 //   node apps/harness/hmdfac_headless.mjs --break state|pixels|music|original   (each must FAIL)
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 import * as H from "./hmdfac_model.mjs";
 import * as P from "./hmdfac_p4_model.mjs";
 
@@ -49,13 +49,13 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 // ---------------- boot (the ikplus shape) -----------------------------------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-hmdfac.wasm");
+const cartBytes = await readFile("site/carts/demo-hmdfac.wasm");
 const env = {
     ...romEnv,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,

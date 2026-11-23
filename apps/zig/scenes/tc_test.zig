@@ -27,7 +27,7 @@
 //     ZM_TC_ART=prototypes/tc_test_art ./build.sh --fast
 // tools/tc_art.py converts them (sorted by name, cropped to 400x280, Falcon words only
 // byte-swapped) and N / P step through them. A plain ./build.sh (the gate) leaves them out:
-// rebuild that way before committing docs/demo-tc_test.*. apps/harness/tc_test_check.mjs fails if a
+// rebuild that way before committing site/carts/demo-tc_test.*. apps/harness/tc_test_check.mjs fails if a
 // git-tracked cart carries any.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");

@@ -22,7 +22,7 @@ A **MicroPhase Z7-Lite** (Zynq XC7Z010, 512 MB DDR3 on the PS side).
   `BOOT.BIN`). You type at U-Boot's prompt over the serial console to put the firmware in DDR and
   release the cart CPU. The Linux "glass" program (keyboard, menu, disk loading) is written
   ([`docs/hardware/FPGA_GLASS.md`](FPGA_GLASS.md)) but is not what runs today.
-- **Carts stay wasm.** A scene is built to `docs/demo-<name>.wasm` exactly as for the browser; the
+- **Carts stay wasm.** A scene is built to `site/carts/demo-<name>.wasm` exactly as for the browser; the
   FPGA flow translates it with wasm2c to C and compiles that for RISC-V together with the machine
   and the ROM. (One exception, for seeing the bare machine: a cart written for the RISC-V core
   directly, in C or assembly, [section 10](#10-a-native-cart-kestrel-only).)
@@ -55,7 +55,7 @@ Setup, once: `make -C fpga setup` (submodules, uv env, sv2v and wasm2c pinned).
 ### 3.1 The cart
 
 A scene `apps/zig/scenes/<name>.zig` (registered in `catalog.zig`, see `docs/guide/BUILDING.md`) is built by
-the normal build into **`docs/demo-<name>.wasm`**. While iterating, `./build.sh --only <name>` (under
+the normal build into **`site/carts/demo-<name>.wasm`**. While iterating, `./build.sh --only <name>` (under
 `flock prototypes/_gate_logs/build.lock`, as the repo's `CLAUDE.md` demands) rebuilds just it. That
 `.wasm` is the cart; the FPGA flow never reads the Zig. The cart name is the file name without
 `demo-` and `.wasm`: `union_beatdis`, `tutorial`, ...
@@ -173,7 +173,7 @@ monitor, board powered.
    ```
    `--what picture|fb0|fb1|pfb` (default `picture`: what is shown; `pfb`: the machine's palette-frame
    buffer exactly as `scene_hash` sees it, and `--expect <file>` compares it with a native-host dump
-   `HOST_DUMP_PFB=<file> fpga/build/host/<cart>/host docs/demo-<cart>.wasm N N`), `--keep-frozen`.
+   `HOST_DUMP_PFB=<file> fpga/build/host/<cart>/host site/carts/demo-<cart>.wasm N N`), `--keep-frozen`.
 6. **By hand, from U-Boot** (what `board_run` does; the manual table is in the board README,
    "Running a cart from U-Boot"):
    ```
@@ -277,7 +277,7 @@ correct). Re-measure with `make -C fpga cycles CARTS="..."`.
   (the command-line variables reach the sub-makes through MAKEFLAGS; the UART log shows `ZM BLIT 0 0 0`,
   i.e. the software blitter). Frame hashes from the board SoC in Verilator:
   frame 5 `1ad76fb0...2165`, frame 10 `abd24953...9ccc`, total `d088f0e4...f97e`.
-  `node apps/harness/scene_hash.mjs docs/demo-union_beatdis.wasm 10 5` prints the **identical** three hashes.
+  `node apps/harness/scene_hash.mjs site/carts/demo-union_beatdis.wasm 10 5` prints the **identical** three hashes.
   The log also reports `ZM VSTAT 0 0 9 152 0` (no video underrun) and `ZM END 0`.
 - No step failed, so no workaround is needed. Note that `hp-sim` takes the same `CART`/`ZM_*` variables as
   `board-fw` but builds its own `sim` image (`build/hcycles/sim/<cart>/fw.bin`); it does not test the
@@ -312,7 +312,7 @@ uv run python tools/glass_sd.py --out build/glass/sd \
 - `disk.zmd` is the shelf disk the cart is fattened into: a v1 disk whose wasm boot cart only draws
   "THIS DISK RUNS ON KESTREL ONLY" (`cycles/native/browser_stub.c`), titled `HELLO WORLD (C)` /
   `HELLO WORLD (ASM)`. `glass_shelf.py` takes `<fw-dir>/<tag>/disk.zmd` instead of
-  `docs/demo-<tag>.zmd` when there is one, so `glass_sd.py` stages the carts as
+  `site/carts/demo-<tag>.zmd` when there is one, so `glass_sd.py` stages the carts as
   `CARTS/tests/demo-hello.zmd` and `demo-hello_asm.zmd` (the OSD's TESTS/ folder).
 - `fpga/tests/test_native_cart.py` builds both, checks the headers and the disk, stages a card, and
   holds the tutorial's listings to the sources.

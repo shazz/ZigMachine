@@ -1,4 +1,4 @@
-/* The keyboard for SyncTERM: the cart's input exports (docs/sealed-loader.js and the board's glass call them)
+/* The keyboard for SyncTERM: the cart's input exports (site/js/sealed-loader.js and the board's glass call them)
  * become ciolib key codes in a ring, read by kestrel_cio.c's kbhit/getch. A ciolib code is a byte, or for an
  * extended key 0x00 then its scan code (CIO_KEY_UP = 0x4800 is 0x00, 0x48), as retro.c's keybuf.
  *

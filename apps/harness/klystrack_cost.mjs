@@ -19,14 +19,14 @@
 // the window on purpose: it comes every few hundred frames in both rounds. --break cost asks for 0 and must fail.
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
-const CART = process.env.CART ?? "docs/demo-klystrack.wasm"; // CART=...: another build (a before/after)
+const CART = process.env.CART ?? "site/carts/demo-klystrack.wasm"; // CART=...: another build (a before/after)
 const CEIL = { playMedian: 1.8, playRow: 9.5, playMean: 2.3, menuMax: 1.25, bothMean: 2.9, instMean: 1.35, instMax: 1.9, subOne: 1.7, subCross: 10, patOne: 1.6, patCross: 4.5 };
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (broke && broke !== "cost") throw new Error("--break cost");
 const scale = broke ? 0 : 1; // --break cost: every ceiling ~0
 
 async function series(calls, warmup) {
-    const args = [CART, "--disk", "docs/demo-klystrack.zmd", "--frames", "60", "--warmup", String(warmup), "--top", "1"];
+    const args = [CART, "--disk", "site/carts/demo-klystrack.zmd", "--frames", "60", "--warmup", String(warmup), "--top", "1"];
     for (const c of calls) args.push("--call", c);
     const r = await costOf(CART, parseArgs(args));
     return r.mc.series ?? r.series;

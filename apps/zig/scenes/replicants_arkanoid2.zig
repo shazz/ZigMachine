@@ -7,7 +7,7 @@
 // Graphics, scrolltext and the original ST intro belong to The Replicants;
 // music: Mad Max's "Pro BMX Simulator A" — the remake plays
 // 'Pro BMX Simulator A.ym'; here its SNDH, the same file Garfield (cart 31)
-// plays (docs/music/pro_bmx_simulator_a.sndh, FLAG ~y).
+// plays (site/music/pro_bmx_simulator_a.sndh, FLAG ~y).
 //
 // Reference kept at prototypes/codef/33/ (tools/private_tools/fetch_codef.py 33).
 // Assets: tools/private_tools/replicants_arkanoid2_assets.py.

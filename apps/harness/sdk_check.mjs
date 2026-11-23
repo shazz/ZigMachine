@@ -3,12 +3,12 @@
 // sdk/template is copied OUTSIDE the repository (a fresh temp dir), its build.zig.zon pointed back
 // at this checkout, and built with its own build.zig (sdk/build_cart.zig: the repo as a Zig
 // package) and its own Makefile (`make floppy`). Then the cart runs on the real
-// docs/machine-video.wasm + docs/rom.wasm, strictly linked (apps/harness/ports_machine.mjs):
+// site/machine-video.wasm + site/rom.wasm, strictly linked (apps/harness/ports_machine.mjs):
 //   - it builds at all: a demo_main.zig import build.zig gained and sdk/build_cart.zig lacks fails here;
 //   - plane 0 is on, the picture moves frame to frame (the scroller);
 //   - the rasters are REAL: the window's left column, palette entry 0 on every line, takes 8+
 //     colours down the screen, which only a per-line palette write (the copper's HBL) gives;
-//   - the song it requests is a file under docs/music/;
+//   - the song it requests is a file under site/music/;
 //   - `make floppy` writes a bootable .zmd that carries the cart.
 //
 //   node apps/harness/sdk_check.mjs [--break still|raster|song]
@@ -72,7 +72,7 @@ async function run(dir) {
     check("moving", hashes.size === frames.length, `${hashes.size} different pictures in ${frames.length} samples`);
     check("rasters", rasterColours(frames.at(-1)) >= 8, `${rasterColours(frames.at(-1))} colours down the background column`);
     const song = m.demo.pollSongRequest() ? new TextDecoder().decode(new Uint8Array(m.memory.buffer, m.demo.songNamePtr(), m.demo.songNameLen())) : "";
-    check("song", song !== "" && existsSync(path.join(ROOT, "docs/music", song)), `requests "${song}", ${song && existsSync(path.join(ROOT, "docs/music", song)) ? "in" : "NOT in"} docs/music/`);
+    check("song", song !== "" && existsSync(path.join(ROOT, "site/music", song)), `requests "${song}", ${song && existsSync(path.join(ROOT, "site/music", song)) ? "in" : "NOT in"} site/music/`);
     return failed;
 }
 

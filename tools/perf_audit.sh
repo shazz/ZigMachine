@@ -23,5 +23,5 @@ case "$1" in
 "") echo "usage: tools/perf_audit.sh <cart.wasm|tag> [options] | --all | --report" >&2; exit 2 ;;
 esac
 cart=$1; shift
-[ -f "$cart" ] || cart=docs/demo-$cart.wasm
+[ -f "$cart" ] || cart=site/carts/demo-$cart.wasm
 exec node apps/harness/perf_audit.mjs "$cart" "$@"

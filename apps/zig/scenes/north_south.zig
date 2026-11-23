@@ -23,7 +23,7 @@
 // predicted number of VBLs.
 //
 // SOUND. Digitised samples played by a Timer A interrupt through the YM volume
-// registers. A cart cannot write the YM, so docs/music/north_south_digi.sndh
+// registers. A cart cannot write the YM, so site/music/north_south_digi.sndh
 // carries the original player (Timer A $417E + the VBL sequencer $49D4) and the
 // bank; INIT n+1 plays sequence n, and a request cuts the current sound, as
 // play_seq does (apps/zig/assets/screens/north_south/ns_digi.s). Requests are

@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // Union cracktro playlist: keys 1-6 (union_intro.zig, main.zig). The scene OWNS
-// it (the host holds none): files under docs/music/union/.
+// it (the host holds none): files under site/music/union/.
 //
 // The originals are the remake's prototypes/oldies/UnionDemoCracktro/intro/zik/
 // *.ym (LHA'd YM5/YM6). Proof, 2026-10-20, each SNDH rendered headless through
@@ -29,7 +29,7 @@
 //     (5,897 files, every subtune) scanned by periods in order (offsets
 //     -60..400: best 23%, 505/TK_Machine) and out of order (the false hits,
 //     e.g. Scy/TSCC_Mod_Compil_5, are 0% in order). Matt (2026-10-20): play
-//     505's own Drooling.sndh anyway (docs/music/union/drooling_505.sndh), and
+//     505's own Drooling.sndh anyway (site/music/union/drooling_505.sndh), and
 //     (2026-10-23) it PLAYS: it is not a DMA replay at all (no $FF89xx in it; its
 //     FLAG ~e is wrong): a YM tracker + a Timer A YM digi that opens with ~4 s
 //     of silence, which a one-second check took for a dead tune.

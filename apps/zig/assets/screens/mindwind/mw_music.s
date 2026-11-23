@@ -1,6 +1,6 @@
 ; ---------------------------------------------------------------------------
 ; MIND REWIND (Reservoir Gods, EIL 2003): Count Zero's STE DMA music, as an SNDH
-; (docs/music/mindwind.sndh).
+; (site/music/mindwind.sndh).
 ;
 ; The demo's music is four sample voices summed in software into a 500-byte
 ; stereo frame (250 pairs, 12517 Hz) each VBL and played by the STE DMA chip.
@@ -29,7 +29,7 @@
 ; The demo's parts wait on the song position (voice 1's event count, $771E);
 ; the cart keeps those as frame counts instead.
 ;
-; Build: vasmm68k_mot -Fbin -nosym -o docs/music/mindwind.sndh \
+; Build: vasmm68k_mot -Fbin -nosym -o site/music/mindwind.sndh \
 ;            apps/zig/assets/screens/mindwind/mw_music.s
 ; ---------------------------------------------------------------------------
 M_INIT	equ	$0		; $75FE: microwire, buffers, step tables, voices, song 1

@@ -1,7 +1,7 @@
 // SID-Wizard's SID on the sound side (apps/ports/sidwizard, SW_SID_ON_BARD): every write the C64 program makes to
 // the SID goes on the BARD queue stamped with its C64 cycle, and SID live plays it. Two hosts, as
 // apps/harness/bard_queue_check.mjs proves for BARD SID:
-//   page     the cart (docs/demo-sidwizard.wasm) over the machine + ROM with its floppy in the drive, the loader's
+//   page     the cart (site/carts/demo-sidwizard.wasm) over the machine + ROM with its floppy in the drive, the loader's
 //            hostBardAttach / bardFrame / bardPublish and the worklet's bardQueue / bardState on the real audio
 //            modules (apps/harness/bard_queue_lib.mjs pageSound)
 //   native   the same cart on host_audio (fpga/build/host/sidwizard: wasm2c, cRSID native, host/bardq_pump.c)
@@ -21,10 +21,10 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { pageSound } from "./bard_queue_lib.mjs";
 
-const CART = "docs/demo-sidwizard.wasm", DISK = "docs/demo-sidwizard.zmd";
+const CART = "site/carts/demo-sidwizard.wasm", DISK = "site/carts/demo-sidwizard.zmd";
 const FRAMES = 900, F1_AT = 322, MIN_SAMPLES = 44100 * 8;
 const BREAKS = ["stamp", "reg"];
 const bi = process.argv.indexOf("--break");
@@ -37,8 +37,8 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
  * Returns the left channel and the sound side's counters. */
 async function pageRun({ ms = 16.6, base = 16.6, frames = FRAMES, clock = () => 0 } = {}) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const disk = await readFile(DISK), cartBytes = await readFile(CART);

@@ -74,10 +74,10 @@ $(OUT)/demo-grafx2.wasm: $(OUT)/demo-grafx2.raw.wasm
 clean:
 	rm -rf $(OUT)
 
-# The shipped cart: docs/demo-grafx2.wasm, committed prebuilt (build.sh does not rebuild the C ports).
-# tools/mkdisks.sh (the one recipe for the disk) packs docs/demo-grafx2.zmd from it plus data/ (the default
+# The shipped cart: site/carts/demo-grafx2.wasm, committed prebuilt (build.sh does not rebuild the C ports).
+# tools/mkdisks.sh (the one recipe for the disk) packs site/carts/demo-grafx2.zmd from it plus data/ (the default
 # skin and font as GIF, gfx2def.ini) and ownpics/ (our own plasma art as PI1, NEO and GIF). Pictures ripped
 # from other people's work never go on it.
 install: $(OUT)/demo-grafx2.wasm
-	cp $< ../../../docs/demo-grafx2.wasm
+	cp $< ../../../site/carts/demo-grafx2.wasm
 	cd ../../.. && tools/mkdisks.sh

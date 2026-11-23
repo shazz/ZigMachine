@@ -65,10 +65,10 @@ function tune() {
 
 async function machine() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     const regs = new Uint8Array(memory.buffer, m.audioYmRegsPtr(), 16);
     const ram = new Uint8Array(memory.buffer, a.audioSongPtr(), 0x1000);

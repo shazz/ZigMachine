@@ -38,7 +38,7 @@
 // replay and song bytes as Whittaker_David/Dogs_of_War.sndh (51% of its
 // 16-byte chunks; the next file 26%), and subtune 1 reproduces the YM6's
 // registers 0..10 EXACTLY on every one of 6000 frames (2 minutes; a 4-frame
-// start offset), the other subtunes 0%. docs/music/dogs_of_war.sndh is that
+// start offset), the other subtunes 0%. site/music/dogs_of_war.sndh is that
 // file. The 68000 replay runs on the sound CPU (BARD on the board), not on the
 // cart CPU. (The Go also lets the arrow keys move the projection centre;
 // that is an interactive extra, not part of the captured demo, so it is not

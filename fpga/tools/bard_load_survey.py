@@ -15,7 +15,7 @@ a loaded box it moved 3x between two runs of the same tune. The table gives the 
 half second: a load held longer than BARD's few frames of lead plays slow. A song whose native
 driver (status > 4) recognises it plays at its own measured cost instead.
 
-The songs: every song-named literal in docs/demo-*.wasm (as tools/song_pack.py finds them), plus
+The songs: every song-named literal in site/carts/demo-*.wasm (as tools/song_pack.py finds them), plus
 SOURCE_ONLY, the carts whose literal the linker packed out of reach of that scan.
 """
 
@@ -32,7 +32,7 @@ from song_pack import NAME
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
-MUSIC = ROOT / "docs/music"
+MUSIC = ROOT / "site/music"
 ORACLE = FPGA / "build/host/oracle/sndh_survey"  # make sndh-survey
 # Carts whose song name the wasm scan does not see (built from a packed data segment): their sources'.
 SOURCE_ONLY = {
@@ -54,7 +54,7 @@ WINDOW = 30  # frames (0.5 s): a load sustained longer than BARD's 3-4 frames of
 
 def cart_songs() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
-    for w in sorted((ROOT / "docs").glob("demo-*.wasm")):
+    for w in sorted((ROOT / "site" / "carts").glob("demo-*.wasm")):
         cart = w.stem.removeprefix("demo-")
         names = {m.group().decode() for m in NAME.finditer(w.read_bytes())} | set(SOURCE_ONLY.get(cart, []))
         names = {n for n in names if (MUSIC / n).is_file()}

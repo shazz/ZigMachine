@@ -1,4 +1,4 @@
-/* ---- The cart selector: every channel as a list on the glass (docs/cart-select.js)
+/* ---- The cart selector: every channel as a list on the glass (site/js/cart-select.js)
    The font, colour, glow and odd-line comb come from the shared GLASS rule in
    crt.css (.cart_osd, .cart_select); this file only lays the list out.
 

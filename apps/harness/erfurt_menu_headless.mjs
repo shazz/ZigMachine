@@ -1,5 +1,5 @@
-// Headless THE ERFURT MEGADEMO menu (docs/demo-erfurt_menu.wasm): boots the sealed machine + the
-// cart the way docs/sealed-loader.js does and checks the screen against the ORIGINAL's data
+// Headless THE ERFURT MEGADEMO menu (site/carts/demo-erfurt_menu.wasm): boots the sealed machine + the
+// cart the way site/js/sealed-loader.js does and checks the screen against the ORIGINAL's data
 // (apps/zig/assets/screens/erfurt_menu, ripped from the disks by prototypes/erfurt_re/tools):
 //   - the logo's 43 lines are logo.raw through logo_pal.dat, pixel for pixel (planar decode + STE colours)
 //   - the three rainbow lines are REAL rasters: the hue wheel (rainbow.dat), 12 px a colour,
@@ -10,7 +10,7 @@
 //   node apps/harness/erfurt_menu_headless.mjs [outdir] [--break hbl]
 //   --break hbl: the plane's HBL never runs (no per-line colours, no open borders): must FAIL.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES, machine/sdk/memmap.zig
 const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
@@ -20,10 +20,10 @@ async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const hbl = (id, p, l, x) => (BREAK === "hbl" && id !== 0xffff && p === 0 ? undefined : demo.hblDispatch(id, p, l, x));
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: hbl },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -56,7 +56,7 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-const { memory, machine, demo } = await boot("docs/demo-erfurt_menu.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-erfurt_menu.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight(); // 800 x 280: x doubled
 const XS = W / 400; // raster px -> PFB columns
 let frames = 0;

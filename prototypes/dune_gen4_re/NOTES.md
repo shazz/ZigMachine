@@ -134,12 +134,12 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
 ## Music
 - MUSIQUE.PRG == `prototypes/sndh_lf/Mr_X/Gen4.sndh` (TITL "Gen4 Demo", COMM "Mr X", RIPP/CONV
   Grazey, ~y, one subtune) at a constant offset of 514: 6614 of 6905 bytes equal, the rest relocated
-  addresses. `docs/music/dune_gen4.sndh` = that file; `node apps/harness/sndh_headless.mjs` PASS, peak 0.4228.
+  addresses. `site/music/dune_gen4.sndh` = that file; `node apps/harness/sndh_headless.mjs` PASS, peak 0.4228.
 - Init = $10000 (`jmp $10030`: `clr.l d0` then the song set-up): subtune 0 whatever d0 holds (Hatari:
   d0 = $FFFF at the call). Play = $10064 from each part's VBL. Stop = $10004 (volumes to 0).
 - The menu's tune: DUNE.PRG pokes $10024/$10028/$1002C over $1000C/$10010/$10014 before the second
   init; song 0's voice table is $10008, so voices B and C get other sequences. 
-  `docs/music/dune_gen4_menu.sndh` = Gen4.sndh with the same 12 bytes copied (at SNDH offset
+  `site/music/dune_gen4_menu.sndh` = Gen4.sndh with the same 12 bytes copied (at SNDH offset
   $202 + ...). The SNDH's own relocator moves them like the originals (they lie in its range). PASS.
 - **Credit discrepancy**: Demozoo says music by 520; the SNDH says Mr X. The demo's own scroller lists
   several tunes: "THE MUSIC (SOUNDTRACKER) BY S20 [=520]", ... "I HATE LIES ... BY MR X". The YM
@@ -181,7 +181,7 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
   Its Timer C handler also reads the key byte: F1 = output to the YM ($DDA, the default), **F2 =
   output to a replay cartridge** at $FA0000 (on a bare ST: silence). Not ported (the cart's F1/F2 do
   nothing on the title or F3).
-- `quartet/mk_sndh.py RE_DIR OUT.sndh` + `glue.s` (vasm) = `docs/music/dune_gen4_quartet.sndh`
+- `quartet/mk_sndh.py RE_DIR OUT.sndh` + `glue.s` (vasm) = `site/music/dune_gen4_quartet.sndh`
   (89882 bytes): SINGSONG's TEXT verbatim, relocated by the glue at the first INIT; SOUND2.SET; the four
   songs as DUNE.PRG holds them. Subtunes 1..4 = $1DF2, $24F2, $2A1E, $3316; TC200, FLAG ~acy.
   INIT copies the song into a Malloc'd 16 KB work buffer (so the in-place rewrite never touches the
@@ -189,7 +189,7 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
   C handler called as an interrupt. The SNDH engine passes d0 = 0 to PLAY, which would wreck voice 0's
   phase, so the glue wraps the Timer A vector and PLAY to keep d0 in memory between them. EXIT = stop,
   plus putting the replay's own Timer A handler back where stop saved the wrapper.
-- Verified: `node apps/harness/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh N` PASS for N = 1..4 (Timer A
+- Verified: `node apps/harness/sndh_headless.mjs site/music/dune_gen4_quartet.sndh N` PASS for N = 1..4 (Timer A
   16168 Hz, volumes moving on all three YM channels, no stuck PC, no unanswered trap); both gated.
   Against Hatari's sound (`quartet/avi_wav.py` pulls the PCM out of a `--sound 44100` AVI;
   `quartet/render.mjs` renders ours; a log-spectrogram correlation, `quartet/speccmp.py`):

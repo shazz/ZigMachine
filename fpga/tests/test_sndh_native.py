@@ -2,7 +2,7 @@
 the audio core's writes, (stamp, register, value), digested a frame at a time by
 host/sndh_oracle.c, must be the same over the whole tune. Also the board's write
 queue (host/audio_queue.h) at the native player's lead, and recognition's refusals.
-Needs `make sndh-oracle` (built here) and docs/demo-audio.wasm."""
+Needs `make sndh-oracle` (built here) and site/demo-audio.wasm."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from host_make import lock_argv  # noqa: E402
 
 FPGA = Path(__file__).resolve().parent.parent
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
-MUSIC = FPGA.parent / "docs/music"
+MUSIC = FPGA.parent / "site/music"
 BEAT_DIS = "union/beat_dis.sndh"
 # 3,154,210 bytes at 15753.85 Hz = 200.2 s = 12,012 frames: past the loop's wrap.
 WHOLE = 12_100

@@ -44,7 +44,7 @@ const machines = []; // every boot's video machine, for the zg.mem refusal check
 
 const out = process.argv[2];
 if (out) await mkdir(out, { recursive: true });
-const CART = process.argv[3] || "docs/demo-union_l16.wasm";
+const CART = process.argv[3] || "site/carts/demo-union_l16.wasm";
 const dec = new TextDecoder();
 const at = (M) => (px, x, y) => { const o = (y * M.W + 2 * x) * 4; return [px[o], px[o + 1], px[o + 2]]; };
 
@@ -150,7 +150,7 @@ for (const { note, begin, rewrite } of [
 let music = null;
 if (M.song !== MUSIC) errors.push(`song request ${JSON.stringify(M.song)}, wanted "${MUSIC}"`);
 else {
-    music = await songPeak(`docs/music/${M.song}`);
+    music = await songPeak(`site/music/${M.song}`);
     if (music.error || music.mode !== 4 || music.stuck || music.peak < 0.01) errors.push(`${M.song} does not play: ${JSON.stringify(music)}`);
 }
 M.demo.key(K_ESC);

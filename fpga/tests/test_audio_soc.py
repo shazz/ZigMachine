@@ -23,7 +23,7 @@ import song_pack
 import wasm_env_rename
 from soc.zm_audio_soc import rates
 
-AUDIO_WASM = ROOT / "docs/demo-audio.wasm"
+AUDIO_WASM = ROOT / "site/demo-audio.wasm"
 
 
 def _import_modules(wasm: bytes) -> list[bytes]:
@@ -90,7 +90,7 @@ def test_song_pack_takes_every_tune_of_the_sap_jukebox() -> None:
     # The cart starts Warhawk.sap and asks for the other four on Enter (apps/zig/scenes/sap_test):
     # the board's table had only the one the native host heard in its first 600 frames.
     tunes = re.findall(r'\.file = "([^"]+)"', (ROOT / "apps/zig/scenes/sap_test/tunes.zig").read_text())
-    names = song_pack.song_names((ROOT / "docs/demo-sap_test.wasm").read_bytes(), ROOT / "docs/music")
+    names = song_pack.song_names((ROOT / "site/carts/demo-sap_test.wasm").read_bytes(), ROOT / "site/music")
     assert len(tunes) == 5 and names == sorted(tunes)
 
 

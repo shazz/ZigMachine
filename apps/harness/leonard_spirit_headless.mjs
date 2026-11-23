@@ -25,7 +25,7 @@
 //   node apps/harness/leonard_spirit_headless.mjs [--break pixels|count|music|palette|border|scroll|fall|fade] [--ppm F [--at T]]
 //     each --break must be caught (the model or the machine is wrong on purpose)
 import { readFileSync, writeFileSync } from "node:fs";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 import * as M from "./leonard_spirit_model.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -40,10 +40,10 @@ const ppm = opt("--ppm");
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
 const hbl = (id, p, l, x) => (brk === "border" && l === 137 ? undefined : demo.hblDispatch(id, p, l, x));
-const machine = (await WebAssembly.instantiate(readFileSync("docs/machine-video.wasm"), { env: { memory, hblDispatch: hbl } })).instance.exports;
+const machine = (await WebAssembly.instantiate(readFileSync("site/machine-video.wasm"), { env: { memory, hblDispatch: hbl } })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(readFileSync("docs/rom.wasm"), { env: romEnv })).instance.exports;
-const cartBytes = readFileSync(process.env.LS_CART ?? "docs/demo-leonard_spirit.wasm"); // LS_CART: another build (e.g. an older cart)
+const rom = (await WebAssembly.instantiate(readFileSync("site/rom.wasm"), { env: romEnv })).instance.exports;
+const cartBytes = readFileSync(process.env.LS_CART ?? "site/carts/demo-leonard_spirit.wasm"); // LS_CART: another build (e.g. an older cart)
 const env = { ...romEnv, ...rom };
 for (const k of Object.keys(machine)) if (/^hw(Rom)?Ram/.test(k)) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

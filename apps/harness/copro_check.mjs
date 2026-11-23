@@ -1,6 +1,6 @@
 // COPRO (cart 130, apps/zig/scenes/copro.zig): BARD as a coprocessor (zg.bard.job, system table 1.24),
 // on the page. The cart boots over the real machine + ROM with the loader's OWN hostBardJob / bardJobFrame
-// (docs/sealed-loader.js, lifted from its source as apps/harness/bard_queue_lib.mjs lifts bardDrain), and:
+// (site/js/sealed-loader.js, lifted from its source as apps/harness/bard_queue_lib.mjs lifts bardDrain), and:
 //   same      each page draws the same pixels (rows 0..175, the effect), frame for frame, with its jobs on
 //             ZIGGY (switch 6: the cart serves them inside its frame) and on the coprocessor (the page
 //             serves them after the cart's frame, or when the cart waits)

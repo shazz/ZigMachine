@@ -10,21 +10,21 @@
 //   node apps/harness/audio_switch_check.mjs
 import { readFile } from "node:fs/promises";
 
-const SNDH = "docs/music/union/150_mph.sndh";
+const SNDH = "site/music/union/150_mph.sndh";
 const KINDS = [
-    { file: "docs/music/Gauntlet.sap", mode: 5, load: (d, n) => d.audioLoadSap(n), play: (d) => d.audioSapPlay(0) },
-    { file: "docs/music/shaolin_title.hip", mode: 1, load: (d, n) => d.audioLoadHip(n), play: (d) => d.audioHipPlay(1) },
-    { file: "docs/music/union/Drooling.ymraw", mode: 2, load: (d, n) => d.audioLoadYm(n), play: (d) => d.audioYmPlay() },
+    { file: "site/music/Gauntlet.sap", mode: 5, load: (d, n) => d.audioLoadSap(n), play: (d) => d.audioSapPlay(0) },
+    { file: "site/music/shaolin_title.hip", mode: 1, load: (d, n) => d.audioLoadHip(n), play: (d) => d.audioHipPlay(1) },
+    { file: "site/music/union/Drooling.ymraw", mode: 2, load: (d, n) => d.audioLoadYm(n), play: (d) => d.audioYmPlay() },
     // A .raw has no load step: audioPlayRaw stages and plays (the Dyno scroller's main part, 2026-11-01).
-    { file: "docs/music/dyno_paradis3_boris.raw", mode: 3, load: (d, n) => (d.audioPlayRaw(n, 12517, 0), true), play: () => {} },
+    { file: "site/music/dyno_paradis3_boris.raw", mode: 3, load: (d, n) => (d.audioPlayRaw(n, 12517, 0), true), play: () => {} },
 ];
 const BLOCK = 1024, SECOND = 43;
 
 const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // AUDIO_PAGES
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
 const env = { memory };
 for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-const d = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+const d = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
 d.audioInit();
 const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), BLOCK);
 

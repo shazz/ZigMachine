@@ -1,5 +1,5 @@
-// MP3 player (libs/zig/players/mp3.zig) on the real audio modules (docs/machine-audio.wasm +
-// docs/demo-audio.wasm: the build the page runs, and BARD through wasm2c), fed as a cart feeds it
+// MP3 player (libs/zig/players/mp3.zig) on the real audio modules (site/machine-audio.wasm +
+// site/demo-audio.wasm: the build the page runs, and BARD through wasm2c), fed as a cart feeds it
 // (a 64 KiB ring, at most 32 KiB a feed, what it used read back from audioMp3Status(1)):
 //   exact     44.1 kHz stereo and mono (apps/zig/assets/mp3/TONES44, MONO44): every output sample, a
 //             side, is the reference decode >> 1 (pvmp3 alone, fpga/tools/mp3_ref.sh: the pins below),
@@ -32,10 +32,10 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 
 async function modules() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, m, a };
 }

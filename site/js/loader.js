@@ -195,7 +195,7 @@ function startAudio() {
     audioReady = (async () => {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
         const wasmBytes = await fetch("audio.wasm").then(r => r.arrayBuffer());
-        await audioCtx.audioWorklet.addModule("audio-worklet.js");
+        await audioCtx.audioWorklet.addModule("js/audio-worklet.js");
         audioNode = new AudioWorkletNode(audioCtx, "zig-audio", {
             numberOfInputs: 0,
             numberOfOutputs: 1,

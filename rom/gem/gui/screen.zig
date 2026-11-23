@@ -37,7 +37,7 @@ pub const FONT_8X8 = Font{};
 pub const METRICS = Metrics.of(FONT_8X8);
 
 /// The host's pointer range in the plane modes: physical-visible 0..639 x 0..199
-/// (docs/sealed-loader.js "Pointer input", glass_input.c); 0..639 x 0..479 in the desk.
+/// (site/js/sealed-loader.js "Pointer input", glass_input.c); 0..639 x 0..479 in the desk.
 pub const HOST_W: i16 = 640;
 
 pub const Screen = struct {

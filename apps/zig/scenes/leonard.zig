@@ -20,7 +20,7 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // Mad Max, "S.O.S." from the So Watt demo (1989). The ripped image tags
 // itself TITL "So Watt - TCB"; the archive files it under the screen name.
 const MUSIC = "sos.sndh";

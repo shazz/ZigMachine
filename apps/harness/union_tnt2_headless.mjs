@@ -26,7 +26,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { deflateSync, inflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, AUDIO_PAGES = 48; // SHARED_PAGES in machine/sdk/memmap.zig; machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
@@ -48,7 +48,7 @@ const bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (bi >= 0 && brk !== "green") throw new Error(`--break takes green, not ${brk}`);
 const outDir = argv[0] || "/tmp/union_tnt2";
-const cartPath = argv[1] || "docs/demo-union_tnt2.wasm";
+const cartPath = argv[1] || "site/carts/demo-union_tnt2.wasm";
 await mkdir(outDir, { recursive: true });
 
 // ---- the pictures at canvas size: { w, h, px: Int32Array of 0xRRGGBB, -1 transparent } ----
@@ -204,7 +204,7 @@ const SHOTS = [0, 1, 2, 60, 61, 105, 113, 215, 305, 355, 470, 800, 920, 921, 123
 
 // ---- the machine ----------------------------------------------------------------
 const scratchOf = (m) => {
-    if (!m.rom.romScratchPtr) throw new Error("docs/rom.wasm has no romScratchPtr (older than #98)");
+    if (!m.rom.romScratchPtr) throw new Error("site/rom.wasm has no romScratchPtr (older than #98)");
     return new Uint8Array(m.memory.buffer, m.rom.romScratchPtr(), m.rom.romScratchLen());
 };
 /// union_demo/return_note.zig write(): "UNI1", payload length 14, XOR, then door, flags, x, y, scroll.
@@ -226,10 +226,10 @@ const machines = []; // every boot's video machine, for the zg.mem refusal check
 async function boot(cart, note = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -251,14 +251,14 @@ async function boot(cart, note = null) {
 
 async function sndhPlay(name, tune) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
     const volWrites = [0, 0, 0];
     env.machineYmWrite = (r, v) => { if (r >= 8 && r <= 10) volWrites[r - 8]++; return machine.machineYmWrite(r, v); };
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     if (bytes.length > audio.audioSongCapacity() || (new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes), !audio.audioLoadSndh(bytes.length)))
         return { loaded: false };
     audio.audioSndhPlay(tune);

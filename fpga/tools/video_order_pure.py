@@ -130,7 +130,7 @@ def main(args: list[str]) -> int:
     args = [a for a in args if a != "--break"]
     if not args and not want_break:
         sys.exit(__doc__)
-    # The native hosts of today's docs/demo-<tag>.wasm, one make at a time (they share
+    # The native hosts of today's site/carts/demo-<tag>.wasm, one make at a time (they share
     # build/host/common); then the carts' dumps and replays side by side.
     # cart@f1,f2: that cart's own frames (a screen that only starts later, union_intro's main).
     picks = [(a.split("@")[0], [int(x) for x in a.split("@")[1].split(",")] if "@" in a else frames) for a in args]

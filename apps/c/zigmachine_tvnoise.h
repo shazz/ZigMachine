@@ -2,7 +2,7 @@
 // zigmachine_tvnoise.h — the channel-change snow for a C cart.
 //
 // On +/- the host boots the new channel's disk and calls tuneIn(25) instead of
-// skipBoot() (docs/sealed-loader.js). A Zig cart answers with 25 frames of TV
+// skipBoot() (site/js/sealed-loader.js). A Zig cart answers with 25 frames of TV
 // snow, then starts (apps/zig/demo_main.zig). A cart WITHOUT tuneIn just starts,
 // which is why the C and Rust screens used to cut straight in.
 //

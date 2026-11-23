@@ -5,13 +5,13 @@ ANSI-BBS, Atari ST VT52, ATASCII, PETSCII, RIP, telnet / rlogin / SSH, X/Y/ZMODE
 2026: "do a spike for syncterm to try to compile it even if the ip stack is mocked up"): it compiles, runs in the
 desk mode (640x480: the 80x25 screen of 8x16 cells at 1:1, a status line under it), and talks to a BBS that lives
 inside the cart, because the machine has no network yet (ZIGNIC, `docs/os/GEM_NET.md` on `feat/board-wifi`). The
-cart is `docs/demo-syncterm.wasm`, a GEM program on `docs/demo-syncterm.zmd`; what the spike found, stubbed and
+cart is `site/carts/demo-syncterm.wasm`, a GEM program on `site/carts/demo-syncterm.zmd`; what the spike found, stubbed and
 still needs is `prototypes/syncterm/SPIKE.md`.
 
 ## Licence: GPL version 2
 
 SyncTERM is free software under the GNU General Public License version 2 or later (`COPYING`, upstream's
-`src/syncterm/gpl.txt`; `src/syncterm/LICENCE`). The cart `docs/demo-syncterm.wasm` is a work based on it and is
+`src/syncterm/gpl.txt`; `src/syncterm/LICENCE`). The cart `site/carts/demo-syncterm.wasm` is a work based on it and is
 distributed under the same licence. Its **corresponding source** is:
 
 - upstream Synchronet at tag `syncterm-1.9`, commit `5bd319427e4f58cd965b056c69bb96ed47db7a81`
@@ -29,8 +29,8 @@ distributed under the same licence. Its **corresponding source** is:
 Rebuild it from a checkout of this repository:
 
     apps/ports/fetch.sh
-    make -C apps/ports/syncterm link        # build/demo-syncterm.wasm == docs/demo-syncterm.wasm
-    make -C apps/ports/syncterm install     # copy it to docs/, repack docs/demo-syncterm.zmd (tools/mkdisks.sh)
+    make -C apps/ports/syncterm link        # build/demo-syncterm.wasm == site/carts/demo-syncterm.wasm
+    make -C apps/ports/syncterm install     # copy it to docs/, repack site/carts/demo-syncterm.zmd (tools/mkdisks.sh)
 
 The disk is a GEM data disk: GEM boots over it and lists the program, `BOOT.WSM`, beside `WELCOME.ANS` (the fake
 BBS's screen, our own CP437 art from `mkansi.py`) and `DIAL.TXT`; a double-click runs SyncTERM.

@@ -42,8 +42,8 @@ def sig(ret: str, params: list[str]) -> str:
 def env_entries(root: Path = ROOT) -> dict[str, str]:
     """name -> 'owner sig' for each env.* a cart can bind: rom.wasm's exports win, as `...rom` last;
     then the host's (STREAM), which no module exports."""
-    rom, _ = signatures((root / "docs/rom.wasm").read_bytes())
-    machine, _ = signatures((root / "docs/machine-video.wasm").read_bytes())
+    rom, _ = signatures((root / "site/rom.wasm").read_bytes())
+    machine, _ = signatures((root / "site/machine-video.wasm").read_bytes())
     out = {n: f"machine {sig(*machine[n])}" for n in MACHINE_ENV if n in machine and n not in rom}
     missing = [n for n in MACHINE_ENV if n not in machine and n not in rom]
     if missing:

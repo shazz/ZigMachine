@@ -150,7 +150,7 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
     kinds = {tag: kind for _, tag, kind in channels.entries()}
     for tag in [t for t in cart_tags() if t not in kinds and (tags is None or t in tags)]:
         hub = next((h for p, h in HUBS.items() if tag.startswith(p)), "")
-        if hub and (tags is not None or (ROOT / f"docs/demo-{tag}.zmd").exists()):
+        if hub and (tags is not None or (ROOT / f"site/carts/demo-{tag}.zmd").exists()):
             group, year, desc = describe(tag, "", comments, scenes)
             title, group, year = (
                 o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (hub_title(desc), group, year))

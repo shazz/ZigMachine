@@ -1,4 +1,4 @@
-"""Renders a parsed Tutorial into docs/TUTORIAL.html."""
+"""Renders a parsed Tutorial into site/TUTORIAL.html."""
 from __future__ import annotations
 
 import re

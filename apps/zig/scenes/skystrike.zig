@@ -40,7 +40,7 @@
 // STOS's music, NOISE / VOLUME / ENVEL, Maestro's samples; zg.sndhCall). ZIG:
 // a MOD per situation (zig_music.zig), effects over it (zg.sfxPlay), the
 // engine on the idle YM (zg.ymWrite); Z swaps the music. The MODs (The Mod
-// Archive, unmodified; docs/music/skystrike_music_CREDITS.txt): "Explore the
+// Archive, unmodified; site/music/skystrike_music_CREDITS.txt): "Explore the
 // sky" BLuRry 1994, ID 167145, CC BY-SA 4.0 (this file only:
 // creativecommons.org/licenses/by-sa/4.0); "The Hawk's Claw" Drozerix 2022,
 // ID 197917, Public Domain; "dog75" Songerson 2019, ID 190360, CC BY 4.0.

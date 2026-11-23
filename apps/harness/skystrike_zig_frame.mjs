@@ -1,5 +1,5 @@
 // SKYSTRIKE ZIG-mode harness, the displayed frame: the enabled planes
-// composited as the host stacks their canvases (docs/sealed-loader.js: each
+// composited as the host stacks their canvases (site/js/sealed-loader.js: each
 // plane rendered into the physical frame and drawn over the last, its
 // transparent pixels showing what is under), and PNG screenshots of it.
 import { writeFile } from "node:fs/promises";

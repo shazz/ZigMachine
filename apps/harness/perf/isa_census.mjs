@@ -6,7 +6,7 @@
 // read off GCC 13 -O2 code for the same C; Mc = matches x save x CPI. An ESTIMATE, like frame_cost.
 //
 //   node apps/harness/perf/isa_census.mjs <cart.wasm> [--warmup 120] [--frames 30] [--json]
-//   node apps/harness/perf/isa_census.mjs --all [--json]     (every docs/demo-*.wasm with a disk, serially)
+//   node apps/harness/perf/isa_census.mjs --all [--json]     (every site/carts/demo-*.wasm with a disk, serially)
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -110,7 +110,7 @@ function segPatterns(bytes, plan) {
 export async function census(cart, o = {}) {
     const disk = existsSync(cart.replace(/\.wasm$/, ".zmd")) ? cart.replace(/\.wasm$/, ".zmd") : null;
     const r = await measure(cart, { frames: o.frames ?? 30, warmup: o.warmup ?? 120, top: 5, calls: new Map(), disk, pal: true, names: {} });
-    const machineDir = o.machineDir ?? "docs";
+    const machineDir = o.machineDir ?? "site";
     const bytes = [await readFile(cart), await readFile(`${machineDir}/rom.wasm`)];
     const tot = {};
     r.profiles.forEach((P, mi) => {
@@ -128,7 +128,7 @@ async function main() {
     const argv = process.argv.slice(2), o = { json: argv.includes("--json") };
     const val = (f) => { const i = argv.indexOf(f); return i >= 0 ? Number(argv[i + 1]) : undefined; };
     o.warmup = val("--warmup"); o.frames = val("--frames");
-    const carts = argv.includes("--all") ? shelf("docs") : argv.filter((a) => a.endsWith(".wasm"));
+    const carts = argv.includes("--all") ? shelf("site") : argv.filter((a) => a.endsWith(".wasm"));
     for (const c of carts) {
         let row;
         try { row = await census(c, o); } catch (e) { row = { tag: c, error: String(e.message).slice(0, 160) }; }

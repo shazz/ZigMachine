@@ -7,7 +7,7 @@
 const io = @import("io.zig");
 
 pub const K_ESC: u32 = 0xE012;
-/// Left Ctrl / left Shift (docs/sealed-loader.js MOD_CODES): one-key shortcuts
+/// Left Ctrl / left Shift (site/js/sealed-loader.js MOD_CODES): one-key shortcuts
 /// for the two stick-plus-fire moves, so nobody has to chord them. Ctrl = up +
 /// fire (the gun), Shift = down + fire (dynamite). They only set the same stick
 /// bits a player would, so the game hears nothing it could not hear from the

@@ -39,7 +39,7 @@ pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
 
 // credit panel: dbug_credits.zig (geometry, texts), dbug_layers.zig (its font)
 
-// music — the screen's own tune, played by its own 68000 (docs/music/)
+// music — the screen's own tune, played by its own 68000 (site/music/)
 const MUSIC = "crystallized.sndh";
 
 // where the logo sits when its spring is at rest

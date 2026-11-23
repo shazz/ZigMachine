@@ -42,7 +42,7 @@ const LEVELS = [[6, 4], [8, 5], [10, 6], [12, 8], [16, 10], [20, 12], [24, 14], 
     .map(([lon, lat]) => [2 + lon * (lat - 1), 2 * lon * (lat - 1)]);
 
 let log = [];
-const boot = () => bootObj("docs/demo-obj.wasm", (s) => log.push(s));
+const boot = () => bootObj("site/carts/demo-obj.wasm", (s) => log.push(s));
 const press = (S, ch) => {
     if (BREAK === "res" && (ch === "+" || ch === "-")) return;
     if (BREAK === "shade" && ch === "s") return;

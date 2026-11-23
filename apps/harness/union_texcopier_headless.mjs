@@ -23,7 +23,7 @@
 // the check must then FAIL, which is how the harness proves it can.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeReplay, SHOTS, SPACE_AT } from "./union_texcopier_replay.mjs";
 
 const PAGES = 128, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
@@ -40,15 +40,15 @@ const at = argv.indexOf("--break");
 const brk = at < 0 ? null : argv.splice(at, 2)[1];
 if (brk !== null && !["mix", "period"].includes(brk)) throw new Error(`--break takes mix or period, not ${brk}`);
 const outDir = argv[0] || "/tmp/union_texcopier";
-const cartPath = argv[1] || "docs/demo-union_texcopier.wasm";
+const cartPath = argv[1] || "site/carts/demo-union_texcopier.wasm";
 
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -134,14 +134,14 @@ async function landedPanel() {
 async function sndhPlay(name, tune, seconds = 10) {
     const SR = 44100, BLOCK = 882;
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
     const volWrites = [0, 0, 0];
     env.machineYmWrite = (r, v) => { if (r >= 8 && r <= 10) volWrites[r - 8]++; return machine.machineYmWrite(r, v); };
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     if (bytes.length > audio.audioSongCapacity()) return { why: "over song capacity" };
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) return { why: "audioLoadSndh refused it" };

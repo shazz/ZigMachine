@@ -27,7 +27,7 @@ the cart once per frame.
 
 ```rust
 mod zigmachine_music;                                   // once per cart: defines the exports
-zigmachine_music::request_song("sos.sndh");             // a file under docs/music/
+zigmachine_music::request_song("sos.sndh");             // a file under site/music/
 zigmachine_music::request_song_tune("leavin_teramis.sndh", 9); // subtune, from 1
 ```
 - Declaring the module exports `pollSongRequest` (1 = new request, cleared when
@@ -54,7 +54,7 @@ minimal. Proof: `node apps/harness/tunein_check.mjs`.
 ## Scenes: `scenes/<name>.rs`
 One cart per screen, like `apps/c/scenes/`: `scenes/<name>.rs` is the crate root
 (its submodules in `scenes/<name>/`, pulled in with `#[path]`), its generated data
-in `assets/screens/<name>/` (`include_bytes!`), built to `docs/demo-rust-<name>.wasm`.
+in `assets/screens/<name>/` (`include_bytes!`), built to `site/carts/demo-rust-<name>.wasm`.
 `build.sh` builds hello plus every scene, or just the ones named.
 
 - **`v8_populous`**: CODEF screen 490, THE FABULOUS V8's Populous crack intro.
@@ -71,8 +71,8 @@ rustup target add wasm32-unknown-unknown
 
 ## Build & run
 ```bash
-bash apps/rust/build.sh                        # -> docs/demo-rust.wasm (bundled rust-lld)
-node apps/harness/verify.mjs docs/demo-rust.wasm       # headless ABI check
+bash apps/rust/build.sh                        # -> site/carts/demo-rust.wasm (bundled rust-lld)
+node apps/harness/verify.mjs site/carts/demo-rust.wasm       # headless ABI check
 cd docs && python3 -m http.server 3333
 # open http://localhost:3333/sealed.html?demo=demo-rust.wasm
 ```

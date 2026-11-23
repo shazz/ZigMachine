@@ -2,7 +2,7 @@
 //
 // The pins are sha256 of upstream klystron's own render of the first 45 s of each bundled song,
 // interleaved s16le stereo at 22050 Hz, from
-//   make -C apps/ports/klystrack/kt_ref && apps/ports/klystrack/kt_ref/build/kt_ref docs/music/<song>.kt 45 --raw out
+//   make -C apps/ports/klystrack/kt_ref && apps/ports/klystrack/kt_ref/build/kt_ref site/music/<song>.kt 45 --raw out
 // (upstream cyd + music.c as the klystrack cart builds them: the song's channels, no oversampling,
 // the cart's integer chorus LUT; kt_ref/Makefile has the one defined out-of-table read). The core is
 // bit-exact against it: a pin moves only if the player or upstream's behaviour does.
@@ -14,10 +14,10 @@ const SECONDS = 45;
 
 const Pin = struct { song: []const u8, sha: []const u8 };
 const pins = [_]Pin{
-    .{ .song = "docs/music/starport2.kt", .sha = "fd83a9089664f7b902619bce63c063231f2dc0e6dd15f9237c5854b1ea2d4efe" },
-    .{ .song = "docs/music/castlevania.kt", .sha = "c6dda9a8abc38ecc3156580a0d778067c7e5d4a8ad4596a301725083fabdb126" },
-    .{ .song = "docs/music/oceanloader3.kt", .sha = "cb18d471add90a3369ae100250a1292a2bf065792ffdd0ebb5290bdf781a3cf0" },
-    .{ .song = "docs/music/dpintro.kt", .sha = "ee798b13a10508a5c73ec8b98a808f7102580be43dccb5730b84c8b73dea95f5" },
+    .{ .song = "site/music/starport2.kt", .sha = "fd83a9089664f7b902619bce63c063231f2dc0e6dd15f9237c5854b1ea2d4efe" },
+    .{ .song = "site/music/castlevania.kt", .sha = "c6dda9a8abc38ecc3156580a0d778067c7e5d4a8ad4596a301725083fabdb126" },
+    .{ .song = "site/music/oceanloader3.kt", .sha = "cb18d471add90a3369ae100250a1292a2bf065792ffdd0ebb5290bdf781a3cf0" },
+    .{ .song = "site/music/dpintro.kt", .sha = "ee798b13a10508a5c73ec8b98a808f7102580be43dccb5730b84c8b73dea95f5" },
 };
 
 fn readSong(path: []const u8) ![]u8 {
@@ -68,7 +68,7 @@ fn loadErr(data: []const u8) ?rd.Error {
 
 test "files that are not a playable .kt are refused with their reason" {
     const gpa = std.testing.allocator;
-    const good = try readSong("docs/music/castlevania.kt");
+    const good = try readSong("site/music/castlevania.kt");
     defer gpa.free(good);
     try std.testing.expectEqual(@as(?rd.Error, error.NotKt), loadErr("cyd!inst\x1b"));
     try std.testing.expectEqual(@as(?rd.Error, error.NotKt), loadErr("cyd"));
@@ -87,7 +87,7 @@ test "files that are not a playable .kt are refused with their reason" {
 
 test "a song whose tables do not fit its memory is refused, not written past it" {
     const gpa = std.testing.allocator;
-    const data = try readSong("docs/music/dpintro.kt");
+    const data = try readSong("site/music/dpintro.kt");
     defer gpa.free(data);
     var small: [4096]u8 = undefined;
     var core: kt.Core = .{};

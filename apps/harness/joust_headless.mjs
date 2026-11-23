@@ -1,4 +1,4 @@
-// Headless JOUST driver. Boots the sealed machine the way docs/sealed-loader.js
+// Headless JOUST driver. Boots the sealed machine the way site/js/sealed-loader.js
 // does, then checks the cart against the REAL PROGRAM (JOUST.PRG run on the
 // rip's 68000 harness, which the Python reference model reproduces frame for
 // frame -- apps/harness/joust_fixture.json.gz, from tools/private_tools/joust_fixture.py):
@@ -28,10 +28,10 @@
 //            the first pad's input(): passes only if the live check catches it
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
-const CART = "docs/demo-joust.wasm";
+const CART = "site/carts/demo-joust.wasm";
 const MUSIC = "joust_sfx.sndh";
 const W = 400, RW = 800, RH = 280; // the physical frame: 320x200 at (40, 40), x doubled
 const bi = process.argv.indexOf("--break");
@@ -45,10 +45,10 @@ const fixture = JSON.parse(gunzipSync(await readFile("apps/harness/joust_fixture
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -283,10 +283,10 @@ function stDiff(memory, demo, shown) {
 async function audioMachine() {
     const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     return { memory, m, audio };
 }
 
@@ -317,7 +317,7 @@ function dosoundTick(s, text) {
 async function sound() {
     const prg = await readFile("apps/zig/assets/screens/joust/JOUST.PRG");
     const text = prg.subarray(0x1c);
-    const bytes = new Uint8Array(await readFile(`docs/music/${MUSIC}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${MUSIC}`));
     const errors = [];
     let ticks = 0;
     for (let n = 0; n < 17; n++) {

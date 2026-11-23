@@ -7,21 +7,21 @@
 //            handed (the sfx queue's pointer) are the FAT file's, byte for byte; the SNDH, the
 //            XM and the HIP are stored ZX0-packed, and theirs are the repo's file depacked
 //   bridge   an SNDH / SAP / XM / HIP / KT is zg.requestSongBytes (sfx op 8, kind 1..5);
-//            docs/sealed-loader.js's own postSfx turns it into loadSndh / loadSap / loadXm /
+//            site/js/sealed-loader.js's own postSfx turns it into loadSndh / loadSap / loadXm /
 //            loadHip / loadKt, and the audio module those messages reach plays it in mode 4 (SNDH
 //            on the 68000) / 5 (SAP on the POKEY) / 1 (XM, HIP, KT on Paula), with a sound; the PCM is
 //            zg.samplePlay (op 6) at 12500 Hz
 //   stop     S stops: a song with the song bridge's "none", the PCM with sampleStop (op 7)
 import { readFile } from "node:fs/promises";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 import { frames, page, field, glass, K } from "./sysinfo_machine.mjs";
 
 const FILES = [
-    { name: "JINKS.SND", kind: "SNDH (68000 + YM)", op: 8, a: 1, msg: "loadSndh", mode: 4, src: "docs/music/Jinks.sndh" },
+    { name: "JINKS.SND", kind: "SNDH (68000 + YM)", op: 8, a: 1, msg: "loadSndh", mode: 4, src: "site/music/Jinks.sndh" },
     { name: "GAUNTLET.SAP", kind: "SAP (6502 + POKEY)", op: 8, a: 2, msg: "loadSap", mode: 5 },
     { name: "SAMPLE.RAW", kind: "PCM 12500 HZ", op: 6, rate: 12500 },
-    { name: "KEYGEN.XM", kind: "XM (TRACKER + PAULA)", op: 8, a: 3, msg: "loadXm", mode: 1, src: "docs/music/keygen_9000.xm" },
-    { name: "THALION.HIP", kind: "HIP (68000 + PAULA)", op: 8, a: 4, msg: "loadHip", mode: 1, src: "docs/music/hippel/thalion_intro.hip" },
+    { name: "KEYGEN.XM", kind: "XM (TRACKER + PAULA)", op: 8, a: 3, msg: "loadXm", mode: 1, src: "site/music/keygen_9000.xm" },
+    { name: "THALION.HIP", kind: "HIP (68000 + PAULA)", op: 8, a: 4, msg: "loadHip", mode: 1, src: "site/music/hippel/thalion_intro.hip" },
     // The .kt player on BARD (KT TEST's path, kind 5): stored unpacked, so its bytes are the FAT file's.
     { name: "STARPORT.KT", kind: "KT (KLYSTRACK + PAULA)", op: 8, a: 5, msg: "loadKt", mode: 1 },
     // The .sid player (cRSID on BARD; SID TEST's bytes path, kind 6): unpacked, a PSID.
@@ -47,10 +47,10 @@ function songRequest(s) {
     return new TextDecoder().decode(new Uint8Array(s.memory.buffer, s.demo.songNamePtr(), s.demo.songNameLen()));
 }
 
-/// docs/sealed-loader.js's postSfx, cut out of the loader and run over a stand-in worklet port:
+/// site/js/sealed-loader.js's postSfx, cut out of the loader and run over a stand-in worklet port:
 /// the messages the real host would post for the cart's queue.
 async function hostMessages(s, n, at) {
-    const src = (await readFile("docs/sealed-loader.js", "utf8")).match(/^function postSfx\(mem, at, n\) \{[\s\S]*?^\}\n/m)[0];
+    const src = (await readFile("site/js/sealed-loader.js", "utf8")).match(/^function postSfx\(mem, at, n\) \{[\s\S]*?^\}\n/m)[0];
     const posted = [];
     const run = new Function("audioNode", `let songGen = 0, sndhResident = null, songPosted = Promise.resolve(), sfxChain = Promise.resolve();
         ${src}; postSfx(arguments[1], arguments[2], arguments[3]); return sfxChain;`);
@@ -58,13 +58,13 @@ async function hostMessages(s, n, at) {
     return posted;
 }
 
-/// The audio module (docs/demo-audio.wasm over machine-audio.wasm), as audio_switch_check.mjs runs it.
+/// The audio module (site/demo-audio.wasm over machine-audio.wasm), as audio_switch_check.mjs runs it.
 async function audioModule() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const k of Object.keys(machine)) if (k.startsWith("machine")) env[k] = machine[k];
-    const d = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const d = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     d.audioInit();
     const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), 1024);
     return {

@@ -104,7 +104,7 @@ $(OUT)/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify-leave
 	@echo "imports (must all be env.*):"; $(WABT)/wasm-objdump -x -j Import $@ | grep -o '<- [^ ]*' | sort | uniq -c
 
 # The same cart with its function names (wasm-opt -g), for apps/harness/frame_cost.mjs and
-# tools/perf_audit.sh: `node apps/harness/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd`
+# tools/perf_audit.sh: `node apps/harness/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk site/carts/demo-klystrack.zmd`
 names: $(OUT)/names/demo-klystrack.wasm
 $(OUT)/names/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify-leaves.txt
 	@mkdir -p $(dir $@)
@@ -120,7 +120,7 @@ printf-test:
 	$(OUT)/printf_test
 
 # The floppy's files, committed in data/ so tools/mkdisks.sh (the one recipe for the disk) packs
-# docs/demo-klystrack.zmd without an upstream checkout: the Default theme as one bundle file (mkbundle.py;
+# site/carts/demo-klystrack.zmd without an upstream checkout: the Default theme as one bundle file (mkbundle.py;
 # klystrack opens "<RES_PATH>/res/Default", which the flat floppy FS matches on its last component) and
 # example songs from upstream's examples/songs, renamed to the floppy's 16-character names. STARPORT2.KT is
 # opened at boot (kestrel_main.c argv[1]). `make data` regenerates them from upstream.
@@ -132,7 +132,7 @@ data: mkbundle.py
 	set -e; for s in $(SONGS); do n=$${s%%:*}; f=$$(echo "$${s#*:}" | tr + ' '); \
 	  cp "$(UP)/examples/songs/$$f" data/$$n; done
 
-# The shipped cart: docs/demo-klystrack.wasm, committed prebuilt (build.sh does not rebuild the C ports).
+# The shipped cart: site/carts/demo-klystrack.wasm, committed prebuilt (build.sh does not rebuild the C ports).
 install: $(OUT)/demo-klystrack.wasm
-	cp $< ../../../docs/demo-klystrack.wasm
+	cp $< ../../../site/carts/demo-klystrack.wasm
 	cd ../../.. && tools/mkdisks.sh

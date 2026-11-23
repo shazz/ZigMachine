@@ -1,5 +1,5 @@
 // MP3 PLAYER (cart "mp3_player", apps/zig/scenes/mp3_player.zig) end to end: the cart over the real
-// machine + ROM, C: = docs/mp3-c.img (KOS GEMDOS through env.kosDriveRead, as the page and the native
+// machine + ROM, C: = site/disks/mp3-c.img (KOS GEMDOS through env.kosDriveRead, as the page and the native
 // host serve it), its env.hostMp3* wired to the real audio modules a frame at a time (735 samples a
 // frame, as a page with sound on renders them; the status read back synchronously).
 //   list      C:\MUSIC's four .MP3 files, in name order (NOTES.TXT is not one)
@@ -11,7 +11,7 @@
 //     byte: one fed byte changed on its way, so the bytes and exact checks must fail
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeCDrive } from "./scene_hash_disk.mjs";
 
 const PAGES = 128, AUDIO_PAGES = 48, BLOCK = 735;
@@ -21,10 +21,10 @@ const K_ESC = 0xE012;
 
 async function audio() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, m, a };
 }
@@ -32,14 +32,14 @@ async function audio() {
 async function bootCart(snd, log) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-mp3_player.wasm");
-    const env = { memory, ...rom, kosDriveRead: makeCDrive(memory, new Uint8Array(await readFile("docs/mp3-c.img"))), kosFileOp: () => -46 };
+    const cartBytes = await readFile("site/carts/demo-mp3_player.wasm");
+    const env = { memory, ...rom, kosDriveRead: makeCDrive(memory, new Uint8Array(await readFile("site/disks/mp3-c.img"))), kosFileOp: () => -46 };
     env.hostMp3Ctl = (op, arg) => { log.ctl.push(op); snd.a.audioMp3Ctl(op, arg); };
     env.hostMp3Feed = (ptr, len) => {
         const src = new Uint8Array(memory.buffer, ptr, len).slice();

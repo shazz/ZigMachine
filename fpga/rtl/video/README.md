@@ -204,7 +204,7 @@ wire, with break tests: see [`TESTING.md`](TESTING.md), with the coverage table.
 
 ## The picture: mixer, scanout, DVI
 
-**What the browser shows** (`docs/sealed-loader.js`, `docs/css/crt.css`): canvas
+**What the browser shows** (`site/js/sealed-loader.js`, `site/css/crt.css`): canvas
 `i` holds the PFB after `hwRenderPlane(i)` for each enabled plane (the cleared
 PFB on canvas 0 when none is), stacked in DOM order on the tube (black, `.container`).
 Chrome's software compositor gives, per canvas: `P = round(c·a/255)` (the

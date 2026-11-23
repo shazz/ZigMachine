@@ -1,20 +1,20 @@
-// The browser's own audio modules (docs/demo-audio.wasm on docs/machine-audio.wasm) playing one
+// The browser's own audio modules (site/demo-audio.wasm on site/machine-audio.wasm) playing one
 // SNDH, natively or on the 68000: what monty_native_check.mjs and wow_native_check.mjs compare.
 import { readFile } from "node:fs/promises";
 
 const AUDIO_PAGES = 48; // machine/sdk/audio.zig
 export const BLOCK = 882; // 50 blocks a second at 44.1 kHz
 
-/** The audio modules with `song` (under docs/music) loaded and started; native replays on or off. */
+/** The audio modules with `song` (under site/music) loaded and started; native replays on or off. */
 async function start(song, native, tune = 1) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
     audio.audioSndhNativeEnable(native);
-    const bytes = new Uint8Array(await readFile(`docs/music/${song}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${song}`));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) throw new Error(`${song}: audioLoadSndh refused it`);
     audio.audioSndhPlay(tune);

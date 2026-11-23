@@ -13,7 +13,7 @@
 //           -> "dog75", Songerson (2019), CC BY 4.0
 //   227 / 2281 (MUSIC OFF on the way back to the title): the title's.
 //
-// The files and their licences: docs/music/skystrike_music_CREDITS.txt.
+// The files and their licences: site/music/skystrike_music_CREDITS.txt.
 // Each MOD is played at its situation's gain (zig_settings.zig music_gain_*,
 // zg.requestModVolume), the flight's low under the effects.
 // ORIGINAL plays skystrike.sndh exactly as before. The situation (and

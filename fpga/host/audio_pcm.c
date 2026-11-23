@@ -1,6 +1,6 @@
 /* The stream ring from this side (haudio.h audio_pcm_*): demo-audio.wasm's audioStreamStart
  * loops Paula channel 0 over RING bytes at song RAM, and something has to write them. Two
- * writers, as docs/audio-worklet-sealed.js has:
+ * writers, as site/js/audio-worklet-sealed.js has:
  *   the cart's feed (zg.audioStreamStart / audioFeed / audioStreamStop): bytes appended at the
  *     write cursor as the cart hands them over, paced by the cart;
  *   the cart's stereo feed (zg.audioStreamStartStereo / audioFeedStereo, table 1.27): `a` 2 on the

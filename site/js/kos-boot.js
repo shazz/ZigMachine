@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // KOS, the KESTREL Operating System: the browser's power-on (docs/os/ZIGTOS_BOOT.md, where
-// "ZigTOS" is KOS). docs/sealed-loader.js's boot() uses it when the page powers on with a
+// "ZigTOS" is KOS). site/js/sealed-loader.js's boot() uses it when the page powers on with a
 // disk in drive A (?disk=X.zmd, or a TV channel's disk) or none (?disk=none):
 //
 //   1. kosSetBoot(cold, or warm with ?warm=1, what will boot, drive A full?, hwRamFree), hwInit;

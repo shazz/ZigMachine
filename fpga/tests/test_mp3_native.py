@@ -1,4 +1,4 @@
-"""The MP3 PLAYER on the native host (host_audio: the cart, KOS GEMDOS on --c-image docs/mp3-c.img, the players
+"""The MP3 PLAYER on the native host (host_audio: the cart, KOS GEMDOS on --c-image site/disks/mp3-c.img, the players
 through wasm2c as BARD runs them, the machine's own chips): Down Down Return through the glass's router plays
 C:\\MUSIC\\TONES44.MP3, and the machine's 16-bit out is the reference decode >> 1 sample for sample (the pin
 apps/harness/mp3_check.mjs holds, fpga/tools/mp3_ref.sh's), as on the page. A cart that is never asked to play is silent.
@@ -16,7 +16,7 @@ from host_make import make_host
 
 FPGA = Path(__file__).resolve().parent.parent
 HOST = FPGA / "build/host/mp3_player/host_audio"
-IMG = FPGA.parent / "docs/mp3-c.img"
+IMG = FPGA.parent / "site/disks/mp3-c.img"
 PIN44 = "bf403e4f2ee2e764b7a8ce2807f363206f691aad3dc6890b98b2b7d63d2516d9"
 SAMPLES = 308 * 1152  # TONES44's frames, a side
 LEAD_ZEROS = 140  # the reference's first samples that are 0 after >> 1 (decoder + encoder delay)

@@ -11,7 +11,7 @@
 //
 // Usage: node apps/harness/ram_check.mjs      (exit 1 on any failure)
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam, CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam, CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // memmap.SHARED_PAGES
 let failures = 0;
@@ -25,7 +25,7 @@ function check(what, got, want) {
 async function machineExports() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const imports = { env: { memory, hblDispatch: () => {} } };
-    const m = await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), imports);
+    const m = await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), imports);
     return { ...m.instance.exports, memory };
 }
 
@@ -132,7 +132,7 @@ console.log("RAM arena: allocations sit above the high-water, aligned, ZEROED ov
 hw.hwSetCartHigh(0);
 
 console.log("the hardware agrees with the host's measurement, per cart");
-for (const f of ["docs/demo-gem.wasm", "docs/demo-st_replay.wasm", "docs/demo.wasm"]) {
+for (const f of ["site/carts/demo-gem.wasm", "site/carts/demo-st_replay.wasm", "site/carts/demo.wasm"]) {
     const ram = cartRam(await readFile(f));
     hw.hwSetCartHigh(ram.known ? ram.high : 0);
     check(`${f} free`, hw.hwRamFree(), ram.free);
@@ -142,7 +142,7 @@ for (const f of ["docs/demo-gem.wasm", "docs/demo-st_replay.wasm", "docs/demo.wa
 
 console.log("the ROM chip fits its own window, and the hardware says so");
 {
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const r = romRam(romBytes);
     if (r.over) { console.log(`  FAIL  rom.wasm OVERRUNS the ROM window (ends 0x${r.high.toString(16)})`); failures++; }
     else if (!r.known) { console.log("  FAIL  rom.wasm is not linked into the ROM window"); failures++; }
@@ -151,7 +151,7 @@ console.log("the ROM chip fits its own window, and the hardware says so");
     check("hwRomRamFree agrees", hw.hwRomRamFree(), r.free);
     check("hwRomRamUsed agrees", hw.hwRomRamUsed(), r.used);
     // The two windows must not overlap, now that both are really occupied.
-    const cart = cartRam(await readFile("docs/demo-gem.wasm"));
+    const cart = cartRam(await readFile("site/carts/demo-gem.wasm"));
     check("the cart ends below the ROM window", cart.high < ROM_RAM_BASE, true);
 }
 

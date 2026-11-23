@@ -1,8 +1,8 @@
 # SID-Wizard 1.97 on the ZigMachine / KESTREL
 
 [SID-Wizard](https://demozoo.org/productions/99999/), the C64 SID tracker by **Mihaly "Hermit" Horvath**
-(Hermit Software Hungary, "with much help from Soci of Singular Crew"), as a cart: `docs/demo-sidwizard.wasm`
-on its GEM data disk `docs/demo-sidwizard.zmd`, beside Hermit's example song "Flash It Back" (`FLASHBAK.SWM`,
+(Hermit Software Hungary, "with much help from Soci of Singular Crew"), as a cart: `site/carts/demo-sidwizard.wasm`
+on its GEM data disk `site/carts/demo-sidwizard.zmd`, beside Hermit's example song "Flash It Back" (`FLASHBAK.SWM`,
 which the cart opens at start). The 40x25 text screen is the C64's own, so it fits the machine's 320x200 (the
 26th row and the header and orderlist sprites in the borders fit the 400x280 overscan plane).
 
@@ -46,7 +46,7 @@ colours (pepto x 1.5).
 Upstream's C64 key map (manual: "CONTROL is Tab, C= is Control, RUN-STOP is Esc, ` (back-arrow)", the piano keys
 by position). The machine's key ABI had no Tab, Home, End, PageUp or PageDown, which SID-Wizard needs (Tab steps
 tracks, switches the file dialog's fields): they were added as **owner-only codes** 0xE019..0xE01D
-(`docs/sealed-loader.js` `OWNER_KEY_CODES`, the board glass's `map.zig` and firmware `glass_input.c`; docs/project/DECISIONS.md
+(`site/js/sealed-loader.js` `OWNER_KEY_CODES`, the board glass's `map.zig` and firmware `glass_input.c`; docs/project/DECISIONS.md
 2026-11-07), sent only to a cart that owns the keyboard. Upstream's PC-side keys: Shift+F8 the exit dialog (Y
 quits back to GEM), Shift+F7 / Shift+F9 reset the editor, Shift+Up/Down the main volume (upstream's F11/F12 too,
 but the machine sends no code for them: the board keeps them for its OSD). A click positions the cursor as upstream's mouse code does (the left

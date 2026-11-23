@@ -12,7 +12,7 @@
 // cross-correlation (the two start at different leads), then compared: correlation, RMS, the difference's RMS, zero
 // crossings (pitch), and both sides' own RMS (BARD keeps the project's pans).
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../../../site/js/wasm_hiwater.js";
 import { pageSound } from "../../../harness/bard_queue_lib.mjs";
 
 const SCRIPTED = process.argv.includes("--script");
@@ -25,11 +25,11 @@ const SCRIPT = !SCRIPTED ? [] : [...tap(30, "key", KEY_X), ...next(40), ...tap(5
 
 async function run(cart, attach = true) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const disk = await readFile("docs/demo-chipnomad.zmd"), cartBytes = await readFile(cart);
+    const disk = await readFile("site/carts/demo-chipnomad.zmd"), cartBytes = await readFile(cart);
     const sound = await pageSound(memory, { frames: FRAMES + 4 });
     const fed = [], log = [];
     const env = {
@@ -62,8 +62,8 @@ const crossings = (a, from, n) => { let c = 0; for (let i = from + 1; i < from +
 
 const di = process.argv.indexOf("--dump"), fi = process.argv.indexOf("--from");
 const FROM = fi > 0 ? +process.argv[fi + 1] : 10;
-const bard = await run(SCRIPTED ? "docs/demo-chipnomad.wasm" : "apps/ports/chipnomad/build_autoplay/demo-chipnomad.wasm");
-const ziggy = SCRIPTED ? await run("docs/demo-chipnomad.wasm", false) : await run("apps/ports/chipnomad/build_autoplay_ziggy/demo-chipnomad.wasm");
+const bard = await run(SCRIPTED ? "site/carts/demo-chipnomad.wasm" : "apps/ports/chipnomad/build_autoplay/demo-chipnomad.wasm");
+const ziggy = SCRIPTED ? await run("site/carts/demo-chipnomad.wasm", false) : await run("apps/ports/chipnomad/build_autoplay_ziggy/demo-chipnomad.wasm");
 console.log(`bard: ${bard.log.filter((l) => /autoplay|BARD|ZIGGY/.test(l)).join(" | ")}; ${JSON.stringify(bard.stats)}, stream ${bard.stream.length} B`);
 console.log(`ziggy: ${ziggy.log.filter((l) => /autoplay|BARD|ZIGGY/.test(l)).join(" | ")}; stream ${ziggy.stream.length} B`);
 

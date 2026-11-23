@@ -50,8 +50,8 @@ hwClear()  ->  your frame()  ->  hwRenderPlane(p) for each plane your isPlaneEna
 
 ```bash
 sh ./build.sh                          # the Zig carts, plus every check
-bash apps/c/build.sh tutorial          # -> docs/demo-c-tutorial.wasm
-bash apps/rust/build.sh tutorial       # -> docs/demo-rust-tutorial.wasm
+bash apps/c/build.sh tutorial          # -> site/carts/demo-c-tutorial.wasm
+bash apps/rust/build.sh tutorial       # -> site/carts/demo-rust-tutorial.wasm
 ```
 
 `./build.sh` also rebuilds the C and Rust carts, so a plain `./build.sh`
@@ -1092,7 +1092,7 @@ Rust show a chunkier 10x14 font.
 **Goal.** "So Watt" by Mad Max plays while the screen runs.
 
 **Concept.** A cart never contains a music player. It asks the host for a tune
-**by name**, a file under `docs/music/`. The host polls the cart every frame,
+**by name**, a file under `site/music/`. The host polls the cart every frame,
 fetches the file, and plays it on the audio thread. An SNDH carries the tune's
 own 68000 replay code, which the machine runs on an emulated 68000 driving its
 YM2149, as the ST did. The full guide is `docs/guide/MUSIC.md`.
@@ -1106,7 +1106,7 @@ those exports: `apps/c/zigmachine_music.h` or `apps/rust/zigmachine_music.rs`.
 ### Zig
 
 ```zig
-const MUSIC = "sos.sndh"; // a file under docs/music/
+const MUSIC = "sos.sndh"; // a file under site/music/
 ```
 
 In `init`:
@@ -1126,7 +1126,7 @@ At the top of the file:
 At the start of `boot`:
 
 ```c
-    zm_request_song("sos.sndh"); // a file under docs/music/
+    zm_request_song("sos.sndh"); // a file under site/music/
 ```
 
 ### Rust
@@ -1142,7 +1142,7 @@ mod zigmachine_music;
 At the start of `boot`:
 
 ```rust
-    zigmachine_music::request_song("sos.sndh"); // a file under docs/music/
+    zigmachine_music::request_song("sos.sndh"); // a file under site/music/
 ```
 
 **What you should hear.** The music starts **as soon as you click or press a
@@ -1152,7 +1152,7 @@ waits until then.
 **Common mistakes.**
 
 - *Silence, and no error.* No gesture yet; click the screen. Otherwise, check
-  the name matches a file in `docs/music/` exactly, 64 bytes at most.
+  the name matches a file in `site/music/` exactly, 64 bytes at most.
 - *C: `duplicate symbol pollSongRequest`.* The header was included from two
   `.c` files of the same cart. It defines the exports, so include it once.
 - *An SNDH that loads but plays nothing.* Some need the STE's DMA sound chip

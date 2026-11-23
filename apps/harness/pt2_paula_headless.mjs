@@ -1,5 +1,5 @@
 // Gate: pt2-clone plays on the machine's four HARDWARE Paula channels (HW 1.14.0, docs/project/DECISIONS.md
-// 2026-11-02 "Paula channels for carts"). The committed cart docs/demo-pt2.wasm boots off its floppy
+// 2026-11-02 "Paula channels for carts"). The committed cart site/carts/demo-pt2.wasm boots off its floppy
 // (apps/harness/ports_machine.mjs) with env.hostPaula* wired to the real audio worklet (apps/harness/paula_lib.mjs),
 // loads RONKEN.MOD (DISK OP, the second file; HYBRID.MOD, the first, opens on one pad for 20 s) and
 // PLAYs it: 3 channels, ~45 notes in the 5.3 s checked. Then:
@@ -17,7 +17,7 @@ import { readFile } from "node:fs/promises";
 import { boot, step, DT } from "./ports_machine.mjs";
 import { RATE, bootWorklet, paulaEnv, envelope, bestCorr, bandSpectrum, cosine } from "./paula_lib.mjs";
 
-const CART = "docs/demo-pt2.wasm", DISK = "docs/demo-pt2.zmd", FRAMES = 520, PLAY = 200, SW_RATE = 24000;
+const CART = "site/carts/demo-pt2.wasm", DISK = "site/carts/demo-pt2.zmd", FRAMES = 520, PLAY = 200, SW_RATE = 24000;
 const BREAKS = ["pitch", "latch", "upload", "owner"];
 const isPer = (a) => a >= 0xdff0a0 && a < 0xdff0e0 && (a & 15) === 6; // AUDxPER
 const args = process.argv.slice(2), broke = args.includes("--break") ? args[args.indexOf("--break") + 1] : "";
@@ -94,7 +94,7 @@ check("follows the software mixer (pitch)", spec > 0.75, `semitone-band spectra 
 const chip = () => new Uint8Array(hw.w.p.memory.buffer, d.audioPaulaChipPtr(), d.audioPaulaChipSize());
 const before = chip().slice(), saidBefore = hw.w.said.length;
 if (broke === "owner") hw.w.p.demo = { ...d, audioPaulaClaimed: () => 0 }; // the guard sees no claim
-hw.w.send({ type: "loadMod", bytes: (await readFile("docs/music/hybridglenz.mod")).buffer });
+hw.w.send({ type: "loadMod", bytes: (await readFile("site/music/hybridglenz.mod")).buffer });
 hw.w.p.demo = d;
 const refusedMsg = hw.w.said.slice(saidBefore).some((s) => s.type === "paulaRefused");
 const same = chip().every((v, i) => v === before[i]);

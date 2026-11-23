@@ -8,7 +8,7 @@
 //     hashed EVERY frame equals the pin taken from the desktop that repainted every frame, so the
 //     skipped frames are pixel-exact; and apps/harness/frame_cost.mjs with a C: window open stays under
 //     MAX_MC, with no C: read in the frame path.
-//  2. Drives: with a FAT floppy in drive A and a card in C: (docs/kos-c.img), opening A shows A's
+//  2. Drives: with a FAT floppy in drive A and a card in C: (site/disks/kos-c.img), opening A shows A's
 //     files: the frame equals the one with no C: at all (the window covers C:'s icon), and differs
 //     from C:'s window.
 //  3. Folders (Matt on the board, 6 Nov 2026: C:\, PICTURES, then PLASMA opened a NEW window
@@ -28,7 +28,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { costOf, parseArgs } from "./frame_cost.mjs";
 
-const CART = process.env.KOS_DESK_CART ?? "docs/demo-gem.wasm", C_IMG = "docs/kos-c.img";
+const CART = process.env.KOS_DESK_CART ?? "site/carts/demo-gem.wasm", C_IMG = "site/disks/kos-c.img";
 const MAX_MC = 1.7; // the board's 60 fps band starts at ~1.75 Mc (CLAUDE.md, Board speed)
 // The session's total over every frame, taken from a desktop that repaints every frame: the skip
 // must not move a pixel. First from main ef337055 (before deskdirty.zig); re-taken 6 Nov 2026 when
@@ -94,7 +94,7 @@ function check(what, ok) {
     if (!ok) process.exitCode = 1;
 }
 
-// The floppy's DEMO.WSM is a fixed stand-in, not docs/demo-tutorial.wasm (the fixture's default):
+// The floppy's DEMO.WSM is a fixed stand-in, not site/carts/demo-tutorial.wasm (the fixture's default):
 // its SIZE is on screen (the window's "N bytes used" line), so every rebuild of the tutorial moved
 // the pin with no change to the desktop (8 Nov 2026: 47,539 -> 47,586 bytes when the desk branch's
 // ZigOS rebuilt every cart). Nothing here launches it; 47,539 bytes is the size the pin was taken at.

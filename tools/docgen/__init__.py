@@ -2,8 +2,8 @@
 
 Two pages are generated from this package:
 
-  tools/gen_docs.py      -> docs/ZIGMACHINE_GUIDE.html  (the reference)
-  tools/gen_tutorial.py  -> docs/TUTORIAL.html          (the teaching page)
+  tools/gen_docs.py      -> site/ZIGMACHINE_GUIDE.html  (the reference)
+  tools/gen_tutorial.py  -> site/TUTORIAL.html          (the teaching page)
 
 They were one 373-line script until the tutorial grew its own page; the split
 keeps every module inside the project's 200-line ceiling and lets the tutorial

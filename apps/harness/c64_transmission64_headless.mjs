@@ -12,10 +12,10 @@
 //   node apps/harness/c64_transmission64_headless.mjs --break pixel  the view one pixel to the right must fail
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, RW = 800, W = 384, H = 272, X0 = 8, Y0 = 5, REG_FB_MODE = 0x54;
-const CART = "docs/demo-c64_transmission64.wasm";
+const CART = "site/carts/demo-c64_transmission64.wasm";
 const BRK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const outdir = process.argv.slice(2).find((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--break");
 const COLODORE = [0x000000, 0xFFFFFF, 0x96282E, 0x5BD6CE, 0x9F2DAD, 0x41B936, 0x2724C4, 0xEFF347,
@@ -40,10 +40,10 @@ const PINS = {
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

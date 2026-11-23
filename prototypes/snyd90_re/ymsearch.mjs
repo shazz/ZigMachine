@@ -10,10 +10,10 @@ import { join } from "node:path";
 const [target, nframes, dir = "/home/matt/projects/ZigMachine/prototypes/sndh_lf"] = process.argv.slice(2);
 const N = Number(nframes);
 const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
 const env = { memory };
 for (const name of Object.keys(machine)) if (name.startsWith("machine")) env[name] = machine[name];
-const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+const demo = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
 demo.audioInit();
 const regs = new Uint8Array(memory.buffer, machine.audioYmRegsPtr(), 16);
 

@@ -1,5 +1,5 @@
 /* ZIGNIC on the board (bnet.h): the cart's Req (machine/sdk/net_abi.zig, 16 words in its memory) bounded as the
- * page bounds it (docs/net-host.js), its buffer and host name turned into window offsets, the NET block written,
+ * page bounds it (site/js/net-host.js), its buffer and host name turned into window offsets, the NET block written,
  * glass's answer awaited (glass never blocks on a socket, so it answers within its poll, < 1 ms), then the
  * socket's state, events, error and peer copied back into the Req. No glass, an old glass, or no answer in
  * NET_TIMEOUT_MS: no_card (-1), as a host without a card answers. */

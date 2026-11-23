@@ -94,7 +94,7 @@ add cryptlib (not built), the HTTPS list download `webget.c` the same.
 
 ## Sizes (cart window 3 MiB, `hwRamFree`)
 
-- Cart: `docs/demo-syncterm.wasm` 1,337,186 B (1,018,056 before Asyncify: +31 %), 393,560 B ZX0-packed on the disk.
+- Cart: `site/carts/demo-syncterm.wasm` 1,337,186 B (1,018,056 before Asyncify: +31 %), 393,560 B ZX0-packed on the disk.
 - Static data + stack: 907,136 B of the window (of which `allfonts.c` ~350 KB of glyphs, the C stack 128 KB);
   2,238,592 B left, the heap takes all but 64 KB (2,173,072 B).
 - Heap at boot 566,016 B (the fibers: main's 256 KB C stack, 64 KB for each other thread, a 48 KB save area each);

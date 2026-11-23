@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { afterBoardLoad, fromGem, C_IMAGE } from "./notepad_lib.mjs";
 
-const GEM = "docs/demo-gem.wasm";
+const GEM = "site/carts/demo-gem.wasm";
 const RES = [0, 2, 3]; // RESOLUTION for low, medium, the desk
 const NAMES = ["low", "medium", "the desk"];
 const NONE = 0xff;

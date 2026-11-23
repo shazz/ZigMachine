@@ -73,7 +73,7 @@ possible: those are compiler_rt routines inside the cart's own wasm. The option 
 
 | host | who computes | latency |
 |---|---|---|
-| browser | the machine (`machine-video.wasm`'s `hwAstro`, bound by `docs/sealed-loader.js`) | a wasm call |
+| browser | the machine (`machine-video.wasm`'s `hwAstro`, bound by `site/js/sealed-loader.js`) | a wasm call |
 | native host | the same machine, wasm2c'd | a C call |
 | board, ASTROLABE bitstream + glass | the ARM's VFPv3: glass links `machine/astro_ops.zig` | the round trip, §5 |
 | board, fallback | ZIGGY: the machine's own code (soft f64), wrapped by the firmware | soft-float |

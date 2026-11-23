@@ -3,7 +3,7 @@
 //   node prototypes/falcon_ays_re/scripts/shots.mjs <outdir> t1 t2 ...     (seconds; PNG via python3 PIL)
 import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../../site/js/wasm_hiwater.js";
 
 // FULL=1: the whole 400x280 raster, borders included (where the flashes must show too).
 const FULL = process.env.FULL === "1";
@@ -11,13 +11,13 @@ const RW = 800, W = FULL ? 400 : 320, H = FULL ? 280 : 200, X0 = FULL ? 0 : 40, 
 const [outdir, ...times] = process.argv.slice(2);
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-const cartBytes = await readFile("docs/demo-falcon_ays.wasm");
+const cartBytes = await readFile("site/carts/demo-falcon_ays.wasm");
 const env = { memory, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

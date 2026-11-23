@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Write docs/channels.json + docs/cart-names.json from the menu's catalog.
+"""Write site/channels.json + docs/cart-names.json from the menu's catalog.
 
 Each channel is a RECORD: {"tag", "title", "type"} — the tag the host boots,
 the human name, and the machine the screen comes from. The title and type are
-what the monitor's VHS name card prints when a cart boots (docs/cart-osd.js).
+what the monitor's VHS name card prints when a cart boots (site/js/cart-osd.js).
 
 The type is the TRAILING COMMENT on the catalog line (`}, // atari st`), not a
 field on Entry: it is host presentation metadata the menu cart would otherwise
@@ -13,8 +13,8 @@ known type FAILS here — a screen silently labelled with the wrong machine is
 worse than a build error.
 
 Source of truth is apps/zig/scenes/catalog.zig (the menu's list), NOT a glob of
-docs/demo-*.wasm: polyglot carts have no .zmd and must never become a channel.
-Every channel must have a real docs/demo-<tag>.zmd; a missing one fails loudly.
+site/carts/demo-*.wasm: polyglot carts have no .zmd and must never become a channel.
+Every channel must have a real site/carts/demo-<tag>.zmd; a missing one fails loudly.
 
 Usage: tools/channels.py [--check]   (--check: validate only, write nothing)
 """
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "apps/zig/scenes/catalog.zig"
-OUT = ROOT / "docs/channels.json"
+OUT = ROOT / "site/channels.json"
 
 # ---- THE ORDER CHOICE -------------------------------------------------------
 # "menu": the menu's order — menu.zig sorts catalog entries by NAME at comptime
@@ -63,7 +63,7 @@ def excluded(tag):
 KINDS = ("atari st", "atari falcon", "amiga", "c64", "pc", "zigmachine", "system", "unknown")  # pc: a desktop program ported (apps/ports)
 
 # Display names are shown in three fixed-width-ish places: the menu cart's own
-# 8x8-font list, the VHS name card, and the Select OSD row (docs/css/cart-select.css
+# 8x8-font list, the VHS name card, and the Select OSD row (site/css/cart-select.css
 # .cs_title, which ellipsizes past ~25 characters at desktop width). 22 is the
 # hard cap Matt set from that Select OSD screenshot; it also comfortably covers
 # the menu cart's two-column layout. Never raise this without re-checking all
@@ -114,9 +114,9 @@ def main():
     channels = [{"tag": tag, "title": name, "type": kind}
                 for name, tag, kind in items if not excluded(tag)]
     tags = [c["tag"] for c in channels]
-    missing = [t for t in tags if not (ROOT / f"docs/demo-{t}.zmd").is_file()]
+    missing = [t for t in tags if not (ROOT / f"site/carts/demo-{t}.zmd").is_file()]
     if missing:
-        sys.exit("channels: no disk for " + ", ".join(f"docs/demo-{t}.zmd" for t in missing))
+        sys.exit("channels: no disk for " + ", ".join(f"site/carts/demo-{t}.zmd" for t in missing))
     if "--check" not in sys.argv:
         OUT.write_text(json.dumps(channels, indent=1) + "\n")
     kinds = ", ".join(f"{k}={sum(1 for c in channels if c['type'] == k)}" for k in KINDS)

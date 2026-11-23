@@ -155,8 +155,8 @@ the image is unreadable or the depack fails, it logs and skips the part.
 
 | | before | after |
 |---|---|---|
-| `docs/demo-union_intro.wasm` | 1,168,019 | 983,624 (−15.8%) |
-| `docs/demo-union_intro.zmd` | 1,169,920 | 985,600 |
+| `site/carts/demo-union_intro.wasm` | 1,168,019 | 983,624 (−15.8%) |
+| `site/carts/demo-union_intro.zmd` | 1,169,920 | 985,600 |
 | RAM window used (check_fits) | 1483 KB | 1299 KB |
 
 The depack target is taken from **free cart RAM** (`hwRamBase + hwRamUsed`,

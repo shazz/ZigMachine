@@ -1,5 +1,5 @@
 // Headless RNO / NATRIUM driver: boots the sealed machine the way
-// docs/sealed-loader.js does, runs the intro at one 20 ms VBL per host frame
+// site/js/sealed-loader.js does, runs the intro at one 20 ms VBL per host frame
 // (the scene paces its timeline by real 50 Hz VBLs), and checks what the
 // MACHINE shows -- after the planar expansion, the palette and the choice of
 // shown buffer -- against Hatari's own RAM:

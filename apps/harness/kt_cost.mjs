@@ -21,7 +21,7 @@ const row = Number(arg("--row", 0)), frames = Number(arg("--frames", 12)), warmu
 const top = Number(arg("--top", 25)), audioPath = arg("--audio", "zig-out/perf-names/docs/demo-audio.wasm");
 
 const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
 const env = { memory };
 for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
 const I = instrument(await readFile(audioPath), { probes: false });

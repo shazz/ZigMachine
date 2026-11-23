@@ -16,7 +16,7 @@
 // cart GROWS past its entry, and on a STALE entry (the cart is under the limit
 // now): delete it, so the list only ever shrinks.
 //
-//   node apps/harness/zero_segments.mjs docs/demo-*.wasm   (exit 1 on any failure)
+//   node apps/harness/zero_segments.mjs site/carts/demo-*.wasm   (exit 1 on any failure)
 //   node apps/harness/zero_segments.mjs --break            a synthetic cart with a 70 KB
 //                                                  zero segment must be caught
 import { readFile } from "node:fs/promises";

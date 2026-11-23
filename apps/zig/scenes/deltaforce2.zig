@@ -24,7 +24,7 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // David Whittaker, "Renegade" (1987) — the same tune DELTA FORCE plays;
 // the two screens share it deliberately.
 const MUSIC = "renegade.sndh";

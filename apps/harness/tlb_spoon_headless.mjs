@@ -1,5 +1,5 @@
 // Headless TLB / Twiddle Demo driver — boots the sealed machine +
-// demo-tlb_spoon.wasm the way docs/sealed-loader.js does and dumps PPMs of the
+// demo-tlb_spoon.wasm the way site/js/sealed-loader.js does and dumps PPMs of the
 // 320x200 screen, one per phase.
 //
 // The screen has ONE plane and no open borders, so this crops the physical
@@ -21,19 +21,19 @@
 // nothing here needed re-pinning: it dumps the phase shots for a person to look at.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 
-async function boot(cart = "docs/demo-tlb_spoon.wasm") {
+async function boot(cart = "site/carts/demo-tlb_spoon.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

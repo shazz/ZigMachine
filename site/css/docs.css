@@ -1,6 +1,6 @@
 /* Shared chrome for the two generated documentation pages:
-     docs/TUTORIAL.html         (tools/gen_tutorial.py)  + css/tutorial.css
-     docs/ZIGMACHINE_GUIDE.html (tools/gen_docs.py)      + css/guide.css
+     site/TUTORIAL.html         (tools/gen_tutorial.py)  + css/tutorial.css
+     site/ZIGMACHINE_GUIDE.html (tools/gen_docs.py)      + css/guide.css
    Tokens, the sticky top bar, the section rail and the prose basics live here so
    the two pages read as one product; code blocks are in css/code.css. */
 :root {

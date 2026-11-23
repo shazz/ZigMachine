@@ -39,7 +39,7 @@ def parse_pointer(text: str) -> list[tuple[int, int, int, int]]:
 
 @dataclass(frozen=True)
 class Variant:
-    data_disk: str | None = None  # a docs/demo-<tag>.zmd mounted as a data disk
+    data_disk: str | None = None  # a site/carts/demo-<tag>.zmd mounted as a data disk
     pointer: list[tuple[int, int, int, int]] = field(default_factory=list)
 
     @property
@@ -53,7 +53,7 @@ class Variant:
     def disk(self) -> Path | None:
         if not self.data_disk:
             return None
-        path = ROOT / "docs" / f"demo-{self.data_disk}.zmd"
+        path = ROOT / "site" / "carts" / f"demo-{self.data_disk}.zmd"
         if not path.exists():
             raise SystemExit(f"hp_sim_variant: no {path}")
         return path
@@ -85,7 +85,7 @@ class Variant:
             env["ZM_GLASS_POINTER"] = self.sim_pointer()
         REF.mkdir(parents=True, exist_ok=True)
         common = [str(frames), str(every), *args]
-        runs = (("js", ["node", "apps/harness/scene_hash.mjs", f"docs/demo-{tag}.wasm", *common, *calls]),
+        runs = (("js", ["node", "apps/harness/scene_hash.mjs", f"site/carts/demo-{tag}.wasm", *common, *calls]),
                 ("native", [str(FPGA / f"build/host/{tag}/host"), tag, *common]))  # fmt: skip
         for kind, cmd in runs:
             out = REF / f"{tag}.{frames}.{every}.{kind}+disk{self.suffix}.json"

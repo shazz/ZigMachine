@@ -41,8 +41,8 @@ const argv = process.argv.slice(2);
 const opt = (name, dflt) => { const i = argv.indexOf(name); return i < 0 ? dflt : argv[i + 1]; };
 const brk = opt("--break", null);
 if (brk && brk !== "skip") throw new Error(`--break takes skip, not ${brk}`);
-const cart = opt("--cart", "docs/demo-stcs.wasm");
-const disk = opt("--disk", "docs/demo-stcs.zmd");
+const cart = opt("--cart", "site/carts/demo-stcs.wasm");
+const disk = opt("--disk", "site/carts/demo-stcs.zmd");
 
 const args = ["apps/harness/scene_hash.mjs", cart, String(FRAMES), "1", "--disk", disk, "--composite"];
 if (brk === "skip") args.push("--call", "4000:frame:16.6");

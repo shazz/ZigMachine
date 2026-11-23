@@ -9,7 +9,7 @@ __attribute__((import_module("env"), import_name("hostAudioStreamStop"))) extern
 
 #define US 1000000u
 /* A block a feed: the browser keeps the last 32 feeds to pre-fill the ring once sound is on
- * (docs/sealed-loader.js recentChunks, "32 blocks = 16 KiB = half the ring"), so a feed stays <= 512. */
+ * (site/js/sealed-loader.js recentChunks, "32 blocks = 16 KiB = half the ring"), so a feed stays <= 512. */
 #define BLOCK 512
 
 static uint32_t last_us;   /* hostMicros() at the last frame, 0 = no clock yet */

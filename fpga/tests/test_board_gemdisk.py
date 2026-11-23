@@ -2,8 +2,8 @@
 listing the firmware and the native host hand GEM (host/zmd_dir.h, host/disk_app.h) is the
 browser's, byte for byte.
 
-- The listing (zmd_dir.h) against the browser's OWN parseDisk (docs/zmdisk.js) and listing
-  block (cut out of docs/sealed-loader.js, run in node): ST Replay's disk, v1 and v2 disks,
+- The listing (zmd_dir.h) against the browser's OWN parseDisk (site/js/zmdisk.js) and listing
+  block (cut out of site/js/sealed-loader.js, run in node): ST Replay's disk, v1 and v2 disks,
   repeated names, array-index names, bad UTF-8, a BOM, NUL cuts, more files than the ROM's
   cap, no files, a type byte past the end, a FAT past the end, a short disk, a bad magic, a
   corrupt checksum, records past the memory's end.
@@ -28,7 +28,7 @@ from host_make import lock_argv  # noqa: E402
 FPGA = Path(__file__).resolve().parent.parent
 WORK = FPGA / "build" / "board_gemdisk"
 HOST = FPGA / "build/host/gem/host"
-ST_REPLAY = ROOT / "docs/demo-st_replay.zmd"
+ST_REPLAY = ROOT / "site/carts/demo-st_replay.zmd"
 
 E = [(b"BOOT.WSM", 1536, 9636, 0), (b"SAMPLE.RAW", 11264, 773120, 1)]
 ODD_NAMES = [b"\xff\xfeAB", b"\xe2\x82", b"\xef\xbb\xbfBOM", b"A\0B\nC", b"A\nB\0C", b"\xc3\xa9t\xc3\xa9",
@@ -133,7 +133,7 @@ def _step(text: str) -> list[str]:
 
 def test_scene_hash_data_disk_step_is_the_browsers_text_for_text() -> None:
     js = (ROOT / "apps/harness/scene_hash_disk.mjs").read_text()
-    assert _step(js) == _step((ROOT / "docs/sealed-loader.js").read_text())
+    assert _step(js) == _step((ROOT / "site/js/sealed-loader.js").read_text())
 
 
 # GEM's floppy (40,30): a move, a click, the double-click pulse; then BOOT.WSM in the window
@@ -157,7 +157,7 @@ def gem_host() -> Path:
 def test_native_host_opens_the_floppy_and_asks_for_boot_wsm_as_scene_hash_does(gem_host: Path) -> None:
     env = {**os.environ, "ZM_GLASS_POINTER": ROUTED}
     nat = _run([str(gem_host), "gem", "40", "5", "--data-disk", str(ST_REPLAY)], env)
-    js = _run(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", "--data-disk", str(ST_REPLAY), *CALLS])
+    js = _run(["node", "apps/harness/scene_hash.mjs", "site/carts/demo-gem.wasm", "40", "5", "--data-disk", str(ST_REPLAY), *CALLS])
     empty = _run([str(gem_host), "gem", "40", "5"], env)
     assert nat.returncode == js.returncode == empty.returncode == 0, nat.stderr + js.stderr
     hashes = [[s["hash"] for s in json.loads(r.stdout)["samples"]] for r in (nat, js, empty)]
@@ -168,8 +168,8 @@ def test_native_host_opens_the_floppy_and_asks_for_boot_wsm_as_scene_hash_does(g
 
 
 def test_a_bootable_disk_is_not_a_data_disk_for_either(gem_host: Path) -> None:
-    gem_disk = str(ROOT / "docs/demo-gem.zmd")
+    gem_disk = str(ROOT / "site/carts/demo-gem.zmd")
     nat = _run([str(gem_host), "gem", "10", "5", "--data-disk", gem_disk])
-    js = _run(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "10", "5", "--data-disk", gem_disk])
+    js = _run(["node", "apps/harness/scene_hash.mjs", "site/carts/demo-gem.wasm", "10", "5", "--data-disk", gem_disk])
     assert nat.returncode == 2 and "bootable, not a data disk" in nat.stderr
     assert js.returncode != 0 and "bootable, not a data disk" in js.stderr

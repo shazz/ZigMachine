@@ -25,7 +25,7 @@
 // Each must make the run fail; the harness then passes by catching it.
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const A = "apps/zig/assets/screens/tcb_weirddream/";
@@ -34,10 +34,10 @@ const SPLASH = 200;
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -197,7 +197,7 @@ function keyed(f, img, off, w, h, x, y) {
 }
 
 // ---------------------------------------------------------------- the run
-const { memory, machine, demo } = await boot("docs/demo-tcb_weirddream.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-tcb_weirddream.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight(); // 800x280, window at (80,40) x-doubled
 const pfb = () => new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
 const errors = [];
@@ -249,7 +249,7 @@ const cost = (performance.now() - t0) / frames;
 // Music: go() starts subtune 1 (audio.playNextSong in dosplash), nothing before.
 if (songs.length !== 1 || songs[0].frame !== SPLASH + 1 || songs[0].name !== "rollout.sndh" || songs[0].tune !== 1)
     errors.push(`song requests ${JSON.stringify(songs)}, want rollout.sndh tune 1 at frame ${SPLASH + 1} only`);
-try { await access("docs/music/rollout.sndh"); } catch { errors.push("docs/music/rollout.sndh is missing"); }
+try { await access("site/music/rollout.sndh"); } catch { errors.push("site/music/rollout.sndh is missing"); }
 // F1 while tune 1 plays does nothing; F2 -> tune 2; F2 again nothing; F1 -> tune 1.
 const keyWant = BREAK === "keys" ? [[0xe001, 1], [0xe002, 2], [0xe002, null], [0xe001, 1]]
     : [[0xe001, null], [0xe002, 2], [0xe002, null], [0xe001, 1]];

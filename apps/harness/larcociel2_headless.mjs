@@ -28,7 +28,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { inflateSync } from "node:zlib";
 import { performance } from "node:perf_hooks";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200;
@@ -38,13 +38,13 @@ const TICK_MS = 20.0; // the cart's 50 Hz step; the harness gives exactly one ti
 // ---------------- boot (the grodan/kickoff2 shape: machine + ROM + cart) -----
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-larcociel2.wasm");
+const cartBytes = await readFile("site/carts/demo-larcociel2.wasm");
 const env = {
     ...romEnv,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,
@@ -73,11 +73,11 @@ const ok = (cond, msg) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${msg}`); i
 // an un-quit cart per key, and startCart() never re-boots (demo_main's contract).
 async function bootIsolated() {
     const mem = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    const mach = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const mach = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory: mem, hblDispatch: () => {} }, // no rendering here, so no HBL needed
     })).instance.exports;
     const renv = { memory: mem, hwVideoBase: mach.hwVideoBase, hwBlit: mach.hwBlit };
-    const r = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: renv })).instance.exports;
+    const r = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: renv })).instance.exports;
     const en = {
         ...renv,
         hwRamBase: mach.hwRamBase, hwRamTop: mach.hwRamTop, hwRamSize: mach.hwRamSize,

@@ -8,10 +8,10 @@ cart and disk and runs every cross-cutting check. So the only question here is
 "can this file change what some other screen's harness sees?" Every rule errs
 towards FULL, and an unknown path is FULL.
 
-Why a cart's own docs/demo-<tag>.wasm is evidence: the pre-push hook refuses a
+Why a cart's own site/carts/demo-<tag>.wasm is evidence: the pre-push hook refuses a
 push whose docs/ differ from a rebuild of its source, and the base it diffs
 against passed the same check. So a source change that alters cart Y's bytes
-(a scene file shared with Y, say) shows up as docs/demo-Y.wasm in the diff, and
+(a scene file shared with Y, say) shows up as site/carts/demo-Y.wasm in the diff, and
 Y's harnesses are selected -- or the push fails the docs check.
 """
 from __future__ import annotations
@@ -106,9 +106,9 @@ def classify(repo: Repo, status: str, path: str) -> set[str] | None:
     parts = path.split("/")
     if path.endswith(".md") or path.startswith("docs/ports/"):
         return set()  # prose: the doc generators' checks are cross-cutting
-    if parts[0] == "docs" and path.startswith("docs/music/"):
+    if path.startswith("site/music/"):
         return set() if status == "A" else None  # a new tune breaks no one
-    m = re.fullmatch(r"docs/demo-([a-z0-9_]+)\.(wasm|zmd)", path)
+    m = re.fullmatch(r"site/carts/demo-([a-z0-9_]+)\.(wasm|zmd)", path)
     if m:
         return cart_tags(repo, m.group(1)) if m.group(1) in repo.carts else None
     if path.startswith(("apps/zig/scenes/", "apps/zig/assets/screens/")) and len(parts) > 3:

@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // NOTEPAD's keyboard and mouse. Keys arrive through the cart's key() / input()
-// exports (docs/sealed-loader.js KEY_CODES, glass's map.zig: the same codes on
+// exports (site/js/sealed-loader.js KEY_CODES, glass's map.zig: the same codes on
 // the board) and are queued, then handled in the frame, where drawing is allowed.
 // Control is a key of its own (0xE014 / 0xE016, its release through keyUp): with
 // it held a letter is a menu shortcut, as ^N ^O ^S ^Q ^X ^C ^V ^A ^F were on TOS.

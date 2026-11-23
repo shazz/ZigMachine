@@ -125,7 +125,7 @@ KOS_FILE_DEFAULTS = """/* C:'s writes (KOS GEMDOS phase 2): host_kos_file_hook u
 #endif
 """
 
-# The audio-state mirror (cycles/aud_state.h): the cart's ZigOS fields docs/sealed-loader.js
+# The audio-state mirror (cycles/aud_state.h): the cart's ZigOS fields site/js/sealed-loader.js
 # writes from the worklet's "audioState" (ym_regs, audio_mode, song_ms), as offsets in its memory,
 # handed to the HOST_AUDIO_MIRROR hook once, after the cart's instantiation. No wasm imports it:
 # the monolithic env.c calls the hook itself (host_audio_mirror_bind, from host/boot.c), the lean

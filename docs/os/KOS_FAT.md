@@ -4,7 +4,7 @@ Status: **F1-F4 built, 31 Oct 2026; F3b (a floppy program's own board image) and
 KESTREL Operating System (docs/os/ZIGTOS_BOOT.md).
 
 Today GEM's drive A only knows ZigMachine's own `.zmd` disks: the host parses the disk's flat
-FAT and hands the desktop up to 12 records (name, type, size, date; `docs/sealed-loader.js`,
+FAT and hands the desktop up to 12 records (name, type, size, date; `site/js/sealed-loader.js`,
 `host/zmd_dir.h`). A real Atari floppy, a PC-formatted 1.44 MB disk or an `.ST` image means
 nothing to it. And there is no hard disk. This design gives the ROM a GEMDOS-style FAT reader so
 the desktop browses **any FAT12 floppy** in drive A (a real one through the USB floppy drive, an
@@ -155,7 +155,7 @@ a host entry of the system table
 `memory`, `hwVideoBase` and `hwBlit`. One rule set in every host: the answer is the sectors read,
 0 for any refusal (no C:, a unit other than 2, count 0 or over 64, a run past the end, a `dst` off
 a word or past the memory), all or nothing, never a trap. The page: `kosDriveRead` over the image
-`kosMountC(buf)` mounted (`docs/sealed-loader.js`); the native host: `--c-image X` into
+`kosMountC(buf)` mounted (`site/js/sealed-loader.js`); the native host: `--c-image X` into
 `host_cdisk` (`host/disk.h host_kos_drive_read`, the default the generated env carries); the board:
 `cycles/bkosdrive.c` (force-included as `bkosdrive.h` into the board images' env only; the sim's
 answer 0) writes the request block at window end - `KOS_DRIVE_FROM_TOP` (0x360, 9 words, between
@@ -170,8 +170,8 @@ words = glass's rule, the answer, the block's place, the native rules) and glass
 never served). The board is the one host not yet run.
 
 **C: in the browser and the native host**: a FAT16 image built at build time (`mkfs.fat` over a
-folder, `docs/kos-c.img`) served by the page as unit 2; the native host takes `--c-image`.
-**As built:** `docs/kos-c.img` is a 200 KB FAT12 image (`tools/kos_c_image.py`, synthetic bytes
+folder, `site/disks/kos-c.img`) served by the page as unit 2; the native host takes `--c-image`.
+**As built:** `site/disks/kos-c.img` is a 200 KB FAT12 image (`tools/kos_c_image.py`, synthetic bytes
 shaped like the card, `--check` in build.sh), mounted by the page with `?c=kos-c.img` (none by
 default, a one-line change in `kosPowerOn`); FAT16 and FAT32 are F1's reader tests against mtools.
 Proof: `apps/harness/kos_boot_check.mjs` (the page's C: icon, then its window = scene_hash.mjs
@@ -231,7 +231,7 @@ are never read into C:'s model. **A card with no `/HD` has no C:** (no icon, as 
 image), not an empty one: an icon that opens on nothing would say the card is empty when it is not
 laid out. `fpga/tools/sd_migrate_layout.sh` makes `/HD`, empty; `glass_sd.py` stages one.
 
-`docs/kos-c.img` (`tools/kos_c_image.py`) is shaped like such a card: `BOOT.BIN`,
+`site/disks/kos-c.img` (`tools/kos_c_image.py`) is shaped like such a card: `BOOT.BIN`,
 `KESTREL/SYSTEM.RV3`, `CARTS/SHELF.TXT`, and `HD/` with `README.TXT` and the folders `DEMOS`,
 `TOOLS`, `TUTORIAL`, so C:\ on the page lists `HD/`'s four entries. Proof:
 `fpga/tests/test_kos_fat_desktop.py::test_c_is_the_cards_hd_folder_and_nothing_above_it`: FAT32
@@ -268,7 +268,7 @@ pictures from its folders. The page takes `?c=gemdos-c.img` for a C: with pictur
    holds (with this same reader, `rom/kos/fat.zig`: pure Zig, glass imports it), depacks them if
    they are ZX0-packed, hashes the wasm (SHA-256), and loads `KESTREL/progs/by-hash/<hash>.rv32`
    (`glass/src/app_floppy_prog.zig`; `tools/glass_shelf.py` writes one per cart it has a board image of, the board image of the cart whose
-   `docs/demo-<cart>.wasm` has that hash, as it finds a data disk's program today). No image:
+   `site/carts/demo-<cart>.wasm` has that hash, as it finds a data disk's program today). No image:
    `<NAME>: no board image for this program`, the desktop keeps running. The browser runs the
    file's wasm directly (request 3, as for a `.zmd`: `ZMKos.fatFile` reads it off the image).
 3. **The floppy carries its own board image** (F3b; Matt, 31 Oct: the floppy must not need the SD

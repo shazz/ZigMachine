@@ -20,7 +20,7 @@
 // the report; it is NOT ported.
 //
 // The music is the remake's: Jochen Hippel's Amiga "Chambers of Shaolin" title
-// module (Thalion), docs/music/shaolin_title.hip from modland, played on its own
+// module (Thalion), site/music/shaolin_title.hip from modland, played on its own
 // 68000 replay and an emulated Paula (see init()).
 //
 // GEOMETRY — the judgement call. The remake's canvas is 720x568: an AMIGA PAL
@@ -102,7 +102,7 @@ pub const Demo = struct {
         self.ring = scroller.Ring.init(scroller.SCROLL_TEXT, scroller.SCROLL_START, panel.GW);
         // MUSIC: Jochen Hippel's title tune for "Chambers of Shaolin" (Thalion,
         // 1989), the AMIGA module the CODEF screen plays through UADE:
-        // docs/music/shaolin_title.hip is modland's "shaolin title.hip" byte for
+        // site/music/shaolin_title.hip is modland's "shaolin title.hip" byte for
         // byte (pub/modules/Hippel/Jochen Hippel/, md5 48e2ebc6...). It plays on
         // its own 68000 replay routine driving an emulated Paula (libs/zig/
         // players/hip_player.zig), as UADE does. The game's ST SNDH is not used:

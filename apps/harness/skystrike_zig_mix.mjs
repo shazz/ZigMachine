@@ -1,7 +1,7 @@
 // SKYSTRIKE ZIG-mode harness, the engine note's registers (engineCheck) and
 // the mix (apps/harness/skystrike_zig_sound.mjs calls both): the levels the player
 // hears in flight, on the real audio modules
-// (docs/machine-audio.wasm + docs/demo-audio.wasm), RMS over both sides.
+// (site/machine-audio.wasm + site/demo-audio.wasm), RMS over both sides.
 //   bed     "The Hawk's Claw" at the gain the cart requested for the flight
 //           (zg.requestModVolume), one channel lent as under an effect,
 //           20 s of it
@@ -14,7 +14,7 @@
 // effects' mean, so it does not bury them either.
 import { readFile } from "node:fs/promises";
 
-const SR = 44100, MOD = "docs/music/skystrike_the_hawks_claw.mod";
+const SR = 44100, MOD = "site/music/skystrike_the_hawks_claw.mod";
 const EACH_DB = 3, MEAN_DB = 5;
 
 /// The engine note: ZIG's YM registers (as the writes before the runway and
@@ -44,10 +44,10 @@ export function engineCheck(z, o, errors) {
 /// The flight's MOD (or `mod`) playing at q16 / 65536 of its volume.
 async function machine(mod, q16) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     new Uint8Array(memory.buffer, a.audioSongPtr(), mod.length).set(mod);
     if (!a.audioLoadMod(mod.length)) throw new Error("audioLoadMod refused the flight's MOD");

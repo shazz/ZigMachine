@@ -6,7 +6,7 @@
 // palette indices in shared memory and a few registers.
 //
 // Build: bash apps/rust/build.sh tutorial
-// Run:   docs/index.html?demo=demo-rust-tutorial.wasm
+// Run:   site/index.html?demo=demo-rust-tutorial.wasm
 // ---------------------------------------------------------------------------
 #![no_std]
 #![no_main]
@@ -201,7 +201,7 @@ fn panic(_: &PanicInfo) -> ! {
 
 #[no_mangle]
 pub extern "C" fn boot() {
-    zigmachine_music::request_song("sos.sndh"); // a file under docs/music/
+    zigmachine_music::request_song("sos.sndh"); // a file under site/music/
 
     let s = screen();
     // SAFETY: a plain import from the machine; it returns the video region's base.

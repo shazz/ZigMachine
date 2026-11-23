@@ -12,7 +12,7 @@
 //   node apps/harness/chisel_v2_play_check.mjs [--break photo]
 //     --break photo: P is never sent, so every "photo" check must fail (then exit 0)
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, REG_FB_BASE = 0x44, W = 320, TOP = 24, H = 200, N = 30;
 const K = { up: 0xE020, down: 0xE021, left: 0xE022, right: 0xE023, p: 112, t: 116, f: 102, x: 120,
@@ -24,13 +24,13 @@ const ok = (c, m) => { console.log(`  ${c ? "ok  " : "FAIL"} ${m}`); if (!c) fai
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-chisel_v2.wasm"), env = { memory, ...rom };
+    const cartBytes = await readFile("site/carts/demo-chisel_v2.wasm"), env = { memory, ...rom };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => 0;

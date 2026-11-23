@@ -7,7 +7,7 @@
 // as an Amiga program does: AUDxLC/LEN/PER/VOL and DMACON, through paula.zig,
 // the same model the Hippel player's 68000 drives (LC/LEN latched at the DMA
 // start and at each wrap, so "attack, then loop" and sample swaps are the
-// hardware's). The host side (docs/sealed-loader.js + audio-worklet-sealed.js,
+// hardware's). The host side (site/js/sealed-loader.js + audio-worklet-sealed.js,
 // fpga/host/audio_bridge.c + audio_paula.c) only carries the bytes:
 //   claim    every player stops; chip RAM (song RAM, 1 MiB) is zeroed; while the
 //            cart holds the channels the hosts refuse every song, stream and effect

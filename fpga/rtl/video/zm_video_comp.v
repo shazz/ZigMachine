@@ -35,7 +35,7 @@
 
 module zm_video_comp #(
     // What a fully transparent picture pixel shows (zm_video_mix.v): black, the browser's
-    // tube too (docs/css/crt.css); soc/zm_video_pipe.py passes it down explicitly.
+    // tube too (site/css/crt.css); soc/zm_video_pipe.py passes it down explicitly.
     parameter [23:0] TUBE = 24'h000000
 ) (
     input  wire        clk,

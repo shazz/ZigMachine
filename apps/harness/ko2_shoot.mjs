@@ -5,13 +5,13 @@ const PAGES = 128;
 const VBL_MS = 20;
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-kickoff2.wasm");
+const cartBytes = await readFile("site/carts/demo-kickoff2.wasm");
 const env = {
     ...romEnv,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,

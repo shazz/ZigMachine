@@ -28,7 +28,7 @@ const CANARY = 0x5a;
 
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const machine = (await WebAssembly.instantiate(
-    await readFile(process.env.MACHINE || "docs/machine-video.wasm"),
+    await readFile(process.env.MACHINE || "site/machine-video.wasm"),
     { env: { memory, hblDispatch: () => {} } })).instance.exports;
 machine.hwInit();
 

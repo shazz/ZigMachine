@@ -36,7 +36,7 @@ const TUNES = { menu: "big_sprite.sndh", bspr: "so_watt_no_crew.sndh", dam: "so_
 
 const refs = JSON.parse(gunzipSync(await readFile("apps/harness/naos_nitrowave_ref.json.gz")));
 const unz = (s) => inflateSync(Buffer.from(s, "base64"));
-const { memory, machine, demo } = await boot("docs/demo-naos_nitrowave.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-naos_nitrowave.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight(), XS = W / 400;
 const errors = [];
 await mkdir(outdir, { recursive: true });

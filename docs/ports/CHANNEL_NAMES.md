@@ -72,7 +72,7 @@ below).
 
 ## Length limit
 
-Matt's constraint (from a Select OSD screenshot, `docs/css/cart-select.css`
+Matt's constraint (from a Select OSD screenshot, `site/css/cart-select.css`
 `.cs_title`): **hard max 22 characters**, including spaces/punctuation. Enforced
 by a new check in `tools/channels.py` (`MAX_NAME_LEN = 22`, checked in
 `entries()`, so it fails both a plain run and `--check`).
@@ -91,7 +91,7 @@ budget:
   overlap, but it does not make it any worse than what already shipped, and
   fixing the menu's per-column clipping is a separate, pre-existing issue
   outside this task's scope.
-- **VHS name card** (`docs/cart-osd.js`) and **Select OSD** (`docs/cart-select.js`
+- **VHS name card** (`site/js/cart-osd.js`) and **Select OSD** (`site/js/cart-select.js`
   `.cs_title`): both plain browser text with `overflow: hidden; text-overflow:
   ellipsis` (Select) or no fixed width at all (name card) — 22 characters
   fits comfortably in both.
@@ -102,7 +102,7 @@ budget:
 
 ## Pre-existing, out of scope
 
-`tools/channels.py`'s own module docstring says it writes `docs/channels.json`
+`tools/channels.py`'s own module docstring says it writes `site/channels.json`
 and `docs/cart-names.json`; it only writes the former (`docs/cart-names.json`
 does not exist in the repo). This predates this change and is unrelated to the
 renaming — left as-is.

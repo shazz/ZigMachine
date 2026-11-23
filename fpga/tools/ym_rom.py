@@ -1,4 +1,4 @@
-"""A YM register dump (YM5!/YM6!, depacked: docs/music/*.ymraw) to a register-
+"""A YM register dump (YM5!/YM6!, depacked: site/music/*.ymraw) to a register-
 write ROM for the sound-chip players (rtl/board/zm_dump_player.v), and the same
 words as a binary for the Zig oracle (tests/audio_ref/audio_ref.zig `rom`).
 

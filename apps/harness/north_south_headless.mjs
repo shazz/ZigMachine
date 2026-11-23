@@ -1,5 +1,5 @@
 // Headless NORTH & SOUTH (battle) driver: boots the sealed machine the way
-// docs/sealed-loader.js does and checks the cart against the REFERENCE MODEL
+// site/js/sealed-loader.js does and checks the cart against the REFERENCE MODEL
 // (the rip's Python model, itself byte-exact against the original 68000 battle
 // code on all 13 scripted battles):
 //   replay   every script's per-frame inputs (the three bytes the original
@@ -19,7 +19,7 @@
 //   node apps/harness/north_south_headless.mjs
 //   node apps/harness/north_south_headless.mjs --break    one poked RAM byte must FAIL the replay
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // AUDIO_PAGES in machine/sdk/audio.zig
@@ -27,13 +27,13 @@ const SOUND = "north_south_digi.sndh";
 const MODES = { 0: 0, 1: 1, 2: 2, 3: 3 };
 const broke = process.argv.includes("--break");
 
-async function boot(cart = "docs/demo-north_south.wasm") {
+async function boot(cart = "site/carts/demo-north_south.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -177,12 +177,12 @@ async function play() {
 // sample ends, and there can be no more of them than level bytes.
 async function sound() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const name of Object.keys(machine)) if (name.startsWith("machine")) env[name] = machine[name];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const tune = new Uint8Array(await readFile(`docs/music/${SOUND}`));
+    const tune = new Uint8Array(await readFile(`site/music/${SOUND}`));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), tune.length).set(tune);
     const loaded = audio.audioLoadSndh(tune.length) && audio.audioSndhSubtunes() === 47;
     const SEQ = 0x29; // a two-soldier volley

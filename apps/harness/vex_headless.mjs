@@ -1,5 +1,5 @@
 // Headless VEX 2025 driver — boots the sealed machine + demo-vex the way
-// docs/sealed-loader.js does and dumps composited frames as PPMs.
+// site/js/sealed-loader.js does and dumps composited frames as PPMs.
 //
 // Why this exists: the screen is ONE plane whose lower 150 rows are recomposed
 // every frame out of four bit layers, with a per-row palette installed from an
@@ -15,20 +15,20 @@
 //   node apps/harness/vex_headless.mjs [outdir]
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1;  // the whole intro is one 16-colour plane, as the ST screen was
 
-async function boot(cart = "docs/demo-vex.wasm") {
+async function boot(cart = "site/carts/demo-vex.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -76,7 +76,7 @@ class Screen {
         this.snaps = [];
     }
 
-    // One host frame, exactly as docs/sealed-loader.js sequences it: clear the
+    // One host frame, exactly as site/js/sealed-loader.js sequences it: clear the
     // PFB (which also runs the global HBL), let the cart draw, then composite
     // every enabled plane. hwRenderPlane OVERWRITES the shared PFB — the host
     // uploads one plane per canvas — so each plane is snapshotted and blended in

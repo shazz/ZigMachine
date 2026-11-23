@@ -1,7 +1,7 @@
 # `apps/zig/` — the ZigOS demo (Zig scenes)
 
 The main cartridge: boot screen → effects menu → scenes. Compiles to
-`docs/demo.wasm`, linked against `zigos`, `rom` (GEM), `players`, and the HW ABI.
+`site/carts/demo.wasm`, linked against `zigos`, `rom` (GEM), `players`, and the HW ABI.
 
 ## Layout
 - `demo_main.zig` — `demo.wasm` entry (video/main thread): boot ROM screen, then
@@ -20,7 +20,7 @@ pre-reorg relative imports and need migrating when selected.
 
 ## Build & run
 ```bash
-zig build -Dwasm -Drelease=true          # -> docs/demo.wasm
+zig build -Dwasm -Drelease=true          # -> site/carts/demo.wasm
 cd docs && python3 -m http.server 3333   # http://localhost:3333/sealed.html
 ```
 Hard-reload after every rebuild. See `docs/guide/ZIGOS_API.md` + `docs/hardware/HW_API.md`.

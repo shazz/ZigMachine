@@ -57,7 +57,7 @@ pub fn stopAll() void {
 }
 
 /// The stream's ring at SONG_BASE (demo_audio_raw.zig). The host and the
-/// scenes that stream name it here (docs/audio-worklet-sealed.js, stream.zig).
+/// scenes that stream name it here (site/js/audio-worklet-sealed.js, stream.zig).
 pub const STREAM_RING: usize = 32768;
 
 pub fn songSlice(len: u32) []const u8 {

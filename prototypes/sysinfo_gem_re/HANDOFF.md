@@ -3,7 +3,7 @@
 ## What changed
 
 SysInfo (cart 91, `sysinfo`) is now launched from the GEM desktop exactly the way ST Replay is:
-its disk `docs/demo-sysinfo.zmd` is a **data disk** (boot sector sums to `$0000`), so inserting it
+its disk `site/carts/demo-sysinfo.zmd` is a **data disk** (boot sector sums to `$0000`), so inserting it
 (the menu's SYSINFO entry, `?disk=demo-sysinfo.zmd`, or the board shelf) boots GEM; FLOPPY DISK
 opens the floppy window, which lists `BOOT.WSM`; a double-click runs it (request 3); **Q** quits
 back to the desktop (request 4) with the disk still in. On the board it could not quit before
@@ -15,7 +15,7 @@ because its disk was bootable: request 4 had no GEM to go back to.
   came out with an empty FAT, so GEM's window was empty. No other disk changed (all 101 others
   repacked byte-identical).
 - `tools/channels.py`: sysinfo excluded from +/- like st_replay ("a data disk that boots GEM + an
-  app"); it stays in the menu. `docs/channels.json` regenerated.
+  app"); it stays in the menu. `site/channels.json` regenerated.
 - `apps/harness/sysinfo_check.mjs`: page 4's BOOT SECTOR is now expected from the disk's own sum
   (`DATA DISK`), not hardcoded `BOOTABLE ($1234)`.
 - NEW `apps/harness/sysinfo_gem_check.mjs` + two `gate sysinfo_gem` lines in build.sh (+ `--break

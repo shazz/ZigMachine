@@ -6,15 +6,15 @@
 //            key 5 for "none" (zg.SONG_STOP)
 //   bytes    key 7 is zg.requestSongBytes (sfx op 8, kind 6: SongKind.sid) of the tune's exact bytes, the
 //            path a C64 port takes for a tune read off its own disk; mode 7 (no key) the same bytes as an RSID
-//   bridge   docs/sealed-loader.js's own postSfx turns each into loadSid; the audio modules play the PSID
+//   bridge   site/js/sealed-loader.js's own postSfx turns each into loadSid; the audio modules play the PSID
 //            (mode 1, heard) and refuse the RSID ("RSID not supported", silent)
-//   song     docs/music/hermini.sid and apps/zig/assets/sid/HERMINI.SID are cRSID's HerMiniSID (md5)
+//   song     site/music/hermini.sid and apps/zig/assets/sid/HERMINI.SID are cRSID's HerMiniSID (md5)
 //   node apps/harness/sid_test_check.mjs [--break name]
 //     name: key 6 is expected to ask for another file, so the check must fail
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const BROKE = process.argv.includes("--break");
 const MD5 = "537f693740ed05502fc23151381082d9"; // libs/c/crsid/upstream/tests/HerMiniSID.sid
@@ -22,10 +22,10 @@ const MD5 = "537f693740ed05502fc23151381082d9"; // libs/c/crsid/upstream/tests/H
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -49,7 +49,7 @@ async function press(cart, key) {
     cart.demo.frame(16.6);
     const { memory, demo } = cart;
     const name = demo.pollSongRequest() ? new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())) : null;
-    const src = (await readFile("docs/sealed-loader.js", "utf8")).match(/^function postSfx\(mem, at, n\) \{[\s\S]*?^\}\n/m)[0];
+    const src = (await readFile("site/js/sealed-loader.js", "utf8")).match(/^function postSfx\(mem, at, n\) \{[\s\S]*?^\}\n/m)[0];
     const posted = [];
     const run = new Function("audioNode", `let songGen = 0, sndhResident = null, songPosted = Promise.resolve(), sfxChain = Promise.resolve();
         ${src}; postSfx(arguments[1], arguments[2], arguments[3]); return sfxChain;`);
@@ -60,10 +60,10 @@ async function press(cart, key) {
 /** The worklet's loadSid on the audio modules: loaded?, its status, mode, heard? */
 async function loadSid(msg) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     const bytes = new Uint8Array(msg.bytes);
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
@@ -76,12 +76,12 @@ async function loadSid(msg) {
     return { ok, status: (a.audioSidStatus() >> 8) & 0xff, mode: a.audioMode(), peak };
 }
 
-const errors = [], tune = new Uint8Array(await readFile("docs/music/hermini.sid"));
-for (const f of ["docs/music/hermini.sid", "apps/zig/assets/sid/HERMINI.SID"]) {
+const errors = [], tune = new Uint8Array(await readFile("site/music/hermini.sid"));
+for (const f of ["site/music/hermini.sid", "apps/zig/assets/sid/HERMINI.SID"]) {
     const md5 = createHash("md5").update(await readFile(f)).digest("hex");
     if (md5 !== MD5) errors.push(`song: ${f} md5 ${md5}, not HerMiniSID's ${MD5}`);
 }
-const cart = await bootCart("docs/demo-sid_test.wasm");
+const cart = await bootCart("site/carts/demo-sid_test.wasm");
 const LOCAL = ["cybernoid_ii.sid", "wizball.sid", "commando.sid", "club_style.sid"];
 for (const [i, want] of LOCAL.entries()) {
     const k = await press(cart, i);
@@ -90,7 +90,7 @@ for (const [i, want] of LOCAL.entries()) {
 // No host plays it here, as on a card without the file: past the screen's second of silence ("NOT ON
 // THIS MACHINE") the cart keeps running (a trap would throw out of frame()).
 for (let f = 0; f < 90; f++) cart.demo.frame(16.6);
-const tracked = execFileSync("git", ["ls-files", "--", ...LOCAL.map((n) => `docs/music/${n}`)], { encoding: "utf8" }).trim();
+const tracked = execFileSync("git", ["ls-files", "--", ...LOCAL.map((n) => `site/music/${n}`)], { encoding: "utf8" }).trim();
 if (tracked) errors.push(`local: ${tracked.split("\n").join(", ")} committed: the HVSC tunes stay on their owner's machine`);
 const k1 = await press(cart, 5);
 if (k1.name !== (BROKE ? "other.sid" : "hermini.sid")) errors.push(`name: key 6 asked for ${k1.name}`);

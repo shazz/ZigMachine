@@ -86,11 +86,11 @@ sh "$@" > "$log" 2>&1 || {
 }
 grep -E '^(SELECTIVE GATE|--changed|gate: |  shared or unknown: )' "$log" | sed 's/^/    /'
 
-stale=$(git status --porcelain -- docs)
+stale=$(git status --porcelain -- site)
 if [ -n "$stale" ]; then
-    echo "pre-push: ./build.sh passed, but it rebuilt docs/ files this push does not contain:"
+    echo "pre-push: ./build.sh passed, but it rebuilt site/ files this push does not contain:"
     echo "$stale" | sed 's/^/    /'
     echo "Commit them first, or GitHub Pages would deploy stale screens."
     exit 1
 fi
-echo "pre-push: gate green in $(( $(date +%s) - start ))s, docs/ up to date ✅"
+echo "pre-push: gate green in $(( $(date +%s) - start ))s, site/ up to date ✅"

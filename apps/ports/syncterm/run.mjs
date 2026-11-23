@@ -5,23 +5,23 @@
 //   EVERY=<n>               a PNG every n frames (30)
 //   INPUTS="frame:dir;..."  an arrow at a frame (0 up, 1 down, 2 left, 3 right)
 //   CODES="frame:code;..."  a raw key code at a frame (0xE013 = Alt, a toggle; decimal or 0x)
-//   C=<img>  C: is that FAT image (docs/gemdos-c.img's layout, HD/ = C:\), its writes served as the page serves
+//   C=<img>  C: is that FAT image (site/disks/gemdos-c.img's layout, HD/ = C:\), its writes served as the page serves
 //            them and saved back to the file at the end (the dialing directory lives in HD/SYNCTERM/); no C= = no C:
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../../site/js/wasm_hiwater.js";
 import { makeCDrive, makeCFile } from "../../harness/scene_hash_disk.mjs";
 
 const FRAMES = +(process.argv[2] ?? 120), OUT = process.argv[3] ?? "apps/ports/syncterm/build/frame";
 const EVERY = +(process.env.EVERY ?? 30); // a PNG every EVERY frames
 const CART = process.env.CART ?? "apps/ports/syncterm/build/demo-syncterm.wasm";
-const DISK = await readFile(process.env.DISK ?? "docs/demo-syncterm.zmd").catch(() => null);
+const DISK = await readFile(process.env.DISK ?? "site/carts/demo-syncterm.zmd").catch(() => null);
 const KEYS = (process.env.KEYS ?? "").split(";").filter(Boolean).map((k) => { const i = k.indexOf(":"); return [+k.slice(0, i), k.slice(i + 1).replace(/\\r/g, "\r")]; });
 const CODES = (process.env.CODES ?? "").split(";").filter(Boolean).map((k) => k.split(":").map(Number));
 const INPUTS = (process.env.INPUTS ?? "").split(";").filter(Boolean).map((k) => k.split(":").map(Number)); // an arrow (0 up, 1 down, 2 left, 3 right)
 const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
 const cartBytes = await readFile(CART);

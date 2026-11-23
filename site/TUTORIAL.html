@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Tutorial</title>
 <meta name="description" content="Write your first ZigMachine screen, step by step, in Zig, C or Rust — running live on the real machine.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/tutorial.css?v=1a7b2b87">
+<link rel="stylesheet" href="css/docs.css?v=c4879696">
+<link rel="stylesheet" href="css/code.css?v=f960994c">
+<link rel="stylesheet" href="css/tutorial.css?v=607c97c1">
 <script>
 (function () {
   var l = null;
@@ -116,8 +116,8 @@ this:</p>
 </ul>
 <p class="lead lead-note"><strong>Build.</strong></p>
 <figure class="cb" data-lang=bash><figcaption><span class="cb-lang">bash</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>sh ./build.sh                          <span class="tok-cm"># the Zig carts, plus every check</span>
-bash apps/c/build.sh tutorial          <span class="tok-cm"># -&gt; docs/demo-c-tutorial.wasm</span>
-bash apps/rust/build.sh tutorial       <span class="tok-cm"># -&gt; docs/demo-rust-tutorial.wasm</span></code></pre></figure>
+bash apps/c/build.sh tutorial          <span class="tok-cm"># -&gt; site/carts/demo-c-tutorial.wasm</span>
+bash apps/rust/build.sh tutorial       <span class="tok-cm"># -&gt; site/carts/demo-rust-tutorial.wasm</span></code></pre></figure>
 <p><code>./build.sh</code> also rebuilds the C and Rust carts, so a plain <code>./build.sh</code>
 covers all three. The single-language scripts are faster while you iterate.</p>
 <p class="lead lead-note"><strong>Run.</strong> Serve <code>docs/</code> and open a cart with <code>?demo=</code>:</p>
@@ -864,30 +864,30 @@ Rust show a chunkier 10x14 font.</p>
 <hr /></div><div class="run-slot"></div></section>
 <section class="step" id="step-7" data-step="7"><header class="step-h"><span class="num">07</span><h2>music</h2><button class="run" data-step="7" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> "So Watt" by Mad Max plays while the screen runs.</p>
 <p class="lead lead-concept"><strong>Concept.</strong> A cart never contains a music player. It asks the host for a tune
-<strong>by name</strong>, a file under <code>docs/music/</code>. The host polls the cart every frame,
+<strong>by name</strong>, a file under <code>site/music/</code>. The host polls the cart every frame,
 fetches the file, and plays it on the audio thread. An SNDH carries the tune's
 own 68000 replay code, which the machine runs on an emulated 68000 driving its
 YM2149, as the ST did. The full guide is <code>docs/guide/MUSIC.md</code>.</p>
 <p>Request once, at start-up. Each request replaces the tune playing.</p>
 <p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> Zig calls <code>zg.requestSong</code>, and <code>demo_main.zig</code> already
 exports what the host polls. C and Rust include a small bridge that defines
-those exports: <code>apps/c/zigmachine_music.h</code> or <code>apps/rust/zigmachine_music.rs</code>.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-7-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> MUSIC = <span class="tok-str">&quot;sos.sndh&quot;</span>; <span class="tok-cm">// a file under docs/music/</span></code></pre></figure>
+those exports: <code>apps/c/zigmachine_music.h</code> or <code>apps/rust/zigmachine_music.rs</code>.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-7-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> MUSIC = <span class="tok-str">&quot;sos.sndh&quot;</span>; <span class="tok-cm">// a file under site/music/</span></code></pre></figure>
 <p>In <code>init</code>:</p>
 <figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        zg.<span class="tok-fn">requestSong</span>(MUSIC);</code></pre></figure></section><section class="lang" data-lang="c" id="step-7-c"><h3>C</h3><p>At the top of the file:</p>
 <figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#include</span> <span class="tok-str">&quot;../zigmachine_music.h&quot;</span> <span class="tok-cm">// from exactly ONE .c file: it defines exports</span></code></pre></figure>
 <p>At the start of <code>boot</code>:</p>
-<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-fn">zm_request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>); <span class="tok-cm">// a file under docs/music/</span></code></pre></figure></section><section class="lang" data-lang="rust" id="step-7-rust"><h3>Rust</h3><p>At the top of the file:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-fn">zm_request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>); <span class="tok-cm">// a file under site/music/</span></code></pre></figure></section><section class="lang" data-lang="rust" id="step-7-rust"><h3>Rust</h3><p>At the top of the file:</p>
 <figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// The song bridge. Declaring the module defines the exports the host polls.</span>
 <span class="tok-at">#[path = &quot;../zigmachine_music.rs&quot;]</span>
 <span class="tok-kw">mod</span> zigmachine_music;</code></pre></figure>
 <p>At the start of <code>boot</code>:</p>
-<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    zigmachine_music::<span class="tok-fn">request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>); <span class="tok-cm">// a file under docs/music/</span></code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should hear.</strong> The music starts <strong>as soon as you click or press a
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    zigmachine_music::<span class="tok-fn">request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>); <span class="tok-cm">// a file under site/music/</span></code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should hear.</strong> The music starts <strong>as soon as you click or press a
 key</strong> in the page. Browsers only allow sound after a user gesture. The request
 waits until then.</p>
 <p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
 <ul>
 <li><em>Silence, and no error.</em> No gesture yet; click the screen. Otherwise, check
-  the name matches a file in <code>docs/music/</code> exactly, 64 bytes at most.</li>
+  the name matches a file in <code>site/music/</code> exactly, 64 bytes at most.</li>
 <li><em>C: <code>duplicate symbol pollSongRequest</code>.</em> The header was included from two
   <code>.c</code> files of the same cart. It defines the exports, so include it once.</li>
 <li><em>An SNDH that loads but plays nothing.</em> Some need the STE's DMA sound chip
@@ -2663,5 +2663,5 @@ two carts look the same.</p></div><div class="shared after"></div><div class="ru
     </div>
   </aside>
 </div>
-<script src="tutorial.js?v=9cb35076"></script>
+<script src="js/tutorial.js?v=98e4af6e"></script>
 </body></html>

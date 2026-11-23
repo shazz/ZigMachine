@@ -1,4 +1,4 @@
-/* Input for pt2-clone: the cart's input exports (as docs/sealed-loader.js and the board glass call them)
+/* Input for pt2-clone: the cart's input exports (as site/js/sealed-loader.js and the board glass call them)
  * become an SDL event queue, mouse state and modifier state.
  *
  *   key(cp)        printable codepoint, 8 Backspace, 13 Enter, 0xE001.. F1-F10/Ins/Del/Esc/Alt, 0xE014.. Ctrl/Shift

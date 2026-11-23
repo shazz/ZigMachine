@@ -3,7 +3,7 @@
  * browser's own code by tests/test_board_gemdisk.py.
  *
  * The browser's, step by step:
- *  - docs/zmdisk.js parseDisk: v1 ("ZMDISK" at 0, FAT at 0x300, count at 0x2e4, no date;
+ *  - site/js/zmdisk.js parseDisk: v1 ("ZMDISK" at 0, FAT at 0x300, count at 0x2e4, no date;
  *    boot-sector BE word sum 0x1234 = bootable, 0 = data disk, else corrupt) or v2 (a wasm
  *    boot sector, "ZMDISK" at 0x400, FAT at 0x800, count at 0x4f4, date at 0x4f0; bootable
  *    iff the 1 KB sum is 0x1234 and the descriptor names a cart: length at 0x40c != 0). Under 0x600 bytes, no magic or a corrupt v1 sum: throws.

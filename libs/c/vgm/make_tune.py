@@ -1,7 +1,7 @@
 """KESTREL FM, VGM TEST's tune: an original 16-bar loop written by this script (MIT, like the repo; no
 third-party music), every part of the chips busy at once so it doubles as the BARD load bench.
 
-    python3 libs/c/vgm/make_tune.py docs/music/kestrel_fm.vgm [bars, default 16: fewer for the BARD bench image]
+    python3 libs/c/vgm/make_tune.py site/music/kestrel_fm.vgm [bars, default 16: fewer for the BARD bench image]
 
 Six FM channels (bass with feedback, an LFO-vibrato lead, a pad, two arpeggios, channel 6 on the DAC
 for drums synthesised here) and the PSG (a square counter-line and noise hi-hats). 125 BPM, A minor.

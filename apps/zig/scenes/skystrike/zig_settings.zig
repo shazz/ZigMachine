@@ -82,7 +82,7 @@ pub var crater_life_vbls: u32 = 1502;
 pub const crater_max: usize = 8;
 
 // ---- the weapon keys ------------------------------------------------------
-/// Host key codes (docs/sealed-loader.js MOD_CODES). Each is one key for the
+/// Host key codes (site/js/sealed-loader.js MOD_CODES). Each is one key for the
 /// chord the original needs: guns = FIRE, rocket = FIRE + right, and Space
 /// (unless the pilot has bailed out, when it lands the chute) = FIRE + left,
 /// a bomb. The arrows + FIRE chords still work.
@@ -107,7 +107,7 @@ pub var effects: Effects = .{};
 // ---- the music ------------------------------------------------------------
 // ORIGINAL plays skystrike.sndh's three tunes (sound.zig); ZIG three
 // ProTracker MODs from The Mod Archive, one per situation (zig_music.zig;
-// docs/music/skystrike_music_CREDITS.txt).
+// site/music/skystrike_music_CREDITS.txt).
 //
 // The mix (Matt, 2026-09-27: the MOD drowned the effects in flight). An
 // effect plays on the MOD's lent channel at the most the MOD's headroom

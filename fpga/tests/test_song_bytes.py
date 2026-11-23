@@ -1,5 +1,5 @@
 """zg.requestSongBytes (sfx op 8: a song image in the cart's own memory) off the song bridge
-(host/audio_bridge.c) into the players (host/audio.c), as docs/sealed-loader.js's postSfx turns it
+(host/audio_bridge.c) into the players (host/audio.c), as site/js/sealed-loader.js's postSfx turns it
 into the worklet's loadSndh / loadSap / loadXm / loadHip. On the board the same two files run, the bridge on ZIGGY and
 the players on BARD, the mailbox between them (cycles/bsound.c waits for BARD to copy the image).
 
@@ -31,7 +31,7 @@ FRAMES = 220
 # FAT order: JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW, KEYGEN.XM, THALION.HIP.
 KEYS = ["10:key:57347", "12:key:112", "50:key:115", "52:input:1", "54:key:112", "90:key:115",
         "110:input:1", "112:input:1", "114:key:112", "150:key:115", "152:input:1", "154:key:112", "190:key:115"]
-XM, HIP = (ROOT / "docs/music/keygen_9000.xm").stat().st_size, (ROOT / "docs/music/hippel/thalion_intro.hip").stat().st_size
+XM, HIP = (ROOT / "site/music/keygen_9000.xm").stat().st_size, (ROOT / "site/music/hippel/thalion_intro.hip").stat().st_size
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +40,7 @@ def run(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, Path]:
     log = tmp_path_factory.mktemp("song_bytes") / "a"
     calls = [a for k in KEYS for a in ("--call", k)]
     out = subprocess.run(
-        [str(HOST), "sysinfo", str(FRAMES), str(FRAMES), "--disk", str(ROOT / "docs/demo-sysinfo.zmd"), *calls],
+        [str(HOST), "sysinfo", str(FRAMES), str(FRAMES), "--disk", str(ROOT / "site/carts/demo-sysinfo.zmd"), *calls],
         env={**os.environ, "ZM_AUDIO_LOG": str(log)},
         check=True,
         capture_output=True,

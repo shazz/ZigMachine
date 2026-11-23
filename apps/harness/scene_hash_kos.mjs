@@ -1,5 +1,5 @@
 // scene_hash.mjs --kos X.zmd|none: KOS's power-on (docs/os/ZIGTOS_BOOT.md, KOS = ZigTOS), as
-// docs/sealed-loader.js runs it and the native host's --kos (fpga/host/kos_host.c) and the
+// site/js/sealed-loader.js runs it and the native host's --kos (fpga/host/kos_host.c) and the
 // board firmware (fpga/cycles/bkos.c) reproduce it:
 //
 //   1. kosSetBoot(cold, or warm: --warm, what will boot, drive A full?, hwRamFree), hwInit,
@@ -16,11 +16,11 @@
 // it): demo-gem.wasm for the desktop, the disk's own cart otherwise, which is checked against
 // the disk's bytes. Every phase change happens between frames, before the next hwClear.
 import { readFile } from "node:fs/promises";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
-import "../../docs/kos-boot.js"; // globalThis.ZMKos.fatImage
+import "../../site/js/kos-boot.js"; // globalThis.ZMKos.fatImage
 
-// A .zmd parsed (docs/zmdisk.js), or a raw FAT image as the browser mounts it ({ buf, files, fat }).
+// A .zmd parsed (site/js/zmdisk.js), or a raw FAT image as the browser mounts it ({ buf, files, fat }).
 async function mountAny(path) {
     const buf = new Uint8Array(await readFile(path));
     try {

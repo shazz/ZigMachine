@@ -1,6 +1,6 @@
 // Headless proof that the Union screens ask for their SNDH tunes and that the
 // tunes really play. Boots a cart over the real machine + ROM, polls the song
-// bridge the way docs/sealed-loader.js does (pollSongRequest -> songNamePtr/
+// bridge the way site/js/sealed-loader.js does (pollSongRequest -> songNamePtr/
 // songNameLen/songTune), then hands the requested file to the real audio modules
 // the way the worklet does for a .sndh (audioLoadSndh + audioSndhPlay(tune)).
 //   - union_demo: the menu's Alloy Run.
@@ -17,7 +17,7 @@
 //   node apps/harness/union_demo_music_check.mjs              # the check
 //   node apps/harness/union_demo_music_check.mjs --fail-proof # must FAIL: wrong tune names
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, AUDIO_PAGES = 48;
 const FAIL_PROOF = process.argv.includes("--fail-proof");
@@ -39,10 +39,10 @@ const SECONDS = 10, SR = 44100, BLOCK = 882;
 async function bootCart(cartPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -79,7 +79,7 @@ function firstRequest({ memory, demo, machine }, frames) {
 
 async function audioRig() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
     const volWrites = [0, 0, 0];
@@ -87,7 +87,7 @@ async function audioRig() {
         if (r >= 8 && r <= 10) volWrites[r - 8]++;
         return machine.machineYmWrite(r, v);
     };
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
     return { memory, machine, audio, volWrites };
 }
@@ -96,9 +96,9 @@ async function sndhPlay(name, tune) {
     const { memory, machine, audio, volWrites } = await audioRig();
     let bytes;
     try {
-        bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+        bytes = new Uint8Array(await readFile(`site/music/${name}`));
     } catch {
-        return { loaded: false, why: `docs/music/${name} is not on the shelf` }; // a removed dump
+        return { loaded: false, why: `site/music/${name} is not on the shelf` }; // a removed dump
     }
     if (bytes.length > audio.audioSongCapacity()) return { loaded: false, why: "over song capacity" };
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
@@ -128,7 +128,7 @@ async function plays(req, voices = 3) {
 }
 
 async function checkMenu() {
-    const cart = await bootCart("docs/demo-union_demo.wasm");
+    const cart = await bootCart("site/carts/demo-union_demo.wasm");
     // The hub opens on its intro splash (Ikari Union); Space ends it (a stop request), and the
     // street's song starts after the ~100-frame loader panel.
     const intro = firstRequest(cart, 100);
@@ -149,7 +149,7 @@ async function checkMenu() {
 }
 
 async function checkMain() {
-    const cart = await bootCart("docs/demo-union_intro.wasm");
+    const cart = await bootCart("site/carts/demo-union_intro.wasm");
     let ok = true;
     for (const [mode, want, voices] of MAIN_WANT) {
         if (mode > 0) cart.demo.setShadeMode(mode);

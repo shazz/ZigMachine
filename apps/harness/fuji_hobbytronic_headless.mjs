@@ -5,8 +5,8 @@
 //
 // Checked:
 //   1. the MUSIC: the cart requests Hobbytronic_92_1.sap song 1 when it starts; the
-//      file is in docs/music/, is ASMA's (NAME, AUTHOR, TYPE B), loads in
-//      docs/demo-audio.wasm's SAP player and is not silent on the POKEY;
+//      file is in site/music/, is ASMA's (NAME, AUTHOR, TYPE B), loads in
+//      site/demo-audio.wasm's SAP player and is not silent on the POKEY;
 //   2. the LOGO: front-cap pixels (palette index FRONT) and shaded sides are drawn,
 //      the picture changes from frame to frame, and half a turn later the back cap
 //      shows instead of the front (it really rotates, it is not a sprite);
@@ -24,7 +24,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const argv = process.argv.slice(2);
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
@@ -48,11 +48,11 @@ async function boot() {
         if (BREAK !== "raster") demo.hblDispatch(id, p, l, x);
         if (lines && p === 0 && l < H) lines[l] = [pal()[FRONT], pal()[BACK], pal()[SCROLL]];
     };
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch: hbl } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch: hbl } })).instance.exports;
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-fuji_hobbytronic.wasm"), env = { memory, ...rom };
+    const cartBytes = await readFile("site/carts/demo-fuji_hobbytronic.wasm"), env = { memory, ...rom };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -83,8 +83,8 @@ else {
     const tune = BREAK === "song" ? 0 : S.demo.songTune();
     if (name !== MUSIC || tune !== 1) fail(`requested ${name} song ${tune}, want ${MUSIC} song 1`);
 }
-const sap = await readFile(`docs/music/${MUSIC}`).catch(() => null);
-if (!sap) fail(`${MUSIC} is not in docs/music/, the site would 404`);
+const sap = await readFile(`site/music/${MUSIC}`).catch(() => null);
+if (!sap) fail(`${MUSIC} is not in site/music/, the site would 404`);
 else {
     const head = sap.subarray(0, 400).toString("latin1");
     for (const tag of [`NAME "Hobbytronic '92 - 1"`, `AUTHOR "Stephan Duesterhoeft (Benjy)"`, "TYPE B"])
@@ -95,10 +95,10 @@ else {
 
 async function playSap(bytes) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // machine/sdk/audio.zig
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
     if (!a.audioLoadSap(bytes.length)) { fail(`${MUSIC}: the SAP player refused it, status ${a.audioSapStatus()}`); return 0; }

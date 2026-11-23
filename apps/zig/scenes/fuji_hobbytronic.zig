@@ -5,7 +5,7 @@
 // Music: "Hobbytronic '92 - 1" by Stephan Duesterhoeft (Benjy), 1992, SAP
 // TYPE B, 2:03 looped, from ASMA, the Atari SAP Music Archive
 // (https://asma.atari.org/asma/Composers/Duesterhoeft_Stephan/Hobbytronic_92_1.sap),
-// published in docs/music/ (Matt, 2026-10-10). Its own 6502 code drives the
+// published in site/music/ (Matt, 2026-10-10). Its own 6502 code drives the
 // machine's POKEY; the screen asks for song 1 (zg.requestSongTune counts from 1).
 //
 // Written as a challenge for the FPGA SoC, whose cart CPU is an RV32IM at

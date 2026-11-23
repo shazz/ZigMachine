@@ -24,7 +24,7 @@ from audio_scripts import ac_rms, left, write_pcm_script, write_pokey_script, wr
 
 BUILD = FPGA / "build" / "tests" / "audio"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
-TUNE = FPGA.parent / "docs/music/union/Drooling.ymraw"
+TUNE = FPGA.parent / "site/music/union/Drooling.ymraw"
 JT49 = [f"third_party/jt49/hdl/jt49{m}.v" for m in ("", "_cen", "_div", "_eg", "_exp", "_noise")]
 POKEY = [f"rtl/audio/zm_pokey{m}.v" for m in ("", "_pair", "_poly")]
 CORE = [f"rtl/audio/zm_audio_{m}.v" for m in ("frac", "ym", "pokey", "pcm", "mix", "core")] + POKEY + JT49

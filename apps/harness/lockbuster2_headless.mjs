@@ -24,7 +24,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const VBL_MS = 20;
@@ -40,14 +40,14 @@ const VBORDER = 40; // PHYSICAL height of the top/bottom border bands
 // ---------------- boot (the rno_natrium shape: machine + ROM + cart) --------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
-machine.hwSetRomHigh(romRam(await readFile("docs/rom.wasm")).high ?? 0);
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
+machine.hwSetRomHigh(romRam(await readFile("site/rom.wasm")).high ?? 0);
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-lockbuster2.wasm");
+const cartBytes = await readFile("site/carts/demo-lockbuster2.wasm");
 const env = {
     ...romEnv,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,

@@ -1,5 +1,5 @@
 // Headless RAYTRACE driver -- boots the sealed machine + demo-raytrace the way
-// docs/sealed-loader.js does, and runs each of its three maths (keys 1..3, the
+// site/js/sealed-loader.js does, and runs each of its three maths (keys 1..3, the
 // host's setShadeMode 0..2: Q16.16 and f32 on the cart CPU, f64 on ASTROLABE, here
 // the machine's own hwAstro, as the page binds it).
 //

@@ -26,15 +26,15 @@ gate tex_neoshow node apps/harness/tex_neoshow_headless.mjs "$SHOTS"
 gate sdk node apps/harness/sdk_check.mjs --break still
 """
 HARNESSES = {
-    "big_demo_headless.mjs": 'import { m } from "./big_demo_machine.mjs"; load("docs/demo-big_demo.wasm")',
+    "big_demo_headless.mjs": 'import { m } from "./big_demo_machine.mjs"; load("site/carts/demo-big_demo.wasm")',
     "big_demo_machine.mjs": 'const f = "apps/harness/big_fixture.json";',
-    "digital_solution_headless.mjs": 'load("docs/demo-big_demo.wasm")',
-    "union_tnt1_headless.mjs": 'load("docs/demo-union_tnt1.wasm"); load("docs/demo-union_multifake.wasm")',
-    "union_multifake_headless.mjs": 'load("docs/demo-union_multifake.wasm")',
-    "union_demo_headless.mjs": "readFile(`docs/demo-${t}.zmd`)",
-    "dbug_headless.mjs": 'load("docs/demo-dbug.wasm")',
-    "tex_headless.mjs": 'load("docs/demo-tex.wasm")',
-    "tex_neoshow_headless.mjs": 'load("docs/demo-tex_neoshow.wasm")',
+    "digital_solution_headless.mjs": 'load("site/carts/demo-big_demo.wasm")',
+    "union_tnt1_headless.mjs": 'load("site/carts/demo-union_tnt1.wasm"); load("site/carts/demo-union_multifake.wasm")',
+    "union_multifake_headless.mjs": 'load("site/carts/demo-union_multifake.wasm")',
+    "union_demo_headless.mjs": "readFile(`site/carts/demo-${t}.zmd`)",
+    "dbug_headless.mjs": 'load("site/carts/demo-dbug.wasm")',
+    "tex_headless.mjs": 'load("site/carts/demo-tex.wasm")',
+    "tex_neoshow_headless.mjs": 'load("site/carts/demo-tex_neoshow.wasm")',
     "check_fits.mjs": "// a cross-cutting check, in no gate line",
     "sdk_check.mjs": 'cpSync(path.join(ROOT, "sdk/template"), dir)',
 }
@@ -68,7 +68,7 @@ class GateScope(unittest.TestCase):
         self.assertEqual(self.scope("M\tapps/zig/scenes/dbug_draw.zig"), ["union_demo", "dbug"])
 
     def test_a_cart_run_by_another_screens_harness_pulls_that_harness_in(self) -> None:
-        got = self.scope("M\tdocs/demo-union_multifake.wasm")
+        got = self.scope("M\tsite/carts/demo-union_multifake.wasm")
         self.assertEqual(got, ["union_tnt1", "union_multifake", "union_demo"])
 
     def test_shared_scene_dir_selects_every_cart_it_prefixes(self) -> None:
@@ -78,8 +78,8 @@ class GateScope(unittest.TestCase):
     def test_registration_and_shared_files_force_the_full_gate(self) -> None:
         for path in ("apps/zig/scenes/catalog.zig", "apps/zig/scenes/menu.zig", "build.zig",
                      "build.sh", "libs/zig/zigos.zig", "rom/gem/x.zig", "machine/video.zig",
-                     "docs/sealed-loader.js", "docs/index.html", "docs/channels.json",
-                     "docs/demo.wasm", "docs/demo-audio.wasm", "docs/demo-c.wasm",
+                     "site/js/sealed-loader.js", "site/index.html", "site/channels.json",
+                     "site/carts/demo.wasm", "site/demo-audio.wasm", "site/carts/demo-c.wasm",
                      "tools/mkdisks.sh", "apps/zig/cart.zig", "apps/c/hello.c"):
             with self.subTest(path=path):
                 self.assertIsNone(self.scope(f"M\t{path}"))
@@ -98,9 +98,9 @@ class GateScope(unittest.TestCase):
         self.assertEqual(self.scope("M\tdocs/ports/SKYSTRIKE.md", "M\tdocs/project/DECISIONS.md"), [])
 
     def test_a_new_tune_is_narrow_but_a_changed_one_is_full(self) -> None:
-        self.assertEqual(self.scope("A\tdocs/music/new.sndh"), [])
-        self.assertIsNone(self.scope("M\tdocs/music/old.sndh"))
-        self.assertIsNone(self.scope("D\tdocs/music/old.sndh"))
+        self.assertEqual(self.scope("A\tsite/music/new.sndh"), [])
+        self.assertIsNone(self.scope("M\tsite/music/old.sndh"))
+        self.assertIsNone(self.scope("D\tsite/music/old.sndh"))
 
     def test_the_sdk_selects_only_its_own_harness(self) -> None:
         self.assertEqual(self.scope("M\tsdk/build_cart.zig", "A\tsdk/template/src/hello.zig"), ["sdk"])

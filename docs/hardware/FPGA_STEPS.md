@@ -766,7 +766,7 @@ Reproduce with `make -C fpga util`.
 
 ### Step 0a: carts translate to RISC-V unchanged
 
-`make -C fpga carts`: all 90 `docs/demo-*.wasm` go through wasm2c and compile
+`make -C fpga carts`: all 90 `site/carts/demo-*.wasm` go through wasm2c and compile
 for `rv32imf` (zig cc, musl headers). The largest code sizes include each
 cart's embedded data: `audio` 2.1 MB (the SNDH player's 68000 tables),
 `mpp_truecolor` 1.2 MB, `joust` 0.9 MB. STNICCC is 83 KB.

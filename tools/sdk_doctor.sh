@@ -82,7 +82,7 @@ else
 fi
 
 echo "== the SDK: $SDK"
-for f in docs/machine-video.wasm docs/rom.wasm docs/sealed.html build.zig sdk/build_cart.zig; do
+for f in site/machine-video.wasm site/rom.wasm site/sealed.html build.zig sdk/build_cart.zig; do
     if [ -f "$SDK/$f" ]; then ok sdk "$f"; else bad sdk "$f missing: a broken SDK unpack"; fi
 done
 if [ -f "$SDK/../RELEASE.txt" ]; then ok release "$(grep -m1 '^kestrel' "$SDK/../RELEASE.txt")"; fi

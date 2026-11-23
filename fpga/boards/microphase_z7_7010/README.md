@@ -122,7 +122,7 @@ them before hangs the ARM (found on the board, 2026-10-03).
 `0x04c0_0000` and `0x04d0_0000`), the frame count and the PFB's address.
 `board_shot.py --what pfb --expect <file>` dumps the machine's PFB instead and
 compares it with the native host's (`HOST_DUMP_PFB=<file> fpga/build/host/<cart>/host
-docs/demo-<cart>.wasm <N> <N>`, N = the frozen frame it printed): a difference
+site/carts/demo-<cart>.wasm <N> <N>`, N = the frozen frame it printed): a difference
 there is the compositor's or the CPU's, a clean PFB under a bad picture is the
 scanout's.
 

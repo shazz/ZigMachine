@@ -1,4 +1,4 @@
-// Mount every .zmd the way docs/sealed-loader.js does, and INSTANTIATE its cart
+// Mount every .zmd the way site/js/sealed-loader.js does, and INSTANTIATE its cart
 // against the host's real import surface.
 //
 // WHY: a .zmd freezes its cart's wasm at pack time, so a disk carries the import
@@ -11,7 +11,7 @@
 //
 // Usage: node apps/harness/disk_check.mjs [disk.zmd ...]   (default: docs/*.zmd)
 import { readFile, readdir } from "node:fs/promises";
-import { cartRam, romRam, CART_RAM_TOP } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam, CART_RAM_TOP } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // memmap.SHARED_PAGES
 const dec = new TextDecoder();
@@ -107,13 +107,13 @@ async function hostEnv(memory, machine, rom) {
 
 const args = process.argv.slice(2);
 const disks = args.length ? args
-    : (await readdir("docs")).filter((f) => f.endsWith(".zmd")).sort().map((f) => `docs/${f}`);
+    : (await readdir("site/carts")).filter((f) => f.endsWith(".zmd")).sort().map((f) => `site/carts/${f}`);
 
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo = null;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"),
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"),
     { env: { memory, hblDispatch: (id, p, l, x) => demo && demo.hblDispatch(id, p, l, x) } })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, {
     env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
 })).instance.exports;
@@ -133,7 +133,7 @@ function unpack(bytes, path) {
     if (!n) throw new Error("packed cart is corrupt or too big for the cart window (romDepack returned 0)");
     return new Uint8Array(memory.buffer.slice(dst, dst + n));
 }
-const gem = await readFile("docs/demo-gem.wasm");
+const gem = await readFile("site/carts/demo-gem.wasm");
 
 let bad = 0;
 for (const path of disks) {

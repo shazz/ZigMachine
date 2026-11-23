@@ -29,7 +29,7 @@
 // meant to catch it does: pixels|front|clock|music|raster|keys
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128;
 const W = 320, H = 240, VIS = 200;
@@ -54,13 +54,13 @@ const OUT = argv[0] || "/tmp/lockbuster3";
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
     const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-    const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
+    const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
     const noop = () => {};
-    const cartBytes = await readFile("docs/demo-lockbuster3.wasm");
+    const cartBytes = await readFile("site/carts/demo-lockbuster3.wasm");
     const env = {
         ...romEnv,
         hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,
@@ -85,14 +85,14 @@ async function boot() {
 // code driving the sealed YM, the player path the browser uses).
 async function bootAudio() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), {
         env: { memory },
     })).instance.exports;
     const env = { memory };
     for (const name of Object.keys(machine)) if (name.startsWith("machine")) env[name] = machine[name];
-    const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const demo = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     demo.audioInit();
-    const tune = new Uint8Array(await readFile("docs/music/lockbuster2_rollout.sndh"));
+    const tune = new Uint8Array(await readFile("site/music/lockbuster2_rollout.sndh"));
     new Uint8Array(memory.buffer, demo.audioSongPtr(), tune.length).set(tune);
     if (!demo.audioLoadSndh(tune.length)) throw new Error("the Rollout SNDH was rejected");
     demo.audioSndhPlay(2);

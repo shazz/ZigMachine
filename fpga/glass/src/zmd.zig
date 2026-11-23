@@ -43,7 +43,7 @@ pub const Disk = struct {
         return self.image[f.start..][0..f.length];
     }
 
-    /// The disk boots a cart of its own (docs/zmdisk.js parseDisk, host/zmd_dir_fat.h): a v1 boot
+    /// The disk boots a cart of its own (site/js/zmdisk.js parseDisk, host/zmd_dir_fat.h): a v1 boot
     /// sector summing to $1234, or a v2 wasm sector summing to $1234 whose descriptor names a cart
     /// (one naming none, sysinfo's, runs and hands over to the OS: a data disk).
     pub fn bootable(self: Disk) bool {

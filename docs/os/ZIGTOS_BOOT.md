@@ -54,7 +54,7 @@ releases ZIGGY. Then the firmware does the ST-like part:
 R (cold) and W (warm) reset exist, warm with its own `ZMME` mark and `WARM_LOST`
 ("Cold and warm reset").
 
-**The browser** (`docs/sealed-loader.js`): machine → `rom.wasm` (the ROM chip: GEM and the
+**The browser** (`site/js/sealed-loader.js`): machine → `rom.wasm` (the ROM chip: GEM and the
 desktop, `rom/gem/`) → the cart. The POST screen (`machine/boot.zig`) is linked into every
 cart and shown before it unless `skipBoot()`. The page's menu is itself a cart.
 
@@ -227,7 +227,7 @@ desktop (≤ 6 frames after boot); then the board.
 |---|---|---|
 | 0 | glass `app_drive.zig powerOn`: ZIGGY starts over `drive_a=`, the OSD closed | glass zig tests |
 | 1 | `kosSetBoot` (rom/kos/kos.zig): boot kind from the glass's KOS boot words (W sets warm) | the sysvars read back in `apps/harness/kos_boot_check.mjs` |
-| 3-4 | the POST in the ROM (`kosPostStart`/`kosPostFrame`), driven by `docs/kos-boot.js`, `fpga/host/kos_host.c`, `fpga/cycles/bkos.c`; `?post=N` / `post=0` / a key (browser) or Shift (board) skips | browser = node = native host, frame for frame; the board SoC sim |
+| 3-4 | the POST in the ROM (`kosPostStart`/`kosPostFrame`), driven by `site/js/kos-boot.js`, `fpga/host/kos_host.c`, `fpga/cycles/bkos.c`; `?post=N` / `post=0` / a key (browser) or Shift (board) skips | browser = node = native host, frame for frame; the board SoC sim |
 | 7-9, 12 | each host: the boot sector, the bootable disk's cart, or the desktop over a data disk / empty drive | five drives, `fpga/tests/test_kos_boot.py`, `apps/harness/kos_boot_check.mjs` |
 | 13 | program quit = request 4, now "the desktop over drive A, no POST" (glass `backToOs`) | glass zig tests |
 | 4.1 | Insert / Eject / Enter on the shelf, `insertDisk` media change to the running cart | glass zig tests (the window's words); the firmware side needs the board |
@@ -244,7 +244,7 @@ desktop (≤ 6 frames after boot); then the board.
   `gem` left the shelf. Making the ROM a frame-loop owner (so the desktop runs with no cart) is
   a host contract change for all three hosts, and is not needed for anything v1 shows.
 - **§4.3 "the boot program in `rom/boot/`".** The shared, pixel-making half is `rom/kos/` (the
-  POST and the variables); the stages are in each host (`docs/kos-boot.js` + `sealed-loader.js`,
+  POST and the variables); the stages are in each host (`site/js/kos-boot.js` + `sealed-loader.js`,
   `fpga/host/kos_host.c`, `fpga/cycles/bkos.c`), because only a host can instantiate the next
   module. All three are held equal frame for frame.
 - **Carts still link `machine/boot.zig`** (their own boot screen): every host now skips it after

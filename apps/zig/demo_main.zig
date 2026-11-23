@@ -230,7 +230,7 @@ export fn getSampleBufLen() u32 {
 }
 
 // Song-request bridge (by NAME — the host holds no playlists). A scene calls
-// zigos.requestSong("<file under docs/music/>"); the host polls this each frame
+// zigos.requestSong("<file under site/music/>"); the host polls this each frame
 // (1 = a new request is pending), reads the filename from songName*, and plays
 // it by extension. (Union main autoplays its first track + switches on keys 1-6;
 // Music Debug maps keys 1/2/3 — both via setShadeMode → zigos.requestSong.)
@@ -294,7 +294,7 @@ export fn inputRelease(dir: Direction) void {
 // Player 2's pad (R83, docs/hardware/HW_API.md "Player 2 input"): input2(dir) / inputRelease2(dir) with
 // the same Direction codes as input()/inputRelease(). Exported ONLY by a scene that declares
 // both, so every other cart's wasm is unchanged; a host that finds no input2 merges the second
-// pad into input() (host/input_bridge.c; the browser, docs/gamepad.js).
+// pad into input() (host/input_bridge.c; the browser, site/js/gamepad.js).
 fn input2(dir: Direction) callconv(.c) void {
     if (booted) cart.input2(@intFromEnum(dir));
 }

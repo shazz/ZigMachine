@@ -1,7 +1,7 @@
 // ChipNomad's AY on BARD (apps/ports/chipnomad/kestrel_chip.cpp): every register write the tracker makes goes on the
 // BARD queue stamped with its sample, and the AY device (libs/c/ayumi zm_ay_bank.h, libs/zig/players/ay_live.zig)
 // plays it in stereo. Two hosts, as apps/harness/sidwizard_bard_check.mjs proves for SID-Wizard's SID:
-//   page     the cart (docs/demo-chipnomad.wasm) over the machine + ROM with its floppy in the drive, the loader's
+//   page     the cart (site/carts/demo-chipnomad.wasm) over the machine + ROM with its floppy in the drive, the loader's
 //            hostBardAttach / bardFrame / bardPublish and the worklet's bardQueue / bardState on the real audio
 //            modules (apps/harness/bard_queue_lib.mjs pageSound)
 //   native   the same cart on host_audio (fpga/build/host/chipnomad: wasm2c, the AY engine native, host/bardq_pump.c)
@@ -20,10 +20,10 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { pageSound } from "./bard_queue_lib.mjs";
 
-const CART = "docs/demo-chipnomad.wasm", DISK = "docs/demo-chipnomad.zmd";
+const CART = "site/carts/demo-chipnomad.wasm", DISK = "site/carts/demo-chipnomad.zmd";
 const FRAMES = 560, MIN_SAMPLES = 44100 * 5;
 const KEY_X = 0x78, KEY_SPACE = 0x20, SHIFT_LEFT = 0xe015, RIGHT = 3;
 const BREAKS = ["stamp", "reg", "soft"];
@@ -41,8 +41,8 @@ const SCRIPT = script(1); // None -> AY Classic
 
 async function pageRun(events = SCRIPT, frames = FRAMES) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const disk = await readFile(DISK), cartBytes = await readFile(CART);

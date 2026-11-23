@@ -24,20 +24,20 @@ E = [(b"BOOT.WSM", 1536, 9636, 0)]
 
 
 def test_bootable_is_the_browsers_boot_sector_rule() -> None:
-    assert not zmd_fat.bootable((ROOT / "docs/demo-st_replay.zmd").read_bytes())
-    assert zmd_fat.bootable((ROOT / "docs/demo-gem.zmd").read_bytes())
+    assert not zmd_fat.bootable((ROOT / "site/carts/demo-st_replay.zmd").read_bytes())
+    assert zmd_fat.bootable((ROOT / "site/carts/demo-gem.zmd").read_bytes())
     assert zmd_fat.bootable(v1(E, sum_=0x1234)) and not zmd_fat.bootable(v1(E))
     assert zmd_fat.bootable(v2(E, 0, bootable=True)) and not zmd_fat.bootable(v2(E, 0))
     # An executable boot sector over a descriptor that names no cart: it runs, then GEM (sysinfo's)
     assert not zmd_fat.bootable(v2(E, 0, bootable=True, cart_len=0))
-    assert not zmd_fat.bootable((ROOT / "docs/demo-sysinfo.zmd").read_bytes())
+    assert not zmd_fat.bootable((ROOT / "site/carts/demo-sysinfo.zmd").read_bytes())
     with pytest.raises(SystemExit, match="not a .zmd"):
         zmd_fat.bootable(b"PK\3\4" + bytes(4096))
 
 
 def test_a_data_disk_carries_no_image_and_a_bootable_one_its_own_cart() -> None:
-    assert glass_shelf.boots((ROOT / "docs/demo-st_replay.zmd").read_bytes()) == ""
-    assert glass_shelf.boots((ROOT / "docs/demo-stniccc.zmd").read_bytes()) == "own"
+    assert glass_shelf.boots((ROOT / "site/carts/demo-st_replay.zmd").read_bytes()) == ""
+    assert glass_shelf.boots((ROOT / "site/carts/demo-stniccc.zmd").read_bytes()) == "own"
 
 
 def _fw(fws: Path, tag: str) -> None:
@@ -52,8 +52,8 @@ def test_the_shelf_stages_st_replay_as_it_is_and_kos_desktop_once(tmp_path: Path
     csr.write_text("x")
     os.utime(csr, (100, 100))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, csr, ("st_replay",)))
-    assert rows["CARTS/tools/demo-st_replay.zmd"] == "docs/demo-st_replay.zmd (a data disk: KOS's desktop boots over it)"
-    assert (tmp_path / "sd" / "CARTS" / "tools" / "demo-st_replay.zmd").read_bytes() == (ROOT / "docs/demo-st_replay.zmd").read_bytes()
+    assert rows["CARTS/tools/demo-st_replay.zmd"] == "site/carts/demo-st_replay.zmd (a data disk: KOS's desktop boots over it)"
+    assert (tmp_path / "sd" / "CARTS" / "tools" / "demo-st_replay.zmd").read_bytes() == (ROOT / "site/carts/demo-st_replay.zmd").read_bytes()
     assert rows["KESTREL/kos/desktop.rv32"].endswith(f"{fws / 'gem' / 'fw.bin'} (KOS's desktop)")
     packed = (tmp_path / "sd" / "KESTREL" / "kos" / "desktop.rv32").read_bytes()
     assert packed[:4] == b"ZX0!" and "CARTS/system/demo-gem.zmd" not in rows  # GEM is no shelf disk now
@@ -81,7 +81,7 @@ def test_the_sim_variant_names_its_files_apart_and_scripts_the_mouse() -> None:
     assert var.suffix.startswith("+dd-st_replay+ptr-") and hp_sim_variant.Variant().suffix == ""
     assert var.sim_pointer() == "2:7828,3:107828"
     assert var.make_vars() == ["ZM_SIM_POINTER=2:7828,3:107828"]
-    assert var.disk() == ROOT / "docs/demo-st_replay.zmd"
+    assert var.disk() == ROOT / "site/carts/demo-st_replay.zmd"
 
 
 @pytest.mark.parametrize("bad", ["2:40:30", "2:40:x:0", "3:1:1:0,2:1:1:0"])

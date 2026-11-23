@@ -1,7 +1,7 @@
 """The tutorial page's HTML shell.
 
-The tutorial's CSS and JS are real files (docs/css/docs.css + code.css shared with the
-guide, docs/css/tutorial.css, docs/tutorial.js) rather than Python strings: the page is interactive, so the
+The tutorial's CSS and JS are real files (site/css/docs.css + code.css shared with the
+guide, site/css/tutorial.css, site/js/tutorial.js) rather than Python strings: the page is interactive, so the
 behaviour belongs in a file a browser devtool can debug, and tools/cache_bust.py
 stamps both with a content hash for free.
 """
@@ -69,7 +69,7 @@ TEMPLATE = """<!doctype html>
     </div>
   </aside>
 </div>
-<script src="tutorial.js"></script>
+<script src="js/tutorial.js"></script>
 </body></html>
 """
 

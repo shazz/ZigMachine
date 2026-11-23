@@ -4,7 +4,7 @@
 // Ported from the CODEF HTML5 remake (wab.com screen 539, MIT). Graphics by
 // French Kiss, font by Grace Jones, the 3D logo curves by Gunstick, code,
 // scrolltext and music by The Fate: all theirs. Music: "3615 Gen4 Demo (Thrust
-// Remix)" by The Fate, the remake's own SNDH (docs/music/3615_gen4_demo.sndh).
+// Remix)" by The Fate, the remake's own SNDH (site/music/3615_gen4_demo.sndh).
 //
 // Reference: prototypes/codef/539/ (tools/fetch_codef.py 539). Assets:
 // tools/private_tools/gen4_3615_assets.py and gen4_3615_tables.mjs.

@@ -1,4 +1,4 @@
-"""Assembles docs/ZIGMACHINE_GUIDE.html from the parsed sources and the prose."""
+"""Assembles site/ZIGMACHINE_GUIDE.html from the parsed sources and the prose."""
 from __future__ import annotations
 
 import re

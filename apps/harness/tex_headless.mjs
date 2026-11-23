@@ -19,7 +19,7 @@
 //
 //   node apps/harness/tex_headless.mjs [outdir] [cart.wasm]
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // the visible window in the physical frame (x doubled)
@@ -34,10 +34,10 @@ const SCROLL_POS = 142, BACK_POS = 113;
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -157,7 +157,7 @@ function check(px, W, want, name, frame, errors) {
     return ink;
 }
 
-const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-tex.wasm");
+const { memory, machine, demo } = await boot(process.argv[3] || "site/carts/demo-tex.wasm");
 const a = {
     logo: await readFile(`${ASSETS}logo.raw`), back: await readFile(`${ASSETS}back.raw`), font: await readFile(`${ASSETS}fonts.raw`),
     sprites: await Promise.all(SPRITES.map((n) => readFile(`${ASSETS}${n}.raw`))),

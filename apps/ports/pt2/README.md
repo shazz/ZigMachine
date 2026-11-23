@@ -2,8 +2,8 @@
 
 [pt2-clone](https://github.com/8bitbubsy/pt2-clone) (Olav "8bitbubsy" Sørensen, BSD-3-Clause) is a
 pixel-exact ProTracker 2.3D clone in C on SDL2. Its screen is 320x255, drawn at (40,12) of the 400x280
-overscan plane. The cart is `docs/demo-pt2.wasm`, the program `BOOT.WSM` on the GEM data disk
-`docs/demo-pt2.zmd` with two modules (`RONKEN.MOD`, `HYBRID.MOD`, from `docs/music/`) for its DISK OP to load:
+overscan plane. The cart is `site/carts/demo-pt2.wasm`, the program `BOOT.WSM` on the GEM data disk
+`site/carts/demo-pt2.zmd` with two modules (`RONKEN.MOD`, `HYBRID.MOD`, from `site/music/`) for its DISK OP to load:
 GEM boots over the disk, a double-click on `BOOT.WSM` runs pt2. To quit, Esc on the main screen (or Alt+Q):
 "PRESS AGAIN: QUIT" on the status line, a second Esc within 3 s goes back to the desktop (`../README.md`).
 upstream's "REALLY QUIT ?" box (`askBox`) is a modal loop that never returns on a cart, so the quit sites are
@@ -20,7 +20,7 @@ upstream's `src/smploaders`. The cart is built from upstream commit `d42d5f100f0
 
     apps/ports/fetch.sh                  # once: upstream at its pin, into apps/ports/upstream
     make -C apps/ports/pt2 link          # build/demo-pt2.wasm (byte-identical to docs/ at the pin)
-    make -C apps/ports/pt2 install       # copy it to docs/, repack docs/demo-pt2.zmd (tools/mkdisks.sh)
+    make -C apps/ports/pt2 install       # copy it to docs/, repack site/carts/demo-pt2.zmd (tools/mkdisks.sh)
     node apps/harness/ports_headless.mjs pt2     # the gate's check: boot, UI pin, DISK OP loads HYBRID.MOD, PLAY
 
 Every upstream source is mirrored into `build/gen/` and patched there by `patches/<file>.sed` (a patch
@@ -56,7 +56,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
   Row 0 of a folder is `..` (it leads up to `/C`, or to `/` from C:'s root).
 - Modules and samples are read from C: as from the floppy. Saving to C: is not built yet: SAVE MODULE and
   SAVE SAMPLE go through `askBox`, whose modal loop never returns on a cart.
-- `node apps/harness/ports_cdrive_check.mjs pt2`: a copy of docs/gemdos-c.img with `HD/MODS/GLENZ.MOD` (the
+- `node apps/harness/ports_cdrive_check.mjs pt2`: a copy of site/disks/gemdos-c.img with `HD/MODS/GLENZ.MOD` (the
   floppy's HYBRID.MOD bytes); DISK OP types `/C/MODS`, row 1 loads GLENZ.MOD, and the frame equals the floppy's
   HYBRID.MOD loaded (`--break c|bytes|list` must fail).
 

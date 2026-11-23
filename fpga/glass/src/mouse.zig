@@ -1,5 +1,5 @@
 // USB mouse -> REG_POINTER: what the browser hands demo.pointer(x, y, buttons)
-// (docs/sealed-loader.js, "Pointer input"). A mouse reports relative motion,
+// (site/js/sealed-loader.js, "Pointer input"). A mouse reports relative motion,
 // the browser an absolute position on the canvas, so the motion is summed into
 // a position on the whole physical raster (map.PTR_WIDTH x PTR_HEIGHT, borders
 // included, as the browser's canvas) and clamped to where the cart draws (the

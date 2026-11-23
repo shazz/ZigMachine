@@ -37,7 +37,7 @@ def zx0unpack() -> Path:
 
 
 def program_cart(packed: bytes, work: Path) -> str | None:
-    """The cart whose docs/demo-<cart>.wasm a disk's program is (ZX0-packed or raw), or None."""
+    """The cart whose site/carts/demo-<cart>.wasm a disk's program is (ZX0-packed or raw), or None."""
     raw = packed
     if packed[:4] == b"ZX0!":
         (work / "prog.zx0").write_bytes(packed)
@@ -49,20 +49,20 @@ def program_cart(packed: bytes, work: Path) -> str | None:
             (work / "prog.wasm").unlink(missing_ok=True)
     size = len(raw)
     hits = [
-        w for w in sorted((ROOT / "docs").glob("demo-*.wasm")) if w.stat().st_size == size and w.read_bytes() == raw
+        w for w in sorted((ROOT / "site" / "carts").glob("demo-*.wasm")) if w.stat().st_size == size and w.read_bytes() == raw
     ]
     return hits[0].name.removeprefix("demo-").removesuffix(".wasm") if hits else None
 
 
 def stage_by_hash(carts: list[str], image_path, problem, dest: Path) -> list[tuple[str, str]]:
-    """KESTREL/progs/by-hash/<sha256 of docs/demo-<cart>.wasm>.rv32 (`dest` is KESTREL/): each cart's board image,
+    """KESTREL/progs/by-hash/<sha256 of site/carts/demo-<cart>.wasm>.rv32 (`dest` is KESTREL/): each cart's board image,
     ZX0-packed, named by what its wasm IS, for a program GEM finds on a real floppy (KOS,
     docs/os/KOS_FAT.md; glass/src/app_floppy_prog.zig hashes the program the same way)."""
     import hashlib
 
     rows = []
     for cart in carts:
-        wasm = ROOT / "docs" / f"demo-{cart}.wasm"
+        wasm = ROOT / "site" / "carts" / f"demo-{cart}.wasm"
         if not wasm.exists() or problem(cart):
             continue
         name = hashlib.sha256(wasm.read_bytes()).hexdigest() + ".rv32"

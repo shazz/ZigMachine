@@ -22,7 +22,7 @@ const layer = @import("fallen_angels/layer.zig");
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // "Count Zero 2" from the Ultimatum demo (ripped by Mug UK).
 const MUSIC = "count_zero_2.sndh";
 

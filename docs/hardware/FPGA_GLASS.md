@@ -135,7 +135,7 @@ has none. A cart takes input through its exports (`input`, `inputRelease`,
 `key`, `keyUp`, `setShadeMode`), and which export a key goes to depends on
 `ownsKeyboard()`, which only the cart can answer. So the ARM sends **neutral key
 events**, and the cart CPU's firmware applies the browser's rules
-(`fpga/glass/firmware/glass_input.c`, a copy of `docs/sealed-loader.js`'s
+(`fpga/glass/firmware/glass_input.c`, a copy of `site/js/sealed-loader.js`'s
 keydown and keyup logic):
 
 ```
@@ -159,7 +159,7 @@ that the firmware writes: `glass_pointer_ack`, `glass_cart_state` and
 
 ### The mouse (`POINTER`, `zm_glass_ptr.v`, `glass/src/mouse.zig`)
 
-The browser (`docs/sealed-loader.js`, "Pointer input") calls
+The browser (`site/js/sealed-loader.js`, "Pointer input") calls
 `demo.pointer(x, y, buttons)` on every `mousemove`, on `mousedown` and on
 `mouseup`. Its rules, which the board keeps:
 
@@ -593,7 +593,7 @@ on the floppy mounts it afresh. The floppy is found by size: the first removable
 device of at most 5,760 sectors (2.88 MB), so a USB stick is never taken for one.
 
 - **The disk:** FAT12 (`mkfs.fat -F 12`), holding the board's **fat disks** (the `.zmd` files
-  staged for the card, which carry `CART.RV32`), not the browser's `docs/demo-*.zmd`. 111 of the
+  staged for the card, which carry `CART.RV32`), not the browser's `site/carts/demo-*.zmd`. 111 of the
   112 shelf disks fit on a 1.44 MB floppy (mpp_truecolor's 2.3 MB does not).
 - **Only the cart list moves:** `system.rv32`, `glass.cfg`, KOS's `kos/desktop.rv32` and data
   disks' `progs/` stay on the SD card. A floppy disk in drive A is not saved as `drive_a=`, so a
@@ -1176,7 +1176,7 @@ songs); `system.rv32` is 257 KB.
 
 A cart that streams from its disk (stniccc's SCENE1.BIN, the stream cart, any
 `zg.disk` user) calls `env.diskReadBlock(block, dst)`. In the browser that is
-`docs/sealed-loader.js`'s drive over the mounted `.zmd`. On the board ZWINDOW
+`site/js/sealed-loader.js`'s drive over the mounted `.zmd`. On the board ZWINDOW
 already holds the disk when it loads the cart, so it leaves a copy in the cart
 window, and ZIGGY's firmware serves the call from it. No register is involved
 and nothing changes in the PL.
@@ -1235,11 +1235,11 @@ image with the shelf disk and the descriptor where ZWINDOW puts them, and
 
 ## GEM over a data disk
 
-A disk whose boot sector does not sum to `$1234` (`docs/zmdisk.js`: a *data*
+A disk whose boot sector does not sum to `$1234` (`site/js/zmdisk.js`: a *data*
 disk: `demo-st_replay.zmd`, with `BOOT.WSM` and `SAMPLE.RAW`, and `demo-sysinfo.zmd`,
 with `BOOT.WSM` alone) is not a
 cart. The browser boots GEM for it, and after every `demo.frame()` it
-(`docs/sealed-loader.js`):
+(`site/js/sealed-loader.js`):
 
 1. polls `pollCartRequest()` (a double-clicked program is request 3, below,
    "Programs off a data disk");
@@ -1404,8 +1404,8 @@ RAM total and free, frames since the reset (`kosTick` from every host's frame), 
 `fpga/cycles/sys_abi.txt` 1.2 -> 1.3, so every lean cart on a card keeps running.
 
 **Proof.**
-- `apps/harness/kos_boot_check.mjs` (build.sh, with its `--break`): the REAL `docs/sealed-loader.js` +
-  `docs/kos-boot.js` in a vm, its canvases hashed as scene_hash.mjs hashes the machine's, equal
+- `apps/harness/kos_boot_check.mjs` (build.sh, with its `--break`): the REAL `site/js/sealed-loader.js` +
+  `site/js/kos-boot.js` in a vm, its canvases hashed as scene_hash.mjs hashes the machine's, equal
   `scene_hash.mjs --kos` frame for frame on five drives: empty, ST Replay's data disk, sysinfo's
   sector then the desktop, replicants_emlyn's sector then its cart, the tutorial's bootable disk;
   a media change reaches the ROM's variables. A POST on the wrong planes is caught.
@@ -1420,7 +1420,7 @@ RAM total and free, frames since the reset (`kosTick` from every host's frame), 
   insert + eject (the media words, the disk where a reset would place it, no reset), a media
   change under a program (after the program's image), one that does not fit (nothing written),
   no desktop, a missing `drive_a=`, a bootable disk with no image. 132 tests.
-- **The board SoC sim** of power-on, POST, desktop: `make -C fpga build/hcycles/sim/gem/zm_ddr.init ZM_KOS_POST=3 ZM_FRAMES=3 ZM_EVERY=1`, `tools/hp_sim_run.py gem --no-build --frames 3 --every 1 --run-id kos` (sim-b, 2026-10-25, 1 h 02 min, the SoC model built from this tree): `ZM KOS boot 0 1 1 3` (cold, drive A's disk boots, a disk in, 3 POST frames), the POST's `ZM KOSHASH` 1 / 2 / 3 `d2acb176…`, `d2acb176…`, `c71f0eb0…` = `scene_hash.mjs --kos docs/demo-gem.zmd --post-frames 3` = the native host's samples 1-3, `ZM KOS post 3`, then the desktop's frames 1-3 `71dbd6ea…` (total `e36de1d4…`) = the references; `ok`, no underrun (`ZM VSTAT 0 0`). The disk in DDR is `demo-gem.zmd`, bootable, so `ZM GEMDISK off`: the same desktop pixels as an empty drive.
+- **The board SoC sim** of power-on, POST, desktop: `make -C fpga build/hcycles/sim/gem/zm_ddr.init ZM_KOS_POST=3 ZM_FRAMES=3 ZM_EVERY=1`, `tools/hp_sim_run.py gem --no-build --frames 3 --every 1 --run-id kos` (sim-b, 2026-10-25, 1 h 02 min, the SoC model built from this tree): `ZM KOS boot 0 1 1 3` (cold, drive A's disk boots, a disk in, 3 POST frames), the POST's `ZM KOSHASH` 1 / 2 / 3 `d2acb176…`, `d2acb176…`, `c71f0eb0…` = `scene_hash.mjs --kos site/carts/demo-gem.zmd --post-frames 3` = the native host's samples 1-3, `ZM KOS post 3`, then the desktop's frames 1-3 `71dbd6ea…` (total `e36de1d4…`) = the references; `ok`, no underrun (`ZM VSTAT 0 0`). The disk in DDR is `demo-gem.zmd`, bootable, so `ZM GEMDISK off`: the same desktop pixels as an empty drive.
 
 **Not proved without the board:** the ARM's media-change writes as ZIGGY's D$ sees them through
 HP0 while it runs (the order of the disk, descriptor and media word, which is why the firmware
@@ -1440,7 +1440,7 @@ everything below is software over what the PL already has.
 **The program's board image** (`tools/glass_shelf.py`). For every program
 (type-0 FAT file) on a shelf data disk, the shelf depacks it with the machine's
 own depacker (`tools/zx0unpack.zig`, `libs/zig/depackers/zx0.zig`) and finds the
-cart whose `docs/demo-<cart>.wasm` has the same bytes (`mkdisks.sh` writes
+cart whose `site/carts/demo-<cart>.wasm` has the same bytes (`mkdisks.sh` writes
 `BOOT.WSM` from `demo-st_replay.wasm`: they are identical). That cart's board
 image (`board/st_replay/fw.bin`, which `make board-shelf` builds) goes into a fat
 disk of the **same data disk** at `KESTREL/progs/demo-<tag>/<NAME>.zmd`:

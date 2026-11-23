@@ -1,6 +1,6 @@
 // Headless gate for the SyncTERM spike (apps/ports/syncterm): the BBS terminal as a GEM program on its DATA disk,
 // in the desk mode (640x480 at 1:1), its network MOCKED by an in-cart BBS (kestrel_fakebbs.c). As
-// apps/harness/ports_headless.mjs does for the other ports: GEM boots over docs/demo-syncterm.zmd, a double-click runs
+// apps/harness/ports_headless.mjs does for the other ports: GEM boots over site/carts/demo-syncterm.zmd, a double-click runs
 // BOOT.WSM (apps/harness/ports_gem.mjs), then:
 //   desk      the program switched the machine to the desk mode (hwDeskActive) and the status line is drawn
 //   bbs       SyncTERM dialled telnet://fakebbs.zig on its own (the URL on its command line), the telnet options
@@ -16,7 +16,7 @@ import { readFile, mkdir } from "node:fs/promises";
 import { machine, step, picture, colours, sha, png } from "./ports_machine.mjs";
 import { launchFromGem, serviceQuit } from "./ports_gem.mjs";
 
-const CART = "docs/demo-syncterm.wasm", DISK = "docs/demo-syncterm.zmd";
+const CART = "site/carts/demo-syncterm.wasm", DISK = "site/carts/demo-syncterm.zmd";
 const FRAMES = 200, SCREEN_AT = 90, ECHO_AT = 140, QUIT_AT = 160, AFTER_QUIT = 60;
 const ALT = 0xe013, ENTER = 13;
 // The desk's pixel rows: the 80x25 cells are 8x16; the BBS screen is rows 1..20, the negotiation line row 22,

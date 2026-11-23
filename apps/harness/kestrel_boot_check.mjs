@@ -19,20 +19,20 @@
 //                                              retrigger, frozen, stays) must be caught by the checks
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { OFF_VRAM, REG_FB_COPPER } from "./linebase_model.mjs";
 
 const PAGES = 128, FRAMES = 420, REG_TC_FADE = 0x0C, FX_YM = 3, FX_CAP = 32;
 const BROKE = process.argv.includes("--break");
-const [cart = "docs/demo-kestrel_boot.wasm"] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const [cart = "site/carts/demo-kestrel_boot.wasm"] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

@@ -22,7 +22,7 @@ const argv = process.argv.slice(2);
 const opt = (name, dflt) => { const i = argv.indexOf(name); return i < 0 ? dflt : argv[i + 1]; };
 const brk = opt("--break", null);
 if (brk && !["nokeys", "key1", "key2", "key3"].includes(brk)) throw new Error(`--break: unknown ${brk}`);
-const cart = opt("--cart", "docs/demo-stcs.wasm"), disk = opt("--disk", "docs/demo-stcs.zmd");
+const cart = opt("--cart", "site/carts/demo-stcs.wasm"), disk = opt("--disk", "site/carts/demo-stcs.zmd");
 
 const FRAMES = 9500, BX = 40, BY = 40, W = 320, H = 200;
 const rgba = (r, g, b) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;

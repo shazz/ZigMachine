@@ -16,7 +16,7 @@
 // frame) and the global HBL queues each line's writes (zg.beam). No write is
 // ever refused (REG_BEAM_DROPPED stays 0; the harness proves it).
 // With no plane enabled the host shows the physical frame as hwClear() left
-// it (docs/sealed-loader.js), which is all this screen ever draws.
+// it (site/js/sealed-loader.js), which is all this screen ever draws.
 //
 // Seventeen parts on the demo's own sequencer (seq.zig), ~435 s; it ends in P17,
 // which runs forever, and so does this. Music: two SNDHs that match the demo's

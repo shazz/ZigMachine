@@ -4,8 +4,8 @@
 // Zig demo and the C prototype: two imports, raw 8-bit indices into the shared
 // video region.
 //
-// Build: see apps/rust/build.sh (rustc + bundled rust-lld). Output: docs/demo-rust.wasm
-// Run:   docs/sealed.html?demo=demo-rust.wasm
+// Build: see apps/rust/build.sh (rustc + bundled rust-lld). Output: site/carts/demo-rust.wasm
+// Run:   site/sealed.html?demo=demo-rust.wasm
 // ---------------------------------------------------------------------------
 #![no_std]
 #![no_main]

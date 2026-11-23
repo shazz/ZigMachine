@@ -117,7 +117,7 @@ is the start BPM, 0 = the song's own tempo), the same way a `.mod` goes. The voi
 software onto the Paula channels (`libs/zig/players/xm.zig`): two to a channel for up to 8 channels, three to a channel
 for 9..12, so the sound CPU needs no more channels than a MOD. Its 32-bit mixer
 keeps each position as a 32-bit frame index plus a 16-bit fraction, so a sample has no length cap beyond song RAM. The bench's test song is `testSong()` from
-`apps/harness/xm_song.mjs`, written outside `docs/music` (it is not shipped) and benched with `MUSIC=<that dir>
+`apps/harness/xm_song.mjs`, written outside `site/music` (it is not shipped) and benched with `MUSIC=<that dir>
 SONG=zm_test.xm`; the carts ship real modules (docs/guide/MUSIC.md "Bundled modules"). Each block is mixed into the next span of a 16 KiB ring per Paula channel
 (`xm_ring.zig`), never into one reused buffer: the audio core plays a stamped trigger up to the lead (four frames)
 after BARD wrote it, and a single buffer had been overwritten by three or four later blocks by then. The board played
@@ -129,7 +129,7 @@ started. Every other request reached BARD with no bytes. BARD printed `ZM SONG M
 
 - the packer takes `.sap`, so `sap_test`'s table holds all five files. BMX Simulator's three songs are tune numbers
   of one file, passed in `C_ARG`;
-- a song-named literal that is no file under `docs/music/` fails the build (`song_pack: ... no such song`). It is
+- a song-named literal that is no file under `site/music/` fails the build (`song_pack: ... no such song`). It is
   no longer skipped;
 - on BARD, a request with no bytes still prints `ZM SONG MISSING <name>`.
 
@@ -160,10 +160,10 @@ The cart's effects queue (`libs/zig/sfx_queue.zig`: `zg.sfxPlay`, `sfxStop`, `ym
 bridge carried only songs and `sndhCall`s, so on KESTREL with BARD, Beat Dis's keys 2 and 3 did nothing.
 
 - **ZIGGY drains the queue.** `host/audio_bridge.c` reads `pollSfx` / `sfxEntriesPtr` after the frame's song
-  request and `sndhCall`s, the order of `docs/sealed-loader.js` `postSfx`. A play whose bytes are not in the
+  request and `sndhCall`s, the order of `site/js/sealed-loader.js` `postSfx`. A play whose bytes are not in the
   cart's memory is dropped and logged (`ZM FX sfxPlay out of the cart's memory`). The cart exports join the
   song bridge table (`tools/host_gen.py`).
-- **The players apply each entry** (`host/audio.c` `audio_effects`) as `docs/audio-worklet-sealed.js` does:
+- **The players apply each entry** (`host/audio.c` `audio_effects`) as `site/js/audio-worklet-sealed.js` does:
 
 | Entry | Applied on BARD (and on the native host, and on ZIGGY without BARD) |
 |---|---|
@@ -479,7 +479,7 @@ interrupt costs ~6.9 k on BARD, not 2.5 k (see "Every cart's music"), and Quarte
 ## Every cart's music on BARD (2026-10-18)
 
 `fpga/tools/bard_load_survey.py` runs every subtune of every SNDH a cart names (the song literals of
-`docs/demo-*.wasm`, as `song_pack.py` finds them, plus the carts whose name is out of its reach) on Musashi in
+`site/carts/demo-*.wasm`, as `song_pack.py` finds them, plus the carts whose name is out of its reach) on Musashi in
 the counting oracle (`make sndh-survey`: the calls into the tune and the 68000 instructions, per frame;
 x86 time is no measure on this box, it moved 3x between two runs). It turns them into BARD Mc with a fit to
 snd-bench: ~17.8 k cycles a call, ~100 an instruction, 0.2 Mc a frame for the rest. A digi tune is its

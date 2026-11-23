@@ -141,7 +141,7 @@ ZigOS `fs/` wraps it: `mount(image)`, `find("NAME.WSM") -> {block,len}`,
 - **Uploads (the "Upload" button on the page).** A visitor's file is sniffed by
   content (`ZMDISK` at `$0` or `\0asm` + `ZMDISK` at `$400` = disk, `\0asm` = cart,
   `ZX0!` = packed cart) and mounted by the same parser as a URL disk
-  (`docs/zmdisk.js`, `mountDiskBytes`), so streaming works identically. Host caps:
+  (`site/js/zmdisk.js`, `mountDiskBytes`), so streaming works identically. Host caps:
   a cart (raw or packed) at most **3 MB** (the cart window, since HW 1.13.0); a disk at most **16 MB**
   (the format has no limit, `total blocks` is a u32: this is host policy).
 
@@ -158,7 +158,7 @@ ST Replay from 1.6 MB to 9 KB. FAT files (samples, `SCENE1.BIN`) are NOT
 packed; they are streamed block by block and must stay raw.
 
 Unpacking is the **machine's** job, not the host's. When the host
-(`docs/sealed-loader.js`, `instantiateCart`) is handed a cart that starts with
+(`site/js/sealed-loader.js`, `instantiateCart`) is handed a cart that starts with
 `ZX0!`, it:
 
 1. copies the packed image into the ROM chip's free RAM

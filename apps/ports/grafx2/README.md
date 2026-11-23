@@ -2,13 +2,13 @@
 
 [GrafX2](https://gitlab.com/GrafX2/grafX2) (the GrafX2 team) is a bitmap paint program in the Deluxe Paint
 tradition, in C on SDL2. Its 8-bit screen surface is plane 0's VRAM (320x200, normal mode) and its palette
-is palette 0, so nothing is copied to present. The cart is `docs/demo-grafx2.wasm`, on `docs/demo-grafx2.zmd`.
+is palette 0, so nothing is copied to present. The cart is `site/carts/demo-grafx2.wasm`, on `site/carts/demo-grafx2.zmd`.
 
 ## Licence: GPL version 2
 
 GrafX2 is free software under the GNU General Public License version 2 (`COPYING`, upstream's `LICENSE`;
 `COPYRIGHT.txt` lists its contributors and the files under other licences). The cart
-`docs/demo-grafx2.wasm` is a work based on it and is distributed under the same licence. Its
+`site/carts/demo-grafx2.wasm` is a work based on it and is distributed under the same licence. Its
 **corresponding source** is:
 
 - upstream GrafX2 at commit `678a0f54ea7f3eeebc3fa4135213ea63f45a28bd`
@@ -26,8 +26,8 @@ GrafX2 is free software under the GNU General Public License version 2 (`COPYING
 Rebuild it, byte for byte, from a checkout of this repository:
 
     apps/ports/fetch.sh
-    make -C apps/ports/grafx2 link        # build/demo-grafx2.wasm == docs/demo-grafx2.wasm
-    make -C apps/ports/grafx2 install     # copy it to docs/, repack docs/demo-grafx2.zmd (tools/mkdisks.sh)
+    make -C apps/ports/grafx2 link        # build/demo-grafx2.wasm == site/carts/demo-grafx2.wasm
+    make -C apps/ports/grafx2 install     # copy it to docs/, repack site/carts/demo-grafx2.zmd (tools/mkdisks.sh)
 
 The disk is a GEM data disk: GEM boots over it and lists the program, `BOOT.WSM`, beside its files; a
 double-click runs GrafX2, and Q (Quit; Discard or Save on its "Quit ?" box if the picture changed) goes back to

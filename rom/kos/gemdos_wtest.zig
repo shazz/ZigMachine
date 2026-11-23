@@ -1,5 +1,5 @@
 // KOS GEMDOS's writes (rom/kos/gemdos_write.zig, gemdos_wops.zig) end to end, natively: the library's
-// C: reads the sectors of a copy of docs/gemdos-c.img (FAT12) and its writes go to KFS (kfs.zig), the
+// C: reads the sectors of a copy of site/disks/gemdos-c.img (FAT12) and its writes go to KFS (kfs.zig), the
 // page's and the native host's writer, over the same copy. What a program saves, it reads back; the
 // listing shows it; TOS's refusals; what a save costs in requests. tools/tests/test_kos_cfs.py holds
 // KFS itself against mtools and fsck.fat on FAT16 / FAT32. Run from the repository's root.
@@ -47,7 +47,7 @@ var drive_a: gemdos.Drive = .{ .run_fn = run, .ctx = &dummy, .max_run = 64, .roo
 var dos: gemdos.Dos = .{};
 
 fn setUp() !void {
-    const src = try std.Io.Dir.cwd().readFileAlloc(t.io, "docs/gemdos-c.img", std.heap.page_allocator, .limited(1 << 20));
+    const src = try std.Io.Dir.cwd().readFileAlloc(t.io, "site/disks/gemdos-c.img", std.heap.page_allocator, .limited(1 << 20));
     image = src;
     refuse = 0;
     writes = 0;

@@ -1,6 +1,6 @@
-// docs/ZIGMACHINE_GUIDE.html — the section rail's current marker, the phone
+// site/ZIGMACHINE_GUIDE.html — the section rail's current marker, the phone
 // rail toggle, and the code blocks' Copy button. The tutorial has its own
-// (docs/tutorial.js): that page also drives a live machine, this one only reads.
+// (site/js/tutorial.js): that page also drives a live machine, this one only reads.
 (function () {
     "use strict";
     var rail = document.getElementById("rail");

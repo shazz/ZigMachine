@@ -1,9 +1,9 @@
 // MUSIC DEBUG (cart "music"): every key asks for its song BY NAME, through the same
 // setShadeMode the browser loader and the board's glass both send a digit to
-// (docs/sealed-loader.js, fpga/glass/firmware/glass_input.c), so the cart owns its
+// (site/js/sealed-loader.js, fpga/glass/firmware/glass_input.c), so the cart owns its
 // songs on both. Boots the cart over the real machine + ROM, presses 1..7 and polls
 // the song bridge the way the loader does.
-//   names     key n asks for TUNES[n-1]; each committed one is a file in docs/music/
+//   names     key n asks for TUNES[n-1]; each committed one is a file in site/music/
 //             (the board's song table is built from those names: fpga/tools/song_pack.py)
 //   local     key 6 asks for local.xm, which is gitignored and never committed
 //   xm        key 5's XM (keygen_9000.xm, a Public Domain module: docs/guide/MUSIC.md) loads in
@@ -15,7 +15,7 @@
 //     vgm: key 7 pressed again is expected to ask for another file
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, AUDIO_PAGES = 48, SR = 44100, SECONDS = 4;
 const bi = process.argv.indexOf("--break");
@@ -29,10 +29,10 @@ const LOCALS = ["local.xm", "local.vgm"];
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -62,12 +62,12 @@ function request({ memory, demo }, frames) {
 /** A song through the real audio modules (its loader, then its play): mode 1, peak and RMS over SECONDS. */
 async function plays(name) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
-    const bytes = await readFile(`docs/music/${name}`);
+    const bytes = await readFile(`site/music/${name}`);
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
     if (name.endsWith(".vgm")) {
         if (!a.audioLoadVgm(bytes.length)) return { ok: false, why: `refused, status ${a.audioVgmStatus()}` };
@@ -85,18 +85,18 @@ async function plays(name) {
 }
 
 const errors = [];
-const cart = await bootCart("docs/demo-music.wasm");
+const cart = await bootCart("site/carts/demo-music.wasm");
 for (const [i, want] of WANT) {
     cart.demo.setShadeMode(i);
     const got = request(cart, 5);
     console.log(`  key ${i + 1}: asks for ${got ?? "nothing"}`);
     if (got !== want) errors.push(`${want.endsWith(".vgm") || want === "other.vgm" ? "vgm" : "names"}: key ${i + 1} asked for ${got}, not ${want}`);
 }
-const tracked = execFileSync("git", ["ls-files", "docs/music"], { encoding: "utf8" }).split("\n");
+const tracked = execFileSync("git", ["ls-files", "site/music"], { encoding: "utf8" }).split("\n");
 for (const [, name] of WANT.filter(([, n]) => !LOCALS.includes(n) && !n.startsWith("other")))
-    if (!tracked.includes(`docs/music/${name}`)) errors.push(`names: ${name} is not a committed file in docs/music/`);
+    if (!tracked.includes(`site/music/${name}`)) errors.push(`names: ${name} is not a committed file in site/music/`);
 for (const l of LOCALS)
-    if (tracked.includes(`docs/music/${l}`)) errors.push(`local: docs/music/${l} is committed: it must stay on its owner's machine`);
+    if (tracked.includes(`site/music/${l}`)) errors.push(`local: site/music/${l} is committed: it must stay on its owner's machine`);
 const xm = await plays("keygen_9000.xm");
 console.log(`  key 5's XM: ${xm.why}`);
 if (!xm.ok) errors.push(`xm: keygen_9000.xm does not play (${xm.why})`);

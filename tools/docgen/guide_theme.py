@@ -1,8 +1,8 @@
 """The guide page's HTML shell.
 
-Like the tutorial, its CSS and JS are real files: docs/css/docs.css and
-docs/css/code.css are shared with the tutorial, docs/css/guide.css and
-docs/guide.js are its own, and tools/cache_bust.py stamps all of them.
+Like the tutorial, its CSS and JS are real files: site/css/docs.css and
+site/css/code.css are shared with the tutorial, site/css/guide.css and
+site/js/guide.js are its own, and tools/cache_bust.py stamps all of them.
 """
 from __future__ import annotations
 
@@ -38,6 +38,6 @@ TEMPLATE = """<!doctype html>
 {sections}
   </main>
 </div>
-<script src="guide.js"></script>
+<script src="js/guide.js"></script>
 </body></html>
 """

@@ -31,7 +31,7 @@ const fail = (m) => errors.push(m);
 
 async function boot() {
     const log = [];
-    const S = await bootObj("docs/demo-sb_spike.wasm", (s) => log.push(s));
+    const S = await bootObj("site/carts/demo-sb_spike.wasm", (s) => log.push(s));
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p));
     const plane = (p) => {
         const vb = S.machine.hwVideoBase(), dv = new DataView(S.memory.buffer, vb, OFF_PAL);

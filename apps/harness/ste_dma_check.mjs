@@ -77,10 +77,10 @@ function tune(kind) {
 
 async function play(bytes, seconds = 1) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // AUDIO_PAGES
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const d = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const d = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     d.audioInit();
     new Uint8Array(memory.buffer, d.audioSongPtr(), bytes.length).set(bytes);
     if (!d.audioLoadSndh(bytes.length)) return { error: "not loaded" };

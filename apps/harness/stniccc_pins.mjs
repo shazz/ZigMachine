@@ -18,9 +18,9 @@ const FRAMES = 3300; // past the end of the fullscreen flight's first pass (it s
 const BREAK_AT = 2000;
 const record = process.argv.includes("--record");
 const brk = process.argv.includes("--break");
-const cart = (record && process.argv[process.argv.indexOf("--record") + 1]) || "docs/demo-stniccc.wasm";
+const cart = (record && process.argv[process.argv.indexOf("--record") + 1]) || "site/carts/demo-stniccc.wasm";
 
-const disk = new Uint8Array(await readFile("docs/demo-stniccc.zmd"));
+const disk = new Uint8Array(await readFile("site/carts/demo-stniccc.zmd"));
 const { memory, machine, demo } = await boot(cart, disk);
 const pw = machine.hwPhysWidth(), ph = machine.hwPhysHeight();
 const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 12);

@@ -1,6 +1,6 @@
 ; ---------------------------------------------------------------------------
 ; NORTH & SOUTH (Infogrames 1989): the battle's digitised sounds, as an SNDH
-; (docs/music/north_south_digi.sndh).
+; (site/music/north_south_digi.sndh).
 ;
 ; The battle has no music. Every sound is a sample from the bank carte.ech
 ; played through the three YM volume registers by a Timer A interrupt, one
@@ -32,7 +32,7 @@
 ; "8, v8, 9, v9, 10, v10, 0, 0"), both built by
 ; tools/private_tools/north_south_assets.py.
 ;
-; Build: vasmm68k_mot -Fbin -nosym -o docs/music/north_south_digi.sndh \
+; Build: vasmm68k_mot -Fbin -nosym -o site/music/north_south_digi.sndh \
 ;            apps/zig/assets/screens/north_south/ns_digi.s
 ; ---------------------------------------------------------------------------
 NSEQ	equ	47

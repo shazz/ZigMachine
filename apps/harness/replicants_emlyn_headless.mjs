@@ -1,5 +1,5 @@
 // Headless REPLICANTS / Emlyn Hughes driver — boots the sealed machine +
-// demo-replicants_emlyn.wasm the way docs/sealed-loader.js does and proves the
+// demo-replicants_emlyn.wasm the way site/js/sealed-loader.js does and proves the
 // thing this screen is about: the bars are REAL RASTERS, edge to edge.
 //
 // It reads the plane's INDEX framebuffer, not just the composited pixels, so
@@ -19,7 +19,7 @@
 // test). Both must show the same screen.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeZigChecks } from "./replicants_emlyn_zig.mjs";
 import { copperRecords } from "./copper_lines.mjs";
 
@@ -41,12 +41,12 @@ const RETURN_FRAMES = 21; // 0.80 rad home at 0.16 a frame: 5, and 20 from the f
 const ORIGINAL_SHA = "e4f109ade24cde34 d81bc2133c86cde2";
 // ... and of ZIG + 40's content window (rows 20..259), which opening the top
 // and bottom borders must not change either: the fixed and f32 carts differ
-const ZIG_WINDOW_SHA = { "docs/demo-replicants_emlyn.wasm": "4ccc3af1126cdfa6", "docs/demo-replicants_emlyn_f32.wasm": "a415ece9acb38ae6" };
+const ZIG_WINDOW_SHA = { "site/carts/demo-replicants_emlyn.wasm": "4ccc3af1126cdfa6", "site/carts/demo-replicants_emlyn_f32.wasm": "a415ece9acb38ae6" };
 
 // --break <what> SABOTAGES one measurement and passes only if the check it
 // belongs to notices: a check nobody can fail is not a check.
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : "";
-const DEFAULT_CART = "docs/demo-replicants_emlyn.wasm", F32_CART = "docs/demo-replicants_emlyn_f32.wasm";
+const DEFAULT_CART = "site/carts/demo-replicants_emlyn.wasm", F32_CART = "site/carts/demo-replicants_emlyn_f32.wasm";
 const CART = process.argv.includes("--cart") ? process.argv[process.argv.indexOf("--cart") + 1] : DEFAULT_CART;
 let failures = 0;
 function check(name, got, want) {
@@ -58,10 +58,10 @@ function check(name, got, want) {
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -84,12 +84,12 @@ async function boot(cart) {
 /// (it named the $FF8804/$FF8806 movep.l bug in one line).
 async function sndhPlay(name, tune) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n]; // the sealed YM
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) return { why: "audioLoadSndh refused it" };
     audio.audioSndhPlay(tune);

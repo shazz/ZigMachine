@@ -25,7 +25,7 @@ GEM used to live here; it moved to `rom/gem/` to keep the layering clean
 ## Build
 Compiled as a named module by the top-level build — no separate artifact:
 ```bash
-zig build -Dwasm -Drelease=true      # -> docs/demo.wasm (+ machine, audio)
+zig build -Dwasm -Drelease=true      # -> site/carts/demo.wasm (+ machine, audio)
 cd docs && python3 -m http.server 3333
 ```
 See `docs/guide/ZIGOS_API.md` for the full API.

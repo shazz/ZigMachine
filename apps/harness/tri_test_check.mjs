@@ -9,7 +9,7 @@
 //   node apps/harness/tri_test_check.mjs [--break floor]
 //     --break floor  this rasteriser truncates toward zero instead of flooring: must be caught
 import { readFile } from "node:fs/promises";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, OFF_BLIT = 0x80, REG_FB_BASE = 0x44, W = 320, H = 200, LABEL = 16;
 const CMD_FILL = 2, CMD_TRI = 4, CON_CLIP_EN = 0x80, MT_XOR_BC = 0x66;
@@ -24,7 +24,7 @@ function check(name, ok, detail = "") {
 
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const ref = new Uint8Array(W * H); // the drawing area as this rasteriser sees it
@@ -34,8 +34,8 @@ const hwBlit = () => {
     apply(new DataView(memory.buffer.slice(VB + OFF_BLIT, VB + OFF_BLIT + 0x80)));
     machine.hwBlit();
 };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit } })).instance.exports;
-const cartBytes = await readFile("docs/demo-tri_test.wasm"), env = { memory, ...rom };
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit } })).instance.exports;
+const cartBytes = await readFile("site/carts/demo-tri_test.wasm"), env = { memory, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
 env.hwBlit = hwBlit;
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

@@ -14,10 +14,10 @@
 //        [--machine DIR]  (machine-video.wasm + rom.wasm; default $MACHINE_DIR or docs)
 //        [--budget]       the frame budget instead: cart Mc of what FRESCO's line passes leave, per plane
 //   node apps/harness/frame_cost.mjs --all [--jobs 4] [--json] [--top-n 20] [--out F.json]
-//        every docs/demo-<tag>.wasm with a disk, ranked by est. Mc/frame (other options forwarded)
+//        every site/carts/demo-<tag>.wasm with a disk, ranked by est. Mc/frame (other options forwarded)
 //
 // Counts are deterministic (fixed dt, no wall clock): the same cart gives the same numbers.
-// The disk defaults to docs/demo-<tag>.zmd when it exists (the browser boots a cart from it).
+// The disk defaults to site/carts/demo-<tag>.zmd when it exists (the browser boots a cart from it).
 import { existsSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -55,7 +55,7 @@ const OPTIONS = {
 
 export function parseArgs(argv) {
     const o = { frames: 60, warmup: 120, top: 10, callSpecs: [], disk: "auto", json: false, pal: true,
-        namesDir: DEFAULT_NAMES_DIR, machineDir: process.env.MACHINE_DIR || "docs", all: false, jobs: 4, topN: 20,
+        namesDir: DEFAULT_NAMES_DIR, machineDir: process.env.MACHINE_DIR || "site", all: false, jobs: 4, topN: 20,
         out: null, pos: [], pass: [] };
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i], spec = OPTIONS[a];

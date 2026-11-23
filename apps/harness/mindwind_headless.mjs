@@ -1,4 +1,4 @@
-// Headless MIND REWIND (docs/demo-mindwind.wasm): boots the sealed machine + the cart the way
+// Headless MIND REWIND (site/carts/demo-mindwind.wasm): boots the sealed machine + the cart the way
 // sealed-loader.js does, runs the demo and checks each part on the composited 800x280 raster
 // (every border open: the demo's lines are 416 px on the ST, 400 here).
 //   bars    -- the chrome bars are colour 0 a line: the SAME colour across the whole line, the
@@ -12,7 +12,7 @@
 // --break copper drops the plane's copper list (no LBASE, no raster): the checks must fail.
 //   node apps/harness/mindwind_headless.mjs [outdir] [--break copper]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const REG_FB_COPPER = 0x78;
@@ -21,10 +21,10 @@ const BREAK = process.argv.includes("--break") ? process.argv[process.argv.index
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -49,7 +49,7 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-const { memory, machine, demo } = await boot("docs/demo-mindwind.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-mindwind.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const base = machine.hwVideoBase();
 let frames = 0;

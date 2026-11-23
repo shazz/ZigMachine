@@ -20,7 +20,7 @@ const Console = zg.Console;
 // --------------------------------------------------------------------------
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // Mad Max's C64 conversion of "Scout" (1988).
 const MUSIC = "scout.sndh";
 

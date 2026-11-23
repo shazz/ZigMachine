@@ -1,9 +1,9 @@
 // The STCS cart booted headless for apps/harness/stcs_zig_headless.mjs: the host loop
-// of docs/sealed-loader.js (clear, frame, render every enabled plane) and the
+// of site/js/sealed-loader.js (clear, frame, render every enabled plane) and the
 // COMPOSED picture (each enabled plane stacked as the browser's canvases are,
 // scene_hash.mjs --composite), 400x280 at one pixel per low-res pixel.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeDrive } from "./scene_hash_disk.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -11,10 +11,10 @@ const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 export async function boot(cartPath, diskPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

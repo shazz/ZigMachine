@@ -57,7 +57,7 @@ static uint32_t g_post = 180;  /* --post-frames: the POST's length (0: none), ro
 static int g_warm;             /* --warm: a warm reset (no POST) */
 
 
-/* One frame of the host loop (docs/sealed-loader.js): clear, frame, then render
+/* One frame of the host loop (site/js/sealed-loader.js): clear, frame, then render
  * every ENABLED plane. HBL handlers only run inside hwRenderPlane, so planes are
  * rendered every frame, sampled or not. */
 /* HOST_WARP_MS=<ms>: frame 1's dt instead of 16.6, the firmware's ZM_WARP_MS (cycles/bmain.c). */

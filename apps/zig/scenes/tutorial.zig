@@ -8,7 +8,7 @@
 // poke the sealed ABI by hand.
 //
 // Build: sh ./build.sh (or zig build -Drelease=true -Dwasm)
-// Run:   docs/index.html?demo=demo-tutorial.wasm, or TUTORIAL in the menu
+// Run:   site/index.html?demo=demo-tutorial.wasm, or TUTORIAL in the menu
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -32,7 +32,7 @@ const BAR_H: i32 = 16;
 const TEXT = "HELLO FROM ZIG * THIS IS YOUR FIRST ZIGMACHINE SCREEN * ";
 const TEXT_W: i32 = TEXT.len * 8; // the 8x8 system font
 
-const MUSIC = "sos.sndh"; // a file under docs/music/
+const MUSIC = "sos.sndh"; // a file under site/music/
 
 // The copper's per-line colours for SKY. Module scope and owned by the scene:
 // an HBL handler gets no pointer to your Demo.

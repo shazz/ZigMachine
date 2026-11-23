@@ -10,8 +10,8 @@
 # Both audio modules import their memory and the chip calls from `env`, as the
 # cart does; tools/wasm_env_rename.py moves them to `aud` first, so the two
 # memories stay apart (the players' 3 MiB is not the cart's 8 MiB).
-AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
-AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
+AUD_WASM_audio := $(ROOT)/site/demo-audio.wasm
+AUD_WASM_maud  := $(ROOT)/site/machine-audio.wasm
 AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_scope.c host/audio_pcm.c host/audio_paula.c host/audio_mp3.c \
 	host/audio_sid.c host/crsid.c host/audio_ay.c host/audio_vgm.c host/bardq_pump.c host/audio_bardq.c host/audio_bardjob.c
 # The SID engine (cRSID): libs/c/crsid laid out with its patches (patch.sh); host/crsid.c includes it.
@@ -38,7 +38,7 @@ $(HOST)/common/maud.h: $(HOST)/common/maud.c
 
 # --- native: host_audio, the oracle ---
 # -include host/hstream.h: the cart's stream imports reach the ring (tools/host_gen.py STREAM hooks).
-HOST_AUD_CFLAGS = $(HOST_CFLAGS) -DZM_AUDIO_SOFT -DHOST_AUDIO -DHOST_MUSIC_DIR='"$(ROOT)/docs/music"' -include host/hstream.h
+HOST_AUD_CFLAGS = $(HOST_CFLAGS) -DZM_AUDIO_SOFT -DHOST_AUDIO -DHOST_MUSIC_DIR='"$(ROOT)/site/music"' -include host/hstream.h
 $(HOST)/%/host_audio: $(HOST)/%/env.c $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/common/aplayer.o \
 		$(HOST)/common/maud.o $(AUD_SRC) $(AUD_HDRS) host/audio_soft.c host/audio_scope_check.c host/haudio_soft.h host/main.c host/boot.c \
 		$(HOST_IO) $(INPUT_DEPS) $(HOST_BOOTSEC)
@@ -94,10 +94,10 @@ AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h cycles/bsndinfo.h cycle
 $(CYC)/%/common/aplayer.o: $(CYC)/src/aplayer.c
 	@mkdir -p $(@D)
 	$(RV_CC) $(RV_CFLAGS) $(V_$*) -c $< -o $@
-$(HCYC)/songs/%.c: $(ROOT)/docs/demo-%.wasm $(HOST)/%/host_audio tools/song_pack.py
+$(HCYC)/songs/%.c: $(ROOT)/site/carts/demo-%.wasm $(HOST)/%/host_audio tools/song_pack.py
 	@mkdir -p $(@D)
 	ZM_AUDIO_LOG=$(HCYC)/songs/$* $(HOST)/$*/host_audio $* $(SONG_FRAMES) $(SONG_FRAMES) \
-		$(if $(wildcard $(ROOT)/docs/demo-$*.zmd),--disk $(ROOT)/docs/demo-$*.zmd) >/dev/null
+		$(if $(wildcard $(ROOT)/site/carts/demo-$*.zmd),--disk $(ROOT)/site/carts/demo-$*.zmd) >/dev/null
 	uv run python tools/song_pack.py $< $@ --log $(HCYC)/songs/$*.w
 
 # --- the players' cost alone (cycles/baudio_bench.c), on the board SoC sim: no cart.
@@ -111,7 +111,7 @@ ABENCH := $(HCYC)/abench
 audio-bench: memmap $(HCYC)/gen/csr_addr.h $(CYC)/aligned/common/aplayer.o $(HCYC)/sim/common/fw.a $(HOST)/tutorial/cart.h
 	@mkdir -p $(ABENCH)
 	printf 'L 0 0 %s\n' '$(SONG)' >$(ABENCH)/song.w
-	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $(ABENCH)/songs.c --log $(ABENCH)/song.w
+	uv run python tools/song_pack.py $(ROOT)/site/carts/demo-tutorial.wasm $(ABENCH)/songs.c --log $(ABENCH)/song.w
 	for s in $(AUD_FW_SRC) $(ABENCH)/songs.c cycles/baudio_bench.c; do \
 		$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/tutorial '-DZM_SONG="$(SONG)"' -DZM_TUNE=$(TUNE) -DZM_FRAMES=$(ZM_FRAMES) \
 			-c $$s -o $(ABENCH)/$$(basename $$s .c).o || exit 1; done

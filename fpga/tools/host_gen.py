@@ -1,7 +1,7 @@
 """Generate the per-cart half of the native host (fpga/host/): the env imports,
 the --call export table and the RAM high-water constants, as one C file.
 
-    uv run python tools/host_gen.py --build build/host/<tag> --cart ../docs/demo-<tag>.wasm
+    uv run python tools/host_gen.py --build build/host/<tag> --cart ../site/carts/demo-<tag>.wasm
 
 It reads the wasm2c headers (machine.h and rom.h in build/host/common, cart.h in
 --build) rather than a hand-written list, so every cart gets exactly the imports
@@ -203,7 +203,7 @@ def main() -> None:
 
     common = a.build.parent / "common"
     headers = {"machine": common / "machine.h", "rom": common / "rom.h", "cart": a.build / "cart.h"}
-    wasms = {"machine": ROOT / "docs/machine-video.wasm", "rom": ROOT / "docs/rom.wasm", "cart": a.cart}
+    wasms = {"machine": ROOT / "site/machine-video.wasm", "rom": ROOT / "site/rom.wasm", "cart": a.cart}
     link_check(wasms, SHARED_PAGES)
     exports = {who: decls(h, who) for who, h in headers.items()}
     rom_high = wasm_info.high_water(wasms["rom"].read_bytes()) or 0

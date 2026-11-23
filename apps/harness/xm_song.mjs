@@ -9,7 +9,7 @@
 // Delta-coded PCM, as FastTracker 2 writes it.
 // It is a TEST song, not shipped music: the harnesses (apps/harness/xm_check.mjs) build it in memory,
 // and the carts play real modules (docs/guide/MUSIC.md "Bundled modules"). For the board's bench,
-// write it outside docs/music and point MUSIC= there (docs/hardware/FPGA_SOUND_CPU.md):
+// write it outside site/music and point MUSIC= there (docs/hardware/FPGA_SOUND_CPU.md):
 //   node --input-type=module -e "import {writeFileSync} from 'node:fs'; import {testSong} from './apps/harness/xm_song.mjs'; writeFileSync('/tmp/xm/zm_test.xm', testSong());"
 
 const u16 = (v) => [v & 255, (v >> 8) & 255];

@@ -1,6 +1,6 @@
 ; ---------------------------------------------------------------------------
 ; SKYSTRIKE (Shadow Software 1990): the game's whole sound, as an SNDH
-; (docs/music/skystrike.sndh). Everything the STOS program asks the YM for:
+; (site/music/skystrike.sndh). Everything the STOS program asks the YM for:
 ;
 ;   MUSIC n / MUSIC OFF   the three tunes of bank 3 (SKYMUSIC.MBK), played by
 ;                STOS's own music library: Grazey's rip Sky_Strike.sndh (the
@@ -31,7 +31,7 @@
 ; so an effect never reloads the image and what is sounding goes on.
 ;
 ; Build (from the repository root; vasm 1.9, /home/matt/projects/MJJ/bin/vasm):
-;   vasmm68k_mot -Fbin -nosym -o docs/music/skystrike.sndh \
+;   vasmm68k_mot -Fbin -nosym -o site/music/skystrike.sndh \
 ;       apps/zig/assets/screens/skystrike/sound.s
 ; The .bin/.bnk files come from tools/skystrike/extract_assets.py.
 ; ---------------------------------------------------------------------------

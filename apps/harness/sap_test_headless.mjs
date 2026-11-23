@@ -1,6 +1,6 @@
 // Headless SAP TEST driver: boots the sap_test cart (apps/zig/scenes/sap_test.zig) as
 // docs/ loads it, presses its keys, and follows every song request it makes into the
-// browser's audio path, as docs/sealed-loader.js + audio-worklet-sealed.js do.
+// browser's audio path, as site/js/sealed-loader.js + audio-worklet-sealed.js do.
 //
 //   node apps/harness/sap_test_headless.mjs [--break tune|silent]
 //
@@ -11,9 +11,9 @@
 //      file and song number: Down x4 + Fire = BMX_Simulator.sap 1, Right = 2, Right = 3,
 //      Right wraps to 1, Left wraps to 3; Up + Right on one-song Ninja requests nothing,
 //      Fire = Ninja.sap 1; key 3 = Barbarian.sap 1;
-//   3. every requested file is in docs/music/, loads in docs/demo-audio.wasm's SAP
+//   3. every requested file is in site/music/, loads in site/demo-audio.wasm's SAP
 //      player (mode 5, status 0), has as many songs as the screen says, and the song
-//      asked for plays something (not silence) on docs/machine-audio.wasm's POKEY;
+//      asked for plays something (not silence) on site/machine-audio.wasm's POKEY;
 //   4. Escape and Back both leave to the menu.
 //
 // --break tune:   the request's song number is read as 0 (what zg.requestSong would
@@ -32,7 +32,7 @@ const SONGS = { "Warhawk.sap": 1, "Gauntlet.sap": 1, "Barbarian.sap": 1, "Ninja.
 const K_ESC = 0xE012;
 const errors = [];
 
-const S = await boot("docs/demo-sap_test.wasm");
+const S = await boot("site/carts/demo-sap_test.wasm");
 const W = S.machine.hwPhysWidth(), H = S.machine.hwPhysHeight();
 const step = () => { S.machine.hwClear(); S.demo.frame(20); S.machine.hwRenderPlane(0); };
 const request = () => {
@@ -79,18 +79,18 @@ S.demo.setShadeMode(2); expect("key 3", { name: "Barbarian.sap", tune: 1 });
 // --- 3: each request through the browser's SAP path --------------------------
 async function audio() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
     if (BREAK === "silent") env.machineRenderPokey = () => {};
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, machine, a };
 }
 let played = 0;
 for (const { name, tune } of asked) {
-    const path = `docs/music/${name}`;
-    if (!existsSync(path)) { errors.push(`${name}: not in docs/music/, the site would 404`); continue; }
+    const path = `site/music/${name}`;
+    if (!existsSync(path)) { errors.push(`${name}: not in site/music/, the site would 404`); continue; }
     const bytes = await readFile(path);
     const m = await audio();
     new Uint8Array(m.memory.buffer, m.a.audioSongPtr(), bytes.length).set(bytes);
@@ -109,7 +109,7 @@ for (const { name, tune } of asked) {
 
 // --- 4: the ways out ---------------------------------------------------------
 for (const [label, act] of [["Escape", (d) => d.key(K_ESC)], ["Back", (d) => d.input(6)]]) {
-    const K = await boot("docs/demo-sap_test.wasm");
+    const K = await boot("site/carts/demo-sap_test.wasm");
     for (let i = 0; i < 5; i++) { K.machine.hwClear(); K.demo.frame(20); }
     if (K.demo.pollCartRequest() !== 0) errors.push(`${label}: a cart request before any key`);
     act(K.demo);

@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// File timestamps. The host FAT (packed in docs/sealed-loader.js) carries a
+// File timestamps. The host FAT (packed in site/js/sealed-loader.js) carries a
 // date but no time, and a disk built without a descriptor date carries neither.
 // Rather than print placeholder dashes, an entry with no stamp reports the epoch
 // every Atari owner recognises — 01-01-1987 00:00, the ST's own power-on default

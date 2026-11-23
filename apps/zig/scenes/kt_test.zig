@@ -9,7 +9,7 @@
 //
 // The songs are klystrack's own example songs, from upstream (kometbomb/klystrack,
 // MIT like the port, apps/ports/klystrack/LICENSE and README.md), copied from
-// apps/ports/klystrack/data/*.KT with lower-case names into docs/music/:
+// apps/ports/klystrack/data/*.KT with lower-case names into site/music/:
 //   1  starport2.kt      1822 B  md5 0246c50252e717ea7677fefb5c044ea4
 //   2  castlevania.kt    2793 B  md5 9657f6b0554d8df5548bb35c3f91cef5
 //   3  oceanloader3.kt   8144 B  md5 22139dc5dbaf6df1ec72b35b2db25775
@@ -33,7 +33,7 @@ const INK: u8 = 1;
 const SEL: u8 = 2;
 const DIM: u8 = 3;
 
-/// The songs keys 1..4 ask for, under docs/music/.
+/// The songs keys 1..4 ask for, under site/music/.
 pub const SONGS = [_][]const u8{ "starport2.kt", "castlevania.kt", "oceanloader3.kt", "dpintro.kt" };
 const LABELS = [_][]const u8{ "1  STARPORT2", "2  CASTLEVANIA", "3  OCEANLOADER3", "4  DPINTRO" };
 pub const STOP_MODE: u32 = SONGS.len; // key 5

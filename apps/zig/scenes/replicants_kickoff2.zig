@@ -5,7 +5,7 @@
 // Ported from the CODEF HTML5 remake (wab.com screen 168, MIT).
 // Graphics, scrolltext and the original ST intro belong to their authors;
 // music: "Rings of Medusa" title track, Jochen Hippel (Mad Max), subtune 2 of
-// docs/music/rings_of_medusa.sndh — its periods match the remake's medusa.ym
+// site/music/rings_of_medusa.sndh — its periods match the remake's medusa.ym
 // frame for frame.
 //
 // Reference kept at prototypes/codef/168/ (tools/fetch_codef.py 168).

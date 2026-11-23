@@ -1,5 +1,5 @@
 // Headless RNO / SODIUM driver — boots the sealed machine the way
-// docs/sealed-loader.js does, steps the intro one 50 Hz VBL per host frame
+// site/js/sealed-loader.js does, steps the intro one 50 Hz VBL per host frame
 // (dt = 20 ms) and checks it against the REAL THING:
 //   snapshots  at the eight counter values the Hatari RAM snapshots were taken
 //              at (one per effect: wobble, curtain, text, prism, distorter...),
@@ -14,11 +14,11 @@
 //              loops after C = 4656
 //   node apps/harness/rno_sodium_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // one plane: the ST showed one screen
-const CART = "docs/demo-rno_sodium.wasm";
+const CART = "site/carts/demo-rno_sodium.wasm";
 const MUSIC = "gritty.sndh";
 const END = 4656; // the last part's limit, cmpi.l #$1230
 
@@ -40,10 +40,10 @@ async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -82,7 +82,7 @@ class Screen {
         this.rgb = null;
     }
 
-    // Host frames, as docs/sealed-loader.js sequences them.
+    // Host frames, as site/js/sealed-loader.js sequences them.
     run(n, dt = 20) {
         for (let i = 0; i < n; i++, this.frames++) {
             this.machine.hwClear();

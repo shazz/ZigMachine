@@ -186,7 +186,7 @@ $(foreach v,sim board,$(eval $(call hp_rules,$(v))))
 # The DDR model is 64 bits wide: one little-endian doubleword a line. With the cart's
 # shelf disk where ZWINDOW puts it, when docs/ has one (tools/ddr_init.py, cycles/bdisk.c).
 $(HCYC)/sim$(ASUF)$(HSUF)/%/zm_ddr.init: $(HCYC)/sim$(ASUF)$(HSUF)/%/fw.bin tools/ddr_init.py
-	uv run python tools/ddr_init.py $< $@ $(if $(wildcard $(ROOT)/docs/demo-$*.zmd),--disk $(ROOT)/docs/demo-$*.zmd)
+	uv run python tools/ddr_init.py $< $@ $(if $(wildcard $(ROOT)/site/carts/demo-$*.zmd),--disk $(ROOT)/site/carts/demo-$*.zmd)
 
 .PHONY: hp-sim board-fw board-shelf soc-hp-fpu
 soc-hp-fpu: $(SOC_HP)_fpu/hp_sim.json

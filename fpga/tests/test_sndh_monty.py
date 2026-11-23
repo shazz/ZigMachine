@@ -2,7 +2,7 @@
 Mad Max's "Auf Weidersehen Monty - digidrums" (TEX NEO SHOW's tune), its audio-core writes
 digested a frame at a time (host/sndh_oracle.c), must be the same over the whole song, past
 its wrap; the drums (Timer D, 10593 Hz) come in at frame ~2,300. The helpers are
-test_sndh_native.py's. Needs `make sndh-oracle` and docs/demo-audio.wasm."""
+test_sndh_native.py's. Needs `make sndh-oracle` and site/demo-audio.wasm."""
 
 from __future__ import annotations
 

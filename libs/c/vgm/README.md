@@ -16,7 +16,7 @@ native host. The player's output stage is C too (`zm_vgm_out.c`: linear to 44.1 
 | `zm_inflate.h`, `zm_inflate.c` | gzip (RFC 1952) / DEFLATE (RFC 1951) for `.vgz` |
 | `zm_mem.h` | memset / memmove: libc's, or the compiler runtime's in the freestanding wasm build |
 | `vgm_write.py`, `test_vgms.py` | a VGM writer; our single-feature VGMs (algorithms, feedback, envelope, LFO, detune, SSG, channel 3, DAC, PSG) |
-| `make_tune.py` | KESTREL FM, VGM TEST's tune (`docs/music/kestrel_fm.vgm`): original, every part of both chips busy |
+| `make_tune.py` | KESTREL FM, VGM TEST's tune (`site/music/kestrel_fm.vgm`): original, every part of both chips busy |
 | `vgm_trim.py` | a VGM cut to start mid-tune, small, for BARD benches |
 | `fpga/tools/vgm_render.c`, `fpga/tools/vgm_count.c` | the native renderer (the harness's, `-p` the output stage); operators computed a frame (`-DZM_YM_COUNT`) |
 | `gens_compare.py`, `gens_compare.sh` | LOCAL: our FM against a reference render (the Gens core on Matt's machine) |

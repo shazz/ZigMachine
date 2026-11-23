@@ -2,7 +2,7 @@
  *
  * A port runs as a GEM program: its disk is a data disk, GEM launches the program file on it (request 3),
  * and the program ends with request 4, which brings the desktop back over the same disk
- * (docs/sealed-loader.js, the board glass's app_request.zig). That is the host's cart-swap protocol: the
+ * (site/js/sealed-loader.js, the board glass's app_request.zig). That is the host's cart-swap protocol: the
  * cart's pollCartRequest export, polled after every frame, answering 4 from the moment the program has
  * quit (as SysInfo and ST Replay do). Every port reaches kestrel_quit() from its own quit:
  *   SDL_Quit()   what a program calls on its way out (GrafX2's main does; klystrack registers it atexit)

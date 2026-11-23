@@ -1,6 +1,6 @@
 """The audio-state mirror (cycles/aud_state.h, cycles/bmirror.c): BARD publishes the players' mode,
 SNDH position and YM registers in its S2C bank, the cart CPU reads them and writes into the cart's
-ZigOS fields what docs/sealed-loader.js writes in the browser, and only what changed. Before it,
+ZigOS fields what site/js/sealed-loader.js writes in the browser, and only what changed. Before it,
 the board never wrote them: D-BUG's scroller and logo sat still and music_debug drew no scope.
 
 The headers and bmirror.c are compiled for the host, the S2C bank and the cart's memory as arrays,

@@ -1,5 +1,5 @@
 // KOS C: in the C ports (docs/os/KOS_GEMDOS.md §5): pt2-clone and klystrack launched from GEM over their floppies,
-// with C: = a copy of docs/gemdos-c.img that carries one song (HD/MODS/GLENZ.MOD for pt2, HD/SONGS/STARPORT.KT for
+// with C: = a copy of site/disks/gemdos-c.img that carries one song (HD/MODS/GLENZ.MOD for pt2, HD/SONGS/STARPORT.KT for
 // klystrack), and the program's own file browser reaches it: pt2 by its PATH field ("/C/MODS"), klystrack by its
 // Open song box (a "C" folder at the floppy's root, then SONGS). The ORACLE: the song loaded off C: gives the same
 // frame, hash for hash, as the same bytes loaded off the floppy; a browser that never reached C: does not.
@@ -15,8 +15,8 @@ import { machine, step, picture, sha, png } from "./ports_machine.mjs";
 import { launchFromGem } from "./ports_gem.mjs";
 import { makeCDrive } from "./scene_hash_disk.mjs";
 
-const GEMDOS_IMG = "docs/gemdos-c.img";
-const MOD = "docs/music/hybridglenz.mod"; // pt2: the floppy's HYBRID.MOD is these bytes; C: carries them as HD/MODS/GLENZ.MOD
+const GEMDOS_IMG = "site/disks/gemdos-c.img";
+const MOD = "site/music/hybridglenz.mod"; // pt2: the floppy's HYBRID.MOD is these bytes; C: carries them as HD/MODS/GLENZ.MOD
 const KT = "apps/ports/klystrack/data/STARPORT2.KT"; // klystrack: the floppy's STARPORT2.KT; C: carries it as HD/SONGS/STARPORT.KT
 
 // pt2 coordinates: its 320x255 screen sits 28 rows above the window (apps/harness/ports_headless.mjs).
@@ -32,8 +32,8 @@ const CTRL = 0xe014;
 
 const SPECS = {
     pt2: {
-        cart: "docs/demo-pt2.wasm", disk: "docs/demo-pt2.zmd",
-        // the card: a copy of docs/gemdos-c.img with the song in HD/MODS
+        cart: "site/carts/demo-pt2.wasm", disk: "site/carts/demo-pt2.zmd",
+        // the card: a copy of site/disks/gemdos-c.img with the song in HD/MODS
         card: async (img, sabotage) => {
             await copyFile(GEMDOS_IMG, img);
             const song = `${img}.mod`;
@@ -57,7 +57,7 @@ const SPECS = {
         at: pt2At, park: (at) => at(300, 250, 200, 0),
     },
     klystrack: {
-        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd",
+        cart: "site/carts/demo-klystrack.wasm", disk: "site/carts/demo-klystrack.zmd",
         card: async (img, sabotage) => {
             await copyFile(GEMDOS_IMG, img);
             const song = `${img}.kt`;
@@ -91,7 +91,7 @@ const UP = 0, DOWN = 1;
 const CNM = "apps/ports/chipnomad/songs/MICROEGG.CNM"; // the floppy's MICROEGG.CNM: the card carries these bytes too
 
 SPECS.chipnomad = {
-    cart: "docs/demo-chipnomad.wasm", disk: "docs/demo-chipnomad.zmd",
+    cart: "site/carts/demo-chipnomad.wasm", disk: "site/carts/demo-chipnomad.zmd",
     card: async (img, sabotage) => {
         await copyFile(GEMDOS_IMG, img);
         const proj = `${img}.cnm`;

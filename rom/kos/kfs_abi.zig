@@ -50,7 +50,7 @@ pub const Req = extern struct {
 pub const REQ_BYTES = @sizeOf(Req);
 
 comptime {
-    if (REQ_BYTES != 48) @compileError("kfs Req is 12 words: docs/sealed-loader.js and the firmware read it so");
+    if (REQ_BYTES != 48) @compileError("kfs Req is 12 words: site/js/sealed-loader.js and the firmware read it so");
 }
 
 /// The temp file's name for `slot` (0..SLOTS-1).

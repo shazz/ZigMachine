@@ -14,7 +14,7 @@
 // first frame() — still before the host renders a plane, so no wrong frame shows.
 //
 // Build: bash apps/c/build.sh tutorial_steps
-// Run:   docs/index.html?demo=demo-c-tutorial_steps.wasm&step=3
+// Run:   site/index.html?demo=demo-c-tutorial_steps.wasm&step=3
 // ---------------------------------------------------------------------------
 #include "../zigmachine_music.h" // from exactly ONE .c file: it defines exports
 

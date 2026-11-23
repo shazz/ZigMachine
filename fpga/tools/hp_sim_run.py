@@ -62,7 +62,7 @@ def main() -> int:
     # --build-only under prototypes/_gate_logs/build.lock, then --no-build under a sim lock.
     ap.add_argument("--build-only", action="store_true", help="build the images and the references, run nothing")
     ap.add_argument("--no-build", action="store_true", help="run what --build-only built")
-    ap.add_argument("--data-disk", help="mount docs/demo-<TAG>.zmd as a data disk (GEM), not the cart's own")
+    ap.add_argument("--data-disk", help="mount site/carts/demo-<TAG>.zmd as a data disk (GEM), not the cart's own")
     ap.add_argument("--pointer", default="", help="the mouse: F:x:y:buttons,... (ZM_SIM_POINTER / --call pointer)")
     a = ap.parse_args()
     var = Variant(a.data_disk, parse_pointer(a.pointer))

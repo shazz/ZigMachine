@@ -10,7 +10,7 @@ const glyph = @import("nfo_glyph.zig");
 const render = @import("nfo_render.zig");
 
 pub const Error = render.Error || error{MenuTooBig};
-pub const K_ESC: u32 = 0xE012; // docs/sealed-loader.js KEY_CODES
+pub const K_ESC: u32 = 0xE012; // site/js/sealed-loader.js KEY_CODES
 
 pub const Menu = struct {
     text: render.Text,

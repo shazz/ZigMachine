@@ -9,7 +9,7 @@
 
 /* The songs linked into the image (tools/song_pack.py), NULL-terminated. */
 typedef struct zm_song {
-    const char* name; /* the path under docs/music/ the cart asks for */
+    const char* name; /* the path under site/music/ the cart asks for */
     const uint8_t* data;
     uint32_t len;
 } zm_song;

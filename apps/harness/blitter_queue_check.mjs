@@ -12,7 +12,7 @@ import { readFile } from "node:fs/promises";
 const PAGES = 128, VIDEO = 0x400000, OFF_BLIT = 0x80, P0 = 0x1100, STRIDE = 320;
 const RING = VIDEO + 0x1dc000, RING_WORDS = 512, Q = VIDEO + OFF_BLIT + 0x68, CYCLES = VIDEO + OFF_BLIT + 0x60;
 const FILL = 2, BLIT = 1, LINE = 3, TRI = 4, QUEUE = 5;
-const wasm = await readFile(process.env.MACHINE || "docs/machine-video.wasm");
+const wasm = await readFile(process.env.MACHINE || "site/machine-video.wasm");
 
 async function machine() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });

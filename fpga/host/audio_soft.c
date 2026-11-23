@@ -7,7 +7,7 @@
  *     <prefix>.w     "L ts writes name" per song started, "W ts addr data" per register write
  *     <prefix>.pcm   the machine's samples: int16 L, R interleaved, floor(x * 32768)
  *                    clamped (zm_audio_mix's conversion)
- *   ZM_MUSIC_DIR     where the songs are (default HOST_MUSIC_DIR, the repo's docs/music)
+ *   ZM_MUSIC_DIR     where the songs are (default HOST_MUSIC_DIR, the repo's site/music)
  *   ZM_AUDIO_SPLIT   render each frame in pieces of this many samples (default: one piece)
  *   ZM_AUDIO_DIGEST=<path>  one line a frame, "frame writes fnv64" over (stamp, addr, data):
  *                    a whole tune's writes compared without a log of millions of lines
@@ -15,7 +15,7 @@
  *                    hold, after its drops, at the lead the board takes for this player
  *
  * The frame is 1/60 s, so 735 samples a frame, rendered after the cart's frame
- * and its song requests: docs/sealed-loader.js's order. */
+ * and its song requests: site/js/sealed-loader.js's order. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@
 #include "maud.h"
 
 #ifndef HOST_MUSIC_DIR
-#define HOST_MUSIC_DIR "docs/music"
+#define HOST_MUSIC_DIR "site/music"
 #endif
 #define FRAME_SAMPLES 735u
 

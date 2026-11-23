@@ -21,7 +21,7 @@ No bitstream has been built yet.
 make -C fpga setup   # submodules, uv env, sv2v + wasm2c (pinned, checksummed)
 make -C fpga check   # memmap export + tests + SoC elaboration
 make -C fpga util    # what each block costs on the 7-series
-make -C fpga carts   # every docs/demo-*.wasm -> wasm2c -> rv32imf
+make -C fpga carts   # every site/carts/demo-*.wasm -> wasm2c -> rv32imf
 make -C fpga host CART=stniccc  # native C host: machine + rom + cart via wasm2c (host/README.md)
 make -C fpga host-check         # its fingerprints == apps/harness/scene_hash.mjs, every cart
 make -C fpga cycles CARTS="union_beatdis blitter"  # cycles/frame on VexRiscv in Verilator (cycles/README.md, CYCLES.md)

@@ -1,7 +1,7 @@
 """The stream ring from the host side (host/audio_pcm.c): a whole sample refilled ahead of its
 channel (zg.samplePlay: the EXTERNAL replay, on the sound CPU on the board) and the cart's own feed
 (zg.audioFeed: the INTERNAL one). tests/audio_pcm_test.c drives it over a plain buffer; the
-worklet's refillSample (docs/audio-worklet-sealed.js) is the same algorithm in the browser."""
+worklet's refillSample (site/js/audio-worklet-sealed.js) is the same algorithm in the browser."""
 
 from __future__ import annotations
 

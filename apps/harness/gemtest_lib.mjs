@@ -1,5 +1,5 @@
 // GEMTEST's rig (apps/harness/gemtest_check.mjs, apps/harness/gemtest_shots.mjs): notepad_lib.mjs's machine + ROM, C: a
-// copy of docs/gemdos-c.img (KOS GEMDOS), the cart started from GEM off its data disk or straight after a
+// copy of site/disks/gemdos-c.img (KOS GEMDOS), the cart started from GEM off its data disk or straight after a
 // desktop that ran in a given mode (aes.screenMode). Input as the page sends it. A component is opened
 // deterministically by the cart's gemtestShow(id) (docs/os/GEMTEST.md), or by its ^key as Matt would.
 // The plane comes out 1:1 (low 320x200, medium 640x200, desk 640x480) through palette 0.
@@ -8,7 +8,7 @@ import { machine, startCart, step, sha } from "./ports_machine.mjs";
 import { launchFromGem } from "./ports_gem.mjs";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
-export const CART = "docs/demo-gemtest.wasm", DISK = "docs/demo-gemtest.zmd", C_IMAGE = "docs/gemdos-c.img";
+export const CART = "site/carts/demo-gemtest.wasm", DISK = "site/carts/demo-gemtest.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 export const K = { CTRL: 0xe014 };
 const REG_RES = 0x00, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44, OFF_PAL = 0x100;
 export const MODES = ["low", "medium", "desk"];

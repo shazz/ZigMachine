@@ -1,5 +1,5 @@
-// FastTracker 2 (.XM) player, on the real audio modules (docs/machine-audio.wasm +
-// docs/demo-audio.wasm), playing apps/harness/xm_song.mjs's test songs through the sealed
+// FastTracker 2 (.XM) player, on the real audio modules (site/machine-audio.wasm +
+// site/demo-audio.wasm), playing apps/harness/xm_song.mjs's test songs through the sealed
 // Paula channels the voices are mixed onto.
 //   loads     the 8-channel song is staged, checked and played (mode 1, the MOD's scope view)
 //   refused   a 13-channel file, a non-XM, and a file cut short are refused, each
@@ -39,10 +39,10 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 /** The audio modules: the sealed chip (machine-audio) and the players (demo-audio). */
 async function machine() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     const stage = (bytes) => {
         new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);

@@ -1,6 +1,6 @@
 /* The audio side's boot, its song starts and the render loop (haudio.h), shared by
  * the native host, the board firmware and the sound CPU's (cycles/sound/). The
- * starts are the worklet's load messages (docs/audio-worklet-sealed.js) minus the
+ * starts are the worklet's load messages (site/js/audio-worklet-sealed.js) minus the
  * fetch: a song is staged at once, so it starts on the frame that asked for it; the
  * effects (audio_effects) are the worklet's sfx / sndhMode messages. The cart's side of
  * the bridge, which calls them, is host/audio_bridge.c. */

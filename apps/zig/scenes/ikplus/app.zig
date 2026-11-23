@@ -39,7 +39,7 @@
 //
 // MUSIC (Matt, 2026-10-20). The cracktro plays "Eliminator" by John Michael
 // Phillips (Hewson, 1988): Phillips_John_Michael/Eliminator.sndh subtune 1 (its
-// title tune), shipped as docs/music/eliminator_jmp.sndh. The remake's
+// title tune), shipped as site/music/eliminator_jmp.sndh. The remake's
 // assets/eliminator.ym is NOT that tune: its YM header says "Jochen Hippel (Jeroen
 // Tel)" and its registers are So_Watt_No_Crew.sndh #1, bit for bit -- a
 // mislabelled dump, which this cart played until Matt caught it by ear.

@@ -2,7 +2,7 @@
 firmware writes (cycles/bkosreq.h) is the one glass serves (glass/src/map_cart.zig KOS_DRIVE_*;
 glass's side is glass/src/kos_drive.zig's tests), it sits where nothing else of the window's top
 4 KiB does, and the native host's C: (host/disk.h) answers by the same rules as the page's
-(docs/sealed-loader.js kosDriveRead) and glass's: the sectors read, 0 for any refusal."""
+(site/js/sealed-loader.js kosDriveRead) and glass's: the sectors read, 0 for any refusal."""
 
 from __future__ import annotations
 

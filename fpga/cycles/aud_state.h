@@ -1,5 +1,5 @@
 /* The audio state a cart's ZigOS mirrors (libs/zig/zigos.zig ym_regs, audio_mode, song_ms):
- * what docs/sealed-loader.js writes into the cart from the worklet's "audioState" message.
+ * what site/js/sealed-loader.js writes into the cart from the worklet's "audioState" message.
  * D-BUG's scroller and logo move on the tune's clock (song_ms), music_debug's oscillograph
  * reads the mode and the YM registers, and the VU meters of gen4_3615, swedish_newyear and
  * union_deltaforce read the registers. The board's firmware must write the same fields, or

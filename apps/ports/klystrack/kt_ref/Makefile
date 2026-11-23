@@ -7,7 +7,7 @@
 #
 # One upstream source is patched (build/freqs.c, freqs.sed): get_freq interpolates a note in the top
 # semitone (95.01..95.99) toward frequency_table[96], one past the table. What is there is whatever
-# the linker put next: 384 in this build, 0 in the klystrack cart (docs/demo-klystrack.wasm's data).
+# the linker put next: 384 in this build, 0 in the klystrack cart (site/carts/demo-klystrack.wasm's data).
 # The patch reads 0, the cart's, so kt_ref (and the BARD player, kt_tables.zig getFreq) is defined there.
 KL      := ../../upstream/klystrack/klystron/src
 CFLAGS  := -O2 -I.. -g -DSTEREOOUTPUT -DNOSDL_MIXER -DLOWRESWAVETABLE -DUSESDL_RWOPS -I$(KL) -I$(KL)/snd \

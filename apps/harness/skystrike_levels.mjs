@@ -25,7 +25,7 @@ if (broke && broke !== "disk") throw new Error("--break disk");
 const py = (...args) => execFileSync("python3", ["tools/skystrike/levels.py", ...args], { encoding: "utf8" });
 const errors = [];
 
-// A drive serving a .zmd, as docs/sealed-loader.js diskReadBlock does.
+// A drive serving a .zmd, as site/js/sealed-loader.js diskReadBlock does.
 const drive = (zmd) => (memory) => ({
     diskReadBlock(block, dst) {
         const src = zmd.subarray(block * 512, block * 512 + 512);
@@ -66,7 +66,7 @@ async function badDisk(tmp) {
     const dat = readFileSync(path.join(bad, "MISSIONS.DAT"));
     writeFileSync(path.join(bad, "MISSIONS.DAT"), dat.subarray(0, 300));
     const zmd = path.join(tmp, "bad.zmd");
-    execFileSync("python3", ["tools/mkdisk.py", "docs/demo-skystrike.wasm", "-o", zmd, "--title", "bad",
+    execFileSync("python3", ["tools/mkdisk.py", "site/carts/demo-skystrike.wasm", "-o", zmd, "--title", "bad",
         "--file", `MISSIONS.DAT=${path.join(bad, "MISSIONS.DAT")}`]);
     const s = await session(1234, drive(readFileSync(zmd)));
     s.vbl(50); s.press(32); s.vbl(200);

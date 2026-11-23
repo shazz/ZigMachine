@@ -3,5 +3,5 @@
 # (no-store caching, and a refusal to start on a port that is already serving).
 #
 # Usage: ./serve.sh [port]     default 3333; use one port per worktree.
-cd "$(dirname "$0")/docs" || exit 1
+cd "$(dirname "$0")/site" || exit 1
 exec python3 ../tools/serve.py "$@"

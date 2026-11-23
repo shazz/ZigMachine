@@ -3,7 +3,7 @@
 //
 // Ported from the CODEF HTML5 remake by NoNameNo (wab.com screen 28, MIT).
 // Graphics, scrolltext and the original ST intro belong to The Replicants;
-// music: "Pro BMX Simulator" (docs/music/pro_bmx_simulator_a.sndh).
+// music: "Pro BMX Simulator" (site/music/pro_bmx_simulator_a.sndh).
 //
 // Reference kept at prototypes/codef/28/ (tools/fetch_codef.py 28).
 // Assets: tools/replicants_garfield_assets.py.

@@ -7,7 +7,7 @@
 //     the full width, borders included: the plane is an overscan plane (400x280,
 //     the whole raster) and the copper opens every border on every line;
 //   - the scroller is the 8x8 system font, one glyph at a time on a sine;
-//   - the music is a request by name, for a file under the SDK's docs/music/.
+//   - the music is a request by name, for a file under the SDK's site/music/.
 // All per-frame maths is integer (zg.fixtrig: Q16.16 sine, u32 angles): the
 // board's cart CPU has no FPU on every image, and float there is soft-float.
 //
@@ -27,7 +27,7 @@ const H: usize = zg.PHYSICAL_HEIGHT; // 280
 const BACK: u8 = 0; // the entry the rasters rewrite each line
 const INK: u8 = 1;
 
-const MUSIC = "sos.sndh"; // a file under docs/music/ (yours can go there too)
+const MUSIC = "sos.sndh"; // a file under site/music/ (yours can go there too)
 const TEXT = "HELLO KESTREL * THIS CART WAS BUILT WITH THE SDK * EDIT src/hello.zig AND TYPE make * ";
 const TEXT_W: i32 = TEXT.len * 8;
 const SCROLL_Y: i32 = 136; // the sine's centre line (the window's middle)

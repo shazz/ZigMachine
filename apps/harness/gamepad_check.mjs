@@ -1,4 +1,4 @@
-// The browser host's gamepads (docs/gamepad.js, R83: two joysticks, one per player), run in a vm
+// The browser host's gamepads (site/js/gamepad.js, R83: two joysticks, one per player), run in a vm
 // with scripted Gamepad API objects and a recording cart.
 //
 //   pad 1          input()/inputRelease(): d-pad, stick past half its throw, fire buttons
@@ -18,7 +18,7 @@ const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !["pad2", "merge"].includes(broke)) { console.error("--break pad2|merge"); process.exit(2); }
 
-let src = await readFile("docs/gamepad.js", "utf8");
+let src = await readFile("site/js/gamepad.js", "utf8");
 if (broke === "pad2") src = src.replace("(c) => demo.input2(c)", "(c) => demo.input(c)");
 if (broke === "merge") src = src.replace("edges(union(state.now), union(next), inp, rel);", "edges(state.now[0], next[0], inp, rel); edges(state.now[1], next[1], inp, rel);");
 const ZMPad = vm.runInNewContext(`${src}; ZMPad`);

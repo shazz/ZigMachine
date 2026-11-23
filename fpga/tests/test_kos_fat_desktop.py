@@ -41,7 +41,7 @@ def hashes(cmd: list[str]) -> list[str]:
 def both(*args: str) -> list[str]:
     subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/gem/host"], cwd=FPGA, check=True, capture_output=True)
     nat = hashes([str(FPGA / "build/host/gem/host"), "gem", "40", "5", *args])
-    js = hashes(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", *args])
+    js = hashes(["node", "apps/harness/scene_hash.mjs", "site/carts/demo-gem.wasm", "40", "5", *args])
     assert nat == js
     return nat
 
@@ -57,14 +57,14 @@ def test_a_fat_floppy_as_a_plain_data_disk_too(floppy: Path) -> None:
     both("--data-disk", str(floppy), *CALLS)  # the pre-KOS path (scene_hash_disk.mjs, host_io.c)
 
 
-# KOS's C: (docs/os/KOS_FAT.md F5): the empty drive's desktop with docs/kos-c.img as C:, its icon in
+# KOS's C: (docs/os/KOS_FAT.md F5): the empty drive's desktop with site/disks/kos-c.img as C:, its icon in
 # cell (0,1) double-clicked: the native host's --c-image = scene_hash.mjs's, and C: shows.
 OPEN_C = [(5, 40, 70, 0), (10, 40, 70, 1), (11, 40, 70, 0), (20, 40, 70, 2), (21, 40, 70, 0)]
 CALLS_C = [a for f, x, y, b in OPEN_C for a in ("--call", f"{f}:pointer:{x},{y},{b}")]
 
 
 def test_c_drive_shows_and_opens_in_both_hosts() -> None:
-    c = both("--kos", "none", "--post-frames", "0", "--c-image", str(ROOT / "docs/kos-c.img"), *CALLS_C)
+    c = both("--kos", "none", "--post-frames", "0", "--c-image", str(ROOT / "site/disks/kos-c.img"), *CALLS_C)
     bare = both("--kos", "none", "--post-frames", "0", *CALLS_C)
     assert c[0] != bare[0]  # the C: icon
     assert c[7] != c[2]  # its window, opened by the double-click (frame 40 against frame 15)
@@ -74,7 +74,7 @@ def test_c_drive_shows_and_opens_in_both_hosts() -> None:
 # A:\ opens and then GAMES, and the desktop that repaints only what changed (rom/gem/desktop/
 # deskdirty.zig) agrees with itself frame for frame; apps/harness/kos_desk_check.mjs holds what A:\ lists.
 def test_a_and_c_together_in_both_hosts(floppy: Path) -> None:
-    both("--kos", str(floppy), "--post-frames", "0", "--c-image", str(ROOT / "docs/kos-c.img"), *CALLS)
+    both("--kos", str(floppy), "--post-frames", "0", "--c-image", str(ROOT / "site/disks/kos-c.img"), *CALLS)
 
 
 # C: is the card's /HD, not the card (docs/project/DECISIONS.md 2026-11-06; apps/zig/scenes/gem_fat.zig): FAT32

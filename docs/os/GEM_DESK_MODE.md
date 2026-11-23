@@ -223,7 +223,7 @@ rows of RGBA (A = 255) into the PFB: 614,400 B, which fits in its 896,000 B. A w
 picture (1,228,800 B) does not fit, and the 8 MiB map is frozen (`sealed-loader.js:17`). New exports:
 `hwDeskActive()`, `hwRenderDesk(half)`, `hwDeskAvailable()`.
 
-**The page** (`docs/sealed-loader.js`): each frame, if `hwDeskActive()`, canvas 0 becomes 640x480
+**The page** (`site/js/sealed-loader.js`): each frame, if `hwDeskActive()`, canvas 0 becomes 640x480
 (CSS: centred, 1:1 in the 800x600 frame), canvases 1-3 are cleared and hidden, and two
 `hwRenderDesk` calls each copy half into one ImageData. When the mode is left, the 800x280 canvases
 come back. The pointer surface (canvas 3) takes the desk geometry, and `send()` maps it to 0..639 /

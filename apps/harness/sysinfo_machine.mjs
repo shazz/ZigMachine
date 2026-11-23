@@ -1,5 +1,5 @@
 // SYSINFO harness, the machine side (apps/harness/sysinfo_check.mjs runs the checks):
-// the sealed machine, the ROM and the cart over one memory as docs/sealed-loader.js
+// the sealed machine, the ROM and the cart over one memory as site/js/sealed-loader.js
 // wires them, its own disk in the drive, a host clock or none, and the ROM's
 // drawing calls counted (a page that did not change must draw nothing).
 //
@@ -12,8 +12,8 @@
 // doubled, in the desk), the ROM's small font for the program line, the prompt and
 // the headings (screen.zig: a G_TEXT, its glyphs from the run's first cell).
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 
 const PAGES = 128, BLOCK = 512, COLS = 80, ROWS = 25, CELL = 8, W = 640;
 const TITLE = "SYSINFO FOR ZIGMACHINE, VERSION ";
@@ -26,7 +26,7 @@ export const K = { F1: 0xe001, HELP: 0xe011, ESC: 0xe012 };
 /// opts.board: hwAstro writes W_CYCLES as the board's wrapper does (the host reads as the board);
 /// opts.pageJobs: hostBardJob as the page's loader answers it; opts.noMouse: a ROM whose graf_mouse does nothing.
 export async function boot(clock = "none", corrupt = null, opts = {}) {
-    const disk = new Uint8Array(await readFile("docs/demo-sysinfo.zmd"));
+    const disk = new Uint8Array(await readFile("site/carts/demo-sysinfo.zmd"));
     const served = disk.slice();
     if (corrupt) {
         const f = parseDisk(disk, "demo-sysinfo.zmd").mounted.files[corrupt];
@@ -34,10 +34,10 @@ export async function boot(clock = "none", corrupt = null, opts = {}) {
     }
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -65,7 +65,7 @@ export async function boot(clock = "none", corrupt = null, opts = {}) {
         new Uint8Array(memory.buffer, dst, src.length).set(src);
         return src.length;
     };
-    if (opts.pageJobs) { // docs/sealed-loader.js hostBardJob: the page serves through the cart's bardJobServe
+    if (opts.pageJobs) { // site/js/sealed-loader.js hostBardJob: the page serves through the cart's bardJobServe
         let open = false;
         env.hostBardJob = (op, arg) => {
             if (op === 0) { open = !!arg && typeof demo.bardJobServe === "function"; return open ? 1 : 0; }
@@ -74,7 +74,7 @@ export async function boot(clock = "none", corrupt = null, opts = {}) {
             return op === 1 ? 1 : 0;
         };
     }
-    const cartBytes = await readFile("docs/demo-sysinfo.wasm");
+    const cartBytes = await readFile("site/carts/demo-sysinfo.wasm");
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
     demo = s.demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;

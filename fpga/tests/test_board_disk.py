@@ -1,6 +1,6 @@
 """Disk streaming on the board: ZWINDOW places the cart's shelf disk in the cart window
 and ZIGGY's firmware serves env.diskReadBlock from it (docs/hardware/FPGA_GLASS.md, "The disk in
-DDR"), exactly as docs/sealed-loader.js serves it in the browser.
+DDR"), exactly as site/js/sealed-loader.js serves it in the browser.
 
 - The drive (host/disk.h, the code the firmware and the native host link) against the
   browser's OWN diskReadBlock, taken out of sealed-loader.js and run in node: every
@@ -89,7 +89,7 @@ def _both(disk_test: Path, disk: str, cases: list[tuple[int, int]]) -> tuple[lis
     script = WORK / "drive.mjs"
     script.write_text(NODE_DRIVE)
     stdin = "\n".join(f"{b:x} {d:x}" for b, d in cases) + "\n"
-    js = _out(["node", str(script), str(ROOT / "docs/sealed-loader.js"), disk], stdin).split("\n")
+    js = _out(["node", str(script), str(ROOT / "site/js/sealed-loader.js"), disk], stdin).split("\n")
     c = _out([str(disk_test), "drive", disk], stdin).split("\n")
     return js[: len(cases)], c[: len(cases)]
 
@@ -100,7 +100,7 @@ def _out(cmd: list[str], stdin: str | None = None, cwd: Path | None = None) -> s
 
 @pytest.mark.parametrize("which", ["odd", "stniccc"])
 def test_drive_answers_every_block_and_dst_as_the_browser_does(disk_test: Path, which: str) -> None:
-    disk = _odd_disk() if which == "odd" else ROOT / "docs/demo-stniccc.zmd"
+    disk = _odd_disk() if which == "odd" else ROOT / "site/carts/demo-stniccc.zmd"
     cases = [(b, d) for b in BLOCKS for d in DSTS]
     js, c = _both(disk_test, str(disk), cases)
     assert c == js
@@ -130,7 +130,7 @@ def test_scene_hash_drive_is_the_browsers_function_text_for_text() -> None:
         assert m, path
         return [line.strip() for line in m.group(2).splitlines()]
 
-    assert body(ROOT / "apps/harness/scene_hash_disk.mjs") == body(ROOT / "docs/sealed-loader.js")
+    assert body(ROOT / "apps/harness/scene_hash_disk.mjs") == body(ROOT / "site/js/sealed-loader.js")
 
 
 def _desc(disk_test: Path, rows: list[tuple[int, ...]]) -> list[str]:
@@ -186,9 +186,9 @@ def _sim_load(tools: dict[str, Path], disk: Path, board: bytes, window: str = "0
 
 
 def test_glass_gives_back_every_shelf_disk_byte_for_byte(glass: dict[str, Path]) -> None:
-    disks = sorted((ROOT / "docs").glob("demo-*.zmd"))
+    disks = sorted((ROOT / "site" / "carts").glob("demo-*.zmd"))
     if not disks:
-        pytest.skip("no docs/demo-*.zmd shelf disk")
+        pytest.skip("no site/carts/demo-*.zmd shelf disk")
     board = _board(glass, 30_000)
     for disk in disks:
         _, out = _sim_load(glass, disk, board)
@@ -198,7 +198,7 @@ def test_glass_gives_back_every_shelf_disk_byte_for_byte(glass: dict[str, Path])
 def test_glass_and_the_sim_image_put_the_disk_and_descriptor_in_the_same_place(
     glass: dict[str, Path], disk_test: Path
 ) -> None:
-    disk = ROOT / "docs/demo-stniccc.zmd"
+    disk = ROOT / "site/carts/demo-stniccc.zmd"
     size = 2_123_456  # a board image's size: the disk goes at the next 4 KiB
     log, out = _sim_load(glass, disk, _board(glass, size), hex(glass_map.DDR_CART_BYTES))
     at = ddr_init.disk_at(size, disk.stat().st_size)
@@ -240,8 +240,8 @@ def test_native_host_streams_stniccc_off_its_disk_as_scene_hash_does() -> None:
     host = FPGA / "build/host/stniccc/host"
     if not host.exists() or shutil.which("node") is None:
         pytest.skip("no native host for stniccc (make -C fpga build/host/stniccc/host) or no node")
-    disk = ["--disk", "docs/demo-stniccc.zmd"]
-    args = ["docs/demo-stniccc.wasm", "120", "20"]
+    disk = ["--disk", "site/carts/demo-stniccc.zmd"]
+    args = ["site/carts/demo-stniccc.wasm", "120", "20"]
     js = json.loads(_out(["node", "apps/harness/scene_hash.mjs", *args, *disk], cwd=ROOT))
     native = json.loads(_out([str(host), *args, *disk], cwd=ROOT))
     blind = json.loads(_out([str(host), *args], cwd=ROOT))

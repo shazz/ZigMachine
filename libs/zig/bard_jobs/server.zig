@@ -4,7 +4,7 @@
 // slices, answers. ONE source for every server:
 //   BARD          fpga/cycles/sound/sjobs.c through libs/zig/bard_job_rv32.zig:
 //                 a budget of cycles a turn of its loop, between audio renders
-//   the page      docs/sealed-loader.js calls the cart's bardJobServe export
+//   the page      site/js/sealed-loader.js calls the cart's bardJobServe export
 //                 after the cart's frame (and when the cart waits)
 //   no server     the cart serves its own jobs at once (zg.bard.job, ZIGGY alone)
 // Clock.now() is the server's cycle counter (BARD's SND_CYCLES; 0 elsewhere).

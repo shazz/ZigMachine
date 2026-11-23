@@ -19,14 +19,14 @@
 // cart is a program GEM launched off it (swapCart req 3), which the browser hands no listing.
 // `--compare` exits 1 on the first differing frame.
 // A .zmd in the cart's place runs its executable BOOT SECTOR (format v2: the disk's first 1 KB,
-// as docs/zmdisk.js slices it), as the browser runs it before the disk's cart; the board runs
+// as site/js/zmdisk.js slices it), as the browser runs it before the disk's cart; the board runs
 // the same bytes through its interpreter (fpga/host/bootsec.h, `host --bootsec X.zmd`).
 // `--kos X.zmd|none` boots as KOS powers on (scene_hash_kos.mjs): the ROM's POST for
 // --post-frames frames (default 180, 0 = none), then drive A decides what runs: X's boot
 // sector, X's cart (the cart given must be it) or the desktop (the cart given: demo-gem.wasm).
 // `--c-image X.img` is KOS's C: (docs/os/KOS_FAT.md F5): env.kosDriveRead serves X's sectors by the
-// page's rules (docs/sealed-loader.js kosDriveRead, the page's ?c=X); without it, 0 (no C:). The
-// cart's writes go into it (env.kosFileOp, docs/kos-cfile.js); `--c-out Y.img` saves it after the run.
+// page's rules (site/js/sealed-loader.js kosDriveRead, the page's ?c=X); without it, 0 (no C:). The
+// cart's writes go into it (env.kosFileOp, site/js/kos-cfile.js); `--c-out Y.img` saves it after the run.
 // `--composite` hashes only the COMPOSED picture (each enabled plane's physical
 // render, borders included, stacked as the browser's canvases are: stackOver),
 // not each plane: it proves a change that moves pixels between planes (merging
@@ -35,7 +35,7 @@
 // to frame * 1000 / 60 before each frame, for carts that sync to the music.
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeCDrive, makeCFile, makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
 import { kosBoot } from "./scene_hash_kos.mjs";
 import { writePng } from "./scene_png.mjs";
@@ -155,7 +155,7 @@ async function fingerprint(argv) {
     const N = Number(frames), K = Number(every);
     const calls = parseCalls(callSpecs);
     if (kos && !kos.drive) throw new Error("--post-frames needs --kos");
-    const { memory, machine, demo, dataDisk: step, kos: k } = await boot(cart, process.env.MACHINE_DIR || "docs", disk, dataDisk, program, kos);
+    const { memory, machine, demo, dataDisk: step, kos: k } = await boot(cart, process.env.MACHINE_DIR || "site", disk, dataDisk, program, kos);
     const size = machine.hwPhysWidth() * machine.hwPhysHeight() * 4;
     const planes = machine.hwPlanesNumber();
     const total = createHash("sha256");
@@ -172,7 +172,7 @@ async function fingerprint(argv) {
             if (typeof cur?.[name] !== "function") throw new Error(`cart has no export ${name}`);
             cur[name](...args);
         }
-        // The host loop, exactly (docs/sealed-loader.js): clear, frame, then render
+        // The host loop, exactly (site/js/sealed-loader.js): clear, frame, then render
         // every ENABLED plane EVERY frame. HBL handlers only run inside
         // hwRenderPlane, so sampling-only rendering would starve HBL-driven state.
         const sample = f % K === 0;

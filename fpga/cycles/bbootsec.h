@@ -1,5 +1,5 @@
 /* A disk's executable boot sector on the board (bbootsec.c), before its cart: the browser's
- * flow for a ZigCart v2 disk (docs/sealed-loader.js), so sysinfo's "No virus" screen and
+ * flow for a ZigCart v2 disk (site/js/sealed-loader.js), so sysinfo's "No virus" screen and
  * replicants_emlyn's crew note show here too. The sector's own 1 KB of wasm runs through the
  * wint interpreter (host/bootsec.h); nothing is built per disk.
  *

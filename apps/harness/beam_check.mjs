@@ -33,7 +33,7 @@ const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const dv = () => new DataView(memory.buffer);
 let hbl = () => {};
 const machine = (await WebAssembly.instantiate(
-    await readFile(process.env.MACHINE || "docs/machine-video.wasm"),
+    await readFile(process.env.MACHINE || "site/machine-video.wasm"),
     { env: { memory, hblDispatch: (id, p, line) => hbl(line) } })).instance.exports;
 
 const reg16 = (o) => dv().getUint16(VIDEO + o, true);

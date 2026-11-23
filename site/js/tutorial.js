@@ -1,4 +1,4 @@
-// docs/TUTORIAL.html — language switching, the step rail, and the live monitor.
+// site/TUTORIAL.html — language switching, the step rail, and the live monitor.
 //
 // The monitor is a REAL machine: an iframe of index.html?demo=<cart>&step=N&embed,
 // the same sealed loader the front page uses. Nothing here simulates ZigMachine.

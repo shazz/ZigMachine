@@ -1,28 +1,28 @@
-// The BARD queue on the page, as apps/harness/bard_queue_check.mjs runs it: the cart (docs/demo-bard_sid.wasm)
+// The BARD queue on the page, as apps/harness/bard_queue_check.mjs runs it: the cart (site/carts/demo-bard_sid.wasm)
 // over the real machine + ROM, the loader's own hostBardAttach / bardFrame / bardDrain / bardPublish
-// (docs/sealed-loader.js) and the worklet's own bardQueue / bardState (docs/audio-worklet-sealed.js),
+// (site/js/sealed-loader.js) and the worklet's own bardQueue / bardState (site/js/audio-worklet-sealed.js),
 // taken from their sources, over the real audio modules. The worklet renders 128-sample blocks and
 // answers every fourth, as process() does; a frame is 735 samples.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const FRAME = 735, BLOCK = 128;
 
 function fn(src, name, mutate) {
     const m = src.match(new RegExp(`^function ${name}\\([^)]*\\) \\{[\\s\\S]*?^\\}\\n`, "m"));
-    if (!m) throw new Error(`docs/sealed-loader.js has no function ${name}`);
+    if (!m) throw new Error(`site/js/sealed-loader.js has no function ${name}`);
     return mutate ? mutate(m[0]) : m[0];
 }
 
 function proto(src, name) {
     const m = src.match(new RegExp(`^ZigAudioSealedProcessor\\.prototype\\.${name} = function \\([^)]*\\) \\{[\\s\\S]*?^\\};\\n`, "m"));
-    if (!m) throw new Error(`docs/audio-worklet-sealed.js has no ${name}`);
+    if (!m) throw new Error(`site/js/audio-worklet-sealed.js has no ${name}`);
     return m[0];
 }
 
 /** The loader's BARD functions over `memory` and `audioNode`; `brk` mutates bardDrain. */
 export async function loaderBard(memory, audioNode, brk) {
-    const src = await readFile("docs/sealed-loader.js", "utf8");
+    const src = await readFile("site/js/sealed-loader.js", "utf8");
     const mutants = {
         // the chip's register writes two samples late (a SID's, or an AY's registers 0..13: not the commands that
         // open a device, which anchor the clocks)
@@ -39,16 +39,16 @@ export async function loaderBard(memory, audioNode, brk) {
 
 async function audioModules() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, m, a };
 }
 
 async function workletBard(snd) {
-    const src = await readFile("docs/audio-worklet-sealed.js", "utf8");
+    const src = await readFile("site/js/audio-worklet-sealed.js", "utf8");
     const P = new Function(`const ZigAudioSealedProcessor = { prototype: {} };
         ${proto(src, "bardQueue")}${proto(src, "bardState")} return ZigAudioSealedProcessor.prototype;`)();
     return Object.assign(Object.create(P), { demo: snd.a, memory: snd.memory });
@@ -57,10 +57,10 @@ async function workletBard(snd) {
 async function bootCart(path, env0) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile(path);
@@ -83,7 +83,7 @@ export async function pageRun(frames, { brk = null, keys = {} } = {}) {
     const log = []; // every command the loader posted, as {t, addr, value, 0} words
     const audioNode = { port: { postMessage: (msg) => { if (msg.words) log.push(...new Uint32Array(msg.words)); proc.bardQueue(msg); } } };
     let loader = null, commands = 0;
-    const cart = await bootCart("docs/demo-bard_sid.wasm", () => ({
+    const cart = await bootCart("site/carts/demo-bard_sid.wasm", () => ({
         hostBardAttach: (b, lead) => loader.hostBardAttach(b, lead),
     }));
     loader = await loaderBard(cart.memory, audioNode, brk);

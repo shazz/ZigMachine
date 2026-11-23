@@ -1,5 +1,5 @@
 ; ---------------------------------------------------------------------------
-; JOUST's sound effects, as an SNDH (docs/music/joust_sfx.sndh).
+; JOUST's sound effects, as an SNDH (site/music/joust_sfx.sndh).
 ;
 ; JOUST (Atari Corp 1986, The Rugby Circle) has no music and no replay
 ; routine: every sound is an XBIOS Dosound(32) script -- 16 of them, pointer
@@ -33,7 +33,7 @@
 ; 300 Hz is a whole number of samples at both 44.1 and 48 kHz, so it never
 ; drifts; the siren steps on every call (9 steps a call) for a smoother sweep.
 ;
-; Build: vasmm68k_mot -Fbin -o docs/music/joust_sfx.sndh apps/zig/assets/screens/joust/sfx.s
+; Build: vasmm68k_mot -Fbin -o site/music/joust_sfx.sndh apps/zig/assets/screens/joust/sfx.s
 ; (run from the repository root; vasm 1.9, /home/matt/projects/MJJ/bin/vasm)
 ; ---------------------------------------------------------------------------
 	bra.w	init

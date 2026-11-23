@@ -1,8 +1,8 @@
 // SKYSTRIKE harness, part 1 (apps/harness/skystrike_headless.mjs is the driver): the
-// sealed machine booted the way docs/sealed-loader.js boots it, and a lockstep
+// sealed machine booted the way site/js/sealed-loader.js boots it, and a lockstep
 // session on the cart's test door (apps/zig/scenes/skystrike/testapi.zig).
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 
@@ -11,14 +11,14 @@ const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 export async function boot(extraEnv = () => ({})) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-skystrike.wasm");
+    const cartBytes = await readFile("site/carts/demo-skystrike.wasm");
     const env = { ...env0, ...rom, ...extraEnv(memory) };
     for (const n of Object.keys(machine)) if (n.startsWith("hwRam") || n.startsWith("hwRomRam")) env[n] = machine[n];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

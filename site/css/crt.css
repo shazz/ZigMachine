@@ -56,10 +56,10 @@ body {
   background-color: #858585;
 }
 
-/* The cart selector's button, right after Upload (docs/cart-select.js). */
+/* The cart selector's button, right after Upload (site/js/cart-select.js). */
 .select_button { margin-left: 570px; }
 
-/* A file dragged over the monitor (docs/upload-cart.js). */
+/* A file dragged over the monitor (site/js/upload-cart.js). */
 .stage.drop-armed .monitor {
   filter: drop-shadow(0 0 14px #7dff9b) brightness(1.12);
 }
@@ -153,7 +153,7 @@ body {
   border-color: white;
 }
 
-/* ---- The VHS OSD: the running cart's name on the glass (docs/cart-osd.js) ---
+/* ---- The VHS OSD: the running cart's name on the glass (site/js/cart-osd.js) ---
    Its own layer above the plane canvases — the canvases' own CSS is left alone
    on purpose (smoothing them seams the stacked planes, see .canvas above).
 
@@ -163,7 +163,7 @@ body {
    px for a 400x280 raster — 2 stage px per machine pixel — so the 4px mask pitch
    lights exactly one machine scanline in two. */
 /* The deck's own display font: "EAS VHS" by elliotshock (FontStruct) — see
-   docs/fonts/README.md, which is its licence record and must stay with it.
+   site/fonts/README.md, which is its licence record and must stay with it.
    The first @font-face on this page, so: scoped to .cart_osd and nothing else,
    and `swap` so a slow or failed font fetch shows the card in the monospace
    fallback INSTANTLY instead of holding it back. */
@@ -176,7 +176,7 @@ body {
 }
 
 /* The GLASS: the deck's phosphor look, shared by the name card and the cart
-   selector (docs/cart-select.js, css/cart-select.css). */
+   selector (site/js/cart-select.js, css/cart-select.css). */
 .cart_osd, .cart_select {
   /* 32 stage px: a whole number, and a whole number of machine pixels (2 stage
      px each), so the glyph grid agrees with the picture's. geometricPrecision

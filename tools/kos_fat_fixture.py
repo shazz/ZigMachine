@@ -137,4 +137,4 @@ if __name__ == "__main__":
         rv, args = Path(args[i + 1]), args[:i] + args[i + 2 :]
     if not args:
         sys.exit(__doc__)
-    build(Path(args[0]), Path(args[1]) if len(args) > 1 else ROOT / "docs/demo-tutorial.wasm", rv)
+    build(Path(args[0]), Path(args[1]) if len(args) > 1 else ROOT / "site/carts/demo-tutorial.wasm", rv)

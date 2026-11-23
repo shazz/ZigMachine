@@ -21,7 +21,7 @@
 // later picture is one frame off. --break music expects another tune.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const ASSETS = "apps/zig/assets/screens/replicants_arkanoid2/";
@@ -35,14 +35,14 @@ await mkdir(OUT, { recursive: true });
 // ---------------- boot ------------------------------------------------------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
 const rom = (await WebAssembly.instantiate(romBytes, { env: romEnv })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-const cartBytes = await readFile("docs/demo-replicants_arkanoid2.wasm");
+const cartBytes = await readFile("site/carts/demo-replicants_arkanoid2.wasm");
 const env = { ...romEnv, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hwRam") || k.startsWith("hwRomRam")) env[k] = machine[k];
 const noop = () => {};

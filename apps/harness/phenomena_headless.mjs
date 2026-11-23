@@ -29,7 +29,7 @@
 //   node apps/harness/phenomena_headless.mjs --break seq|dna|pixels|raster|music  (each must FAIL)
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 import { Model, Assets, LINE } from "./phenomena_model.mjs";
 import { picture } from "./phenomena_picture.mjs";
 
@@ -44,12 +44,12 @@ const MUSIC = broke === "music" ? "rasta man.mod" : "rasta_man.mod";
 // ---------------- boot ------------------------------------------------------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
-const cartBytes = await readFile("docs/demo-phenomena.wasm");
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
+const cartBytes = await readFile("site/carts/demo-phenomena.wasm");
 const env = { ...romEnv, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hwRam") || k.startsWith("hwRomRam")) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
@@ -200,14 +200,14 @@ async function checkKeys() {
 /// The tune itself: rasta_man.mod on the real audio modules, 12 s.
 async function checkMod() {
     const mem = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
     const fired = new Set();
     const aenv = { memory: mem };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) aenv[n] = m[n];
     aenv.machinePaulaTrigger = (ch, ...a) => { fired.add(ch); m.machinePaulaTrigger(ch, ...a); };
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env: aenv })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env: aenv })).instance.exports;
     a.audioInit();
-    const mod = new Uint8Array(await readFile(`docs/music/${MUSIC.replace(" ", "_")}`));
+    const mod = new Uint8Array(await readFile(`site/music/${MUSIC.replace(" ", "_")}`));
     new Uint8Array(mem.buffer, a.audioSongPtr(), mod.length).set(mod);
     const loaded = a.audioLoadMod(mod.length);
     if (loaded) a.audioModPlay();

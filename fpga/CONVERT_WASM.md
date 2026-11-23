@@ -1,6 +1,6 @@
 # Converting a browser cart to a board cart
 
-The browser runs a cart as `docs/demo-<tag>.wasm` inside its disk, `docs/demo-<tag>.zmd`.
+The browser runs a cart as `site/carts/demo-<tag>.wasm` inside its disk, `site/carts/demo-<tag>.zmd`.
 The board (KESTREL) doesn't run wasm. Converting a cart works like this:
 
 1. wasm2c translates the cart to C.

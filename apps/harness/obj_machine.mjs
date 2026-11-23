@@ -3,7 +3,7 @@
 // fixed dt, keys sent through demo.key() (the cart owns the keyboard).
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { png } from "./skystrike_zig_frame.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -14,12 +14,12 @@ export const W = 320, H = 200;
 export const OBJ_Y0 = 24, OBJ_Y1 = 176;
 
 // onLog gets each Console.log line (the cart logs V/F on every model change).
-export async function bootObj(cartPath = "docs/demo-obj.wasm", onLog = () => {}) {
+export async function bootObj(cartPath = "site/carts/demo-obj.wasm", onLog = () => {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"),
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"),
         { env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes,
         { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);

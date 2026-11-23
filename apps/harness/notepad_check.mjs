@@ -1,5 +1,5 @@
 // NOTEPAD (apps/zig/scenes/notepad.zig, docs/os/NOTEPAD.md) end to end, over the real machine + ROM with
-// C: = a copy of docs/gemdos-c.img (KOS GEMDOS, the page's KFS for the writes):
+// C: = a copy of site/disks/gemdos-c.img (KOS GEMDOS, the page's KFS for the writes):
 //   launch   GEM boots over demo-notepad.zmd, BOOT.WSM is the committed cart, it opens in the desktop's
 //            resolution (low: GEM's default), a window and a menu bar from the ROM (winGet answers)
 //   save     text typed, ^S, the ITEM SELECTOR, NOTE typed, Return: C:\NOTE.TXT holds the text with
@@ -48,7 +48,7 @@ function same(d, what) {
 }
 
 const TEXT = "Hello, GEM 5!\nNotepad on KOS.";
-console.log(`notepad_check: NOTEPAD off docs/demo-notepad.zmd, C: = a copy of ${C_IMAGE}${brk ? ` (--break ${brk})` : ""}`);
+console.log(`notepad_check: NOTEPAD off site/carts/demo-notepad.zmd, C: = a copy of ${C_IMAGE}${brk ? ` (--break ${brk})` : ""}`);
 const img = new Uint8Array(await readFile(C_IMAGE));
 
 // --- launch, type, save ---

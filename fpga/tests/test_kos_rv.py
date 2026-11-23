@@ -49,7 +49,7 @@ def fw_dir(tmp: Path, version: int) -> Path:
 
 def test_an_rv_is_the_wasms_hash_and_its_packed_board_image(tmp_path: Path) -> None:
     rv = kos_rv.rv_of("tutorial", Images(fw_dir(tmp_path, V1), V1))
-    wasm = (ROOT / "docs/demo-tutorial.wasm").read_bytes()
+    wasm = (ROOT / "site/carts/demo-tutorial.wasm").read_bytes()
     assert (rv[:4], rv[4:8], rv[8:40]) == (b"ZMRV", b"\x01\0\0\0", hashlib.sha256(wasm).digest())
     (tmp_path / "img.zx0").write_bytes(rv[40:])
     subprocess.run([zx0unpack(), tmp_path / "img.zx0", tmp_path / "img"], check=True, capture_output=True)

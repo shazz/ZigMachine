@@ -16,7 +16,7 @@ at the file level:
    │  rom/kos/gemdos_write.zig, gemdos_wops.zig: checked as TOS checks, then ONE request
    ▼
  env.kosFileOp(req)              rom/kos/kfs_abi.zig: 12 words + path + path2 + data in the cart's memory
-   ├── the page, node            docs/kos-cfile.js → KFS (docs/kos-cfs.wasm) over the ?c= image in memory
+   ├── the page, node            site/js/kos-cfile.js → KFS (site/kos-cfs.wasm) over the ?c= image in memory
    ├── the native host           host/kos_cfile.c → the same wasm, wasm2c'd, over --c-image (-rw: the file too)
    └── the board                 cycles/bkosfile.c → the window's file block → glass/src/kos_file.zig:
                                  remount rw, the file ops under /mnt/sd/HD (kos_fs.zig), sync, remount ro
@@ -106,7 +106,7 @@ write leaves (the boot's fsck repairs it).
 
 ## 6. Proof
 
-- `rom/kos/gemdos_wtest.zig` (native, gated): the library and KFS over a copy of `docs/gemdos-c.img`
+- `rom/kos/gemdos_wtest.zig` (native, gated): the library and KFS over a copy of `site/disks/gemdos-c.img`
   (FAT12): a picture saved through 1 KB writes is ONE request and reads back whole, the listing shows it
   once and no temp name; 70 KB in three requests; an overwrite, `Fseek` while writing; two files written
   at once; delete, rename, folders, attributes and every refusal; a host that fails mid-save.

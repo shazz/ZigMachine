@@ -92,7 +92,7 @@ Every browser cart (`build.zig` cart matrix) and its KESTREL board port. Generat
 | 70 | `trsi_transarctica` |  |  | 249 KB | built (#127) | none |  |  |  | TRSI / TRANSARCTICA Falcon030 cracktro (ported from the Falcon binary) |
 | 64 | `tsl_hybridglenz` | yes |  | 219 KB | built (#127) | ⚠️ frame (f64 5, f32 54) | f32 timeline ramp/mix/morph; f64 zig3d projectView per frame |  | 35 fps in glenz (was 22; Matt: really better!) | zig3d-fixed merged (a004ed8); next: D-bus stalls + bg fill |
 | 42 | `tutorial` | yes |  | 59 KB | built (#127) | none |  |  | works (#127, 2026-10-17) | docs/guide/TUTORIAL.md: the newcomer's first screen (Zig version) |
-| 56 | `tutorial_steps` |  |  |  | no disk | none |  |  |  | tutorial.zig stopped at any step, for docs/TUTORIAL.html |
+| 56 | `tutorial_steps` |  |  |  | no disk | none |  |  |  | tutorial.zig stopped at any step, for site/TUTORIAL.html |
 | 80 | `ulm_dsots` | yes |  | 180 KB | built (#127) | ⚠️ frame (f64 63, f32 10) | f64 griffin/view/level physics per frame |  |  | f64 → fixed: perf/board-slow-carts (agent) |
 | 32 | `ulm_spoon_distorter` |  |  | 383 KB | built (#127) | ⚠️ frame (f64 7, f32 2) | f64 bounce phase sin in render per frame |  |  | float fixed on perf/easy-float (not merged) |
 | 54 | `union_beatdis` | yes |  | 541 KB | built (#127) | frame (f64 0, f32 49) | f32 per-frame lock timers + charly physics |  |  | The Union Demo / TCB1 BEAT DIS, 1 MB and 1/2 MB (melonJS remake) |

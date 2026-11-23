@@ -596,7 +596,7 @@ no injected joystick, and the bomb's variables are not yet mapped to addresses.
 ### Music
 
 ZIG plays three ProTracker modules from The Mod Archive, chosen by Matt. The files
-are unmodified, in `docs/music/`, and `docs/music/skystrike_music_CREDITS.txt` gives
+are unmodified, in `site/music/`, and `site/music/skystrike_music_CREDITS.txt` gives
 each one's title, artist, source and licence:
 
 | situation | module | licence |

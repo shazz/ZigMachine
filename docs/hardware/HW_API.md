@@ -415,7 +415,7 @@ as *take nothing*, never as *unknown, so assume plenty*.
 
 **How the machine knows.** It owns the memory map but not the cart binary, and
 the high-water is baked in by the linker — so the **host** measures it once at
-load time (`docs/wasm_hiwater.js`, the same parser `apps/harness/check_fits.mjs` uses)
+load time (`site/js/wasm_hiwater.js`, the same parser `apps/harness/check_fits.mjs` uses)
 and declares it:
 
 ```js
@@ -689,7 +689,7 @@ void inputRelease2(u32 dir);  // ...and comes up
   `input()`/`inputRelease()` for the edges of the UNION of both pads, so a pad letting go never releases a direction the
   other still holds. Every existing cart works unchanged.
 - **Players are plug order**: the first pad is player 1, the second player 2 (the browser: the first two connected
-  Gamepad API pads by index, `docs/gamepad.js`, polled once a frame; the board: the first two evdev nodes that sent an
+  Gamepad API pads by index, `site/js/gamepad.js`, polled once a frame; the board: the first two evdev nodes that sent an
   event, `fpga/glass/src/pads.zig`). A third pad drives the board's OSD only.
 - **Why no HW or system table bump.** The exports are optional and looked up by name in the cart's export table
   (`host_exports`), so neither `machine-video.wasm`'s version nor `host_input_bridge` (the layout the board's system

@@ -5,7 +5,7 @@
 // Fred took several songs out of the multi-song Warp and Thalion modules.
 //
 // Every module plays on ONE replay, modland's Rings of Medusa player (the demo
-// patched its `lea TFMX(pc)` into a pointer). docs/music/hippel/*.hip are that
+// patched its `lea TFMX(pc)` into a pointer). site/music/hippel/*.hip are that
 // player, unpatched, + each module's bytes off the disk: what the demo plays
 // (prototypes/hippel_musicdisk_re/NOTES.md, tools/mkhip.py).
 //   warp_title.hip       md5 797bf405..  modland "warp (title)" = a prefix of it

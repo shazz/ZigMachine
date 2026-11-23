@@ -1,5 +1,5 @@
 // Headless POLKA DOTS driver — boots the sealed machine + demo-polkadots the
-// way docs/sealed-loader.js does, dumps composited frames as PPMs and measures
+// way site/js/sealed-loader.js does, dumps composited frames as PPMs and measures
 // what the screen actually costs.
 //
 // Why this exists: the effect is a halftone, so "is it right?" is a question
@@ -23,7 +23,7 @@
 // on demo-polkadots.wasm (fixed point, the default) and on
 // demo-polkadots_f32.wasm (the CODEF algorithm in f32, kept for the FPU test).
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // the whole screen is one plane, as the original is one canvas
@@ -32,15 +32,15 @@ const zgWidth = 320;
 const CELLS_X = 45, CELLS_Y = 28;
 const X_OFF = 2, Y_OFF = 2; // (320 - 315) / 2, (200 - 196) / 2
 
-async function boot(cart = "docs/demo-polkadots.wasm") {
+async function boot(cart = "site/carts/demo-polkadots.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -89,7 +89,7 @@ class Screen {
         this.snaps = [];
     }
 
-    // One host frame, as docs/sealed-loader.js sequences it. hwRenderPlane
+    // One host frame, as site/js/sealed-loader.js sequences it. hwRenderPlane
     // OVERWRITES the shared PFB, so each plane is snapshotted and blended in
     // shot() rather than read back once at the end.
     run(n) {
@@ -246,7 +246,7 @@ class Screen {
 const TILE_OF_INK = new Map([[0, 0], [1, 1], [5, 2], [9, 3], [13, 4], [17, 5], [25, 6], [37, 7], [45, 8], [49, 9]]);
 
 const argv = process.argv.slice(2);
-const CART = argv.includes("--cart") ? argv[argv.indexOf("--cart") + 1] : "docs/demo-polkadots.wasm";
+const CART = argv.includes("--cart") ? argv[argv.indexOf("--cart") + 1] : "site/carts/demo-polkadots.wasm";
 const out = argv.find((a, i) => !a.startsWith("--") && argv[i - 1] !== "--cart" && argv[i - 1] !== "--break") || "/tmp/polkadots";
 await mkdir(out, { recursive: true });
 const screen = await boot(CART);
@@ -325,7 +325,7 @@ console.log(`  claim: HALFTONE covers the grid in ${half.ops.toFixed(0)} fills w
 // (the readout's F32 included); pressed twice it must be itself again; pressed
 // mid-turn it must carry the pose across (the dots stay a rounding from the f32
 // cart's, never a restart). --break fkey never presses F: the identity fails.
-if (CART === "docs/demo-polkadots.wasm") {
+if (CART === "site/carts/demo-polkadots.wasm") {
     const K_F = 0x66, fkey = argv.includes("--break") && argv[argv.indexOf("--break") + 1] === "fkey" ? [] : [K_F];
     const same = (a, b) => a.snaps.every((s, p) => Buffer.compare(s, b.snaps[p]) === 0);
     const lockstep = async (other, keysAt) => {
@@ -345,7 +345,7 @@ if (CART === "docs/demo-polkadots.wasm") {
         }
         return { apart, worst, lit };
     };
-    const F32 = "docs/demo-polkadots_f32.wasm";
+    const F32 = "site/carts/demo-polkadots_f32.wasm";
     const once = await lockstep(F32, (f) => (f === 1 ? fkey : []));
     const twice = await lockstep(CART, (f) => (f === 1 ? [...fkey, ...fkey] : []));
     const mid = await lockstep(F32, (f) => (f === 150 ? fkey : []));
@@ -366,8 +366,8 @@ if (CART === "docs/demo-polkadots.wasm") {
 // 5th frame), a cell may be lit in one and dark in the other, or one dot size
 // over, in under 1% of the lit cells, and never further apart than one size.
 // --break fixed compares against a cart a frame AHEAD instead.
-if (CART === "docs/demo-polkadots.wasm") {
-    const a = await boot(CART), b = await boot("docs/demo-polkadots_f32.wasm");
+if (CART === "site/carts/demo-polkadots.wasm") {
+    const a = await boot(CART), b = await boot("site/carts/demo-polkadots_f32.wasm");
     if (argv.includes("--break") && argv[argv.indexOf("--break") + 1] === "fixed") b.run(1);
     let differ = 0, lit = 0, step = 0;
     for (let f = 1; f <= 300; f++) {

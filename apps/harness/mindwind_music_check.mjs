@@ -1,4 +1,4 @@
-// Mind Rewind's music (docs/music/mindwind.sndh, apps/zig/assets/screens/mindwind/mw_music.s) on the
+// Mind Rewind's music (site/music/mindwind.sndh, apps/zig/assets/screens/mindwind/mw_music.s) on the
 // sealed audio machine. The SNDH runs the demo's own sequencer, copied verbatim, with a new mixer, so
 // the checks are about the parts that are new or that the cart relies on:
 //   stereo   -- both channels play (left = voices 1+3, right = voices 2+4, interleaved bytes)
@@ -18,13 +18,13 @@ const THRESHOLDS = [0x4c, 0x74, 0x9c, 0xc4, 0xec, 0x114, 0x160, 0x1b6, 0x1f0, 0x
 const arg = (k, d) => (process.argv.includes(k) ? process.argv[process.argv.indexOf(k) + 1] : d);
 
 const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
 const env = { memory };
 for (const name of Object.keys(machine)) if (name.startsWith("machine")) env[name] = machine[name];
-const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+const demo = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
 demo.audioInit();
 
-const tune = new Uint8Array(await readFile("docs/music/mindwind.sndh"));
+const tune = new Uint8Array(await readFile("site/music/mindwind.sndh"));
 new Uint8Array(memory.buffer, demo.audioSongPtr(), tune.length).set(tune);
 if (!demo.audioLoadSndh(tune.length)) throw new Error("not an SNDH");
 demo.audioSndhPlay(1);

@@ -1,11 +1,11 @@
 // A C program port started the way the machine starts it (apps/harness/ports_headless.mjs): its disk is a DATA
-// disk, so the machine boots GEM (docs/demo-gem.wasm) over it; GEM's FLOPPY window lists the FAT, a
+// disk, so the machine boots GEM (site/carts/demo-gem.wasm) over it; GEM's FLOPPY window lists the FAT, a
 // double-click on the program asks the host to run it (request 3), and the host instantiates the FAT
 // file, depacked by the ROM, as the next cart with the same disk in the drive. The program's quit is
-// request 4: the host brings GEM back over the disk. All of it as docs/sealed-loader.js does (swapCart,
+// request 4: the host brings GEM back over the disk. All of it as site/js/sealed-loader.js does (swapCart,
 // unpackCart, the FAT listing it hands GEM), on the apps/harness/ports_machine.mjs machine.
 import { readFile } from "node:fs/promises";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 import { startCart, step, picture, sha } from "./ports_machine.mjs";
 
 // GEM's cells in physical-visible coordinates (apps/harness/gem_headless.mjs measured them): the FLOPPY icon,
@@ -23,7 +23,7 @@ let gemBytes = null;
 // GEM over the mounted disk: booted, the disk inserted, its FAT listing handed over (the loader's
 // diskDirSet), then a few frames. Returns how many FAT files GEM was handed and its cap.
 function startGem(m) {
-    startCart(m, gemBytes, "docs/demo-gem.wasm", { ...m.env, ...GEM_EXTRA });
+    startCart(m, gemBytes, "site/carts/demo-gem.wasm", { ...m.env, ...GEM_EXTRA });
     m.demo.insertDisk(1);
     gemFrames(m, SETTLE);
     const files = Object.entries(parseDisk(m.drive.disk, "port").mounted.files);
@@ -70,7 +70,7 @@ function depack(m, entry) {
 // GEM's cap, the desktop's picture before anything was touched, the program GEM asked for, and whether
 // its depacked bytes are the committed cart's. pullDrive: the drive is emptied before the program starts.
 export async function launchFromGem(m, cartPath, pullDrive = false) {
-    gemBytes ??= await readFile("docs/demo-gem.wasm");
+    gemBytes ??= await readFile("site/carts/demo-gem.wasm");
     const disk = parseDisk(m.drive.disk, cartPath);
     const sector = await bootSector(m, disk);
     const listing = startGem(m);
@@ -91,12 +91,12 @@ export async function launchFromGem(m, cartPath, pullDrive = false) {
     return { ...listing, sector, desk, name, same, dataDisk: !disk.bootable || disk.osAfterBoot };
 }
 
-// Block 0, run as the loader runs a v2 sector before the OS: it is docs/boot-sdl.wasm (the shared "SDL"
+// Block 0, run as the loader runs a v2 sector before the OS: it is site/carts/boot-sdl.wasm (the shared "SDL"
 // sector, padded to 1 KB summing to $1234), and it asks for request 2 within MAX_SECTOR frames over a
 // descriptor that names no cart, so GEM boots after it (apps/harness/sysinfo_gem_check.mjs checkSector).
 const MAX_SECTOR = 600;
 async function bootSector(m, disk) {
-    const want = new Uint8Array(await readFile("docs/boot-sdl.wasm"));
+    const want = new Uint8Array(await readFile("site/carts/boot-sdl.wasm"));
     const block0 = m.drive.disk.subarray(0, 1024);
     const ours = disk.v2 && disk.bootable && want.every((b, i) => b === block0[i]);
     if (!ours) return { ours, frames: 0, chains: false };

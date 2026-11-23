@@ -19,7 +19,7 @@
 //   node apps/harness/union_demo_intro_headless.mjs [outdir] [cart.wasm]
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // the visible window in the physical frame (x doubled)
@@ -31,10 +31,10 @@ const out = process.argv[2];
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -142,7 +142,7 @@ function png(rgba, w, h) {
     return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 
-const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-union_demo.wasm");
+const { memory, machine, demo } = await boot(process.argv[3] || "site/carts/demo-union_demo.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const shot = () => { machine.hwRenderPlane(0); return window320(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4), W); };
 const errors = [];
@@ -236,12 +236,12 @@ if (perFrame > 4) errors.push(`cart takes ${perFrame.toFixed(3)} ms/frame`);
 // 6. the requested SNDH plays on the real audio modules (its own 68000 code driving the YM)
 async function sndhPeak(name) {
     const mem = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // AUDIO_PAGES
-    const chip = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
+    const chip = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
     const env = { memory: mem };
     for (const k of Object.keys(chip)) if (k.startsWith("machine")) env[k] = chip[k];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const tune = new Uint8Array(await readFile(`docs/music/${name}`));
+    const tune = new Uint8Array(await readFile(`site/music/${name}`));
     new Uint8Array(mem.buffer, audio.audioSongPtr(), tune.length).set(tune);
     if (!audio.audioLoadSndh(tune.length)) return -1;
     audio.audioSndhPlay(1); // the image has one subtune; requestSong asks for its default

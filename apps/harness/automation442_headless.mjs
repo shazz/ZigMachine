@@ -1,5 +1,5 @@
 // Headless AUTOMATION 442 driver — boots the sealed machine + demo-automation442.wasm
-// the way docs/sealed-loader.js does, and dumps composited PPMs of the WHOLE
+// the way site/js/sealed-loader.js does, and dumps composited PPMs of the WHOLE
 // physical screen (800x280): BOTH planes are overscan, so cropping to 320x200
 // would hide half of what this port is about — including the scroller running
 // out through the side borders.
@@ -11,20 +11,20 @@
 //
 //   node apps/harness/automation442_headless.mjs [outdir]
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 2; // 0 = panned overscan skull, 1 = overscan scrolltext
 
-async function boot(cart = "docs/demo-automation442.wasm") {
+async function boot(cart = "site/carts/demo-automation442.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

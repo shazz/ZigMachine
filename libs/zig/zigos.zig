@@ -230,7 +230,7 @@ inline fn readU32(off: usize) u32 {
 }
 
 // --- Host song bridge ------------------------------------------------------
-// Scenes request a tune BY NAME (a path under docs/music/) so the host stays
+// Scenes request a tune BY NAME (a path under site/music/) so the host stays
 // generic — no per-scene playlist baked into the loader. The host polls
 // takeSongRequest() and, when set, plays the file at songName* by extension.
 var g_song_name: [64]u8 = [_]u8{0} ** 64;

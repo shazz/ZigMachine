@@ -1,6 +1,6 @@
 // USB keyboard -> the glass's key events. Linux hands us evdev key codes
 // (linux/input-event-codes.h, which are layout-blind scan positions); this
-// turns them into what the browser hands a cart (docs/sealed-loader.js): the
+// turns them into what the browser hands a cart (site/js/sealed-loader.js): the
 // character a US keyboard types, or the private-use code of a named key.
 //
 // The keymap is US. A cart sees characters, so another layout is another

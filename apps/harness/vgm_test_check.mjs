@@ -8,9 +8,9 @@
 //   local    keys 5-7 ask for the local Sonic 1 tunes (sonic1_ghz / sonic1_special / sonic1_starlight.vgm:
 //            gitignored, never fetched here, none tracked); with none playing the cart runs on past its
 //            second of silence (the screen's "NOT ON THIS MACHINE")
-//   bridge   docs/sealed-loader.js's own postSfx turns each into loadVgm; the audio modules play the .vgz
+//   bridge   site/js/sealed-loader.js's own postSfx turns each into loadVgm; the audio modules play the .vgz
 //            (mode 1, heard) and refuse the garbage ("not a VGM", silent)
-//   song     docs/music/kestrel_fm.vgm is what libs/c/vgm/make_tune.py writes today, and the .vgz (docs/music
+//   song     site/music/kestrel_fm.vgm is what libs/c/vgm/make_tune.py writes today, and the .vgz (site/music
 //            and the cart's asset) inflates to it, byte for byte
 //   node apps/harness/vgm_test_check.mjs [--break name|local]
 //     name: key 2 is expected to ask for another file, so the check must fail
@@ -20,7 +20,7 @@ import { readFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const bi = process.argv.indexOf("--break");
 const BROKE = bi > 0 ? process.argv[bi + 1] || "name" : null;
@@ -29,10 +29,10 @@ const LOCAL = ["sonic1_ghz.vgm", "sonic1_special.vgm", "sonic1_starlight.vgm"];
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -61,7 +61,7 @@ async function press(cart, key) {
     cart.demo.frame(16.6);
     const name = songRequest(cart);
     const { memory, demo } = cart;
-    const src = (await readFile("docs/sealed-loader.js", "utf8")).match(/^function postSfx\(mem, at, n\) \{[\s\S]*?^\}\n/m)[0];
+    const src = (await readFile("site/js/sealed-loader.js", "utf8")).match(/^function postSfx\(mem, at, n\) \{[\s\S]*?^\}\n/m)[0];
     const posted = [];
     const run = new Function("audioNode", `let songGen = 0, sndhResident = null, songPosted = Promise.resolve(), sfxChain = Promise.resolve();
         ${src}; postSfx(arguments[1], arguments[2], arguments[3]); return sfxChain;`);
@@ -72,10 +72,10 @@ async function press(cart, key) {
 /** The worklet's loadVgm on the audio modules: loaded?, its status, mode, peak heard. */
 async function loadVgm(msg) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     const bytes = new Uint8Array(msg.bytes);
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
@@ -89,14 +89,14 @@ async function loadVgm(msg) {
 }
 
 const errors = [];
-const vgm = new Uint8Array(await readFile("docs/music/kestrel_fm.vgm"));
+const vgm = new Uint8Array(await readFile("site/music/kestrel_fm.vgm"));
 const dir = await mkdtemp(join(tmpdir(), "vgm_test_check-"));
 execFileSync("python3", ["libs/c/vgm/make_tune.py", `${dir}/k.vgm`]);
-if (Buffer.compare(await readFile(`${dir}/k.vgm`), vgm) !== 0) errors.push("song: docs/music/kestrel_fm.vgm is not what make_tune.py writes");
+if (Buffer.compare(await readFile(`${dir}/k.vgm`), vgm) !== 0) errors.push("song: site/music/kestrel_fm.vgm is not what make_tune.py writes");
 const vgz = new Uint8Array(await readFile("apps/zig/assets/vgm/KESTREL_FM.VGZ"));
-for (const f of ["docs/music/kestrel_fm.vgz", "apps/zig/assets/vgm/KESTREL_FM.VGZ"])
+for (const f of ["site/music/kestrel_fm.vgz", "apps/zig/assets/vgm/KESTREL_FM.VGZ"])
     if (Buffer.compare(gunzipSync(await readFile(f)), vgm) !== 0) errors.push(`song: ${f} does not inflate to kestrel_fm.vgm`);
-const cart = await bootCart("docs/demo-vgm_test.wasm");
+const cart = await bootCart("site/carts/demo-vgm_test.wasm");
 const boot = await press(cart, null);
 if (boot.name !== "kestrel_fm.vgm") errors.push(`name: the cart asked for ${boot.name} at boot`);
 const names = [];
@@ -112,7 +112,7 @@ for (const [i, want] of LOCAL.entries()) {
 // No host plays them here, as on a card without the files: past the screen's second of silence the cart keeps
 // running (a trap would throw out of frame()).
 for (let f = 0; f < 90; f++) cart.demo.frame(16.6);
-const tracked = execFileSync("git", ["ls-files", "--", ...LOCAL.map((n) => `docs/music/${n}`)], { encoding: "utf8" }).trim();
+const tracked = execFileSync("git", ["ls-files", "--", ...LOCAL.map((n) => `site/music/${n}`)], { encoding: "utf8" }).trim();
 if (tracked) errors.push(`local: ${tracked.split("\n").join(", ")} committed: the Sonic tunes stay on their owner's machine`);
 for (const [key, garbage] of [[2, false], [7, true]]) {
     const { posted } = await press(cart, key);

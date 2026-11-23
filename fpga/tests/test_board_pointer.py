@@ -1,7 +1,7 @@
 """The board firmware's mouse path (cycles/binput.c -> host/input_bridge.c -> glass_pointer() ->
 the cart's pointer()), through the native host on the GEM desktop: ZM_GLASS_POINTER plays the
 ARM's REG_POINTER writes into the same poll, and the frame hashes say what GEM did with them.
-The reference is the browser's own call (--call F:pointer:x,y,buttons, docs/sealed-loader.js),
+The reference is the browser's own call (--call F:pointer:x,y,buttons, site/js/sealed-loader.js),
 and a mutant router must be caught."""
 
 from __future__ import annotations

@@ -27,7 +27,7 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // Count Zero, "3D Mania" from the Decade Demo (1990) — the demo's own 3D
 // screen, which is what MAXI draws.
 const MUSIC = "decade_3d_mania.sndh";

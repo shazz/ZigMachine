@@ -1,6 +1,6 @@
 ; ---------------------------------------------------------------------------
 ; RICK DANGEROUS (Core Design / Firebird 1989): the game's whole sound, as an
-; SNDH (docs/music/rick_dangerous.sndh) -- the music, the YM sound effects and
+; SNDH (site/music/rick_dangerous.sndh) -- the music, the YM sound effects and
 ; the three Timer A digis, played by the GAME'S OWN DRIVER.
 ;
 ; The tunes and the effects share one player state (Ben Daglish's player: the
@@ -42,7 +42,7 @@
 ; as in the game. The drop rule is the driver's own, on the audio clock.
 ;
 ; Build (from the repository root; vasm 1.9, /home/matt/projects/MJJ/bin/vasm):
-;   vasmm68k_mot -Fbin -nosym -o docs/music/rick_dangerous.sndh \
+;   vasmm68k_mot -Fbin -nosym -o site/music/rick_dangerous.sndh \
 ;       apps/zig/assets/screens/rick_dangerous/sound.s
 ; The .bin files come from tools/rick_dangerous/extract_assets.py.
 ; ---------------------------------------------------------------------------

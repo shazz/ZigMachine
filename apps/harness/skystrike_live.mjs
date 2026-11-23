@@ -1,5 +1,5 @@
 // SKYSTRIKE harness, part 2 (apps/harness/skystrike_headless.mjs is the driver): the
-// sealed machine booted the way docs/sealed-loader.js boots it, the cart as a
+// sealed machine booted the way site/js/sealed-loader.js boots it, the cart as a
 // player runs it (live), and skystrike.sndh on the sealed audio machine.
 import { readFile, writeFile } from "node:fs/promises";
 import { boot } from "./skystrike_session.mjs";
@@ -84,10 +84,10 @@ export async function live(outdir, label) {
 // ---------------------------------------------------------------- the sound
 async function audioMachine(bytes) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // AUDIO_PAGES
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) throw new Error(`audioLoadSndh refused ${MUSIC}`);
@@ -111,7 +111,7 @@ function volumeChanges(a, ms, n) {
 /// sample (Maestro's Timer A digi) drives the volume registers thousands of
 /// times a second; the engine call leaves noise 31 - th under envelope 10.
 export async function sound(broke) {
-    const bytes = new Uint8Array(await readFile(`docs/music/${MUSIC}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${MUSIC}`));
     const errors = [];
     const report = [];
     for (const sub of [1, 2, 3, 4]) {

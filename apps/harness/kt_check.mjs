@@ -1,4 +1,4 @@
-// klystrack (.kt) player, on the real audio modules (docs/machine-audio.wasm + docs/demo-audio.wasm):
+// klystrack (.kt) player, on the real audio modules (site/machine-audio.wasm + site/demo-audio.wasm):
 // the build the browser and BARD both run (BARD runs demo-audio through wasm2c).
 //   pinned    each bundled song's core output (cyd's s16 stereo at 22050 Hz, audioKtRenderCore) for
 //             45 s is upstream klystron's own render byte for byte: the sha256 below is
@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 
 // BLOCK: at most the player's render chunk (libs/zig/players/kt.zig PCM_CHUNK), which audioKtRenderCore renders into.
 const CORE_RATE = 22050, SECONDS = 45, BLOCK = 256;
-const PINS = { // kt_ref docs/music/<song>.kt 45 --raw out; sha256 out
+const PINS = { // kt_ref site/music/<song>.kt 45 --raw out; sha256 out
     "starport2.kt": "fd83a9089664f7b902619bce63c063231f2dc0e6dd15f9237c5854b1ea2d4efe",
     "castlevania.kt": "c6dda9a8abc38ecc3156580a0d778067c7e5d4a8ad4596a301725083fabdb126",
     "oceanloader3.kt": "cb18d471add90a3369ae100250a1292a2bf065792ffdd0ebb5290bdf781a3cf0",
@@ -31,10 +31,10 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 /** The audio modules with `bytes` staged and loaded (and started when it loads). */
 async function machine(bytes) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
     const ok = a.audioLoadKt(bytes.length);
@@ -70,7 +70,7 @@ function output(x, frames) {
 }
 
 async function song(name, errors, notes) {
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     const ref = await machine(bytes);
     if (!ref.ok || !ref.a.audioKtActive()) return errors.push(`plays: ${name} refused (error ${ref.a.audioKtError()})`);
     const FRAMES = 4 * 44100;
@@ -98,16 +98,16 @@ async function song(name, errors, notes) {
 }
 
 async function refusals(errors, notes) {
-    const good = new Uint8Array(await readFile("docs/music/castlevania.kt"));
+    const good = new Uint8Array(await readFile("site/music/castlevania.kt"));
     const future = Uint8Array.from(good);
     future[8] = 28;
     const cases = [[new TextEncoder().encode("not a klystrack song"), 1, "not a .kt"], [future, 2, "version 28"],
         [good.slice(0, good.length >> 1), 3, "truncated"]];
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     for (const [bytes, want, what] of cases) {
         new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);

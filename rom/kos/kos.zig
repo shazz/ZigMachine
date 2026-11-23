@@ -6,7 +6,7 @@
 // look, drawn by the ROM instead of by each cart) and the system variables block
 // (§5). The STAGES (power-on, POST, drive A, the boot sector, the cart or the
 // desktop) are driven by the host that instantiates the modules: the browser's
-// docs/sealed-loader.js, the native host's fpga/host/kos_host.c, the board
+// site/js/sealed-loader.js, the native host's fpga/host/kos_host.c, the board
 // firmware's fpga/cycles/bkos.c. Only a host can instantiate a cart, so the
 // sequencing cannot live in a wasm module; the pixels and the variables do, so
 // all three draw and report the same bytes.

@@ -13,7 +13,7 @@
 //   node apps/harness/linebase_test_headless.mjs --break persist|hscroll   the model loses that rule: passes
 //                                                                  only if the pixel check catches it
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { RH, REG_HSCROLL, REG_FB_COPPER, OFF_VRAM, decodeList, model, firstMismatch } from "./linebase_model.mjs";
 
 const PAGES = 128, REG_BACKGROUND = 0x04, REG_FB_BASE = 0x44, OFF_PAL = 0x100, RW = 800, PHASE = 150;
@@ -22,16 +22,16 @@ const FRAMES = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || 420)
 
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const rom = (await WebAssembly.instantiate(romBytes, {
     env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
 })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-linebase_test.wasm");
+const cartBytes = await readFile("site/carts/demo-linebase_test.wasm");
 const hw = Object.fromEntries(Object.entries(machine).filter(([k]) => k.startsWith("hwRam") || k.startsWith("hwRomRam")));
 demo = (await WebAssembly.instantiate(cartBytes, {
     env: {

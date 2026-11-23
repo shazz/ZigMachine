@@ -6,7 +6,7 @@
 // palette indices in shared memory and a few registers.
 //
 // Build: bash apps/c/build.sh tutorial
-// Run:   docs/index.html?demo=demo-c-tutorial.wasm
+// Run:   site/index.html?demo=demo-c-tutorial.wasm
 // ---------------------------------------------------------------------------
 #include "../zigmachine_music.h" // from exactly ONE .c file: it defines exports
 
@@ -138,7 +138,7 @@ static void draw_scroller(void) {
 
 __attribute__((export_name("boot")))
 void boot(void) {
-    zm_request_song("sos.sndh"); // a file under docs/music/
+    zm_request_song("sos.sndh"); // a file under site/music/
 
     video_base = hwVideoBase();
     *(u32 *)(video_base + REG_BACKGROUND) = rgba(0, 0, 0);

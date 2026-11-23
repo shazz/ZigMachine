@@ -1,6 +1,6 @@
 // Plane mixer: what the browser shows, built from the compositor's line buffer.
 //
-// The browser stacks one canvas per enabled plane (docs/sealed-loader.js);
+// The browser stacks one canvas per enabled plane (site/js/sealed-loader.js);
 // canvas k holds the PFB as it is after plane k's pass, and Chrome draws them
 // bottom first, source-over, onto the (black) tube. In premultiplied 8-bit
 // arithmetic, exactly as Skia does it (tools/video_dump/vmix.c is the oracle):
@@ -21,7 +21,7 @@
 `default_nettype none
 
 module zm_video_mix #(
-    parameter [23:0] TUBE = 24'h000000     // black (docs/css/crt.css .container), {B, G, R}
+    parameter [23:0] TUBE = 24'h000000     // black (site/css/crt.css .container), {B, G, R}
 ) (
     input  wire        clk,
     input  wire        rst,

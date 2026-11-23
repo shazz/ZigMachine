@@ -1,4 +1,4 @@
-// KOS GEMDOS (rom/kos/gemdos.zig) over docs/gemdos-c.img (tools/gemdos_c_image.py) as C:, the card's
+// KOS GEMDOS (rom/kos/gemdos.zig) over site/disks/gemdos-c.img (tools/gemdos_c_image.py) as C:, the card's
 // HD folder its root: the calls TOS programs make, their answers, and what they cost in requests.
 // Run from the repository's root (build.sh does). tools/tests/test_kos_gemdos.py holds the same calls
 // against mtools on FAT16 / FAT32 cards made by mkfs.fat (fragmented files, long names, big folders).
@@ -26,7 +26,7 @@ var drive_c: gemdos.Drive = .{ .run_fn = run, .ctx = &dummy, .max_run = 64, .roo
 var dos: gemdos.Dos = .{};
 
 fn setUp() !void {
-    if (image.len == 0) image = try std.Io.Dir.cwd().readFileAlloc(t.io, "docs/gemdos-c.img", std.heap.page_allocator, .limited(1 << 20));
+    if (image.len == 0) image = try std.Io.Dir.cwd().readFileAlloc(t.io, "site/disks/gemdos-c.img", std.heap.page_allocator, .limited(1 << 20));
     fail = false;
     drive_c.reset();
     drive_c.trips = 0;

@@ -234,7 +234,7 @@ full-screen 320-wide plasma:
 * entry 0 is legitimately TRANSPARENT in any layered screen, and
 * in a 400-wide overscan buffer the first 4096 bytes are the (black) top border.
 
-So `docs/demo-c-screen34.wasm` reports **FAIL while being correct** — confirmed
+So `site/carts/demo-c-screen34.wasm` reports **FAIL while being correct** — confirmed
 by reading the physical framebuffer directly. Any future polyglot cart that is
 not a plasma will "fail" the same way, which trains everyone to ignore the gate.
 
@@ -298,7 +298,7 @@ that believes the comment lays out its buffer at half the stride.
 
 **Three more of the same class, found 2026-09-20 rebuilding the guide's UI:**
 
-4. `docs/index.html:67` links `ZIGMACHINE_GUIDE.html#0` — a dead anchor ever
+4. `site/index.html:67` links `ZIGMACHINE_GUIDE.html#0` — a dead anchor ever
    since the guide moved to real slugs. The front page's own link to the
    reference does not land anywhere.
 5. `docs/guide/FLOPPY_DISK.md` still says *"Status: MVP working… Still to do:
@@ -418,7 +418,7 @@ never extended when it was added — the same omission shape as the ABI-mirror
 entry. The fix is one call; the value is in also checking the other direction.
 
 Unverified and worth checking at the same time: whether a cart SWAP bumps
-`songGen` (`docs/sealed-loader.js:1017`). A swap that requests no new song may
+`songGen` (`site/js/sealed-loader.js:1017`). A swap that requests no new song may
 leave a late fetch from the OLD cart free to take the chip.
 
 ---
@@ -446,7 +446,7 @@ both sides.
 
 ## Channel change (+ / −): two behaviours have never been tested
 
-**Where:** `docs/sealed-loader.js` (`swapCart`), the +/− controls in the glass
+**Where:** `site/js/sealed-loader.js` (`swapCart`), the +/− controls in the glass
 **Found:** when the TV channel feature landed
 
 * **Sound across a channel change was only ever tested MUTED.** What happens to a

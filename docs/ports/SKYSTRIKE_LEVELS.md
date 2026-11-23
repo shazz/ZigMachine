@@ -313,10 +313,10 @@ python3 tools/skystrike/levels.py disk my_levels/ --out my_skystrike.zmd
 
 The command:
 
-- packs `docs/demo-skystrike.wasm`, ZX0-packed when `zig-out/bin/zx0pack` exists;
+- packs `site/carts/demo-skystrike.wasm`, ZX0-packed when `zig-out/bin/zx0pack` exists;
 - adds the two files, via `tools/mkdisk.py --file`.
 
-Drop `my_skystrike.zmd` on the ZigMachine page (the upload box, `docs/upload-cart.js`)
+Drop `my_skystrike.zmd` on the ZigMachine page (the upload box, `site/js/upload-cart.js`)
 or open `index.html?disk=my_skystrike.zmd` from `docs/`.
 
 To change the **built-in** campaign instead, run `levels.py import levels/ --cart`

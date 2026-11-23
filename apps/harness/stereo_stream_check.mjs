@@ -1,7 +1,7 @@
 // Headless check: the stereo PCM stream (system table 1.27, libs/zig/audio_stereo.zig, docs/project/DECISIONS.md 2026-11-20).
 //
-// The real worklet (docs/audio-worklet-sealed.js, a stand-in AudioWorkletProcessor) over the real
-// demo-audio.wasm + machine-audio.wasm, driven by the messages docs/sealed-loader.js posts:
+// The real worklet (site/js/audio-worklet-sealed.js, a stand-in AudioWorkletProcessor) over the real
+// demo-audio.wasm + machine-audio.wasm, driven by the messages site/js/sealed-loader.js posts:
 //   1. stereo: a 1 kHz tone fed on the LEFT side only comes out of the left speaker, the right is
 //      exactly 0; then the same tone on the RIGHT only, the left is exactly 0; both sides at once
 //      come out the same size, each with its own tone (their correlation is ~0).
@@ -24,9 +24,9 @@ async function bootWorklet() { // as apps/harness/st_replay_outputs_check.mjs
     const posted = [];
     globalThis.AudioWorkletProcessor = class { constructor() { this.port = { postMessage: (m) => posted.push(m) }; } };
     globalThis.registerProcessor = (_name, cls) => { Proc = cls; };
-    await import("../../docs/audio-worklet-sealed.js");
+    await import("../../site/js/audio-worklet-sealed.js");
     const p = new Proc({ processorOptions: {
-        machineBytes: await readFile("docs/machine-audio.wasm"), demoBytes: await readFile("docs/demo-audio.wasm") } });
+        machineBytes: await readFile("site/machine-audio.wasm"), demoBytes: await readFile("site/demo-audio.wasm") } });
     for (let i = 0; i < 200 && !p.ready; i++) await new Promise((r) => setTimeout(r, 10));
     if (!p.ready) throw new Error("the worklet never came up");
     if (BREAK) { // the mutant: every frame's two sides written into the other side's ring
@@ -120,14 +120,14 @@ function checkMono(w) {
 }
 
 async function checkImports() {
-    const loader = await readFile("docs/sealed-loader.js", "utf8");
+    const loader = await readFile("site/js/sealed-loader.js", "utf8");
     const names = ["hostAudioStreamStartStereo", "hostAudioFeedStereo", "hostAudioStreamPlayed"];
     expect(names.every((n) => loader.includes(`${n}: (`)), "the loader's env has the three 1.27 imports");
     const imports = async (f) => WebAssembly.Module.imports(new WebAssembly.Module(await readFile(f))).map((i) => i.name);
-    const mono = await imports("docs/demo-st_replay.wasm"); // a mono streamer that never calls the 1.27 API
+    const mono = await imports("site/carts/demo-st_replay.wasm"); // a mono streamer that never calls the 1.27 API
     expect(mono.includes("hostAudioFeed") && !names.some((n) => mono.includes(n)),
         "a mono cart (st_replay) imports the 1.1 stream only: it still runs on a 1.26 system");
-    const stereo = await imports("docs/demo-stream.wasm"); // STREAM's S key (the board check)
+    const stereo = await imports("site/carts/demo-stream.wasm"); // STREAM's S key (the board check)
     expect(names.every((n) => stereo.includes(n)), "the STREAM cart (its S key) imports the three 1.27 entries");
 }
 

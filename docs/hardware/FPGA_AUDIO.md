@@ -162,7 +162,7 @@ serialiser clock 489 MHz (needs 200).
 ## 5. The board test: `make -C fpga ym-test`
 
 `build/ym_test/ym_test_top.bit`: jt49 plays **"Drooling" by 505** (YM5 dump,
-`docs/music/union/Drooling.ymraw`, 2:08, looped) from 22,678 ROM words in BRAM,
+`site/music/union/Drooling.ymraw`, 2:08, looped) from 22,678 ROM words in BRAM,
 44.1 kHz over HDMI1 with the colour-bar test pattern. Load it as the other test
 bitstreams: `openFPGALoader -c digilent_hs2 fpga/build/ym_test/ym_test_top.bit`.
 

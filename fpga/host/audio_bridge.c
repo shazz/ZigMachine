@@ -1,4 +1,4 @@
-/* The cart's song bridge (haudio.h audio_bridge): docs/sealed-loader.js's
+/* The cart's song bridge (haudio.h audio_bridge): site/js/sealed-loader.js's
  * playSongByName / sndhCallByName / postSfx, read off the cart after its frame. It calls
  * audio_play, audio_sndh_call and audio_effects, which the players implement (host/audio.c)
  * or, with the players on the sound CPU, the mailbox forwards (cycles/bsound.c). */

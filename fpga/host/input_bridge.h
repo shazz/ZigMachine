@@ -1,6 +1,6 @@
 /* The glass's input to the cart (docs/hardware/FPGA_GLASS.md "Input"): its key events, joypad and mouse
  * turned into the cart's export calls by fpga/glass/firmware/glass_input.c, whose rules are
- * docs/sealed-loader.js's. The board firmware feeds it the glass CSRs (cycles/binput.c); the
+ * site/js/sealed-loader.js's. The board firmware feeds it the glass CSRs (cycles/binput.c); the
  * native host feeds it a script (host/main.c ZM_GLASS_KEYS), which is how it is tested. A cart
  * without an export gets nothing for it (host_input's NULLs, tools/host_gen.py).
  * Player 2 (R83): a KEY_P2_STATE event is the second pad's whole state; it reaches the cart's optional

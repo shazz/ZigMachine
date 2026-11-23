@@ -35,7 +35,7 @@
 // a Mad Max replay (shirazmcp identify_music, 0.82) and holds 57% of the 16-byte
 // chunks of Mad_Max/Games/Cybernoid_2.sndh (the next file 26%), and subtune 1
 // reproduces the YM6's registers 0..10 EXACTLY on every one of 6000 frames (2
-// minutes; a 2-frame start offset), subtune 2 0%. docs/music/cybernoid2.sndh is
+// minutes; a 2-frame start offset), subtune 2 0%. site/music/cybernoid2.sndh is
 // that file, already shipped for equinox. The 68000 replay runs on the sound
 // CPU (BARD on the board), not on the cart CPU. The Batmen read the machine's
 // live YM mirror (zigos.ym_regs), as gen4_3615's VU meters do.

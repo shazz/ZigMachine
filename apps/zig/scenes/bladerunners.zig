@@ -26,7 +26,7 @@ const STRIDE = @import("bladerunners/strip.zig").STRIDE;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // David Whittaker, "Rampage" (1988).
 const MUSIC = "rampage.sndh";
 

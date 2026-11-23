@@ -13,7 +13,7 @@
 // stack pointer's initial value and the end of the last data segment is correct
 // for both: whichever sits on top is the high-water.
 //
-// Loaded by docs/sealed-loader.js (browser) and apps/*.mjs (node).
+// Loaded by site/js/sealed-loader.js (browser) and apps/*.mjs (node).
 // --------------------------------------------------------------------------
 export const CART_RAM_BASE = 0x100000; // memmap.CART_RAM_BASE
 export const CART_RAM_TOP = 0x400000; // memmap.CART_RAM_TOP (= HW_VIDEO_BASE)
@@ -110,7 +110,7 @@ export const cartRam = (bytes) => windowRam(bytes, CART_RAM_BASE, CART_RAM_TOP);
 export const romRam = (bytes) => windowRam(bytes, ROM_RAM_BASE, ROM_RAM_TOP);
 export const audioRam = (bytes) => windowRam(bytes, AUDIO_RAM_BASE, AUDIO_RAM_TOP);
 
-// docs/sealed.html loads this as a module while sealed-loader.js is a classic
+// site/sealed.html loads this as a module while sealed-loader.js is a classic
 // script (it exposes main() to an inline onclick), so hand the two functions
 // over on globalThis rather than splitting the parser in two.
 globalThis.ZMRam = { cartHighWater, windowRam, cartRam, romRam, audioRam,

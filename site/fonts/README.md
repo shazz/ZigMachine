@@ -2,7 +2,7 @@
 
 ## eas-vhs.ttf — "EAS VHS"
 
-Used by the VHS-style cart OSD (`docs/cart-osd.js`).
+Used by the VHS-style cart OSD (`site/js/cart-osd.js`).
 
 - **Designer:** elliotshock, on FontStruct
 - **Source:** https://fontstruct.com/fontstructions/show/2878521/eas-vhs

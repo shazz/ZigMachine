@@ -1,7 +1,7 @@
 # B.I.G. Demo digi tunes: the rip (2026-10-19)
 
-The six files (`docs/music/digital/{Ace_2,Labello,Phantom_Of_The_Asteroid,Sanxion,Starpaws}.sndh`
-and `docs/music/big/Labello.sndh`) are Grazey's SNDH conversions of THE DIGITAL SOLUTION screen's
+The six files (`site/music/digital/{Ace_2,Labello,Phantom_Of_The_Asteroid,Sanxion,Starpaws}.sndh`
+and `site/music/big/Labello.sndh`) are Grazey's SNDH conversions of THE DIGITAL SOLUTION screen's
 music. The screen's own program is in the file (its text, "WELCOME TO THE DIGITAL SOLUTION OF
 ALL", sits at $44216 of Ace 2), and with it one driver: Mad Max's sequencer for his 3-voice mixer.
 
@@ -23,6 +23,6 @@ absolute longs relocation moves (75 of them, plus the jump table). So one native
 all six: `libs/zig/players/digi_big_play.zig`, `digi_big_note.zig`, `digi_big_env.zig`,
 `digi_big_map.zig` (the variables read from the operands of the instructions that use them).
 
-The scripts read the tunes from this directory: copy them in from `docs/music/digital/` first (they are not kept here).
+The scripts read the tunes from this directory: copy them in from `site/music/digital/` first (they are not kept here).
 
 `bench.sh`: `make snd-bench` for one of these tunes, run under one sim lock.

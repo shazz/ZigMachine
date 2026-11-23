@@ -174,6 +174,6 @@ Software first, either way: dirty-group p2c in rick_dangerous/rno_natrium costs 
 
 ```sh
 node apps/harness/perf/isa_census.mjs --all --json > census.jsonl      # ~4 min, serial, one phase per cart
-node apps/harness/perf/isa_census.mjs docs/demo-rick_dangerous.wasm     # one cart: Mc saved by pattern
-node apps/harness/frame_cost.mjs docs/demo-anima.wasm --warmup 3200 --frames 20   # anima's roto part
+node apps/harness/perf/isa_census.mjs site/carts/demo-rick_dangerous.wasm     # one cart: Mc saved by pattern
+node apps/harness/frame_cost.mjs site/carts/demo-anima.wasm --warmup 3200 --frames 20   # anima's roto part
 ```

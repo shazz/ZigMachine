@@ -39,7 +39,7 @@ env_key() {
 
 # The dirs the build and the harnesses read. An untracked file elsewhere (a note
 # at the root) cannot change what the gate sees; one in here can.
-INPUTS="apps libs rom machine tools docs .githooks build.zig build.sh"
+INPUTS="apps libs rom machine tools docs site .githooks build.zig build.sh"
 
 is_clean() {
     [ -z "$(git status --porcelain --untracked-files=no)" ] &&

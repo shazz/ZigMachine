@@ -5,8 +5,8 @@
 // The host, not the cart, drives the YM chip now:
 //   * tracks 1..3 are SNDHs (Jinks #1, lockbuster2_rollout #1 and #2), whose
 //     register streams were matched against the production's dumps;
-//   * tracks 4..7 have no SNDH match in docs/music and are requested as the
-//     production's own unpacked YM dumps, docs/music/chonchon2_music-<n>.ymraw.
+//   * tracks 4..7 have no SNDH match in site/music and are requested as the
+//     production's own unpacked YM dumps, site/music/chonchon2_music-<n>.ymraw.
 // In both cases the player owns the chip, so zg.ymWrite is not used (the host
 // refuses those writes while an SNDH plays). This module advances the SAME
 // embedded register stream in lockstep with the clock, and its `regs` is the

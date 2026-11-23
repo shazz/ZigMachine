@@ -1,5 +1,5 @@
-// ASTRO BENCH (docs/demo-c-astro_bench.wasm, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md): ASTROLABE through the
-// machine's hwAstro, as docs/sealed-loader.js binds it, checked against the cart's own maths and JS's.
+// ASTRO BENCH (site/carts/demo-c-astro_bench.wasm, SPIKE: docs/hardware/studies/ARM_FPU_COPROC.md): ASTROLABE through the
+// machine's hwAstro, as site/js/sealed-loader.js binds it, checked against the cart's own maths and JS's.
 //
 //   1. the real clock: every job runs once and logs once, no "ZM ASTRO FAIL", every ulp = 0 (the
 //      machine's kernels and the cart's f64 are both IEEE + compiler_rt), LINPACK's two solutions are
@@ -18,7 +18,7 @@
 // is a shallow one (f32 looks fine there, so the degradation check must fail); f32match: the "shallow"
 // step is the deep one (the f32 picture is garbage there, so the match check must fail).
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, OFF_VRAM = 0x1100, W = 320, H = 200, PAPER = 1, KEY_1 = 0x31;
 const brk = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
@@ -40,10 +40,10 @@ function astro(machine, memory) {
 async function boot(clock, bytes) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const log = [];
@@ -196,7 +196,7 @@ async function zoomRun(bytes) {
     await f32Run(m, [0, 8, ...(SHOTS ? [232] : []), F32_DEEP]);
 }
 
-const bytes = new Uint8Array(await readFile("docs/demo-c-astro_bench.wasm"));
+const bytes = new Uint8Array(await readFile("site/carts/demo-c-astro_bench.wasm"));
 console.log("astro_bench_headless:");
 if (brk !== "clock") await rerunAndScreen(await realClockRun(bytes));
 await noClockRun(bytes);

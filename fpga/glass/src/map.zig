@@ -98,7 +98,7 @@ pub const KEY_DEPTH: u32 = 16;
 // The machine has no keyboard register: a cart takes input through its exports
 // (input, inputRelease, key, keyUp), and which one a key goes to depends on the
 // cart (ownsKeyboard). Only the cart CPU can ask the cart, so the ARM sends
-// neutral events and the cart CPU's firmware applies docs/sealed-loader.js's
+// neutral events and the cart CPU's firmware applies site/js/sealed-loader.js's
 // rules. The code is what the browser hands demo.key(): the character for a
 // printable key, else a Unicode private-use code.
 pub const KEY_CODE_MASK: u32 = 0x1F_FFFF;

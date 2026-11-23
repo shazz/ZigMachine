@@ -1,12 +1,12 @@
-// ZIGNIC N1 (docs/os/GEM_NET.md): the page's card (docs/net-host.js) over its scripted LAN (docs/net-peer.js),
+// ZIGNIC N1 (docs/os/GEM_NET.md): the page's card (site/js/net-host.js) over its scripted LAN (site/js/net-peer.js),
 // driven exactly as a cart drives it: a Req of 16 little-endian words in a memory, env.netOp(addr).
 // Covers: info, TCP connect -> established on the next poll, send/recv echo, the BBS banner, refused,
 // unreachable, timeout after 3 polls, resolve (name, dotted, not found), UDP echo with the sender,
 // ICMP echo, TLS with and without a name, listen denied / allowed + accept of the inbound call, all 8
 // sockets then no_socket, a bad socket, a buffer outside memory, and no card at all.
 //   node apps/harness/net_check.mjs [--break noecho|writeback|blocking]
-import "../../docs/net-peer.js";
-import "../../docs/net-host.js";
+import "../../site/js/net-peer.js";
+import "../../site/js/net-host.js";
 
 const brk = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const { OP, MODE, ST, EV, ERR } = ZMNet;

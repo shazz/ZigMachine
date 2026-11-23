@@ -22,7 +22,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-OUT=docs
+OUT=site/carts
 MK=tools/mkdisk.py
 AUTHOR=ZigMachine
 DATE=${ZMD_DATE:-$(date +%Y%m%d)}
@@ -80,7 +80,7 @@ pack() { # pack <out.zmd> <title> <cart.wasm> [extra mkdisk args...]
 }
 
 # portdisk <tag> <cart.wasm> [--file ...]: a C program port's DATA disk (see the case below),
-# carrying the shared "SDL" boot sector (docs/boot-sdl.wasm, apps/zig/boot/sdl.zig): a v2 disk whose
+# carrying the shared "SDL" boot sector (site/carts/boot-sdl.wasm, apps/zig/boot/sdl.zig): a v2 disk whose
 # descriptor names no cart, so the sector runs, then GEM follows (SysInfo's "No virus" pattern).
 portdisk() {
     tag=$1 cart=$2; shift 2
@@ -121,7 +121,7 @@ for w in "$OUT"/demo-*.wasm; do
         # ST Replay ships as a DATA disk: not executable, so the machine boots
         # GEM, which opens the app and reads its sample off the same disk.
         st_replay) pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot \
-                        --file "SAMPLE.RAW=$OUT/music/smp1.raw" ;;
+                        --file "SAMPLE.RAW=site/music/smp1.raw" ;;
         # SysInfo is a GEM program the same way: its disk is a data disk, GEM opens
         # it and runs BOOT.WSM, and Q (request 4) quits back to the desktop. As a
         # bootable disk it had no OS to return to, which is why it could not quit
@@ -142,14 +142,14 @@ for w in "$OUT"/demo-*.wasm; do
         sysinfo)   BOOTSEC="$OUT/boot-novirus.wasm"
                    [ -f "$BOOTSEC" ] || { echo "mkdisks: $BOOTSEC is missing: run zig build first"; exit 1; }
                    pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot --boot-wasm "$BOOTSEC" \
-                        --file "JINKS.SND=$(packcart "$OUT/music/Jinks.sndh")" \
-                        --file "GAUNTLET.SAP=$OUT/music/Gauntlet.sap" \
-                        --file "SAMPLE.RAW=$OUT/music/smp1_short.raw" \
-                        --file "KEYGEN.XM=$(packcart "$OUT/music/keygen_9000.xm")" \
-                        --file "THALION.HIP=$(packcart "$OUT/music/hippel/thalion_intro.hip")" \
-                        --file "STARPORT.KT=$OUT/music/starport2.kt" \
-                        --file "HERMINI.SID=$OUT/music/hermini.sid" \
-                        --file "KESTREL.VGZ=$OUT/music/kestrel_fm.vgz" ;;
+                        --file "JINKS.SND=$(packcart "site/music/Jinks.sndh")" \
+                        --file "GAUNTLET.SAP=site/music/Gauntlet.sap" \
+                        --file "SAMPLE.RAW=site/music/smp1_short.raw" \
+                        --file "KEYGEN.XM=$(packcart "site/music/keygen_9000.xm")" \
+                        --file "THALION.HIP=$(packcart "site/music/hippel/thalion_intro.hip")" \
+                        --file "STARPORT.KT=site/music/starport2.kt" \
+                        --file "HERMINI.SID=site/music/hermini.sid" \
+                        --file "KESTREL.VGZ=site/music/kestrel_fm.vgz" ;;
         # NOTEPAD is a GEM program as ST Replay and SysInfo are: a DATA disk, GEM opens it, BOOT.WSM
         # is double-clicked, ^Q goes back to the desktop (request 4). Its files are on C: (KOS GEMDOS).
         notepad)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
@@ -160,20 +160,20 @@ for w in "$OUT"/demo-*.wasm; do
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;
         # The streaming demo carries the track it block-streams.
         stream)    pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
-                        --file "MICROMIX.RAW=$OUT/music/micromix30.raw" ;;
+                        --file "MICROMIX.RAW=site/music/micromix30.raw" ;;
         # The C program ports (apps/ports) are GEM programs on DATA disks, as ST Replay and SysInfo:
         # the machine boots GEM over the disk, the FLOPPY window lists the program (BOOT.WSM) beside
         # its files, a double-click runs it (request 3) and its quit brings the desktop back (request
         # 4, apps/ports/kestrel_sdl2/src/kestrel_quit.c). The program reads its files off the same
-        # disk (kestrel_wasi.c). portdisk adds the shared "SDL" boot sector (docs/boot-sdl.wasm: it
+        # disk (kestrel_wasi.c). portdisk adds the shared "SDL" boot sector (site/carts/boot-sdl.wasm: it
         # runs, then GEM follows, as SysInfo's "No virus" one). Their carts are committed prebuilt;
         # their files come from
         # apps/ports/<port>/, named one by one (a glob's order follows the locale, and the disk
         # must be the same bytes on every machine), with 8.3 names (GEM shows 12 at most).
         # pt2-clone: two public-domain modules for its DISK OP to load.
         pt2)       portdisk "$tag" "$w" \
-                        --file "RONKEN.MOD=$OUT/music/ronken.mod" \
-                        --file "HYBRID.MOD=$OUT/music/hybridglenz.mod" ;;
+                        --file "RONKEN.MOD=site/music/ronken.mod" \
+                        --file "HYBRID.MOD=site/music/hybridglenz.mod" ;;
         # GrafX2: its default skin, font and ini (data/), and our own pictures (ownpics/).
         # Pictures ripped from other people's work never go on this disk. The skin and the font
         # keep GrafX2's own names: its skin and font pickers list files by their skin_/font_ prefix.

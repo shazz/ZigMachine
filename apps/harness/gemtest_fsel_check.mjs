@@ -1,6 +1,6 @@
 // The ITEM SELECTOR as TOS 4's on the GEM 5 engine (rom/gem/desktop/fsel_tree.zig + fsel_draw.zig, G21; Matt's
 // GEMTEST on the board, 9 Nov: "still the TOS 1.0 one: TOS 4's has DRIVE buttons, the path as its title"), over
-// GEMTEST with C: a copy of docs/gemdos-c.img, in low, medium and the desk, flat and 3D (deskSetEngine(2)):
+// GEMTEST with C: a copy of site/disks/gemdos-c.img, in low, medium and the desk, flat and 3D (deskSetEngine(2)):
 //   drives   opened on C:\*.*, the A: button re-roots it at A:\*.* and re-lists: the screen is the selector
 //            opened on A:\*.* (gemtestShow 30) pixel for pixel; C: back again = the one opened on C:\*.*
 //   absent   B: (no such drive: DISABLED) does nothing

@@ -32,10 +32,10 @@ const CANARY = 0x5a;
 
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const machine = (await WebAssembly.instantiate(
-    await readFile("docs/machine-video.wasm"),
+    await readFile("site/machine-video.wasm"),
     { env: { memory, hblDispatch: () => {} } })).instance.exports;
 const rom = (await WebAssembly.instantiate(
-    await readFile("docs/rom.wasm"),
+    await readFile("site/rom.wasm"),
     { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
 machine.hwInit();
 rom.romReset();

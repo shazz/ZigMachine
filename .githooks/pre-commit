@@ -8,10 +8,10 @@ staged=$(git diff --cached --name-only)
 # 1. A scene's three registration points agree (build.zig cart_names, cart.zig,
 #    catalog.zig), and every menu entry has a disk to boot: tools/channels.py
 #    --check reads the catalog and fails on a channel without its .zmd.
-if echo "$staged" | grep -qE '^(apps/zig/cart\.zig|apps/zig/scenes/catalog\.zig|build\.zig|docs/channels\.json|docs/demo-.*\.zmd)$'; then
+if echo "$staged" | grep -qE '^(apps/zig/cart\.zig|apps/zig/scenes/catalog\.zig|build\.zig|site/channels\.json|site/carts/demo-.*\.zmd)$'; then
     python3 tools/channels.py --check > /dev/null || {
         python3 tools/channels.py --check
-        echo "pre-commit: docs/channels.json disagrees with the catalog (run tools/prepare_pages.sh)"
+        echo "pre-commit: site/channels.json disagrees with the catalog (run tools/prepare_pages.sh)"
         exit 1
     }
 fi
@@ -24,7 +24,7 @@ fi
 
 # 3. A scene or engine change without any rebuilt cart is almost always a
 #    forgotten rebuild. It is only a warning: the pre-push gate enforces it.
-if echo "$staged" | grep -qE '^(apps/zig/|libs/zig/|machine/|rom/)' && ! echo "$staged" | grep -qE '^docs/.*\.(wasm|zmd)$'; then
-    echo "pre-commit: note: source staged without rebuilt docs/ carts; pre-push will rebuild and check (tools/prepare_pages.sh)"
+if echo "$staged" | grep -qE '^(apps/zig/|libs/zig/|machine/|rom/)' && ! echo "$staged" | grep -qE '^site/.*\.(wasm|zmd)$'; then
+    echo "pre-commit: note: source staged without rebuilt site/ carts; pre-push will rebuild and check (tools/prepare_pages.sh)"
 fi
 exit 0

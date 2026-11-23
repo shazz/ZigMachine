@@ -51,7 +51,7 @@ def test_sd_staging_writes_kestrel_carts_and_hd_never_zigmachine(tmp_path: Path)
 def test_sdk_card_stages_a_cart_on_the_shelf_in_carts(tmp_path: Path) -> None:
     cart = tmp_path / "cart.bin"
     cart.write_bytes(bytes(range(256)) * 4)
-    a = argparse.Namespace(tag="hello", cart=cart, disk=ROOT / "docs/demo-tutorial.zmd", zx0pack=glass_sd.zx0pack(),
+    a = argparse.Namespace(tag="hello", cart=cart, disk=ROOT / "site/carts/demo-tutorial.zmd", zx0pack=glass_sd.zx0pack(),
                            out=tmp_path / "sd", card=None, release=None, category="demos", title="Hello", group="",
                            year="", desc="")  # fmt: skip
     assert card.stage(a) == ["CARTS/demos/demo-hello.zmd", "CARTS/shelf.txt"]

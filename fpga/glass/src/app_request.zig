@@ -1,5 +1,5 @@
 // A cart's request for a cart swap (docs/hardware/FPGA_GLASS.md, "Programs off a data disk"): what
-// docs/sealed-loader.js swapCart does for requests 3 and 4, done by ZWINDOW. GEM over a
+// site/js/sealed-loader.js swapCart does for requests 3 and 4, done by ZWINDOW. GEM over a
 // data disk asks to run a program off it (REQ_RUN_PROGRAM, the FAT file's name in the
 // request block); the program asks to go back (REQ_BACK_TO_OS). The firmware writes the
 // block, then CART_STATE = CART_REQUEST | request << 8 (cycles/bdiskapp.c).

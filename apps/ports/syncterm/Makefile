@@ -91,8 +91,8 @@ comma := ,
 clean:
 	rm -rf $(OUT)
 
-# The shipped cart: docs/demo-syncterm.wasm, committed prebuilt (build.sh does not rebuild the C ports).
-# tools/mkdisks.sh packs docs/demo-syncterm.zmd from it plus data/ (the fake BBS's screen, SyncTERM's ini).
+# The shipped cart: site/carts/demo-syncterm.wasm, committed prebuilt (build.sh does not rebuild the C ports).
+# tools/mkdisks.sh packs site/carts/demo-syncterm.zmd from it plus data/ (the fake BBS's screen, SyncTERM's ini).
 install: $(OUT)/demo-syncterm.wasm
-	cp $< ../../../docs/demo-syncterm.wasm
+	cp $< ../../../site/carts/demo-syncterm.wasm
 	cd ../../.. && tools/mkdisks.sh

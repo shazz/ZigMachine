@@ -28,7 +28,7 @@ What remains, and is reason enough:
    desktop puts every app's buffers in one window again — the duplicate-blob bug
    was the acute form of a chronic shape.
 
-For reference, the window as it stands (`node apps/harness/check_fits.mjs docs/demo-*.wasm`):
+For reference, the window as it stands (`node apps/harness/check_fits.mjs site/carts/demo-*.wasm`):
 
 | cart | used | free |
 |---|---|---|
@@ -65,7 +65,7 @@ de-risking step**: change the call *shape* first, the module boundary second.
 ### 2.0 — carve the window ✅ DONE (HW 1.3.0)
 - `machine/sdk/memmap.zig`: `ROM_RAM_BASE` / `ROM_RAM_TOP`, bump `SHARED_PAGES`.
 - Extend the RAM instructions: `hwRomRamFree()` / `hwRomRamUsed()`, a second
-  `REG_ROM_HIGH`, declared by the host the same way (`docs/wasm_hiwater.js`
+  `REG_ROM_HIGH`, declared by the host the same way (`site/js/wasm_hiwater.js`
   already measures any module).
 - ABI change → **clean-rebuild both wasm modules** (`.zig-cache` too).
 - *Done:* `ROM_RAM_BASE/TOP` = `[0x500000, 0x700000)`, `SHARED_PAGES` 79 → 112 (HW 1.12.0 later moved
@@ -176,7 +176,7 @@ de-risking step**: change the call *shape* first, the module boundary second.
   at pack time, and this step changes it. (It did: every disk was repacked.)
 
 ### 2.4 — spend the RAM
-- Re-measure with `node apps/harness/check_fits.mjs docs/demo-*.wasm`, then raise
+- Re-measure with `node apps/harness/check_fits.mjs site/carts/demo-*.wasm`, then raise
   ST Replay's `MAX_PCM` against the real `hwRamFree()`, not a constant.
 - Answer the replay-frequency question while the sample path is open.
 

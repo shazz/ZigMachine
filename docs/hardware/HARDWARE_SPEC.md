@@ -371,7 +371,7 @@ Distribution to coders = **`sdk/` + `zigos/` + `effects/` + `scenes/` + `demo/` 
 runs **unchanged** against the sealed video+audio machine at ~60fps. MOD, YM and
 raw-sample players all render through the sealed chips (register/setter ABI), with
 the 4-channel oscilloscope reflecting real chip output. Verified via
-`docs/sealed.html`.
+`site/sealed.html`.
 
 ### Built
 
@@ -383,11 +383,11 @@ the 4-channel oscilloscope reflecting real chip output. Verified via
 | ZigOS over the ABI | `zigos/zigos.zig` | LogicalFB/palette/PFB are now **views** into the shared region; **public API unchanged** so scenes/effects compile as-is |
 | **Open** demo entry | `apps/demo_main.zig` | `boot/frame/hblDispatch/isPlaneEnabled` + audio-mirror pointers → `demo.wasm` |
 | Two-target build | `build.zig` (`zig build -Dwasm`, or `zig build sealed`) | machine + demo share one memory; demo linked at `--global-base=0x100000` |
-| Dual-module host | `docs/sealed.html`, `docs/sealed-loader.js` | instantiates both over one `WebAssembly.Memory`; routes `env.hblDispatch` → demo |
+| Dual-module host | `site/sealed.html`, `site/js/sealed-loader.js` | instantiates both over one `WebAssembly.Memory`; routes `env.hblDispatch` → demo |
 | Audio ABI header | `hw/sdk/audio.zig` | `extern` chip ops + song-RAM map + constants |
 | **Sealed** audio chips | `hw/machine_audio.zig` (reuses `hw/audio/engine.zig` = Paula, `hw/audio/ym.zig` = YM2149) | → `machine-audio.wasm`; exposes `machinePaula*` / `machineYmWrite` / mix ops |
 | **Open** audio players | `zigos/players/mod.zig`, `zigos/players/ym_player.zig`, `apps/demo_audio_main.zig` | MOD/YM/raw rewritten to drive the chips via the ABI → `demo-audio.wasm` |
-| Dual-module audio worklet | `docs/audio-worklet-sealed.js` | machine-audio + demo-audio share one memory on the audio thread |
+| Dual-module audio worklet | `site/js/audio-worklet-sealed.js` | machine-audio + demo-audio share one memory on the audio thread |
 
 **How the audio seal holds:** the two audio modules share one memory on the
 worklet thread; the open players drive the sealed chips through imported
@@ -433,7 +433,7 @@ still worth adding.
 
 ### Deferred (next steps, in priority order)
 
-1. **Rebuild the prebuilt channels** (`docs/wasm/*.wasm`) against the sealed
+1. **Rebuild the prebuilt channels** (`site/wasm/*.wasm`) against the sealed
    loader. Each of the ~22 non-active scenes needs (a) its imports migrated to
    `@import("zigos")` (one-line-per-import, the same swap `music_debug` got) and
    (b) its own `demo.wasm` build. The new `sealed.html` currently runs the single
@@ -515,7 +515,7 @@ a real ST is a **timing exploit**, not a capability flag. Replaced by a trick-ga
 
 ```
 export PATH="$HOME/.local/zig/0.16.0:$PATH"
-zig build -Drelease=true -Dwasm      # -> docs/machine-video.wasm, docs/demo.wasm, docs/audio.wasm
+zig build -Drelease=true -Dwasm      # -> site/machine-video.wasm, site/carts/demo.wasm, site/audio.wasm
 cd docs && python3 -m http.server 3333   # open /sealed.html  (hard-reload after rebuilds)
 ```
 

@@ -47,7 +47,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { loadAssets, makeReplay, promptMap, CW } from "./union_beatdis_replay.mjs";
 import { findUnionRemake } from "./union_remake_dir.mjs";
 
@@ -70,7 +70,7 @@ const BREAK = process.argv.includes("--break") ? process.argv[process.argv.index
 if (BREAK !== null && !["keylock", "modes", "hq"].includes(BREAK)) { console.error(`union_beatdis: --break ${BREAK}: only "keylock", "modes" and "hq" can be broken`); process.exit(1); }
 const POS = process.argv.slice(2).filter((a, i, all) => a !== "--break" && all[i - 1] !== "--break");
 const outDir = POS[0];
-const cartPath = POS[1] || "docs/demo-union_beatdis.wasm";
+const cartPath = POS[1] || "site/carts/demo-union_beatdis.wasm";
 const REPEAT_MS = BREAK === "keylock" ? 150 : 33; // a browser's key repeat, or one slower than the lock's quiet period
 if (outDir) await mkdir(outDir, { recursive: true });
 const A = await loadAssets();
@@ -82,10 +82,10 @@ const machines = []; // every boot's video machine, for the zg.mem refusal check
 async function boot(note) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     writeHubNote(memory, rom, note);
@@ -246,12 +246,12 @@ async function holdCheck(v) {
 /** The audio modules with `song` started, or a string saying why not. */
 async function startSndh(song) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${song.name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${song.name}`));
     if (bytes.length > audio.audioSongCapacity()) return `${song.name} is over the song capacity`;
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) return `${song.name}: audioLoadSndh refused it`;

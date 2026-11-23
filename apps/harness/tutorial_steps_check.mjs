@@ -1,6 +1,6 @@
 // The stepped tutorial carts must not drift from the finished ones.
 //
-// docs/TUTORIAL.html puts a "Run step N" button on every step of docs/guide/TUTORIAL.md
+// site/TUTORIAL.html puts a "Run step N" button on every step of docs/guide/TUTORIAL.md
 // and boots demo-<lang>-tutorial_steps.wasm?step=N to show it. Those carts are
 // deliberate COPIES of the finished tutorial carts (apps/*/scenes/tutorial.*),
 // because every snippet in TUTORIAL.md is quoted verbatim from the finished file
@@ -36,7 +36,7 @@ const FRAMES = 300, EVERY = 10;
 const CALL_FRAME = 1;
 
 function fingerprint(cart, step) {
-    const args = ["apps/harness/scene_hash.mjs", `docs/${cart}`, String(FRAMES), String(EVERY)];
+    const args = ["apps/harness/scene_hash.mjs", `site/carts/${cart}`, String(FRAMES), String(EVERY)];
     if (step !== undefined) args.push("--call", `${CALL_FRAME}:setShadeMode:${step}`);
     const out = execFileSync("node", args, { encoding: "utf8", maxBuffer: 1 << 26 });
     return JSON.parse(out).total;

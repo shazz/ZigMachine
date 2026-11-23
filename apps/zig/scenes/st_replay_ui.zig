@@ -54,7 +54,7 @@ pub fn installPalette(fb: *@import("zigos").LogicalFB) void {
 // chance of the two drifting apart.
 pub const Binding = struct { key: []const u8, what: []const u8, cp: u32 };
 
-pub const K_F1: u32 = 0xE001; // .. 0xE00A = f10 (mirrored in docs/sealed-loader.js)
+pub const K_F1: u32 = 0xE001; // .. 0xE00A = f10 (mirrored in site/js/sealed-loader.js)
 pub const K_INSERT: u32 = 0xE00B;
 pub const K_DELETE: u32 = 0xE00C;
 pub const K_UNDO: u32 = 0xE010;

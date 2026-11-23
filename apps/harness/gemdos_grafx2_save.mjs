@@ -1,6 +1,6 @@
 // KOS GEMDOS phase 2's proof in a real program (docs/os/KOS_GEMDOS.md §7): GrafX2 SAVES a picture to C:, and it
 // is there afterwards. GrafX2 is started from GEM over its floppy (apps/harness/ports_gem.mjs), C: = a copy of
-// docs/gemdos-c.img, its writes served by KFS as the page serves them (docs/kos-cfile.js, kos-cfs.wasm).
+// site/disks/gemdos-c.img, its writes served by KFS as the page serves them (site/js/kos-cfile.js, kos-cfs.wasm).
 //   SAVE     F3, the floppy's ZIGPLASM.PI1 loaded; F2 (Save picture as), Select drive, /C, PICTURES, the
 //            file name typed: NEW, Enter (GrafX2 adds .pi1): ONE env.kosFileOp request, answered 0
 //   ON DISK  the image after it: C:\PICTURES\NEW.PI1 is the floppy's picture byte for byte (mtools, when
@@ -20,7 +20,7 @@ import { machine, step, picture, rows, sha, png } from "./ports_machine.mjs";
 import { launchFromGem } from "./ports_gem.mjs";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
-const CART = "docs/demo-grafx2.wasm", DISK = "docs/demo-grafx2.zmd", C_IMAGE = "docs/gemdos-c.img";
+const CART = "site/carts/demo-grafx2.wasm", DISK = "site/carts/demo-grafx2.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 const PICTURE = "apps/ports/grafx2/ownpics/ZIGPLASMA.PI1"; // the floppy's ZIGPLASM.PI1
 const F2 = 0xe002, F3 = 0xe003, ENTER = 13;
 const PINS = {

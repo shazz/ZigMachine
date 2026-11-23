@@ -1,7 +1,7 @@
 // Headless proof that a FOREIGN-LANGUAGE cart can have music with zero host change.
 //
 // The song bridge is four exports the loader polls every frame
-// (docs/sealed-loader.js: pollSongRequest -> songNamePtr/songNameLen/songTune ->
+// (site/js/sealed-loader.js: pollSongRequest -> songNamePtr/songNameLen/songTune ->
 // playSongByName). A C cart gets them from apps/c/zigmachine_music.h, a Rust cart
 // from apps/rust/zigmachine_music.rs. This drives each cart exactly that way over
 // the real machine + ROM, then hands the requested tune to the real audio modules
@@ -19,7 +19,7 @@ setTimeout(() => {
     console.log(`FAIL  c_music_check: no exit after 90 s (last stage: ${stage})`);
     process.exit(1);
 }, 90_000).unref();
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, VIDEO_BASE = 0x400000, AUDIO_PAGES = 48;
 const dec = new TextDecoder();
@@ -27,16 +27,16 @@ const dec = new TextDecoder();
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const live = { demo: null };
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (...a) => live.demo && live.demo.hblDispatch(...a) },
     })).instance.exports;
-    const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), {
+    const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwInit();
     rom.romReset();
     const cart = new Uint8Array(await readFile(path));
-    // A C/Rust cart is NOT rebuilt by ./build.sh: a stale docs/demo-c*.wasm has no bridge.
+    // A C/Rust cart is NOT rebuilt by ./build.sh: a stale site/carts/demo-c*.wasm has no bridge.
     const probe = new WebAssembly.Module(cart);
     const names = WebAssembly.Module.exports(probe).map((e) => e.name);
     if (!names.includes("pollSongRequest")) {
@@ -74,12 +74,12 @@ function pollFrames({ memory, x }, frames) {
 
 async function playPeak(name, tune) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const demo = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     demo.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     new Uint8Array(memory.buffer, demo.audioSongPtr(), bytes.length).set(bytes);
     if (!demo.audioLoadSndh(bytes.length)) return { loaded: false, peak: 0 };
     demo.audioSndhPlay(tune);
@@ -120,16 +120,16 @@ async function checkSilent(path) {
     return ok;
 }
 
-stage = "docs/demo-c-screen34.wasm";
-let ok = await checkPlays("docs/demo-c-screen34.wasm", "sos.sndh", 0);
-stage = "docs/demo-rust-v8_populous.wasm";
-ok = (await checkPlays("docs/demo-rust-v8_populous.wasm", "custodian.sndh", 1)) && ok;
+stage = "site/carts/demo-c-screen34.wasm";
+let ok = await checkPlays("site/carts/demo-c-screen34.wasm", "sos.sndh", 0);
+stage = "site/carts/demo-rust-v8_populous.wasm";
+ok = (await checkPlays("site/carts/demo-rust-v8_populous.wasm", "custodian.sndh", 1)) && ok;
 // docs/guide/TUTORIAL.md step 7: the tutorial screens request So Watt in both languages.
-stage = "docs/demo-c-tutorial.wasm";
-ok = (await checkPlays("docs/demo-c-tutorial.wasm", "sos.sndh", 0)) && ok;
-stage = "docs/demo-rust-tutorial.wasm";
-ok = (await checkPlays("docs/demo-rust-tutorial.wasm", "sos.sndh", 0)) && ok;
-stage = "docs/demo-rust.wasm";
-ok = (await checkSilent("docs/demo-rust.wasm")) && ok;
+stage = "site/carts/demo-c-tutorial.wasm";
+ok = (await checkPlays("site/carts/demo-c-tutorial.wasm", "sos.sndh", 0)) && ok;
+stage = "site/carts/demo-rust-tutorial.wasm";
+ok = (await checkPlays("site/carts/demo-rust-tutorial.wasm", "sos.sndh", 0)) && ok;
+stage = "site/carts/demo-rust.wasm";
+ok = (await checkSilent("site/carts/demo-rust.wasm")) && ok;
 stage = "exit";
 process.exit(ok ? 0 : 1);

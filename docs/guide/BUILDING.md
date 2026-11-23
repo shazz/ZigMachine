@@ -64,18 +64,18 @@ After any gate the hook still refuses a push whose `docs/` differ from the rebui
 The scope is computed **after** the build, from the diff plus the freshly rebuilt
 `docs/`. That ordering is the core of the argument: every cart is rebuilt from
 the pushed source, so a source change that altered cart Y's bytes (a scene file
-shared with Y, say) shows up as a changed `docs/demo-Y.wasm` and pulls in Y's
+shared with Y, say) shows up as a changed `site/carts/demo-Y.wasm` and pulls in Y's
 harnesses, and a push whose committed `docs/` disagree with the rebuild is
 refused anyway.
 
 | changed path | harnesses |
 |---|---|
 | `apps/zig/scenes/<x>...`, `apps/zig/assets/screens/<x>/...` | every cart named `<x>`, `<x>_*`, or that `<x>` is `<cart>_*` of |
-| `docs/demo-<cart>.wasm` / `.zmd` (a Zig cart) | that cart's |
+| `site/carts/demo-<cart>.wasm` / `.zmd` (a Zig cart) | that cart's |
 | `apps/<file>` (a harness, a helper, a fixture) | the harnesses that run, import or read it |
 | `tools/<cart>/...` | that cart's, and any harness naming `tools/<cart>/` |
 | `*.md`, `docs/ports/...` | none (the doc checks are cross-cutting) |
-| a NEW file in `docs/music/` | none |
+| a NEW file in `site/music/` | none |
 | anything else | **full gate** |
 
 "That cart's harnesses" means: every gate tag containing the cart's name (the
@@ -88,8 +88,8 @@ in every narrowed set.
 Always the full gate: `libs/`, `rom/`, `machine/`, `build.zig`, `build.sh`,
 `.githooks/`, `tools/*` outside a cart's own dir, `apps/zig/cart.zig`,
 `demo_main.zig`, `apps/c/`, `apps/rust/`, `docs/*.js|html|css|json`,
-`docs/demo.wasm` (the menu), `docs/demo-audio.wasm`, a changed or deleted tune in
-`docs/music/`, and the registration files `apps/zig/scenes/catalog.zig` and
+`site/carts/demo.wasm` (the menu), `site/demo-audio.wasm`, a changed or deleted tune in
+`site/music/`, and the registration files `apps/zig/scenes/catalog.zig` and
 `menu.zig`. So **adding a new cart is always a full gate**: it touches
 `build.zig`, `cart.zig`, `catalog.zig` and `build.sh`, all shared, and a new
 cart is exactly when the menu, the channel list and every disk change. Once

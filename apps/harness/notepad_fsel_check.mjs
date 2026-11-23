@@ -1,5 +1,5 @@
 // NOTEPAD's ITEM SELECTOR on a C: laid out as Matt's card (board bug, 9 Nov: "0 folders, 0 files"
-// on a C:\ holding MUSIC\ PICTURES\ NET\ and ECHO.REQ, no .TXT): docs/gemdos-c.img with its root
+// on a C:\ holding MUSIC\ PICTURES\ NET\ and ECHO.REQ, no .TXT): site/disks/gemdos-c.img with its root
 // files removed, MUSIC\ and NET\ made, ECHO.REQ and NET\INNET.TXT copied in (mtools). The list is
 // read off the screen: a row holds a name when its first cell has ink above the underscore, a
 // folder when the marker cell has TOS's diamond.

@@ -1,17 +1,17 @@
 // COPRO's harness boot (apps/harness/copro_check.mjs, apps/harness/copro_astro_check.mjs): the cart over the real machine +
-// ROM, the loader's OWN hostBardJob / bardJobFrame lifted from docs/sealed-loader.js, hwAstro counted.
+// ROM, the loader's OWN hostBardJob / bardJobFrame lifted from site/js/sealed-loader.js, hwAstro counted.
 //   brk "stale": the page says done without serving; "answer": a served job's output spoiled.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, W = 320, REG_FB_BASE = 0x44;
 
 /** The loader's BARD jobs functions, over the cart `box.demo`; `log` records every call and serve. */
 async function loaderJobs(box, log, brk) {
-    const src = await readFile("docs/sealed-loader.js", "utf8");
+    const src = await readFile("site/js/sealed-loader.js", "utf8");
     const fn = (name) => {
         const m = src.match(new RegExp(`^function ${name}\\([^)]*\\) \\{[\\s\\S]*?^\\}\\n`, "m"));
-        if (!m) throw new Error(`docs/sealed-loader.js has no function ${name}`);
+        if (!m) throw new Error(`site/js/sealed-loader.js has no function ${name}`);
         return m[0];
     };
     let body = fn("hostBardJob") + fn("bardJobFrame");
@@ -53,13 +53,13 @@ function spoil(u, j) {
 export async function boot(switches, brk = null, astro = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const box = { memory, demo: null }, log = { calls: [], served: 0, block: 0 };
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => box.demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-copro.wasm");
+    const cartBytes = await readFile("site/carts/demo-copro.wasm");
     const jobs = await loaderJobs(box, log, brk);
     const env = { memory, ...rom, hostBardJob: jobs.hostBardJob };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];

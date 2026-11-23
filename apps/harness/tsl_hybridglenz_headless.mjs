@@ -1,5 +1,5 @@
 // Headless THE SILENTS / HYBRID GLENZ driver — boots the sealed machine +
-// demo-tsl_hybridglenz.wasm the way docs/sealed-loader.js does, and proves the
+// demo-tsl_hybridglenz.wasm the way site/js/sealed-loader.js does, and proves the
 // two things this port is about:
 //
 //  1. the glenz is the BLITTER's OR minterm, so the panel carries index 3 — a
@@ -13,7 +13,7 @@
 //
 //   node apps/harness/tsl_hybridglenz_headless.mjs [outdir] [--break <what>]
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
@@ -39,10 +39,10 @@ function check(name, got, want) {
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -59,7 +59,7 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-const { memory, machine, demo } = await boot("docs/demo-tsl_hybridglenz.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-tsl_hybridglenz.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const VB = machine.hwVideoBase();
 const regs = new DataView(memory.buffer, VB, OFF_PAL);

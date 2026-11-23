@@ -8,15 +8,15 @@
 # under assets/screens/<scene>/. Each scene builds to its OWN cart, the same way
 # each Zig scene is its own cartridge.
 #
-#   scenes/hello.c     -> docs/demo-c.wasm            (the name verify.mjs and
+#   scenes/hello.c     -> site/carts/demo-c.wasm            (the name verify.mjs and
 #                                                      CLAUDE.md already use)
-#   scenes/<name>.c    -> docs/demo-c-<name>.wasm
+#   scenes/<name>.c    -> site/carts/demo-c-<name>.wasm
 #
 # Compiled with `zig cc` (bundled lld) so no system wasm-ld is needed.
 set -euo pipefail
 cd "$(dirname "$0")"
 ZIG="${ZIG:-$HOME/.local/zig/0.16.0/zig}"
-OUT=../../docs
+OUT=../../site/carts
 
 # Layout MUST match build.zig's demo module: import the machine's ONE memory,
 # keep data/stack in the 3 MiB demo window [0x100000..0x400000).
@@ -59,4 +59,4 @@ if [ $# -gt 0 ]; then
 else
     for src in scenes/*.c; do build_one "$(basename "$src" .c)"; done
 fi
-echo "OK — verify the ABI with: node apps/harness/verify.mjs docs/demo-c.wasm"
+echo "OK — verify the ABI with: node apps/harness/verify.mjs site/carts/demo-c.wasm"

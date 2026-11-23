@@ -21,12 +21,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { OFF_VRAM, REG_FB_COPPER } from "./linebase_model.mjs";
 import { fadeChecks, manualChecks } from "./tc_test_fade.mjs";
 
 const PAGES = 128, RW = 800, W = 400, H = 280, REG_FB_MODE = 0x54, MARKER = "TC_TEST_LOCAL_ART";
-const CART_PATH = "docs/demo-tc_test.wasm";
+const CART_PATH = "site/carts/demo-tc_test.wasm";
 const NAMES = ["gamut", "plasma", "compare", "ramps", "hues", "sky", "dither"];
 const BROKE = process.argv.includes("--break");
 const [outdir, cart = CART_PATH] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -34,10 +34,10 @@ const [outdir, cart = CART_PATH] = process.argv.slice(2).filter((a) => !a.starts
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

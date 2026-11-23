@@ -1,6 +1,6 @@
 """What the native host needs to know about a wasm module before it runs it.
 
-`high_water` is a line-for-line port of `cartHighWater` in docs/wasm_hiwater.js,
+`high_water` is a line-for-line port of `cartHighWater` in site/js/wasm_hiwater.js,
 including its 32-bit LEB arithmetic, because the value it returns is what the JS
 host hands to hwSetCartHigh / hwSetRomHigh and the machine answers hwRamFree from
 it. `memory_import` reads the `env.memory` limits so the generator can refuse a
@@ -83,7 +83,7 @@ def _data_high(b: bytes, p: int, high: int | None) -> int | None:
 
 
 def high_water(b: bytes) -> int | None:
-    """docs/wasm_hiwater.js cartHighWater: max(mutable i32 global init, end of active data)."""
+    """site/js/wasm_hiwater.js cartHighWater: max(mutable i32 global init, end of active data)."""
     high = None
     for sid, p in _sections(b):
         if sid == 6:

@@ -6,8 +6,8 @@
 //
 // Checked:
 //   1. the cart requests shaolin_title.hip, song 1, when it starts;
-//   2. the file is in docs/music/ and is modland's, byte for byte (md5);
-//   3. docs/demo-audio.wasm loads it as a Hippel module and plays it for 20 s:
+//   2. the file is in site/music/ and is modland's, byte for byte (md5);
+//   3. site/demo-audio.wasm loads it as a Hippel module and plays it for 20 s:
 //      the replay never runs away, both sides are loud, at least three of Paula's
 //      voices are started by DMACON (drums, bass and the synth lines), pointers
 //      written while a voice plays are re-latched at its wrap (the double-buffered
@@ -20,7 +20,7 @@
 // Each must fail.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const argv = process.argv.slice(2);
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
@@ -37,12 +37,12 @@ const fail = (m) => errors.push(m);
 async function bootCart() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"),
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"),
         { env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-supplex_fs2.wasm"), env = { memory, ...rom };
+    const cartBytes = await readFile("site/carts/demo-supplex_fs2.wasm"), env = { memory, ...rom };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -67,8 +67,8 @@ else {
 }
 
 // --- 2: the file ----------------------------------------------------------------
-const bytes = await readFile(`docs/music/${requested ?? MUSIC}`).catch(() => null);
-if (!bytes) fail(`docs/music/${requested ?? MUSIC} is missing: the site would 404`);
+const bytes = await readFile(`site/music/${requested ?? MUSIC}`).catch(() => null);
+if (!bytes) fail(`site/music/${requested ?? MUSIC} is missing: the site would 404`);
 else if (createHash("md5").update(bytes).digest("hex") !== MD5) fail(`${MUSIC} is not modland's file (md5)`);
 
 // --- 3: it plays ----------------------------------------------------------------
@@ -76,10 +76,10 @@ if (bytes) await play(bytes);
 
 async function play(file) {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // machine/sdk/audio.zig
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     if (BREAK === "silent") a.audioHipMutant(1);
     if (BREAK === "latch") a.audioHipMutant(2);

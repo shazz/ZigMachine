@@ -10,7 +10,7 @@ import { parseModule } from "./wasm_bin.mjs";
 import { lineTable } from "./dwarf_lines.mjs";
 import { decodeFunction } from "./wasm_body.mjs";
 
-export const DEFAULT_NAMES_DIR = process.env.ZM_PERF_NAMES || "zig-out/perf-names/docs";
+export const DEFAULT_NAMES_DIR = process.env.ZM_PERF_NAMES || "zig-out/perf-names/site";
 
 // Same functions, same instructions. Immediates may differ: the debug build keeps more
 // static data, so the address constants into it move (math.ldexp, a few scene tables).
@@ -51,7 +51,7 @@ function sourceOf(a, b, diff = new Set()) {
 
 // -> { names: Map | null, src: (moduleOffset) -> "file:line" | null, why: string }
 export function twinNames(wasmPath, dir = DEFAULT_NAMES_DIR) {
-    const twin = `${dir}/${basename(wasmPath)}`;
+    const twin = `${dir}${wasmPath.includes("/carts/") ? "/carts" : ""}/${basename(wasmPath)}`;
     const a = parseModule(readFileSync(wasmPath));
     if (a.names.size) return { names: a.names, src: sourceOf(a, a), why: "own name section" };
     if (!existsSync(twin)) return { names: null, src: NO_SRC, why: `no twin (${twin}; run tools/perf_names.sh)` };

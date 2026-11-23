@@ -7,7 +7,7 @@
 // One import, `env.netOp(req) i32`: the cart fills a Req in its own memory and passes its address. Every op
 // returns at once (nothing blocks: GEM 5 is cooperative, a program polls in its event loop): >= 0 the op's
 // value, < 0 an Err. The host also writes the socket's state back into the Req (state, events, peer).
-// This file is the ONE definition: docs/net-host.js, fpga/glass (net_card.zig, N2) and libs/zig/net.zig
+// This file is the ONE definition: site/js/net-host.js, fpga/glass (net_card.zig, N2) and libs/zig/net.zig
 // follow its numbers; the tests pin them.
 // --------------------------------------------------------------------------
 pub const SOCKETS: u32 = 8;
@@ -112,7 +112,7 @@ pub fn ip4(a: u8, b: u8, c: u8, d: u8) u32 {
 }
 
 comptime {
-    if (REQ_BYTES != 64) @compileError("net Req is 16 words: docs/net-host.js and the firmware read it so");
+    if (REQ_BYTES != 64) @compileError("net Req is 16 words: site/js/net-host.js and the firmware read it so");
     if (@sizeOf(Info) != 24) @compileError("net Info is 6 words");
 }
 

@@ -28,7 +28,7 @@
 // steps the two 2x raster clocks with the same formulas rasters.zig documents.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/ikplus";
@@ -42,13 +42,13 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 // ---------------- boot (the chonchon shape) ---------------------------------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-ikplus.wasm");
+const cartBytes = await readFile("site/carts/demo-ikplus.wasm");
 const env = {
     ...romEnv,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,
@@ -415,7 +415,7 @@ else {
     {
         // The table the harness holds the cart to. Evidence: the scrolltext's
         // "PRESS F1-F5 AND SEE ... AND LIST[EN]", Eliminator.sndh's ##05, and
-        // `node apps/harness/sndh_headless.mjs docs/music/eliminator_jmp.sndh N` driving
+        // `node apps/harness/sndh_headless.mjs site/music/eliminator_jmp.sndh N` driving
         // the YM with five different register sets for N = 1..5.
         const SONGS = [
             { key: "F1", cp: 0xE001, file: "eliminator_jmp.sndh", tune: 1 },

@@ -5,8 +5,8 @@ like the card (fpga/tools/sd_layout.py: the boot files at the root, KESTREL/, CA
 what C: shows), every byte synthetic so it never changes with a rebuilt cart. Written by
 tools/kos_fat_fixture.py's Image, deterministic.
 
-    python3 tools/kos_c_image.py            # writes docs/kos-c.img
-    python3 tools/kos_c_image.py --check    # the gate: docs/kos-c.img is what this writes
+    python3 tools/kos_c_image.py            # writes site/disks/kos-c.img
+    python3 tools/kos_c_image.py --check    # the gate: site/disks/kos-c.img is what this writes
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import sd_layout  # after the path inserts
 from kos_fat_fixture import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "docs/kos-c.img"
+OUT = ROOT / "site/disks/kos-c.img"
 SECTORS = 400  # 200 KB: the page fetches it whole
 
 
@@ -45,8 +45,8 @@ if __name__ == "__main__":
     want = image()
     if "--check" in sys.argv[1:]:
         if not OUT.exists() or OUT.read_bytes() != want:
-            sys.exit("kos_c_image: docs/kos-c.img is not what tools/kos_c_image.py writes: run it")
-        print("kos_c_image: docs/kos-c.img ok")
+            sys.exit("kos_c_image: site/disks/kos-c.img is not what tools/kos_c_image.py writes: run it")
+        print("kos_c_image: site/disks/kos-c.img ok")
     else:
         OUT.write_bytes(want)
         print(f"kos_c_image: wrote {OUT.relative_to(ROOT)} ({len(want)} bytes)")

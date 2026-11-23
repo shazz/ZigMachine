@@ -1,5 +1,5 @@
 // Headless DHS / (n)0 PIXELS (n)0 REGRETS driver. Boots the sealed machine the
-// way docs/sealed-loader.js does and runs the whole demo, one 20 ms VBL per host
+// way site/js/sealed-loader.js does and runs the whole demo, one 20 ms VBL per host
 // frame, through the end part (which the demo holds forever). It checks:
 //   frames   every 50th frame, 440 of them across all seventeen parts, the WHOLE
 //            400x280 physical frame (borders included) hashes to what the
@@ -16,7 +16,7 @@
 //   node apps/harness/dhs_0pxl0reg_headless.mjs --break drop   a write 4 px after another on
 //            line 150 (faster than a move.w): passes only if the machine counts drops
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const VIDEO = 0x400000; // HW_VIDEO_BASE
@@ -46,13 +46,13 @@ const hbl = (id, p, line, x) => {
         dv().setUint16(VIDEO + REG_BEAM_COUNT, n ? n + 1 : 2, true);
     }
 };
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"),
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"),
     { env: { memory, hblDispatch: (...a) => hbl(...a) } })).instance.exports;
-const romBytes = await readFile("docs/rom.wasm");
+const romBytes = await readFile("site/rom.wasm");
 const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
 const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-const cartBytes = await readFile("docs/demo-dhs_0pxl0reg.wasm");
+const cartBytes = await readFile("site/carts/demo-dhs_0pxl0reg.wasm");
 const env = {
     ...env0,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,

@@ -1,6 +1,6 @@
 // Helpers for apps/harness/pt2_paula_headless.mjs (HW 1.14.0, the Paula channels lent to a cart): the real
-// audio worklet (docs/audio-worklet-sealed.js) in node, the cart's hostPaula* imports wired to it as
-// docs/sealed-loader.js wires them, and the two measures that compare a sound with another made a
+// audio worklet (site/js/audio-worklet-sealed.js) in node, the cart's hostPaula* imports wired to it as
+// site/js/sealed-loader.js wires them, and the two measures that compare a sound with another made a
 // different way: the loudness envelope (does it follow the pattern) and the band spectrum (is it the
 // same pitch).
 import { readFile } from "node:fs/promises";
@@ -13,9 +13,9 @@ export async function bootWorklet() {
     let Proc;
     globalThis.AudioWorkletProcessor = class { constructor() { this.port = { postMessage() {} }; } };
     globalThis.registerProcessor = (_name, cls) => { Proc = cls; };
-    await import("../../docs/audio-worklet-sealed.js");
+    await import("../../site/js/audio-worklet-sealed.js");
     const p = new Proc({ processorOptions: {
-        machineBytes: await readFile("docs/machine-audio.wasm"), demoBytes: await readFile("docs/demo-audio.wasm") } });
+        machineBytes: await readFile("site/machine-audio.wasm"), demoBytes: await readFile("site/demo-audio.wasm") } });
     for (let i = 0; i < 200 && !p.ready; i++) await new Promise((r) => setTimeout(r, 10));
     if (!p.ready) throw new Error("the worklet never came up");
     const said = [];

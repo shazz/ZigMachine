@@ -40,7 +40,7 @@ async function startUpload(p, name) {
     let bytes = p.buf.buffer, bootable = true;
     if (p.kind === "disk") {
         ({ bootable, cart: bytes } = mountDiskBytes(p.buf, name));
-        if (!bootable) bytes = await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+        if (!bootable) bytes = await fetch("carts/demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
     } else {
         mountedDisk = null; // a bare cart: no disk in the drive
     }

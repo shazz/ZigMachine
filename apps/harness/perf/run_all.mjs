@@ -1,4 +1,4 @@
-// --all: every docs/demo-<tag>.wasm that has a disk, one child process per cart (a cart
+// --all: every site/carts/demo-<tag>.wasm that has a disk, one child process per cart (a cart
 // that traps or loops cannot take the others down), `jobs` at a time, then a ranking.
 import { execFile } from "node:child_process";
 import { readdirSync, existsSync, writeFileSync } from "node:fs";
@@ -10,9 +10,10 @@ export const CART_ARGS = {
 };
 const TIMEOUT_MS = 300000; // a cart that runs this long is reported, not waited for
 
-export function shelf(dir = "docs") {
-    return readdirSync(dir).filter((f) => /^demo-.+\.wasm$/.test(f) && existsSync(`${dir}/${f.replace(/\.wasm$/, ".zmd")}`))
-        .map((f) => `${dir}/${f}`).sort();
+export function shelf(dir = "site") {
+    const carts = `${dir}/carts`; // the machine dir holds the chips, its carts/ the carts and disks
+    return readdirSync(carts).filter((f) => /^demo-.+\.wasm$/.test(f) && existsSync(`${carts}/${f.replace(/\.wasm$/, ".zmd")}`))
+        .map((f) => `${carts}/${f}`).sort();
 }
 
 function runOne(script, cart, passArgs) {
@@ -30,7 +31,7 @@ function runOne(script, cart, passArgs) {
 
 // o: parsed options (jobs, json, out, topN); script: the per-cart CLI; passArgs: forwarded
 export async function runAll(o, script, passArgs = [], print = printRanking) {
-    const carts = shelf(o.machineDir ?? "docs");
+    const carts = shelf(o.machineDir ?? "site");
     const rows = [];
     let next = 0;
     const worker = async () => { while (next < carts.length) rows.push(await runOne(script, carts[next++], passArgs)); };

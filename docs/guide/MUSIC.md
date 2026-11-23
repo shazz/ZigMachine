@@ -10,15 +10,15 @@ the host plays it on the audio thread. That is why the same four exports work
 from any language.
 
 ```
-cart (Zig / C / Rust)           host (docs/sealed-loader.js)          audio thread
+cart (Zig / C / Rust)           host (site/js/sealed-loader.js)          audio thread
 requestSong("sos.sndh") ──►  polls pollSongRequest() every frame ──► demo-audio.wasm:
                              reads songNamePtr/Len + songTune         68000 runs the SNDH
-                             fetches docs/music/<name>                 ─► sealed YM2149
+                             fetches site/music/<name>                 ─► sealed YM2149
 ```
 
 ## Formats
 
-The file extension picks the player. Files live under `docs/music/`.
+The file extension picks the player. Files live under `site/music/`.
 
 | Extension | Player | Subtunes |
 |---|---|---|
@@ -54,7 +54,7 @@ zg.requestSongTune("leavin_teramis.sndh", 9);    // subtune 9 (counts from 1)
 `apps/zig/demo_main.zig` already exports the four functions the host polls.
 Request once, in `init()`: each request replaces the tune playing.
 
-A tune that is not a file under `docs/music/` (one a program read off its own disk through the
+A tune that is not a file under `site/music/` (one a program read off its own disk through the
 drive, as a GEM program reads its data files) plays from the cart's memory instead:
 
 ```zig
@@ -100,7 +100,7 @@ plays David Whittaker's Custodian (`custodian.sndh`, subtune 1).
 
 `"none"` is a reserved song name: requesting it stops whatever is playing (the
 host resets the audio players, as it does when a program ends). No file under
-`docs/music/` may be called `none`. A stop also cancels a song still being
+`site/music/` may be called `none`. A stop also cancels a song still being
 fetched, so a slow earlier request can never start after it.
 
 ```zig
@@ -226,7 +226,7 @@ _ = zg.requestModVolume(0.2);            // that song's own channels at 0.2 (-14
 
 The path: `libs/zig/sfx_queue.zig` (the cart's queue; each entry 16 bytes: op,
 a, b, pad, ptr, len, rate), `pollSfx` / `sfxEntriesPtr` (`apps/zig/demo_main.zig`),
-`postSfx` in `docs/sealed-loader.js`, the worklet's `sfxPlay` / `sfxStop` /
+`postSfx` in `site/js/sealed-loader.js`, the worklet's `sfxPlay` / `sfxStop` /
 `sfxYm` / `modGain` messages, and `audioSfxPlay` / `audioSfxStop` / `audioSfxYm` /
 `audioModGain` in demo-audio.wasm (`apps/zig/demo_audio_mod.zig`,
 `libs/zig/players/sfx_voice.zig`, `ModPlayer.setGain`). A gain entry is op 4 with
@@ -313,7 +313,7 @@ The Amiga modules (`.hip`), each modland's file byte for byte, renamed without s
 The game's ST SNDH is a different arrangement (Matt listened), so the screen plays the
 Amiga module, not the SNDH.
 
-**A song you may only keep for yourself** goes in `docs/music/local.xm`, which
+**A song you may only keep for yourself** goes in `site/music/local.xm`, which
 git ignores. The music debug screen plays it on key 6, XM TEST on key 3. In the browser it is fetched like any other song. On the
 board, songs are linked into the firmware, so build `make board-fw CART=music`
 with the file in place: `fpga/tools/song_pack.py` packs `local.xm` when it is
@@ -455,7 +455,7 @@ Test files: `apps/zig/assets/mp3/LSF*.MP3` (a 1000 Hz sine, self-generated, `mak
 
 ## Rules and limits
 
-- **Names** are paths under `docs/music/`, at most 64 bytes, no `..` and no
+- **Names** are paths under `site/music/`, at most 64 bytes, no `..` and no
   leading `/`. C and Rust calls return 0 / `false` and queue nothing for an empty
   or over-long name or a tune above 255 (Zig truncates a long name instead).
 - **Sound starts only after a user gesture** (a click or key), as browsers require.
@@ -485,7 +485,7 @@ Test files: `apps/zig/assets/mp3/LSF*.MP3` (a 1000 Hz sine, self-generated, `mak
 
 ## Proving a tune plays (headless)
 
-- `node apps/harness/sndh_headless.mjs docs/music/<name>.sndh` runs an SNDH through the
+- `node apps/harness/sndh_headless.mjs site/music/<name>.sndh` runs an SNDH through the
   real audio modules and reports the subtunes, timers, YM registers and the
   output peak.
 - `node apps/harness/c_music_check.mjs` boots the C and Rust carts, polls their request

@@ -1,4 +1,4 @@
-// KOS's power-on in the REAL browser loader (docs/sealed-loader.js + docs/kos-boot.js, run in a
+// KOS's power-on in the REAL browser loader (site/js/sealed-loader.js + site/js/kos-boot.js, run in a
 // vm with the DOM stubbed, as upload_check.mjs does) against scene_hash.mjs --kos
 // (apps/harness/scene_hash_kos.mjs), frame for frame: the browser shows what node and the native host
 // (fpga/tests/test_kos_boot.py) agree on. For each drive A: empty (?disk=none), a data disk
@@ -22,12 +22,12 @@ import vm from "node:vm";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as ZMDisk from "../../docs/zmdisk.js";
-import * as ZMRam from "../../docs/wasm_hiwater.js";
+import * as ZMDisk from "../../site/js/zmdisk.js";
+import * as ZMRam from "../../site/js/wasm_hiwater.js";
 
 const BREAK = process.argv.includes("--break") && process.argv[process.argv.indexOf("--break") + 1] !== "c";
 const BREAK_C = process.argv.includes("--break") && process.argv[process.argv.indexOf("--break") + 1] === "c";
-const C_IMG = "docs/kos-c.img"; // tools/kos_c_image.py: KOS's C: for the page and the harnesses
+const C_IMG = "site/disks/kos-c.img"; // tools/kos_c_image.py: KOS's C: for the page and the harnesses
 const POST = 12; // ?post=: short, the POST's own frames are the same code at any length
 const FLOPPY = mkdtempSync(join(tmpdir(), "kos_fat_")) + "/kos.st";
 execFileSync("python3", ["tools/kos_fat_fixture.py", FLOPPY]);
@@ -70,13 +70,13 @@ function page(search) {
         window: win, document: doc, WebAssembly: wasm, TextDecoder, TextEncoder, URLSearchParams,
         performance: { now: () => now }, setInterval() {}, clearInterval() {}, AudioWorkletNode: stub(), AudioContext: stub(),
         fetch: async (url) => {
-            const bytes = await readFile((url.startsWith("/") ? "" : "docs/") + url.replace(/\?.*$/, ""));
+            const bytes = await readFile((url.startsWith("/") ? "" : "site/") + url.replace(/\?.*$/, ""));
             return { arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) };
         },
         ZMDisk: { ...ZMDisk }, ZMRam: { ...ZMRam },
     });
     for (const f of ["kos-boot.js", "kos-cfile.js", "sealed-loader.js"]) {
-        let src = execFileSync("cat", ["docs/" + f], { encoding: "utf8" });
+        let src = execFileSync("cat", ["site/js/" + f], { encoding: "utf8" });
         if (BREAK && f === "kos-boot.js") src = src.replace("isPlaneEnabled: (p) => p === 0,", "isPlaneEnabled: (p) => p <= 1,");
         if (BREAK_C && f === "sealed-loader.js") src = src.replace("function kosDriveRead(unit, sector, count, dst) {", "$& return 0;");
         vm.runInContext(src, ctx, { filename: f });
@@ -116,8 +116,8 @@ async function browser(disk, frames, calls = [], extra = "") {
 }
 
 function node(disk, cart, frames, calls = [], cimg = null) {
-    const drive = disk === "none" || disk.startsWith("/") ? disk : `docs/${disk}`;
-    const args = ["apps/harness/scene_hash.mjs", `docs/${cart}`, String(frames), "1", "--kos", drive, "--post-frames", String(POST)];
+    const drive = disk === "none" || disk.startsWith("/") ? disk : `site/carts/${disk}`;
+    const args = ["apps/harness/scene_hash.mjs", `site/carts/${cart}`, String(frames), "1", "--kos", drive, "--post-frames", String(POST)];
     if (cimg) args.push("--c-image", cimg);
     for (const [at, x, y, b] of calls) args.push("--call", `${at}:pointer:${x},${y},${b}`);
     return JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((s) => s.hash);
@@ -172,7 +172,7 @@ for (const [disk, cart, frames, calls] of CASES) {
     p.tick(1000 / 60);
     await settle(p);
     out.push(frameHash(p, planes));
-    const args = ["apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "3", "1", "--kos", "none", "--warm"];
+    const args = ["apps/harness/scene_hash.mjs", "site/carts/demo-gem.wasm", "3", "1", "--kos", "none", "--warm"];
     const ref = JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((s) => s.hash);
     if (out[0] !== ref[0] || out[1] !== ref[1]) { console.log("FAIL  warm reset: the page does not go straight to the desktop"); bad++; }
     else console.log("ok    warm reset (?warm=1): no POST, the desktop = scene_hash.mjs --kos none --warm");
@@ -185,7 +185,7 @@ for (const [disk, cart, frames, calls] of CASES) {
     const opened = [[17, 40, 30, 0], [22, 40, 30, 1], [23, 40, 30, 0], [32, 40, 30, 2], [33, 40, 30, 0],
         [40, 70, 65, 0], [42, 70, 65, 2], [43, 70, 65, 0]];
     const { out } = await browser(FLOPPY, 70, opened);
-    const args = ["apps/harness/scene_hash.mjs", "docs/demo-tutorial.wasm", "12", "1", "--data-disk", FLOPPY, "--program"];
+    const args = ["apps/harness/scene_hash.mjs", "site/carts/demo-tutorial.wasm", "12", "1", "--data-disk", FLOPPY, "--program"];
     const ref = JSON.parse(execFileSync("node", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })).samples.map((x) => x.hash);
     const at = out.findIndex((h, i) => ref.every((r, k) => out[i + k] === r));
     if (at < 0) { console.log("FAIL  DEMO.WSM off the FAT floppy: the program's frames never appear"); bad++; }

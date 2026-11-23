@@ -1,5 +1,5 @@
 // Headless GEM driver — boots the sealed machine + demo-gem.wasm exactly the way
-// docs/sealed-loader.js does (one shared SHARED_PAGES-page memory, machine exports wired
+// site/js/sealed-loader.js does (one shared SHARED_PAGES-page memory, machine exports wired
 // into the demo's imports), then drives the pointer frame by frame and dumps the
 // composited screen as a PPM.
 //
@@ -13,7 +13,7 @@
 // Coordinates are PHYSICAL-VISIBLE (0..639 x, 0..199 y), the same frame the loader
 // sends; GEM halves x itself for its 320-wide low-res logical screen.
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
@@ -36,11 +36,11 @@ export async function bootGem(opts = {}) {
     };
     let demo;
     const machine = (await WebAssembly.instantiate(
-        await readFile("docs/machine-video.wasm"), machineImports)).instance.exports;
+        await readFile("site/machine-video.wasm"), machineImports)).instance.exports;
 
     // The ROM chip, wired exactly as sealed-loader.js does it: machine -> rom ->
     // cart, each importing only from the ones before it.
-    const romBytes = await readFile(process.env.ZM_ROM || "docs/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
+    const romBytes = await readFile(process.env.ZM_ROM || "site/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -81,7 +81,7 @@ export async function bootGem(opts = {}) {
             hwAstro: machine.hwAstro, hostBardJob: () => 0, netOp: () => -1,
         },
     };
-    const gemBytes = await readFile("docs/demo-gem.wasm");
+    const gemBytes = await readFile("site/carts/demo-gem.wasm");
     const cart = gemBytes;
     demo = (await WebAssembly.instantiate(cart, demoImports)).instance.exports;
     live.demo = demo;
@@ -374,7 +374,7 @@ const SCENARIOS = {
         // off the disk and the harness instantiates it as the next cart, exactly as
         // sealed-loader.js does. So this covers the swap protocol as well as the
         // handle tables — and it is the only test that does.
-        gem.programs["ALPHA.PRG"] = await readFile("docs/demo-st_replay.wasm");
+        gem.programs["ALPHA.PRG"] = await readFile("site/carts/demo-st_replay.wasm");
         const LAUNCHES = 4; // > MAX_FSEL in rom/sdk/rom.zig, so a leak runs out
         for (let i = 0; i < LAUNCHES; i++) {
             gem.open(...FLOPPY);                 // open the FLOPPY window

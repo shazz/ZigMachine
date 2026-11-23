@@ -8,7 +8,7 @@ import { machine, startCart, step, picture, sha } from "./ports_machine.mjs";
 import { launchFromGem } from "./ports_gem.mjs";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
-export const CART = "docs/demo-notepad.wasm", DISK = "docs/demo-notepad.zmd", C_IMAGE = "docs/gemdos-c.img";
+export const CART = "site/carts/demo-notepad.wasm", DISK = "site/carts/demo-notepad.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 export const K = { CTRL: 0xe014, SHIFT: 0xe015, DEL: 0xe00c, ESC: 0xe012, HOME: 0xe01a, END: 0xe01b, PGUP: 0xe01c, PGDN: 0xe01d };
 const REG_RES = 0x00, REG_FB_BASE = 0x44, REG_FB_STRIDE = 0x34;
 

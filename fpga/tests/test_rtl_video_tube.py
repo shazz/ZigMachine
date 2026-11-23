@@ -1,6 +1,6 @@
 """The tube: what a picture pixel no plane covers shows, on the board and in the browser.
 
-The browser stacks its plane canvases on the page's tube (docs/css/crt.css .container) and
+The browser stacks its plane canvases on the page's tube (site/css/crt.css .container) and
 the mixer folds every line's first canvas over the same tube (rtl/video/zm_video_mix.v).
 machine/video.zig REPLACES PFB pixels with a plane's palette entry, so wherever every
 enabled plane draws its transparent colour (alpha 0) the picture is the tube, not

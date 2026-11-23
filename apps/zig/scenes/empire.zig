@@ -27,7 +27,7 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // Mad Max (Jochen Hippel), "Leavin Teramis" (1990) — the screen's own
 // scrolltext credits him. The image holds 11 subtunes; this screen wants
 // the 9th, so it must ask by number as well as by name.

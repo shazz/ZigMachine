@@ -1,6 +1,6 @@
 /* The cart CPU's half of the glass's input path: key events and joypad bits
  * from the ARM (fpga/glass/src/map.zig: KEY_*, JOY_*) turned into the cart
- * export calls the browser makes (docs/sealed-loader.js keydown/keyup). The
+ * export calls the browser makes (site/js/sealed-loader.js keydown/keyup). The
  * rules need ownsKeyboard(), which only this side can ask the cart, which is
  * why the ARM sends neutral events and the routing lives here.
  *

@@ -1,5 +1,5 @@
 ; ---------------------------------------------------------------------------
-; FujiBoink!'s one sound effect, as an SNDH (docs/music/fujiboink_thud.sndh).
+; FujiBoink!'s one sound effect, as an SNDH (site/music/fujiboink_thud.sndh).
 ;
 ; FUJIBOIN.C makes exactly one noise ("I know, I know, there's only one sound
 ; effect" - Behind the Bit Planes, START Fall 1986). soundiniz() programs the
@@ -17,7 +17,7 @@
 ; replay routine. Registers the original never set (B/C tone, B/C volume) are
 ; written 0; the mixer keeps B and C off either way.
 ;
-; Build: vasmm68k_mot -Fbin -o docs/music/fujiboink_thud.sndh thud.s
+; Build: vasmm68k_mot -Fbin -o site/music/fujiboink_thud.sndh thud.s
 ; ---------------------------------------------------------------------------
 	bra.w	init
 	bra.w	exit

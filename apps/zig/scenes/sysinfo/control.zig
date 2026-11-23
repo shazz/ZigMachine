@@ -17,7 +17,7 @@ const menu = @import("menu.zig");
 const refs = @import("refs.zig");
 const view = @import("view.zig");
 
-const K_TAB: u32 = 0xE019; // docs/sealed-loader.js OWNER_KEY_CODES: a cart that owns the keyboard gets Tab
+const K_TAB: u32 = 0xE019; // site/js/sealed-loader.js OWNER_KEY_CODES: a cart that owns the keyboard gets Tab
 const INFO = "SysInfo for ZigMachine, after HWAM's SysInfo 8.34";
 
 pub fn key(app: *App, cp: u32) void {

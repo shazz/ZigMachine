@@ -25,13 +25,13 @@ def _tube(video: ZMVideo) -> int:
 
 
 def test_the_sims_pipeline_shows_the_browsers_tube() -> None:
-    assert TUBE_BROWSER == 0  # black: docs/css/crt.css .container, vmix.c, zm_video_mix.v
+    assert TUBE_BROWSER == 0  # black: site/css/crt.css .container, vmix.c, zm_video_mix.v
     assert _tube(ZMVideo(_Platform(), None, max_burst=0)) == TUBE_BROWSER
 
 
 def test_the_browsers_tube_is_the_css_one() -> None:
     """The page's tube is the model's: crt.css paints .container (and its border) black."""
-    css = (Path(__file__).resolve().parents[2] / "docs/css/crt.css").read_text()
+    css = (Path(__file__).resolve().parents[2] / "site/css/crt.css").read_text()
     block = css[css.index(".container {") : css.index("}", css.index(".container {"))]
     assert "background: #000000;" in block and "#121010" not in block
 

@@ -6,7 +6,7 @@ zig-out
 .DS_Store
 code-index.db
 .claude/
-docs/.claude/
+site/.claude/
 
 # Codef remakes local mirror (tools/crawl_codef.sh) — bulk third-party reference, not committed
 assets/oldies/
@@ -30,14 +30,14 @@ HANDOFF.md
 
 # A song the owner keeps on their own machine only (music_debug key 6, fpga/tools/song_pack.py
 # LOCAL_SONGS): for a tune whose licence does not allow bundling it. Never commit one.
-docs/music/local.xm
-docs/music/local.vgm
-docs/music/sonic1_*.vgm
+site/music/local.xm
+site/music/local.vgm
+site/music/sonic1_*.vgm
 # SID TEST's HVSC tunes (keys 1-4): PSIDs from the High Voltage SID Collection, the owner's card only.
-docs/music/cybernoid_ii.sid
-docs/music/wizball.sid
-docs/music/commando.sid
-docs/music/club_style.sid
+site/music/cybernoid_ii.sid
+site/music/wizball.sid
+site/music/commando.sid
+site/music/club_style.sid
 
 # The C program ports (apps/ports): upstream sources fetched at their pins by apps/ports/fetch.sh, and build output.
 apps/ports/upstream/
@@ -46,6 +46,6 @@ apps/ports/*/build_*/
 apps/ports/*/*/build/
 
 # The KESTREL SDK template run in this checkout (make in sdk/template): its cart copied into docs/.
-docs/.sdk/
-docs/demo-hello.wasm
-docs/demo-hello.zmd
+site/carts/.sdk/
+site/carts/demo-hello.wasm
+site/carts/demo-hello.zmd

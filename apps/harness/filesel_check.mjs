@@ -11,9 +11,9 @@
 //   node apps/harness/filesel_check.mjs [--print]      (--print: show the hashes to re-pin)
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeDataDisk, makeDrive } from "./scene_hash_disk.mjs";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 import { fselGeom } from "./fsel_geom.mjs";
 
 // Re-pinned for HW 1.13.0: only ST Replay's "bytes free" figure (top right) moved, the
@@ -46,12 +46,12 @@ const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`);
 
 // The shipped disk, with more names in its v1 FAT ($300, 32-byte entries, count at $2E4).
 async function testDisk() {
-    const buf = new Uint8Array(await readFile("docs/demo-st_replay.zmd"));
+    const buf = new Uint8Array(await readFile("site/carts/demo-st_replay.zmd"));
     const dv = new DataView(buf.buffer);
     const n = dv.getUint16(0x2e4, true);
     const src = [...Array(n).keys()].map((i) => 0x300 + i * 32)
         .find((e) => new TextDecoder().decode(buf.subarray(e, e + 10)) === "SAMPLE.RAW");
-    if (src === undefined) throw new Error("SAMPLE.RAW is not on docs/demo-st_replay.zmd");
+    if (src === undefined) throw new Error("SAMPLE.RAW is not on site/carts/demo-st_replay.zmd");
     NAMES.forEach((name, k) => {
         const e = 0x300 + (n + k) * 32;
         buf.copyWithin(e, src, src + 32);
@@ -65,9 +65,9 @@ async function testDisk() {
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -75,7 +75,7 @@ async function boot() {
     for (const k of Object.keys(machine)) if (k.startsWith("hw") && !(k in env)) env[k] = machine[k];
     const mounted = await testDisk();
     env.diskReadBlock = makeDrive(memory, mounted);
-    const bytes = await readFile("docs/demo-st_replay.wasm");
+    const bytes = await readFile("site/carts/demo-st_replay.wasm");
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(bytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => 0;
     demo = (await WebAssembly.instantiate(bytes, { env })).instance.exports;

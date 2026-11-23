@@ -4,14 +4,14 @@
 //   names     keys 1..4 ask for starport2.kt, castlevania.kt, oceanloader3.kt, dpintro.kt; key 5 asks
 //             for "none" (zg.SONG_STOP)
 //   songs     the bundled files are upstream klystrack's examples (apps/ports/klystrack/data) byte for
-//             byte (md5), tracked in docs/music/
+//             byte (md5), tracked in site/music/
 //   plays     the audio modules load and play each song (mode 1), not silent
 //   node apps/harness/kt_test_check.mjs [--break name]
 //     name: key 2 is expected to ask for another file, so the check must fail
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, AUDIO_PAGES = 48;
 const BROKE = process.argv.includes("--break");
@@ -27,10 +27,10 @@ const BUNDLED = {
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -60,10 +60,10 @@ function request({ memory, demo }, frames) {
 /** The audio modules given a .kt, as the loader feeds it (loadKt): it loads, plays in mode 1, and is heard. */
 async function audioPlaysKt(bytes) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes);
     if (!a.audioLoadKt(bytes.length)) return false;
@@ -77,17 +77,17 @@ async function audioPlaysKt(bytes) {
 }
 
 const errors = [];
-const cart = await bootCart("docs/demo-kt_test.wasm");
+const cart = await bootCart("site/carts/demo-kt_test.wasm");
 for (const [i, want] of WANT.entries()) {
     cart.demo.setShadeMode(i);
     const got = request(cart, 3);
     console.log(`  key ${i + 1}: asks for ${got ?? "nothing"}`);
     if (got !== want) errors.push(`names: key ${i + 1} asked for ${got}, not ${want}`);
 }
-const tracked = execFileSync("git", ["ls-files", "docs/music"], { encoding: "utf8" }).split("\n");
+const tracked = execFileSync("git", ["ls-files", "site/music"], { encoding: "utf8" }).split("\n");
 for (const [name, md5] of Object.entries(BUNDLED)) {
-    if (!tracked.includes(`docs/music/${name}`)) { errors.push(`songs: ${name} is not a committed file in docs/music/`); continue; }
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    if (!tracked.includes(`site/music/${name}`)) { errors.push(`songs: ${name} is not a committed file in site/music/`); continue; }
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     const got = createHash("md5").update(bytes).digest("hex");
     if (got !== md5) errors.push(`songs: ${name} md5 ${got}, not upstream's ${md5}`);
     if (!(await audioPlaysKt(bytes))) errors.push(`plays: the audio modules did not play ${name}`);

@@ -73,7 +73,7 @@ split over sockets). UDP frames in the RX ring carry a small header (sender IP, 
 - **Linux image:** nothing beyond the Wi-Fi image (feat/board-wifi) for the shared-address mode: glass's sockets
   use the board's address. A CA bundle for TLS (`ca-certificates` in Buildroot) and the clock set by NTP
   (busybox `ntpd`) so certificates validate.
-- **Browser:** `docs/sealed-loader.js` serves the socket registers from the page; each socket is a message
+- **Browser:** `site/js/sealed-loader.js` serves the socket registers from the page; each socket is a message
   stream over one WebSocket to the relay (`tools/net_relay.py`, run locally; it opens the real TCP/UDP
   connections). No relay: `NIC_ID` 0 and programs say "no network card".
 - **Native host:** `fpga/host/net_card.c` on the dev machine's sockets; the harness peer for tests.
@@ -87,7 +87,7 @@ instead of rings in cart RAM: simpler for every host, and the cart polls each fr
 connect (TLS: the host name for SNI), listen, accept, send, recv, sendto, poll, close, resolve (on a Mode.resolve
 socket). Errors are the Err enum (no_card ... denied); no host answers anything but these.
 
-- **The page:** docs/net-host.js (the 8 sockets) over docs/net-peer.js (a deterministic scripted LAN 10.77.0.0/24:
+- **The page:** site/js/net-host.js (the 8 sockets) over site/js/net-peer.js (a deterministic scripted LAN 10.77.0.0/24:
   echo.zig TCP 7/5555, UDP/ICMP echo, TLS 443; bbs.zig:23 a banner + echo; slow.zig times out; listen 2323 gets an
   inbound call), mounted by `?net=peer`. Default: no card (-1). A WebSocket relay is the next transport.
 - **Carts:** `zg.net` (libs/zig/net.zig): `Socket.open/connect/connectTls/resolve/send/sendTo/recv/listen/accept/

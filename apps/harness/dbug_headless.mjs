@@ -1,5 +1,5 @@
 // Headless D-BUG driver — boots the sealed machine + demo-dbug.wasm the way
-// docs/sealed-loader.js does, runs it for a given number of frames and dumps the
+// site/js/sealed-loader.js does, runs it for a given number of frames and dumps the
 // composited screen as a PPM.
 //
 // Why this exists: the credit panel writes itself one cell per frame over ~10
@@ -9,22 +9,22 @@
 //
 //   node apps/harness/dbug_headless.mjs [outdir]
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 4; // only the enabled ones are composited: the overscan plane (the credit panel rides it)
 
-async function boot(cart = "docs/demo-dbug.wasm") {
+async function boot(cart = "site/carts/demo-dbug.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
     // machine -> rom -> cart, each importing only from the ones before it, the
     // same chain sealed-loader.js builds.
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

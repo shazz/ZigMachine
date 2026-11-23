@@ -1,6 +1,6 @@
 ; ---------------------------------------------------------------------------
 ; BUBBLE BOBBLE (Firebird 1987): the game's whole sound, as an SNDH
-; (docs/music/bubble_bobble_st.sndh) -- the nine tunes and the six YM effects,
+; (site/music/bubble_bobble_st.sndh) -- the nine tunes and the six YM effects,
 ; played by the GAME'S OWN DRIVER (Tim & Mike Follin's music, David
 ; Broadhurst's player).
 ;
@@ -27,7 +27,7 @@
 ; waits on its end-of-jingle flag ($AC0B), so both play the same frames.
 ;
 ; Build (from the repository root; vasm 1.9, /home/matt/projects/MJJ/bin/vasm):
-;   vasmm68k_mot -Fbin -nosym -o docs/music/bubble_bobble_st.sndh \
+;   vasmm68k_mot -Fbin -nosym -o site/music/bubble_bobble_st.sndh \
 ;       apps/zig/assets/screens/bubblebobble/sound.s
 ; snd_driver.bin and music.dat come from tools/bubblebobble/rip_st.py.
 ; ---------------------------------------------------------------------------

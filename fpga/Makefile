@@ -110,14 +110,14 @@ HOST_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809L -O2 -ffp-contract=off -w -DWAS
 # kfs.a last: KFS (C:'s writes, host/kos_cfile.c) is pulled in only by a main that mounts it (host/main.c).
 HOST_COMMON := $(addprefix $(HOST)/common/,machine.o rom.o rt.o rt-mem.o rt-exc.o sha256.o kfs.a)
 
-$(HOST)/common/machine.c: $(ROOT)/docs/machine-video.wasm
+$(HOST)/common/machine.c: $(ROOT)/site/machine-video.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n machine -o $@
-$(HOST)/common/rom.c: $(ROOT)/docs/rom.wasm
+$(HOST)/common/rom.c: $(ROOT)/site/rom.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n rom -o $@
-# KFS, C:'s writer (docs/os/KOS_GEMDOS.md §7): the page's docs/kos-cfs.wasm, linked into the host (host/kos_cfile.c).
-$(HOST)/common/kfs.c: $(ROOT)/docs/kos-cfs.wasm
+# KFS, C:'s writer (docs/os/KOS_GEMDOS.md §7): the page's site/kos-cfs.wasm, linked into the host (host/kos_cfile.c).
+$(HOST)/common/kfs.c: $(ROOT)/site/kos-cfs.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n kfs -o $@
 $(HOST)/common/kfs.h: $(HOST)/common/kfs.c ;
@@ -142,7 +142,7 @@ $(HOST)/common/%.o: $(HOST)/common/%.c
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 
 .SECONDARY:
-$(HOST)/%/cart.c: $(ROOT)/docs/demo-%.wasm
+$(HOST)/%/cart.c: $(ROOT)/site/carts/demo-%.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n cart -o $@
 # wasm2c writes cart.h beside cart.c: named, so a rule that only wants the header (cycles/sound.mk's
@@ -150,7 +150,7 @@ $(HOST)/%/cart.c: $(ROOT)/docs/demo-%.wasm
 $(HOST)/%/cart.h: $(HOST)/%/cart.c ;
 $(HOST)/%/env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_gen.py tools/host_bridges.py tools/host_scopes.py tools/host_stereo.py \
 		tools/wasm_info.py gen/memmap.py
-	uv run python tools/host_gen.py --build $(HOST)/$* --cart $(ROOT)/docs/demo-$*.wasm
+	uv run python tools/host_gen.py --build $(HOST)/$* --cart $(ROOT)/site/carts/demo-$*.wasm
 $(HOST)/%/cart.o: $(HOST)/%/cart.c
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $< -o $@
 # The board firmware's input router (host/input_bridge.c + glass_router.c), so ZM_GLASS_KEYS tests it.
@@ -339,7 +339,7 @@ osd-test-sim: memmap
 #   make ym-test   fifth: the YM2149 (jt49, the audio core) playing "Drooling" by 505 from a register dump in
 #                  BRAM, 44.1 kHz over HDMI with the test pattern -> build/ym_test/ym_test_top.bit
 #                  (docs/hardware/FPGA_AUDIO.md). Simulated against the Zig machine by `make test` (tests/test_rtl_audio.py).
-YM_TUNE   := $(ROOT)/docs/music/union/Drooling.ymraw
+YM_TUNE   := $(ROOT)/site/music/union/Drooling.ymraw
 YM_TEST   := build/ym_test
 YM_TEST_V := $(addprefix rtl/board/,ym_test_top.v ym_test_clk.v ym_test_core.v ym_test_audio.v snd_lab_out.v \
 	zm_dump_player.v hdmi_pattern.v) rtl/video/zm_vtiming.v $(wildcard rtl/audio/zm_audio_*.v) \

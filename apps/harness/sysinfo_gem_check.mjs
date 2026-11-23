@@ -1,12 +1,12 @@
 // SYSINFO as a GEM program (apps/zig/scenes/sysinfo.zig on a DATA disk, as ST Replay is):
 // its disk boots GEM, GEM's FLOPPY window lists BOOT.WSM, a double-click runs it (request 3)
 // and Q goes back to the desktop (request 4), over and over. GEM is apps/harness/gem_headless.mjs's,
-// which services the swap protocol the way docs/sealed-loader.js does.
-//   disk     docs/demo-sysinfo.zmd is a data disk whose only program is BOOT.WSM (beside its
+// which services the swap protocol the way site/js/sealed-loader.js does.
+//   disk     site/carts/demo-sysinfo.zmd is a data disk whose only program is BOOT.WSM (beside its
 //            eight sound files: SND, SAP, RAW, XM, HIP, KT, SID, VGZ; the KT added 6 Nov 2026, the SID 8 Nov, the VGZ 21 Nov), and BOOT.WSM depacks (romDepack, as the loader does) to
-//            docs/demo-sysinfo.wasm byte for byte: what tools/glass_shelf.py matches the board
+//            site/carts/demo-sysinfo.wasm byte for byte: what tools/glass_shelf.py matches the board
 //            image by
-//   sector   it carries the "No virus in ZigMachine" boot sector (docs/boot-novirus.wasm, a v2
+//   sector   it carries the "No virus in ZigMachine" boot sector (site/carts/boot-novirus.wasm, a v2
 //            sector summing to $1234) over a descriptor naming NO cart: the sector runs, asks
 //            for request 2 when it is done, and the loader then boots GEM (no cart to chain)
 //   launch   double-clicking BOOT.WSM in the floppy window runs SysInfo: page 1 is on the glass
@@ -18,7 +18,7 @@
 //     bootable: hold the disk to the bootable kind it used to be, so the check must fail
 import { readFile } from "node:fs/promises";
 import { bootGem } from "./gem_headless.mjs";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 import { page } from "./sysinfo_machine.mjs";
 
 const BREAK = process.argv.includes("--break");
@@ -28,8 +28,8 @@ const BLOCK = 512;
 const errors = [];
 const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) errors.push(what); };
 
-const zmd = new Uint8Array(await readFile("docs/demo-sysinfo.zmd"));
-const cart = new Uint8Array(await readFile("docs/demo-sysinfo.wasm"));
+const zmd = new Uint8Array(await readFile("site/carts/demo-sysinfo.zmd"));
+const cart = new Uint8Array(await readFile("site/carts/demo-sysinfo.wasm"));
 const disk = parseDisk(zmd, "demo-sysinfo.zmd");
 
 /// BOOT.WSM as the loader runs it: the packed image depacked by the ROM into the cart window
@@ -46,7 +46,7 @@ async function depacked(entry) {
 
 /// The boot sector, run as the loader runs a v2 sector: it must ask for request 2 within ~2 s.
 async function checkSector() {
-    const novirus = new Uint8Array(await readFile("docs/boot-novirus.wasm"));
+    const novirus = new Uint8Array(await readFile("site/carts/boot-novirus.wasm"));
     const sector = zmd.subarray(0, 1024);
     expect(disk.v2 && disk.bootable && novirus.every((b, i) => b === sector[i]), "block 0 is the No virus boot sector, executable ($1234)");
     const { machine, memory } = await bootGem();

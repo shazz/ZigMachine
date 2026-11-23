@@ -26,7 +26,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeRemake, findRemake } from "./union_tnt3_replay.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -64,10 +64,10 @@ const LAST = 1700;
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -88,12 +88,12 @@ async function boot(cart) {
 /// 10 s of the tune on the sealed audio machine: peak, silent seconds, stuck PC.
 async function sndhPlay(name, tune) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     if (bytes.length > audio.audioSongCapacity()) return { why: "over song capacity" };
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) return { why: "audioLoadSndh refused it" };
@@ -109,7 +109,7 @@ async function sndhPlay(name, tune) {
 
 const out = argv[0];
 if (out) await mkdir(out, { recursive: true });
-const { memory, machine, demo } = await boot(argv[1] || "docs/demo-union_tnt3.wasm");
+const { memory, machine, demo } = await boot(argv[1] || "site/carts/demo-union_tnt3.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const errors = [];
 const dec = new TextDecoder();

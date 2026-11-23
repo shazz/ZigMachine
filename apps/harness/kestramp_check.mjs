@@ -1,5 +1,5 @@
 // KESTRAMP (cart 133, apps/zig/scenes/kestramp.zig) end to end: the cart over the real machine + ROM,
-// C: = docs/mp3-c.img through KOS GEMDOS, its env.hostMp3* wired to the audio modules a frame at a time
+// C: = site/disks/mp3-c.img through KOS GEMDOS, its env.hostMp3* wired to the audio modules a frame at a time
 // (as apps/harness/mp3_player_check.mjs). C:\MUSIC in name order: MONO44, TONES32, TONES44, TONES48. The window is
 // read back from the plane and checked by region: draws; X starts MONO44 (time and status move, the LCD
 // reads the real elapsed seconds, decoded off its segments, never past the track's length); B / Z
@@ -8,7 +8,7 @@
 import { readFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeCDrive } from "./scene_hash_disk.mjs";
 import { writePng } from "./scene_png.mjs";
 const PAGES = 128, AUDIO_PAGES = 48, BLOCK = 735, W = 320, H = 200;
@@ -18,24 +18,24 @@ const REGION = { time: [6, 14, 93, 27], title: [102, 14, 210, 11], status: [6, 9
 const SHOTS = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : null;
 async function audio() {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, m, a };
 }
 async function bootCart(snd, log) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile("docs/demo-kestramp.wasm");
-    const env = { memory, ...rom, kosDriveRead: makeCDrive(memory, new Uint8Array(await readFile("docs/mp3-c.img"))), kosFileOp: () => -46 };
+    const cartBytes = await readFile("site/carts/demo-kestramp.wasm");
+    const env = { memory, ...rom, kosDriveRead: makeCDrive(memory, new Uint8Array(await readFile("site/disks/mp3-c.img"))), kosFileOp: () => -46 };
     env.hostMp3Ctl = (op, arg) => {
         log.ctl.push(op);
         if (op === CTL_START) log.starts.push(log.fed.length); // where this file's bytes begin in log.fed

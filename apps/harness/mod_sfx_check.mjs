@@ -1,5 +1,5 @@
 // Sound effects OVER a MOD (zg.sfxPlay / sfxStop / ymWrite), on the real audio
-// modules (docs/machine-audio.wasm + docs/demo-audio.wasm), and the MOD
+// modules (site/machine-audio.wasm + site/demo-audio.wasm), and the MOD
 // loader's refusal of anything but 4-channel ProTracker.
 //   quiet    the effect takes the song's channel with the fewest notes
 //            (counted here, per order entry, independently of the player)
@@ -28,8 +28,8 @@
 import { readFile } from "node:fs/promises";
 import { gain } from "./mod_sfx_gain.mjs";
 
-const MOD = "docs/music/skystrike_the_hawks_claw.mod";
-const SNDH = "docs/music/skystrike.sndh";
+const MOD = "site/music/skystrike_the_hawks_claw.mod";
+const SNDH = "site/music/skystrike.sndh";
 const SR = 44100, HEADROOM = 1 / 1.4;
 const BREAKS = ["bytes", "release", "loop", "reject", "gain"];
 const bi = process.argv.indexOf("--break");
@@ -39,7 +39,7 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 /// The audio modules, every Paula write per channel spied on.
 async function machine() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const log = [];
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
@@ -49,7 +49,7 @@ async function machine() {
         log.push({ fn: "Trigger", ch, at: a0.frames, bytes: new Uint8Array(memory.buffer, at, len).slice(), loop: ll > 0, pan });
         m.machinePaulaTrigger(ch, at, len, ls, ll, pan);
     };
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     const a0 = { memory, m, a, log, frames: 0 };
     a.audioInit();
     a0.stage = (bytes) => { new Uint8Array(memory.buffer, a.audioSongPtr(), bytes.length).set(bytes); return bytes.length; };

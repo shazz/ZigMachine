@@ -284,7 +284,7 @@ file it read off its disk through the drive, `zg.disk.read`) plays with
 `zg.requestSongBytes(bytes, .sndh | .sap | .xm | .hip | .kt | .sid | .vgm, tune)` (an XM's tune is its start BPM): the host copies the image when it drains the
 frame (sfx queue op 8) and loads it as it loads a named one; `zg.stopSong()` stops it (SysInfo's
 SOUND page, `apps/zig/scenes/sysinfo/sound_play.zig`). The full guide, with formats, rules and the
-headless checks, is `docs/guide/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).
+headless checks, is `docs/guide/MUSIC.md` (also rendered into `site/ZIGMACHINE_GUIDE.html`).
 
 ## 8b. Files on C: and A: (KOS GEMDOS)
 

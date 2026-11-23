@@ -1,5 +1,5 @@
 // Headless COLORSHOCK 2 driver — boots the sealed machine + demo-tcb_colorshock
-// the way docs/sealed-loader.js does and dumps composited frames as PPMs.
+// the way site/js/sealed-loader.js does and dumps composited frames as PPMs.
 //
 // Why this exists: the screen is a hardware pan whose read window follows a
 // Lissajous, a per-scanline palette replayed from an HBL, and a scroll strip
@@ -9,7 +9,7 @@
 //
 //   node apps/harness/tcb_colorshock_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // the panned field, with the logo and the scroll strip drawn into it
@@ -21,15 +21,15 @@ const PLANES = 1; // the panned field, with the logo and the scroll strip drawn 
 const REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44;
 const BUF_BYTES = 800 * 568; // the scene's BUF_W * BUF_H
 
-async function boot(cart = "docs/demo-tcb_colorshock.wasm") {
+async function boot(cart = "site/carts/demo-tcb_colorshock.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -82,7 +82,7 @@ class Screen {
     reg32(off) { return this.regs.getUint32(off, true); }
     reg16(off) { return this.regs.getUint16(off, true); }
 
-    // One host frame, exactly as docs/sealed-loader.js sequences it: clear the
+    // One host frame, exactly as site/js/sealed-loader.js sequences it: clear the
     // PFB (which also runs the global HBL), let the cart draw, then composite
     // every enabled plane. hwRenderPlane OVERWRITES the shared PFB — the host
     // uploads one plane per canvas — so each plane is snapshotted and blended in

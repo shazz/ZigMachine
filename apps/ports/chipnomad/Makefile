@@ -8,7 +8,7 @@ ZIG    ?= $(HOME)/.local/zig/0.16.0/zig
 UPSTREAM ?= ../upstream
 UP     := $(UPSTREAM)/chipnomad-tracker
 # tracker/src/version.cpp shows __DATE__ as the build: pinned to the upstream commit's date, so a rebuild
-# reproduces docs/demo-chipnomad.wasm byte for byte (SOURCE_DATE_EPOCH is not in zig cc's cache key).
+# reproduces site/carts/demo-chipnomad.wasm byte for byte (SOURCE_DATE_EPOCH is not in zig cc's cache key).
 BUILD_DATE := $(shell git -C $(UP) log -1 --format=%cd --date=format:'%b %e %Y')
 OUT    := build
 GEN    := $(OUT)/gen
@@ -76,8 +76,8 @@ $(OUT)/demo-chipnomad.wasm: $(OBJS)
 clean:
 	rm -rf $(OUT)
 
-# The shipped cart: docs/demo-chipnomad.wasm, committed prebuilt (build.sh does not rebuild the C ports).
-# tools/mkdisks.sh (the one recipe for the disk) packs docs/demo-chipnomad.zmd from it.
+# The shipped cart: site/carts/demo-chipnomad.wasm, committed prebuilt (build.sh does not rebuild the C ports).
+# tools/mkdisks.sh (the one recipe for the disk) packs site/carts/demo-chipnomad.zmd from it.
 install: $(OUT)/demo-chipnomad.wasm
-	cp $< ../../../docs/demo-chipnomad.wasm
+	cp $< ../../../site/carts/demo-chipnomad.wasm
 	cd ../../.. && tools/mkdisks.sh

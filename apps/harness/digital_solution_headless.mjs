@@ -1,6 +1,6 @@
 // Headless "The Digital Solution" check — the B.I.G. Demo's sound-test screen,
 // reached from the jukebox row "-:THE DIGITAL DEPARTMENT:-". It is a screen OF
-// big_demo, not a cart of its own, so this drives docs/demo-big_demo.wasm: past
+// big_demo, not a cart of its own, so this drives site/carts/demo-big_demo.wasm: past
 // wait(), down the list to the Digital Department row, Return.
 //
 // Every visible pixel must equal screen.raw through its own pal.dat — so the
@@ -37,7 +37,7 @@ const SHADOW_DELAY = 17; // how much later the shadow machine opens the screen
 const argv = process.argv.slice(2), bi = argv.indexOf("--break"), MODES = ["pixels", "tune", "songs", "exit", "route", "drift", "cycle"];
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !MODES.includes(brk)) throw new Error(`--break ${brk}: ${MODES.join("|")}`);
-const CART = argv[0] || "docs/demo-big_demo.wasm";
+const CART = argv[0] || "site/carts/demo-big_demo.wasm";
 // --break cycle expects the text one cycle step ahead of where texbg puts it.
 const SKEW = brk === "cycle" ? 1 : 0;
 const errors = [];
@@ -190,7 +190,7 @@ if (brk) {
     process.exit(caught ? 0 : 1);
 }
 if (errors.length) { console.error(`digital_solution: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`); process.exit(1); }
-if (songs.orphans.length) console.log(`digital_solution: ${songs.orphans.length} unused SNDH in docs/music/digital/: ${songs.orphans.join(" ")}`);
+if (songs.orphans.length) console.log(`digital_solution: ${songs.orphans.length} unused SNDH in site/music/digital/: ${songs.orphans.join(" ")}`);
 console.log(`digital_solution: FITS list row ${DIGITAL} ("-=THE DIGITAL DEPARTMENT=-") opens it, all ${CW * (CH - (BAND_ROWS[1] - BAND_ROWS[0]))} still px match screen.raw ` +
     `outside rows ${BAND_ROWS[0]}..${BAND_ROWS[1] - 1} (frame ${first.slice(0, 12)}), static over ${STATIC_AT} frames; ` +
     `the band is the shared scrolltext — ${b0.colours.size} colours, all the font's, in lockstep with a run that opened it ${SHADOW_DELAY} frames later; ` +

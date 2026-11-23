@@ -6,8 +6,8 @@
 // (hw/sdk/memmap.zig). It imports a handful of machine functions and writes
 // 8-bit palette indices straight into the shared video region.
 //
-// Build: see apps/c/build.sh  (zig cc, bundled lld). Output: docs/demo-c.wasm
-// Run:   docs/sealed.html?demo=demo-c.wasm
+// Build: see apps/c/build.sh  (zig cc, bundled lld). Output: site/carts/demo-c.wasm
+// Run:   site/sealed.html?demo=demo-c.wasm
 // ---------------------------------------------------------------------------
 
 // --- ABI geometry (mirror of hw/sdk/memmap.zig; the console's identity) ---

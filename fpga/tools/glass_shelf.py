@@ -13,7 +13,7 @@ A program on a data disk (a type-0 FAT file: ST Replay's BOOT.WSM) is wasm GEM a
 browser to run (request 3); on the board it must be native code built beforehand. Each one
 gets its own fat disk, the SAME data disk plus the program's board image, at
 KESTREL/progs/demo-<tag>/<NAME>.zmd, where ZWINDOW looks for it (glass/src/app_request.zig)
-and the shelf's scan does not. Which board image: the cart whose docs/demo-<cart>.wasm is the
+and the shelf's scan does not. Which board image: the cart whose site/carts/demo-<cart>.wasm is the
 program's bytes, depacked (tools/mkdisks.sh writes BOOT.WSM from a cart of the matrix).
 """
 
@@ -52,7 +52,7 @@ SHELF = (
     # board a door is a REQ_LOAD_CART for its shelf disk, and the screen's -1 comes back (app_request.zig).
     "union_demo", "union_deltaforce", "union_tnt3", "union_superscroller", "union_tnt1", "union_reps",
     "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker",
-    # The C program ports (apps/ports, prebuilt docs/demo-<tag>.wasm): pt2-clone, GrafX2, klystrack, ChipNomad,
+    # The C program ports (apps/ports, prebuilt site/carts/demo-<tag>.wasm): pt2-clone, GrafX2, klystrack, ChipNomad,
     # SID-Wizard, and the SyncTERM spike (its network mocked by an in-cart BBS; desk mode, HW 1.17.0).
     "pt2", "grafx2", "klystrack", "chipnomad", "sidwizard", "syncterm",
     # The MP3 jukebox (tools): C:\\MUSIC through KOS GEMDOS, decoded on BARD (system table 1.11).
@@ -111,7 +111,7 @@ def programs(tag: str, img: bytes, images: Images, dest: Path) -> list[tuple[str
             continue
         out = sd_layout.system(f"progs/demo-{tag}/{name}.zmd")
         cart = program_cart(img[start : start + length], dest)
-        why = "MISSING: no docs/demo-*.wasm is this program" if cart is None else images.problem(cart)
+        why = "MISSING: no site/carts/demo-*.wasm is this program" if cart is None else images.problem(cart)
         if why:
             rows.append((out, why))
             continue
@@ -121,7 +121,7 @@ def programs(tag: str, img: bytes, images: Images, dest: Path) -> list[tuple[str
         subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
         (dest / "progs" / f"demo-{tag}" / f"{name}.zmd").write_bytes(zmd_fat.fatten(img, packed.read_bytes()))
         packed.unlink()
-        rows.append((out, f"docs/demo-{tag}.zmd + {fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw} ({name})"))
+        rows.append((out, f"site/carts/demo-{tag}.zmd + {fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw} ({name})"))
     return rows
 
 
@@ -146,7 +146,7 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, card: Path) -> list[tuple
     rel = shelf_category.disk_path(tag)  # <category>/demo-<tag>.zmd: the OSD's folder
     name, out, dest = sd_layout.cart(rel), card / sd_layout.CARTS / rel, card / sd_layout.CARTS
     native = images.fw_dir / tag / "disk.zmd"  # a native cart's board-only disk (tools/native_cart.py)
-    disk = native if native.exists() else ROOT / "docs" / f"demo-{tag}.zmd"
+    disk = native if native.exists() else ROOT / "site" / "carts" / f"demo-{tag}.zmd"
     if not disk.exists():
         return [(name, f"MISSING: no {disk.name} on the shelf")]
     img = disk.read_bytes()

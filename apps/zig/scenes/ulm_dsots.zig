@@ -39,7 +39,7 @@ const testapi = @import("ulm_dsots/testapi.zig");
 // MUSIC (Matt, 2026-10-23): the real Dark Side of the Spoon main menu plays a
 // 4-channel ProTracker MOD, HOUSI4.MOD (fujiology MUSIC/FT/TUNEZ/C/CHRIS/
 // 4CHANNEL/DARKSIDE/MAINMENU/HOUSI4.MOD, "M.K.", 306,304 bytes), shipped as
-// docs/music/dsots_housi4.mod. The SNDH used before, The_Fate/Shaolin_Remix
+// site/music/dsots_housi4.mod. The SNDH used before, The_Fate/Shaolin_Remix
 // ("DSOTS 512k Main menu"), was the wrong tune for this menu.
 const MUSIC = "dsots_housi4.mod";
 

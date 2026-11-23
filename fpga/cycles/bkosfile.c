@@ -1,5 +1,5 @@
 /* KOS's C: writes on the board (bkosfile.h): the cart's request (rom/kos/kfs_abi.zig, 12 words in its
- * memory) bounded as the page bounds it (docs/kos-cfile.js), its addresses turned into window offsets,
+ * memory) bounded as the page bounds it (site/js/kos-cfile.js), its addresses turned into window offsets,
  * the block written, glass's answer awaited. A write remounts the card and syncs it: seconds, not the
  * sector block's half millisecond (KOS_FILE_TIMEOUT_MS). The `gen` operation is answered here, from the
  * word glass bumps after each write: no round trip. */

@@ -28,7 +28,7 @@ const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const dv = () => new DataView(memory.buffer);
 const set16 = (o, v) => dv().setUint16(VIDEO + o, v, true), set32 = (o, v) => dv().setUint32(VIDEO + o, v >>> 0, true);
 const r16 = (o) => dv().getUint16(VIDEO + o, true);
-const machine = (await WebAssembly.instantiate(await readFile(process.env.MACHINE || "docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile(process.env.MACHINE || "site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, line) => set16(REG_HSCROLL + 2 * p, hsOf(p, line)) },
 })).instance.exports;
 

@@ -1,6 +1,6 @@
 /* A cart's Paula where the players run (HW 1.14.0, haudio.h FX_PAULA_*): the native host, the
  * board's sound CPU (BARD), or the cart CPU when the players run there. As
- * docs/audio-worklet-sealed.js cartPaula: the claim (demo-audio.wasm audioPaulaClaim stops every
+ * site/js/audio-worklet-sealed.js cartPaula: the claim (demo-audio.wasm audioPaulaClaim stops every
  * player and zeroes chip RAM = song RAM), uploads copied into chip RAM, write batches staged and
  * queued for their samples (apps/zig/demo_audio_paula.zig). While a cart holds the channels,
  * host/audio.c refuses every song, stream and effect (audio_paula_holds). */

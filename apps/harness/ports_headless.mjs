@@ -1,10 +1,10 @@
 // Headless gate for the C program ports (apps/ports): each port is a GEM program on a DATA disk. The
-// machine boots GEM over the committed floppy docs/demo-<tag>.zmd, GEM's FLOPPY window lists the disk,
-// a double-click runs BOOT.WSM (request 3: apps/harness/ports_gem.mjs, as docs/sealed-loader.js), and the
+// machine boots GEM over the committed floppy site/carts/demo-<tag>.zmd, GEM's FLOPPY window lists the disk,
+// a double-click runs BOOT.WSM (request 3: apps/harness/ports_gem.mjs, as site/js/sealed-loader.js), and the
 // program is driven through the input exports the browser and the board call. Per port:
-//   gem       the disk is a data disk whose block 0 is the "SDL" boot sector (docs/boot-sdl.wasm), which asks
+//   gem       the disk is a data disk whose block 0 is the "SDL" boot sector (site/carts/boot-sdl.wasm), which asks
 //             for request 2 (GEM next); GEM is handed every file of its FAT (<= its cap), and the program
-//             it runs depacks to the committed cart docs/demo-<tag>.wasm byte for byte
+//             it runs depacks to the committed cart site/carts/demo-<tag>.wasm byte for byte
 //   boot      the cart instantiates with nothing but the host's env imports, boot() and every
 //             frame run without a trap, plane 0 is enabled
 //   ui        the program's screen is there: at least N colours on the physical frame and, at a
@@ -48,7 +48,7 @@ const F_KEY5 = 0xe005, KEY_X = 0x78, KEY_SPACE = 0x20, SHIFT_LEFT = 0xe015, ESC 
 const click = (x, y, b, dy = 0) => (d) => d.pointer(x * 2, y + dy, b);
 const SPECS = {
     pt2: {
-        cart: "docs/demo-pt2.wasm", disk: "docs/demo-pt2.zmd", frames: 300, minColours: 10, breaks: ["load", "quit", "ptrbox"],
+        cart: "site/carts/demo-pt2.wasm", disk: "site/carts/demo-pt2.zmd", frames: 300, minColours: 10, breaks: ["load", "quit", "ptrbox"],
         ptrBox: [0, -28, 640, 227], // its 320x255 at (40, 12) of the 400x280 plane, in pointer() coordinates
         pinAt: 90, pin: "0dda0e9b1204ccf6338165770335f77684ec7d0c3ed527584773c85e6bd2aa41",
         // ProTracker blocks input for a second after boot (an error pointer from its startup); then:
@@ -64,7 +64,7 @@ const SPECS = {
         use: usePt2,
     },
     grafx2: {
-        cart: "docs/demo-grafx2.wasm", disk: "docs/demo-grafx2.zmd", frames: 240, minColours: 12, breaks: ["stroke", "disk", "quit"],
+        cart: "site/carts/demo-grafx2.wasm", disk: "site/carts/demo-grafx2.zmd", frames: 240, minColours: 12, breaks: ["stroke", "disk", "quit"],
         pinAt: 90, pin: "611b4ddbec32564355038967a60f34544ccef3cdf5bd7c6a91d29d0c75912a55",
         // OK of the warning box at (160, 163); then a freehand stroke along y = 50 from x 100 to 150
         events: (brk) => [...press(100, 160, 163), ...(brk === "stroke" ? [] : stroke(150, 100, 150, 50)), [200, click(10, 10, 0)]],
@@ -73,7 +73,7 @@ const SPECS = {
         use: useGrafx2,
     },
     klystrack: {
-        cart: "docs/demo-klystrack.wasm", disk: "docs/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer", "edit", "quit", "ptrbox"],
+        cart: "site/carts/demo-klystrack.wasm", disk: "site/carts/demo-klystrack.zmd", frames: 280, minColours: 24, breaks: ["silent", "pointer", "edit", "quit", "ptrbox"],
         ptrBox: [0, -20, 640, 220], // its 320x240 at (40, 20) of the 400x280 plane
         pinAt: 20, pin: "c535877893c812bf1cb6e491a9e6ebe27c5aecf5258c8e661d630fe6e9608d5b",
         // the UI is idle by frame 70 (no repaints: kestrel_sdl.c) and the pointer must still move; F5 at 160,
@@ -89,7 +89,7 @@ const SPECS = {
         use: useKlystrack,
     },
     chipnomad: {
-        cart: "docs/demo-chipnomad.wasm", disk: "docs/demo-chipnomad.zmd", frames: 180, minColours: 5, breaks: ["key", "silent", "quit"],
+        cart: "site/carts/demo-chipnomad.wasm", disk: "site/carts/demo-chipnomad.zmd", frames: 180, minColours: 5, breaks: ["key", "silent", "quit"],
         pinAt: 20, pin: "a56c75e3bd11582f4b55e0d0e5098a883bc6bdc8bfd5caa1d3b4df0a227f052c",
         // LSDJ keys (README): X = A edits, SELECT (Left Shift) + Right goes song -> chain -> phrase ->
         // instrument, A held + Right steps a value. Each X below puts the next thing in its first cell.
@@ -109,7 +109,7 @@ const SPECS = {
         use: useChipnomad,
     },
     sidwizard: {
-        cart: "docs/demo-sidwizard.wasm", disk: "docs/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "edit", "quit"],
+        cart: "site/carts/demo-sidwizard.wasm", disk: "site/carts/demo-sidwizard.zmd", frames: 420, minColours: 12, breaks: ["silent", "tab", "edit", "quit"],
         pinAt: 300, pin: "e1da1e2fbdb43a235e7cfa28a9ca73bcabc5b320d5902591a88c84beb4ffa3fe", bindsOwnerKeys: true, bard: true,
         // FLASHBAK.SWM opens off the floppy at start (the cart's key simulator, as upstream's command line: ~frame
         // 250); Tab (an owner-only code: C64 CONTROL) steps the cursor to track 2; Down, Space (editing mode), W
@@ -203,7 +203,7 @@ function useGem(r) {
     const g = r.gem;
     if (!g) return check("GEM launches the program", false, r.trap);
     check("data disk: GEM boots for it", g.dataDisk);
-    check("block 0 is the SDL boot sector (docs/boot-sdl.wasm), $1234", g.sector.ours);
+    check("block 0 is the SDL boot sector (site/carts/boot-sdl.wasm), $1234", g.sector.ours);
     check("the sector asks for request 2, no cart named: GEM boots after it", g.sector.chains, `after ${g.sector.frames} frames`);
     check("GEM lists every file", g.files.length <= g.max, `${g.files.length} of ${g.max}: ${g.files.join(" ")}`);
     check("GEM runs BOOT.WSM, the committed cart", g.name === "BOOT.WSM" && g.same, `${g.name}${g.same ? " = " : " != "}${spec.cart}`);

@@ -4,7 +4,7 @@
 //
 // Ported from the CODEF HTML5 remake by Dyno (wab.com screen 287, 2014, CODEF MIT).
 // Code and music sampling: Gunstick. Font: Oxar. Background: Dizzy of Tool 8.
-// Sample: "You" by Boytronic (docs/music/ulm_spoon_distorter_you.raw).
+// Sample: "You" by Boytronic (site/music/ulm_spoon_distorter_you.raw).
 //
 // Reference kept at prototypes/codef/287/. Assets and the verbatim tables in
 // ulm_spoon_distorter/tables.zig: tools/ulm_spoon_distorter_assets.py.

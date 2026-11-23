@@ -1,5 +1,5 @@
 // Headless ELITE / Challenge Foot Senior driver — boots the sealed machine the
-// way docs/sealed-loader.js does, dumps composited frames as PPMs and checks the
+// way site/js/sealed-loader.js does, dumps composited frames as PPMs and checks the
 // three things this screen is made of. Nothing here needs motion: the band is
 // the SAME 16-row pattern ten times, inked by a per-scanline palette, with two
 // colour-0 bars bracketing it — and the lower bar falls in the BOTTOM BORDER, so
@@ -10,7 +10,7 @@
 //   repeat   band line y and line y+16 are identical, all ten copies
 //   node apps/harness/elite_cfsr_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // one overscan plane: the ST drew this on one screen
@@ -37,15 +37,15 @@ const RASTERS = [
 
 // Truncated, as elite_cfsr/assets.zig's stColor does.
 const st = (v) => [(v >> 8) & 7, (v >> 4) & 7, v & 7].map((c) => Math.floor((c * 255) / 7));
-async function boot(cart = "docs/demo-elite_cfsr.wasm") {
+async function boot(cart = "site/carts/demo-elite_cfsr.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -85,7 +85,7 @@ class Screen {
         this.rgb = null;
     }
 
-    // One host frame, as docs/sealed-loader.js sequences it. The per-scanline
+    // One host frame, as site/js/sealed-loader.js sequences it. The per-scanline
     // palette only exists DURING a render (an HBL side effect), so every frame
     // is rendered, not just the ones that get looked at.
     run(n) {

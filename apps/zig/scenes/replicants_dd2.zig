@@ -74,7 +74,7 @@ const SCREEN_W: usize = WIDTH;
 const SCREEN_H: usize = HEIGHT;
 const SCREEN_PIXELS: usize = SCREEN_W * SCREEN_H;
 
-// music — the screen's own tune, played by its own 68000 (docs/music/).
+// music — the screen's own tune, played by its own 68000 (site/music/).
 // Mad Max, "S.O.S." from the So Watt demo (1989) — the same file the CODEF
 // remake loads (screens/515/S_O_S.sndh), already on the shelf for LEONARD.
 const MUSIC = "sos.sndh";

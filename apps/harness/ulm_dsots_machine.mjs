@@ -1,20 +1,20 @@
-// The sealed machine + demo-ulm_dsots.wasm, booted as docs/sealed-loader.js
+// The sealed machine + demo-ulm_dsots.wasm, booted as site/js/sealed-loader.js
 // does (apps/harness/union_demo_headless.mjs's boot), for apps/harness/ulm_dsots_headless.mjs.
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 export const CANVAS = { x: 8, y: 5, w: 384, h: 270 }; // ulm_dsots/draw.zig OX, OY, CANVAS_W/H
 
-export async function boot(cart = "docs/demo-ulm_dsots.wasm") {
+export async function boot(cart = "site/carts/demo-ulm_dsots.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

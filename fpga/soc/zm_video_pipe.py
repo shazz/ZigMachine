@@ -47,7 +47,7 @@ RTL = FPGA / "rtl" / "video"
 SOURCES = sorted(p for p in RTL.glob("zm_*.v"))
 WINDOW_BYTES = 1 << 7  # the register block: 32 words
 # What a fully transparent picture pixel shows ({B, G, R}, zm_video_mix.v): black on the board
-# and in the browser (docs/css/crt.css .container), Matt 2026-10-20; the board passes it explicitly.
+# and in the browser (site/css/crt.css .container), Matt 2026-10-20; the board passes it explicitly.
 TUBE_BROWSER = TUBE_BOARD = 0x000000
 # LiteX platforms are untyped Python classes with no common base worth naming.
 Platform = Any

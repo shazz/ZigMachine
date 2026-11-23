@@ -7,7 +7,7 @@ import re
 import capstone
 
 NAMES = ["Ace_2", "Labello", "Phantom_Of_The_Asteroid", "Sanxion", "Starpaws"]
-EXTRA = ["../../docs/music/big/Labello"]
+EXTRA = ["../../site/music/big/Labello"]
 LEN = 0x740  # PLAY ($44D26 in Ace 2) to the Timer A handler ($45466)
 TABLE = (0x44E0E - 0x44D26, 17)  # the command jump table: 17 relocated longs
 md = capstone.Cs(capstone.CS_ARCH_M68K, capstone.CS_MODE_M68K_000 | capstone.CS_MODE_BIG_ENDIAN)

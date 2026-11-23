@@ -20,9 +20,9 @@
 // latches FB_BASE at the VBL, so a pan by 640 bytes (one row) must show the next row with no tear,
 // and the bar's 18 rewritten rows may tear for one frame (single buffer). Look at the scroll and the bar.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
-const PAGES = 128, W = 640, H = 480, CART = "docs/demo-nfo_viewer.wasm", HALF = W * (H / 2) * 4;
+const PAGES = 128, W = 640, H = 480, CART = "site/carts/demo-nfo_viewer.wasm", HALF = W * (H / 2) * 4;
 const REG_RES = 0x00, REG_FB_BASE = 0x44, OFF_VRAM = 0x1100, VRAM_BYTES = 1 << 20, RES_DESK = 3;
 // nfo_viewer.zig's config: the checks below fail if the cart's differs.
 const DELAY = 90, FPP = 2, BAR_H = 18, PROMPT = "up/down or PgUp/PgDn to scroll, SPACE to leave";
@@ -95,10 +95,10 @@ function model(y, brk) {
 async function boot(brk, available = 1) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     machine.hwSetDeskAvailable(brk === "older" ? 1 : available);

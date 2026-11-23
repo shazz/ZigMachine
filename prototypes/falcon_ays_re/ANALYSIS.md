@@ -326,7 +326,7 @@ the still pictures (drawn into both buffers once). The DSP's two jobs move to: t
   row doubling is kept as the code reads it.
 - **Published** (Matt, 3 Nov 2026): the cart carries the original's data
   (`apps/zig/assets/screens/falcon_ays/`, ripped by `tools/falcon_ays_art.py`) and MSG's MOD
-  (`docs/music/falcon_ays.mod`). The parts keep generated stand-ins only as a fallback for an
+  (`site/music/falcon_ays.mod`). The parts keep generated stand-ins only as a fallback for an
   empty slice: in practice credit picture 4.
 
 **Fixed after Matt's first board run (3-4 Nov)**: the MSG picture (above); the ball-oid morph

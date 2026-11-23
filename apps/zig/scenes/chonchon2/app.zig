@@ -26,7 +26,7 @@
 //
 // MUSIC: the production ships seven replacement YM dumps (Mad Max / Jochen
 // Hippel). Tracks 1..3 were matched register-for-register against SNDHs in
-// docs/music (Jinks #1, lockbuster2_rollout #1/#2), and so was track 4,
+// site/music (Jinks #1, lockbuster2_rollout #1/#2), and so was track 4,
 // "Eliminator": so_watt_no_crew.sndh #1 equals its registers 0..10 on every one
 // of 6000 frames. Track 7 is titled "Union Demo MENU" in its YM header, which is
 // Mad Max's Alloy Run, the tune union_demo plays as union/alloy_run.sndh (the

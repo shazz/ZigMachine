@@ -145,7 +145,7 @@ async function ghost(mode, mutant, check) {
 
 // inf: Save Desktop onto C:, then the shell re-instantiated and a fresh boot, both over the image.
 async function inf(mutant, check) {
-    const img = new Uint8Array(readFileSync("docs/kos-c.img"));
+    const img = new Uint8Array(readFileSync("site/disks/kos-c.img"));
     const drop = mutant === "infdrop" ? { cFileOp: (m) => { const op = makeCFile(m, img.slice()); return (req) => op(req); } } : {};
     const gem = await bootGem({ cImage: img, ...drop });
     gem.mount(DISK);

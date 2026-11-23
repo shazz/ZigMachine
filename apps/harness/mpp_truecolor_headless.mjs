@@ -21,7 +21,7 @@
 //   (--break k1tail: every 256-entry line loses its entry-255 PALREF: a check must fail)
 //   (outdir: writes mpp-<picture>-mode<N>.ppm, the picture area at 320x180)
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { checkLists, dropTails } from "./mpp_truecolor_lists.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -33,10 +33,10 @@ const ASSETS = "apps/zig/assets/screens/mpp_truecolor";
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -64,7 +64,7 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-// One host-loop frame (docs/sealed-loader.js): each enabled plane is rendered
+// One host-loop frame (site/js/sealed-loader.js): each enabled plane is rendered
 // into the PFB and copied to ITS OWN canvas; the page stacks those canvases, so
 // palette alpha 0 shows the planes below. `layer` (when given) replays that
 // stacking: plane pixels with alpha != 0 cover what is under them. Returns the
@@ -122,7 +122,7 @@ function fnv1a(bytes) {
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const broke = bi >= 0 ? argv.splice(bi, 2)[1] : "";
 if (broke && broke !== "k1tail") throw new Error(`--break ${broke}: only k1tail`);
-const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = argv;
+const [outdir, cart = "site/carts/demo-mpp_truecolor.wasm"] = argv;
 const { memory, machine, demo } = await boot(cart);
 // The working buffer is taken from zg.mem once, in init; no switch may take another.
 const arenaAfterInit = machine.hwRamMark();

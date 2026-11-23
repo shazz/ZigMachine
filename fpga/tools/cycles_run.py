@@ -38,8 +38,8 @@ def make(*targets: str, frames: int, every: int, jobs: int) -> None:
 
 
 def shelf_disk(tag: str) -> Path | None:
-    """The cart's shelf disk (docs/demo-<tag>.zmd), what the browser and the board mount."""
-    disk = ROOT / "docs" / f"demo-{tag}.zmd"
+    """The cart's shelf disk (site/carts/demo-<tag>.zmd), what the browser and the board mount."""
+    disk = ROOT / "site" / "carts" / f"demo-{tag}.zmd"
     return disk if disk.exists() else None
 
 
@@ -49,7 +49,7 @@ def references(tag: str, frames: int, every: int, disk: bool = False) -> None:
     (tools/ddr_init.py); their JSONs are then <kind>+disk."""
     ref = CYC / "ref"
     ref.mkdir(parents=True, exist_ok=True)
-    args = [f"docs/demo-{tag}.wasm", str(frames), str(every)]
+    args = [f"site/carts/demo-{tag}.wasm", str(frames), str(every)]
     zmd = shelf_disk(tag) if disk else None
     args += ["--disk", str(zmd)] if zmd else []
     for name, cmd in (("js", ["node", "apps/harness/scene_hash.mjs"]), ("native", [str(FPGA / f"build/host/{tag}/host")])):
@@ -75,7 +75,7 @@ def run_one(tag: str, variant: str, timeout: int) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("carts", nargs="*", help="cart tags (docs/demo-<tag>.wasm)")
+    ap.add_argument("carts", nargs="*", help="cart tags (site/carts/demo-<tag>.wasm)")
     ap.add_argument("--variants", default=",".join(VARIANTS))
     ap.add_argument("--frames", type=int, default=60)
     ap.add_argument("--every", type=int, default=30, help="hash period; slow on rv32, untimed")

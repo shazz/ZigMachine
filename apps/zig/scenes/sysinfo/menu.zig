@@ -12,7 +12,7 @@ const view = @import("view.zig");
 
 pub const Action = enum(u8) { system, video, sound, disk, speed, info, run, rez, quit, cancel };
 
-pub const K_F1: u32 = 0xE001; // docs/sealed-loader.js KEY_CODES
+pub const K_F1: u32 = 0xE001; // site/js/sealed-loader.js KEY_CODES
 pub const K_F6: u32 = 0xE006;
 pub const K_UNDO: u32 = 0xE010;
 pub const K_HELP: u32 = 0xE011;

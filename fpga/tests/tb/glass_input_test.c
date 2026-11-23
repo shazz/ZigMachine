@@ -1,5 +1,5 @@
 /* Native test of fpga/glass/firmware/glass_input.c: each event must make the
- * cart calls docs/sealed-loader.js makes for the same key. Built and run by
+ * cart calls site/js/sealed-loader.js makes for the same key. Built and run by
  * tests/test_glass.py with the map's -D defines. */
 #include <stdio.h>
 #include <string.h>

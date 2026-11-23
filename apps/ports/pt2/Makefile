@@ -72,9 +72,9 @@ $(OUT)/demo-pt2.wasm: $(OBJS)
 clean:
 	rm -rf $(OUT)
 
-# The shipped cart: docs/demo-pt2.wasm, committed prebuilt (build.sh does not rebuild the C ports).
-# tools/mkdisks.sh (the one recipe for the disk) packs docs/demo-pt2.zmd from it plus RONKEN.MOD and
-# HYBRID.MOD (docs/music/ronken.mod, hybridglenz.mod).
+# The shipped cart: site/carts/demo-pt2.wasm, committed prebuilt (build.sh does not rebuild the C ports).
+# tools/mkdisks.sh (the one recipe for the disk) packs site/carts/demo-pt2.zmd from it plus RONKEN.MOD and
+# HYBRID.MOD (site/music/ronken.mod, hybridglenz.mod).
 install: $(OUT)/demo-pt2.wasm
-	cp $< ../../../docs/demo-pt2.wasm
+	cp $< ../../../site/carts/demo-pt2.wasm
 	cd ../../.. && tools/mkdisks.sh

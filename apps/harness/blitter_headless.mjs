@@ -1,5 +1,5 @@
 // Headless BLITTER DEMO driver: boots the sealed machine + demo-blitter.wasm
-// TWICE, the way docs/sealed-loader.js does, presses B on the second one, and
+// TWICE, the way site/js/sealed-loader.js does, presses B on the second one, and
 // proves key B's promise -- the CPU draws exactly what the blitter draws:
 //
 //  1. every effect (1-7) gives the same plane-0 indices and palette on both,
@@ -14,7 +14,7 @@
 //     --break pixel   the CPU frame gets one pixel wrong: must be caught
 //     --break nokey   B is never pressed: must be caught
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
@@ -34,12 +34,12 @@ function check(name, ok, detail = "") {
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
     const blits = { n: 0 };
     const hwBlit = () => { blits.n++; machine.hwBlit(); };
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit },
     })).instance.exports;
@@ -94,8 +94,8 @@ async function ppm(path, p, pal) {
 
 const out = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/blitter_headless";
 await mkdir(out, { recursive: true });
-const hw = await boot("docs/demo-blitter.wasm");
-const cpu = await boot("docs/demo-blitter.wasm");
+const hw = await boot("site/carts/demo-blitter.wasm");
+const cpu = await boot("site/carts/demo-blitter.wasm");
 check("plane 0 is a 320-wide window", hw.stride === W, `stride ${hw.stride}`);
 if (broke !== "nokey") cpu.demo.key("b".charCodeAt(0));
 

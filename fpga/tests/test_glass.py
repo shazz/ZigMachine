@@ -67,9 +67,9 @@ def _load(tools: dict[str, Path], disk: Path, board: bytes, tag: str) -> bytes:
 
 def _a_disk() -> Path:
     for tag in ("tutorial", "stniccc", "union_beatdis"):
-        if (ROOT / "docs" / f"demo-{tag}.zmd").exists():
-            return ROOT / "docs" / f"demo-{tag}.zmd"
-    pytest.skip("no docs/demo-*.zmd shelf disk")
+        if (ROOT / "site" / "carts" / f"demo-{tag}.zmd").exists():
+            return ROOT / "site" / "carts" / f"demo-{tag}.zmd"
+    pytest.skip("no site/carts/demo-*.zmd shelf disk")
 
 
 def test_synthetic_image_lands_exactly(tools: dict[str, Path]) -> None:
@@ -91,7 +91,7 @@ def _board_images() -> list[tuple[str, Path]]:
 
 @pytest.mark.parametrize(("tag", "fw"), _board_images() or [("none", None)], ids=lambda v: str(v)[-24:])
 def test_cart_board_image_lands_exactly(tools: dict[str, Path], tag: str, fw: Path | None) -> None:
-    disk = ROOT / "docs" / f"demo-{tag}.zmd"
+    disk = ROOT / "site" / "carts" / f"demo-{tag}.zmd"
     if fw is None or not disk.exists():
         pytest.skip("no board image built (make cycles-fw CART=<tag> VARIANT=aligned) or no shelf disk")
     assert _load(tools, disk, fw.read_bytes(), tag) == fw.read_bytes()
@@ -216,7 +216,7 @@ def test_sd_shelf_takes_board_firmwares_and_skips_one_older_than_the_csr_map(tmp
     os.utime(fws / "blitter" / "fw.bin", (50, 50))  # built against an older map
     rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr, ("tutorial", "gem")))
     assert rows["CARTS/system/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
-    assert rows["CARTS/tutorials/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
+    assert rows["CARTS/tutorials/demo-tutorial.zmd"].endswith("site/carts/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
     assert rows["CARTS/tests/demo-blitter.zmd"].startswith("STALE")
     assert not (tmp_path / "sd" / "CARTS" / "demos" / "demo-blitter.zmd").exists()
 
@@ -258,9 +258,9 @@ def test_shelf_meta_skips_tags_it_does_not_know(tmp_path: Path) -> None:
 
 
 def test_the_menu_shows_shelf_txt_details_for_the_selected_cart(tools: dict[str, Path], tmp_path: Path) -> None:
-    disk = ROOT / "docs" / "demo-stniccc.zmd"
+    disk = ROOT / "site" / "carts" / "demo-stniccc.zmd"
     if not disk.exists():
-        pytest.skip("no docs/demo-stniccc.zmd")
+        pytest.skip("no site/carts/demo-stniccc.zmd")
     shutil.copyfile(disk, tmp_path / disk.name)
     menu = subprocess.run([tools["glass"], "sim-menu", tmp_path], capture_output=True, text=True, check=True).stderr
     assert "no shelf.txt entry" in menu and "no shelf.txt: titles only" in menu

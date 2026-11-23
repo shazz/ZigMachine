@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ZigMachine tutorial-page generator.
 
-Renders docs/guide/TUTORIAL.md into docs/TUTORIAL.html: the teaching page, split out
+Renders docs/guide/TUTORIAL.md into site/TUTORIAL.html: the teaching page, split out
 of the reference guide so a newcomer and someone looking up a register no longer
 land on the same 1900-line document.
 
@@ -24,7 +24,7 @@ from docgen.tutorial_render import build, unstamped  # noqa: E402
 
 
 def main() -> None:
-    out = ROOT / "docs" / "TUTORIAL.html"
+    out = ROOT / "site" / "TUTORIAL.html"
     fresh = build()
     if "--check" in sys.argv:
         # Same guard as the guide: an edit to TUTORIAL.md that was never

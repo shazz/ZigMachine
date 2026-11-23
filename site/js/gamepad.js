@@ -1,5 +1,5 @@
 // Gamepads for the browser host (R83: two joysticks, one per player). The Gamepad API is polled
-// once a frame (docs/sealed-loader.js loop): the first connected pad is player 1 and sends the
+// once a frame (site/js/sealed-loader.js loop): the first connected pad is player 1 and sends the
 // cart's input()/inputRelease(), the second is player 2 and sends input2()/inputRelease2() when
 // the cart exports both (docs/hardware/HW_API.md "Player 2 input"); a cart without them gets the two pads
 // merged into input(), exactly the one-stick behaviour. The direction codes are the keyboard's:

@@ -1,5 +1,5 @@
 // The .sid player (libs/zig/players/sid.zig) and its engine (cRSID, libs/c/crsid) on the real audio
-// modules (docs/machine-audio.wasm + docs/demo-audio.wasm: the page's build):
+// modules (site/machine-audio.wasm + site/demo-audio.wasm: the page's build):
 //   parity    the engine in machine-audio.wasm renders hermini.sid's first 10 s to the same samples,
 //             0.1 s block for block, as the same C built natively (fpga/tools/sid_render.c on
 //             libs/c/crsid/patch.sh's tree: what BARD runs, host/crsid.c). Local study tunes too, when
@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const TUNE = "docs/music/hermini.sid", BLOCK = 2205, BLOCKS = 100, OUT = 735;
+const TUNE = "site/music/hermini.sid", BLOCK = 2205, BLOCKS = 100, OUT = 735;
 const LOCAL = "prototypes/sid_re/tunes"; // the study's HVSC tunes, local only
 const BREAKS = ["seed", "rsid"];
 const bi = process.argv.indexOf("--break");
@@ -24,10 +24,10 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 
 async function modules() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, m, a };
 }

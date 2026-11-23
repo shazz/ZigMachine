@@ -8,13 +8,13 @@
 // The tune is KESTREL FM, written by libs/c/vgm/make_tune.py for this repo (MIT,
 // no third-party music): six FM channels (feedback bass, LFO-vibrato lead, pad,
 // two arpeggios), the DAC on channel 6 for the drums, the PSG's square and
-// noise. docs/music/kestrel_fm.vgm (100,038 bytes) and its gzip, .vgz (5,152).
+// noise. site/music/kestrel_fm.vgm (100,038 bytes) and its gzip, .vgz (5,152).
 //   1  by name: zg.requestSong("kestrel_fm.vgm")
 //   2  by name: zg.requestSong("kestrel_fm.vgz"), inflated by the engine
 //   3  by bytes: zg.requestSongBytes(.vgm) of the .vgz the cart carries
 //      (apps/zig/assets/vgm/KESTREL_FM.VGZ), as a port reads its tune off its disk
 //   4  stop
-//   5-7  LOCAL Sonic 1 tunes (docs/music/sonic1_*.vgm, never committed): "NOT ON THIS MACHINE" without them
+//   5-7  LOCAL Sonic 1 tunes (site/music/sonic1_*.vgm, never committed): "NOT ON THIS MACHINE" without them
 // Mode 7 (no key) asks for garbage bytes as a VGM, which the player refuses: the
 // harness's check (apps/harness/vgm_test_check.mjs). On the board the screen shows BARD's
 // load (zg.mp3Status(.load): per mille of BARD, a second's mean of its renders,
@@ -34,7 +34,7 @@ const DIM: u8 = 3;
 pub const SONG = "kestrel_fm.vgm";
 pub const SONG_Z = "kestrel_fm.vgz";
 pub const TUNE = @embedFile("../assets/vgm/KESTREL_FM.VGZ");
-/// Keys 5-7: Sonic 1 tunes the owner keeps on their own machine only (docs/music/, gitignored; song_pack.py
+/// Keys 5-7: Sonic 1 tunes the owner keeps on their own machine only (site/music/, gitignored; song_pack.py
 /// LOCAL_SONGS packs each one that is there, a clean checkout builds without them). Copy them from the Gens
 /// study's set: prototypes/gens_fm/dl/s1/x/ "02 - Green Hill Zone", "08 - Special Stage" (all six FM channels:
 /// the load case), "06 - Star Light Zone".

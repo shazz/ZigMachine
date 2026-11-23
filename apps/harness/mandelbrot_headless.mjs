@@ -1,5 +1,5 @@
 // Headless MANDELBROT driver: boots the sealed machine + demo-mandelbrot the way
-// docs/sealed-loader.js does and proves, on the composited picture:
+// site/js/sealed-loader.js does and proves, on the composited picture:
 //   1. the f32 default draws a real fractal (many grey levels, a white interior
 //      that is neither nothing nor everything) top to bottom, 4 rows a frame;
 //   2. F switches the escape loop to Q5.27 integers LIVE: the picture restarts
@@ -11,7 +11,7 @@
 //   node apps/harness/mandelbrot_headless.mjs [--break fkey]
 // --break fkey never presses F: the "F switches the path" checks must then fail.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const K_F = 0x66;
@@ -22,16 +22,16 @@ const breakF = argv.includes("--break") && argv[argv.indexOf("--break") + 1] ===
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const noop = () => {};
-    const cartBytes = await readFile("docs/demo-mandelbrot.wasm");
+    const cartBytes = await readFile("site/carts/demo-mandelbrot.wasm");
     const env = {
         memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit,
         hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,

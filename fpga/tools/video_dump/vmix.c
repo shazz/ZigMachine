@@ -1,5 +1,5 @@
 /* vmix: the picture a browser shows for a recorded frame, computed from the
- * frame's PFBs exactly as docs/sealed-loader.js and Chrome build it. It is the
+ * frame's PFBs exactly as site/js/sealed-loader.js and Chrome build it. It is the
  * oracle of the RTL plane mixer (rtl/video/zm_video_mix.v).
  *
  *   vmix frame <dir> <frame> [--layers] -> <dir>/f<frame>.mix     (800x280 RGB)
@@ -10,7 +10,7 @@
  * What the loader does: canvas i (stacked in DOM order, 0 at the bottom) gets
  * the PFB as it is after hwRenderPlane(i), for each enabled plane i; when no
  * plane is enabled, canvas 0 gets the PFB after hwClear. Canvases of disabled
- * planes are blank. The tube behind them is black (docs/css/crt.css .container).
+ * planes are blank. The tube behind them is black (site/css/crt.css .container).
  *
  * What Chrome does (measured by tools/mix_chrome.mjs, exact on every one of
  * 65,536 colour x alpha pairs and on random 4-canvas stacks): putImageData

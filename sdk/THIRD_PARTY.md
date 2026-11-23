@@ -10,7 +10,7 @@ where their sources are:
 | `zigmachine.dtb` | its device tree, from `fpga/glass/boot/zigmachine-z7lite.dts` (in `zigmachine/`) | GPL-2.0 (with the kernel's dtsi) | as above, and `zigmachine/fpga/glass/boot/` |
 | `rootfs.cpio.uboot` | Buildroot 2026.02.3 initramfs: busybox, musl, dropbear, avahi and their libraries, plus ZigMachine's `glass` and `S99glass` | each package its own (busybox GPL-2.0, musl MIT, dropbear MIT, avahi LGPL-2.1, ...) | https://buildroot.org/downloads/buildroot-2026.02.3.tar.xz with `zigmachine/fpga/glass/boot/buildroot` (`make legal-info` lists every package and licence) |
 
-Inside `KESTREL/system.rv32` (BARD's players; on the page `docs/demo-audio.wasm` and `docs/machine-audio.wasm`) are two more:
+Inside `KESTREL/system.rv32` (BARD's players; on the page `site/demo-audio.wasm` and `site/machine-audio.wasm`) are two more:
 
 | Part | What | Licence | Source |
 |---|---|---|---|

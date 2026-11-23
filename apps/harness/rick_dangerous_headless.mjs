@@ -1,5 +1,5 @@
 // Headless RICK DANGEROUS driver. Boots the sealed machine the way
-// docs/sealed-loader.js does, then checks the cart against the ORIGINAL GAME
+// site/js/sealed-loader.js does, then checks the cart against the ORIGINAL GAME
 // (RICKST.PRG run on the rip's 68000 harness, which the reference model
 // reproduces byte for byte: apps/harness/rick_dangerous_fixture.json.gz, from
 // tools/rick_dangerous/make_fixture.py):
@@ -34,10 +34,10 @@
 //                   resident check catches it
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync, inflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
-const CART = "docs/demo-rick_dangerous.wasm";
+const CART = "site/carts/demo-rick_dangerous.wasm";
 const MUSIC = "rick_dangerous.sndh";
 const NIDS = 29;
 const RESIDENT = 0x8000; // sound.s's d0 flag for a zg.sndhCall on the running driver
@@ -53,10 +53,10 @@ const dec = new TextDecoder();
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
@@ -329,10 +329,10 @@ async function live() {
 async function audioMachine() {
     const AUDIO_PAGES = 48;
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     return { memory, m, audio };
 }
 
@@ -342,7 +342,7 @@ async function audioMachine() {
 const DRIVER = [[0x34a7e, 0x34a84], [0x34a85, 0x34a88], [0x34b18, 0x34b98], [0x34ebc, 0x34f0c]];
 
 async function sound(ctx) {
-    const bytes = new Uint8Array(await readFile(`docs/music/${MUSIC}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${MUSIC}`));
     const { memory, demo } = ctx;
     const errors = [];
     let ticks = 0, tunes = 0, moving = 0;
@@ -413,7 +413,7 @@ function hostPoll(a, ctx, bytes, errors) {
 const LATER = (id) => [[4, [[id, 0]]], [9, [[8, 1], [8, 0]]], [15, [[0xa, 0], [0xa, 0]]], [30, [[id, 1]]]];
 
 async function resident(ctx) {
-    const bytes = new Uint8Array(await readFile(`docs/music/${MUSIC}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${MUSIC}`));
     const { memory, demo } = ctx;
     const cart = () => new Uint8Array(memory.buffer, demo.rickTestMemPtr(), 0x80000);
     const errors = [];

@@ -1,7 +1,7 @@
 /* The BARD queue's cart side where the players run on this CPU (host/bardq.h): the native host and
  * ZIGGY with ZM_AUDIO=1. env.hostBardAttach opens SID live on the players; after each cart frame the
  * ring's new commands go to them (host/bardq_pump.c) and their answer goes into the cart's block, as
- * docs/sealed-loader.js's bardFrame / bardPublish do. With the players on BARD, cycles/bsound_bardq.c. */
+ * site/js/sealed-loader.js's bardFrame / bardPublish do. With the players on BARD, cycles/bsound_bardq.c. */
 #include "bardq.h"
 #include "haudio.h"
 

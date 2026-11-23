@@ -1,5 +1,5 @@
 // Headless TCB SPREADPOINT driver -- boots the sealed machine + demo-tcb_spreadpoint
-// the way docs/sealed-loader.js does, and checks it against screen.js REPLAYED.
+// the way site/js/sealed-loader.js does, and checks it against screen.js REPLAYED.
 //
 // Why this exists: the screen is four fading pictures, then a logo on a 2272-frame
 // angle table, 20 Lissajous balls, a 33-speed scroller and a DNA scroller that
@@ -27,7 +27,7 @@
 //   node apps/harness/tcb_spreadpoint_headless.mjs --break step  one extra frame before
 //        every main-part shot: the replay must catch it
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const OFF_PAL = 0x100, REG_FB_BASE = 0x44;
@@ -233,7 +233,7 @@ function colourOf(index, y, introColour) {
 async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo, hblRec = null;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: {
             memory, hblDispatch: (id, p, l, x) => {
                 if (brk !== "hbl") demo.hblDispatch(id, p, l, x);
@@ -241,11 +241,11 @@ async function boot() {
             },
         },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const noop = () => {};
-    const cartBytes = await readFile("docs/demo-tcb_spreadpoint.wasm");
+    const cartBytes = await readFile("site/carts/demo-tcb_spreadpoint.wasm");
     demo = (await WebAssembly.instantiate(cartBytes, {
         env: {
             memory, jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop, consoleLogJS: noop,
@@ -359,12 +359,12 @@ if (songs.length !== 1 || songs[0].name !== MUSIC || songs[0].frame !== INTRO - 
     fail(`song requests ${JSON.stringify(songs)}: want one ${MUSIC} at frame ${INTRO - 1}`);
 {
     const mem = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const ma = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
+    const ma = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
     const env = { memory: mem };
     for (const n of Object.keys(ma)) if (n.startsWith("machine")) env[n] = ma[n];
-    const au = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const au = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     au.audioInit();
-    const tune = new Uint8Array(await readFile(`docs/music/${MUSIC}`));
+    const tune = new Uint8Array(await readFile(`site/music/${MUSIC}`));
     new Uint8Array(mem.buffer, au.audioSongPtr(), tune.length).set(tune);
     if (!au.audioLoadSndh(tune.length)) fail(`${MUSIC} is not an SNDH image`);
     au.audioSndhPlay(0);

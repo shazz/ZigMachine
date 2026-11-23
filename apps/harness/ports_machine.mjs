@@ -1,12 +1,12 @@
 // The sealed machine as apps/harness/ports_headless.mjs drives a C program port (apps/ports): the real
-// docs/machine-video.wasm + docs/rom.wasm on one shared memory, the cart instantiated as
-// docs/sealed-loader.js does, its floppy in the drive (diskReadBlock), the PCM it feeds counted.
+// site/machine-video.wasm + site/rom.wasm on one shared memory, the cart instantiated as
+// site/js/sealed-loader.js does, its floppy in the drive (diskReadBlock), the PCM it feeds counted.
 // Strict on purpose: a cart that imports anything but the host's env functions below fails to
 // boot here, as it would in the browser (the run.mjs rigs stub unknown imports instead).
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig (the 3 MiB cart window)
 export const DT = 1000 / 60;
@@ -28,10 +28,10 @@ export async function boot(cart, disk, usPerFrame = 0, extraEnv = {}) {
 export async function machine(disk, usPerFrame = 0, extraEnv = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const live = { demo: null }; // the cart under the machine's HBL: replaced on every swap
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => live.demo?.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile(process.env.ZM_ROM || "docs/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
+    const romBytes = await readFile(process.env.ZM_ROM || "site/rom.wasm"); // ZM_ROM: a scratch ROM (gemtest_shots.mjs, a local -Dgem_assets build)
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

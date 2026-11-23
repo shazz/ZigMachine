@@ -28,8 +28,8 @@ from bootsec_util import FPGA, ROOT, WABT, native, node, op_calls, ops_wat, wat2
 
 WORK = FPGA / "build" / "board_bootsec"
 SRC = ["bootsec.c", "wint_load.c", "wint_link.c", "wint_scan.c", "wint_num.c", "wint_flow.c", "wint_exec.c"]
-SYSINFO = ROOT / "docs/demo-sysinfo.zmd"
-REPLICANTS = ROOT / "docs/demo-replicants_emlyn.zmd"
+SYSINFO = ROOT / "site/carts/demo-sysinfo.zmd"
+REPLICANTS = ROOT / "site/carts/demo-replicants_emlyn.zmd"
 NEEDS = pytest.mark.skipif(not shutil.which("node") or not (WABT / "bin/wat2wasm").exists(), reason="no node or wabt")
 BREAK = pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 
@@ -120,8 +120,8 @@ def test_a_truncated_or_corrupt_sector_is_refused_and_the_cart_boots(exe: Path, 
     assert len(line) == 1 and line[0].split()[1] in ("format", "link")
 
 
-@pytest.mark.parametrize(("disk", "want"), [(SYSINFO, "1"), (REPLICANTS, "1"), (ROOT / "docs/demo-st_replay.zmd", "0"),
-                                            (ROOT / "docs/demo-stniccc.zmd", "0")])  # fmt: skip
+@pytest.mark.parametrize(("disk", "want"), [(SYSINFO, "1"), (REPLICANTS, "1"), (ROOT / "site/carts/demo-st_replay.zmd", "0"),
+                                            (ROOT / "site/carts/demo-stniccc.zmd", "0")])  # fmt: skip
 def test_only_a_v2_sector_that_sums_to_1234_is_executable(exe: Path, disk: Path, want: str) -> None:
     assert native(exe, "exec", disk) == [want]
 
@@ -161,7 +161,7 @@ def test_break_each_mutant_is_caught(ops: Path, name: str, file: str, old: str, 
     assert caught, f"mutant {name} survived"
 
 
-SDL = ROOT / "docs/boot-sdl.wasm"
+SDL = ROOT / "site/carts/boot-sdl.wasm"
 
 
 @NEEDS

@@ -1,7 +1,7 @@
 /* The cart's stream (and Paula) imports where the players run (tools/host_gen.py's STREAM hooks): force-
  * included into the generated env.c of the board firmware (cycles/board.mk) and of host_audio
  * (cycles/audio.mk), so zg.audioStreamStart / audioFeed / audioStreamStop reach the stream ring
- * (host/audio_bridge.c, host/audio_pcm.c) as docs/sealed-loader.js's do. */
+ * (host/audio_bridge.c, host/audio_pcm.c) as site/js/sealed-loader.js's do. */
 #ifndef ZM_HSTREAM_H
 #define ZM_HSTREAM_H
 
@@ -26,7 +26,7 @@ uint32_t audio_stream_played(void);
 #define HOST_AUDIO_FEED_STEREO(e, ptr, len) audio_stream_feed_stereo((e), (ptr), (len))
 #define HOST_AUDIO_STREAM_PLAYED(e) ((void)(e), audio_stream_played())
 
-/* The cart's Paula (HW 1.14.0): host/audio_bridge.c, as docs/sealed-loader.js's hostPaula*. */
+/* The cart's Paula (HW 1.14.0): host/audio_bridge.c, as site/js/sealed-loader.js's hostPaula*. */
 uint32_t audio_paula_claim(struct w2c_env* e, uint32_t lead);
 void audio_paula_upload(struct w2c_env* e, uint32_t src, uint32_t off, uint32_t len);
 void audio_paula_write(struct w2c_env* e, uint32_t ptr, uint32_t n);

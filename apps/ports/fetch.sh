@@ -9,7 +9,7 @@
 # Upstream is not vendored in this repo: the ports keep only their glue and
 # patches (docs/project/DECISIONS.md, "C ports live in apps/ports"). Every checkout is
 # verified against its pinned SHA, and binaryen's tarball against its sha256, so
-# a rebuild compiles exactly the bytes the committed docs/demo-<tag>.wasm came
+# a rebuild compiles exactly the bytes the committed site/carts/demo-<tag>.wasm came
 # from. A directory already at its pin is left alone; one at another commit is
 # refused rather than silently rebuilt over.
 set -eu

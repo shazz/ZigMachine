@@ -6,10 +6,10 @@
 //
 // Keys 1-4 are four classics from the High Voltage SID Collection, all PSID
 // (cRSID's light engine plays them at 48-60 % of BARD, docs/hardware/studies/SID_BARD_STUDY.md).
-// They are NOT ours to ship: like docs/music/local.xm they live on the owner's
+// They are NOT ours to ship: like site/music/local.xm they live on the owner's
 // machine only, gitignored (fpga/tools/song_pack.py LOCAL_SONGS packs each one
 // that is there, a clean checkout builds without them). Copy them from the
-// study's set (prototypes/sid_re/tunes/, tools/sid_bard_fetch.sh) into docs/music/:
+// study's set (prototypes/sid_re/tunes/, tools/sid_bard_fetch.sh) into site/music/:
 //   1  cybernoid_ii.sid  Jeroen Tel 1988, 6581, filter sweeps     md5 9d9613beda5d80beb7bf95628a64f470
 //   2  wizball.sid       Martin Galway 1987, 6581, 4x (CIA) tune  md5 4522f889d5c41b3e08a00873a9e4b63a
 //   3  commando.sid      Rob Hubbard 1985, 6581                   md5 6d019ecba831a9f853675aac29a61c10
@@ -21,7 +21,7 @@
 //
 // Keys 6-7 are the shipped tune, HerMiniSID by Mihaly Horvath (Hermit), cRSID's
 // own test tune, in libcRSID under its licence ("do what you want, mention me"):
-// docs/music/hermini.sid and apps/zig/assets/sid/HERMINI.SID, 379 bytes,
+// site/music/hermini.sid and apps/zig/assets/sid/HERMINI.SID, 379 bytes,
 // md5 537f693740ed05502fc23151381082d9; what apps/harness/sid_test_check.mjs plays.
 //   6  by name: zg.requestSong("hermini.sid"), the file the host fetches
 //   7  by bytes: zg.requestSongBytes(.sid), the image in the cart's own memory,
@@ -42,7 +42,7 @@ const INK: u8 = 1;
 const SEL: u8 = 2;
 const DIM: u8 = 3;
 
-/// Keys 1..4: the local HVSC tunes, under docs/music/ when the owner has them.
+/// Keys 1..4: the local HVSC tunes, under site/music/ when the owner has them.
 pub const LOCAL = [_][]const u8{ "cybernoid_ii.sid", "wizball.sid", "commando.sid", "club_style.sid" };
 pub const SONG = "hermini.sid";
 pub const TUNE = @embedFile("../assets/sid/HERMINI.SID");

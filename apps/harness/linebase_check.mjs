@@ -26,7 +26,7 @@ const LIST = [OFF_VRAM + 0x80000, OFF_VRAM + 0x90000];
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 const dv = () => new DataView(memory.buffer);
 const machine = (await WebAssembly.instantiate(
-    await readFile(process.env.MACHINE || "docs/machine-video.wasm"),
+    await readFile(process.env.MACHINE || "site/machine-video.wasm"),
     { env: { memory, hblDispatch: () => {} } })).instance.exports;
 const r8 = (o) => dv().getUint8(VIDEO + o), r16 = (o) => dv().getUint16(VIDEO + o, true);
 const r32 = (o) => dv().getUint32(VIDEO + o, true);

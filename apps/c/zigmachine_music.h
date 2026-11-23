@@ -5,8 +5,8 @@
 // requestSongTune, exported by apps/zig/demo_main.zig). Nothing here plays
 // music: the SNDH player (Musashi 68000 + sndh_player.zig) lives in
 // demo-audio.wasm on the audio thread. This cart only leaves a request in
-// shared memory; docs/sealed-loader.js polls four exports every frame, fetches
-// docs/music/<name>, and the file's extension picks the player
+// shared memory; site/js/sealed-loader.js polls four exports every frame, fetches
+// site/music/<name>, and the file's extension picks the player
 // (.sndh / .mod / .ymraw / .raw). Nothing sounds until the user turns sound on;
 // the request waits until then. zm_sndh_call() runs the PLAYING SNDH's INIT
 // again (a game's sound effect) instead of reloading it; those calls are
@@ -42,7 +42,7 @@ static unsigned zm_sndh_call_d0[ZM_SNDH_CALL_MAX];
 static unsigned zm_sndh_call_n = 0;
 static unsigned zm_sndh_call_dropped = 0;
 
-// Request subtune `tune` of `name` (a file under docs/music/). Subtunes count
+// Request subtune `tune` of `name` (a file under site/music/). Subtunes count
 // from 1; 0 means "the image's own default". Only an SNDH has subtunes.
 // For a .mod, a tune of 32..255 is instead its start BPM (zg.requestModBpm);
 // 0..31 plays at ProTracker's 125.

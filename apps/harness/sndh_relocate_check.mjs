@@ -12,8 +12,8 @@
 //                                                 # old demo-audio + machine-audio to see it fail
 import { readFile } from "node:fs/promises";
 
-const DIR = process.argv[2] ?? "docs";
-const TUNE = "docs/music/union/alloy_run.sndh";
+const DIR = process.argv[2] ?? "site";
+const TUNE = "site/music/union/alloy_run.sndh";
 const SECONDS = 30, SR = 44100, FRAME = 882; // one 50 Hz replay frame
 
 const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });

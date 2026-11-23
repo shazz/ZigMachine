@@ -3,7 +3,7 @@
 # exactly as apps/harness/scene_hash.mjs does on the wasm machine. Runs both, compares
 # the JSON byte for byte, and writes a per-cart table.
 #
-#   tools/host_check.sh                  # every docs/demo-*.wasm, plus the --call runs
+#   tools/host_check.sh                  # every site/carts/demo-*.wasm, plus the --call runs
 #   tools/host_check.sh stniccc gem      # just these (by tag), no --call runs
 #   JOBS=8 FRAMES=600 tools/host_check.sh
 #
@@ -25,7 +25,7 @@ jobs_file="$OUT/jobs.txt"
 if [ $# -gt 0 ]; then
     for tag in "$@"; do echo "$tag|$FRAMES|$EVERY|" >>"$jobs_file"; done
 else
-    for w in "$ROOT"/docs/demo-*.wasm; do
+    for w in "$ROOT"/site/carts/demo-*.wasm; do
         t=$(basename "$w" .wasm); echo "${t#demo-}|$FRAMES|$EVERY|" >>"$jobs_file"
     done
     # The --call path, as apps/harness/tutorial_steps_check.mjs drives it.
@@ -43,7 +43,7 @@ make -C "$FPGA" -k -j"$JOBS" memmap $targets >"$OUT/build.log" 2>&1
 
 run_one() {  # tag frames every call -> one table row on stdout
     local tag=$1 frames=$2 every=$3 call=$4 id=$1${4:+@${4//:/_}}
-    local args=("docs/demo-$tag.wasm" "$frames" "$every") js="$OUT/$id.js.json" nat="$OUT/$id.native.json"
+    local args=("site/carts/demo-$tag.wasm" "$frames" "$every") js="$OUT/$id.js.json" nat="$OUT/$id.native.json"
     [ -n "$call" ] && args+=(--call "$call")
     (cd "$ROOT" && node apps/harness/scene_hash.mjs "${args[@]}" >"$js" 2>"$OUT/$id.js.err"); local jrc=$?
     local verdict distinct

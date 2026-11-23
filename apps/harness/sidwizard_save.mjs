@@ -1,6 +1,6 @@
 // SID-Wizard (apps/ports/sidwizard) SAVES a song to C: and it is there afterwards, byte for byte. Started from GEM
-// over its floppy (apps/harness/ports_gem.mjs), C: = a copy of docs/gemdos-c.img, its writes served as the page serves
-// them (docs/kos-cfile.js), as apps/harness/gemdos_grafx2_save.mjs does for GrafX2.
+// over its floppy (apps/harness/ports_gem.mjs), C: = a copy of site/disks/gemdos-c.img, its writes served as the page serves
+// them (site/js/kos-cfile.js), as apps/harness/gemdos_grafx2_save.mjs does for GrafX2.
 //   SAVE     FLASHBAK.SWM opens off the floppy at start; F8 (the menu, on LOAD TUNE), Up (SAVE TUNE), Return:
 //            the save dialog, the floppy's root listing C: as the folder "C" (apps/ports/sidwizard/kestrel_sw_files.c);
 //            Tab Tab (the owner-only code, the dialog's file selector), Return: into C:; Tab, M Y S O N G, Return
@@ -15,7 +15,7 @@ import { machine, step, picture, png } from "./ports_machine.mjs";
 import { launchFromGem } from "./ports_gem.mjs";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
-const CART = "docs/demo-sidwizard.wasm", DISK = "docs/demo-sidwizard.zmd", C_IMAGE = "docs/gemdos-c.img";
+const CART = "site/carts/demo-sidwizard.wasm", DISK = "site/carts/demo-sidwizard.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 const SONG = "apps/ports/sidwizard/data/FLASHBAK.SWM";
 const F8 = 0xe008, TAB = 0xe019, ENTER = 13, UP = 0, DOWN = 1;
 const key = (f, k) => [[f, (d) => d.key(k)], [f + 4, (d) => d.keyUp(k)]];

@@ -7,17 +7,17 @@
 //   node apps/ports/klystrack/vu_proof.mjs <before.wasm> <before_novu.wasm> <after.wasm> [frames=420] [keys=30,57349]
 // From the repo root. Exit 1 if a pixel outside the meters differs.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../../site/js/wasm_hiwater.js";
 
 const [A, ANOVU, B] = process.argv.slice(2, 5);
 const FRAMES = +(process.argv[5] ?? 420);
 const KEYS = (process.argv[6] ?? "30,57349").split(";").filter(Boolean).map((k) => k.split(",").map(Number));
-const DISK = await readFile("docs/demo-klystrack.zmd");
+const DISK = await readFile("site/carts/demo-klystrack.zmd");
 
 async function machineFor(cartPath) {
     const memory = new WebAssembly.Memory({ initial: 128, maximum: 128 });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), { env: { memory, hblDispatch() {} } })).instance.exports;
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile(cartPath);

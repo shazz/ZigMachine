@@ -1,9 +1,9 @@
-// "Run your own cart" (docs/upload-cart.js): a disk from the visitor's machine
+// "Run your own cart" (site/js/upload-cart.js): a disk from the visitor's machine
 // must mount EXACTLY like a disk from a URL, because carts stream their data
 // files (stniccc's scene1.bin, textracker's FEEDME.RAW) through diskReadBlock off
 // the mounted disk.
 //
-// For every docs/*.zmd this runs the REAL docs/sealed-loader.js in a vm (DOM
+// For every docs/*.zmd this runs the REAL site/js/sealed-loader.js in a vm (DOM
 // stubbed) and compares, byte for byte: the pre-refactor parser (kept verbatim
 // below as the reference), the URL path mountDisk(url), and the upload path
 // mountDiskBytes(bytes). Then it throws bad uploads at bootUserFile.
@@ -11,8 +11,8 @@
 // Usage: node apps/harness/upload_check.mjs
 import { readFile, readdir } from "node:fs/promises";
 import vm from "node:vm";
-import * as ZMDisk from "../../docs/zmdisk.js";
-import * as ZMRam from "../../docs/wasm_hiwater.js";
+import * as ZMDisk from "../../site/js/zmdisk.js";
+import * as ZMRam from "../../site/js/wasm_hiwater.js";
 
 const noise = () => {};
 function stub() { // a DOM that accepts anything the loader's top level does to it
@@ -26,13 +26,13 @@ const ctx = vm.createContext({
     console: { log: noise, warn: noise, error: noise }, alert: (m) => alerts.push(m),
     window: stub(), document: stub(), WebAssembly, TextDecoder, TextEncoder, URLSearchParams,
     fetch: async (url) => {
-        const bytes = await readFile("docs/" + url.replace(/\?.*$/, ""));
+        const bytes = await readFile("site/" + url.replace(/\?.*$/, ""));
         return { arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) };
     },
     ZMDisk: { ...ZMDisk }, ZMRam: { ...ZMRam },
 });
-vm.runInContext(await readFile("docs/sealed-loader.js", "utf8"), ctx, { filename: "sealed-loader.js" });
-vm.runInContext(await readFile("docs/upload-cart.js", "utf8"), ctx, { filename: "upload-cart.js" });
+vm.runInContext(await readFile("site/js/sealed-loader.js", "utf8"), ctx, { filename: "sealed-loader.js" });
+vm.runInContext(await readFile("site/js/upload-cart.js", "utf8"), ctx, { filename: "upload-cart.js" });
 vm.runInContext(LEGACY(), ctx, { filename: "legacy-mount.js" });
 const run = (code) => vm.runInContext(code, ctx);
 
@@ -62,9 +62,9 @@ function driveReads(image) {
     return null;
 }
 
-const disks = (await readdir("docs")).filter((f) => f.endsWith(".zmd")).sort();
+const disks = (await readdir("site/carts")).filter((f) => f.endsWith(".zmd")).sort().map((f) => "carts/" + f);
 for (const name of disks) {
-    const image = new Uint8Array(await readFile("docs/" + name));
+    const image = new Uint8Array(await readFile("site/" + name));
     try {
         const ref = await run(`legacyMountDisk(${JSON.stringify(name)})`), refDisk = run("mountedDisk");
         const url = await run(`mountDisk(${JSON.stringify(name)})`), urlDisk = run("mountedDisk");
@@ -79,8 +79,8 @@ for (const name of disks) {
 }
 
 // --- sniffing and caps ---------------------------------------------------------
-const tut = new Uint8Array(await readFile("docs/demo-c-tutorial.wasm"));
-const packed = ZMDisk.parseDisk(new Uint8Array(await readFile("docs/demo-ancool.zmd")), "ancool");
+const tut = new Uint8Array(await readFile("site/carts/demo-c-tutorial.wasm"));
+const packed = ZMDisk.parseDisk(new Uint8Array(await readFile("site/carts/demo-ancool.zmd")), "ancool");
 const packedCart = new Uint8Array(packed.mounted.chainCart
     ? packed.mounted.buf.slice(packed.mounted.chainCart.start, packed.mounted.chainCart.start + packed.mounted.chainCart.len)
     : packed.cart);

@@ -1,15 +1,15 @@
 // The sealed machine for apps/harness/ancool_headless.mjs, booted the way
-// apps/harness/scene_hash.mjs (and docs/sealed-loader.js) boot it, plus what that
+// apps/harness/scene_hash.mjs (and site/js/sealed-loader.js) boot it, plus what that
 // harness needs: a count of the cart's CHISEL blits (hwBlit wrapped) and the
 // browser's composite of the enabled planes (scene_hash's stackOver).
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 
 // machineDir/pages: an old cart needs the machine and the memory size it was built for
 // (a cart refuses a memory bigger than its declared max).
-export async function boot(cartBytes, machineDir = "docs", pages = PAGES) {
+export async function boot(cartBytes, machineDir = "site", pages = PAGES) {
     const memory = new WebAssembly.Memory({ initial: pages, maximum: pages });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {

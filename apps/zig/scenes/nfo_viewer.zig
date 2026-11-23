@@ -13,7 +13,7 @@ const nfo_lib = @import("nfo");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
-const K_ESC: u32 = 0xE012; // docs/sealed-loader.js KEY_CODES
+const K_ESC: u32 = 0xE012; // site/js/sealed-loader.js KEY_CODES
 const K_PGUP: u32 = 0xE01C;
 const K_PGDN: u32 = 0xE01D;
 const sample = nfo_lib.cp437.comptimeFromUtf8(@embedFile("nfo_viewer/sample.nfo.txt"));

@@ -3,7 +3,7 @@
 // tests (the scene's content, the chrome sphere's mirror, what refinement must change).
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 export const W = 320, H = 200, IMG_H = 176, HORIZON = 62;
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -12,19 +12,19 @@ const PANEL = [8, 8, 24]; // hud.zig's PANEL through the machine's 565 expansion
 export async function boot(name, clock) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const cartBytes = await readFile(`docs/${name}.wasm`);
+    const cartBytes = await readFile(`site/carts/${name}.wasm`);
     const noop = () => {};
     const env = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit, ...machine, ...rom };
     if (clock) env.hostMicros = clock;
-    // hwAstro: the machine's own ASTROLABE, as docs/sealed-loader.js binds it, timed apart
+    // hwAstro: the machine's own ASTROLABE, as site/js/sealed-loader.js binds it, timed apart
     // (the stand-in for the board's ARM: its time is not the cart's frame)
     const box = { astroMs: 0 };
     env.hwAstro = (desc, count) => {

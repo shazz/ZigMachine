@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
-// docs/kos-cfs.wasm: KFS (kfs.zig), C:'s writer where C: is an image, as one small wasm module with
-// memory of its own. The page (docs/kos-cfile.js, sealed-loader.js) and node's harnesses instantiate
+// site/kos-cfs.wasm: KFS (kfs.zig), C:'s writer where C: is an image, as one small wasm module with
+// memory of its own. The page (site/js/kos-cfile.js, sealed-loader.js) and node's harnesses instantiate
 // it; the native host links the same module through wasm2c (fpga/host/kos_cfile.c). The host keeps
 // the image: KFS asks it for sectors (env.kfsRead / env.kfsWrite, 512 bytes at an offset in this
 // module's memory). The host copies a cart's request into kfsBuf() (path, path2, data) and calls

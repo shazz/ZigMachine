@@ -27,7 +27,7 @@ while [ $# -gt 0 ]; do
         *) break ;;
     esac
 done
-[ $# -gt 0 ] || { echo "board_carts: name at least one cart tag (docs/demo-<tag>.wasm)" >&2; exit 2; }
+[ $# -gt 0 ] || { echo "board_carts: name at least one cart tag (site/carts/demo-<tag>.wasm)" >&2; exit 2; }
 [ -z "$stage" ] || [ -n "$bit" ] || { echo "board_carts: --stage needs --bit (the bitstream you boot)" >&2; exit 2; }
 [ -f "$LOCK" ] || { echo "board_carts: no build lock at $LOCK" >&2; exit 2; }
 [ -x "$FPGA/.tools/wabt/bin/wasm2c" ] || { echo "board_carts: no fpga/.tools/wabt (tools/setup.sh, or link the main checkout's)" >&2; exit 2; }
@@ -41,8 +41,8 @@ logs="$FPGA/build/board_carts"
 mkdir -p "$logs"
 good=() failed=0
 for tag in "$@"; do
-    if [ ! -f "$FPGA/../docs/demo-$tag.wasm" ]; then
-        echo "$tag FAIL no docs/demo-$tag.wasm (build the browser cart first)"; failed=1; continue
+    if [ ! -f "$FPGA/../site/carts/demo-$tag.wasm" ]; then
+        echo "$tag FAIL no site/carts/demo-$tag.wasm (build the browser cart first)"; failed=1; continue
     fi
     (cd "$FPGA" && flock "$LOCK" make board-fw CART="$tag" ZM_FPU="$FPU" ZM_AUDIO="$AUDIO") >"$logs/$tag.log" 2>&1
     rc=$?

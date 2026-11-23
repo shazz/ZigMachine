@@ -1,6 +1,6 @@
 // The Union cracktro's six tunes (keys 1-6, apps/zig/scenes/union/tracks.zig) all
 // PLAY, loaded one after the other into ONE audio instance, as a viewer pressing
-// 1, 2, 3, 4, 5, 6 makes the worklet do (docs/audio-worklet-sealed.js writeSong +
+// 1, 2, 3, 4, 5, 6 makes the worklet do (site/js/audio-worklet-sealed.js writeSong +
 // load + play). Why: keys 3+ "crashed" (Matt, 2026-10-20). audioLoadYm left the
 // autoplayed SNDH active over the dump just staged on its 68000 RAM, so the dump
 // never played and PLAY ran over its bytes until the 8 M-cycle runaway limit:
@@ -17,15 +17,15 @@ const BLOCK = 1024, BLOCKS_PER_S = 43; // one second a tune...
 const SECONDS = { "drooling_505.sndh": 6 };
 
 const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // AUDIO_PAGES
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
 const env = { memory };
 for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-const d = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+const d = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
 d.audioInit();
 
 let failed = false;
 for (const [i, name] of TRACKS.entries()) {
-    const bytes = new Uint8Array(await readFile(`docs/music/union/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/union/${name}`));
     const cap = d.audioSongCapacity(), len = Math.min(bytes.length, cap);
     new Uint8Array(memory.buffer, d.audioSongPtr(), cap).set(bytes.subarray(0, len));
     const ym = name.endsWith(".ymraw");

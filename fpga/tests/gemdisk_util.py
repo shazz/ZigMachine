@@ -1,5 +1,5 @@
 """Synthetic .zmd disks and the browser's own listing, for tests/test_board_gemdisk.py: GEM's FAT
-listing over a data disk, as docs/zmdisk.js parses a disk and docs/sealed-loader.js writes it."""
+listing over a data disk, as site/js/zmdisk.js parses a disk and site/js/sealed-loader.js writes it."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 
-# The browser: parseDisk (docs/zmdisk.js) and sealed-loader.js's listing block, cut out of the
+# The browser: parseDisk (site/js/zmdisk.js) and sealed-loader.js's listing block, cut out of the
 # loader and run over a mock GEM whose diskDirPtr is PTR in a memory of MEM bytes.
 NODE_LIST = r"""
 import { readFileSync } from "node:fs";
@@ -43,8 +43,8 @@ console.log(Object.hasOwn(files, new TextDecoder().decode(Buffer.from(hex, "hex"
 
 def browser_list(disk: Path, ent: int = 25, maxf: int = 12, ptr: int = 0x100, mem: int = 65536) -> str:
     args = [
-        str(ROOT / "docs/zmdisk.js"),
-        str(ROOT / "docs/sealed-loader.js"),
+        str(ROOT / "site/js/zmdisk.js"),
+        str(ROOT / "site/js/sealed-loader.js"),
         str(disk),
         *map(str, (ent, maxf, ptr, mem)),
     ]
@@ -55,7 +55,7 @@ def browser_list(disk: Path, ent: int = 25, maxf: int = 12, ptr: int = 0x100, me
 
 
 def browser_find(disk: Path, name: bytes) -> str:
-    args = [str(ROOT / "docs/zmdisk.js"), str(disk), name.hex()]
+    args = [str(ROOT / "site/js/zmdisk.js"), str(disk), name.hex()]
     out = subprocess.run(
         ["node", "--input-type=module", "-e", NODE_FIND, *args], capture_output=True, text=True, check=True
     )

@@ -4,13 +4,13 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Zig Machine</title>
-        <link rel="stylesheet" type="text/css" href="css/crt.css?v=784785a0" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/crt.css?v=534296ef" media="screen" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-        <link rel="stylesheet" type="text/css" href="css/info.css?v=c961d556" media="screen" />
-        <link rel="stylesheet" type="text/css" href="css/cart-select.css?v=78409390" media="screen" />
-        <link rel="stylesheet" type="text/css" href="css/vkbd.css?v=36c58a17" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/info.css?v=0110f425" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/cart-select.css?v=f326c603" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/vkbd.css?v=ee69a811" media="screen" />
         <!-- ?embed strips the page down to the monitor: the tutorial page
-             (docs/TUTORIAL.html) frames this file to run a cart beside the code. -->
+             (site/TUTORIAL.html) frames this file to run a cart beside the code. -->
         <script>
             if (new URLSearchParams(location.search).has("embed"))
                 document.documentElement.classList.add("embed");
@@ -44,7 +44,7 @@
                 </div>
             </div>
             <!-- VHS-deck OSD: the running cart's name on the glass for a few
-                 seconds when it boots (docs/cart-osd.js, css/crt.css). Its own
+                 seconds when it boots (site/js/cart-osd.js, css/crt.css). Its own
                  layer: the plane canvases above are never touched. -->
             <div class="cart_osd" id="cart_osd" aria-hidden="true"></div>
         </div></div>
@@ -97,29 +97,29 @@
     </body>
     <!-- Measures a cart's RAM high-water for hwSetCartHigh; module, so it must
          come first (it publishes globalThis.ZMRam for the classic loader). -->
-    <script type="module" src="wasm_hiwater.js?v=84a63636"></script>
+    <script type="module" src="js/wasm_hiwater.js?v=5b5d7626"></script>
     <!-- The disk parser, same hand-over (globalThis.ZMDisk). Modules run before
          the load event that boots the machine. -->
-    <script type="module" src="zmdisk.js?v=38c8ce99"></script>
+    <script type="module" src="js/zmdisk.js?v=38c8ce99"></script>
     <!-- KOS's power-on (the POST, then drive A): ZMKos, used by the loader's boot(). -->
-    <script src="kos-boot.js?v=090ac6f6"></script>
+    <script src="js/kos-boot.js?v=2c1324a4"></script>
     <!-- C:'s writes (KOS GEMDOS, docs/os/KOS_GEMDOS.md §7): ZMKosFile, KFS over the ?c= image. -->
-    <script src="kos-cfile.js?v=a10e1d5b"></script>
-    <script src="net-peer.js?v=9051a102"></script>
-    <script src="net-host.js?v=5b63f892"></script>
+    <script src="js/kos-cfile.js?v=ce3f51ec"></script>
+    <script src="js/net-peer.js?v=9051a102"></script>
+    <script src="js/net-host.js?v=0cb85dab"></script>
     <!-- Gamepads (R83): pad 1 = input(), pad 2 = input2() or merged into input(): ZMPad, polled by the loader. -->
-    <script src="gamepad.js?v=e59a1703"></script>
-    <script src="sealed-loader.js?v=746d7015"></script>
+    <script src="js/gamepad.js?v=3a552d13"></script>
+    <script src="js/sealed-loader.js?v=cf4d6aed"></script>
     <!-- "Run your own cart": the upload button and drag & drop (after the loader,
          whose state it shares). -->
-    <script src="upload-cart.js?v=1aca86b1"></script>
+    <script src="js/upload-cart.js?v=c8767cfc"></script>
     <!-- The VHS name card the deck paints when a cart boots (after the loader,
          whose state it shares). -->
-    <script src="cart-osd.js?v=39652902"></script>
+    <script src="js/cart-osd.js?v=22f3ae5f"></script>
     <!-- The cart selector: every channel as a list on the glass (after the
          loader, whose channel list and tuneToChannel it shares). -->
-    <script src="cart-select.js?v=83139c2f"></script>
+    <script src="js/cart-select.js?v=83139c2f"></script>
     <!-- The full virtual keyboard for touch screens, opened from the touch pad
          (after the loader, which builds the pad and listens for the keys). -->
-    <script src="vkbd.js?v=8b737947"></script>
+    <script src="js/vkbd.js?v=8b737947"></script>
 </html>

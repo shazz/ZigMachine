@@ -2,7 +2,7 @@
 // tutorial_steps.zig: the tutorial screen, stopped at any step of docs/guide/TUTORIAL.md.
 //
 // WHY THIS IS A SEPARATE FILE FROM tutorial.zig:
-// docs/TUTORIAL.html puts a "Run step N" button on every step, and running the
+// site/TUTORIAL.html puts a "Run step N" button on every step, and running the
 // FINISHED screen there would be a lie — step 2's prose says "a dark blue
 // rectangle in a black border" while the finished cart shows a scroller, a
 // copper bar and music. So the page needs a cart that can stop early.
@@ -20,7 +20,7 @@
 // "per-scene mode switch" (see apps/zig/demo_main.zig) — which the loader calls
 // for ?step=N. Nothing new was added to the ABI for this.
 //
-// Build: sh ./build.sh          Run: docs/index.html?demo=demo-tutorial-steps.wasm&step=3
+// Build: sh ./build.sh          Run: site/index.html?demo=demo-tutorial-steps.wasm&step=3
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -44,7 +44,7 @@ const BAR_H: i32 = 16;
 const TEXT = "HELLO FROM ZIG * THIS IS YOUR FIRST ZIGMACHINE SCREEN * ";
 const TEXT_W: i32 = TEXT.len * 8; // the 8x8 system font
 
-const MUSIC = "sos.sndh"; // a file under docs/music/
+const MUSIC = "sos.sndh"; // a file under site/music/
 
 // Which step of docs/guide/TUTORIAL.md to stop at. 7 = the whole screen, i.e. exactly
 // what tutorial.zig draws. Set before init() by the host, via setShadeMode.

@@ -24,7 +24,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
@@ -38,10 +38,10 @@ const K_ESC = 0xe012;
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -136,7 +136,7 @@ function makeOriginal() {
 // ---- the cart ------------------------------------------------------------
 const out = process.argv[2];
 if (out) await mkdir(out, { recursive: true });
-const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-union_multifake.wasm");
+const { memory, machine, demo } = await boot(process.argv[3] || "site/carts/demo-union_multifake.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const errors = [];
 const dec = new TextDecoder();

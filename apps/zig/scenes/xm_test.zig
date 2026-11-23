@@ -36,7 +36,7 @@ const INK: u8 = 1;
 const SEL: u8 = 2;
 const DIM: u8 = 3;
 
-/// The songs keys 1..3 ask for, under docs/music/ (the board's song table is
+/// The songs keys 1..3 ask for, under site/music/ (the board's song table is
 /// built from these literals: fpga/tools/song_pack.py).
 pub const SONGS = [_][]const u8{ "keygen_9000.xm", "poppy_flower_girls.xm", "local.xm" };
 const LABELS = [_][]const u8{ "1  KEYGEN 9000         8 CH", "2  POPPY FLOWER GIRLS 12 CH", "3  LOCAL.XM          (OPTIONAL)" };

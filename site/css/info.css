@@ -1,4 +1,4 @@
-/* Page layout around the monitor, and the "what is this?" panel (docs/index.html).
+/* Page layout around the monitor, and the "what is this?" panel (site/index.html).
 
    The monitor, its canvases and buttons are laid out in fixed pixels on a
    1030x824 stage. On a narrower screen the stage is scaled down as a whole
@@ -145,7 +145,7 @@
 }
 
 /* ---- ?embed: this page inside the tutorial's iframe --------------------
-   docs/TUTORIAL.html frames index.html?demo=<cart>&step=N&embed to run a cart
+   site/TUTORIAL.html frames index.html?demo=<cart>&step=N&embed to run a cart
    next to the code. Only the monitor is wanted: no prose column, no channel
    or upload buttons, no fixed touch pad (it would overflow a small frame).
    The Sound button STAYS — it is the in-document gesture the AudioContext

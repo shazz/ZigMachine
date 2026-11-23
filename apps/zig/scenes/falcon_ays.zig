@@ -12,7 +12,7 @@
 // One true-colour plane, double-buffered (falcon_ays/screen.zig): mode 804 = 320x200, mode 805
 // = 160x100 doubled (pixel pairs, lines doubled by the copper list).
 //
-// Music: docs/music/falcon_ays.mod, MSG's COMFORT.MOD (byte for byte the one in the program).
+// Music: site/music/falcon_ays.mod, MSG's COMFORT.MOD (byte for byte the one in the program).
 // The pictures, textures and tables are the original's (falcon_ays/art.zig, ripped by
 // tools/falcon_ays_art.py into apps/zig/assets/screens/falcon_ays/; published, Matt 3 Nov 2026).
 // Escape leaves.

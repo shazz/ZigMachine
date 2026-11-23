@@ -34,8 +34,8 @@ CART_LDFLAGS = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -nostd
 CART_RTLIB  ?= -lgcc
 CARTS_DIR   := $(SPLIT)/carts$(HSUF)$(if $(ZM_CART_VERSION),_v$(ZM_CART_VERSION))
 SYS_ABI_DEPS := cycles/sys_abi.txt $(wildcard tools/sys_abi*.py) tools/wasm_sig.py tools/host_bridges.py tools/host_scopes.py tools/host_stereo.py \
-	tools/host_gen.py glass/src/map_cart.zig host/host.h cycles/baudio.h $(ROOT)/docs/rom.wasm \
-	$(ROOT)/docs/machine-video.wasm
+	tools/host_gen.py glass/src/map_cart.zig host/host.h cycles/baudio.h $(ROOT)/site/rom.wasm \
+	$(ROOT)/site/machine-video.wasm
 
 gen/zm_sys_abi.h: $(SYS_ABI_DEPS)
 	uv run python tools/sys_abi_c.py header $@
@@ -46,7 +46,7 @@ $(HOST)/common/sys_env.c: $(HOST)/common/machine.c $(HOST)/common/rom.c tools/ho
 	uv run python tools/host_split.py system $@
 $(HOST)/%/cart_env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py \
 		gen/zm_sys_abi.h gen/memmap.py
-	uv run python tools/host_split.py cart $(HOST)/$* --cart $(ROOT)/docs/demo-$*.wasm
+	uv run python tools/host_split.py cart $(HOST)/$* --cart $(ROOT)/site/carts/demo-$*.wasm
 
 # One lean cart image: cart.c, its env, the shared runtime forwarders, its songs; libgcc only.
 $(CARTS_DIR)/%/cart.elf: $(CYC)/src/%/cart.c $(HOST)/%/cart_env.c gen/zm_cart_rt.c $(HCYC)/songs/%.c \

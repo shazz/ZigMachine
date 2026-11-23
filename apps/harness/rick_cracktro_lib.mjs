@@ -1,11 +1,11 @@
 // The sealed machine and the plane, for apps/harness/rick_cracktro_headless.mjs: the
-// RICK DANGEROUS cart booted the way docs/sealed-loader.js boots it, a host
+// RICK DANGEROUS cart booted the way site/js/sealed-loader.js boots it, a host
 // frame at a time, its song requests collected; the plane read back as ink.
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
-const CART = "docs/demo-rick_dangerous.wasm";
+const CART = "site/carts/demo-rick_dangerous.wasm";
 const RW = 800; // the physical frame: 320x200 at (40, 40), x doubled
 /// The ST's VBL: 512 x 313 cycles of 8.021247 MHz, 19.98 ms.
 export const VBL_MS = 512 * 313 * 1000 / 8021247;
@@ -14,10 +14,10 @@ const dec = new TextDecoder();
 export async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const env0 = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);

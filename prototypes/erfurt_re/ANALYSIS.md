@@ -158,7 +158,7 @@ The SNDH proper is `$582E` bytes, but the YMXR player uses the `$8266` zero byte
 buffer (watched in RAM), so the shipped file is `$DA94` bytes with that zero tail.
 Verified: `node apps/harness/sndh_headless.mjs` PASS, peak 0.99, three voices.
 
-Shipped as `docs/music/erfurt_menu.sndh` (the scrolltext names the tune and the tool).
+Shipped as `site/music/erfurt_menu.sndh` (the scrolltext names the tune and the tool).
 
 ## 4. What the port does differently, and why
 

@@ -42,7 +42,7 @@ def started(tmp_path_factory: pytest.TempPathFactory) -> list[str]:
 
 
 def test_the_keys_start_a_second_tune_and_the_board_image_holds_it(started: list[str]) -> None:
-    table = song_pack.song_names((ROOT / f"docs/demo-{CART}.wasm").read_bytes(), ROOT / "docs/music")
+    table = song_pack.song_names((ROOT / f"site/carts/demo-{CART}.wasm").read_bytes(), ROOT / "site/music")
     assert started[0] == "Warhawk.sap" and started[-1] == "BMX_Simulator.sap"
     assert set(started) <= set(table)
 

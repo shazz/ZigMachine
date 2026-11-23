@@ -1,4 +1,4 @@
-/* The drive: env.diskReadBlock as docs/sealed-loader.js serves it, for the native host
+/* The drive: env.diskReadBlock as site/js/sealed-loader.js serves it, for the native host
  * (`host --disk X.zmd`) and the board firmware (ZIGGY reading the disk ZWINDOW placed in
  * DDR, cycles/bdisk.c). One copy of the rules, so tests/test_board_disk.py can hold it
  * against the browser's own function.
@@ -48,7 +48,7 @@ static inline int64_t host_disk_read(host_disk_t* d, uint32_t block, uint32_t ds
 }
 
 /* KOS's C: (docs/os/KOS_FAT.md F5, env.kosDriveRead), the native host's half: `count` sectors of
- * unit 2 from host_cdisk's image (--c-image) into the cart's memory at `dst`, as docs/sealed-loader.js
+ * unit 2 from host_cdisk's image (--c-image) into the cart's memory at `dst`, as site/js/sealed-loader.js
  * serves its C: image. The answer is the sectors read; 0 for any refusal, never a trap (the board's
  * answer to a timeout is 0 too): no image, another unit, count 0 or over HOST_KOS_MAX_SECTORS, a run
  * past the image's end, a dst off a word or whose bytes pass the memory's. All or nothing. */

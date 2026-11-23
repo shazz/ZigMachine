@@ -75,11 +75,11 @@ endef
 SONG ?= sos.sndh
 TUNE ?= 0
 # Where SONG is, e.g. MUSIC=$(ROOT)/../prototypes/sap_asma SONG=Warhawk.sap.
-MUSIC ?= $(ROOT)/docs/music
+MUSIC ?= $(ROOT)/site/music
 $(SND)/bench/songs.c: tools/song_pack.py FORCE
 	@mkdir -p $(@D)
 	printf 'L 0 0 %s\n' '$(SONG)' >$(@D)/song.w
-	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
+	uv run python tools/song_pack.py $(ROOT)/site/carts/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
 $(eval $(call snd_image,play,))
 # SND_BARDQ=1: SID live through the BARD queue (cycles/sound/sbardq_bench.c), BARDQ_LOG the commands
 # (node apps/harness/bard_queue_check.mjs --dump <file>: BARD SID's tune as the page's loader posted it).
@@ -147,7 +147,7 @@ FX_SRC  := cycles/sound/sfx_cart.c cycles/bsound.c cycles/bsound_bardq.c cycles/
 $(FXD)/songs.c: tools/song_pack.py FORCE
 	@mkdir -p $(@D)
 	printf 'L 0 0 %s\n' '$(SONG)' >$(@D)/song.w
-	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
+	uv run python tools/song_pack.py $(ROOT)/site/carts/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
 $(FXD)/fw.elf: $(SND)/play/snd_img.o $(FX_SRC) $(FXD)/songs.c $(AUD_HDRS) cycles/snd_mailbox.h \
 		$(HCYC)/sim/common/fw.a FORCE
 	for s in $(FX_SRC) $(FXD)/songs.c; do \

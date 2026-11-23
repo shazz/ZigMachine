@@ -11,7 +11,7 @@ import { sndhPlay } from "./big_demo_machine.mjs";
 
 const SCENE = "apps/zig/scenes/big/digital_tunes.zig";
 const SUBDIR = "digital"; // what a `song` is relative to: the host fetches "music/" + name
-const MUSIC_DIR = `docs/music/${SUBDIR}`;
+const MUSIC_DIR = `site/music/${SUBDIR}`;
 export const ENTRIES = 6; // "DARE TO PRESS:" 1..6, read off the capture
 
 /// The scene's TUNES as { label, song, tune }.
@@ -35,7 +35,7 @@ export function readTunes(brk) {
     return list;
 }
 
-/// Every song the table names must BE in docs/music/digital/.
+/// Every song the table names must BE in site/music/digital/.
 ///
 /// A tune the player cannot load plays SILENCE, and silence from a typo is
 /// indistinguishable from a key that does nothing — it would ship looking like

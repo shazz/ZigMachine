@@ -27,7 +27,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { makeReplay, mouseAt, SHOTS } from "./union_textracker_replay.mjs";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
@@ -51,16 +51,16 @@ const traceAt = argv.indexOf("--trace");
 const tracePath = traceAt >= 0 ? argv[traceAt + 1] : null;
 if (traceAt >= 0) argv.splice(traceAt, 2);
 const outDir = argv[0] || "/tmp/union_textracker";
-const cartPath = argv[1] || "docs/demo-union_textracker.wasm";
+const cartPath = argv[1] || "site/carts/demo-union_textracker.wasm";
 const TUNE = brk === "tune" ? 2 : 1;
 
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -81,12 +81,12 @@ async function boot(cart) {
 /// Play `name` tune `tune` as the worklet would and measure it.
 async function playSong(name, tune, start) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const demo = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     demo.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     new Uint8Array(memory.buffer, demo.audioSongPtr(), bytes.length).set(bytes);
     const loaded = !!demo.audioLoadSndh(bytes.length);
     if (loaded && start) demo.audioSndhPlay(tune);

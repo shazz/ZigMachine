@@ -186,7 +186,7 @@ def main() -> None:
                     help="reuse the date stamped in this existing disk, if it has one "
                          "(tools/mkdisks.sh packs with it to tell a real change from a re-stamp)")
     ap.add_argument("--file", action="append", default=[], metavar="NAME=PATH",
-                    help="add an extra file to the FAT (repeatable), e.g. SAMPLE.RAW=docs/music/smp1.raw")
+                    help="add an extra file to the FAT (repeatable), e.g. SAMPLE.RAW=site/music/smp1.raw")
     ap.add_argument("--no-boot", action="store_true",
                     help="make a DATA disk (the machine boots the OS/GEM, not this disk). With "
                          "--boot-wasm the boot sector still runs first, then GEM follows")

@@ -2,18 +2,18 @@
 // the frame clock), and the raster it composites: shared by apps/harness/falcon_ays_headless.mjs and
 // apps/harness/falcon_ays_board.mjs.
 import { readFile } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 export const PAGES = 128, RW = 800, RH = 280, W = 320, H = 200, X0 = 40, Y0 = 40;
-const CART = "docs/demo-falcon_ays.wasm";
+const CART = "site/carts/demo-falcon_ays.wasm";
 
 export async function boot() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;

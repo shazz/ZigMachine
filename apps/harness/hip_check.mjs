@@ -1,6 +1,6 @@
 // The .hip player (libs/zig/players/hip_player.zig, paula.zig) on every Hippel module in
-// docs/music/ and each song a screen plays from it: the module's own 68000 replay, on the
-// browser's docs/demo-audio.wasm.
+// site/music/ and each song a screen plays from it: the module's own 68000 replay, on the
+// browser's site/demo-audio.wasm.
 //
 //   node apps/harness/hip_check.mjs [--break beam]
 //
@@ -29,18 +29,18 @@ const fail = (m) => errors.push(m);
 
 async function audio() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // machine/sdk/audio.zig
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     if (BREAK === "beam") a.audioHipMutant(3);
     return { memory, machine, a };
 }
 
 for (const s of SONGS) {
-    const bytes = await readFile(`docs/music/${s.file}`).catch(() => null);
-    if (!bytes) { fail(`docs/music/${s.file} is missing`); continue; }
+    const bytes = await readFile(`site/music/${s.file}`).catch(() => null);
+    if (!bytes) { fail(`site/music/${s.file} is missing`); continue; }
     if (createHash("md5").update(bytes).digest("hex") !== s.md5) fail(`${s.file} is not modland's file (md5)`);
     for (const tune of s.tunes) {
         const { memory, machine, a } = await audio(); // a fresh machine per song

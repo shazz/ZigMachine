@@ -8,8 +8,8 @@ against the wasm machine before any of it runs on a RISC-V core.
 
 ```sh
 make -C fpga host CART=stniccc                  # -> fpga/build/host/stniccc/host
-fpga/build/host/stniccc/host docs/demo-stniccc.wasm 1200 10 > native.json
-node apps/harness/scene_hash.mjs docs/demo-stniccc.wasm 1200 10 > wasm.json
+fpga/build/host/stniccc/host site/carts/demo-stniccc.wasm 1200 10 > native.json
+node apps/harness/scene_hash.mjs site/carts/demo-stniccc.wasm 1200 10 > wasm.json
 node apps/harness/scene_hash.mjs --compare wasm.json native.json
 make -C fpga host-check                         # every cart; tools/host_check.sh
 make -C fpga host CART=stniccc HOST_WALLCLOCK=-DHOST_WALLCLOCK   # + ms/frame on stderr
@@ -44,7 +44,7 @@ two outputs identical byte for byte, so `cmp` is enough to compare them.
    hex digests)`. The JSON is printed, then the exit is 1 if
    `hwRamAllocFailures() != 0`.
 
-`.high` is `cartHighWater` in `docs/wasm_hiwater.js`: the max of the mutable i32
+`.high` is `cartHighWater` in `site/js/wasm_hiwater.js`: the max of the mutable i32
 globals' initial values (`__stack_pointer`) and the end of the last active data
 segment. `tools/wasm_info.py` ports it with the JS's 32-bit LEB arithmetic, and
 `tests/test_host_gen.py` checks it against the JS on every module.

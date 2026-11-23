@@ -1,5 +1,5 @@
 // The .vgm player (libs/zig/players/vgm.zig) and its engine (our YM2612 + SN76489, libs/c/vgm) on the real
-// audio modules (docs/machine-audio.wasm + docs/demo-audio.wasm: the page's build):
+// audio modules (site/machine-audio.wasm + site/demo-audio.wasm: the page's build):
 //   parity    the engine in machine-audio.wasm renders each tune to the same samples, 0.1 s block for
 //             block, as the same C built natively (fpga/tools/vgm_render.c: what BARD runs, host/audio_vgm.c):
 //             KESTREL FM (.vgm and .vgz), the single-feature VGMs (libs/c/vgm/test_vgms.py), local tunes when
@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const TUNE = "docs/music/kestrel_fm.vgm", TUNE_Z = "docs/music/kestrel_fm.vgz", SECS = 6, OUT = 735;
+const TUNE = "site/music/kestrel_fm.vgm", TUNE_Z = "site/music/kestrel_fm.vgz", SECS = 6, OUT = 735;
 const LOCAL = process.env.VGM_LOCAL || "prototypes/gens_fm/dl/s1/x"; // Sonic 1's VGMs, the Gens study's local set
 const PIN = "apps/harness/vgm_expected.json";
 const SRC = ["vgm/zm_vgm.c", "vgm/vgm_seq.c", "vgm/vgm_stream.c", "vgm/zm_inflate.c", "vgm/zm_vgm_out.c", "ym2612/ym2612.c",
@@ -40,10 +40,10 @@ const pin = process.argv.includes("--pin");
 
 async function modules() {
     const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const a = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const a = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     a.audioInit();
     return { memory, m, a };
 }

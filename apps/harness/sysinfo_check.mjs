@@ -23,7 +23,7 @@
 import { mkdir } from "node:fs/promises";
 import { boot, frames, page, field, glassMismatches, glass, mode, K } from "./sysinfo_machine.mjs";
 import { grab, png } from "./skystrike_zig_frame.mjs";
-import { parseDisk } from "../../docs/zmdisk.js";
+import { parseDisk } from "../../site/js/zmdisk.js";
 import { soundPage } from "./sysinfo_sound.mjs";
 import { ident, pagesTwoThree, reference, modes, pointer } from "./sysinfo_modes.mjs";
 

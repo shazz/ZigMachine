@@ -1,5 +1,5 @@
 // Headless ULM 3615 GEN4 driver — boots the sealed machine + demo-gen4_3615.wasm
-// the way docs/sealed-loader.js does and checks it against screen.js REPLAYED
+// the way site/js/sealed-loader.js does and checks it against screen.js REPLAYED
 // (apps/harness/gen4_3615_replay.mjs, written from the source and matched to the page
 // run in Chrome: 3 pixels of ten 384x270 reference frames differ, once the
 // page's x17 '#RGB' expansion is put back for the raster colours, which this
@@ -16,7 +16,7 @@
 //      registers changed per line, not pixels: the index framebuffer holds one
 //      index for each, and the HBL installs that index's colour line by line.
 //   3. borders: the art reaches the side borders and the bottom border.
-//   4. music: the cart asks for 3615_gen4_demo.sndh, which is in docs/music/
+//   4. music: the cart asks for 3615_gen4_demo.sndh, which is in site/music/
 //      and plays through the sealed YM (FLAG ~y).
 //
 //   2026-10-24: the FATE logo is placed in fixed point (no per-frame float on
@@ -32,7 +32,7 @@
 // --break sabotages the replay (or, for raster, the expected table) and passes
 // only if a check notices.
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
-import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 import { copperRecords, copperColour } from "./copper_lines.mjs";
 import { Replay, loadAssets, W, H, ulmDistTable, mocheDistTable } from "./gen4_3615_replay.mjs";
 
@@ -58,10 +58,10 @@ function check(name, got, want) {
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+    const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
+    const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
@@ -81,12 +81,12 @@ async function boot(cart) {
 /// ~5 s of the tune on the sealed audio machine (as replicants_emlyn_headless).
 async function sndhPlay(name) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const m = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const m = (await WebAssembly.instantiate(await readFile("site/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
     for (const n of Object.keys(m)) if (n.startsWith("machine")) env[n] = m[n];
-    const audio = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    const audio = (await WebAssembly.instantiate(await readFile("site/demo-audio.wasm"), { env })).instance.exports;
     audio.audioInit();
-    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    const bytes = new Uint8Array(await readFile(`site/music/${name}`));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) return { peak: 0, unhandled: ["audioLoadSndh refused it"] };
     audio.audioSndhPlay(0);
@@ -100,7 +100,7 @@ async function sndhPlay(name) {
     return { peak, unhandled };
 }
 
-const { memory, machine, demo } = await boot("docs/demo-gen4_3615.wasm");
+const { memory, machine, demo } = await boot("site/carts/demo-gen4_3615.wasm");
 const PW = machine.hwPhysWidth(), PH = machine.hwPhysHeight(); // 800 (x doubled), 280
 const pfb = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), PW * PH * 4);
 const VB = machine.hwVideoBase();
@@ -193,8 +193,8 @@ check("the top border stays shut: nothing above row 40", lit(0, 400, 0, 40), 0);
 const dec = new TextDecoder();
 check("the cart asks for the remake's own SNDH", dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())), WANT_MUSIC);
 let present = true;
-try { await access(`docs/music/${WANT_MUSIC}`); } catch { present = false; }
-check(`docs/music/${WANT_MUSIC} is on the shelf`, present, true);
+try { await access(`site/music/${WANT_MUSIC}`); } catch { present = false; }
+check(`site/music/${WANT_MUSIC} is on the shelf`, present, true);
 if (present) {
     const s = await sndhPlay(WANT_MUSIC);
     check("it plays through the sealed YM (peak > 0.1)", s.peak > 0.1, true);

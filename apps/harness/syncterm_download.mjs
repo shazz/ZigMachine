@@ -1,6 +1,6 @@
 // SyncTERM's downloads land on C: (R81, apps/ports/syncterm/kestrel_dialdir.c kestrel_dldir + patches/bbslist.c.sed,
-// zmodem.c.sed). The cart is started from GEM over its data disk with C: = a copy of docs/gemdos-c.img (no DOWNLOAD
-// folder on it), its writes served as the page serves them (docs/kos-cfile.js); the in-cart BBS (kestrel_fakebbs.c
+// zmodem.c.sed). The cart is started from GEM over its data disk with C: = a copy of site/disks/gemdos-c.img (no DOWNLOAD
+// folder on it), its writes served as the page serves them (site/js/kos-cfile.js); the in-cart BBS (kestrel_fakebbs.c
 // + kestrel_fakexfer.c) dialled from the dialing directory sends TEST.BIN (2500 bytes, with CR NUL and 255 255 in it) when
 // X / Y / W / K is typed at its prompt, and the harness starts the receiver the way a user does (Alt+D, the protocol,
 // the filename). What lands on C: is read back off the image with mtools:
@@ -22,7 +22,7 @@ import { machine, step, picture, png } from "./ports_machine.mjs";
 import { launchFromGem, serviceQuit } from "./ports_gem.mjs";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
-const CART = "docs/demo-syncterm.wasm", DISK = "docs/demo-syncterm.zmd", C_IMAGE = "docs/gemdos-c.img";
+const CART = "site/carts/demo-syncterm.wasm", DISK = "site/carts/demo-syncterm.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 const ALT = 0xe013, ENTER = 13, DOWN = 1, SIZE = 2500;
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : ""; };

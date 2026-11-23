@@ -27,7 +27,7 @@
 //   node apps/harness/grodan_kvack_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 import { zigChecks, bindModel } from "./grodan_kvack_zig.mjs";
 
 const PAGES = 128; // must match SHARED_PAGES in machine/sdk/memmap.zig
@@ -38,13 +38,13 @@ const TICK_MS = Math.fround(1000 / 60); // the cart's 60 Hz step; one tick a fra
 // ---------------- boot (the kickoff2 shape: machine + ROM + cart) -----------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(await readFile("docs/rom.wasm"), { env: romEnv })).instance.exports;
+const rom = (await WebAssembly.instantiate(await readFile("site/rom.wasm"), { env: romEnv })).instance.exports;
 const noop = () => {};
-const cartBytes = await readFile("docs/demo-grodan_kvack.wasm");
+const cartBytes = await readFile("site/carts/demo-grodan_kvack.wasm");
 const env = {
     ...romEnv,
     hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,

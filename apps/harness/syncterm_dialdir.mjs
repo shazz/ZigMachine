@@ -1,6 +1,6 @@
 // SyncTERM's dialing directory on C: (apps/ports/syncterm/kestrel_dialdir.c). The SyncTERM cart is started from
-// GEM over its data disk (apps/harness/ports_gem.mjs) with C: = a copy of docs/gemdos-c.img, its writes served as the page
-// serves them (docs/kos-cfile.js), the network MOCKED (no ZIGNIC card: the in-cart BBS answers fakebbs.zig):
+// GEM over its data disk (apps/harness/ports_gem.mjs) with C: = a copy of site/disks/gemdos-c.img, its writes served as the page
+// serves them (site/js/kos-cfile.js), the network MOCKED (no ZIGNIC card: the in-cart BBS answers fakebbs.zig):
 //   seed      no list on C: yet: one is written, C:\SYNCTERM\SYNCTERM.LST, from the floppy's DIAL.TXT + the in-cart BBS
 //   dir       SyncTERM opens on its dialing directory (no URL on its command line), pinned
 //   dial      Enter on fakebbs.zig dials it: the BBS's screen is drawn (pinned), typed keys come back (pinned)
@@ -19,7 +19,7 @@ import { machine, step, picture, sha, png } from "./ports_machine.mjs";
 import { launchFromGem, serviceQuit } from "./ports_gem.mjs";
 import { makeCDrive, makeCFile } from "./scene_hash_disk.mjs";
 
-const CART = "docs/demo-syncterm.wasm", DISK = "docs/demo-syncterm.zmd", C_IMAGE = "docs/gemdos-c.img";
+const CART = "site/carts/demo-syncterm.wasm", DISK = "site/carts/demo-syncterm.zmd", C_IMAGE = "site/disks/gemdos-c.img";
 const ALT = 0xe013, INS = 0xe00b, ENTER = 13, UP = 0, DOWN = 1;
 const CELLS = [0, 399], SCREEN = [0, 351], PROMPT = [352, 383]; // the 80x25 cells of 8x16; the BBS's art; its prompt rows
 const PIN = { // re-bless only for a deliberate change to the cart or data/BBS.ANS

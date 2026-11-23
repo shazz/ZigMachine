@@ -127,7 +127,7 @@ not matter here.
 | Fact | Evidence | Consequence |
 |---|---|---|
 | A cart is wasm. On the board it is turned into ZIGGY rv32 by wasm2c + GCC **on the PC**. glass checks the result against the system's ABI and places it | `fpga/tools/kos_rv.py` (the `.RV` container: wasm hash + packed board image), docs/hardware/PERF_AUDIT.md | There is no compiler on the board. A cart cannot jump into bytes it wrote: wasm has no such operation |
-| The browser runs only wasm. There is no rv32 emulator in the page | `docs/sealed-loader.js` | Any rv32 output needs an emulator in the browser too |
+| The browser runs only wasm. There is no rv32 emulator in the page | `site/js/sealed-loader.js` | Any rv32 output needs an emulator in the browser too |
 | A small sandboxed wasm interpreter exists on the board: integer MVP, 1 KB modules, no `call_indirect`, a fuel budget | `fpga/host/wint.h:1-30` (777 lines of C), `fpga/host/bootsec.h` | A seed for running wasm on the board. Far from a general engine, and it lives in the firmware, not in a cart |
 | A 68000 core (Musashi) is in the tree, built for wasm and for BARD, with an instruction hook | `libs/c/musashi/`, `config/zm_musashi.h:27` (`M68K_INSTRUCTION_HOOK`), `libs/zig/players/sndh_player.zig:237` | A complete, tested CPU we can link into a cart. Single-step and breakpoints are already plumbed |
 | ZM-X custom instructions have a C twin with the same integer results | `fpga/cycles/zmx_twin.h` | An rv32 emulator could run ZM-X too |

@@ -15,7 +15,7 @@
 //   pacing  the phase is the original's 50 Hz frame: 5 steps every 6 frames
 //   music   rings_of_medusa.hip song 1 at start ('i'); keys a..j (and A..J) ask
 //           for the module and song of the original's table; every file is in
-//           docs/music/hippel/, a .hip (bra, bra, "TFMX" past the player) on the
+//           site/music/hippel/, a .hip (bra, bra, "TFMX" past the player) on the
 //           same 0xA2C-byte replay, with at least that many songs; each of the
 //           ten PLAYS 8 s on demo-audio's .hip player (loud, a Paula voice started, no
 //           bad pointer or unanswered write, no two the same sound) -- or the run
@@ -25,7 +25,7 @@
 //   node apps/harness/hippel_musicdisk_headless.mjs [--break pixels|lead|music|pacing] [--ppm FILE] [--audio DIR]  (FILE: frame 300, 400x280)
 //     each --break must be caught (the model is wrong on purpose)
 import { readFileSync, writeFileSync } from "node:fs";
-import { cartRam } from "../../docs/wasm_hiwater.js";
+import { cartRam } from "../../site/js/wasm_hiwater.js";
 import { screenModel } from "./hippel_musicdisk_model.mjs";
 import { playHip } from "./hippel_musicdisk_audio.mjs";
 
@@ -35,17 +35,17 @@ const opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv[i + 1
 const brk = opt("--break");
 if (brk && !["pixels", "lead", "music", "pacing"].includes(brk)) throw new Error("--break pixels|lead|music|pacing");
 const ppm = opt("--ppm");
-const audioDir = opt("--audio") ?? "docs"; // where demo-audio.wasm + machine-audio.wasm are
+const audioDir = opt("--audio") ?? "site"; // where demo-audio.wasm + machine-audio.wasm are
 
 // ---------------- boot -------------------------------------------------------
 const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo;
-const machine = (await WebAssembly.instantiate(readFileSync("docs/machine-video.wasm"), {
+const machine = (await WebAssembly.instantiate(readFileSync("site/machine-video.wasm"), {
     env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
 })).instance.exports;
 const romEnv = { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit };
-const rom = (await WebAssembly.instantiate(readFileSync("docs/rom.wasm"), { env: romEnv })).instance.exports;
-const cartBytes = readFileSync("docs/demo-hippel_musicdisk.wasm");
+const rom = (await WebAssembly.instantiate(readFileSync("site/rom.wasm"), { env: romEnv })).instance.exports;
+const cartBytes = readFileSync("site/carts/demo-hippel_musicdisk.wasm");
 const env = { ...romEnv, ...rom };
 for (const k of Object.keys(machine)) if (/^hw(Rom)?Ram/.test(k)) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
@@ -73,7 +73,7 @@ ok(request() === want(TUNES[8]), `music: the start asks for ${want(TUNES[8])} ('
 const PLAYER = 0xA2C;
 let player = null;
 for (const [m, s] of TUNES) {
-    const f = readFileSync(`docs/music/hippel/${m}.hip`);
+    const f = readFileSync(`site/music/hippel/${m}.hip`);
     const isHip = f[0] === 0x60 && f[2] === 0x60 && f.toString("latin1", PLAYER, PLAYER + 4) === "TFMX";
     player ??= f.subarray(0, PLAYER);
     const songs = f.readUInt16BE(PLAYER + 16); // the TFMX header's song count
@@ -83,7 +83,7 @@ for (const [m, s] of TUNES) {
 // in the 68000's RAM, and two songs of one module are not the same sound
 const sigs = new Map();
 for (const [m, s] of brk ? [] : TUNES) {
-    const r = await playHip(audioDir, readFileSync(`docs/music/hippel/${m}.hip`), s, 8);
+    const r = await playHip(audioDir, readFileSync(`site/music/hippel/${m}.hip`), s, 8);
     if (r === null) { console.log(`  NOT CHECKED: ${audioDir}/demo-audio.wasm has no .hip player yet (libs/zig/players/hip_player.zig not merged)`); break; }
     const dup = sigs.get(r.sig);
     sigs.set(r.sig, `${m}#${s}`);
