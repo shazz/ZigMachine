@@ -100,16 +100,16 @@
     <script type="module" src="wasm_hiwater.js?v=84a63636"></script>
     <!-- The disk parser, same hand-over (globalThis.ZMDisk). Modules run before
          the load event that boots the machine. -->
-    <script type="module" src="zmdisk.js?v=108ca616"></script>
+    <script type="module" src="zmdisk.js?v=38c8ce99"></script>
     <!-- KOS's power-on (the POST, then drive A): ZMKos, used by the loader's boot(). -->
-    <script src="kos-boot.js?v=0b51a34c"></script>
+    <script src="kos-boot.js?v=090ac6f6"></script>
     <!-- C:'s writes (KOS GEMDOS, docs/os/KOS_GEMDOS.md §7): ZMKosFile, KFS over the ?c= image. -->
     <script src="kos-cfile.js?v=a10e1d5b"></script>
     <script src="net-peer.js?v=9051a102"></script>
     <script src="net-host.js?v=5b63f892"></script>
     <!-- Gamepads (R83): pad 1 = input(), pad 2 = input2() or merged into input(): ZMPad, polled by the loader. -->
-    <script src="gamepad.js?v=fd8c0f1b"></script>
-    <script src="sealed-loader.js?v=73d43a59"></script>
+    <script src="gamepad.js?v=e59a1703"></script>
+    <script src="sealed-loader.js?v=746d7015"></script>
     <!-- "Run your own cart": the upload button and drag & drop (after the loader,
          whose state it shares). -->
     <script src="upload-cart.js?v=1aca86b1"></script>
