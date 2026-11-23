@@ -397,7 +397,7 @@ echo "perf names: $(ls zig-out/perf-names/site/*.wasm zig-out/perf-names/site/ca
     : (await readdir("site/carts")).filter((f) => f.endsWith(".zmd")).sort().map((f) => `site/carts/${f}`);
 >>>
 
-=== apps/harness/raytrace_headless.mjs
+=== apps/harness/raytrace_lib.mjs
 <<<
     const cartBytes = await readFile(`docs/${name}.wasm`);
 ---
