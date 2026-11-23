@@ -48,12 +48,12 @@ gate)
     # Rebuild docs/ first (no lock: --fast) and commit it, so the full gate runs on a tree whose docs/
     # are already current and stamps THAT tree green: the push after it is then instant.
     (cd "$wt" && ./build.sh --fast > "$log.fast" 2>&1)
-    fast=$(git -C "$wt" status --porcelain | awk '$1 != "??" {print $2}' | grep '^docs/' || true)
+    fast=$(git -C "$wt" status --porcelain | awk '$1 != "??" {print $2}' | grep -E '^(site|docs)/' || true)
     [ -z "$fast" ] || { git -C "$wt" add $fast; git -C "$wt" commit -q -m "docs: carts rebuilt for the integration ($name)"; }
     flock "$LOCK" sh -c "cd '$wt' && ./build.sh > '$log' 2>&1"
     tail -3 "$log"
     # The gate may rebuild docs/ (carts, the ROM): those are the merged tree's real outputs.
-    changed=$(git -C "$wt" status --porcelain | awk '$1 != "??" {print $2}' | grep '^docs/' || true)
+    changed=$(git -C "$wt" status --porcelain | awk '$1 != "??" {print $2}' | grep -E '^(site|docs)/' || true)
     if [ -n "$changed" ]; then
         git -C "$wt" add $changed
         git -C "$wt" commit -q -m "docs: carts and ROM rebuilt by the integration gate ($name)"

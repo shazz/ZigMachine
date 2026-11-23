@@ -1,6 +1,6 @@
 # GitHub Pages from site/ (the repo reorganisation, tools/reorg/run_all.sh, phase 3).
 #
-# DISABLED ON PURPOSE: it runs only by hand (workflow_dispatch). Today Pages is "classic",
+# ENABLED 22 Nov with phase 3 (Pages source switched to "GitHub Actions"); it was by hand only before. Today Pages is "classic",
 # publishing main:/docs (gh api repos/shazz/ZigMachine/pages). The site moves to site/ when
 # tools/reorg/phase3_site.py lands on main, and classic Pages can only serve / or /docs, so:
 #
@@ -16,6 +16,9 @@
 name: Pages
 
 on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
