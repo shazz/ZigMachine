@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# openXC7 (yosys + nextpnr-xilinx + Project X-Ray) in Docker, for the Z7-Lite's
-# XC7Z010-1CLG400. Nothing is installed on the host: the image is built from
+# openXC7 (yosys + nextpnr-xilinx + Project X-Ray) in Docker, for the board's part
+# (ZM_PART / ZM_DBPART / ZM_CHIP from fpga/boards/<board>/board.mk; default KESTREL's XC7Z010-1CLG400). Nothing is installed on the host: the image is built from
 # docker/openxc7/ (pinned), and the repo is mounted at its own path so every
 # path LiteX writes into a build script is valid on both sides.
 #
 #   openxc7.sh image                 build the image (once; tagged by its recipe's hash)
 #   openxc7.sh db                    copy the pinned prjxray-db zynq7/ to .tools/prjxray-db/
-#   openxc7.sh chipdb                nextpnr chipdb for xc7z010 -> .tools/chipdb/ (heavy, once)
+#   openxc7.sh chipdb                nextpnr chipdb for $ZM_CHIP -> .tools/chipdb/ (heavy, once)
 #   openxc7.sh toolchain             all three
 #   openxc7.sh bit TOP OUT XDC V...  synth -> pnr -> fasm -> frames -> OUT/TOP.bit
 #   openxc7.sh run CMD...            any command in the container, cwd preserved
@@ -20,12 +20,14 @@ RECIPE="$FPGA/docker/openxc7"
 TAG="$(cat "$RECIPE/Dockerfile" "$RECIPE/entry.sh" "$RECIPE/flake.nix" "$RECIPE/flake.lock" | sha256sum | cut -c1-12)"
 IMAGE="zm-openxc7:$TAG"
 MEM="${OPENXC7_MEM:-6g}"
-PART=xc7z010clg400-1
-DBPART=xc7z010clg400  # LiteX and openXC7.mk look up $CHIPDB/$DBPART.bin
+PART=${ZM_PART:-xc7z010clg400-1}
+DBPART=${ZM_DBPART:-xc7z010clg400}  # LiteX and openXC7.mk look up $CHIPDB/$DBPART.bin
+CHIP=${ZM_CHIP:-xc7z010}
 export CHIPDB="$FPGA/.tools/chipdb"
 export PRJXRAY_DB_DIR="$FPGA/.tools/prjxray-db"
-# The chipdb built from the pins above (docker/openxc7/chipdb.sha256).
+# The chipdb built from the pins above (docker/openxc7/chipdb.sha256; another chip records its own file).
 CHIPDB_SHA_FILE="$RECIPE/chipdb.sha256"
+[ "$CHIP" = xc7z010 ] || CHIPDB_SHA_FILE="$RECIPE/chipdb-$CHIP.sha256"
 
 die() { echo "openxc7: $*" >&2; exit 1; }
 
@@ -53,23 +55,23 @@ db() {
 }
 
 chipdb() {
-    local bin="$CHIPDB/chipdb-xc7z010.bin"
+    local bin="$CHIPDB/chipdb-$CHIP.bin"
     db
     if [ ! -f "$bin" ]; then
         mkdir -p "$CHIPDB"
-        echo "openxc7: generating the xc7z010 chipdb (memory capped at $MEM)"
+        echo "openxc7: generating the $CHIP chipdb (memory capped at $MEM)"
         run bash -c 'set -euo pipefail
-            python3 "$XILINX_GEN" --xray "$1/zynq7" --device xc7z010 --bba "$2/xc7z010.bba"
-            bbasm -l "$2/xc7z010.bba" "$2/chipdb-xc7z010.bin.tmp"
-            rm -f "$2/xc7z010.bba"; mv "$2/chipdb-xc7z010.bin.tmp" "$2/chipdb-xc7z010.bin"' \
-            _ "$PRJXRAY_DB_DIR" "$CHIPDB"
+            python3 "$XILINX_GEN" --xray "$1/zynq7" --device "$3" --bba "$2/$3.bba"
+            bbasm -l "$2/$3.bba" "$2/chipdb-$3.bin.tmp"
+            rm -f "$2/$3.bba"; mv "$2/chipdb-$3.bin.tmp" "$2/chipdb-$3.bin"' \
+            _ "$PRJXRAY_DB_DIR" "$CHIPDB" "$CHIP"
     fi
-    ln -sf chipdb-xc7z010.bin "$CHIPDB/$DBPART.bin"
+    ln -sf "chipdb-$CHIP.bin" "$CHIPDB/$DBPART.bin"
     if [ -f "$CHIPDB_SHA_FILE" ]; then
         (cd "$CHIPDB" && sha256sum -c --quiet "$CHIPDB_SHA_FILE") \
             || die "chipdb differs from $CHIPDB_SHA_FILE (different pins?)"
     else
-        (cd "$CHIPDB" && sha256sum chipdb-xc7z010.bin) > "$CHIPDB_SHA_FILE"
+        (cd "$CHIPDB" && sha256sum "chipdb-$CHIP.bin") > "$CHIPDB_SHA_FILE"
         echo "openxc7: recorded $(cat "$CHIPDB_SHA_FILE")"
     fi
 }

@@ -16,11 +16,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from soc import openxc7_fast
+from soc import boards, openxc7_fast
 
 FPGA = Path(__file__).resolve().parent.parent
 WRAPPER = FPGA / "tools/openxc7.sh"
-DBPART = "xc7z010clg400"
 
 
 class ToolchainMissingError(FileNotFoundError):
@@ -33,7 +32,7 @@ def prepare_env() -> None:
     try to generate a chipdb on the host, with tools the host does not have."""
     chipdb = Path(os.environ.setdefault("CHIPDB", str(FPGA / ".tools/chipdb")))
     db = Path(os.environ.setdefault("PRJXRAY_DB_DIR", str(FPGA / ".tools/prjxray-db")))
-    for needed in (chipdb / f"{DBPART}.bin", db / "zynq7"):
+    for needed in (chipdb / f"{boards.current().dbpart}.bin", db / "zynq7"):
         if not needed.exists():
             raise ToolchainMissingError(needed)
 

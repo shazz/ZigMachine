@@ -13,6 +13,7 @@ Verilator.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from litex.build.generic_platform import Pins, Subsignal
@@ -24,6 +25,7 @@ from litex.soc.integration.soc_core import SoCCore
 from litex.soc.interconnect import axi
 from migen import Cat, ClockDomain, If, Module, Signal
 
+from soc import boards
 from soc.zm_audio_soc import add_audio, hdmi_out
 from soc.zm_audio_vol import ZMAudioVolume
 from soc.zm_glass import ZMGlass, ps7_gp0
@@ -193,6 +195,10 @@ def main() -> None:
     p.add_argument("--target", choices=["sim", "z7"], required=True)
     p.add_argument("--run", action="store_true", help="sim: compile and run with Verilator")
     p.add_argument("--build", action="store_true", help="z7: run the toolchain to a bitstream")
+    p.add_argument(
+        "--board", choices=sorted(boards.BOARDS), default=boards.current().name,
+        help="z7: the board (soc/boards.py; default $ZM_BOARD, else kestrel): its part, XDC and build/<board>/",
+    )  # fmt: skip
     p.add_argument("--toolchain", choices=["vivado", "openxc7"], default="openxc7")
     p.add_argument("--osc", default="PL_CLK_50M", help="z7: the XDC port of the PL oscillator (Z7-Lite: 50 MHz on N18)")
     p.add_argument("--osc-hz", type=int, default=int(50e6), help="z7: its frequency (check the schematic)")
@@ -221,7 +227,7 @@ def main() -> None:
     p.add_argument(
         "--cpu-netlist", help="z7: a vexgen VexRiscv netlist (default soc/zm_z7.py BOARD_CORE), or `standard`"
     )
-    p.add_argument("--out", help="z7: the build directory (default fpga/build/soc_z7)")
+    p.add_argument("--out", help="z7: the build directory (default fpga/build/<board>/soc_z7)")
     p.add_argument("--astro", action="store_true", help="z7: ASTROLABE's mailbox (soc/zm_astro.py, SPIKE)")
     p.add_argument("--hp-probe", action="store_true", help="z7: the read path's debug probe (cycles/bdiag.c mode 4)")
     p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: --vivado-directives explore")
@@ -231,6 +237,7 @@ def main() -> None:
     )  # fmt: skip
     p.add_argument("--vivado-threads", type=int, default=2, help="z7, vivado: general.maxThreads (memory)")
     args = p.parse_args()
+    os.environ["ZM_BOARD"] = args.board  # soc/platform_z7.py and soc/openxc7.py read it
     (build_sim if args.target == "sim" else build_z7)(args)
 
 

@@ -1,9 +1,9 @@
-"""LiteX platform for the MicroPhase Z7 (XC7Z010-1CLG400), built from the
-VENDOR'S OWN XDC rather than from pin numbers typed in here.
+"""LiteX platform for the MicroPhase Z7 boards (soc/boards.py: KESTREL's XC7Z010-1CLG400, PEREGRINE's
+7020), built from the VENDOR'S OWN XDC rather than from pin numbers typed in here.
 
 Board pinouts are exactly the kind of fact that gets guessed wrong, so this file
 holds none: drop the board package's constraint file at
-boards/microphase_z7_7010/board.xdc and every `set_property PACKAGE_PIN` /
+boards/<board>/board.xdc and every `set_property PACKAGE_PIN` /
 `IOSTANDARD` pair in it becomes a LiteX IO named after its port. Ports written
 `name[i]` become pin `i` of a multi-pin IO `name`.
 """
@@ -17,9 +17,7 @@ from pathlib import Path
 from litex.build.generic_platform import IOStandard, Pins
 from litex.build.xilinx import XilinxPlatform
 
-FPGA = Path(__file__).resolve().parent.parent
-BOARD_XDC = FPGA / "boards/microphase_z7_7010/board.xdc"
-DEVICE = "xc7z010clg400-1"
+from soc import boards
 
 _LINE = re.compile(
     r"^\s*set_property\s+(?P<props>.+?)\s+\[get_ports\s+(?:\{\s*(?P<braced>[^}]+?)\s*\}|(?P<bare>\S+?))\s*\]"
@@ -38,10 +36,10 @@ def _props(text: str) -> dict[str, str]:
 
 
 class BoardXdcMissingError(FileNotFoundError):
-    def __init__(self) -> None:
+    def __init__(self, xdc: Path) -> None:
         super().__init__(
-            f"{BOARD_XDC} not found: copy the constraint file from the MicroPhase board package "
-            "(see boards/microphase_z7_7010/README.md)"
+            f"{xdc} not found: copy the constraint file from the MicroPhase board package "
+            f"(see {xdc.parent / 'README.md'})"
         )
 
 
@@ -77,7 +75,8 @@ def io_from_xdc(text: str) -> list[tuple[object, ...]]:
 
 
 class Platform(XilinxPlatform):
-    def __init__(self, toolchain: str = "vivado") -> None:
-        if not BOARD_XDC.exists():
-            raise BoardXdcMissingError
-        XilinxPlatform.__init__(self, DEVICE, io_from_xdc(BOARD_XDC.read_text()), toolchain=toolchain)
+    def __init__(self, toolchain: str = "vivado", board: boards.Board | None = None) -> None:
+        board = board or boards.current()
+        if not board.xdc.exists():
+            raise BoardXdcMissingError(board.xdc)
+        XilinxPlatform.__init__(self, board.device, io_from_xdc(board.xdc.read_text()), toolchain=toolchain)

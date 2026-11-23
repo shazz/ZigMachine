@@ -23,7 +23,7 @@ files=(); for f in "$@"; do files+=("$(realpath "$f")"); done; set -- "${files[@
     echo "set_param general.maxThreads ${MAXTHREADS:-2}" # Vivado beside a sim was OOM-killed: 2 threads
     for f in "$@"; do echo "read_verilog {$f}"; done
     vdefs=""; for d in $defs; do vdefs="$vdefs -verilog_define $d"; done
-    echo "synth_design -top $top -part xc7z010clg400-1 -mode out_of_context -include_dirs {$fpga/gen} $vdefs${FLATTEN:+ -flatten_hierarchy $FLATTEN}"
+    echo "synth_design -top $top -part ${ZM_PART:-xc7z010clg400-1} -mode out_of_context -include_dirs {$fpga/gen} $vdefs${FLATTEN:+ -flatten_hierarchy $FLATTEN}"
     if [ -n "${PERIOD:-}" ]; then
         echo "create_clock -period $PERIOD -name ${CLOCK:-sys_clk} [get_ports ${CLOCK:-sys_clk}]"
         if [ -n "${IMPL:-}" ]; then echo "opt_design"; echo "place_design"; echo "route_design"; fi

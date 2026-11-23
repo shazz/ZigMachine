@@ -10,7 +10,7 @@ inc=$(cd "$(dirname "$0")/.." && pwd)/gen
     for f in "$@"; do echo "read_verilog {$f}"; done
     echo "read_xdc {$xdc}"
     vdefs=""; for d in $defs; do vdefs="$vdefs -verilog_define $d"; done
-    echo "synth_design -top $top -part xc7z010clg400-1 -include_dirs {$inc} $vdefs"
+    echo "synth_design -top $top -part ${ZM_PART:-xc7z010clg400-1} -include_dirs {$inc} $vdefs"
     echo "opt_design; place_design; route_design"
     echo "report_timing_summary -file {$out/timing.rpt}"
     echo "write_bitstream -force {$out/$top.bit}"

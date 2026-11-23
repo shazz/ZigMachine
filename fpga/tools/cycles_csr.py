@@ -13,7 +13,7 @@ the pipeline's CSRs are `video_*` and the glass reports the firmware's state;
 the sim's on any register both have (the image is linked for one map):
 
     uv run python tools/cycles_csr.py --hp build/soc_hp/csr.json build/hcycles/gen/csr_addr.h \
-        --hp-check build/soc_z7/csr.json
+        --hp-check build/kestrel/soc_z7/csr.json
 
 LiteX's own generated/csr.h would do, but it pulls in LiteX's libbase headers
 (system.h, hw/common.h), which this firmware does not build.

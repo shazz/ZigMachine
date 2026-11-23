@@ -2,7 +2,7 @@
 pipeline included) with Yosys `synth_xilinx` and report what it costs: the
 check that stands in for a bitstream until openXC7's chipdb is set up.
 
-    uv run python tools/soc_util.py      # -> build/soc_z7/soc_util.txt, and a one-line summary
+    uv run python tools/soc_util.py      # -> build/<board>/soc_z7/soc_util.txt, and a one-line summary
 
 LiteX writes the SoC's Verilog, then stops at the missing chipdb (it exits in
 its toolchain's finalize); the sources it collected are read from the platform.
@@ -24,7 +24,7 @@ import util
 
 from soc import zm_z7
 
-OUT = FPGA / "build" / "soc_z7"
+OUT = FPGA / "build" / (os.environ.get("ZM_BOARD") or "kestrel") / "soc_z7"  # fpga/boards/boards.mk SOC_OUT
 
 
 def elaborate() -> tuple[list[str], list[str]]:

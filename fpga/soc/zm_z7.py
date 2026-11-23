@@ -26,7 +26,7 @@ from litex.soc.cores.clock import S7PLL
 from litex.soc.integration.builder import Builder
 from migen import ClockDomain, Module
 
-from soc import openxc7, zm_board_mem, zm_timing
+from soc import boards, openxc7, zm_board_mem, zm_timing
 from soc.zigmachine_soc import PIX_CLK, ZigMachineSoC
 from soc.zm_blit_soc import add_blitter
 from soc.zm_hp import CPU_BASE, hp_interface
@@ -254,7 +254,7 @@ def build_z7(args: argparse.Namespace) -> None:
     in_docker = args.toolchain == "openxc7"  # the tools are in a container: soc/openxc7.py
     if in_docker:
         openxc7.prepare_env()
-    out = getattr(args, "out", None) or FPGA / "build/soc_z7"  # --out: sweeps and REUSE bases keep their own
+    out = getattr(args, "out", None) or boards.current().build_dir / "soc_z7"  # --out: sweeps and REUSE bases keep their own
     builder = Builder(soc, output_dir=str(out), compile_software=args.build)
     builder.build(run=args.build and not in_docker, **_vivado_directives(args))
     if in_docker and args.build:

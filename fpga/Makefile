@@ -11,6 +11,8 @@
 #   make soc-z7 / soc-dev / sweep / hp-test  bitstreams, fast loop: flow.mk, README.md "When is a full rebuild needed"
 ZIG      ?= $(HOME)/.local/zig/0.16.0/zig
 ROOT     := $(abspath ..)
+# BOARD=kestrel|peregrine: the part, the XDC, build/<board>/ (boards/boards.mk; default kestrel)
+include boards/boards.mk
 MEMMAP   := $(ROOT)/machine/sdk/memmap.zig
 EXPORT   := tools/memmap_export.zig
 export PATH := $(CURDIR)/.tools/bin:$(CURDIR)/.tools/wabt/bin:$(PATH)
@@ -225,9 +227,8 @@ clean:
 	rm -rf build gen
 
 # --- bitstreams: openXC7 in Docker (tools/openxc7.sh, docker/openxc7/) -------
-#   make toolchain  the pinned image + prjxray-db + xc7z010 chipdb, into .tools/ (once, heavy)
+#   make toolchain  the pinned image + prjxray-db + the board's chipdb (BOARD_CHIP), into .tools/ (once, heavy)
 #   make blink      first bitstream: rtl/board/blink_top.v -> build/blink/blink_top.bit
-BOARD_XDC := boards/microphase_z7_7010/board.xdc
 BLINK     := build/blink
 
 .PHONY: toolchain blink
@@ -366,7 +367,7 @@ ym-test: $(YM_TEST)/ym_test_top.bit
 
 # --- the first cart on the board: main RAM + video DMA in PS DDR over HP0/HP1 (cycles/board.mk) ---
 #   make hp-sim CART=tutorial    the board SoC with a model of the PS, in Verilator: hashes vs scene_hash
-#   make board-fw CART=tutorial  the firmware image U-Boot loads (fpga/boards/microphase_z7_7010/README.md)
+#   make board-fw CART=tutorial  the firmware image U-Boot loads ($(BOARD_DIR)/README.md)
 include cycles/audio.mk
 include cycles/board.mk
 include cycles/sound.mk

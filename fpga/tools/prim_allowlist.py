@@ -138,7 +138,7 @@ def verdict(keys: Counter[str], allow: dict[str, dict]) -> tuple[list[str], list
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("netlist", type=Path, help="Yosys JSON (write_json), e.g. build/soc_z7/gateware/platform_z7.json")
+    ap.add_argument("netlist", type=Path, help="Yosys JSON (write_json), e.g. build/kestrel/soc_z7/gateware/platform_z7.json")
     ap.add_argument("--top", help="the top module (default: the one Yosys marked top)")
     ap.add_argument("--allowlist", type=Path, default=ALLOWLIST)
     ap.add_argument("--list", action="store_true", help="print every key, its count and status, then check")

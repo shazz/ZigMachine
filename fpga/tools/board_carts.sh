@@ -31,7 +31,8 @@ done
 [ -z "$stage" ] || [ -n "$bit" ] || { echo "board_carts: --stage needs --bit (the bitstream you boot)" >&2; exit 2; }
 [ -f "$LOCK" ] || { echo "board_carts: no build lock at $LOCK" >&2; exit 2; }
 [ -x "$FPGA/.tools/wabt/bin/wasm2c" ] || { echo "board_carts: no fpga/.tools/wabt (tools/setup.sh, or link the main checkout's)" >&2; exit 2; }
-[ -f "$FPGA/build/soc_z7/csr.json" ] || { echo "board_carts: no build/soc_z7/csr.json: copy the CSR map of the bitstream you boot" >&2; exit 2; }
+CSR="$FPGA/build/${ZM_BOARD:-kestrel}/soc_z7/csr.json"  # the board's (fpga/boards/boards.mk SOC_OUT)
+[ -f "$CSR" ] || { echo "board_carts: no $CSR: copy the CSR map of the bitstream you boot" >&2; exit 2; }
 export PATH="$FPGA/.tools/wabt/bin:$PATH"
 
 dir="board"

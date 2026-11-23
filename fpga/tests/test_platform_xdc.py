@@ -3,7 +3,7 @@ stands between a correct pinout and a bitstream that drives the wrong balls."""
 
 import pytest
 
-from soc import platform_z7
+from soc import boards, platform_z7
 from soc.platform_z7 import BoardXdcMissingError, parse_xdc
 
 XDC = """
@@ -36,6 +36,6 @@ def test_parse_xdc_comments_and_empty_text_give_no_ports() -> None:
 
 
 def test_platform_without_the_board_xdc_refuses_with_where_to_get_it(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    monkeypatch.setattr(platform_z7, "BOARD_XDC", tmp_path / "board.xdc")
+    monkeypatch.setattr(boards, "FPGA", tmp_path)
     with pytest.raises(BoardXdcMissingError, match="MicroPhase board package"):
         platform_z7.Platform()

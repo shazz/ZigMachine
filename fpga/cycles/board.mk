@@ -117,11 +117,12 @@ $(SOC_HP)_fpu/hp_sim.json: $(HP_DEPS) $(FPU_CORE)
 $(FPU_CORE):
 	vexgen/gen.sh I16w2D4SealFpu:16384:2:4096:1:seal,fpu
 # The bitstream's CSR map: elaboration only (no toolchain), the same SoC as --build.
-build/soc_z7/csr.json: $(HP_DEPS) soc/zigmachine_soc.py
-	uv run python -m soc.zigmachine_soc --target z7 $(if $(filter hw,$(ZM_BLIT)),--blit) >build/soc_z7.log 2>&1 \
-		|| (tail -20 build/soc_z7.log; exit 1)
-$(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles_csr.py
-	uv run python tools/cycles_csr.py --hp $(SOC_HP)/csr.json $@ --hp-check build/soc_z7/csr.json \
+$(SOC_OUT)/csr.json: $(HP_DEPS) soc/zigmachine_soc.py
+	@mkdir -p $(@D)
+	uv run python -m soc.zigmachine_soc --target z7 $(if $(filter hw,$(ZM_BLIT)),--blit) >$(SOC_OUT).log 2>&1 \
+		|| (tail -20 $(SOC_OUT).log; exit 1)
+$(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json $(SOC_OUT)/csr.json tools/cycles_csr.py
+	uv run python tools/cycles_csr.py --hp $(SOC_HP)/csr.json $@ --hp-check $(SOC_OUT)/csr.json \
 		$(if $(filter hw,$(ZM_BLIT)),--need-blit)
 
 # env.hostMicros (cycles/bmicros.h): the board's images have the clock; the sim's answer 0, as the

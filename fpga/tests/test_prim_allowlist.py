@@ -15,7 +15,7 @@ sys.path.insert(0, str(FPGA / "tools"))
 import prim_allowlist as pa  # after the path insert
 import prim_test_read
 
-BOARD_NETLIST = FPGA / "build/soc_z7/gateware/platform_z7.json"
+BOARD_NETLIST = FPGA / "build/kestrel/soc_z7/gateware/platform_z7.json"
 X72 = "RAMB36E1 SDP r72/0 w0/72 RF/RF reg0/0 we1"
 
 

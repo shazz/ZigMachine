@@ -61,7 +61,7 @@ hardware one, so the bitstream must be built with `--blit`.
    ```
 2. **Tools.** `ln -s <main checkout>/fpga/.tools fpga/.tools` (wasm2c and wabt).
 3. **Netlists.** Copy `fpga/build/vexgen/` from a checkout that has them.
-4. **The CSR map of the bitstream you boot**, as `fpga/build/soc_z7/csr.json`. Copy the `csr.json`
+4. **The CSR map of the bitstream you boot**, as `fpga/build/kestrel/soc_z7/csr.json` (`build/<board>/soc_z7/` since the BOARD parameter; a tree that has the old `build/soc_z7/` moves it there). Copy the `csr.json`
    that sits next to that bitstream's build, e.g. `build/board_v6fpu/csr.json`. An image linked
    for another map is refused (`tools/cycles_csr.py --hp-check`). Don't borrow another branch's
    elaboration: it can differ by one region.

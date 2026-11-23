@@ -45,7 +45,7 @@ writes to it.
 | `glass/` | The ARM side ([`docs/hardware/FPGA_GLASS.md`](../docs/hardware/FPGA_GLASS.md)): `glass`, the Zig program that loads carts off the SD card and drives the OSD menu (`src/`), the cart CPU's input routing (`firmware/`), and U-Boot, the device tree and Buildroot (`boot/`). |
 | `rtl/glass/` | The PL's front panel: the GP0 register block and the OSD overlay. |
 | `tools/` | `setup.sh`, `memmap_export.zig` (memmap.zig to Verilog/Python), `util.py` (synthesis cost per block), `wasm2rv.sh` (cart translation). |
-| `boards/microphase_z7_7010/` | Where the vendor's `board.xdc` and `ps7_init` go. Nothing in it is guessed. |
+| `boards/` | One directory per physical board: `microphase_z7_7010/` (KESTREL), `microphase_z7_7020/` (PEREGRINE, not brought up). Each holds the vendor's `board.xdc` (fetched, untracked) and `board.mk` (part, chip, the release SoC flags); `boards.mk` maps `BOARD=kestrel\|peregrine` (default kestrel) to one, `soc/boards.py` is the same table for Python. Nothing in them is guessed. |
 | `third_party/` | Reused cores as pinned submodules, with licences and measured costs in its README. |
 | `gen/`, `build/`, `.tools/`, `.venv/` | Generated or fetched, ignored. `make clean` drops the first two. |
 
@@ -108,11 +108,16 @@ Re-run `make prim-test` after any openXC7 update.
 ### openXC7 in Docker
 
 ```sh
-make -C fpga toolchain   # once: pinned image (docker/openxc7/) + prjxray-db + xc7z010 chipdb -> .tools/
+make -C fpga toolchain   # once: pinned image (docker/openxc7/) + prjxray-db + the board's chipdb -> .tools/
 make -C fpga blink       # rtl/board/blink_top.v -> build/blink/blink_top.bit (+ pnr.log, report.json)
 make -C fpga hdmi-test   # rtl/board/hdmi_test_top.v: HDMI1 test pattern -> build/hdmi_test/hdmi_test_top.bit
-make -C fpga soc-z7      # the full SoC, glass included: the release build, pinned seed -> build/soc_z7
+make -C fpga soc-z7      # the full SoC, glass included, openXC7, pinned seed -> build/<board>/soc_z7
 ```
+
+The board's release bitstream is Vivado's: `make -C fpga bitstream [BOARD=kestrel|peregrine]` runs
+the board's `BOARD_SOC_FLAGS` (`boards/<dir>/board.mk`) into `build/<board>/release/`, under the
+box-wide Vivado lock. Every board output lands in `build/<board>/` (`soc_z7/`, `soc_dev/`, `release/`);
+the shared host, test and sim outputs (`build/host`, `build/tests`, `build/vdump`...) do not move.
 
 ### When is a full rebuild needed
 
