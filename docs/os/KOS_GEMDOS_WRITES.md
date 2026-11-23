@@ -120,7 +120,7 @@ write leaves (the boot's fsck repairs it).
   nothing outside HD changed; the operations; the block served once, from a copy, bounded.
 - `fpga/tests/test_kos_file.py` (gate kos_fat): the firmware's block (cycles/bkosfreq.h) is the one
   glass reads; its answer; its place in the window.
-- `apps/gemdos_grafx2_save.mjs` (gated): GrafX2 off its floppy, the floppy's ZIGPLASM.PI1 loaded, F2,
+- `apps/harness/gemdos_grafx2_save.mjs` (gated): GrafX2 off its floppy, the floppy's ZIGPLASM.PI1 loaded, F2,
   Select drive, `/C`, PICTURES, `NEW` typed, Enter: one request, answered 0; the image then holds
   `HD/PICTURES/NEW.PI1` = the picture byte for byte (mtools), fsck clean; a new session lists it and
   re-opens it showing the floppy's picture. `--break write | torn | bytes` are caught.

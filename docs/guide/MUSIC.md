@@ -162,7 +162,7 @@ The rules:
   waits for the first gesture; a stale effect firing when sound comes on
   would be wrong.
 
-Proofs: `apps/sndh_call_check.mjs` (a call leaves the untouched channel, Timer
+Proofs: `apps/harness/sndh_call_check.mjs` (a call leaves the untouched channel, Timer
 A's phase and the position exactly as an untouched run's; a reload in its
 place is caught) and the Rick Dangerous harness's resident check (the running
 driver's RAM equals the cart's transcription, tick for tick, with later
@@ -219,7 +219,7 @@ _ = zg.requestModVolume(0.2);            // that song's own channels at 0.2 (-14
   SKYSTRIKE's ZIG mode plays its flight music at 0.2: at 1.0 "The Hawk's Claw"
   with one channel lent is -19.8 dBFS RMS and its effects -27 to -29, 8 dB under
   it; at 0.2 the bed is -33.8 and every effect 4.6 to 7.0 dB over it
-  (`apps/skystrike_zig_mix.mjs` measures it on the audio modules).
+  (`apps/harness/skystrike_zig_mix.mjs` measures it on the audio modules).
   The YM has no such gain (it is the machine's): a game's PSG note is made
   quieter by sounding it on fewer of the YM's three voices (SKYSTRIKE's
   `psg_voices`: one voice is -9.5 dB).
@@ -242,9 +242,9 @@ song length of 0 or over 128. It counts each refusal (`audioModRejected`) with t
 reason (`audioModError`: 1 short, 2 not 4-channel, 3 bad length), and the host
 logs `MOD REJECTED` with the file's tag.
 
-Proofs: `apps/mod_sfx_check.mjs` (every rule above, on the real audio modules),
+Proofs: `apps/harness/mod_sfx_check.mjs` (every rule above, on the real audio modules),
 `libs/zig/players/mod_format_test.zig` and `libs/zig/sfx_queue_test.zig` (native),
-and SKYSTRIKE's ZIG mode (`apps/skystrike_zig_sound.mjs`: a game's own effects
+and SKYSTRIKE's ZIG mode (`apps/harness/skystrike_zig_sound.mjs`: a game's own effects
 and engine note over its flight MOD).
 
 ## XM (FastTracker 2)
@@ -268,7 +268,7 @@ cannot carry: channel panning, global volume and unmapped effects.
 libopenmpt renders a module (`ffmpeg -i song.xm -ar 44100 ref.wav`), and the
 song rendered through `demo-audio.wasm` should match it second by second. A
 real 1995 S3M, converted, matched at a spectral similarity of 0.995, in tune in
-90 % of the windows. The player's own generated test song (`apps/xm_song.mjs`,
+90 % of the windows. The player's own generated test song (`apps/harness/xm_song.mjs`,
 `testSong(8)` and `testSong(12)`) is for the harnesses, built in memory: it is not
 shipped as music.
 
@@ -282,7 +282,7 @@ comment and here.
 ### Bundled modules
 
 The XMs the carts ship (music debug key 5, XM TEST keys 1 and 2), each the
-archive's file byte for byte (`apps/xm_test_check.mjs` holds the md5s):
+archive's file byte for byte (`apps/harness/xm_test_check.mjs` holds the md5s):
 
 | File | Title, artist | Channels, size | Licence | Source | md5 |
 |---|---|---|---|---|---|
@@ -294,7 +294,7 @@ vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volum
 slide and the volume column's panning slide.
 
 The klystrack songs (`.kt`), upstream's example songs (kometbomb/klystrack, MIT, `apps/ports/klystrack/data/*.KT`
-copied byte for byte with lower-case names). KT TEST (keys 1-4) plays them. `apps/kt_test_check.mjs` holds the md5s:
+copied byte for byte with lower-case names). KT TEST (keys 1-4) plays them. `apps/harness/kt_test_check.mjs` holds the md5s:
 
 | File | Size | md5 |
 |---|---|---|
@@ -338,7 +338,7 @@ channels, and skips the oscillator reads of a channel nobody hears.
 music.c untouched (from `apps/ports/fetch.sh`) and renders a song as the klystrack cart plays it;
 `tools/kt_render.zig` renders the same song with the player; the four bundled songs are byte
 identical for 300 s. The gate pins 45 s of each (`libs/zig/players/kt_core_test.zig`,
-`apps/kt_check.mjs`). What "upstream" means where it is not defined:
+`apps/harness/kt_check.mjs`). What "upstream" means where it is not defined:
 
 - the chorus delay curve is the klystrack cart's integer one (`kestrel_chorus.c`, within 1/256 of a
   sample of upstream's double `sin()`), computed when read rather than held as a 4 s table a bus;
@@ -371,7 +371,7 @@ castlevania 0.48 (row 98), dpintro 1.28 (row 788: 1.17), starport2 1.03 (row 250
 intro (row 0: five FM-on-wavetable voices at once, 126 %). The synth runs a block at a time between
 sequencer ticks (`kt_block.zig`), each channel on a copy of its state in a loop built for the
 features it uses; ring modulation or hard sync in effect falls back to a sample at a time.
-`apps/kt_cost.mjs` ranks the player's code by function without a sim.
+`apps/harness/kt_cost.mjs` ranks the player's code by function without a sim.
 
 ## SID (Commodore 64)
 
@@ -379,7 +379,7 @@ features it uses; ring modulation or hard sync in effect falls back to a sample 
 cRSID (Mihaly Horvath "Hermit", `libs/c/crsid/README.md`, credit him) runs the tune's 6502 code and
 the SID in its light engine at 22.05 kHz mono, and `libs/zig/players/sid.zig` plays it on the four
 Paula channels as MP3 does (a high and a low byte a side), upsampled to 44.1 kHz. BARD runs cRSID as
-native C; the page runs the same C in machine-audio.wasm, and `apps/sid_check.mjs` holds the two to
+native C; the page runs the same C in machine-audio.wasm, and `apps/harness/sid_check.mjs` holds the two to
 the same samples. `zg.requestSongBytes(bytes, .sid, subtune)` plays a .sid the cart holds (op 8,
 kind 6): the path a C64 port takes for the tune on its own disk.
 
@@ -399,7 +399,7 @@ our own YM2612 and SN76489 (`libs/c/ym2612`, `libs/c/sn76489`, `libs/c/vgm`: MIT
 hardware documents; `libs/c/vgm/README.md` has the sources, the limits and the accuracy against the Gens
 core). The chips render at the YM2612's clock / 288 (26,634 Hz NTSC) in stereo; `libs/zig/players/vgm.zig`
 plays it on the four Paula channels as MP3 does, resampled to 44.1 kHz (that stage is C too, `zm_vgm_out.c`). BARD runs the C natively; the page
-runs the same C in machine-audio.wasm, and `apps/vgm_check.mjs` holds the two to the same samples.
+runs the same C in machine-audio.wasm, and `apps/harness/vgm_check.mjs` holds the two to the same samples.
 `zg.requestSongBytes(bytes, .vgm, 0)` plays one the cart holds (op 8, kind 7), a `.vgz` included.
 
 The file sits whole in song RAM: up to 983,040 bytes (a `.vgz` and what it inflates to likewise). Played:
@@ -420,7 +420,7 @@ PCM plays on the four Paula channels (`x >> 1`, 15 bits). Not a file kind the ho
 name: the cart owns the bytes. The status word's rate code (bits 4-7): 1 = 32 kHz, 2 = 44.1,
 3 = 48, 4 = another, 5 = 22.05, 6 = 24, 7 = 16, 8 = 12, 9 = 11.025, 10 = 8 kHz.
 
-| Stream | Samples a frame | To the chip's 44.1 kHz | Proof (`apps/mp3_check.mjs`) |
+| Stream | Samples a frame | To the chip's 44.1 kHz | Proof (`apps/harness/mp3_check.mjs`) |
 |---|---|---|---|
 | MPEG-1 44.1 kHz, stereo or mono | 1152 | sample for sample, **bit-exact** against a host decode | pinned hash of the reference >> 1 |
 | MPEG-1 32 / 48 kHz | 1152 | linear, not bit-exact | output pinned |
@@ -485,9 +485,9 @@ Test files: `apps/zig/assets/mp3/LSF*.MP3` (a 1000 Hz sine, self-generated, `mak
 
 ## Proving a tune plays (headless)
 
-- `node apps/sndh_headless.mjs docs/music/<name>.sndh` runs an SNDH through the
+- `node apps/harness/sndh_headless.mjs docs/music/<name>.sndh` runs an SNDH through the
   real audio modules and reports the subtunes, timers, YM registers and the
   output peak.
-- `node apps/c_music_check.mjs` boots the C and Rust carts, polls their request
+- `node apps/harness/c_music_check.mjs` boots the C and Rust carts, polls their request
   the way the loader does, and plays it: it must reach SNDH mode with a non-zero
   peak. It runs in `./build.sh`.

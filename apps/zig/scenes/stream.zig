@@ -118,7 +118,7 @@ pub const Demo = struct {
         }
         // The audio clock never stops, so pace by the REAL frame time: a clamped dt
         // left the clip behind the speaker for good at 18 fps or after a hidden tab
-        // (apps/stream_pacing_check.mjs).
+        // (apps/harness/stream_pacing_check.mjs).
         self.budget += RATE * @max(elapsed_time, 0) / 1000.0; // bytes the audio consumed since last frame
         // Whole rings of backlog would only lap the ring onto itself: skip them in
         // the clip, then feed what is left — never more than one ring's worth.

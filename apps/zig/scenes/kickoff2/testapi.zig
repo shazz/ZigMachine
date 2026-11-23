@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the match (apps/kickoff2_headless.mjs):
+// The headless harness's door into the match (apps/harness/kickoff2_headless.mjs):
 // start the curated England v Spain friendly exactly as the scene does, run
 // 50 Hz ticks with a scripted key mask, and read back scores, phase, clock,
 // the ball and the whole match state for CRCs. It drives the SAME MatchP the

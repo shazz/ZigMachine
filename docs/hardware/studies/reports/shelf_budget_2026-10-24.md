@@ -1,7 +1,7 @@
 # Shelf frame budget, 2026-10-24
 
 All 108 carts with a disk on origin/main ca9aa4bf (FRESCO 3a, ~25 optimized carts since yesterday) through
-`node apps/frame_cost.mjs --budget`, in two windows (frames 721-1020, the board table's 12 s; 2401-2700, 40 s), the
+`node apps/harness/frame_cost.mjs --budget`, in two windows (frames 721-1020, the board table's 12 s; 2401-2700, 40 s), the
 worse one ranked; names from `tools/perf_names.sh`. Yesterday: docs/hardware/studies/reports/shelf_budget_2026-10-23.md.
 
 **8 of 108 are predicted under 60 fps (24 yesterday), 3 in the 1.67-2.1 knee band.** Board tonight (card main

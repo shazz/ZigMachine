@@ -96,7 +96,7 @@ under Asyncify waits inside its own call). So the library counts requests, not b
   request of 62 sectors plus its 34-byte tail from the cache (`gemdos_test.zig`); on the small image a
   cold mount + three folders fit in the cache's first runs; GrafX2's whole session (mount, the drive list,
   three folders listed, the picture loaded through stdio's 1 KB reads and every loader's probe):
-  **12 requests, ~6 ms on the board** (`apps/gemdos_grafx2_check.mjs`). On a real card each folder and
+  **12 requests, ~6 ms on the board** (`apps/harness/gemdos_grafx2_check.mjs`). On a real card each folder and
   the FAT region are further apart: count a request per folder level, then one per 4 KB of folder. `rom/kos/gemdos_dump.zig` over a FAT32 card: a
   folder of 150 files and a 300 KB file read whole in fewer requests than in 1 KB pieces (the test).
 - **Never per frame.** A cart that streams (a module, a long sample) reads ahead in big reads, as it
@@ -138,7 +138,7 @@ opt-in so the other ports' carts stay byte-identical: built with `-DKESTREL_CDRI
 - `docs/gemdos-c.img` (`tools/gemdos_c_image.py`, `--check` in the gate): FAT12, shaped like the card,
   `HD/PICTURES/ZIGWAVES.PI1`, `HD/PICTURES/PLASMA/ZIGPLASM.PI1` + `.NEO` (our own art, the files the
   GrafX2 floppy carries), `HD/TEXTS/` (20 files, two directory sectors), `HD/EMPTY.DAT`.
-- `apps/gemdos_grafx2_check.mjs` (gated): GrafX2 started from GEM over its floppy, C: = that image: F3,
+- `apps/harness/gemdos_grafx2_check.mjs` (gated): GrafX2 started from GEM over its floppy, C: = that image: F3,
   Select drive (`/C` offered), C:\, PICTURES, PLASMA, ZIGPLASM.PI1 loaded. The oracle: that frame
   equals, hash for hash, a second run that loads the floppy's own ZIGPLASM.PI1. The selector's views are
   pinned; C: costs <= 16 requests. `--break c` (C: answers nothing) and `--break bytes` (a byte of the

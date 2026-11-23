@@ -215,14 +215,14 @@ neutral colour pipeline (gamma 1000 etc.) so its pixels are those entries.
   bottom band's 4th line (the port keeps its right border closed, the 2-in-3 case) and the
   wipe's stable-raster landing cycle on 4 border lines in the second loop (the port uses the
   first loop's).
-- **The cart through the machine**: `apps/c64_1988_headless.mjs` pins 9 frames across two
+- **The cart through the machine**: `apps/harness/c64_1988_headless.mjs` pins 9 frames across two
   loops to VICE's SHA-256 (`compare/`).
 
 ### Cost on KESTREL
 
 The first port drew each sprite row a data byte at a time with the CPU: est. 1.93 Mc a frame
 (p95 2.19 on the 5 frames in 6 that run a C64 frame: cart ~1.48, FRESCO 0.7 for the one
-plane), 50 fps on the board (Matt, 7 Nov). Now (`apps/frame_cost.mjs`, p95 of the frames that
+plane), 50 fps on the board (Matt, 7 Nov). Now (`apps/harness/frame_cost.mjs`, p95 of the frames that
 step): **1.59 Mc** in part 1, **1.54** through the logo's fade, **1.66** in part 3, so 60 fps
 with room under the 1.75 knee. What cut it:
 - the 2- and 4-byte memsets of sprite pixels at odd columns: 539 misaligned stores a frame,
@@ -251,7 +251,7 @@ the faithful port staying the default. `c64_1988/zig_mode.zig`:
 - **CHISEL** for every run of 128+ pixels (the default does the same).
 - Z again hands back at the next C64 frame boundary; the model ran all along, so from there
   the picture is the default's, pixel for pixel.
-`apps/c64_1988_zig.mjs` checks it from outside (REF never sees Z): plane 0 alone, REF's picture
+`apps/harness/c64_1988_zig.mjs` checks it from outside (REF never sees Z): plane 0 alone, REF's picture
 exactly on every k = 0 frame (156 of them, the wipe's split lines excepted), a new picture
 every machine frame in part 1 (REF repeats 1 in 6), <= 160 CHISEL ops a frame, and three round
 trips back to REF pixel for pixel (`--break` runs REF one frame ahead and is caught).

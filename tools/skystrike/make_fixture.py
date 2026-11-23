@@ -11,7 +11,7 @@ start: "You Managed to Crash Land !" boxed) and hiscore_ram.bin (the title's tim
 fame, its APPEAR finished); and hatari.log, the per-pass trace of the variables at line 128 (a
 :trace breakpoint dumping $405C0-$4065F) after th = 9 was poked at the start of play.
 
-Writes apps/skystrike_fixture.json:
+Writes apps/harness/skystrike_fixture.json:
   screens   name, the screen (physic $F8000 / back $F0000), the rows compared (all 320 columns;
             the rows under the flag, the planes and the scroller's latest letter are left out:
             those are sprites or the moment), the reference indices (zlib + base64)
@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.join(RE, 'tools'))
 from stscr import screen  # noqa: E402  (the RE tools directory, added above)
 import trace_vars  # noqa: E402
 
-OUT = os.path.join(ROOT, 'apps', 'skystrike_fixture.json')
+OUT = os.path.join(ROOT, 'apps', 'harness', 'skystrike_fixture.json')
 PHYSIC, BACK = 0xF8000, 0xF0000
 # (name, dump, screen, [(first row, last row + 1), ...])
 SCREENS = [

@@ -4,7 +4,7 @@
  * in soc/hp_sim.py and on the Z7-Lite:
  *
  *   ZM_FRAMES > 0   the sim: hash the PFB every ZM_EVERY frames as
- *                   apps/scene_hash.mjs does, print its JSON, "ZM VSTAT", end.
+ *                   apps/harness/scene_hash.mjs does, print its JSON, "ZM VSTAT", end.
  *   ZM_BOARD        the bitstream: ZM_FRAMES = 0, run forever, no hashing; each
  *                   finished frame is CART_BEAT, the state CART_RUNNING.
  *

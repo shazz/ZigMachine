@@ -5,7 +5,7 @@ the --call export table and the RAM high-water constants, as one C file.
 
 It reads the wasm2c headers (machine.h and rom.h in build/host/common, cart.h in
 --build) rather than a hand-written list, so every cart gets exactly the imports
-it declares, resolved by apps/scene_hash.mjs's rules:
+it declares, resolved by apps/harness/scene_hash.mjs's rules:
 
   - machine's env.hblDispatch           -> cart.hblDispatch
   - every other env.X: rom.X if rom exports it (the JS spreads `...rom` last),

@@ -41,7 +41,7 @@ def hashes(cmd: list[str]) -> list[str]:
 def both(*args: str) -> list[str]:
     subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/gem/host"], cwd=FPGA, check=True, capture_output=True)
     nat = hashes([str(FPGA / "build/host/gem/host"), "gem", "40", "5", *args])
-    js = hashes(["node", "apps/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", *args])
+    js = hashes(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", *args])
     assert nat == js
     return nat
 
@@ -72,7 +72,7 @@ def test_c_drive_shows_and_opens_in_both_hosts() -> None:
 
 # The board's first run (4 Nov): a floppy in A: and the card in C: at once. Both hosts agree while
 # A:\ opens and then GAMES, and the desktop that repaints only what changed (rom/gem/desktop/
-# deskdirty.zig) agrees with itself frame for frame; apps/kos_desk_check.mjs holds what A:\ lists.
+# deskdirty.zig) agrees with itself frame for frame; apps/harness/kos_desk_check.mjs holds what A:\ lists.
 def test_a_and_c_together_in_both_hosts(floppy: Path) -> None:
     both("--kos", str(floppy), "--post-frames", "0", "--c-image", str(ROOT / "docs/kos-c.img"), *CALLS)
 

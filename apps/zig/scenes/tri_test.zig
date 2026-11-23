@@ -2,7 +2,7 @@
 // TRI TEST: CHISEL's TRIANGLE against the machine model, by eye on the board.
 // Every triangle is a raw TRIANGLE op (clip rect on, never above the label rows); after
 // drawing, the CPU hashes the plane's drawing area (FNV-1a) and the label shows the hash next
-// to the golden one the browser's model gives (apps/tri_test_check.mjs proves both against a
+// to the golden one the browser's model gives (apps/harness/tri_test_check.mjs proves both against a
 // rasteriser of its own): OK or BAD. Matt compares two bitstreams by reading OK on each.
 //   1  set A: the edge cases (tri_test/cases.zig EDGES) + 160 seeded triangles, XORed
 //   2  set B: the stress run: 48 seeded triangles a frame for 300 frames, every frame's hash
@@ -17,7 +17,7 @@ const cases = @import("tri_test/cases.zig");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
-/// The model's hashes (apps/tri_test_check.mjs recomputes both from its own rasteriser).
+/// The model's hashes (apps/harness/tri_test_check.mjs recomputes both from its own rasteriser).
 pub const GOLDEN_A: u32 = 0x742130AC;
 pub const GOLDEN_B: u32 = 0x890B350F;
 

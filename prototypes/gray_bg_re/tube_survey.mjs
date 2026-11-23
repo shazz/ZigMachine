@@ -1,6 +1,6 @@
 // Which carts show the TUBE (what the mixer folds the first canvas over) on screen:
 // picture pixels where every enabled plane's PFB snapshot is alpha 0 (pure tube) or
-// below 255 (tube blended in). Boots each cart as apps/scene_hash.mjs does (no disk),
+// below 255 (tube blended in). Boots each cart as apps/harness/scene_hash.mjs does (no disk),
 // runs FRAMES frames and inspects the last one.
 //
 //   node prototypes/gray_bg_re/tube_survey.mjs [frames=120] docs/demo-*.wasm

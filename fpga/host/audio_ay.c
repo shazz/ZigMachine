@@ -1,7 +1,7 @@
 /* The AY engine where the players are native C's neighbours: BARD (snd.elf), ZIGGY with ZM_AUDIO=1 and the
  * native host. The players' machineAy* imports (machine/sdk/audio.zig) are answered by libs/c/ayumi itself
  * (zm_ay_bank.c, included here as one unit), not by the wasm2c of machine-audio.wasm's copy: the same integer
- * C, native. The page runs the wasm copy; apps/chipnomad_bard_check.mjs holds the two to the same samples. */
+ * C, native. The page runs the wasm copy; apps/harness/chipnomad_bard_check.mjs holds the two to the same samples. */
 #include "../../libs/c/ayumi/zm_ay.c"
 #include "../../libs/c/ayumi/zm_ay_cfg.c"
 #include "../../libs/c/ayumi/zm_ay_bank.c"

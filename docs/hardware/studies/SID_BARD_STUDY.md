@@ -237,7 +237,7 @@ The lead chose (a), native C. Built as `docs/project/ROADMAP.md`'s row says:
   22.05 kHz table at build time;
 - BARD answers the players' `machineSidLoad` / `machineSidRender` natively (`fpga/host/audio_sid.c`,
   `host/crsid.c` built `-march=rv32im -mno-div`); the page runs the same C in machine-audio.wasm;
-- `apps/sid_check.mjs` (gate `sid`): wasm = native, 0.1 s block for block, on hermini.sid and the 11 local
+- `apps/harness/sid_check.mjs` (gate `sid`): wasm = native, 0.1 s block for block, on hermini.sid and the 11 local
   study PSIDs; the player's output = the engine upsampled >> 1; RSID refused;
 - SID TEST (cart 118, gate `sid_test`): by name, as bytes (`requestSongBytes(.sid)`), an RSID refused.
 

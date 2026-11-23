@@ -133,7 +133,7 @@ A write that breaks a rule is **dropped** and counted in `BEAM_DROPPED` — neve
 silently absorbed. `BEAM_COUNT` above 64 counts the writes that had no slot.
 ZigOS: `zg.beam.begin()`, `zg.beam.write(x, st)`, `zg.beam.cells(x0, w, colours)`,
 `zg.beam.dropped()` / `clearDropped()` (`libs/zig/effects/beam.zig`). End to end:
-`apps/beam_check.mjs` (and its `--break` twin, 4 px writes, which must be caught).
+`apps/harness/beam_check.mjs` (and its `--break` twin, 4 px writes, which must be caught).
 
 ---
 
@@ -165,7 +165,7 @@ video region. `hwRamFree()` = window top − max(high-water, arena top), and
 `hwRamUsed()` includes the arena, so `hwRamBase() + hwRamUsed()` is still the first
 byte nobody owns. The host's `hwSetCartHigh` at every cart load empties the arena
 and zeroes the counter. Rules: `machine/arena.zig` (native tests in
-`machine/arena_test.zig`); the sealed binary: `apps/ram_check.mjs`; guide:
+`machine/arena_test.zig`); the sealed binary: `apps/harness/ram_check.mjs`; guide:
 `docs/guide/MEMORY.md`.
 
 **Imports of `machine-video.wasm`** (provided by the host, routed to `demo`):

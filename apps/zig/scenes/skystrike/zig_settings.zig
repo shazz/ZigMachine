@@ -113,7 +113,7 @@ pub var effects: Effects = .{};
 // effect plays on the MOD's lent channel at the most the MOD's headroom
 // allows (64/64 x 1/1.4, zg.sfxPlay), so the music comes down instead:
 // zg.requestModVolume scales the song's own channels, never the effect's.
-// Measured on the audio modules (apps/skystrike_zig_sound.mjs "mix"), "The
+// Measured on the audio modules (apps/harness/skystrike_zig_sound.mjs "mix"), "The
 // Hawk's Claw" with one channel lent is -19.8 dBFS RMS; the effects -26.8
 // (crash) to -29.2 (bomb), -27.9 on average, i.e. 8 dB UNDER it at gain 1.
 // 0.2 (-14 dB) puts the bed at -33.8: every effect 4.6 to 7.0 dB above it,

@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the cart (apps/hmdfac_headless.mjs): the
+// The headless harness's door into the cart (apps/harness/hmdfac_headless.mjs): the
 // timeline and the 68k wheel state, so the harness can step its own model of
 // the machine alongside. Pulled in only when this scene IS the cart.
 // --------------------------------------------------------------------------

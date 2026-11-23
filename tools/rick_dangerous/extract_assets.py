@@ -35,7 +35,7 @@ IMAGE = (0x0AAA0, 0x41C58)
 DRIVER = (0x34692, 0x34B98)
 PLAYER = (0x34B98, 0x36618)
 DIGIS = (0x3DA18, 0x41C58)
-ZERO_RUN_LIMIT = 64 * 1024          # apps/zero_segments.mjs fails a cart on a run this long
+ZERO_RUN_LIMIT = 64 * 1024          # apps/harness/zero_segments.mjs fails a cart on a run this long
 
 
 def longest_zero_run(b):

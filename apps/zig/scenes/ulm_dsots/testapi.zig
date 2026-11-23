@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's window into the menu (apps/ulm_dsots_headless.mjs):
+// The headless harness's window into the menu (apps/harness/ulm_dsots_headless.mjs):
 // dsotsVal(i) reads the state the remake's trace records, so a run here is
 // compared with the remake's own in Chrome step by step. Exported only when
 // this scene is the cart being built.

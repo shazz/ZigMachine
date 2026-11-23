@@ -2,7 +2,7 @@
 // Mind Rewind's running order, as main ($0048-$00CC) calls it, one op a step.
 // An op either acts at once or takes frames; `wait n` is the demo's $4F6.
 // The parts wait on the song position ($771E); here those positions are frame
-// counts from the music's start (apps/mindwind_music_check.mjs measures them
+// counts from the music's start (apps/harness/mindwind_music_check.mjs measures them
 // on the SNDH: $4C@738 ... $242@7266), so the cart keeps time by itself.
 // The second half replays the parts in reverse ($45AE, $8C00, $3606).
 // --------------------------------------------------------------------------

@@ -53,7 +53,7 @@ const palette = zg.convertU8ArraytoColors(@embedFile("../assets/screens/tcb_weir
 // "Rollout", COMM "Mad Max", 1989, FLAG ~y, 2 subtunes (the ~abdy SID variant
 // would play silence). The remake's own ICE-packed copy from wab.com (CONV
 // "Grazey / PHF") leaves the YM in the SAME registers as this one after one
-// second through apps/sndh_headless.mjs, subtune 1 and subtune 2 alike.
+// second through apps/harness/sndh_headless.mjs, subtune 1 and subtune 2 alike.
 pub const MUSIC = "rollout.sndh";
 
 pub const SPLASH_FRAMES: u32 = 200; // `if (splashtime >= 200)`: go() takes frame 201

@@ -2,7 +2,7 @@
 // image, which is the half that has to be right for the machine's sake.
 //
 // Correctness on a real crunched file is proven end to end instead, by
-// apps/sndh_headless.mjs against the D-BUG tune (Crystallized.sndh, 24 KB ->
+// apps/harness/sndh_headless.mjs against the D-BUG tune (Crystallized.sndh, 24 KB ->
 // 103,978): a bit reader wrong by one bit anywhere yields garbage, so "it
 // depacks to a tune the 68000 can then play" is a far stronger check than
 // anything that can be hand-written here.

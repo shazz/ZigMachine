@@ -1,7 +1,7 @@
 """The BARD queue's board path across the S2C bank (cycles/bardq_s2c.h, host/bardq.h): BARD publishes
 the commands it took, its position and its events; ZIGGY copies them into the cart's block (libs/zig/
 bard.zig's layout) after the cart's frame, as docs/sealed-loader.js bardPublish does on the page.
-apps/bard_queue_check.mjs holds the page to the native host sample for sample; this holds the board's
+apps/harness/bard_queue_check.mjs holds the page to the native host sample for sample; this holds the board's
 transport to the same block, with the bank and the cart's memory as arrays.
 
 ZM_RTL_BREAK=1 runs the break test: the slot check (an event a later one overwrote) removed from a copy of the

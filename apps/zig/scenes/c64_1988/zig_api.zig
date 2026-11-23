@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into 1988's ZIG mode (apps/c64_1988_zig.mjs). Imported only when
+// The headless harness's door into 1988's ZIG mode (apps/harness/c64_1988_zig.mjs). Imported only when
 // this scene IS the cart (c64_1988.zig checks cart.Cart), so the exports never leak into
 // another cart's build.
 // --------------------------------------------------------------------------

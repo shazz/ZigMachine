@@ -15,7 +15,7 @@
 //      no record), where the CPU moves a bar: lines the board's dirty-line planner must redraw
 //      although the list and the window's rows never change (fpga/cycles/vdlist.h).
 //
-// The proof cart: apps/linebase_test_headless.mjs, fpga/tests/test_vdirty.py, the board sims.
+// The proof cart: apps/harness/linebase_test_headless.mjs, fpga/tests/test_vdirty.py, the board sims.
 // Integer maths only (fixtrig tables).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");

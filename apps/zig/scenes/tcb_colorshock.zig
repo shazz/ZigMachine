@@ -60,7 +60,7 @@ const movescroll_b = @embedFile("../assets/screens/tcb_colorshock/movescroll.dat
 // Bakery is IDENTICAL: registers 0..12 agree with the dump on all 9600 frames
 // (r13 differs only because the dump writes $ff for "envelope not retriggered").
 // So Colorshock's music is the Cuddly Demos' Comic Bakery tune. FLAG ~y, one
-// subtune, peak 0.33 through apps/sndh_headless.mjs.
+// subtune, peak 0.33 through apps/harness/sndh_headless.mjs.
 const MUSIC = "comic_bakery.sndh";
 
 // Where the canvas sits on the 400x280 plane.

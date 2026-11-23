@@ -28,7 +28,7 @@ What remains, and is reason enough:
    desktop puts every app's buffers in one window again — the duplicate-blob bug
    was the acute form of a chronic shape.
 
-For reference, the window as it stands (`node apps/check_fits.mjs docs/demo-*.wasm`):
+For reference, the window as it stands (`node apps/harness/check_fits.mjs docs/demo-*.wasm`):
 
 | cart | used | free |
 |---|---|---|
@@ -176,7 +176,7 @@ de-risking step**: change the call *shape* first, the module boundary second.
   at pack time, and this step changes it. (It did: every disk was repacked.)
 
 ### 2.4 — spend the RAM
-- Re-measure with `node apps/check_fits.mjs docs/demo-*.wasm`, then raise
+- Re-measure with `node apps/harness/check_fits.mjs docs/demo-*.wasm`, then raise
   ST Replay's `MAX_PCM` against the real `hwRamFree()`, not a constant.
 - Answer the replay-frequency question while the sample path is open.
 
@@ -186,7 +186,7 @@ de-risking step**: change the call *shape* first, the module boundary second.
    the panel shows it.
 2. `node apps/{ram_check,check_fits,verify,gem_headless}.mjs` all pass, and
    `build.sh`'s gate still fails a cart that overruns its window.
-3. **`apps/verify.mjs` proves a C or Rust app calling a ROM entry point** — that
+3. **`apps/harness/verify.mjs` proves a C or Rust app calling a ROM entry point** — that
    is the whole claim of the machine/rom split. ✅ **Met for both** (2026-09-13):
    `apps/c` and `apps/rust` each open a GEM context on plane 0 and have `rom.wasm`
    draw a panel, and `verify.mjs` requires GEM's own white inside it. A Rust cart

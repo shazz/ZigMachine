@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into NATRIUM's ZIG mode (apps/rno_natrium_zig.mjs).
+// The headless harness's door into NATRIUM's ZIG mode (apps/harness/rno_natrium_zig.mjs).
 // Imported only when this scene IS the cart (rno_natrium.zig checks cart.Cart),
 // so the exports never leak into another cart's build.
 // --------------------------------------------------------------------------

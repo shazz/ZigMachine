@@ -11,7 +11,7 @@
 //              not three random vertices a triangle (the 4 KB D$).
 //   emit       far to near: setup + spans (raster.zig) into a Sink; the Sink fires
 //              a CHISEL AFFINE op each CHUNK spans (sink.zig)
-// Each is its own noinline function so apps/frame_cost.mjs bills it by name.
+// Each is its own noinline function so apps/harness/frame_cost.mjs bills it by name.
 // No ZigOS import: the Sink is a parameter.
 // --------------------------------------------------------------------------
 const anim = @import("anim.zig");

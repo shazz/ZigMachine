@@ -13,7 +13,7 @@
 // crossings (pitch), and both sides' own RMS (BARD keeps the project's pans).
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../../../../docs/wasm_hiwater.js";
-import { pageSound } from "../../../bard_queue_lib.mjs";
+import { pageSound } from "../../../harness/bard_queue_lib.mjs";
 
 const SCRIPTED = process.argv.includes("--script");
 const SECONDS = +(process.argv.find((a, i) => i > 1 && /^\d/.test(a) && !/^--(from|dump)$/.test(process.argv[i - 1])) ?? 20), FRAMES = Math.ceil(SECONDS * 60) + (SCRIPTED ? 200 : 120);

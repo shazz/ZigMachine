@@ -34,10 +34,10 @@ if command -v python3 >/dev/null && python3 -c 'import sys; sys.exit(sys.version
     ok python3 "$(python3 --version 2>&1)"
 else bad python3 "need 3.11+ ($(hint 'apt/pacman install python3' 'brew install python'))"; fi
 if command -v make >/dev/null; then ok make "$(make --version | head -1)"; else bad make "$(hint 'install make' 'xcode-select --install')"; fi
-nv="$(node --version 2>/dev/null || true)"  # only the SDK's own test (apps/sdk_check.mjs) needs node, and 24+
+nv="$(node --version 2>/dev/null || true)"  # only the SDK's own test (apps/harness/sdk_check.mjs) needs node, and 24+
 major="$(echo "${nv#v}" | cut -d. -f1)"
 if [ -n "$nv" ] && [ "$major" -ge 24 ] 2>/dev/null; then ok node "$nv"
-else printf '  warn  %-10s %s\n' node "${nv:-none}: optional, node 24+ runs the SDK's own test (apps/sdk_check.mjs)"; warn=$((warn + 1)); fi
+else printf '  warn  %-10s %s\n' node "${nv:-none}: optional, node 24+ runs the SDK's own test (apps/harness/sdk_check.mjs)"; warn=$((warn + 1)); fi
 
 echo "== board: make board"
 WABT="$SDK/fpga/.tools/wabt"

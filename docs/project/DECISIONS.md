@@ -477,7 +477,7 @@ returns 0 and is counted, release is to a mark. The per-cart reset rides on
 so no new host hook was needed; `hwInit` preserves the arena like `CART_HIGH`.
 `hwRamUsed/Free` include the arena. ZigOS wraps it as `zg.mem` (an
 `std.mem.Allocator` plus typed `alloc(T, n)`); C and Rust get small wrappers. A
-gate (`apps/zero_segments.mjs`) fails any new zero run of 64 KB+.
+gate (`apps/harness/zero_segments.mjs`) fails any new zero run of 64 KB+.
 
 **Alternatives considered:** a general malloc/free heap in the machine (free
 lists, fragmentation, a lot of sealed code for demo carts that allocate once at
@@ -551,7 +551,7 @@ address — plausible, but `FB_BASE` is moved by ZigOS's VRAM allocator, so the
 register is the only correct source and the ROM can read it without being told.
 
 **Consequences:** The polyglot claim is now testable and tested
-(`apps/verify.mjs` reads the framebuffer back and requires GEM's own output).
+(`apps/harness/verify.mjs` reads the framebuffer back and requires GEM's own output).
 `romInstallPalettePlane` is not a convenience: GEM draws in palette *indices*, so
 a caller with its own palette gets correct pixels in the wrong colours — a plasma
 rainbow renders a GEM panel solid red. An ABI can be technically satisfied and
@@ -667,7 +667,7 @@ failed to instantiate — recoverable only by reading the images back.
 
 **Decision:** `tools/mkdisks.sh` repacks them from the built carts, deriving the
 list from `docs/demo-*.wasm` and repacking only what is stale.
-`apps/disk_check.mjs` mounts every image and **instantiates** its cart against the
+`apps/harness/disk_check.mjs` mounts every image and **instantiates** its cart against the
 host's real `env`. Both run from `build.sh`.
 
 **Consequences:** A host ABI change is caught offline in one command instead of as
@@ -1250,7 +1250,7 @@ prebuilt, like the `c-*`/`rust-*` carts; `./build.sh` never needs the upstreams.
 byte-identical (`__DATE__` in ChipNomad is pinned to its upstream commit's date for that).
 `tools/mkdisks.sh` stays the one recipe for their disks (the ports' Makefiles lost their `disk`
 targets), with every file named in order, as a glob's order follows the locale.
-`apps/ports_headless.mjs` gates each cart (boot, a UI pin, one real interaction, a `--break`).
+`apps/harness/ports_headless.mjs` gates each cart (boot, a UI pin, one real interaction, a `--break`).
 **Alternatives considered:** vendor the upstreams (or git submodules: the repo has none outside
 `fpga/third_party`, and a submodule still needs a fetch); rebuild the carts in `./build.sh` (the gate
 would need four upstream checkouts, binaryen and minutes of C++ on every run, for carts that change
@@ -1375,7 +1375,7 @@ is cut further (fewer channels or taps, a lower rate) or moves to BARD (ROADMAP)
 
 **Status:** accepted (perf/klystrack-board; follows "ChipNomad's AY resampled by a box filter; pt2 presents only the rectangles it drew")
 **Context:** On the board klystrack ran 5-6 fps doing nothing (OSD cart_c 19.9 Mc) and took ~11 s to show its UI.
-`apps/frame_cost.mjs` (a names build: `make -C apps/ports/klystrack names`) showed the idle frames alternating 46.7 /
+`apps/harness/frame_cost.mjs` (a names build: `make -C apps/ports/klystrack names`) showed the idle frames alternating 46.7 /
 3.2 Mc est: upstream repaints the whole UI 30 times a second whatever happens (`gfx_domain_is_next_frame` in the main
 loop and in each dialog's loop), and cyd mixes every channel every sample with nothing playing. boot() was 1002 Mc,
 630 of them a double `sin()` for each of the chorus LUT's 88,200 entries (`cydchr_set`, at every load of a song with
@@ -1399,7 +1399,7 @@ already does); `CYD_PAUSED` when stopped (klystrack plays note previews and keyj
 **Consequences:** frame_cost idle 24.9 -> 0.72 Mc (cart 6.7 -> 0.02), boot() 1002 -> 204 Mc; playing unchanged
 (34.2: one repaint + cyd at 2.7x real time; next an 8-bit renderer target and cyd on BARD). Something that changes
 the picture with no event, timer or song after 15 identical repaints would not be drawn until the next event; none
-is known in klystrack. `apps/ports_headless.mjs klystrack` moves the pointer over the idle UI (`--break pointer`) and
+is known in klystrack. `apps/harness/ports_headless.mjs klystrack` moves the pointer over the idle UI (`--break pointer`) and
 presses F5 only after cyd has gone quiet, so both new paths are gated.
 
 ## 2026-11-02 — True-colour plane: RGB565 through FRESCO's painter (HW 1.15.0)
@@ -1451,7 +1451,7 @@ frame-serial decision); 8888 (twice the bandwidth, a 9-bit painter index; later,
 is the real timing check (OOC slack has not predicted the placed design's before). The worst OOC path moved to
 `u_plane`'s mode decode -> the address stage (mode_i -> addr_q, still +0.93 ns). A true-colour plane cannot
 show holes: sprites and text over it come from an 8-bit plane. mpp_truecolor needs a 1.15.0 machine and board.
-Tests: `machine/video_tc_test.zig` (all 65,536 values), `apps/truecolor_check.mjs` (+ `--break`, 6 model
+Tests: `machine/video_tc_test.zig` (all 65,536 values), `apps/harness/truecolor_check.mjs` (+ `--break`, 6 model
 mutants), synthetic `truecolor` in `fpga/tests/test_rtl_video.py` with 8 RTL break tests (`tc_*`),
 `test_vdirty.py::test_a_truecolor_plane_skips_only_unchanged_lines`, and mpp_truecolor's harness (one
 `FB_MODE_TRUECOLOR` plane showing the converter's 565 picture).
@@ -1471,7 +1471,7 @@ export answer 4 (SysInfo's and ST Replay's protocol); `SDL_Quit()` and `exit()` 
 it where its main loop ends (pt2: `editor.programRunning`, emitted by `split_main.py`; GrafX2 and klystrack:
 their main returning; ChipNomad: `mainLoopTriggerQuit`). pt2's "REALLY QUIT ?" (`askBox`, a modal loop that
 cannot return on a cart without Asyncify) becomes a two-press confirm on the status line.
-`apps/ports_headless.mjs` launches every port from GEM (`apps/ports_gem.mjs`, as `sealed-loader.js`), checks
+`apps/harness/ports_headless.mjs` launches every port from GEM (`apps/harness/ports_gem.mjs`, as `sealed-loader.js`), checks
 the program GEM runs is the committed cart, and quits it back to the desktop (`--break quit`).
 **Alternatives considered:** a per-port quit (four copies of the same request, and SDL_Quit/exit left
 dead); pt2 under Asyncify so `askBox` works (it would cover every pt2 dialog, but costs every input path
@@ -1521,7 +1521,7 @@ groups on the board order differently from the browser); registers only, no copp
 2,575 with the two-port register block; not re-measured with one port).
 **Consequences:** every painter pass is one clock longer (~0.1 % of a line). The board's combo build is
 the real timing check. Tests: `machine/video_tc_fade_test.zig` (every channel x coefficient x direction,
-offsets, the copper REG), `apps/tc_test_check.mjs` key 8 (+3 mutants), vsynth `truecolor` with copper and
+offsets, the copper REG), `apps/harness/tc_test_check.mjs` key 8 (+3 mutants), vsynth `truecolor` with copper and
 handler fades (coverage `tc_fade`, `tc_fade_per_line`), 11 `tcf_*` RTL mutants, `test_vdirty.py`
 FADE view + `VD_BREAK=FADE`.
 
@@ -1546,7 +1546,7 @@ the coder's directory has no build.zig, so ZLS cannot resolve `@import("zigos")`
 SDK tree); vendoring a prebuilt picolibc + libgcc for rv32imf (a binary blob per release, GPL runtime
 exception notices, and still a second gcc's objects); requiring Ubuntu's toolchain (excludes Arch and macOS).
 **Consequences:** sdk/build_cart.zig repeats the handful of module definitions a cart needs; if build.zig
-gives demo_main another import, `gate sdk` (apps/sdk_check.mjs, the template built from a temp dir outside
+gives demo_main another import, `gate sdk` (apps/harness/sdk_check.mjs, the template built from a temp dir outside
 the repo) fails until build_cart.zig follows. A compiler_rt-linked cart has not run on the board yet: its
 soft-double helpers are IEEE like libgcc's, and wasm2c range-checks every float-to-int conversion before
 the helper, but one board run should confirm it.
@@ -1604,7 +1604,7 @@ programs) are ~2x BARD in every configuration. cRSID's state (a C64: 276 KB) doe
 `patch.sh` (sed patches + the regenerated table, beside it). The players call it through two `machine*` imports
 (`machineSidLoad`, `machineSidRender`): on the page machine-audio.wasm answers with the C compiled to wasm; on BARD,
 ZIGGY and the native host `fpga/host/audio_sid.c` answers with the same C built natively (`host/crsid.c`, the only
-object BARD builds with `-mno-div`). `apps/sid_check.mjs` holds the two to the same samples. The player
+object BARD builds with `-mno-div`). `apps/harness/sid_check.mjs` holds the two to the same samples. The player
 (libs/zig/players/sid.zig) puts the 22.05 kHz mono on Paula as MP3 does (hi/lo bytes, x >> 1) after a linear 2x
 upsample. RSID is refused with a status ("RSID not supported"). A load is a fresh C64 (cRSID's globals cleared, its
 dither LFSR reset), so a tune's samples never depend on what played before. Glass names it PLAYER_SID (11).
@@ -1794,7 +1794,7 @@ plays them on BARD. Matt: "start the move to BARD using the queue".
 - **The C64 is clocked by the frame's real time** (`kestrel_frame_us`, capped at 100 ms), no longer by the audio.
   Its CIAs, raster lines and so the IRQs that run the player follow the clock; the stamps follow the C64. So the
   song's tempo is the C64's, whatever ZIGGY's frame rate (a 60 ms frame makes the same writes with the same stamps
-  as three 20 ms ones: `apps/sidwizard_bard_check.mjs` tempo).
+  as three 20 ms ones: `apps/harness/sidwizard_bard_check.mjs` tempo).
 - **When ZIGGY cannot run all of that 6502** (the editor's main loop never idles; the C64 costs ~3.9 Mc a 60th
   estimated, ~2.3x real time), the main program yields (`kestrel_sw_pace.c`): each frame the emulation may take
   85 % of the real time it covers (hostMicros); past that, except in the frame's first tenth, the 6502 runs only
@@ -1823,7 +1823,7 @@ guard held the main program after 85 % of each frame, so a frame was ~7x the pic
 `cRSID_emulateCPU` into one function with the 6502's registers in locals for a whole C64 sample, memory read
 straight from the PLA's bank table unless the page is I/O, written straight to RAM outside `$D000-$DFFF`, and
 upstream's own `rd`/`wr`/`wr2` for the rest. It is a transcription, not a new core: the same bit-group decoding,
-types, cycle counts and quirks, so the machine is the same byte for byte, which `apps/sidwizard_cpu_check.mjs`
+types, cycle counts and quirks, so the machine is the same byte for byte, which `apps/harness/sidwizard_cpu_check.mjs`
 proves on random C64s (every opcode, and whole samples of random code, the 275 KB machine compared). Two more cuts
 with the same machine: the editor's idle loop (it polls flags only its IRQ sets) waits in libcRSID's idle state,
 the wait stepping to the next CIA/VIC event; and reads of CIA1's ports and the VIC's raster registers skip the
@@ -1854,7 +1854,7 @@ their stamps one 44.1 kHz sample apart. The bottom border carries a status line 
 **Context:** ZigGEM draws in immediate mode: each touch (a pointer move included) repaints the whole desk, ~2.7 Mc a frame on the board's model with A:\ open in the 640x480 desk (~37 fps). Matt wants the TOS 4 look (3D objects, colour icons, the TOS 4 fonts and mouse forms) from his reconstruction of the TOS 4 / MultiTOS GEM, which is derived from unlicensed Atari/DRI source and must never enter the repository. The old path must stay the default until the new one has the same features, and low and medium must not change by a pixel.
 **Decision:** A new ROM module, rom/gem/engine/ (pure, natively tested): AES-style object trees (OBJECT with ob_next/ob_head/ob_tail, types G_BOX..G_CICON, flags/state incl. TOS 4's FL3DIND/FL3DBAK/FL3DACT), objc_find and fm_button, an objc_draw renderer with the flat TOS 1 look and the 3D TOS 4 look, all clipped to one rectangle; a SCENE of layers (one tree each, its cover); a damage pass that compares the scene with a SNAPSHOT of the buffer about to be drawn (per buffer: the desk is double-buffered, so that buffer holds the frame before last); a compositor that paints each layer only in the damage minus the covers above it (the rectangle-list walk). The desk glue (rom/gem/desktop/eng/) runs ZigGEM's own step unchanged with the Gui muted (gui/clip.zig), so the logic is the old one, then builds the layers from the desktop's state at the places the old code hit-tests. Dialogs stay on the old code this step: they paint into their own box during the step (clipped), and the compositor keeps out of it (an "external" layer). A frame whose scene equals its buffer's snapshot paints nothing and does not flip. The engine is chosen at run time by a ROM export (`deskSetEngine`: 0 old, 1 flat, 2 3D; system table 1.16 with `deskEngineStats`), or at boot by `-Dgem_engine=true`. The look's assets come from a build option: `-Dgem_assets=<dir>` (and `-Dgem_trees=<zig_extract dir>`) runs tools/gem_assets_conv.py (ours, committed) over a LOCAL directory into the build cache; unset, the committed empty module rom/gem/engine/assets_none.zig keeps the TOS 1.0 set in the repo. A ROM built with the option goes to a scratch prefix (`-p`), never docs/.
 **Alternatives considered:** Retrofitting a clip into the old immediate-mode drawing and repainting the damage's bounding box with it: no tree, no 3D look, and the old per-pixel icon loops stay. Making the engine own the logic too (objc_find on its trees for menus and gadgets): rewrites the window manager this step and risks low/medium. A union of the last two frames' damage instead of per-buffer snapshots: the same pixels, but a clean frame cannot be told apart. Pack files on the card (KOS1_ASSET_PACKS.md's KAP): superseded by Matt, 9 Nov (the ROM, not the card).
-**Consequences:** A pointer move costs two 16x16 boxes of painting. The muted step still runs the old logic every drawn frame, and the frame's code is larger than the I$, which is now the engine's main cost on the board's model. Metrics stay TOS 1's this step (12x11 gadgets, the 8x8 font in menus and titles): the 8x16 font is converted and loaded but not yet the desk's system font. The dialogs keep the old look. apps/gem_engine_check.mjs proves the damage = a whole repaint, a clean frame paints nothing, a pointer move two arrows, a window move its two places, Return fires the default button (6 break tests); the converter is proven on a made-up directory only (tools/gem_assets_conv_test.py, 3 break tests).
+**Consequences:** A pointer move costs two 16x16 boxes of painting. The muted step still runs the old logic every drawn frame, and the frame's code is larger than the I$, which is now the engine's main cost on the board's model. Metrics stay TOS 1's this step (12x11 gadgets, the 8x8 font in menus and titles): the 8x16 font is converted and loaded but not yet the desk's system font. The dialogs keep the old look. apps/harness/gem_engine_check.mjs proves the damage = a whole repaint, a clean frame paints nothing, a pointer move two arrows, a window move its two places, Return fires the default button (6 break tests); the converter is proven on a made-up directory only (tools/gem_assets_conv_test.py, 3 break tests).
 
 ## 2026-11-09 — GEM 5's program API: a program's windows, menu bar and alerts in the ROM, with save-under in memory the program lends
 
@@ -2024,7 +2024,7 @@ tools/gem_assets_fsel.py reads them from the manifest by object NAME into the ge
 **Alternatives considered:** pasting TOS's tree into fsel_tree.zig (licence); deriving the 16-pixel tree from the
 st_medium zig_extract (its pixel offsets are ambiguous: chars x 8 + px does not decompose uniquely); switching the
 program look's font to 8x16 in the desk (every dialog and alert would move; another branch's area).
-**Consequences:** the harnesses click and check the committed layout through apps/fsel_geom.mjs (a JS copy of
+**Consequences:** the harnesses click and check the committed layout through apps/harness/fsel_geom.mjs (a JS copy of
 `ours`: keep the two in step); a board ROM built with Matt's assets draws TOS 4's exact geometry, which no gate
 sees (it is local), so a converter mutant (`--break fsel`) guards the extraction instead.
 
@@ -2137,7 +2137,7 @@ documented `>> 4` although Gens fits `>> 3` (GPGX and Nuked both prefer `>> 4`).
   (sys_abi --check). PLAYER_VGM = 13 for the glass's pages.
 - The file is staged whole in song RAM (983,040 bytes at most, refused with a status beyond), as the SID's: the
   board's songs are in DDR already, and a ring would add a refill path for files that fit anyway.
-- The gate pins only our own output (`apps/vgm_expected.json`) and wasm = native; the test tune is ours
+- The gate pins only our own output (`apps/harness/vgm_expected.json`) and wasm = native; the test tune is ours
   (`libs/c/vgm/make_tune.py`), so nothing third-party is needed or shipped.
 **Alternatives considered:** Gens (GPL: private only, kept as the spike); ymfm (BSD, ~4x the cost); a port of
 MAME's or Nuked's core (GPL / LGPL, and not clean-room); 44.1 kHz rendering (Gens there was ~107 % of BARD);

@@ -87,7 +87,7 @@ file whole at `fclose` and refuses to open an existing file for "r+" or append, 
   `xm.bin` as `XM.BIN`). Two long names with the same first 8 characters therefore name one file, and upstream's
   "already exists" check (which looks for the long name) does not see it: the second replaces the first.
 
-`apps/syncterm_download.mjs` pins XMODEM and YMODEM (and a name collision and a cancelled transfer) against a sender in
+`apps/harness/syncterm_download.mjs` pins XMODEM and YMODEM (and a name collision and a cancelled transfer) against a sender in
 the in-cart BBS (`kestrel_fakexfer.c`: type `X`, `Y`, `W` or `K` at its prompt). ZMODEM is NOT exercised (the BBS has no
 ZMODEM sender): its path is upstream's with the one `"wb"` patch.
 
@@ -111,7 +111,7 @@ The in-cart BBS hangs up when a line `G` (its menu's Goodbye) or `BYE` is typed:
 | `run.mjs` | headless runner: PNGs of the desk, `KEYS="frame:text"`, `CODES="frame:code"`, `INPUTS="frame:arrow"`, `C=<img>` a C: |
 
 Built without cryptlib (no SSH, no telnets, no HTTPS list), OOII, JPEG XL, modem / serial / shell, sound.
-The gate's harnesses (`build.sh`, tag `ports_syncterm`): `apps/syncterm_headless.mjs` (no C:: it dials at once, the
-spike's path) and `apps/syncterm_dialdir.mjs` (C:: the directory opens, dials the in-cart BBS, comes back after the
+The gate's harnesses (`build.sh`, tag `ports_syncterm`): `apps/harness/syncterm_headless.mjs` (no C:: it dials at once, the
+spike's path) and `apps/harness/syncterm_dialdir.mjs` (C:: the directory opens, dials the in-cart BBS, comes back after the
 BBS's hang-up and after Alt+H, an entry added is on C: and read back by a second session) and
-`apps/syncterm_download.mjs` (C:: XMODEM / YMODEM downloads land in C:\DOWNLOAD, byte for byte).
+`apps/harness/syncterm_download.mjs` (C:: XMODEM / YMODEM downloads land in C:\DOWNLOAD, byte for byte).

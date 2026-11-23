@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The lockstep fixture of apps/rick_dangerous_headless.mjs, from the reference model.
+"""The lockstep fixture of apps/harness/rick_dangerous_headless.mjs, from the reference model.
 
     python3 tools/rick_dangerous/make_fixture.py [--calls] [--out FILE] DUMP [DUMP ...]
 
@@ -189,7 +189,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('dumps', nargs='+')
     ap.add_argument('--calls', action='store_true')
-    ap.add_argument('--out', default=os.path.join(ROOT, 'apps', 'rick_dangerous_fixture.json.gz'))
+    ap.add_argument('--out', default=os.path.join(ROOT, 'apps', 'harness', 'rick_dangerous_fixture.json.gz'))
     a = ap.parse_args()
     runs = {}
     for d in a.dumps:

@@ -9,7 +9,7 @@
 //   3. request KOS_BOOT_DRIVE: the loader's swapCart boots drive A: the disk's boot sector
 //      or cart, or the desktop (demo-gem.wasm) over a data disk or an empty drive.
 //
-// The same steps run in node (apps/scene_hash_kos.mjs), the native host (fpga/host/kos_host.c)
+// The same steps run in node (apps/harness/scene_hash_kos.mjs), the native host (fpga/host/kos_host.c)
 // and the board firmware (fpga/cycles/bkos.c), which agree frame for frame.
 // --------------------------------------------------------------------------
 globalThis.ZMKos = (function () {

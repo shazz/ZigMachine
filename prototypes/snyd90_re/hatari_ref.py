@@ -1,4 +1,4 @@
-"""hatari_ref.py NAME ROWS [--keep C,C..] FRAME.png...: a part's colour reference for apps/snyd_90_parts.mjs.
+"""hatari_ref.py NAME ROWS [--keep C,C..] FRAME.png...: a part's colour reference for apps/harness/snyd_90_parts.mjs.
 
 The best-effort parts (F3..F6) are not byte-identical to the original, so the harness
 compares what they SHOW with Hatari's capture of the real demo by colour: the share of

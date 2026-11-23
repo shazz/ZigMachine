@@ -4,7 +4,7 @@
 
 Run by build.zig only when `-Dtc-art=<dir>` is given (build.sh passes it when ZM_TC_ART is
 set): the pictures are the owner's own, not cleared for publication, so the default build and
-the gate never see them and docs/demo-tc_test.* stays free of them (apps/tc_test_check.mjs
+the gate never see them and docs/demo-tc_test.* stays free of them (apps/harness/tc_test_check.mjs
 checks the git-tracked cart for MARKER).
 
 Every file in the directory, sorted by name, becomes one picture:

@@ -16,7 +16,7 @@
 // apps/zig/assets/screens/skystrike/levels/.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { deflateSync, crc32 } from "node:zlib";
-import { session, toPlay } from "../../apps/skystrike_session.mjs";
+import { session, toPlay } from "../../apps/harness/skystrike_session.mjs";
 
 const TW = 320, TH = 176, COLS = 6, COUNT = 36;
 const SC9 = (6 << 16) + 32033; // sc9 = start(6) + 32033 (listing line 6)

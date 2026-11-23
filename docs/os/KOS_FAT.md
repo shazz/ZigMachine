@@ -103,7 +103,7 @@ imports the same file.
   step); C:'s files are data (nothing on C: launches yet); edits (rename, delete, new folder) stay
   in RAM as A:'s do.
 - **Pins that will move:** every GEM reference taken with an empty drive (the floppy icon goes):
-  `apps/gem_headless.mjs`'s empty-drive shots, `fpga/tests/test_board_gemdisk.py`'s empty-drive
+  `apps/harness/gem_headless.mjs`'s empty-drive shots, `fpga/tests/test_board_gemdisk.py`'s empty-drive
   hash (`22934ae1...`), `test_kos_boot.py`'s empty-drive desktop, the board-SoC sim's desktop hash
   (`71dbd6ea...`, the KOS power-on in docs/hardware/FPGA_GLASS.md). And every desktop shot once C: shows.
   Each is re-taken in the same commit as the change, browser = native.
@@ -174,7 +174,7 @@ folder, `docs/kos-c.img`) served by the page as unit 2; the native host takes `-
 **As built:** `docs/kos-c.img` is a 200 KB FAT12 image (`tools/kos_c_image.py`, synthetic bytes
 shaped like the card, `--check` in build.sh), mounted by the page with `?c=kos-c.img` (none by
 default, a one-line change in `kosPowerOn`); FAT16 and FAT32 are F1's reader tests against mtools.
-Proof: `apps/kos_boot_check.mjs` (the page's C: icon, then its window = scene_hash.mjs
+Proof: `apps/harness/kos_boot_check.mjs` (the page's C: icon, then its window = scene_hash.mjs
 `--c-image`, which the bare desktop differs from; `--break c`: a page whose kosDriveRead answers
 nothing is caught), `fpga/tests/test_kos_fat_desktop.py` (the native host's `--c-image` =
 scene_hash.mjs's, icon and window). The
@@ -212,7 +212,7 @@ desktop over it). Two bugs, fixed on `fix/kos-desktop-board`:
   (the shell latched "a FAT disk is loaded"); it now re-reads drive A when KOS's media-change count
   (`sysvars.drive_a` bits 31:8) moves.
 
-Proof: `apps/kos_desk_check.mjs` (gated): a 180-frame session (A:\ opens, a hover, a click, its
+Proof: `apps/harness/kos_desk_check.mjs` (gated): a 180-frame session (A:\ opens, a hover, a click, its
 GAMES folder, a window dragged, the File menu, Close Window's zoom-box) hashed every frame equals
 the pin taken from the every-frame repaint (main ef337055); A:\'s listing with C: mounted equals the
 one without, and differs from C:\'s; C:\ open costs < 1.7 Mc (the old repaint: 2.5, failed) with no
@@ -238,7 +238,7 @@ laid out. `fpga/tools/sd_migrate_layout.sh` makes `/HD`, empty; `glass_sd.py` st
 cards made by `mkfs.fat` + mtools (the board's file system); C:\ on a card with the boot files,
 `KESTREL/`, `CARTS/` and `HD/` is, frame for frame in both hosts, C:\ on a card holding only that
 `HD/`; it differs from another `HD/`'s; a card with no `HD/` shows the bare desktop.
-`apps/kos_desk_check.mjs` and `kos_boot_check.mjs` (over the new `kos-c.img`) still pass.
+`apps/harness/kos_desk_check.mjs` and `kos_boot_check.mjs` (over the new `kos-c.img`) still pass.
 
 ## 4d. Programs read C: (KOS GEMDOS, 6 Nov 2026)
 

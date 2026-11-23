@@ -59,4 +59,4 @@ if [ $# -gt 0 ]; then
 else
     for src in scenes/*.c; do build_one "$(basename "$src" .c)"; done
 fi
-echo "OK — verify the ABI with: node apps/verify.mjs docs/demo-c.wasm"
+echo "OK — verify the ABI with: node apps/harness/verify.mjs docs/demo-c.wasm"

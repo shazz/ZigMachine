@@ -8,7 +8,7 @@ browser's engine, line for line:
 - every opcode wint runs, on edge and random operands (tests/bootsec_util.py's WAT module),
   traps included (division, out-of-bounds, unreachable);
 - the PICTURE: the native host running the sector through the interpreter over the wasm2c'd
-  machine (host --bootsec) against apps/scene_hash.mjs given the same .zmd;
+  machine (host --bootsec) against apps/harness/scene_hash.mjs given the same .zmd;
 - what the sandbox refuses or cuts short: float arithmetic, a truncated sector, a loop that
   never ends (fuel), a disk whose sector is not executable.
 
@@ -89,7 +89,7 @@ def test_the_native_host_draws_the_boot_screen_scene_hash_draws(disk: Path) -> N
         pytest.skip("no native host (make -C fpga build/host/sysinfo/host) or no node")
     ours = subprocess.run([str(host), disk.name, "250", "10", "--bootsec", str(disk)], capture_output=True, text=True,
                           check=True).stdout  # fmt: skip
-    theirs = subprocess.run(["node", "apps/scene_hash.mjs", str(disk), "250", "10"], cwd=ROOT, capture_output=True,
+    theirs = subprocess.run(["node", "apps/harness/scene_hash.mjs", str(disk), "250", "10"], cwd=ROOT, capture_output=True,
                             text=True, check=True).stdout  # fmt: skip
     a, b = json.loads(ours)["samples"], json.loads(theirs)["samples"]
     assert a == b and len(a) == 25

@@ -7,7 +7,7 @@
 // these files are TEXT offsets of the unpacked program (HARTMANNS EASYPACKER
 // wrapper undone). A Python model of every per-frame routine reproduces Hatari
 // byte for byte; this port is checked frame by frame against that model,
-// borders included (apps/stcs_css3_headless.mjs).
+// borders included (apps/harness/stcs_css3_headless.mjs).
 //
 // WHAT IS ON SCREEN (one plane, the ST's four bitplanes shown through the
 // colour registers, stcs_css3/display.zig):

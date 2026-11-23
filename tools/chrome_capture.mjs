@@ -13,7 +13,7 @@
 //        CHROME          the Chrome binary (default /usr/bin/google-chrome)
 //        UNION_REMAKE_DIR  the remake's directory (REMAKE is an alias); by default
 //                        the main checkout's prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8
-//                        (apps/union_remake_dir.mjs), which also serves a worktree
+//                        (apps/harness/union_remake_dir.mjs), which also serves a worktree
 //
 // Frame numbers follow each port's headless harness: superscroller frame N is
 // the canvas after N update()+draw() calls, L16 frame N after N+1 (its harness
@@ -22,9 +22,9 @@
 // One browser at a time: the box is short on memory.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { findUnionRemake } from "../apps/union_remake_dir.mjs";
+import { findUnionRemake } from "../apps/harness/union_remake_dir.mjs";
 
-// prototypes/ is not in git: found through apps/union_remake_dir.mjs
+// prototypes/ is not in git: found through apps/harness/union_remake_dir.mjs
 const FOUND = process.env.REMAKE ? { dir: process.env.REMAKE, tried: [process.env.REMAKE] } : findUnionRemake();
 const REMAKE = FOUND.dir ? FOUND.dir.replace(/\/?$/, "/") : null;
 

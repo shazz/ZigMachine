@@ -6,7 +6,7 @@
 // starts. This is apps/zig/demo_main.zig's snow BYTE-FOR-BYTE: tvnoise.zig's
 // xorshift32, ramp, band and tears, demo_main's seed and first index, on a 400x280
 // overscan plane 0 whose borders are flickered open on every line, in the buffer
-// resetForScene + openBorders give it. apps/tunein_check.mjs proves it.
+// resetForScene + openBorders give it. apps/harness/tunein_check.mjs proves it.
 //
 // The cart has already run boot(), so tuneIn saves the video registers and
 // palette 0 it overwrites and puts them back when the snow ends: the cart's first

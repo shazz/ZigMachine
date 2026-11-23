@@ -4,7 +4,7 @@ const G = @import("gfa.zig");
 
 const expectEqual = std.testing.expectEqual;
 
-test "RAND(10) is the JS oracle's stream (apps/gfa_punch_lib.mjs)" {
+test "RAND(10) is the JS oracle's stream (apps/harness/gfa_punch_lib.mjs)" {
     var r = G.Rand{ .s = G.SEED };
     for ([_]u32{ 7, 3, 0, 4, 7, 5, 5, 7 }) |want| try expectEqual(want, r.next(10));
 }

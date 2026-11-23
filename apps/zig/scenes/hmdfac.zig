@@ -11,7 +11,7 @@
 // so RAM address - $aa9a = the depacked-image offset the first port used
 // (both are given below where they differ). RAM dumps and the 68000 reading
 // live in prototypes/hmdfac_re/ (untracked); the original's drawn cube
-// pages are pinned in apps/hmdfac_original.json.
+// pages are pinned in apps/harness/hmdfac_original.json.
 //
 // WHAT THE INTRO IS. One 320x249 art plate in a 416x276 frame, and a Timer B
 // chain under all of it (rasters.zig): a LASER line at display line 2 and
@@ -90,7 +90,7 @@
 // the machine's own (font_machine.bin + charmap.bin): a glyph is its left 16
 // columns then its right 16, which is why the first port's decodes of it as
 // 32-px rows were noise; the stand-in font is gone. Three planar pages the
-// original drew (frames 0, 1, 301) are pinned in apps/hmdfac_original.json.
+// original drew (frames 0, 1, 301) are pinned in apps/harness/hmdfac_original.json.
 //
 // No float in the frame loop: counters, the Q9 matrix, asr, divs semantics,
 // 16-bit wraps and the fill's split 16.16 register are all integer.

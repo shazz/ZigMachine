@@ -143,14 +143,14 @@ rows, flicker)` allocates and publishes the list (HBL position at the magic colu
 - `machine/copper_lbase_test.zig`: valid LBASE (odd byte, VRAM's last byte), out of VRAM and bits
   27..21 set stop the list with the record's earlier words standing, last wins, persistence.
   `libs/zig/effects/linelist_test.zig`: the words built, only changes, the size check.
-- `apps/linebase_check.mjs` (machine only, build.sh): two planes against `apps/linebase_model.mjs`,
+- `apps/harness/linebase_check.mjs` (machine only, build.sh): two planes against `apps/harness/linebase_model.mjs`,
   pixel for pixel: overscan with LBASE, run-on, HSCROLL per line past the row's end, colour 0, open
   borders and the stop; normal with a flip and an ignored HSCROLL; frame 2 restarts from FB_BASE.
   `--break` drops each rule from the model in turn and must be caught; it fails on the 1.9.0 machine.
 - Test cart `linebase_test` (cart 110, menu "LINE LIST TEST"): phase A overscan wobble / line zoom /
   flipped bands / colour-0 raster through open borders, phase B a scroll plane whose list shows, in
   8-line bands in reverse order, rows the CPU draws in (one LBASE a band, the lines between with no
-  record). `apps/linebase_test_headless.mjs` (gate, 420 frames) checks the picture against
+  record). `apps/harness/linebase_test_headless.mjs` (gate, 420 frames) checks the picture against
   the model of the list the cart built, with two `--break` mutants.
 - Planner: `test_vdirty.py` runs the cart's phase B (LBASE on a comparable plane) with no
   mismatch, and `VD_BREAK_LBASE` (an LBASE list compared like a PAL one) must mismatch.

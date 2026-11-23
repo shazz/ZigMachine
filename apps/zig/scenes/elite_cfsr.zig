@@ -32,7 +32,7 @@
 // relocations — all 216 of the image's fixups land before it — so it was ripped
 // whole and wrapped in a real SNDH header around its own bra.w init/exit/play
 // at DATA $8c54. docs/music/elite_cfsr.sndh is the demo's own 68000 replay code
-// driving the sealed YM: apps/sndh_headless.mjs measures peak 0.4228.
+// driving the sealed YM: apps/harness/sndh_headless.mjs measures peak 0.4228.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;

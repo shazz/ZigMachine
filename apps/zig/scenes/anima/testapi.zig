@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into ANIMA (apps/anima_headless.mjs). Pulled in
+// The headless harness's door into ANIMA (apps/harness/anima_headless.mjs). Pulled in
 // only when this scene IS the cart, so the exports never leak elsewhere.
 // --------------------------------------------------------------------------
 const app = @import("app.zig");

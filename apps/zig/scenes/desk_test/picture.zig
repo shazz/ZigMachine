@@ -1,5 +1,5 @@
 // DESK TEST's picture (desk_test.zig): the bytes and the palette, as functions, so the cart and
-// apps/desk_check.mjs (which re-derives them in JS) agree on every pixel.
+// apps/harness/desk_check.mjs (which re-derives them in JS) agree on every pixel.
 pub const W: usize = 640;
 pub const H: usize = 480;
 pub const CELL_W: usize = 40; // 16 cells across

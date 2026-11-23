@@ -3,7 +3,7 @@
 Written 1 Nov 2026, reconstructed from the port. The RE workspace (`re/<part>/SPEC.md`, the Python
 reference models such as `re/envmap/envmap_ref.py`, the Hatari snapshots) was lost with a scratchpad.
 What survives: the port's comments (`apps/zig/scenes/rno_natrium.zig`, `apps/zig/scenes/rno_natrium/`),
-its tests (`verify_test.zig`, `apps/rno_natrium_headless.mjs`), the commit messages (`2ce46a6f`,
+its tests (`verify_test.zig`, `apps/harness/rno_natrium_headless.mjs`), the commit messages (`2ce46a6f`,
 `8d1d6efb`, `240e4b17`, `18bd2479`, `8574a604`) and a session note of 24 Sep 2026
 (`zigmachine-rno-dhs-ports-2026-09-24`). Every claim below comes from one of those; inferences are
 marked **(inferred)**.
@@ -257,7 +257,7 @@ What the budget forced (mechanisms from the code; the reasons are **inferred**):
 
 - "Triplex" by 505, an SNDH **ripped out of NATRIUM.PRG itself**: init `$564D2`, exit `$564D6`, play
   `$564DA` (called from the VBL). 36,424 bytes, `rno_natrium.sndh`, verified on the sealed YM
-  (`apps/sndh_headless.mjs`: mode 4, peak 0.56).
+  (`apps/harness/sndh_headless.mjs`: mode 4, peak 0.56).
 - The archive's `prototypes/sndh_lf/505/Triplex.sndh` is a **different build** flagged `~a`, which
   this machine plays as silence, so the intro's own copy ships. (The port's header reads `~a` as STE
   DMA; a later memory note says `~a` is an MFP timer flag and only `e` is DMA. See open questions.)
@@ -274,7 +274,7 @@ What the budget forced (mechanisms from the code; the reasons are **inferred**):
 - **The effects are the RE models' integer math,** not the 68000's code shape: no generated code, no
   `movep`, no C2P arrays, no 256 KB twister tables (`writeRow`, per-long `table()`). Byte-identical
   output, checked by CRC against the models and the eight snapshots (`verify_test.zig`), and on the
-  displayed frame through the palette at six counters (`apps/rno_natrium_headless.mjs`, gated in
+  displayed frame through the palette at six counters (`apps/harness/rno_natrium_headless.mjs`, gated in
   `build.sh`).
 - **The VBL clock is not the host frame.** The timeline is music-synced, so `update` accumulates real
   time and ticks one VBL per 20 ms (`VBL_US`), at most `MAX_VBLS_PER_FRAME` = 3 a host frame after a
@@ -353,7 +353,7 @@ ZM-X (`tex2d`, `mulsh`) and CHISEL v2 (AFFINE / MAP). Figures below are from
   `verify_test.zig`).
 - Assets: `apps/zig/assets/screens/rno_natrium/*.bin` (19 files, addresses in `assets.zig`); music
   `rno_natrium.sndh`.
-- Harness: `apps/rno_natrium_headless.mjs` (`build.sh` line `gate rno_natrium ...`); catalog entry
+- Harness: `apps/harness/rno_natrium_headless.mjs` (`build.sh` line `gate rno_natrium ...`); catalog entry
   "RNO NATRIUM".
 - Lost: `re/<part>/SPEC.md`, the Python reference models, the Hatari snapshots. The models survive
   only as CRC32s in `verify_test.zig`; the snapshots as CRCs there and SHA-256s in the harness. Tools

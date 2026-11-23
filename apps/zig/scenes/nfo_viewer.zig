@@ -6,7 +6,7 @@
 // 1.5 s, back to the top after the end); a bar at the bottom stays put. A loader cart does the
 // same with its own NFO and its own meaning for the keys: here A restarts from the top, B jumps
 // to the end, up/down scroll by hand, Esc leaves. Where the machine has no desk mode
-// (hwDeskAvailable() = 0) it says so in low res. apps/nfo_viewer_check.mjs checks the pixels.
+// (hwDeskAvailable() = 0) it says so in low res. apps/harness/nfo_viewer_check.mjs checks the pixels.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const nfo_lib = @import("nfo");

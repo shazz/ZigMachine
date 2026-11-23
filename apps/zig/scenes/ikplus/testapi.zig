@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the cracktro (apps/ikplus_headless.mjs): the
+// The headless harness's door into the cracktro (apps/harness/ikplus_headless.mjs): the
 // scrolltext as the cart compiled it (so the harness's own parse of game.go can
 // be held against it), the scroll state, and the eight stars. Pulled in only
 // when this scene IS the cart (ikplus.zig checks cart.Cart).

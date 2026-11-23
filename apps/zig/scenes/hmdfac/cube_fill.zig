@@ -12,7 +12,7 @@
 //     whose right 16-pixel group lies before its left one ends the face.
 // Both tables persist across faces and frames, as the machine's do.
 // Checked pixel for pixel against four of the original's drawn pages
-// (apps/hmdfac_original.json). All integer.
+// (apps/harness/hmdfac_original.json). All integer.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");

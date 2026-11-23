@@ -190,7 +190,7 @@ the UART is the result.
   scripted glass (served, words per op class, no worker, withdrawn, dead until BEAT, TIMEOUT never rerun,
   a late worker serves nothing); 10 mutants.
 - `fpga/glass` `zig build test`: the server (served once, staged AXPY, refusals, withdrawn).
-- `apps/astro_bench_headless.mjs` (gated, `--break result|batch|clock`): the bench cart in the page's
+- `apps/harness/astro_bench_headless.mjs` (gated, `--break result|batch|clock`): the bench cart in the page's
   binding: 0 ulp, LINPACK same bits, reference bits vs JavaScript, no clock, rerun, screen.
 
 ## 8. COPRO's pages 5 and 6 (cart 130, 14 Nov)
@@ -214,12 +214,12 @@ SOFT (a board without the ARM: hwAstro's fallback, W_CYCLES set), HOST (the page
 
 ZIGGY's soft f64 at ~1.4 k cycles an op (section 5's bench): the zoom ~31 k ops a frame (~45 Mc: ~2 fps on
 ZIGGY), the cloth ~17 k (~25 Mc: ~4 fps), estimated; the board's HUD gives the real figures on each side.
-`apps/copro_astro_check.mjs` holds both sides to the same pixels and level 0 of the zoom to JavaScript's doubles.
+`apps/harness/copro_astro_check.mjs` holds both sides to the same pixels and level 0 of the zoom to JavaScript's doubles.
 
 ## 9. RAYTRACE mode 3: a ray tracer in batches (cart 84, 14 Nov)
 
 RAYTRACE (`apps/zig/scenes/raytrace/`, key 3) traces its SDF scene with every number an f64 on ASTROLABE:
-the same 16 samples a pixel as its Q16.16 and f32 modes, pinned per mode by `apps/raytrace_headless.mjs`.
+the same 16 samples a pixel as its Q16.16 and f32 modes, pinned per mode by `apps/harness/raytrace_headless.mjs`.
 A chunk of 64 samples is one batch of rays (`astro/engine.zig`); `astro/rays.zig` traces it as vectors.
 
 - **The march** (`astro/march.zig`): all live rays step in lockstep, ONE call a step. Set up once per ray and

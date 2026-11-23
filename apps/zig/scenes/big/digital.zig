@@ -130,7 +130,7 @@ comptime {
     if (TEXT + 1 != BASE + COLOURS) @compileError("TEXT is not the last appended colour");
     // That the text colour IS a cycle colour is a measurement across two
     // different palettes (the capture's ladder and the remake's), so it is
-    // asserted where the arithmetic can be done: apps/digital_solution_band.mjs.
+    // asserted where the arithmetic can be done: apps/harness/digital_solution_band.mjs.
     // The converter guarantees the picture never uses index 0 (the transparent
     // hole); checking all 64000 bytes HERE would cost a comptime branch quota
     // on every build, so it is asserted where it is cheap — in

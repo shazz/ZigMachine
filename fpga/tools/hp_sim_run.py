@@ -1,6 +1,6 @@
 """The board SoC's simulation (soc/hp_sim.py, cycles/board.mk): run carts on the
 cart CPU with main RAM and the video DMA in a model of the PS's DDR behind HP0
-and HP1, and compare the PFB hashes with apps/scene_hash.mjs and the native host
+and HP1, and compare the PFB hashes with apps/harness/scene_hash.mjs and the native host
 (the verdict is tools/video_sim_report.py's: ran to the end, no underrun, both
 references equal). The DDR holds the cart's shelf disk as the glass places it
 (tools/ddr_init.py), and both references mount the same disk (--disk).

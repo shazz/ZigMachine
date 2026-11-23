@@ -1425,7 +1425,7 @@ source channel costs.
 reading the mode, the blitter operations it issued this frame, and the pixels
 the blitter reported touching. Press 1 to 4: the shape does not change, only the
 technique. Four consecutive frames of the same torus, from
-`apps/polkadots_headless.mjs`:
+`apps/harness/polkadots_headless.mjs`:
 
 | mode | technique | operations | pixels |
 |---|---|---|---|
@@ -1507,7 +1507,7 @@ not care how often the page draws. A phone at 18 fps, a 144 Hz monitor, or a tab
 hidden for three seconds each leave the song position drifting away from where
 the speaker actually is, and once it is a ring away it never comes back. The
 correct quantity is bytes the *speaker* consumed since the previous frame:
-`rate * dt / 1000`, with the frame's true `dt`. `apps/stream_pacing_check.mjs`
+`rate * dt / 1000`, with the frame's true `dt`. `apps/harness/stream_pacing_check.mjs`
 drives the real carts through 30 seconds at 60 Hz, at 144 Hz, at a jittery
 18 fps and across a 3 s stall, and fails if the position ever strays more than
 one ring from `rate * wall_time`. Given a cart from before this rule it fails,

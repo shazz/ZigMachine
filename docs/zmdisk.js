@@ -5,7 +5,7 @@
 // WHY A MODULE: the page mounts disks two ways, from a URL (a channel, ?disk=)
 // and from bytes the visitor uploads. Both must produce the SAME drive state,
 // because carts stream their data files through diskReadBlock off it. One parser
-// used by both paths, and by apps/upload_check.mjs, is how that stays true.
+// used by both paths, and by apps/harness/upload_check.mjs, is how that stays true.
 // Same hand-over as wasm_hiwater.js: an ES module that publishes itself on
 // globalThis for the classic sealed-loader.js.
 // --------------------------------------------------------------------------

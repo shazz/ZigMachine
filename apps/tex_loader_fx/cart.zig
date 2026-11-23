@@ -1,4 +1,4 @@
-// Harness cart for apps/tex_loader_fx_headless.mjs: depacks one ZX0 image with
+// Harness cart for apps/harness/tex_loader_fx_headless.mjs: depacks one ZX0 image with
 // its depack effect (here fx = tex_loader) and nothing else. Not a scene and not
 // in build.zig's cart list: the harness compiles it with apps/zig/demo_main.zig,
 // passing the packed image as the `tex_packed` module it generates.

@@ -1,4 +1,4 @@
-/* Booting the three modules the way apps/scene_hash.mjs boot() does, plus the
+/* Booting the three modules the way apps/harness/scene_hash.mjs boot() does, plus the
  * parts of the env that are not per-cart: the shared memory and --call. */
 #include <math.h>
 #include <stdio.h>

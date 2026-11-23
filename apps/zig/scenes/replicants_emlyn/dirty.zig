@@ -20,7 +20,7 @@
 //
 // ENABLED = false is the previous renderer, kept to compare: the whole ramp
 // every frame, the logo keyed on TRANSPARENT and not recoded. Both paths draw
-// the same pixels (apps/scene_hash.mjs, every frame through ORIGINAL and ZIG).
+// the same pixels (apps/harness/scene_hash.mjs, every frame through ORIGINAL and ZIG).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const A = @import("assets.zig");

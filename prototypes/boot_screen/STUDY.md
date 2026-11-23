@@ -7,7 +7,7 @@ is copied; section 1 studies *why* theirs work and keeps only principles.
 Companion study: `prototypes/zest_splash_re/STUDY.md` (how a picture can be on screen while Linux
 boots; recommendation C = a U-Boot OSD banner now, B = a splash cart U-Boot starts on ZIGGY). The
 design below is built for B and degrades to C. Prototype: cart `kestrel_boot` (129),
-`apps/zig/scenes/kestrel_boot/`, harness `apps/kestrel_boot_check.mjs`, frames in this folder.
+`apps/zig/scenes/kestrel_boot/`, harness `apps/harness/kestrel_boot_check.mjs`, frames in this folder.
 
 ## 1. What makes a boot screen iconic
 
@@ -178,7 +178,7 @@ doubled across, so they look wide): `f0055_stoop.png` (the bird entering at ~3x,
 `f0060_sky.png` (the sky fading up, the bird braking), `f0100_glint.png` (after the flash, the copper
 highlight on the head), `f0130_wordmark.png` (letters lighting), `f0200_hold.png` (the still mark),
 `f0270_fade.png`, `f0320_black.png`.
-Proof: `apps/kestrel_boot_check.mjs` (and `--break`), `scene_hash.mjs` (no zg.mem refusal). The cart
+Proof: `apps/harness/kestrel_boot_check.mjs` (and `--break`), `scene_hash.mjs` (no zg.mem refusal). The cart
 is 61 KB of wasm, 14.8 KB as a packed `.zmd`: nothing but code and a few tables.
 
 What the prototype does not yet do: the `KSPL` hand-off word (a board-firmware matter, step 4), and

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The MP3 player's reference decode (apps/mp3_check.mjs's pins): the vendored pvmp3 (libs/c/pvmp3)
+# The MP3 player's reference decode (apps/harness/mp3_check.mjs's pins): the vendored pvmp3 (libs/c/pvmp3)
 # built for the host through the BARD study's adapter, so the player's output can be held against
 # the decoder alone. s16le interleaved PCM out, the ID3 tag skipped, one hash a frame on stdout.
 #   fpga/tools/mp3_ref.sh <in.mp3> <out.raw>

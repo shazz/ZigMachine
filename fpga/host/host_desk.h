@@ -1,4 +1,4 @@
-/* The desk mode's frame hash (HW 1.17.0, docs/hardware/HW_API.md "Desk mode"), as apps/scene_hash.mjs
+/* The desk mode's frame hash (HW 1.17.0, docs/hardware/HW_API.md "Desk mode"), as apps/harness/scene_hash.mjs
  * takes it: "desk", the bars' colour (hwDeskBars, 4 bytes little-endian: R, G, B, 255), then
  * hwRenderDesk(0)'s and hwRenderDesk(1)'s 640x240 RGBA halves out of the PFB. One definition
  * for the native host (main.c) and the board's firmware (cycles/bdesk.c). */

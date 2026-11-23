@@ -2,7 +2,7 @@
 //! brief: Topaz-style strokes, drawn here, none of Commodore's Topaz ROM bitmaps and no third-party
 //! font). MIT, like the rest of zigdemo. One glyph a line: eight rows of seven pixels ('#' ink,
 //! '.' blank) split by '/'. Column 7 stays blank (the letter gap), row 7 is for descenders.
-//! apps/nfo_viewer_check.mjs reads these very lines for its model, so edit them here only.
+//! apps/harness/nfo_viewer_check.mjs reads these very lines for its model, so edit them here only.
 
 pub const first: u8 = 32;
 pub const count: usize = 95;

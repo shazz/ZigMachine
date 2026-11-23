@@ -19,7 +19,7 @@ the repo): every `kestrel_*` file, `patches/*.sed`, `Makefile`, `run.mjs`.
     apps/ports/fetch.sh
     make -C apps/ports/chipnomad link         # build/demo-chipnomad.wasm (byte-identical to docs/ at the pin)
     make -C apps/ports/chipnomad install      # copy it to docs/, repack docs/demo-chipnomad.zmd (tools/mkdisks.sh)
-    node apps/ports_headless.mjs chipnomad    # the gate's check: boot, UI pin, X puts a chain in the song
+    node apps/harness/ports_headless.mjs chipnomad    # the gate's check: boot, UI pin, X puts a chain in the song
 
 Upstream's `version.cpp` shows `__DATE__`; the Makefile pins it to the upstream commit's date so a rebuild
 is reproducible.
@@ -54,7 +54,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
   `/C` it leads back to `/`.
 - Projects load off C: as off the floppy. Saving to C: is not proven yet: the SAVE PROJECT browser is the same
   browser over fopen for writing (the floppy is read-only).
-- `node apps/ports_cdrive_check.mjs chipnomad`: a copy of docs/gemdos-c.img with `HD/PROJECTS/MICROEGG.CNM` (the
+- `node apps/harness/ports_cdrive_check.mjs chipnomad`: a copy of docs/gemdos-c.img with `HD/PROJECTS/MICROEGG.CNM` (the
   floppy's bytes); the browser opens C, PROJECTS, MICROEGG.CNM, and the frame equals the floppy's MICROEGG.CNM
   loaded the same way (`--break c|bytes|list` must fail).
 
@@ -132,9 +132,9 @@ That cut is the work; the boundary above says where it goes.
 
 ### Proofs (build.sh)
 
-- `bard_ay`: `libs/c/ayumi/check/check.sh` (the core = the old cart model, `--break`); `apps/ay_live_check.mjs` (wasm
+- `bard_ay`: `libs/c/ayumi/check/check.sh` (the core = the old cart model, `--break`); `apps/harness/ay_live_check.mjs` (wasm
   engine = native C; the queue player = the engine a lead late `>> 1`, stereo; refusals; `--break drop | late`).
-- `ports_chipnomad`: `apps/chipnomad_bard_check.mjs` (the gate's C-4 on BARD: page = native host_audio both sides,
+- `ports_chipnomad`: `apps/harness/chipnomad_bard_check.mjs` (the gate's C-4 on BARD: page = native host_audio both sides,
   nothing refused / dropped / re-anchored, no stream; `--break stamp | reg`); `ports_headless.mjs chipnomad` is the
   fallback (its host answers no queue).
 
@@ -156,7 +156,7 @@ That cut is the work; the boundary above says where it goes.
   correlation 1.0000, 98.2 % of the samples equal, difference rms 0.14 LSB, rms ratio 1.001, zero crossings 25,832 vs
   25,818. The gate's C-4 (AY Classic), 6 s: 0.9997, 96.4 %, 0.60 LSB, the crossings equal. Not bit-exact by
   construction (two output formats, the 0.6 gain in Q15 against float).
-- **ZIGGY** (`apps/frame_cost.mjs --bard`, MICROEGG.CNM playing 20 s, frames 121-1320): 1.59 Mc a frame (p95 2.16,
+- **ZIGGY** (`apps/harness/frame_cost.mjs --bard`, MICROEGG.CNM playing 20 s, frames 121-1320): 1.59 Mc a frame (p95 2.16,
   max 3.46; cart 0.61 + I$ misses 0.28) on ZIGGY -> 0.87 Mc (p95 0.94, max 1.03; cart 0.15, I$ 0.01) with the AY on
   BARD: the AY and its mixer were ~0.73 Mc (44 % of a 60 Hz frame). FRESCO's 0.7 is most of what is left. MICROEGG
   (like MICROPIZ and WB7) is one chip of AY Classic (type 1) instruments only: no software oscillator (SFT acts on AY2

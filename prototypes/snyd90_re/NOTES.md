@@ -206,6 +206,6 @@ Method, common to all four:
   loudness envelope correlates 0.70 with Hatari's recording of the part (a Mad Max tune as
   control: 0.17).
 
-Harness (`apps/snyd_90_parts.mjs`): per part motion between shots, colours against Hatari's
+Harness (`apps/harness/snyd_90_parts.mjs`): per part motion between shots, colours against Hatari's
 capture (histogram intersection >= 0.8; F5/F6 compare only their fixed colours), borders open
 exactly where the original opens them; `--break f3..f6` (the part never gets a VBL) fails.

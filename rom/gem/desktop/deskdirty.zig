@@ -2,7 +2,7 @@
 // Repaint only when something changed (KOS on the board, 4 Nov 2026). The desktop is drawn
 // immediate-mode: every frame it filled the whole work area and redrew every icon and every open
 // window with its directory, which cost ZIGGY ~0.3 Mc a frame idle and ~1.1 Mc with one C:
-// window open (apps/frame_cost.mjs): the board fell to ~25 fps as soon as a drive window opened.
+// window open (apps/harness/frame_cost.mjs): the board fell to ~25 fps as soon as a drive window opened.
 //
 // Nothing on the desktop moves by itself except the zoom-box, and the plane's logical buffer
 // keeps its pixels from frame to frame (hwClear clears the physical picture, not the plane), so

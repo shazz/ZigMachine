@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the cart (apps/gnomes_headless.mjs): the
+// The headless harness's door into the cart (apps/harness/gnomes_headless.mjs): the
 // frame state, so the harness can step its own model of the ORIGINAL alongside.
 // Pulled in only when this scene IS the cart (gnomes.zig checks cart.Cart).
 // --------------------------------------------------------------------------

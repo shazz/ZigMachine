@@ -120,7 +120,7 @@ for 256 entries) would save one record word on mode 1/2 lines and is not worth a
   the caption band.
 - The handler's dedupe (`loaded[]`) becomes moot; its "a repeated record changes nothing" proof is
   replaced by the list's (machine/copper.zig) first-line rule.
-- A test that the list carries every record line (apps/copper_lines.mjs reads it back) and a
+- A test that the list carries every record line (apps/harness/copper_lines.mjs reads it back) and a
   `--break` that drops the k=256 tail op (entry 255 then differs on a 256-entry line).
 - Board: board_pic at frames in each mode (600, 1000, 1200), board_fps per mode as in section 1.
 - Risk: a switch must rebuild table and list before the frame's LATCH reads them; the cart does it in

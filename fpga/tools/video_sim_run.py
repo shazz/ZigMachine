@@ -1,6 +1,6 @@
 """The video integration test (Fable #9): run carts on the cart CPU with the RTL
 video pipeline in Verilator (soc/video_sim.py), compare the PFB hashes with
-apps/scene_hash.mjs and the native host, and run the sequencer's mutants: the
+apps/harness/scene_hash.mjs and the native host, and run the sequencer's mutants: the
 line-major order must fail on badflicker and equinox; the others (no drain, no
 write-back copy) are reported, not required to fail (rtl/video/README.md
 "Integration" says why). Then write the report (tools/video_sim_report.py).

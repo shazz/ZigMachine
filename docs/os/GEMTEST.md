@@ -2,7 +2,7 @@
 
 Status: **built on `feat/gem5-gemtest`** (9 Nov 2026). Matt: "did you create a GEM test cart to show all
 the GEM 5.0 components? so I can see the bugs". Cart `gemtest` (index 128), `apps/zig/scenes/gemtest.zig`
-+ `gemtest/`; proof `apps/gemtest_check.mjs` (gate `gemtest`); shots `apps/gemtest_shots.mjs`.
++ `gemtest/`; proof `apps/harness/gemtest_check.mjs` (gate `gemtest`); shots `apps/harness/gemtest_shots.mjs`.
 
 A GEM program as [NOTEPAD](NOTEPAD.md) is: a data disk (`demo-gemtest.zmd`) whose `BOOT.WSM` the desktop
 runs, in the desktop's resolution; ^Q (or Test > Quit) goes back. It uses ONLY the program API
@@ -98,7 +98,7 @@ SELECTOR on `A:\*.*`, `C:\*.*`, `C:\*.TXT` over the File selector area.
 
 ## Shots
 
-`node apps/gemtest_shots.mjs <outdir> [--assets <dir>]` writes each component (and the menu drop-downs,
+`node apps/harness/gemtest_shots.mjs <outdir> [--assets <dir>]` writes each component (and the menu drop-downs,
 and GEM's own desktop with A:\ open) in low, medium and the desk: `<component>_<mode>.png` at 1:1
 framebuffer pixels, `_2x.png` for low and medium as the screen shows them (640x400), and `index.html`, a
 contact sheet. `--assets prototypes/gem_reconstructed/gem_assets` (Matt's LOCAL TOS 4 page) puts that
@@ -108,30 +108,30 @@ mode's reference (st_low / st_medium / st_high) under each shot. `ZM_ROM=<rom.wa
 
 ## Proof
 
-`apps/gemtest_check.mjs` (gate `gemtest`, + `--break ctrl|click`): see its header. Each area drawn,
+`apps/harness/gemtest_check.mjs` (gate `gemtest`, + `--break ctrl|click`): see its header. Each area drawn,
 distinct, deterministic over two runs, an idle frame painting nothing and the incremental screen equal to
 a whole repaint, in the three modes; a click on each kind of control does what it should.
 
-`apps/gemtest_alert_check.mjs` (gate `gemtest`, + `--break icon`): a program's form_alert on the engine,
+`apps/harness/gemtest_alert_check.mjs` (gate `gemtest`, + `--break icon`): a program's form_alert on the engine,
 flat and 3D, in the three modes: four icons four alerts, icons 1-3 inked in the icon's box, TOS 4's
 layout (the second button where the layout puts it answers 2), Return the default, an alert left up
 redraws the same screen, Alerts > Malformed alert opens nothing and the Alerts window says so.
 
-`apps/gemtest_fsel_check.mjs` (gate `gemtest`, + `--break drive`): the TOS 4 ITEM SELECTOR, flat and 3D, in
+`apps/harness/gemtest_fsel_check.mjs` (gate `gemtest`, + `--break drive`): the TOS 4 ITEM SELECTOR, flat and 3D, in
 the three modes: opened on C:\*.*, the A: button gives the selector opened on A:\*.* pixel for pixel, C:
 brings C:\*.* back, B: (absent) does nothing, an idle frame redraws the same, Cancel closes it.
 
-`apps/gemtest_redraw_check.mjs` (gate `gemtest`, + `--break whole|clamp|min`): in the three modes a top, a
+`apps/harness/gemtest_redraw_check.mjs` (gate `gemtest`, + `--break whole|clamp|min`): in the three modes a top, a
 move and a close of GADGETS keep a poisoned desk pixel and a poisoned back-window pixel (only the WM_REDRAW
 rectangles were redrawn) and the screen then equals a whole repaint; its sizer dragged past the corner
 stops at the screen's edge; dragged far up-left it stops where every gadget fits; there, and after a
 larger size and back, the screen equals a whole repaint.
 
-`apps/gemtest_obj_check.mjs` (gate `gemtest`, + `--break radio`): the Dialogs area's object tree in the
+`apps/harness/gemtest_obj_check.mjs` (gate `gemtest`, + `--break radio`): the Dialogs area's object tree in the
 desk, flat and 3D: a radio group (pressed twice it stays; Low brings the first look back), a check box
 twice, the disabled button inert, digits into the date field and letters refused, Backspace, the
 slider's track; and the Test menu's shortcuts ending in one column in low.
 
-`apps/gemtest_icon_check.mjs` (gate `gemtest`, + `--break icons`): GEMTEST's desktop in low and the desk with
+`apps/harness/gemtest_icon_check.mjs` (gate `gemtest`, + `--break icons`): GEMTEST's desktop in low and the desk with
 its windows closed: the four icons drawn, select / reselect / deselect, a drag (= a whole repaint after),
 a double-click opening the Icons area.

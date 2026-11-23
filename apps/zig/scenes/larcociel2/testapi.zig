@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the intro (apps/larcociel2_headless.mjs):
+// The headless harness's door into the intro (apps/harness/larcociel2_headless.mjs):
 // the trail clock's every word (so the Go tree's native-motion-49.json
 // checkpoint and the JS model can both be pinned against the live cart), the
 // six projected ball slots, the scrolling slice window and the two raster

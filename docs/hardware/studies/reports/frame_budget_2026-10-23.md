@@ -1,6 +1,6 @@
 # Frame budget, 2026-10-23 (feat/frame-budget)
 
-`node apps/frame_cost.mjs <cart.wasm> --budget` prints what a cart may spend once FRESCO has had its share:
+`node apps/harness/frame_cost.mjs <cart.wasm> --budget` prints what a cart may spend once FRESCO has had its share:
 
 ```
 union_main: cart 1.27 Mc of 0 allowed with 3 planes -> ~30.8 fps (cart 1.27 + FRESCO 1.98 = 3.25 Mc of a 1.67 Mc frame; ESTIMATE)

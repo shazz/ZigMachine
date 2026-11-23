@@ -189,7 +189,7 @@ inside machine-internal copies).
 **stniccc:** begin() puts D_BASE/D_STRIDE/MINTERM/CON into the list; each span is a queued fill;
 keyframes and clearPlane flush; drawFrame flushes before the CPU's text. --only stniccc gate green.
 
-**Pixel proof, and a gate hole found on the way.** The stniccc gate job (apps/stniccc_headless.mjs)
+**Pixel proof, and a gate hole found on the way.** The stniccc gate job (apps/harness/stniccc_headless.mjs)
 takes PPM shots and times frames; it hashes nothing, so it cannot catch a wrong pixel. The first
 library version passed it while drawing wrong: it reseeded each list from the block, so after a
 mid-frame auto-kick, or the keyframe flush during the rewind, the spans lost the destination set()
@@ -216,7 +216,7 @@ scene_hash for stniccc in the gate.
   read hold; `ring` and `nohold` mutants).
 - test_chisel_async.py: 12 cases, 8 mutants caught. test_blit_path / test_blit_dcache with breaks:
   pass (8x8 FILL through hwBlit 344 cycles on the core model, was 341). test_native_bench: 13 pass.
-- apps/blitter_queue_check.mjs (in build.sh): 3 x 60-op lists draw what their ops draw one by one,
+- apps/harness/blitter_queue_check.mjs (in build.sh): 3 x 60-op lists draw what their ops draw one by one,
   block restored, CYCLES = sum; the edges. chisel_copy_test.zig (in build.sh).
 - --only stniccc gate green (EXIT 0, 5 harness jobs). test_blit_hp_order, test_blit_wburst,
   test_prim_allowlist, test_sound_regs: 34 pass. bench_contention's raw GO path stores no block

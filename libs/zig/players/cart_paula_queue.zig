@@ -54,7 +54,7 @@ pub fn QueueOf(comptime cap: u32, comptime stage_n: u32) type {
         pub const STAGE_N = stage_n;
         ring: [cap]Entry = undefined,
         // Here rather than a static of its own: an all-zero static joins demo-audio.wasm's big zero
-        // run in its data section (apps/zero_segments.mjs counts it).
+        // run in its data section (apps/harness/zero_segments.mjs counts it).
         stage: [stage_n]Entry = undefined,
         head: u32 = 0,
         len: u32 = 0,

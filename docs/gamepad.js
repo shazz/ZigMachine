@@ -5,7 +5,7 @@
 // merged into input(), exactly the one-stick behaviour. The direction codes are the keyboard's:
 // 0 up, 1 down, 2 left, 3 right, 5 fire. The KESTREL board does the same from evdev (fpga/glass).
 //
-// A classic script exposing ZMPad (the page has no module for it); apps/gamepad_check.mjs runs it
+// A classic script exposing ZMPad (the page has no module for it); apps/harness/gamepad_check.mjs runs it
 // in a vm with scripted pads.
 const ZMPad = (function () {
     const UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3, FIRE = 5;

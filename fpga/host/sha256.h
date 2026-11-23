@@ -1,5 +1,5 @@
 /* SHA-256 (FIPS 180-4), streaming. The host fingerprints frames with the same
- * hash apps/scene_hash.mjs takes from node:crypto, so the JSON compares as text.
+ * hash apps/harness/scene_hash.mjs takes from node:crypto, so the JSON compares as text.
  * Plain C11 with no platform calls, so it builds unchanged for rv32. */
 #ifndef HOST_SHA256_H
 #define HOST_SHA256_H

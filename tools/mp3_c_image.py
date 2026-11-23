@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The MP3 PLAYER's C: for its proofs (apps/mp3_player_check.mjs) and the page (?c=mp3-c.img): a FAT12
+"""The MP3 PLAYER's C: for its proofs (apps/harness/mp3_player_check.mjs) and the page (?c=mp3-c.img): a FAT12
 image shaped like the board's SD card, with HD/MUSIC/ (C:\\MUSIC) holding the CC0 test files
 (apps/zig/assets/mp3/, synthesised by make.sh there). Its own image: docs/gemdos-c.img's and
 docs/kos-c.img's contents are pinned by other proofs. Written by tools/kos_fat_fixture.py's Image,

@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // Blitter demo — who draws: CHISEL (the hardware blitter, zg.Blitter) or ZIGGY
 // (the CPU, soft.zig). The effects call the blitter's own API here, and key B
-// flips `cpu`; both paths produce the same pixels (apps/blitter_headless.mjs
+// flips `cpu`; both paths produce the same pixels (apps/harness/blitter_headless.mjs
 // compares every mode), so the only difference on screen is the frame rate.
 // In CPU mode not one hwBlit() is issued — the harness counts them.
 // --------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""apps/rick_cracktro_fixture.json.gz: the Empire cracktro's screens as the ORIGINAL shows them.
+"""apps/harness/rick_cracktro_fixture.json.gz: the Empire cracktro's screens as the ORIGINAL shows them.
 
     python3 tools/rick_dangerous/make_cracktro_fixture.py [prototypes/emp_cabl_re/ref]
 
@@ -55,7 +55,7 @@ def main() -> None:
     for name, pos, vbl in REFS:
         ink = ink_bits((src / f"{name}.bin").read_bytes())
         refs.append({"name": name, "pos": pos, "vbl": vbl, "ink": base64.b64encode(ink).decode()})
-    out = REPO / "apps/rick_cracktro_fixture.json.gz"
+    out = REPO / "apps/harness/rick_cracktro_fixture.json.gz"
     out.write_bytes(gzip.compress(json.dumps({"refs": refs}).encode(), mtime=0))
     print(f"{out}: {len(refs)} screens")
 

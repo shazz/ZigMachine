@@ -1,5 +1,5 @@
 /* The VGM engine natively (libs/c/vgm/zm_vgm.c, the C BARD runs), for the parity harness
- * (apps/vgm_check.mjs) and the local Gens comparison (libs/c/vgm/gens_compare.sh): load a .vgm / .vgz,
+ * (apps/harness/vgm_check.mjs) and the local Gens comparison (libs/c/vgm/gens_compare.sh): load a .vgm / .vgz,
  * render `seconds` at the engine's rate, print an FNV-1a hash per 0.1 s block and optionally the PCM.
  *   vgm_render <tune.vgm> <seconds> [-o out.wav]      (a 16-bit stereo WAV at the engine's rate)
  *   vgm_render <tune.vgm> <seconds> -p                the player's output stage instead (zm_vgm_render_paula):

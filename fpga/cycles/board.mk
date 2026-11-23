@@ -4,7 +4,7 @@
 # video.mk, whose wasm2c objects (`aligned`) and memmap header it reuses.
 #
 #   make hp-sim CART=tutorial          soc/hp_sim.py (the board SoC with a model of the PS) in Verilator:
-#                                      the frame hashes against apps/scene_hash.mjs (tools/hp_sim_run.py)
+#                                      the frame hashes against apps/harness/scene_hash.mjs (tools/hp_sim_run.py)
 #   make board-fw CART=tutorial        build/hcycles/board/<cart>/fw.bin: the image U-Boot loads to DDR
 #   make board-shelf [ZM_AUDIO=snd]    board-fw for every cart of the SD card's shelf (tools/glass_sd.py SHELF)
 #

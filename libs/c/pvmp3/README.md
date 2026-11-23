@@ -20,4 +20,4 @@ fuzzer and the test are not vendored). Its one build define, `OSCL_UNUSED_ARG`, 
 
 To update: fetch the new tree (`fpga/tools/mp3_bard_fetch.sh` with `PV_REV=<sha>`), copy `include/`,
 `src/*.cpp`, `src/*.h` and the three licence files into `upstream/`, record the commit here, rebuild,
-run `node apps/mp3_check.mjs`.
+run `node apps/harness/mp3_check.mjs`.

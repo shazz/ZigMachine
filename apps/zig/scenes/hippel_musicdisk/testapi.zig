@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door (apps/hippel_musicdisk_headless.mjs). Pulled in
+// The headless harness's door (apps/harness/hippel_musicdisk_headless.mjs). Pulled in
 // only when this scene IS the cart, so the exports never leak elsewhere.
 // --------------------------------------------------------------------------
 const app = @import("app.zig");

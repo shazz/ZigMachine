@@ -29,7 +29,7 @@
 //
 // MUSIC (prototypes/naos_nitrowave_re/NOTES.md, "Music"): every program carries
 // its own TFMX replay and module; each rip plays on the sealed YM
-// (apps/sndh_headless.mjs) and matches an archive SNDH register for register
+// (apps/harness/sndh_headless.mjs) and matches an archive SNDH register for register
 // (ymcheck.sh: identical frames at a 2-frame lag):
 //   menu  big_sprite.sndh #1 (Mad_Max/Demos/Cuddly_Demos/Big_Sprite)       0.999
 //   F1    robocop_tune_2.sndh #1 (Mad_Max/Demos/Cuddly_Demos/Robocop_Tune_2) 1.000

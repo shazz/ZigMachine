@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the intro (apps/chonchon_headless.mjs): the
+// The headless harness's door into the intro (apps/harness/chonchon_headless.mjs): the
 // native motion's every word (so the JS model and the Go tree's scroll-bank
 // checkpoints can be pinned against the live cart), the two 3432-byte scroll
 // banks, the three music-meter levels, and the YM registers the meters read on

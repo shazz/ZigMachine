@@ -19,7 +19,7 @@ the COPY box was cosmetic: nothing reached the card.
 Drive A keeps its in-memory behaviour for delete / rename / New Folder (a .zmd is not a writable disk).
 A copy or move FROM drive A reads a FAT floppy through KOS GEMDOS, and a .zmd data disk (which GEMDOS does
 not mount: no BPB) off the disk's own flat directory (`apps/zig/scenes/gem_fileop_zmd.zig`, `zg.disk`): before
-13 Nov a .zmd source stopped the copy at EDRIVE, "The disk cannot be read" (apps/gem_fileops_a_check.mjs).
+13 Nov a .zmd source stopped the copy at EDRIVE, "The disk cannot be read" (apps/harness/gem_fileops_a_check.mjs).
 A failure stops the operation where it is and raises an alert (full card, write-protected, an item gone, an
 unreadable source); what was done stays done. A file whose copy fails half way is dropped whole: KOS GEMDOS
 writes to `~KOS<slot>.TMP` and renames it over the file at Fclose (KOS_GEMDOS_WRITES.md §2), so no partial
@@ -67,5 +67,5 @@ creates. Drag something onto the SD IMAGE / FLOPPY icon: the write-protect alert
 
 ## Proof
 
-`apps/gem_fileops_check.mjs` (gate `gem`): see its header. Mutants (`--break copy|delete|rename`: the host
+`apps/harness/gem_fileops_check.mjs` (gate `gem`): see its header. Mutants (`--break copy|delete|rename`: the host
 answers 0 to that request and writes nothing) are each caught by the byte compare / listing checks.

@@ -1,7 +1,7 @@
 """The MP3 PLAYER on the native host (host_audio: the cart, KOS GEMDOS on --c-image docs/mp3-c.img, the players
 through wasm2c as BARD runs them, the machine's own chips): Down Down Return through the glass's router plays
 C:\\MUSIC\\TONES44.MP3, and the machine's 16-bit out is the reference decode >> 1 sample for sample (the pin
-apps/mp3_check.mjs holds, fpga/tools/mp3_ref.sh's), as on the page. A cart that is never asked to play is silent.
+apps/harness/mp3_check.mjs holds, fpga/tools/mp3_ref.sh's), as on the page. A cart that is never asked to play is silent.
 """
 
 from __future__ import annotations

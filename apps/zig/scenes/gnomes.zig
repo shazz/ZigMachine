@@ -7,7 +7,7 @@
 // and dumped from RAM while running; every asset and table is ripped from that
 // dump by tools/private_tools/gnomes_rip.py, and every behaviour below is read
 // off the disassembly of the running code (RAM addresses; the program's TEXT is
-// at $AA9A). The harness (apps/gnomes_headless.mjs) holds the cart to a model of
+// at $AA9A). The harness (apps/harness/gnomes_headless.mjs) holds the cart to a model of
 // that code AND to Hatari screenshots of the original at known frames.
 //
 // WHAT THE SCREEN IS. A 320x276 screen (top and bottom borders open, sides

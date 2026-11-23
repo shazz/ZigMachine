@@ -129,7 +129,7 @@ pub const Demo = struct {
         self.hud.workEnd();
     }
 
-    /// The measurement's counts, every 64 frames (apps/sb_spike_headless.mjs reads them).
+    /// The measurement's counts, every 64 frames (apps/harness/sb_spike_headless.mjs reads them).
     fn log(self: *Demo) void {
         self.frames +%= 1;
         if (self.frames % 64 != 0) return;

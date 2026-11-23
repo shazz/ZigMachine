@@ -117,7 +117,7 @@ is the start BPM, 0 = the song's own tempo), the same way a `.mod` goes. The voi
 software onto the Paula channels (`libs/zig/players/xm.zig`): two to a channel for up to 8 channels, three to a channel
 for 9..12, so the sound CPU needs no more channels than a MOD. Its 32-bit mixer
 keeps each position as a 32-bit frame index plus a 16-bit fraction, so a sample has no length cap beyond song RAM. The bench's test song is `testSong()` from
-`apps/xm_song.mjs`, written outside `docs/music` (it is not shipped) and benched with `MUSIC=<that dir>
+`apps/harness/xm_song.mjs`, written outside `docs/music` (it is not shipped) and benched with `MUSIC=<that dir>
 SONG=zm_test.xm`; the carts ship real modules (docs/guide/MUSIC.md "Bundled modules"). Each block is mixed into the next span of a 16 KiB ring per Paula channel
 (`xm_ring.zig`), never into one reused buffer: the audio core plays a stamped trigger up to the lead (four frames)
 after BARD wrote it, and a single buffer had been overwritten by three or four later blocks by then. The board played
@@ -222,7 +222,7 @@ frames lost to the load were caught up at once, and the sim ended before the son
 ### The BARD queue (system table 1.12)
 
 `make snd-bench SND_BARDQ=1 ZM_FRAMES=8` (`cycles/sound/sbardq_bench.c`): no cart; BARD SID's tune as the page's
-loader posted it (`node apps/bard_queue_check.mjs --dump build/bardq/commands.bin`) goes through a ring in BARD's
+loader posted it (`node apps/harness/bard_queue_check.mjs --dump build/bardq/commands.bin`) goes through a ring in BARD's
 memory and the same pump as the play image (`host/bardq_pump.c`) into SID live on raw cRSID, the lead one frame so
 seven of the eight frames play the tune. combo16 core (`SndNdD16Dyn8Sx`, soc_hp_snd16), 8 Nov:
 
@@ -392,7 +392,7 @@ of the song uses only commands the table covers.
   23,000 frames (past the wrap, drums included), across a `sndhCall` and across mode switches 1/2 mid-drum.
   Mutant 3 (volume C written over the drums) must fail; one byte changed in the driver plays on Musashi; the
   board's queue stays under its depth at the general 4-frame lead.
-- `apps/monty_native_check.mjs` (gate `tex_neoshow_music`, and its `--break`): in the browser's own modules,
+- `apps/harness/monty_native_check.mjs` (gate `tex_neoshow_music`, and its `--break`): in the browser's own modules,
   native = 68000 bit for bit over 50 s of samples, and 2-1-2-1-2 switching changes no sample. So the browser's
   output is unchanged.
 - Mode 3 (PCM) has no Monty path: asked for it, the player answers 2.
@@ -433,7 +433,7 @@ Mode 3 now works for any byte-per-tick driver (`digi.Pcm`, `sndh_pcm.zig`). Wow'
 - the queue holds;
 - mutant 4 (Beat Dis's handler on Wow's bytes) fails.
 
-`apps/wow_native_check.mjs` (gate `union_superscroller_music`, with `--break`) checks the browser's modules:
+`apps/harness/wow_native_check.mjs` (gate `union_superscroller_music`, with `--break`) checks the browser's modules:
 native = 68000 bit for bit over 40 s, and mode 3 correlates at 0.95 and hands back on the same sample.
 
 **Cost on BARD** (`make snd-bench SONG=union/wow_scroller.sndh [SND_MODE=3]`, soc_hp_snd, 8 frames):
@@ -468,7 +468,7 @@ a low word ($FFFFFFFF: no loop) sends a finished voice to 256 bytes of silence; 
 **The proof:** `fpga/tests/test_sndh_irq.py`: all four subtunes native = Musashi over 4,000 frames each,
 across a `sndhCall` and 1/2 switches; mutant 7 (the sample index read unsigned) fails from frame 2;
 and the survey must show Musashi called at most 4 times a frame (the PLAYs), because a handler refused
-in RAM would pass the digest trivially. `apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9`
+in RAM would pass the digest trivially. `apps/harness/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9`
 (gate `dune_gen4_music`, with `--break --mutant 7`): the browser's modules, 40 s bit for bit, modes
 2-1-2-1-2 unbroken. Unit tests: `digi_quartet_test.zig`.
 
@@ -540,7 +540,7 @@ match plays on Musashi.
 **The proof**, as for Beat Dis: `fpga/tests/test_sndh_irq.py` holds every tune to Musashi, frame digest for
 frame digest (thousands of frames each, every subtune of the two games), across a `sndhCall` and 1/2 switches;
 the survey must show at most 4 Musashi calls a frame (a handler refused in RAM would pass the digest
-trivially); mutants 5-11 must fail. `apps/irq_native_check.mjs` does it in the browser's own modules, gated
+trivially); mutants 5-11 must fail. `apps/harness/irq_native_check.mjs` does it in the browser's own modules, gated
 per cart with its `--break`. Unit tests: `digi_*_test.zig`.
 
 **Cost on BARD** (`make snd-bench`, soc_hp_snd, 8 frames):
@@ -574,7 +574,7 @@ would jump into code) goes back to Musashi rather than being guessed; none of th
 
 **The proof:** `fpga/tests/test_sndh_irq.py` holds all six (seven subtunes) to Musashi past each tune's FRMS
 (21,000-84,000 frames), the survey must show no Musashi call at all, and mutant 12 (note lengths a frame
-short) must fail. `apps/irq_native_check.mjs` at status 16 with the breaks for mutants 5 and 12 (gate
+short) must fail. `apps/harness/irq_native_check.mjs` at status 16 with the breaks for mutants 5 and 12 (gate
 `big_demo_music`). Unit tests: `digi_big_play_test.zig`.
 
 **Cost on BARD** (`make snd-bench SONG=digital/Ace_2.sndh TUNE=1 ZM_FRAMES=6`, soc_hp_snd): 1.25 Mc with a
@@ -598,7 +598,7 @@ chip of the sealed machine (`machine/audio/pokey.zig`) and of the audio core (`r
 | the POKEY RTL | the model, every machine cycle, both clocks, 16 break tests (`test_rtl_pokey.py`) |
 | the POKEY in the core | the machine, every sample (`pokey_exact` in `test_rtl_audio.py`, 7 break tests) |
 | the SAP player | a synthetic TYPE B player assembled in the test, plus five ASMA tunes (`test_sap.py`) |
-| the browser path | `apps/sap_check.mjs`: a PAL tone at its pitch to 0.2 %, unknown writes counted, STEREO refused; `--break ntsc` |
+| the browser path | `apps/harness/sap_check.mjs`: a PAL tone at its pitch to 0.2 %, unknown writes counted, STEREO refused; `--break ntsc` |
 | the whole chain | Warhawk on the sound CPU (soc_hp_snd) into the audio tap equals the native host: 60 writes, 3,015 samples, 0 differences |
 | against ASAP | optional, black box (asapconv, outside the repo): envelope correlation 0.86-0.94 on five tunes |
 

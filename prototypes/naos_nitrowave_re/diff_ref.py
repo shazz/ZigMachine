@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 
 d, k, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
-ref = json.loads(gzip.decompress(open('../../apps/naos_nitrowave_ref.json.gz', 'rb').read()))
+ref = json.loads(gzip.decompress(open('../../apps/harness/naos_nitrowave_ref.json.gz', 'rb').read()))
 unz = lambda s: np.frombuffer(zlib.decompress(base64.b64decode(s)), np.uint8).reshape(280, 400)
 base = unz(ref['base'])
 want = base if k == ref['first'] else unz(ref['frames'][str(k)]) ^ base

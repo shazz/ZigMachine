@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the intro (apps/larcociel5_headless.mjs):
+// The headless harness's door into the intro (apps/harness/larcociel5_headless.mjs):
 // the ribbon clock's every word (so the Go tree's native-ribbon-149.json
 // checkpoint and the JS model can both be pinned against the live cart), the
 // three Batman meter levels, and the YM registers they read on the last tick.

@@ -12,7 +12,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
-import { makeCDrive, makeCFile } from "../../scene_hash_disk.mjs";
+import { makeCDrive, makeCFile } from "../../harness/scene_hash_disk.mjs";
 
 const FRAMES = +(process.argv[2] ?? 60), OUT = process.argv[3] ?? "apps/ports/sidwizard/build/frame";
 const CART = process.env.CART ?? "apps/ports/sidwizard/build/demo-sidwizard.wasm"; // CART=...: another build (a before/after)

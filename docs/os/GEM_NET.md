@@ -94,7 +94,7 @@ socket). Errors are the Err enum (no_card ... denied); no host answers anything 
   poll/close`, `info()`, Zig errors. Native tests swap the transport for a fake card.
 - **Board / native host:** `HOST_NET_OP` answers no_card until N2 (fpga/tools/host_bridges.py NET); the system
   table gains `netOp` when the first cart imports it.
-- **Proof:** apps/net_check.mjs (gate `net`, 3 --break mutants), machine/sdk/net_abi.zig layout test, zg.net tests.
+- **Proof:** apps/harness/net_check.mjs (gate `net`, 3 --break mutants), machine/sdk/net_abi.zig layout test, zg.net tests.
 
 ## 3. The program API (STinG-style, rom/sdk/net.zig)
 
@@ -121,7 +121,7 @@ yield through Asyncify, `SSL_*`-like TLS through `tlsOpen` (a small shim, not Op
 
 | Step | What | Proof |
 |---|---|---|
-| N1 | ZIGNIC registers + rings in the machine; browser + harness scripted peer; HW 1.18.0 | `apps/nic_check.mjs`: open/connect/send/recv/close, ring wrap, full ring, refused, timeout, RESOLVE, UDP header, `NIC_ID` 0; `--break` mutants |
+| N1 | ZIGNIC registers + rings in the machine; browser + harness scripted peer; HW 1.18.0 | `apps/harness/nic_check.mjs`: open/connect/send/recv/close, ring wrap, full ring, refused, timeout, RESOLVE, UDP header, `NIC_ID` 0; `--break` mutants |
 | N2 | Board: `bnic.c` + glass `net_card.zig` + the window block; NTP + CA bundle in the image | glass host tests (a loopback peer, as kos_net_test.zig does now); board: a test cart connects to the dev laptop's echo |
 | N3 | The API in rom/sdk/net.zig + system table entries | harness: a GEM 5 program echoes through the peer |
 | N4 | TLS sockets (glass `std.crypto.tls`) and DNS; **NETINFO** GEM program (address, DNS, ping, an HTTPS fetch of a page's title) | board: NETINFO pings and fetches over HTTPS |

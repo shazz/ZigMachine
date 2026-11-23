@@ -34,7 +34,7 @@ zig build -Dwasm -Drelease=true          # -> docs/demo.wasm
 # C / Rust:
 bash apps/c/build.sh                      # -> docs/demo-c.wasm
 bash apps/rust/build.sh                   # -> docs/demo-rust.wasm
-node apps/verify.mjs                       # headless check of demo-c/demo-rust
+node apps/harness/verify.mjs                       # headless check of demo-c/demo-rust
 
 cd docs && python3 -m http.server 3333
 #   /sealed.html                 -> the Zig demo (menu)

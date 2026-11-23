@@ -1,5 +1,5 @@
 /* The rv32 twin of host/main.c, for the cycles sim: the same boot and frame
- * loop as apps/scene_hash.mjs, with every span timed (prof.h) and a line per
+ * loop as apps/harness/scene_hash.mjs, with every span timed (prof.h) and a line per
  * frame on the UART. Frame count and hash period are compile-time, because a
  * bare core has no argv:
  *

@@ -12,7 +12,7 @@
 // every snippet in TUTORIAL.md is quoted from it verbatim. Adding `if (step >= 5)`
 // there would make the md's snippets subtly untrue of the real file.
 //
-// The copy is kept honest by a test, not by discipline: apps/tutorial_steps_check.mjs
+// The copy is kept honest by a test, not by discipline: apps/harness/tutorial_steps_check.mjs
 // asserts this cart at step 7 renders frames byte-identical to demo-tutorial.wasm.
 // If the two drift, the gate fails.
 //

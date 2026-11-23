@@ -272,7 +272,7 @@ the cart's optional `input2()`/`inputRelease2()` exports (found by name in the c
 code ...`, at most 16 in all) so an odd adapter can be diagnosed from the console. Tests: `glass/src/pads_test.zig`
 (plug order, the key word, one pad changes nothing, the OSD with either pad), `tests/tb/glass_input_test.c` (the word is
 never a key), `tests/test_board_input.py` (the router on the native host: player 2 merged for a cart without `input2`),
-`apps/gamepad_check.mjs` (the browser's pads) and `apps/bubblebobble_headless.mjs` (pad 2 drives Bob).
+`apps/harness/gamepad_check.mjs` (the browser's pads) and `apps/harness/bubblebobble_headless.mjs` (pad 2 drives Bob).
 
 `pad.zig` folds a pad's events into the held `JOY_*` bits, which the firmware
 turns into `input()`/`inputRelease()` edges (`glass_joy()`):
@@ -1024,7 +1024,7 @@ Tests: `app_splash_test.zig` (the policy, the first-boot flow to the desktop, re
 missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load over it, a request
 at once held to `MIN_MS`, no OSD bit written from the decision to the end, the overlay back after,
 a skip that opens nothing);
-`apps/kestrel_boot_check.mjs` checks the cart asks to leave at 290 and never before
+`apps/harness/kestrel_boot_check.mjs` checks the cart asks to leave at 290 and never before
 (`--break stays`).
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
@@ -1282,7 +1282,7 @@ listing block in node against `zmd_dir.h` on ST Replay's disk and 11 built ones
 (v1, v2 with a date, repeated and array-index names, bad UTF-8, a BOM, NUL cuts,
 `__proto__`, more files than the ROM's cap, no files, a type byte past the end,
 and every error), at three record layouts. `scene_hash.mjs --data-disk` runs the
-loader's step text for text (`apps/scene_hash_disk.mjs`), and the native host's
+loader's step text for text (`apps/harness/scene_hash_disk.mjs`), and the native host's
 `--data-disk` equals it: GEM, the mouse onto FLOPPY DISK (40,30), a click, the
 double-click pulse, then a double-click on `BOOT.WSM` (75,65) in the window,
 40 frames every 5: `IDENTICAL` (`54bb583d…`), the window showing `782756 bytes
@@ -1339,7 +1339,7 @@ brings GEM back without it). Every other load rewrites the window whole, the wor
 browser's engine): on both shipped sectors the whole 7 MiB memory after `boot()` and after
 every frame, the chainload at frame 120 / 240; 24,844 calls of every opcode it runs on edge
 and random operands, traps included. The picture: the native host's `--bootsec X.zmd` (the
-interpreter over the wasm2c'd machine) equals `apps/scene_hash.mjs X.zmd` (the sector in
+interpreter over the wasm2c'd machine) equals `apps/harness/scene_hash.mjs X.zmd` (the sector in
 node), every plane every 10 frames over 250. Seven break mutants (`ZM_RTL_BREAK=1`).
 
 ## KOS: power-on and drive A
@@ -1404,7 +1404,7 @@ RAM total and free, frames since the reset (`kosTick` from every host's frame), 
 `fpga/cycles/sys_abi.txt` 1.2 -> 1.3, so every lean cart on a card keeps running.
 
 **Proof.**
-- `apps/kos_boot_check.mjs` (build.sh, with its `--break`): the REAL `docs/sealed-loader.js` +
+- `apps/harness/kos_boot_check.mjs` (build.sh, with its `--break`): the REAL `docs/sealed-loader.js` +
   `docs/kos-boot.js` in a vm, its canvases hashed as scene_hash.mjs hashes the machine's, equal
   `scene_hash.mjs --kos` frame for frame on five drives: empty, ST Replay's data disk, sysinfo's
   sector then the desktop, replicants_emlyn's sector then its cart, the tutorial's bootable disk;

@@ -1,5 +1,5 @@
 /* kestrel_sw_cpu.c against libcRSID's own 6502, on random machines (SW_CPU_TEST builds only: make cputest;
- * apps/sidwizard_cpu_check.mjs runs it). Each case is a whole C64 (cRSID_C64, the I/O hand-over's counters) with
+ * apps/harness/sidwizard_cpu_check.mjs runs it). Each case is a whole C64 (cRSID_C64, the I/O hand-over's counters) with
  * random registers, memory map, RAM and pending I/O cycles, run once by each side from the same snapshot; the two
  * C64s after it must be byte for byte the same.
  *   op:     every opcode, one instruction: sw_cpu_step() vs cRSID_emulateCPU() (cycles and return code too)

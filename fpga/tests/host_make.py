@@ -1,4 +1,4 @@
-"""`make` for the native hosts, under the lock the .mjs harnesses take (apps/bard_queue_check.mjs).
+"""`make` for the native hosts, under the lock the .mjs harnesses take (apps/harness/bard_queue_check.mjs).
 
 WHY: every host_audio build writes the same build/host/common objects (aplayer.o, machine.o, rom.o) and
 gen/ headers. The gate runs several harnesses at once, so two unlocked makes rebuilt aplayer.o together:

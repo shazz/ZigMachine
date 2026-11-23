@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into LOCKBUSTER 3 (apps/lockbuster3_headless.mjs):
+// The headless harness's door into LOCKBUSTER 3 (apps/harness/lockbuster3_headless.mjs):
 // the tick, the FRONT 320x240 index buffer (the Go's g.buffers[g.front], before
 // the text bitplane and palette), the panel/scroll clocks, the letter words and
 // the meter volumes. Pulled in only when this scene IS the registered cart.

@@ -1,5 +1,5 @@
 """Read the video integration sim's logs (tools/video_sim_run.py) and say what
-they show: whether each run's PFB hashes equal apps/scene_hash.mjs's and the
+they show: whether each run's PFB hashes equal apps/harness/scene_hash.mjs's and the
 native host's, whether the scanout ever underran, and what a frame costs.
 
     uv run python tools/video_sim_report.py      # re-read build/vcycles/uart, rewrite the report

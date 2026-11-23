@@ -1,5 +1,5 @@
 // Native tests for the griffin's physics against values the remake printed in
-// Chrome (apps/ulm_dsots_ref.mjs; the harness compares every step).
+// Chrome (apps/harness/ulm_dsots_ref.mjs; the harness compares every step).
 const std = @import("std");
 const g = @import("griffin.zig");
 

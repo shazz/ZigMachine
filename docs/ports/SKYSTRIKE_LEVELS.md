@@ -324,7 +324,7 @@ and rebuild. The gate then checks that the committed maps and the cart's files a
 
 ## 7. The gate
 
-`build.sh` runs `apps/skystrike_levels.mjs` (tag `skystrike`). It checks:
+`build.sh` runs `apps/harness/skystrike_levels.mjs` (tag `skystrike`). It checks:
 
 - **The round trip** (`levels.py check`):
   - `import(export(original))` equals `MISSIONS.DAT` (3612 B) and `SCRNDATA.DAT`
@@ -340,6 +340,6 @@ and rebuild. The gate then checks that the committed maps and the cart's files a
 - **A bad disk:** a 300-byte `MISSIONS.DAT` stops on the error trap and stays there.
 - **`--break disk`:** a disk of the built-in data must fail the custom-disk check.
 
-The existing `apps/skystrike_headless.mjs` still runs the cart on the built-in data.
+The existing `apps/harness/skystrike_headless.mjs` still runs the cart on the built-in data.
 Because the gate proves that data equals the maps' import, it is data built from the
 maps.

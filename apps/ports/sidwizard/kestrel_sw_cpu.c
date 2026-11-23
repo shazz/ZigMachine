@@ -5,7 +5,7 @@
  * cycle for cycle, quirk for quirk: the same decoding by opcode bit groups, the same flag arithmetic on the same
  * types (A and SP short, PC an unsigned int never wrapped), the same timings (no branch page-cross cycle, the
  * same-page discount on indexed reads), the same illegal opcodes, the same stale Addr for the opcodes that set none.
- * apps/sidwizard_cpu_check.mjs runs both on random machines, opcode by opcode, and compares the whole C64.
+ * apps/harness/sidwizard_cpu_check.mjs runs both on random machines, opcode by opcode, and compares the whole C64.
  *
  * What differs is only where the state lives. Upstream kept the 6502 in the cRSID_C64.CPU struct and called a
  * function per instruction: on ZIGGY (wasm -> rv32) every register access was a load or a store, ~215 rv32

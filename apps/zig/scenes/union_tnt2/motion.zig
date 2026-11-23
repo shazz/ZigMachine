@@ -46,7 +46,7 @@ pub const Layer = struct {
 };
 
 /// jsApp.scrolltext (main.js:50). The hub packs it into menu_assets.bin; this is a
-/// byte-identical copy (apps/union_tnt2_headless.mjs checks it against the blob).
+/// byte-identical copy (apps/harness/union_tnt2_headless.mjs checks it against the blob).
 pub const TEXT = @embedFile("../../assets/screens/union_tnt2/scrolltext.txt");
 
 const FIRST_CHAR = 32; // bitmapfont.initTile(64,40,32)

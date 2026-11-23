@@ -105,7 +105,7 @@ make -C fpga hp-sim CART=union_beatdis ZM_BLIT=sw ZM_AUDIO=0
 
 This runs the **board SoC** (`soc/hp_sim.py`: the same VexRiscv, glass and video DMA, with a model of
 the PS's DDR behind HP0/HP1) in Verilator, 10 frames hashed every 5, and compares the frame hashes
-with `apps/scene_hash.mjs` and the native host. Verdict printed at the end (see the result in
+with `apps/harness/scene_hash.mjs` and the native host. Verdict printed at the end (see the result in
 section 9). It is slow: the simulator runs about 0.7 M cycles per second.
 
 ## 4. The bitstream
@@ -277,7 +277,7 @@ correct). Re-measure with `make -C fpga cycles CARTS="..."`.
   (the command-line variables reach the sub-makes through MAKEFLAGS; the UART log shows `ZM BLIT 0 0 0`,
   i.e. the software blitter). Frame hashes from the board SoC in Verilator:
   frame 5 `1ad76fb0...2165`, frame 10 `abd24953...9ccc`, total `d088f0e4...f97e`.
-  `node apps/scene_hash.mjs docs/demo-union_beatdis.wasm 10 5` prints the **identical** three hashes.
+  `node apps/harness/scene_hash.mjs docs/demo-union_beatdis.wasm 10 5` prints the **identical** three hashes.
   The log also reports `ZM VSTAT 0 0 9 152 0` (no video underrun) and `ZM END 0`.
 - No step failed, so no workaround is needed. Note that `hp-sim` takes the same `CART`/`ZM_*` variables as
   `board-fw` but builds its own `sim` image (`build/hcycles/sim/<cart>/fw.bin`); it does not test the

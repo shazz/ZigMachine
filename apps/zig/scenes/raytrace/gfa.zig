@@ -55,7 +55,7 @@ pub fn stRgb(w: u16) [3]u8 {
     return o;
 }
 
-/// RAND(n): 0..n-1 from a 32-bit LCG; apps/gfa_punch_lib.mjs has its twin.
+/// RAND(n): 0..n-1 from a 32-bit LCG; apps/harness/gfa_punch_lib.mjs has its twin.
 pub const Rand = struct {
     s: u32,
     pub fn next(self: *Rand, n: u32) u32 {

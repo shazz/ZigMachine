@@ -16,7 +16,7 @@
 // The music (TEX's NEO SHOW tune, an SNDH) plays on BARD all along: music and
 // jobs share it. The HUD gives the A/B (copro/hud.zig). Every pixel is the
 // same on both sides (the jobs' kernels are one source: libs/zig/bard_jobs/);
-// apps/copro_check.mjs proves it.
+// apps/harness/copro_check.mjs proves it.
 // Integers only, per frame and in every BARD job: BARD is rv32i + Zmmul (no
 // divide, no FPU), and the reciprocal table is the cart's (copro/dots.zig).
 // Pages 5-6 put f64 on ASTROLABE (or, for the A side, ZIGGY's soft f64 on

@@ -1,6 +1,6 @@
 // The GFA PUNCH modes' read-out (keys 4 and 5), in rows the listing never draws: text
 // at rows 16, 24 and 32 (under PTST's rows 0..15, above the sphere's top at row 46) and
-// a tap strip on row 199, the counters as bits for apps/gfa_punch_headless.mjs:
+// a tap strip on row 199, the counters as bits for apps/harness/gfa_punch_headless.mjs:
 //   x 0  frames (16 bits)    x 16 finished (1)    x 17 pass (6)
 //   x 23 tracing ms (24)     x 47 mode key (3)
 // A 1 bit is colour 15 (&H772), a 0 black, in either plane.

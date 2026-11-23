@@ -95,7 +95,7 @@ pub const Demo = struct {
         // The logo used to be plane 0, under the scroller's plane 1. It is now
         // drawn INTO plane 1 (its colours moved to 17..31, stcs_logo.zig) and
         // plane 0 stays disabled: FRESCO composites one plane, not two, and the
-        // composed picture is the same (apps/stcs_headless.mjs).
+        // composed picture is the same (apps/harness/stcs_headless.mjs).
         zigos.lfbs[0].is_enabled = false;
         self.logo_drawn = false;
 

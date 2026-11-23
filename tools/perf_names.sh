@@ -1,8 +1,8 @@
 #!/bin/sh
 # Build the carts and the ROM WITH function names (zig build -Dnames=true) into
-# zig-out/perf-names/docs, for apps/frame_cost.mjs and apps/perf_audit.mjs: release carts
+# zig-out/perf-names/docs, for apps/harness/frame_cost.mjs and apps/harness/perf_audit.mjs: release carts
 # are stripped, so without this twin their reports say f123 instead of a function name.
-# The twin is used only while its code is byte-identical to docs/ (apps/perf/names.mjs),
+# The twin is used only while its code is byte-identical to docs/ (apps/harness/perf/names.mjs),
 # so rerun this after a rebuild. It is a full zig build: run it under the build lock,
 #   prototypes/_gate_logs/gate_lock.sh tools/perf_names.sh
 set -e

@@ -3,7 +3,7 @@
 re-creation github.com/olivierh59500/go-chonchon, reading the CART assets under
 apps/zig/assets/screens/chonchon/.
 
-This is the dev-side twin of apps/chonchon_headless.mjs. It reproduces, byte for
+This is the dev-side twin of apps/harness/chonchon_headless.mjs. It reproduces, byte for
 byte, the Go production's own captured frames: the native 4-plane ST screen that
 internal/source/clock.go builds (background + 100 authored star paths + the
 two-bank ring scroller fed by the Huffman-unpacked font), the three YM-volume

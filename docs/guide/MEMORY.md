@@ -51,7 +51,7 @@ zeros, plus about 320 KB more zeros in its other segment: 1866 KB of the window
 used for about 600 KB of real content. The same zeros ride in every `.zmd` disk
 and every download.
 
-`apps/zero_segments.mjs` (in `build.sh`) now **fails the build** on any cart
+`apps/harness/zero_segments.mjs` (in `build.sh`) now **fails the build** on any cart
 whose data section holds a run of zeros of 64 KB or more, naming the cart, the
 segment and the address. The carts that exceeded it when the gate landed are on
 its allow-list, each one a migration still to do. The list may only shrink: a
@@ -138,7 +138,7 @@ let m = zigmachine_mem::mark(); /* ... */ unsafe { zigmachine_mem::release(m) };
 ```
 
 Both "hello world" carts (`apps/c/scenes/hello.c`, `apps/rust/hello.rs`) take
-their plasma table from the arena, and `apps/verify.mjs` runs them on the real
+their plasma table from the arena, and `apps/harness/verify.mjs` runs them on the real
 machine.
 
 ## VRAM is a different pool
@@ -155,7 +155,7 @@ should check its total against `zg.VRAM_BYTES` at comptime.
 
 ## What check_fits cannot see
 
-`apps/check_fits.mjs` measures the static footprint: data + stack, the same
+`apps/harness/check_fits.mjs` measures the static footprint: data + stack, the same
 number the host declares. It cannot see what a cart takes **at run time**:
 
 - a ZX0-packed asset (`docs/guide/DEPACK.md`) is small in the data segment and large

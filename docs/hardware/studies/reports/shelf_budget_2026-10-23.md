@@ -1,7 +1,7 @@
 # Shelf frame budget, 2026-10-23
 
 Every cart of the docs/ shelf (108 with a disk; tree 733c8eaf = origin/main 51b237a1 + frame_cost --budget)
-through `node apps/frame_cost.mjs --budget` and the plain estimate, in two windows: frames 721-1020 (the board
+through `node apps/harness/frame_cost.mjs --budget` and the plain estimate, in two windows: frames 721-1020 (the board
 table's 12 s window) and 2401-2700 (40 s, a later phase); each cart's WORSE window is the one ranked. Scripted keys
 as `CART_ARGS` (joust's game). Hot spots named from `tools/perf_names.sh` (file:line). Budget = cart + FRESCO, the
 serial frame (docs/hardware/studies/reports/frame_budget_2026-10-23.md); a cart under 1.67 Mc is predicted 60 fps, and

@@ -55,7 +55,7 @@ export fn audioKtStop() void {
 export fn audioKtActive() bool {
     return kt.active;
 }
-/// Test only (apps/kt_check.mjs): `n` stereo samples of the core's own output (s16, 22050 Hz),
+/// Test only (apps/harness/kt_check.mjs): `n` stereo samples of the core's own output (s16, 22050 Hz),
 /// rendered past the chip into the block buffer, whose address this returns (0 when not playing).
 export fn audioKtRenderCore(n: u32) u32 {
     if (!kt.active or n > kt.pcm.len / 2) return 0;

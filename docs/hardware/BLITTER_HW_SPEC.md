@@ -333,7 +333,7 @@ while the cart goes on, so a QUEUE is always lazy there, with the lazy wait's sy
 ZigOS: `zg.blit_queue.Queue` (`op`, `set`, `fill`, `kick`, `flush`) keeps the ring in
 two halves, stores a word only when the list does not hold it yet, and never writes the
 block; its contract is that a queued op's pixels are only drawn for sure after `flush()`.
-`apps/blitter_queue_check.mjs` holds the machine to "a list draws what its ops draw one
+`apps/harness/blitter_queue_check.mjs` holds the machine to "a list draws what its ops draw one
 by one".
 
 ---

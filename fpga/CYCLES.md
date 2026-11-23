@@ -13,11 +13,11 @@ between the markers. Details per run are in `build/cycles/report.txt`.*
   MiB of on-chip SRAM that answers in one cycle (see *Sim fidelity*).
 - **The program is the step 0b-i native host,** built bare-metal for rv32im with
   GCC 13 and picolibc: machine-video + rom + one cart, translated by wasm2c,
-  driven exactly like `apps/scene_hash.mjs` (`cycles/README.md`). The stock
+  driven exactly like `apps/harness/scene_hash.mjs` (`cycles/README.md`). The stock
   wasm2c runtime compiles unchanged through a three-header shim (`cycles/shim/`).
 - **Correctness first.** Every run prints the scene_hash JSON for its sampled
   frames, and its column `hashes` says `ok` only if that JSON equals BOTH
-  `apps/scene_hash.mjs`'s and the native host's for the same frames.
+  `apps/harness/scene_hash.mjs`'s and the native host's for the same frames.
 - **The split.** A hardware cycle counter is read at every boundary between
   owners (`cycles/prof.c`): **cart** = `cart.frame()` + every HBL handler
   (`hblDispatch`, called from inside `hwRenderPlane`) + the rom code they call;

@@ -47,7 +47,7 @@
 // Escape leaves. Declaring key() takes Escape away from the host, so this
 // scene sets wants_quit itself.
 //
-// COST (apps/polkadots_headless.mjs, averaged over 40 interleaved rounds on the
+// COST (apps/harness/polkadots_headless.mjs, averaged over 40 interleaved rounds on the
 // same torus): 223 / 99 / 123 / 173 blitter operations a frame, all four at
 // ~0.3 ms in the cart. The halftone register covers the grid in less than half
 // the operations of the dot sheet because a RUN of equal cells is one fill —

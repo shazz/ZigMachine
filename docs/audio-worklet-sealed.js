@@ -38,7 +38,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             // list did not provide, so demo-audio.wasm failed to LINK and ALL
             // sound died -- "Import #7 env machineAudioReset: requires a callable".
             // Nothing else broke and nothing else reported, which is why it read
-            // as "audio is gone" rather than as a build error. apps/sndh_headless.mjs
+            // as "audio is gone" rather than as a build error. apps/harness/sndh_headless.mjs
             // already built its imports this way, which is exactly why the gate
             // stayed green while the browser was silent: the harness could not
             // reproduce a mistake it was structurally incapable of making.

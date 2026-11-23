@@ -33,7 +33,7 @@
 // the main part on. master.mp3 is AN Cool's digi tune, "Cuddly Demos -
 // Spreadpoint" (sndh_lf/AN_Cool/Cuddly_Demos_Spreadpoint.sndh, 1 subtune, FLAG
 // ~ay: timer A at 7680 Hz through the YM volume DAC, which the machine plays --
-// apps/sndh_headless.mjs: peak 0.376). Matched by spectrogram against
+// apps/harness/sndh_headless.mjs: peak 0.376). Matched by spectrogram against
 // master.mp3: the same bar structure and the same silent gaps (~0.6 s, 2.2 s,
 // 3.8 s, 5.4 s) within 0.1 s. It is requested when the main part starts, as the
 // remake starts master.mp3. The four intro jingles are NOT in it (its one

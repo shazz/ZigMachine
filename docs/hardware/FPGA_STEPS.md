@@ -775,7 +775,7 @@ cart's embedded data: `audio` 2.1 MB (the SNDH player's 68000 tables),
 
 `make -C fpga host-check`: `machine-video.wasm`, `rom.wasm` and each cart are
 translated with wasm2c and linked against one shared 7 MiB bounds-checked
-memory. The host replays exactly the call sequence of `apps/scene_hash.mjs`.
+memory. The host replays exactly the call sequence of `apps/harness/scene_hash.mjs`.
 
 - **98 PASS, 0 FAIL:** all 89 carts at 1200 frames (sampled every 10) plus 9
   `--call` runs. The JSON matches byte for byte.

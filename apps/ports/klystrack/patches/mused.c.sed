@@ -7,6 +7,6 @@ s/MULTIKEY_JAMMING|START_WITH_TEMPLATE|EDIT_SEQUENCE_DIGITS;/MULTIKEY_JAMMING|ST
 # that at 44.1 kHz, which leaves no room for both in the 2 MiB cart window (README.md "Memory").
 s/^\tmused.mix_rate = 44100;$/\tmused.mix_rate = 22050;/
 # KESTREL: no oversampling by default (upstream 2 = 4x: every oscillator stepped four times a sample). The cart
-# CPU spent ~17,000 cycles a sample in klystron's mixer at 4x (apps/frame_cost.mjs), so real-time
+# CPU spent ~17,000 cycles a sample in klystron's mixer at 4x (apps/harness/frame_cost.mjs), so real-time
 # audio was out of reach; Settings > Oversample still offers 2x/4x.
 s/^\tmused.oversample = 2;$/\tmused.oversample = 0; \/* KESTREL *\//

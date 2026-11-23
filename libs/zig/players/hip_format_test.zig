@@ -1,5 +1,5 @@
 // Native tests for hip_format.zig: `zig test` this file. Synthetic files; the
-// real module is apps/supplex_fs2_headless.mjs's.
+// real module is apps/harness/supplex_fs2_headless.mjs's.
 const std = @import("std");
 const hip = @import("hip_format.zig");
 

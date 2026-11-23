@@ -3,7 +3,7 @@
 > **Packing the shelf:** `tools/mkdisks.sh` repacks every disk in `docs/` from the
 > built carts (run by `build.sh`; only repacks what is stale, `-f` forces). It is
 > the recipe the images used to lack — they drifted a week behind the wasm and
-> froze an import list the host no longer had. `node apps/disk_check.mjs` then
+> froze an import list the host no longer had. `node apps/harness/disk_check.mjs` then
 > mounts every image and instantiates its cart against the host's real `env`,
 > which is the check that would have caught that.
 
@@ -170,8 +170,8 @@ Unpacking is the **machine's** job, not the host's. When the host
 
 `romDepack` writes only inside the cart window and returns 0 for anything it
 cannot unpack. The host then fails loudly and does not boot a half-unpacked
-program. `apps/disk_check.mjs` unpacks every disk the same way, and
-`apps/rom_abi_check.mjs` throws truncated, oversized and out-of-window calls at
+program. `apps/harness/disk_check.mjs` unpacks every disk the same way, and
+`apps/harness/rom_abi_check.mjs` throws truncated, oversized and out-of-window calls at
 `romDepack`. A cart that is NOT packed still loads unchanged, so older disks
 keep working.
 

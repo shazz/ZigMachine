@@ -123,7 +123,7 @@ def test_the_launched_program_quits_back_to_gem_as_scene_hash_says() -> None:
     args = ["20", "5", "--data-disk", str(ST_REPLAY), "--program", "--call", "10:key:120"]
     nat = subprocess.run([str(FPGA / "build/host/st_replay/host"), "st_replay", *args], capture_output=True, text=True,
                          check=True)  # fmt: skip
-    js = subprocess.run(["node", "apps/scene_hash.mjs", "docs/demo-st_replay.wasm", *args], cwd=ROOT,
+    js = subprocess.run(["node", "apps/harness/scene_hash.mjs", "docs/demo-st_replay.wasm", *args], cwd=ROOT,
                         capture_output=True, text=True, check=True)  # fmt: skip
     hashes = [[s["hash"] for s in json.loads(r.stdout)["samples"]] for r in (nat, js)]
     assert hashes[0] == hashes[1]

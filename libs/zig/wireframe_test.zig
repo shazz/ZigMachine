@@ -5,7 +5,7 @@
 // The pipeline runs on a tiny fake math library whose transforms do NOT
 // commute, so a wrong step order changes the numbers. (Real zalgebra is not
 // imported: its vendored tests do not build on Zig 0.16. The scenes' framebuffer
-// hashes, apps/scene_hash.mjs, prove the real op order byte for byte.)
+// hashes, apps/harness/scene_hash.mjs, prove the real op order byte for byte.)
 const std = @import("std");
 const obj = @import("utils/obj_loader.zig");
 const expectEqual = std.testing.expectEqual;

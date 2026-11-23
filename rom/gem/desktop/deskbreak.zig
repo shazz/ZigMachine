@@ -2,7 +2,7 @@
 // The harnesses' mutants (deskSetEngine's bits 8.., eng/engine.zig): each one
 // puts back a bug a harness must catch, in the old path and the engine alike.
 // The engine's own (repaint all, unclipped, ...) are in engine.zig; these are the
-// desktop's, read through Desktop.breaks (apps/gem_desk_bugs_check.mjs --break).
+// desktop's, read through Desktop.breaks (apps/harness/gem_desk_bugs_check.mjs --break).
 // --------------------------------------------------------------------------
 pub const REFLOW: u32 = 1 << 13; // the icon grid frozen at the width the window opened with
 pub const PAGE: u32 = 1 << 14; // a click in a scroll track does nothing (no page)

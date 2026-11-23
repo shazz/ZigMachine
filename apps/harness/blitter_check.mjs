@@ -1,0 +1,271 @@
+// The blitter's SOURCE contract (HW 1.4.0) and FILL's combine/halftone contract
+// (HW 1.5.0), driven straight through the register block of the sealed machine,
+// with no cart and no ZigOS in the way.
+//
+// Before 1.4.0 every channel BASE was an offset from HW_VIDEO_BASE, so a cart's
+// own assets (which live below it, in the cart window) were unreachable. CON2.SRC_ABS
+// makes A/B absolute addresses, checked per blit against the readable windows. This
+// proves both halves: what must work (plane offsets unchanged, cart RAM, ROM
+// window, video region, keyed copies) and what must be refused without writing a
+// single byte (machine RAM, a rect straddling two windows, the gap below the ROM,
+// a stride x height large enough to wrap).
+//
+// Usage: node apps/harness/blitter_check.mjs        (exit 1 on any failure)
+import { readFile } from "node:fs/promises";
+
+const PAGES = 128;               // memmap.SHARED_PAGES
+const VIDEO = 0x400000;          // HW_VIDEO_BASE
+const CART_BASE = 0x100000;      // CART_RAM_BASE
+const CART_TOP = VIDEO;          // CART_RAM_TOP
+const REGION_BYTES = 1948768;    // OFF_PFB + PFB_BYTES
+const ROM_BASE = 0x600000;       // ROM_RAM_BASE
+const ROM_TOP = 0x800000;        // ROM_RAM_TOP = the end of memory
+const OFF_BLIT = 0x80;
+const P0 = 0x1100;               // plane 0 framebuffer (OFF_VRAM)
+const P1 = 0x1100 + 64000;       // plane 1
+const STRIDE = 320;
+const CANARY = 0x5a;
+
+const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
+const machine = (await WebAssembly.instantiate(
+    await readFile(process.env.MACHINE || "docs/machine-video.wasm"),
+    { env: { memory, hblDispatch: () => {} } })).instance.exports;
+machine.hwInit();
+
+const u8 = () => new Uint8Array(memory.buffer);
+const dv = () => new DataView(memory.buffer);
+const R = (o) => VIDEO + OFF_BLIT + o;
+
+function blit({ con2 = 0, base, stride, w, h, x, y, key }) {
+    const m = u8(), d = dv();
+    m[R(0x07)] = con2;                       // CON2
+    d.setUint32(R(0x20), P0, true);          // D_BASE (video offset)
+    d.setUint16(R(0x24), STRIDE, true);      // D_STRIDE
+    d.setUint32(R(0x10), base, true);        // B_BASE
+    d.setUint16(R(0x14), stride, true);      // B_STRIDE
+    m[R(0x02)] = 0x02 | (key === undefined ? 0 : 0x08); // CON: USEB (+ KEY_EN)
+    m[R(0x01)] = 0xcc;                       // MINTERM: D = B
+    m[R(0x06)] = key ?? 0;                   // COLOR_KEY
+    d.setInt16(R(0x2c), x, true);
+    d.setInt16(R(0x2e), y, true);
+    d.setUint16(R(0x28), w, true);
+    d.setUint16(R(0x2a), h, true);
+    m[R(0x00)] = 1;                          // COMMAND: BLIT
+    machine.hwBlit();
+    return d.getUint32(R(0x60), true);       // CYCLES
+}
+
+const plane0 = () => u8().subarray(VIDEO + P0, VIDEO + P0 + 64000);
+const resetPlane0 = () => plane0().fill(CANARY);
+const at = (x, y) => plane0()[y * STRIDE + x];
+
+// A w x h test image whose bytes are 1 + (index % 250), optionally with holes.
+function image(addr, w, h, stride = w, holes = false) {
+    const m = u8();
+    for (let j = 0; j < h; j++)
+        for (let i = 0; i < w; i++)
+            m[addr + j * stride + i] = holes && (i + j) % 3 === 0 ? 0 : 1 + ((j * w + i) % 250);
+}
+function matches(addr, w, h, stride, x, y, key) {
+    const m = u8();
+    for (let j = 0; j < h; j++)
+        for (let i = 0; i < w; i++) {
+            const s = m[addr + j * stride + i];
+            const want = key !== undefined && s === key ? CANARY : s;
+            if (at(x + i, y + j) !== want) return `pixel (${x + i},${y + j}) is ${at(x + i, y + j)}, wants ${want}`;
+        }
+    return null;
+}
+const untouched = () => plane0().every((v) => v === CANARY) ? null : "plane 0 was written";
+
+let failed = 0;
+function check(name, fn) {
+    resetPlane0();
+    let why;
+    try { why = fn(); } catch (e) { why = `threw ${e}`; }
+    console.log(`${why ? "FAIL" : "ok  "}  ${name}${why ? ": " + why : ""}`);
+    if (why) failed++;
+}
+
+check("relative: plane 1 -> plane 0, as before 1.4.0", () => {
+    image(VIDEO + P1, 16, 8, STRIDE);
+    const cyc = blit({ base: P1, stride: STRIDE, w: 16, h: 8, x: 10, y: 10 });
+    return matches(VIDEO + P1, 16, 8, STRIDE, 10, 10) ?? (cyc === 128 ? null : `CYCLES ${cyc}`);
+});
+check("SRC_ABS: an image in cart RAM", () => {
+    image(0x200000, 24, 5, 24);
+    const cyc = blit({ con2: 1, base: 0x200000, stride: 24, w: 24, h: 5, x: 40, y: 3 });
+    return matches(0x200000, 24, 5, 24, 40, 3) ?? (cyc === 120 ? null : `CYCLES ${cyc}`);
+});
+check("SRC_ABS: keyed cookie-cut from cart RAM", () => {
+    image(0x210000, 12, 12, 12, true);
+    blit({ con2: 1, base: 0x210000, stride: 12, w: 12, h: 12, x: 100, y: 50, key: 0 });
+    return matches(0x210000, 12, 12, 12, 100, 50, 0);
+});
+check("SRC_ABS: last bytes of the cart window", () => {
+    const base = CART_TOP - 10 * 4; // 10x4, ends exactly at CART_TOP
+    image(base, 10, 4, 10);
+    blit({ con2: 1, base, stride: 10, w: 10, h: 4, x: 0, y: 0 });
+    return matches(base, 10, 4, 10, 0, 0);
+});
+check("SRC_ABS: the ROM window", () => {
+    image(ROM_BASE + 0x100000, 8, 8, 8);
+    blit({ con2: 1, base: ROM_BASE + 0x100000, stride: 8, w: 8, h: 8, x: 300, y: 190 });
+    return matches(ROM_BASE + 0x100000, 8, 8, 8, 300, 190);
+});
+check("SRC_ABS: the video region by absolute address", () => {
+    image(VIDEO + P1, 16, 4, STRIDE);
+    blit({ con2: 1, base: VIDEO + P1, stride: STRIDE, w: 16, h: 4, x: 5, y: 150 });
+    return matches(VIDEO + P1, 16, 4, STRIDE, 5, 150);
+});
+check("SRC_ABS: clipped at the destination edge still reads only in-window", () => {
+    image(0x220000, 32, 32, 32);
+    blit({ con2: 1, base: 0x220000, stride: 32, w: 32, h: 32, x: 300, y: -10 });
+    return at(300, 0) === u8()[0x220000 + 10 * 32] ? null : "clipped copy wrong";
+});
+
+const refusals = [
+    ["machine RAM below the cart window", { base: 0x1000, stride: 16, w: 16, h: 16 }],
+    ["address 0", { base: 0, stride: 16, w: 16, h: 16 }],
+    ["rect straddling cart RAM into the video region", { base: CART_TOP - 8, stride: 16, w: 16, h: 1 }],
+    ["rect running off the cart window downward", { base: CART_TOP - 100, stride: 64, w: 16, h: 4 }],
+    ["the gap between the video region and the ROM", { base: VIDEO + REGION_BYTES + 16, stride: 16, w: 16, h: 16 }],
+    ["past the ROM window (end of memory)", { base: ROM_TOP - 8, stride: 16, w: 16, h: 1 }],
+    ["stride x height large enough to wrap 32 bits", { base: 0x200000, stride: 65535, w: 16, h: 65535 }],
+];
+for (const [name, r] of refusals) {
+    check(`SRC_ABS refuses ${name}`, () => {
+        const cyc = blit({ con2: 1, x: 0, y: 0, ...r });
+        return untouched() ?? (cyc === 0 ? null : `CYCLES ${cyc}`);
+    });
+}
+
+// Relative mode and the destination were unchecked before 1.4.0: a bad BASE read
+// or wrote past the end of memory and trapped the machine, and D_BASE = 0x200000
+// wrote straight into the ROM's RAM. Both are now refused without a trap.
+const romGuard = () => u8().subarray(ROM_BASE, ROM_BASE + 4096);
+check("relative source past the video region is refused, no trap", () => {
+    const cyc = blit({ base: ROM_TOP - VIDEO - 0x1000, stride: 320, w: 64, h: 64, x: 0, y: 0 });
+    return untouched() ?? (cyc === 0 ? null : `CYCLES ${cyc}`);
+});
+check("relative source rect running off the region's end is refused", () => {
+    const cyc = blit({ base: REGION_BYTES - 100, stride: 320, w: 64, h: 2, x: 0, y: 0 });
+    return untouched() ?? (cyc === 0 ? null : `CYCLES ${cyc}`);
+});
+function destBlit(cmd, dBase, dStride, coords) {
+    const m = u8(), d = dv();
+    m[R(0x07)] = 0;
+    d.setUint32(R(0x20), dBase, true);
+    d.setUint16(R(0x24), dStride, true);
+    m[R(0x02)] = 0;                          // CON: no channels, no clip
+    m[R(0x01)] = 0xcc;
+    m[R(0x04)] = 0x77;                       // COLOR
+    const [x0, y0, x1, y1, x2, y2, w, h] = coords;
+    d.setInt16(R(0x2c), x0, true); d.setInt16(R(0x2e), y0, true);
+    d.setInt16(R(0x30), x1, true); d.setInt16(R(0x32), y1, true);
+    d.setInt16(R(0x34), x2, true); d.setInt16(R(0x36), y2, true);
+    d.setUint16(R(0x28), w, true); d.setUint16(R(0x2a), h, true);
+    m[R(0x00)] = cmd;
+    machine.hwBlit();
+    return d.getUint32(R(0x60), true);
+}
+for (const [name, cmd] of [["FILL", 2], ["LINE", 3], ["TRIANGLE", 4]]) {
+    check(`${name} with D_BASE in the ROM's RAM is refused`, () => {
+        romGuard().fill(CANARY);
+        const cyc = destBlit(cmd, ROM_BASE - VIDEO, 320, [0, 0, 50, 50, 0, 50, 50, 50]);
+        return romGuard().every((v) => v === CANARY) ? (cyc === 0 ? null : `CYCLES ${cyc}`) : "ROM RAM was written";
+    });
+}
+check("FILL whose box runs off the end of memory is refused, no trap", () => {
+    const cyc = destBlit(2, ROM_TOP - VIDEO - 0x100, 320, [0, 0, 0, 0, 0, 0, 320, 200]);
+    return cyc === 0 ? null : `CYCLES ${cyc}`;
+});
+check("a huge-stride view that only writes its first rows still works", () => {
+    // blitter_demo's DELAY ring: plane 1 viewed with a 62400-byte stride
+    plane0().fill(CANARY);
+    const cyc = destBlit(2, P0, 62400, [4, 0, 0, 0, 0, 0, 8, 1]);
+    return at(4, 0) === 0x77 && at(11, 0) === 0x77 && cyc === 8 ? null : `FILL wrote ${at(4, 0)}, CYCLES ${cyc}`;
+});
+
+// FILL's own contract (HW 1.5.0). Until 1.5.0 FILL plotted COLOR straight and
+// decided "is a halftone loaded?" by sniffing the pattern for a non-zero row, so
+// a patterned XOR/OR fill was impossible and density 0 meant SOLID. Both new
+// powers are opt-in bits in CON2, because every pre-1.5.0 caller wrote CON = 0
+// and left MINTERM holding whatever the previous op had put there: the checks
+// below pin BOTH halves — what the bits do, and that without them nothing moved.
+function fill({ con2 = 0, x, y, w, h, color, bg = 0, mt = 0xcc, halftone }) {
+    const m = u8(), d = dv();
+    d.setUint32(R(0x20), P0, true);
+    d.setUint16(R(0x24), STRIDE, true);
+    m[R(0x02)] = 0;                          // CON: no channels, no clip
+    m[R(0x07)] = con2;
+    m[R(0x01)] = mt;                         // MINTERM
+    m[R(0x04)] = color;
+    m[R(0x05)] = bg;
+    for (let i = 0; i < 16; i++) d.setUint16(R(0x40) + i * 2, halftone ? halftone[i] : 0, true);
+    d.setInt16(R(0x2c), x, true);
+    d.setInt16(R(0x2e), y, true);
+    d.setUint16(R(0x28), w, true);
+    d.setUint16(R(0x2a), h, true);
+    m[R(0x00)] = 2;                          // COMMAND: FILL
+    machine.hwBlit();
+    return d.getUint32(R(0x60), true);
+}
+const CHECKER = Array.from({ length: 16 }, (_, j) => (j % 2 ? 0xaaaa : 0x5555));
+const ALL_ZERO = new Array(16).fill(0);
+const FILL_MT = 0x02, HALFTONE_EN = 0x04;
+
+check("FILL without CON2.FILL_MT ignores a stale MINTERM (pre-1.5.0 behaviour)", () => {
+    // MT_CLEAR would wipe the rect to 0 if FILL obeyed the register unasked.
+    fill({ x: 0, y: 0, w: 8, h: 2, color: 0x33, mt: 0x00 });
+    return at(0, 0) === 0x33 && at(7, 1) === 0x33 ? null : `FILL wrote ${at(0, 0)}/${at(7, 1)}`;
+});
+check("FILL with CON2.FILL_MT XORs into the destination", () => {
+    fill({ con2: FILL_MT, x: 4, y: 1, w: 4, h: 1, color: 0x0f, mt: 0x66 }); // MT_XOR_BC
+    const once = at(4, 1);
+    fill({ con2: FILL_MT, x: 4, y: 1, w: 4, h: 1, color: 0x0f, mt: 0x66 }); // XOR back out
+    if (once !== (CANARY ^ 0x0f)) return `XOR gave ${once}, wants ${CANARY ^ 0x0f}`;
+    return at(4, 1) === CANARY && at(7, 1) === CANARY ? null : "XOR was not reversible";
+});
+check("FILL with CON2.FILL_MT ORs into the destination", () => {
+    fill({ con2: FILL_MT, x: 0, y: 0, w: 3, h: 1, color: 0x81, mt: 0xee }); // MT_OR_BC
+    return at(0, 0) === (CANARY | 0x81) ? null : `OR gave ${at(0, 0)}`;
+});
+check("FILL_MT with MT_B is still the plain fill", () => {
+    fill({ con2: FILL_MT, x: 0, y: 0, w: 3, h: 1, color: 0x2a, mt: 0xcc });
+    return at(0, 0) === 0x2a && at(2, 0) === 0x2a ? null : `MT_B fill gave ${at(0, 0)}`;
+});
+check("FILL halftone picks COLOR/BG_COLOR, and BG_COLOR is honoured", () => {
+    fill({ x: 0, y: 0, w: 16, h: 2, color: 0x11, bg: 0x22, halftone: CHECKER });
+    // row 0 = 0x5555: bit i of x selects, so even x -> COLOR, odd x -> BG.
+    return at(0, 0) === 0x11 && at(1, 0) === 0x22 && at(0, 1) === 0x22 && at(1, 1) === 0x11
+        ? null : `halftone gave ${at(0, 0)},${at(1, 0)} / ${at(0, 1)},${at(1, 1)}`;
+});
+check("an all-zero halftone WITHOUT the enable bit still fills solid (pre-1.5.0)", () => {
+    fill({ x: 0, y: 0, w: 4, h: 1, color: 0x44, bg: 0x55, halftone: ALL_ZERO });
+    return at(0, 0) === 0x44 && at(3, 0) === 0x44 ? null : `sniffed fill gave ${at(0, 0)}`;
+});
+check("an all-zero halftone WITH CON2.HALFTONE_EN is density 0: all BG_COLOR", () => {
+    fill({ con2: HALFTONE_EN, x: 0, y: 0, w: 4, h: 1, color: 0x44, bg: 0x55, halftone: ALL_ZERO });
+    return at(0, 0) === 0x55 && at(3, 0) === 0x55 ? null : `density 0 gave ${at(0, 0)}`;
+});
+check("an all-zero halftone, HALFTONE_EN + XOR, leaves the plane alone", () => {
+    // bg 0 XORed into dest is the identity: the "draw nothing" level of a ramp.
+    fill({ con2: HALFTONE_EN | FILL_MT, x: 0, y: 0, w: 32, h: 4, color: 0x44, bg: 0, mt: 0x66, halftone: ALL_ZERO });
+    return untouched();
+});
+check("a halftone fill still clips to the destination", () => {
+    fill({ con2: HALFTONE_EN | FILL_MT, x: -4, y: -1, w: 8, h: 3, color: 0xff, bg: 0x10, mt: 0xee, halftone: CHECKER });
+    return at(0, 0) !== CANARY && at(319, 199) === CANARY ? null : "clipped fill wrote outside";
+});
+
+check("hwInit clears CON2, so pre-1.4.0 carts keep relative sources", () => {
+    u8()[R(0x07)] = 1;
+    machine.hwInit();
+    return u8()[R(0x07)] === 0 ? null : "CON2 survived hwInit";
+});
+check("the machine reports HW 1.5.0 or later", () =>
+    machine.hwVersion() >= 0x00010500 ? null : `hwVersion 0x${machine.hwVersion().toString(16)}`);
+
+console.log(failed ? `blitter_check: ${failed} FAILED` : "blitter_check: all pass ✅");
+process.exit(failed ? 1 : 0);

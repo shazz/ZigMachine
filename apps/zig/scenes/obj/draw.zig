@@ -5,7 +5,7 @@
 // cheaper on the board: a CHISEL op costs ~800 cycles before its first pixel,
 // so a face a few rows high or a short edge is drawn by the CPU, a big one by
 // CHISEL. Both follow CHISEL's own pixel rules, so the choice never shows.
-// Thresholds measured with apps/frame_cost.mjs on the sphere levels.
+// Thresholds measured with apps/harness/frame_cost.mjs on the sphere levels.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const raster = @import("raster.zig");
@@ -22,7 +22,7 @@ pub const WIRE_INK: u8 = 201;
 /// Where the work splits: a face `rows` high or less is filled by the CPU, an
 /// edge `len` long or less is drawn by the CPU, the rest by CHISEL. Key C
 /// cycles these so the board can be asked too; DEFAULT_SPLIT is the one
-/// apps/frame_cost.mjs found cheapest over the models and sphere levels
+/// apps/harness/frame_cost.mjs found cheapest over the models and sphere levels
 /// (2026-10-24: FLAT ties, WIRE L3 1.01 Mc vs 1.03-1.06 for the others; its
 /// model charges a CHISEL op ~400 cycles, so the board may prefer more CPU).
 pub const Split = struct { rows: i32, len: i32, name: []const u8 };

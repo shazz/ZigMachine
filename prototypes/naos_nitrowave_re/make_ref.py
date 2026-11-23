@@ -1,4 +1,4 @@
-"""Build apps/naos_nitrowave_ref.json.gz: the ORIGINAL as Hatari shows it.
+"""Build apps/harness/naos_nitrowave_ref.json.gz: the ORIGINAL as Hatari shows it.
 
 Per part, for a set of cart frames k (k-th VBL after the part is entered), the
 Hatari capture (frameskip 0) of VBL sync + k - 1, where `sync` is the capture
@@ -67,5 +67,5 @@ for part, (capdir, sync, frames) in PARTS.items():
                  'frames': {str(k): z((plane(capdir, sync + k - 1) ^ first).astype('>u2')) for k in frames[1:]}}
 ref['ric'] = ric()
 data = gzip.compress(json.dumps(ref).encode(), 9)
-open('../../apps/naos_nitrowave_ref.json.gz', 'wb').write(data)
+open('../../apps/harness/naos_nitrowave_ref.json.gz', 'wb').write(data)
 print({p: v[2] for p, v in PARTS.items()}, 'ric', RIC_FRAMES, 'bytes', len(data))

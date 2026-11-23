@@ -13,7 +13,7 @@
 //
 // This repeats the few module definitions of build.zig a cart needs. If
 // build.zig gives demo_main another import, the gate's SDK harness
-// (apps/sdk_check.mjs) fails to build the template, which keeps the two in step.
+// (apps/harness/sdk_check.mjs) fails to build the template, which keeps the two in step.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("../machine/sdk/memmap.zig");

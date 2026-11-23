@@ -130,7 +130,7 @@ def test_scene_hash_drive_is_the_browsers_function_text_for_text() -> None:
         assert m, path
         return [line.strip() for line in m.group(2).splitlines()]
 
-    assert body(ROOT / "apps/scene_hash_disk.mjs") == body(ROOT / "docs/sealed-loader.js")
+    assert body(ROOT / "apps/harness/scene_hash_disk.mjs") == body(ROOT / "docs/sealed-loader.js")
 
 
 def _desc(disk_test: Path, rows: list[tuple[int, ...]]) -> list[str]:
@@ -242,7 +242,7 @@ def test_native_host_streams_stniccc_off_its_disk_as_scene_hash_does() -> None:
         pytest.skip("no native host for stniccc (make -C fpga build/host/stniccc/host) or no node")
     disk = ["--disk", "docs/demo-stniccc.zmd"]
     args = ["docs/demo-stniccc.wasm", "120", "20"]
-    js = json.loads(_out(["node", "apps/scene_hash.mjs", *args, *disk], cwd=ROOT))
+    js = json.loads(_out(["node", "apps/harness/scene_hash.mjs", *args, *disk], cwd=ROOT))
     native = json.loads(_out([str(host), *args, *disk], cwd=ROOT))
     blind = json.loads(_out([str(host), *args], cwd=ROOT))
     assert native["samples"] == js["samples"] and native["total"] == js["total"]

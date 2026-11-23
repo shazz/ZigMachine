@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // STCS STARGOOSE — ZIG MODE, switched by Z at any moment (stcs.zig key()).
 // ORIGINAL is the default and is the cart as it was, frame for frame
-// (apps/stcs_headless.mjs). ZIG adds three effects, each with its own key so
+// (apps/harness/stcs_headless.mjs). ZIG adds three effects, each with its own key so
 // its cost can be read off the board's fps on its own:
 //
 //   1  BORDERS  the scrolltext runs on through the LEFT and RIGHT borders:

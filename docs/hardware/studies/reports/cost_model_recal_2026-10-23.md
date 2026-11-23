@@ -1,6 +1,6 @@
 # Cost model recalibration, 2026-10-23 (feat/cost-model-recal)
 
-apps/perf/cost_model.mjs refitted to the POSTED-STORE board: board fps + the native bench cart from the same
+apps/harness/perf/cost_model.mjs refitted to the POSTED-STORE board: board fps + the native bench cart from the same
 session (prototypes/chisel_queue_re/arms/base/, 2026-10-20: main firmware + bitstream, W64, posted stores,
 FPU), every cart estimated from the a9a032eb shelf (`--warmup 720 --frames 300`, unattended).
 Method and constants: docs/hardware/PERF_AUDIT.md "Fitted to the board (2026-10-23)".

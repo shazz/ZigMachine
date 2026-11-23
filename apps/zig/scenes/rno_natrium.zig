@@ -40,7 +40,7 @@
 //
 // MUSIC: "Triplex" by 505, the SNDH ripped out of NATRIUM.PRG itself (the VBL
 // calls its play vector at $564DA; init $564D2, exit $564D6), 36,424 bytes,
-// verified on the sealed YM (apps/sndh_headless.mjs: mode 4, peak 0.56). The
+// verified on the sealed YM (apps/harness/sndh_headless.mjs: mode 4, peak 0.56). The
 // archive's prototypes/sndh_lf/505/Triplex.sndh is a DIFFERENT build flagged
 // ~a (STE DMA), which this machine plays as silence, so the intro's own copy
 // ships instead.

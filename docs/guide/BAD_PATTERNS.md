@@ -3,7 +3,7 @@
 Every pattern here has cost a real cart frames on KESTREL (the FPGA board) or a wrong picture,
 and most are flagged by a tool. Measure before fixing:
 
-- `node apps/frame_cost.mjs <tag> --budget` estimates a frame: the cart's cycles plus FRESCO's
+- `node apps/harness/frame_cost.mjs <tag> --budget` estimates a frame: the cart's cycles plus FRESCO's
   passes over its planes, and lists every misaligned site with its file:line.
 - `tools/perf_audit.sh <tag>` ranks the waste. The finding names in `code` below are its own.
   Details are in [PERF_AUDIT.md](../hardware/PERF_AUDIT.md).

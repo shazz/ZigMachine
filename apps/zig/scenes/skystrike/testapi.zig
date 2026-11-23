@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door (apps/skystrike_headless.mjs), exported by
+// The headless harness's door (apps/harness/skystrike_headless.mjs), exported by
 // skystrike.zig in this cart only.
 //
 //   reset(seed)       power on in lockstep, RND seeded

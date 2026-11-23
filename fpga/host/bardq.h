@@ -5,7 +5,7 @@
  *     on ZIGGY with the players (ZM_AUDIO=1) it reads the cart's memory; on BARD the cart's DDR.
  *   cart side: host/audio_bardq.c where the players are this CPU's, cycles/bsound_bardq.c where
  *     they are BARD's (the head through C2S, the answer through S2C: cycles/snd_mailbox.h).
- * docs/sealed-loader.js bardDrain / bardPublish are the page's copy; apps/bard_queue_check.mjs holds
+ * docs/sealed-loader.js bardDrain / bardPublish are the page's copy; apps/harness/bard_queue_check.mjs holds
  * the three to the same samples. Header-only helpers, so fpga/tests/test_bard_queue.py compiles them. */
 #ifndef ZM_BARDQ_H
 #define ZM_BARDQ_H

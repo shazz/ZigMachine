@@ -31,7 +31,7 @@ CARTS = {"zig": "demo-tutorial", "c": "demo-c-tutorial", "rust": "demo-rust-tuto
 # material about other parts of the machine — they still show code in all three
 # languages, but there is no cart that "is" them, so they get no Run button that
 # would boot the wrong screen. Keep this in step with LAST_STEP in
-# apps/tutorial_steps_check.mjs.
+# apps/harness/tutorial_steps_check.mjs.
 RUNNABLE_THROUGH = 7
 
 

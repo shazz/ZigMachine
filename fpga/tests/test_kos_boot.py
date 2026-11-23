@@ -1,5 +1,5 @@
 """KOS's power-on (docs/os/ZIGTOS_BOOT.md: KOS, the KESTREL Operating System, is its "ZigTOS"): the
-native host's --kos (host/kos_host.c) equals scene_hash.mjs --kos (apps/scene_hash_kos.mjs, the
+native host's --kos (host/kos_host.c) equals scene_hash.mjs --kos (apps/harness/scene_hash_kos.mjs, the
 browser's steps) frame for frame, for every kind of drive A:
 
 - empty: the ROM's POST (rom/kos/kos.zig), then the desktop, whose FLOPPY says the drive is empty;
@@ -44,7 +44,7 @@ def host(cart: str) -> Path:
 def both(cart: str, frames: int, every: int, *args: str) -> tuple[list[str], str, str]:
     """The native host's and scene_hash.mjs's samples (equal, or the test fails), and both stderrs."""
     nat = subprocess.run([str(host(cart)), cart, str(frames), str(every), *args], cwd=ROOT, capture_output=True, text=True)
-    js = subprocess.run(["node", "apps/scene_hash.mjs", f"docs/demo-{cart}.wasm", str(frames), str(every), *args],
+    js = subprocess.run(["node", "apps/harness/scene_hash.mjs", f"docs/demo-{cart}.wasm", str(frames), str(every), *args],
                         cwd=ROOT, capture_output=True, text=True)  # fmt: skip
     assert nat.returncode == 0 and js.returncode == 0, nat.stderr + js.stderr
     hn = [s["hash"] for s in json.loads(nat.stdout)["samples"]]
@@ -93,13 +93,13 @@ def test_a_boot_sector_runs_after_the_post_then_the_desktop_or_its_cart() -> Non
 def test_a_bootable_disk_boots_its_own_cart_and_no_other() -> None:
     tut, _, _ = both("tutorial", 40, 2, "--kos", str(DOCS / "demo-tutorial.zmd"), "--post-frames", "6")
     assert tut[2] != tut[3]  # the POST's last frame, then the cart's first
-    wrong = subprocess.run(["node", "apps/scene_hash.mjs", "docs/demo-gem.wasm", "5", "1", "--kos",
+    wrong = subprocess.run(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "5", "1", "--kos",
                             str(DOCS / "demo-tutorial.zmd"), "--post-frames", "1"], cwd=ROOT, capture_output=True, text=True)  # fmt: skip
     assert wrong.returncode != 0 and "the cart given is not the disk's" in wrong.stderr
 
 
 @pytest.mark.parametrize("args", [["--post-frames", "3"], ["--kos", str(DOCS / "nope.zmd")]])
 def test_bad_kos_arguments_are_refused(args: list[str]) -> None:
-    js = subprocess.run(["node", "apps/scene_hash.mjs", "docs/demo-gem.wasm", "5", "1", *args], cwd=ROOT,
+    js = subprocess.run(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "5", "1", *args], cwd=ROOT,
                         capture_output=True, text=True)  # fmt: skip
     assert js.returncode != 0

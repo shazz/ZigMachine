@@ -23,7 +23,7 @@ the machine — and none of it happens in the page.
 and `readme.txt`. The disassembler and the example host are not vendored.
 
 To update: drop a new upstream tree into `upstream/`, re-apply the local change below,
-rebuild, run `node apps/sndh_headless.mjs`.
+rebuild, run `node apps/harness/sndh_headless.mjs`.
 
 ### The one local change
 
@@ -91,7 +91,7 @@ cart owns `[0x100000,0x200000)`, one megabyte, and SONG RAM begins at exactly
 Overrun it and there is no trap — the cart writes into song RAM and the tune it
 was loading turns to noise somewhere unrelated.
 
-`apps/check_fits.mjs` measures each module against its own map and labels the line
+`apps/harness/check_fits.mjs` measures each module against its own map and labels the line
 `[audio]`, so a build says how much is left. Watch that figure, not the megabyte.
 
 If it ever needs to shrink, the FPU and softfloat are the next things to go — they

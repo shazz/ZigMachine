@@ -1,5 +1,5 @@
 """The native host's generated half (tools/host_gen.py, tools/wasm_info.py) must
-make the same decisions apps/scene_hash.mjs makes. The high-water port is checked
+make the same decisions apps/harness/scene_hash.mjs makes. The high-water port is checked
 against the JS itself on every module the host runs; the import resolution and the
 LinkError refusal are checked on hand-built inputs, including the failing cases.
 """

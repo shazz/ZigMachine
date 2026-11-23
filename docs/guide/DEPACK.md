@@ -90,17 +90,17 @@ nothing. The loader's music, `zik_loader` (`data/music/zik_loader.ogg`, a 44.1 k
 Vorbis stream the remake plays on the demo screens' loaders; `menuloader.js` has
 it commented out), is not part of the effect. Plane-0 entry 1 is the ink, restored
 afterwards. On a 400×280 plane the panel sits in the 320×200 window at (40,40).
-`apps/tex_loader_fx_headless.mjs` packs a real asset with the main menu's panel
+`apps/harness/tex_loader_fx_headless.mjs` packs a real asset with the main menu's panel
 (`apps/zig/assets/screens/union_demo/loader_main_menu.txt`), runs it on the sealed
 machine, shoots start/middle/end and checks the depacked bytes. The first screen
 to ship behind it is the Union Demo's TCB3 MULTIFAKE (`union_multifake`): its
 pictures (156,511 bytes) are packed with `screens/multifake/loader.js`'s panel in
 `build.zig` and depack at 6 bytes a line, 94 frames
-(`apps/union_multifake_headless.mjs`). DELTA FORCE (`union_deltaforce`) followed:
+(`apps/harness/union_multifake_headless.mjs`). DELTA FORCE (`union_deltaforce`) followed:
 186,774 bytes behind `screens/deltaforce/loader.js`'s 19-column panel, 7 bytes a line,
-96 frames (`apps/union_deltaforce_headless.mjs`). TCB2's WOW!-SCROLLER (`union_superscroller`)
+96 frames (`apps/harness/union_deltaforce_headless.mjs`). TCB2's WOW!-SCROLLER (`union_superscroller`)
 does the same with `screens/superscroller/loader.js`'s panel: 140,601 bytes at 5 a
-line, 101 frames (`apps/union_superscroller_headless.mjs`).
+line, 101 frames (`apps/harness/union_superscroller_headless.mjs`).
 
 **automation**, what is authentic and what is adapted. It is the fake depack
 screen that opened the Replicants' Kick Off 2 remake (CODEF screen 168,

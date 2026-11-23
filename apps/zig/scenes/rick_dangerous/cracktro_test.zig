@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // The headless harness's door to the cracktro and the trainer
-// (apps/rick_cracktro_headless.mjs), exported by rick_dangerous.zig.
+// (apps/harness/rick_cracktro_headless.mjs), exported by rick_dangerous.zig.
 //
 //   trainer(mask)    the trainer flags (trainer.zig: 1 lives, 2 bullets,
 //                    4 dynamite), for the lockstep replays

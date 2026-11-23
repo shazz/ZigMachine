@@ -1,7 +1,7 @@
 /* The .vgm player's output stage in C (zm_vgm.h zm_vgm_render_paula): the engine's stereo at its own rate
  * converted to the mixer's 44.1 kHz and split into the four Paula channels' bytes. Exactly the Zig players'
  * stage (libs/zig/players/mp3_resample.zig's Linear, mp3_out.zig's bytes), moved here so BARD runs it natively
- * instead of through wasm2c: per output frame it was a fifth of the player's cost. apps/vgm_check.mjs holds it
+ * instead of through wasm2c: per output frame it was a fifth of the player's cost. apps/harness/vgm_check.mjs holds it
  * to a JavaScript copy of the Zig stage, sample for sample. Our own code. */
 #include "zm_vgm.h"
 

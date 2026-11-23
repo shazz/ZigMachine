@@ -153,7 +153,7 @@ static void sequencer_only(CydEngine *cyd, int frames)
 /* kestrel_sdl.c's mix, first: 1 when the machine plays the song (stereo is silence, the sequencer moved). */
 int kestrel_bard_mix(CydEngine *cyd, int16_t *stereo, int frames)
 {
-#ifdef KESTREL_NO_BARD /* the build that keeps cyd (apps/frame_cost.mjs before/after: make EXTRA=-DKESTREL_NO_BARD) */
+#ifdef KESTREL_NO_BARD /* the build that keeps cyd (apps/harness/frame_cost.mjs before/after: make EXTRA=-DKESTREL_NO_BARD) */
     (void)cyd; (void)stereo; (void)frames; (void)send; (void)sequencer_only;
     return 0;
 #endif

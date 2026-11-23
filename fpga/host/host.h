@@ -1,6 +1,6 @@
 /* The native host: machine-video + rom + one cart, each translated by wasm2c
  * (-n machine / -n rom / -n cart), sharing ONE linear memory, driven exactly as
- * apps/scene_hash.mjs drives the wasm modules. See README.md. */
+ * apps/harness/scene_hash.mjs drives the wasm modules. See README.md. */
 #ifndef HOST_H
 #define HOST_H
 

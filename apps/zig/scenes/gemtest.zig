@@ -3,7 +3,7 @@
 // medium and the desk: a GEM program as NOTEPAD is (BOOT.WSM on a data disk, ^Q back), on the program
 // API only (rom_sdk + rom_sdk.aes); a gap is a grey "not in the API yet" line (docs/os/GEMTEST.md). The
 // Test menu (^W ^E ^D ^A ^F ^T ^I ^R) shows an area; keys 1 2 3 switch the mode; its own desktop
-// carries icons (G16); gemtestShow(id) opens a component for apps/gemtest_shots.mjs.
+// carries icons (G16); gemtestShow(id) opens a component for apps/harness/gemtest_shots.mjs.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const rom = @import("rom_sdk");

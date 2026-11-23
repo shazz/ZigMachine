@@ -36,7 +36,7 @@ void boot(void) {
   the image's default; only an SNDH has subtunes.
 - Both calls return 0 and queue nothing for a null, empty or >64-byte name or a
   tune above 255. Nothing plays until the user turns sound on; the request waits.
-- `screen34.c` uses it. Proof: `node apps/c_music_check.mjs`.
+- `screen34.c` uses it. Proof: `node apps/harness/c_music_check.mjs`.
 
 ## Channel change: `zigmachine_tvnoise.h`
 On +/- the host calls `tuneIn(25)`; a Zig cart shows TV snow first, a cart
@@ -51,7 +51,7 @@ void hblDispatch(...) { if (zm_tvnoise_hbl()) return; ... }
 void skipBoot(void)   { zm_tvnoise_stop(); }
 ```
 `screen34.c` (a channel) uses it; hello and tutorial are not channels and stay
-minimal. Proof: `node apps/tunein_check.mjs`.
+minimal. Proof: `node apps/harness/tunein_check.mjs`.
 
 ## `fujiboink.c`: a source port of an ST program
 Xanth Park's FujiBoink! (START, Fall 1986), C to C from FUJIBOIN.C, with
@@ -67,12 +67,12 @@ FUJISTUF.S in `scenes/fujiboink/fujistuf.h`. What it shows a C cart can do:
 - **Data by `#embed`**: `assets/screens/fujiboink/FUJIBOIN.D8A`, made by the
   original generators in Hatari. The thud is an SNDH (`thud.s`) requested per
   bounce, because a cart cannot write the YM directly.
-Proof: `node apps/c_fujiboink_headless.mjs`, against Hatari captures.
+Proof: `node apps/harness/c_fujiboink_headless.mjs`, against Hatari captures.
 
 ## Build & run
 ```bash
 bash apps/c/build.sh                          # -> docs/demo-c.wasm (uses `zig cc`)
-node apps/verify.mjs docs/demo-c.wasm         # headless ABI check
+node apps/harness/verify.mjs docs/demo-c.wasm         # headless ABI check
 cd docs && python3 -m http.server 3333
 # open http://localhost:3333/sealed.html?demo=demo-c.wasm
 ```
@@ -85,4 +85,4 @@ numbers compare like for like with the FPGA console. Built by `bench/build.sh` (
 `apps/c/build.sh bench` calls. The clock is `env.hostMicros` (0 = no clock: "no clock", never a number); each job
 runs in ~8 ms slices; results are drawn with the ROM text API and logged once as `ZM BENCH <name>=<value> <unit>`
 (the console log exists in the browser only: on the board the cart log goes nowhere, the screen is where the numbers are read). Keys: 1 reruns,
-Escape leaves. Proof: `node apps/bench_headless.mjs` (browser timings are not the board's).
+Escape leaves. Proof: `node apps/harness/bench_headless.mjs` (browser timings are not the board's).

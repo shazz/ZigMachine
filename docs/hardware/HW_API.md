@@ -415,7 +415,7 @@ as *take nothing*, never as *unknown, so assume plenty*.
 
 **How the machine knows.** It owns the memory map but not the cart binary, and
 the high-water is baked in by the linker — so the **host** measures it once at
-load time (`docs/wasm_hiwater.js`, the same parser `apps/check_fits.mjs` uses)
+load time (`docs/wasm_hiwater.js`, the same parser `apps/harness/check_fits.mjs` uses)
 and declares it:
 
 ```js
@@ -423,8 +423,8 @@ hwSetCartHigh(high)      // host-only; writes REG_CART_HIGH
 ```
 
 Language-agnostic: a C or Rust cart imports `hwRamFree` from `env` like any other
-entry point. `node apps/ram_check.mjs` tests the instructions against the host
-measurement; `node apps/check_fits.mjs <cart.wasm>` reports the same numbers
+entry point. `node apps/harness/ram_check.mjs` tests the instructions against the host
+measurement; `node apps/harness/check_fits.mjs <cart.wasm>` reports the same numbers
 offline and fails the build if a cart overruns the window.
 
 ### The RAM arena — since 1.7.0
@@ -475,7 +475,7 @@ as a full window, and for the same reason: *take nothing*.
 > **`SHARED_PAGES` went 79 → 112 to cover it, which is a BREAKING change for any
 > cart packed before 1.3.0.** A cart declares the imported memory's initial/max,
 > so it refuses a memory larger than its max. Everything in `docs/` was rebuilt
-> and repacked (`tools/mkdisks.sh`); `node apps/disk_check.mjs` is the check that
+> and repacked (`tools/mkdisks.sh`); `node apps/harness/disk_check.mjs` is the check that
 > catches a disk left behind.
 >
 > **1.12.0 raised it again, 112 → 144 (9 MiB)**: the cart window grew to 4 MiB
@@ -531,7 +531,7 @@ machinePaulaSetActive(ch, on) void
 **The SID engine** (7 Nov 2026) is not a chip register surface but a renderer the .sid player calls:
 cRSID (Hermit, `libs/c/crsid`), a C64's 6502 + SID, light engine, PSID only. On the page it is in
 `machine-audio.wasm`; on the board BARD answers the same two imports with the same C, natively
-(`fpga/host/audio_sid.c`), and `apps/sid_check.mjs` holds the two to the same samples.
+(`fpga/host/audio_sid.c`), and `apps/harness/sid_check.mjs` holds the two to the same samples.
 
 ```zig
 machineSidLoad(file_abs, len, subtune) u32  // 0 ok, 1 not a .sid, 2 RSID (not supported), 3 a bad length
@@ -545,7 +545,7 @@ exactly as for a tune; a write is the 6502's store into cRSID's I/O page. The BA
 
 **The VGM engine** (21 Nov 2026): our own YM2612 + SN76489 and a VGM sequencer (`libs/c/vgm`, MIT), the .vgm
 player's renderer. On the page it is in `machine-audio.wasm`; on the board BARD answers the same four imports
-with the same C, natively (`fpga/host/audio_vgm.c`), and `apps/vgm_check.mjs` holds the two to the same samples.
+with the same C, natively (`fpga/host/audio_vgm.c`), and `apps/harness/vgm_check.mjs` holds the two to the same samples.
 
 ```zig
 machineVgmLoad(file_abs, len, cap) u32   // 0 ok, 1 not a VGM, 2 no YM2612 / SN76489, 3 truncated, 4 a bad or too big .vgz
@@ -559,7 +559,7 @@ machineVgmRenderPaula(hl, hr, ll, lr, n) void // the player's output: n 44.1 kHz
 **The AY engine** (13 Nov 2026): eight AY-3-8910 / YM2149 chips in integers (`libs/c/ayumi`, ayumi's chip model
 as ChipNomad's cart runs it on ZIGGY), the BARD queue's AY device. On the page it is in `machine-audio.wasm`; on
 the board BARD answers the same three imports with the same C, natively (`fpga/host/audio_ay.c`), and
-`apps/ay_live_check.mjs` holds the two to the same samples.
+`apps/harness/ay_live_check.mjs` holds the two to the same samples.
 
 ```zig
 machineAyReset() void                       // every chip off

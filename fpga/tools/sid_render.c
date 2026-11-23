@@ -1,5 +1,5 @@
 /* The SID engine natively (libs/c/crsid/zm_sid.c, the C BARD runs), for the parity harness
- * (apps/sid_check.mjs): load tunes in order, render each, print an FNV-1a hash per 2205 samples
+ * (apps/harness/sid_check.mjs): load tunes in order, render each, print an FNV-1a hash per 2205 samples
  * (0.1 s at 22.05 kHz) and optionally the raw s16 PCM of the last tune.
  *   sid_render <blocks> <tune.sid> <subtune> [<tune.sid> <subtune>]... [-o out.raw]
  * Build: cc -O2 -I<patched tree> -I libs/c/crsid fpga/tools/sid_render.c libs/c/crsid/zm_sid.c

@@ -176,7 +176,7 @@ The 60 Hz budget is 1.66 Mc a frame and 30 fps is 3.33 Mc.
   (perf/ziggy-posted, bitstream pending).
 - **Gemini review §2.5 (CHISEL bursts):** not worth it. Fill is limited by 1 px/clock, not by AXI.
   The call overhead was the real cost (perf/chisel-burst).
-- **Cost model** (`apps/perf/cost_model.mjs`): the misaligned trap cost is now the measured 693
+- **Cost model** (`apps/harness/perf/cost_model.mjs`): the misaligned trap cost is now the measured 693
   cycles. The fitted "27 cycles a store" and "60 a memset word" absorbed other costs; the measured
   values are 18 and 18.
 - **Scene rules:** draw with word stores, never bytes. Clear or copy ≥1 KB with CHISEL and anything

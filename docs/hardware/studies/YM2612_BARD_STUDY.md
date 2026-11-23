@@ -98,9 +98,9 @@ pick tests → `gens_fm`.
 Built per section 4, all MIT and our own code: `libs/c/ym2612` (README: sources and the choices),
 `libs/c/sn76489`, `libs/c/vgm` (sequencer, DAC streams, an inflate for .vgz, the output stage), the player
 `libs/zig/players/vgm.zig` behind `zg.requestSong("x.vgm" | "x.vgz")` and `requestSongBytes(.vgm)`, the test
-cart VGM TEST (139) with our own tune (`libs/c/vgm/make_tune.py`). Gate: `apps/vgm_check.mjs` (wasm =
+cart VGM TEST (139) with our own tune (`libs/c/vgm/make_tune.py`). Gate: `apps/harness/vgm_check.mjs` (wasm =
 native for the engine and the output stage, pinned feature hashes, refusals, malformed loops) with five
-`--break`s, `apps/vgm_test_check.mjs`.
+`--break`s, `apps/harness/vgm_test_check.mjs`.
 
 **Accuracy** (FM only, black-box, `libs/c/vgm/README.md`): Sonic 1's 19 tunes against Gens 0.891-0.996
 (median 0.966) at the chip's rate and 0.862-0.991 (0.951) at 26.6 kHz; against Genesis Plus GX 0.950-0.998

@@ -196,8 +196,8 @@ play, a crash landing (`cl` poked to 1) and the hall of fame. The port's screens
 apart from sprite rows and the scroller's newest letter.
 
 For the takeoff, `th` was poked to 9. The 98-pass trace of x, y, heading, SP# and fuel is identical. Both
-references now live in `apps/skystrike_fixture.json` (`tools/skystrike/make_fixture.py`) and are checked
-by `apps/skystrike_headless.mjs`.
+references now live in `apps/harness/skystrike_fixture.json` (`tools/skystrike/make_fixture.py`) and are checked
+by `apps/harness/skystrike_headless.mjs`.
 
 ## 9. Dead ends and surprises
 
@@ -232,7 +232,7 @@ The cart has two modes, switched by **Z** at any moment, mid-flight included (as
 the default at power-on, is the same game shown another way. It changes the
 presentation and the pacing, never the rules: the logic, scores, collisions, AI and
 RND draws are the original's, and the harness proves it pass by pass
-(`apps/skystrike_zig.mjs`, check (c)), with one exception that is a setting: a crashed
+(`apps/harness/skystrike_zig.mjs`, check (c)), with one exception that is a setting: a crashed
 enemy's crater fills in after 30 s (see "Craters"). The title, the menu, the briefings,
 the verdicts and the hall of fame are the original's screens in both modes; ZIG shows
 them in the open frame without scaling what the game drew (see "The other screens"). A notice in the game's font says which mode is on
@@ -245,7 +245,7 @@ tracers, the crater lifetime, the weapon keys and the effect-to-sample table.
 
 The code is in `apps/zig/scenes/skystrike/zig_*.zig`. The game's own modules carry
 only small hooks (`zig_hooks.zig`), none of which changes what the game does in
-ORIGINAL; `apps/skystrike_headless.mjs` still passes unchanged.
+ORIGINAL; `apps/harness/skystrike_headless.mjs` still passes unchanged.
 
 | | ORIGINAL | ZIG | why |
 |---|---|---|---|
@@ -522,7 +522,7 @@ proposed:
   bytes) and its saved state (about 17 KB). The harness's capture screen (64,000) is
   allocated only when the harness asks for it.
 
-### The proof (`apps/skystrike_zig.mjs`, tag `skystrike`)
+### The proof (`apps/harness/skystrike_zig.mjs`, tag `skystrike`)
 
 - **(a) Crossings.** Left and right across sectors, up and down across layers. The
   pass at the new screen takes 2-4 VBLs (ORIGINAL: 25). The camera moves every frame
@@ -549,7 +549,7 @@ proposed:
 - **Music** (`skystrike_zig_music.mjs`). The song requests at each switch point:
   ZIG's MODs as in the table above, ORIGINAL's skystrike.sndh tunes (never a MOD), Z
   swapping them in flight and on the title; the credits line on ZIG's title only.
-- **The effect path itself** (`apps/mod_sfx_check.mjs`, tag `mod_sfx`) is proved on
+- **The effect path itself** (`apps/harness/mod_sfx_check.mjs`, tag `mod_sfx`) is proved on
   the audio modules alone: the channel chosen, the bytes, the volume and pan, the
   song silent there and busy elsewhere, the release, the loop's stop and timeout, the
   YM mixed under a MOD, the 6CHN / 8CHN refusal.

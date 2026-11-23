@@ -13,7 +13,7 @@ const paint = @import("paint.zig");
 pub const count: usize = tc_art.images.len;
 
 /// Say so when the cart carries local pictures: this also keeps the marker string in the
-/// cart's data, where apps/tc_test_check.mjs looks for it in the git-tracked cart.
+/// cart's data, where apps/harness/tc_test_check.mjs looks for it in the git-tracked cart.
 pub fn announce() void {
     if (count > 0) zg.Console.log("tc_test: {d} local picture(s) [{s}]", .{ count, tc_art.marker });
 }

@@ -1,7 +1,7 @@
 # Perf audit: what a cart costs on KESTREL, without a sim
 
 The Verilator board-SoC sims measure a cart exactly but are two slots shared by every agent,
-minutes a frame. The perf suite runs the REAL cart in node (the way `apps/scene_hash.mjs`
+minutes a frame. The perf suite runs the REAL cart in node (the way `apps/harness/scene_hash.mjs`
 does), counts what it executes, and turns the counts into an **estimate** of ZIGGY's
 Mc/frame plus a ranked list of the bad patterns behind it. Deterministic: fixed dt, no wall
 clock, the same cart gives the same numbers.
@@ -11,7 +11,7 @@ The typical errors behind those findings, with their fixes and the carts they co
 ```sh
 tools/perf_audit.sh <tag|cart.wasm>        # one cart: est. Mc/frame + ranked findings with fixes
 tools/perf_audit.sh --all                  # the shelf ranked (~45 s), JSON in zig-out/perf_audit.json
-node apps/frame_cost.mjs <cart.wasm>       # the dynamic half alone: classes, hot loops, causes
+node apps/harness/frame_cost.mjs <cart.wasm>       # the dynamic half alone: classes, hot loops, causes
 tools/perf_names.sh                        # (under the build lock) names + file:line for the reports
 ```
 
@@ -21,24 +21,24 @@ Options (both tools): `--warmup 120 --frames 60` (the steady-state window), `--c
 
 ## How it works
 
-1. **Instrument** (`apps/perf/instrument.mjs`, a ~150-line wasm rewriter, no dependency). The
+1. **Instrument** (`apps/harness/perf/instrument.mjs`, a ~150-line wasm rewriter, no dependency). The
    cart and the ROM (both run on ZIGGY, wasm2c'd) get a counter at the head of every
    straight-line segment, in a memory the rewriter ADDS (multi-memory), so no function, global
    or memory index moves. Segment count x its static contents = exact counts of every op class,
    per loop. `memory.fill`/`copy` get byte counters and a log of big fills; i32 stores into the
    palette window compare with the colour already there. hwBlit and HBL dispatch are counted.
-2. **Cost** (`apps/perf/cost_model.mjs`). Each wasm op maps to the rv32 sequence wasm2c + GCC make
+2. **Cost** (`apps/harness/perf/cost_model.mjs`). Each wasm op maps to the rv32 sequence wasm2c + GCC make
    of it (`aligned` build): locals are registers, an f64 op is a libgcc soft-float call, a divide
    by a constant is a multiply. Each loop costs max(instructions x CPI, stores x the store buffer's
    drain) -- a tight store loop runs at the drain rate. Plus the I$ working set, CHISEL's time by
    op (the CPU spins on BUSY), FRESCO's per-plane pass (0.59 Mc an enabled plane, plus 0.11 Mc a frame).
-3. **Detect** (`apps/perf/lint.mjs`, static, per loop): narrow stores of a constant (`byte_fill`)
+3. **Detect** (`apps/harness/perf/lint.mjs`, static, per loop): narrow stores of a constant (`byte_fill`)
    or of a byte just loaded (`byte_copy`), `f64_loop`, `libm_loop`, `table_rebuild`, `div_loop`
    (non-constant divisor), `i64_loop`, `pixel_call` (a call to a small byte-storing function
    per iteration); per function, `float_phase` (a float read-add-written in place). Dynamic only:
    `palette_rewrite` (colour writes of the value already there), `cleared_redrawn` (a big fill
    whose bytes are >= 95 % overwritten in the same frame), `narrow_store_hot`.
-4. **Cross-check** (`apps/perf/audit.mjs`): a static finding is ranked by the measured Mc/frame
+4. **Cross-check** (`apps/harness/perf/audit.mjs`): a static finding is ranked by the measured Mc/frame
    of its loop (a libm or pixel call charged its callee's cost); one whose loop never ran in the
    window is `cold`, listed last.
 
@@ -103,9 +103,9 @@ session as the fps table: prototypes/chisel_queue_re/arms/base/ (2026-10-20, mai
 bitstream, W64, posted stores, FPU). Only what the bench cannot measure is fitted, in two stages:
 
 ```sh
-PERF_NO_CART_ARGS=1 node apps/frame_cost.mjs --all --warmup 720 --frames 300 \
+PERF_NO_CART_ARGS=1 node apps/harness/frame_cost.mjs --all --warmup 720 --frames 300 \
     --machine <that day's docs/> --out calib.json
-node apps/perf_fit.mjs calib.json fps.csv --bench --exclude <carts rebuilt since>
+node apps/harness/perf_fit.mjs calib.json fps.csv --bench --exclude <carts rebuilt since>
 ```
 
 1. **Cart side**, fitted to the board's measured `cart_c` (cart CPU cycles a frame, uncensored:
@@ -179,13 +179,13 @@ cart_c near 0.65 Mc confirms the factor is the code shape.
 
 ## The frame budget (`--budget`, 2026-10-23)
 
-`node apps/frame_cost.mjs <cart.wasm> --budget`: the cart's Mc of what FRESCO leaves of a frame, with N planes,
+`node apps/harness/frame_cost.mjs <cart.wasm> --budget`: the cart's Mc of what FRESCO leaves of a frame, with N planes,
 ~fps, and each plane's line passes and Mc (the costliest marked). FRESCO is counted the way the board's
 sequencer issues it (fpga/cycles/vseq.c): 280 passes per enabled plane, plus 280 BG passes when a global handler
 prevents the one-command clear, each costed by row width (320 / 400) and first vs later layer (`COMP_PASS`,
 `COMP_BG_PASS`, fitted to the board's comp_busy to a 1 % median). The frame is cart + FRESCO, serial: with the
 board's measured parts that sum is right about 60 fps for 70 of 71 carts. The dirty-line planner's skips are not
-modelled (passes are every line new). Refit: `node apps/perf/budget_fit.mjs calib.json fps.csv`. Report:
+modelled (passes are every line new). Refit: `node apps/harness/perf/budget_fit.mjs calib.json fps.csv`. Report:
 docs/hardware/studies/reports/frame_budget_2026-10-23.md.
 
 ## History: the 2026-10-18 fit
@@ -224,8 +224,8 @@ instrumentation finds the call.
 
 ## In the gate
 
-`apps/perf_audit_test.mjs` plants every pattern in a tiny hand-assembled cart
-(`apps/perf/fixture.mjs`, `test_cases.mjs`) and its clean twin in another: static and
+`apps/harness/perf_audit_test.mjs` plants every pattern in a tiny hand-assembled cart
+(`apps/harness/perf/fixture.mjs`, `test_cases.mjs`) and its clean twin in another: static and
 real-run checks, the byte-loop clear first at 0.3-0.7 Mc (instruction-bound since posted stores), the f64 loop first, determinism.
 `--break bytefill` / `--break f64` swap the planted pattern for its twin and pass only if the
 checks catch it. `perf_report` prints the shelf's ranking into the gate log and never fails

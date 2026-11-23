@@ -6,7 +6,7 @@
 //
 // It also writes a 24-pixel BINARY TAP into the last row: mode, then the op
 // count, one bit per pixel, in an ink that is (0,0,1) — black on any monitor,
-// but a value apps/polkadots_headless.mjs can read back. That is how the
+// but a value apps/harness/polkadots_headless.mjs can read back. That is how the
 // harness proves the number the label claims is the number of blits the cart
 // actually issued, for every mode, without re-deriving it from the picture.
 // --------------------------------------------------------------------------

@@ -21,7 +21,7 @@
 //       credits; it burns to white and starts over
 // timeline.zig sequences them on one tick; parts.zig dispatches.
 //
-// BOARD BUDGET (apps/frame_cost.mjs, the recalibrated model): every part under
+// BOARD BUDGET (apps/harness/frame_cost.mjs, the recalibrated model): every part under
 // the 1.75 Mc knee, the busiest (the melt) at ~1.6.  FRESCO is 0.7 for the one
 // plane; nothing clears the plane that a part can redraw in place.
 //

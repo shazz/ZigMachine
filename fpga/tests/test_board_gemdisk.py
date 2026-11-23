@@ -132,7 +132,7 @@ def _step(text: str) -> list[str]:
 
 
 def test_scene_hash_data_disk_step_is_the_browsers_text_for_text() -> None:
-    js = (ROOT / "apps/scene_hash_disk.mjs").read_text()
+    js = (ROOT / "apps/harness/scene_hash_disk.mjs").read_text()
     assert _step(js) == _step((ROOT / "docs/sealed-loader.js").read_text())
 
 
@@ -157,7 +157,7 @@ def gem_host() -> Path:
 def test_native_host_opens_the_floppy_and_asks_for_boot_wsm_as_scene_hash_does(gem_host: Path) -> None:
     env = {**os.environ, "ZM_GLASS_POINTER": ROUTED}
     nat = _run([str(gem_host), "gem", "40", "5", "--data-disk", str(ST_REPLAY)], env)
-    js = _run(["node", "apps/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", "--data-disk", str(ST_REPLAY), *CALLS])
+    js = _run(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "40", "5", "--data-disk", str(ST_REPLAY), *CALLS])
     empty = _run([str(gem_host), "gem", "40", "5"], env)
     assert nat.returncode == js.returncode == empty.returncode == 0, nat.stderr + js.stderr
     hashes = [[s["hash"] for s in json.loads(r.stdout)["samples"]] for r in (nat, js, empty)]
@@ -170,6 +170,6 @@ def test_native_host_opens_the_floppy_and_asks_for_boot_wsm_as_scene_hash_does(g
 def test_a_bootable_disk_is_not_a_data_disk_for_either(gem_host: Path) -> None:
     gem_disk = str(ROOT / "docs/demo-gem.zmd")
     nat = _run([str(gem_host), "gem", "10", "5", "--data-disk", gem_disk])
-    js = _run(["node", "apps/scene_hash.mjs", "docs/demo-gem.wasm", "10", "5", "--data-disk", gem_disk])
+    js = _run(["node", "apps/harness/scene_hash.mjs", "docs/demo-gem.wasm", "10", "5", "--data-disk", gem_disk])
     assert nat.returncode == 2 and "bootable, not a data disk" in nat.stderr
     assert js.returncode != 0 and "bootable, not a data disk" in js.stderr

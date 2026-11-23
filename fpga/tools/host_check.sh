@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Plan step 0b-i: the native host (fpga/host/) must fingerprint every cart
-# exactly as apps/scene_hash.mjs does on the wasm machine. Runs both, compares
+# exactly as apps/harness/scene_hash.mjs does on the wasm machine. Runs both, compares
 # the JSON byte for byte, and writes a per-cart table.
 #
 #   tools/host_check.sh                  # every docs/demo-*.wasm, plus the --call runs
@@ -28,7 +28,7 @@ else
     for w in "$ROOT"/docs/demo-*.wasm; do
         t=$(basename "$w" .wasm); echo "${t#demo-}|$FRAMES|$EVERY|" >>"$jobs_file"
     done
-    # The --call path, as apps/tutorial_steps_check.mjs drives it.
+    # The --call path, as apps/harness/tutorial_steps_check.mjs drives it.
     for t in tutorial_steps c-tutorial_steps rust-tutorial_steps; do
         for n in 1 4 7; do echo "$t|300|10|1:setShadeMode:$n" >>"$jobs_file"; done
     done
@@ -45,7 +45,7 @@ run_one() {  # tag frames every call -> one table row on stdout
     local tag=$1 frames=$2 every=$3 call=$4 id=$1${4:+@${4//:/_}}
     local args=("docs/demo-$tag.wasm" "$frames" "$every") js="$OUT/$id.js.json" nat="$OUT/$id.native.json"
     [ -n "$call" ] && args+=(--call "$call")
-    (cd "$ROOT" && node apps/scene_hash.mjs "${args[@]}" >"$js" 2>"$OUT/$id.js.err"); local jrc=$?
+    (cd "$ROOT" && node apps/harness/scene_hash.mjs "${args[@]}" >"$js" 2>"$OUT/$id.js.err"); local jrc=$?
     local verdict distinct
     distinct=$(grep -o '"hash":"[0-9a-f]*"' "$js" 2>/dev/null | sort -u | wc -l)
     if [ ! -x "$FPGA/build/host/$tag/host" ]; then

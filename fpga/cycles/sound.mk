@@ -82,7 +82,7 @@ $(SND)/bench/songs.c: tools/song_pack.py FORCE
 	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
 $(eval $(call snd_image,play,))
 # SND_BARDQ=1: SID live through the BARD queue (cycles/sound/sbardq_bench.c), BARDQ_LOG the commands
-# (node apps/bard_queue_check.mjs --dump <file>: BARD SID's tune as the page's loader posted it).
+# (node apps/harness/bard_queue_check.mjs --dump <file>: BARD SID's tune as the page's loader posted it).
 BARDQ_LOG ?= $(CURDIR)/build/bardq/commands.bin
 $(SND)/bench/bardq_log.c: $(BARDQ_LOG)
 	@mkdir -p $(@D)

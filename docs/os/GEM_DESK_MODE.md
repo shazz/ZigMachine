@@ -203,7 +203,7 @@ power-on). When the program quits, the shell comes back in the mode it launched 
   load and writes it again after the window is verified (`app_request.zig`, `loader.zig`); the next
   image's firmware hands it to its ROM before the cart's init (`cycles/bkos.c`, `deskSetScreenMode`)
   and zeroes it. A reset (KOS's boot words) drops it; every other load leaves none.
-- Proofs: `apps/desk_rez_check.mjs` (+ `--break carry`), `glass/src/app_desk_rez_test.zig`,
+- Proofs: `apps/harness/desk_rez_check.mjs` (+ `--break carry`), `glass/src/app_desk_rez_test.zig`,
   `fpga/tests/test_board_deskrez.py`.
 
 ### The VRAM pool and a `vramAlloc` guard
@@ -252,7 +252,7 @@ of two unused pictures at each VBL paces the frame, as `vseq_mix_only` already d
 | RTL testbench | `video_out_tb` gains a desk scenario: a synthetic plane (a gradient + a 1-px checker + a distinct byte per beat lane) and palette, 2 frames on the wire, compared with the machine's `hwRenderDesk` output; the random memory latency of `video_mem.h` on every run. The scenario switches modes (normal → desk → normal) and expects whole frames of each and **zero underruns across both switches**. The only black frame is the one scanfetch already costs after reset ("waiting for a fresh VBL") | Seconds of CXXRTL, not an hp_sim |
 | Break tests (`video_mutants.json`, `ZM_RTL_BREAK=1`) | each must fail the desk scenario: byte order reversed within the beat; lines doubled in desk; x not offset by 80; mirror written from plane 1's palette; `desk` sampled without the VBL latch (mid-frame switch); the old 400-beat length in desk; `--starve` (must underrun); the syncs not delayed (RGB two clocks early) | One per mechanism |
 | Machine | native zig test of `video_desk.zig`: the two halves' seam at y 240, `FB_BASE & ~7`, A = 255, `hwInit` leaves desk, the other planes ignored; a break (`--break seam`: half 1 renders rows 0..239 again) | |
-| Browser | `apps/desk_check.mjs` (named in `build.sh`): a tiny desk test cart, scene_hash in desk, the mode switch both ways, the pointer range; its `gate` line in the same commit | Long pixel proofs come from here, not the sim |
+| Browser | `apps/harness/desk_check.mjs` (named in `build.sh`): a tiny desk test cart, scene_hash in desk, the mode switch both ways, the pointer range; its `gate` line in the same commit | Long pixel proofs come from here, not the sim |
 | Native host | `make -C fpga host-check` gains the desk cart | |
 | hp_sim | one run, `--frames 6 --every 6`, of the desk test cart (a small cart: minutes, not hours), hashes = scene_hash = native | One lock, one cart |
 | OOC synth | `fpga/tools/vivado_ooc.sh` on `zm_video_out` before and after, for the real LUT number (the estimates above) | The lead's or a timing agent's |
@@ -308,7 +308,7 @@ pointer mapping, which keys on `desk_medium` today. The 8x16 font (GEM5 P2.5) is
   Without a C: (the page with no `?c=`) there is nowhere to save it: the ROM's copy only.
 - **The blitter clip** (found here): CHISEL and the machine clip a stride-640 destination at 200
   rows, so the desk's fills stopped at row 199; the ROM bands them (`gui/bandfill.zig`).
-- **Tests:** `apps/gem_desk_check.mjs` (+ 4 break tests); low and medium are pixel-identical to
+- **Tests:** `apps/harness/gem_desk_check.mjs` (+ 4 break tests); low and medium are pixel-identical to
   the ROM before (scene_hash, gem_headless's 15 shots, a medium session); native tests of
   `screen.zig` and `deskinf_read.zig`; glass `mouse_test.zig`; host-check gem + desk_test.
 - **Left:** the arrow on the board in the desk (no picture for `bcursor.c`: §4's hardware

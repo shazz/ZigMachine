@@ -29,7 +29,7 @@ pub fn build(b: *std.Build) void {
     const release = b.option(bool, "release", "Build in ReleaseSmall mode.") orelse false;
     const optimize: std.builtin.OptimizeMode = if (release) .ReleaseSmall else b.standardOptimizeOption(.{});
     // Keep the debug info (and so the wasm "name" section) in the carts and the ROM: the
-    // perf tools (apps/frame_cost.mjs, apps/wasm_lint.mjs) need function names, and a
+    // perf tools (apps/harness/frame_cost.mjs, apps/harness/wasm_lint.mjs) need function names, and a
     // release build strips them. The code is the same bytes; tools/perf_names.sh builds
     // into a scratch prefix and checks that, so docs/ never holds these builds.
     const keep_names = b.option(bool, "names", "Keep function names (perf tools); never for docs/.") orelse false;
@@ -768,7 +768,7 @@ pub fn build(b: *std.Build) void {
     demo_audio.initial_memory = audio_bytes;
     demo_audio.max_memory = audio_bytes;
     demo_audio.global_base = audio_demo_base;
-    if (keep_names) demo_audio.root_module.strip = false; // apps/kt_cost.mjs ranks the players by function
+    if (keep_names) demo_audio.root_module.strip = false; // apps/harness/kt_cost.mjs ranks the players by function
     installTo(b, demo_audio, sealed_step);
 }
 

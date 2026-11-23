@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door (apps/joust_headless.mjs): run the machine in
+// The headless harness's door (apps/harness/joust_headless.mjs): run the machine in
 // lockstep, one game frame at a time, with the recorded inputs, and read back
 // what the reference says it must hold. Exported by joust.zig's comptime
 // block, in JOUST's cart only.

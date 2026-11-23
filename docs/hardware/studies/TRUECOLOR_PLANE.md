@@ -117,7 +117,7 @@ comp -0.468 in the dense placement).
 **Firmware** (`fpga/cycles/vseq.c`, `vplan.h`, `vdirty.h`): the mode dispatch gives the plane's
 handler its line numbering (logical for 5, physical for 6) and the planner the bytes a line fetches
 (640 / 800) for its row compare; `vseq_group_ok` treats it as a normal/overscan plane. ~20 lines, no
-new command. `apps/frame_cost.mjs`: a 565 plane costs a normal/overscan pass.
+new command. `apps/harness/frame_cost.mjs`: a 565 plane costs a normal/overscan pass.
 
 ## The browser machine and the ABI (HW 1.12.0)
 

@@ -3,7 +3,7 @@
 into the worklet's loadSndh / loadSap / loadXm / loadHip. On the board the same two files run, the bridge on ZIGGY and
 the players on BARD, the mailbox between them (cycles/bsound.c waits for BARD to copy the image).
 
-- Natively: SysInfo's SOUND page (apps/sysinfo_sound.mjs's script) reads JINKS.SND,
+- Natively: SysInfo's SOUND page (apps/harness/sysinfo_sound.mjs's script) reads JINKS.SND,
   GAUNTLET.SAP, KEYGEN.XM and THALION.HIP off its disk (the last two ZX0-packed, depacked by the
   cart) and plays each: mode 4 (SNDH on the 68000), mode 5 (SAP on the POKEY), mode 1 (the XM and
   the Hippel module on Paula), each heard (its samples not silent) until S stops it.
@@ -27,7 +27,7 @@ ROOT = FPGA.parent
 HOST = FPGA / "build/host/sysinfo/host_audio"
 WABT = FPGA / ".tools/wabt"
 FRAMES = 220
-# SysInfo's keys (apps/sysinfo_sound.mjs): F3 the SOUND page, P plays, S stops, Down. The files in
+# SysInfo's keys (apps/harness/sysinfo_sound.mjs): F3 the SOUND page, P plays, S stops, Down. The files in
 # FAT order: JINKS.SND, GAUNTLET.SAP, SAMPLE.RAW, KEYGEN.XM, THALION.HIP.
 KEYS = ["10:key:57347", "12:key:112", "50:key:115", "52:input:1", "54:key:112", "90:key:115",
         "110:input:1", "112:input:1", "114:key:112", "150:key:115", "152:input:1", "154:key:112", "190:key:115"]

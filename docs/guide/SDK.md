@@ -226,7 +226,7 @@ worktree has no `docs/music/local.xm` and no TC TEST pictures, so no cart can ca
 
 In this repository, `make` in `sdk/template` works too (its `build.zig.zon` points at `../..`). It
 copies `demo-hello.*` into `docs/` like any SDK cart: gitignored, but `tools/mkdisks.sh` and
-`apps/disk_check.mjs` then see one more disk. `make clean` takes the copies out again.
+`apps/harness/disk_check.mjs` then see one more disk. `make clean` takes the copies out again.
 
 ## How it works
 
@@ -238,7 +238,7 @@ only that cart. Your directory has a real `build.zig`, so ZLS resolves `@import(
 nothing in the repository is edited to add a cart (`docs/project/DECISIONS.md`, 2026-11-04).
 
 The gate builds the template exactly this way, from a temporary directory outside the repository
-(`apps/sdk_check.mjs`). It checks that the cart runs, moves, has real rasters and requests a song
+(`apps/harness/sdk_check.mjs`). It checks that the cart runs, moves, has real rasters and requests a song
 that exists, so a change to the repository that breaks outside carts fails the gate.
 
 Not tested yet: macOS (the fpga Makefiles use GNU `truncate` and `stat`: install coreutils and GNU

@@ -2,15 +2,15 @@
 
 ZigMachine's wasm modules (`machine-video.wasm`, `rom.wasm` and one cart) are
 translated to C by wasm2c and linked into one native program. That program
-drives them exactly as `apps/scene_hash.mjs` drives the wasm, and it prints the
+drives them exactly as `apps/harness/scene_hash.mjs` drives the wasm, and it prints the
 same JSON. Same JSON means same pixels, so the translated machine is proven
 against the wasm machine before any of it runs on a RISC-V core.
 
 ```sh
 make -C fpga host CART=stniccc                  # -> fpga/build/host/stniccc/host
 fpga/build/host/stniccc/host docs/demo-stniccc.wasm 1200 10 > native.json
-node apps/scene_hash.mjs docs/demo-stniccc.wasm 1200 10 > wasm.json
-node apps/scene_hash.mjs --compare wasm.json native.json
+node apps/harness/scene_hash.mjs docs/demo-stniccc.wasm 1200 10 > wasm.json
+node apps/harness/scene_hash.mjs --compare wasm.json native.json
 make -C fpga host-check                         # every cart; tools/host_check.sh
 make -C fpga host CART=stniccc HOST_WALLCLOCK=-DHOST_WALLCLOCK   # + ms/frame on stderr
 ```

@@ -103,8 +103,8 @@ $(OUT)/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify-leave
 	$(WASM_OPT) $< $(OPT_FEATURES) $(ASYNCIFY) -O2 --strip-debug -o $@
 	@echo "imports (must all be env.*):"; $(WABT)/wasm-objdump -x -j Import $@ | grep -o '<- [^ ]*' | sort | uniq -c
 
-# The same cart with its function names (wasm-opt -g), for apps/frame_cost.mjs and
-# tools/perf_audit.sh: `node apps/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd`
+# The same cart with its function names (wasm-opt -g), for apps/harness/frame_cost.mjs and
+# tools/perf_audit.sh: `node apps/harness/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd`
 names: $(OUT)/names/demo-klystrack.wasm
 $(OUT)/names/demo-klystrack.wasm: $(OUT)/demo-klystrack.raw.wasm $(OUT)/asyncify-leaves.txt
 	@mkdir -p $(dir $@)

@@ -36,7 +36,7 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // Sample RAM. The machine has 2 MB, but the CART's window is what this buffer
 // competes for: [0x100000,0x300000) also holds the 384 KB stack and every static
 // in GEM, the boot ROM and this app. A megabyte overran it and the machine
-// trapped on boot (caught by apps/gem_headless.mjs), so the sampler takes half a
+// trapped on boot (caught by apps/harness/gem_headless.mjs), so the sampler takes half a
 // meg.
 //
 // It was never GEM's statics: `gem.Desktop` is 2332 bytes. It was one line in

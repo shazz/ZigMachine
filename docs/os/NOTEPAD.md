@@ -2,7 +2,7 @@
 
 Status: **built on `feat/gem5-notepad`** (9 Nov 2026). Matt: "To validate the gem 5.0 can you write a
 window notepad like application?" Cart `notepad` (index 127), `apps/zig/scenes/notepad.zig` +
-`notepad/`; proof `apps/notepad_check.mjs` (gate `notepad`).
+`notepad/`; proof `apps/harness/notepad_check.mjs` (gate `notepad`).
 
 ## What it is
 
@@ -73,11 +73,11 @@ in `rom/rom_app.zig` and `rom/gem/gui/app*.zig`.
 
 ## Proof
 
-`apps/notepad_fsel_check.mjs` (gate `notepad`, + `--break spec|relist`): the ITEM SELECTOR over a C:
+`apps/harness/notepad_fsel_check.mjs` (gate `notepad`, + `--break spec|relist`): the ITEM SELECTOR over a C:
 laid out as Matt's card (folders, ECHO.REQ, no .TXT at the root): the folders listed under `*.TXT`, the
 Directory: line edited to `*.*`, a folder opened and left, a file in it opened and saved back there.
 
-`apps/notepad_check.mjs` (gate `notepad`, + `--break write|bytes|ctrl`), over the real machine + ROM,
+`apps/harness/notepad_check.mjs` (gate `notepad`, + `--break write|bytes|ctrl`), over the real machine + ROM,
 C: a copy of `docs/gemdos-c.img` with the page's KFS for the writes. See its header for the checks. The
 central one: after each step (typing, a save, an alert, a menu, 60 lines, a scroll, a size, a paste, in
 low, medium and the desk) the screen as drawn incrementally equals a whole repaint, byte for byte.

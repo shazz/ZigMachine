@@ -3,7 +3,7 @@
 `hello.rs` — the same plasma as `apps/c/`, in `no_std` Rust, proving a Rust cart
 drives the sealed `machine-video.wasm` (8-bit palette indices into the shared
 video region) AND calls the Zig ROM chip: `rom.wasm` draws a GEM panel over the
-plasma, which `apps/verify.mjs` reads back.
+plasma, which `apps/harness/verify.mjs` reads back.
 
 ## The contract this app implements
 - **Imports** (`#[link(wasm_import_module = "env")]`): `memory`, `hwVideoBase()`,
@@ -34,7 +34,7 @@ zigmachine_music::request_song_tune("leavin_teramis.sndh", 9); // subtune, from 
   read), `songNamePtr`, `songNameLen`, `songTune`. `build.sh` needs no change.
 - Tune `0` = the image's default. Both calls return `false` and queue nothing for
   an empty or >64-byte name or a tune above 255.
-- `hello.rs` declares the module but requests nothing; `apps/c_music_check.mjs`
+- `hello.rs` declares the module but requests nothing; `apps/harness/c_music_check.mjs`
   checks that it exports the bridge and stays silent.
 
 ## Channel change: `zigmachine_tvnoise.rs`
@@ -49,7 +49,7 @@ mod zigmachine_tvnoise;
 // skipBoot():    zigmachine_tvnoise::stop();
 ```
 `v8_populous` (a channel) uses it; hello and tutorial are not channels and stay
-minimal. Proof: `node apps/tunein_check.mjs`.
+minimal. Proof: `node apps/harness/tunein_check.mjs`.
 
 ## Scenes: `scenes/<name>.rs`
 One cart per screen, like `apps/c/scenes/`: `scenes/<name>.rs` is the crate root
@@ -61,7 +61,7 @@ in `assets/screens/<name>/` (`include_bytes!`), built to `docs/demo-rust-<name>.
   The flash, the tiled background with the giant V8 fading in and out, the logo
   waving line by line, the ras-filled wave scroller and Totorman's bouncing member
   list. Requests David Whittaker's "Custodian" (`custodian.sndh`, subtune 1)
-  through `zigmachine_music.rs`; `apps/c_music_check.mjs` proves it plays. On the
+  through `zigmachine_music.rs`; `apps/harness/c_music_check.mjs` proves it plays. On the
   menu as V8 POPULOUS (RUST), or `?demo=demo-rust-v8_populous.wasm`.
 
 ## Prerequisite
@@ -72,7 +72,7 @@ rustup target add wasm32-unknown-unknown
 ## Build & run
 ```bash
 bash apps/rust/build.sh                        # -> docs/demo-rust.wasm (bundled rust-lld)
-node apps/verify.mjs docs/demo-rust.wasm       # headless ABI check
+node apps/harness/verify.mjs docs/demo-rust.wasm       # headless ABI check
 cd docs && python3 -m http.server 3333
 # open http://localhost:3333/sealed.html?demo=demo-rust.wasm
 ```

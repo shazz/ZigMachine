@@ -196,7 +196,7 @@ LUTs).
    boots.
 7. **SNDH** on the audio core.
 
-**The test oracle already exists.** `apps/scene_hash.mjs` fingerprints scenes
+**The test oracle already exists.** `apps/harness/scene_hash.mjs` fingerprints scenes
 byte for byte against the wasm machine. Run the RTL plus the translated cart in
 Verilator on the desktop, dump the same frames, and compare. Every scene that
 matches its wasm fingerprint is proven before it ever touches the board, and

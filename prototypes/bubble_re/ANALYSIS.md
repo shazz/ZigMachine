@@ -87,7 +87,7 @@ with four copies of the top row above it and of the bottom row below it, for the
   byte 0 `xxxxx ftt` (column, a flag, type 0-7 -> object type 1-8), byte 1 `yyyyy bbb` (row,
   behaviour bits), byte 2 `s ddddddd` (bit 6 the facing, the low bits x2 a drop-in delay). 575
   enemies in 100 lists; round 1: three Zen-Chans dropping in at column 15.
-- `apps/bubblebobble_headless.mjs` holds an independent decoder of all this (with the start-up
+- `apps/harness/bubblebobble_headless.mjs` holds an independent decoder of all this (with the start-up
   fixes) and checks it against the grid the game's own code builds, for all 100 rounds.
 
 ## 3. The program
@@ -157,13 +157,13 @@ with four copies of the top row above it and of the bottom row below it, for the
   instructions' extras), interrupts land at the next loop or return, no bus contention. Nothing
   has been compared with Hatari yet: the timing of the round-to-round scroll and of the game's
   pace against the real machine is the first thing to check there.
-- **Checked** (`apps/bubblebobble_headless.mjs`): the 100 rounds against the decoder; title,
+- **Checked** (`apps/harness/bubblebobble_headless.mjs`): the 100 rounds against the decoder; title,
   hi-scores, story, '1' -> round 1 with 3 Zen-Chans, walk, bubble, jump + effect, round won ->
   the raster scroll -> round 2; two 20,000-frame soaks with no unknown jump, unmodelled hardware
   access, unanswered TOS call or stuck interrupt, and equal RAM; the 9 tunes and 6 effects; the
   plane = the ST screen; 50 Hz on a 60 Hz host; the keys. Four `--break` modes.
 
-## 6. Cost on KESTREL (apps/frame_cost.mjs, in round 1)
+## 6. Cost on KESTREL (apps/harness/frame_cost.mjs, in round 1)
 
 - est. ~3.1 Mc a host frame (~32 fps): FRESCO 0.7, I$ misses ~1.1 (27 KB of rv32 run a frame:
   the translation is ~100 bytes of rv32 a 68000 instruction), the screen compare ~0.5, the bus

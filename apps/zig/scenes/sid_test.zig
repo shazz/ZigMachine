@@ -22,7 +22,7 @@
 // Keys 6-7 are the shipped tune, HerMiniSID by Mihaly Horvath (Hermit), cRSID's
 // own test tune, in libcRSID under its licence ("do what you want, mention me"):
 // docs/music/hermini.sid and apps/zig/assets/sid/HERMINI.SID, 379 bytes,
-// md5 537f693740ed05502fc23151381082d9; what apps/sid_test_check.mjs plays.
+// md5 537f693740ed05502fc23151381082d9; what apps/harness/sid_test_check.mjs plays.
 //   6  by name: zg.requestSong("hermini.sid"), the file the host fetches
 //   7  by bytes: zg.requestSongBytes(.sid), the image in the cart's own memory,
 //      as a C64 port reads its tune off its disk

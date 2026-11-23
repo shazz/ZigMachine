@@ -1,5 +1,5 @@
 /* The AY engine natively (libs/c/ayumi zm_ay_bank.c, the C BARD runs), for the parity harness
- * (apps/ay_live_check.mjs): a script of writes {t, a, v} (u32 little-endian, t ascending: the output sample a
+ * (apps/harness/ay_live_check.mjs): a script of writes {t, a, v} (u32 little-endian, t ascending: the output sample a
  * write lands before), rendered `n` stereo frames; an FNV-1a hash of each 4410-frame block (0.1 s), and
  * optionally the raw s16 stereo.
  *   ay_render <script.bin> <frames> [-o out.raw]

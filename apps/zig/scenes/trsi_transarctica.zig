@@ -6,7 +6,7 @@
 // reverse-engineered into a reference model that reproduces the program's
 // three Hatari RAM snapshots and seven Hatari screenshots with 0 differing
 // pixels; the Zig here is that model's integer logic, and
-// apps/trsi_transarctica_headless.mjs checks the cart against it.
+// apps/harness/trsi_transarctica_headless.mjs checks the cart against it.
 //
 // There is no raster, HBL, Timer B or blitter in the original: the effect is a
 // palette. The logo uses colours 0-31. Text pixels are 128 + a fixed "hump"

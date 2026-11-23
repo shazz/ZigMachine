@@ -35,7 +35,7 @@ pub const RATE_MAX: u32 = 50066;
 
 /// The effect's PCM (signed 8-bit), written by the host (audioSfxBufPtr):
 /// the top 64 KiB of song RAM. Not a static: 64 KiB of zeros in the data
-/// segment (apps/zero_segments.mjs). A MOD reaching into it (over 960 KiB)
+/// segment (apps/harness/zero_segments.mjs). A MOD reaching into it (over 960 KiB)
 /// plays, but refuses effects.
 pub const BUF_OFFSET: usize = audio.SONG_CAP - CAP;
 

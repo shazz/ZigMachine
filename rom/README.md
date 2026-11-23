@@ -37,7 +37,7 @@ cd docs && python3 -m http.server 3333   # sealed.html -> menu -> GEM DESKTOP
 > The desktop is a singleton inside `rom.wasm`; `apps/zig/scenes/gem_desktop.zig`
 > is a shell, and launching a program is a HOST cart swap (the host calls
 > `romReset()` on every swap to reclaim the outgoing program's handles). The
-> polyglot claim is tested: `apps/verify.mjs` reads back a GEM panel that
+> polyglot claim is tested: `apps/harness/verify.mjs` reads back a GEM panel that
 > `rom.wasm` drew for the C app (`apps/c`) and for the Rust app (`apps/rust`).
 > Left: step 2.4 (spend the freed RAM). See
 > [`docs/os/PHASE2_ROM_CHIP.md`](../docs/os/PHASE2_ROM_CHIP.md).

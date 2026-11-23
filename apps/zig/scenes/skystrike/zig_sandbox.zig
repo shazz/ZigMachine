@@ -9,7 +9,7 @@
 // draw runs in a sandbox: every piece of state it can touch is saved, the
 // physic and back screens are swapped for two scratch screens, the draw
 // runs for (sx, al), and everything is put back. The game never sees it: the
-// harness proves it with a CRC of the logic state (apps/skystrike_zig.mjs).
+// harness proves it with a CRC of the logic state (apps/harness/skystrike_zig.mjs).
 // The bonus bar is left out (zig_hooks.sandbox), since in ZIG it is HUD.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");

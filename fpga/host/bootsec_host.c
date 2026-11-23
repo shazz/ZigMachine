@@ -1,6 +1,6 @@
 /* The native host's --bootsec X.zmd (host/main.c): the disk's executable boot sector run as
  * the board firmware runs it (host/bootsec.h, cycles/bbootsec.c), through the same wint
- * interpreter, over the wasm2c'd machine, and hashed as apps/scene_hash.mjs hashes it when
+ * interpreter, over the wasm2c'd machine, and hashed as apps/harness/scene_hash.mjs hashes it when
  * given the same .zmd (its 1 KB sector instantiated by the browser's engine): the picture
  * check of the board's boot screen against the browser's. Past BOOTSEC_MAX_FRAMES the board's
  * cap stops calling the sector's frame() while scene_hash.mjs goes on: compare fewer frames. */

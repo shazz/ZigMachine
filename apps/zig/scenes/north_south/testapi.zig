@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the battle (apps/north_south_headless.mjs):
+// The headless harness's door into the battle (apps/harness/north_south_headless.mjs):
 // start a battle exactly as a reference script does, run one battle-loop
 // iteration with the three input bytes the original read, and read back the
 // state, the screen, the sounds and the frame's length. It drives the SAME

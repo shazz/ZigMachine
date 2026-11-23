@@ -1,5 +1,5 @@
 /* The native host's --kos X.zmd|none [--post-frames N]: KOS's power-on (docs/os/ZIGTOS_BOOT.md), as
- * apps/scene_hash_kos.mjs runs it in node and docs/sealed-loader.js in the browser: the ROM's
+ * apps/harness/scene_hash_kos.mjs runs it in node and docs/sealed-loader.js in the browser: the ROM's
  * POST on plane 0, then drive A decides: the disk's executable boot sector (then its cart, or the
  * desktop over the disk), the disk's bootable cart, or the desktop over a data disk or an empty
  * drive. The cart that boots is the one linked in (CART=gem for the desktop). */

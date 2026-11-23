@@ -2,11 +2,11 @@
 
 Matt: *"do a spike for syncterm to try to compile it even if the ip stack is mocked up"*. Branch
 `port/syncterm-spike`. The port is `apps/ports/syncterm/` (its README: licence, layout, rebuild); the gate is
-`apps/syncterm_headless.mjs` (`build.sh` tag `ports_syncterm`). This file is what the spike learnt.
+`apps/harness/syncterm_headless.mjs` (`build.sh` tag `ports_syncterm`). This file is what the spike learnt.
 
 ## Result
 
-**It compiles, links and runs**, in the browser's machine (headless: the gate, `apps/scene_hash.mjs`) and
+**It compiles, links and runs**, in the browser's machine (headless: the gate, `apps/harness/scene_hash.mjs`) and
 through the native host (`fpga/host`, wasm2c): 120 frames give the same frame hashes on both (total
 `529b06d1...`). The board's lean image builds (`make split-cart CART=syncterm ZM_ZMX=1`, table 1.17).
 SyncTERM 1.9 starts from GEM, switches to the desk mode
@@ -103,7 +103,7 @@ add cryptlib (not built), the HTTPS list download `webget.c` the same.
 - Board: the lean image `cart.bin` is 2,089,440 B (wasm2c rv32, ZM-X), 892,525 B ZX0-packed; staged with the data
   disk in `prototypes/syncterm/card/up/` (`stage_card.py`, `install.sh` as notepad's).
 
-## Cost (apps/frame_cost.mjs, estimate)
+## Cost (apps/harness/frame_cost.mjs, estimate)
 
 - Idle, connected: **est. 0.72 Mc/frame** (cart 0.01 Mc; FRESCO 0.7 is the model's plane, which the desk mode does
   not composite), ~60 fps.

@@ -1,4 +1,4 @@
-/* The native twin of apps/scene_hash.mjs: same arguments, same frame loop, same
+/* The native twin of apps/harness/scene_hash.mjs: same arguments, same frame loop, same
  * JSON on stdout, so the two outputs compare with `scene_hash.mjs --compare`.
  *
  *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]

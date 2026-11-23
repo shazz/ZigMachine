@@ -17,7 +17,7 @@ Everything below was read from the disk and the depacked program, then checked i
 | `run.sh`, `keys.sh` | headless Hatari run with a png-codec AVI; keys into its --cmd-fifo |
 | `avi2png.py`, `sheet.py` | AVI -> frames, contact sheets |
 | `fadesteps.py` | which fade step each Hatari frame shows |
-| `mkref.py`, `mkref.sh` | Hatari frames -> `apps/dune_gen4_ref.bin.br` (ST colour words) |
+| `mkref.py`, `mkref.sh` | Hatari frames -> `apps/harness/dune_gen4_ref.bin.br` (ST colour words) |
 | `trace.py`, `cmp.py` | traced VBLs of a run; a cart frame against Hatari's, differences in red |
 
 ## Disk
@@ -134,7 +134,7 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
 ## Music
 - MUSIQUE.PRG == `prototypes/sndh_lf/Mr_X/Gen4.sndh` (TITL "Gen4 Demo", COMM "Mr X", RIPP/CONV
   Grazey, ~y, one subtune) at a constant offset of 514: 6614 of 6905 bytes equal, the rest relocated
-  addresses. `docs/music/dune_gen4.sndh` = that file; `node apps/sndh_headless.mjs` PASS, peak 0.4228.
+  addresses. `docs/music/dune_gen4.sndh` = that file; `node apps/harness/sndh_headless.mjs` PASS, peak 0.4228.
 - Init = $10000 (`jmp $10030`: `clr.l d0` then the song set-up): subtune 0 whatever d0 holds (Hatari:
   d0 = $FFFF at the call). Play = $10064 from each part's VBL. Stop = $10004 (volumes to 0).
 - The menu's tune: DUNE.PRG pokes $10024/$10028/$1002C over $1000C/$10010/$10014 before the second
@@ -152,8 +152,8 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
   lines, edge to edge (the plane flickers its borders open every line; the original opened only the
   lower one — the top/side borders show colour 0 either way).
 - F2 (`hades.zig`, `hades/`) draws into two ST-format screens exactly as the original does.
-- Harness `apps/dune_gen4_headless.mjs` (+ `dune_gen4_keys.mjs`): the Hatari frames of ref2/ref4/ref5
-  as ST colour words over x -40..359, y -29..239 (`mkref.py` -> `apps/dune_gen4_ref.bin.br`, brotli,
+- Harness `apps/harness/dune_gen4_headless.mjs` (+ `dune_gen4_keys.mjs`): the Hatari frames of ref2/ref4/ref5
+  as ST colour words over x -40..359, y -29..239 (`mkref.py` -> `apps/harness/dune_gen4_ref.bin.br`, brotli,
   XOR-delta), walked with each run's keys on a fresh cart. Rebuild the reference with `mkref.sh`
   (frames dumped first by `avi2png.py hatari/refN.avi /dev/shm/refN 1`).
 
@@ -189,7 +189,7 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
   C handler called as an interrupt. The SNDH engine passes d0 = 0 to PLAY, which would wreck voice 0's
   phase, so the glue wraps the Timer A vector and PLAY to keep d0 in memory between them. EXIT = stop,
   plus putting the replay's own Timer A handler back where stop saved the wrapper.
-- Verified: `node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh N` PASS for N = 1..4 (Timer A
+- Verified: `node apps/harness/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh N` PASS for N = 1..4 (Timer A
   16168 Hz, volumes moving on all three YM channels, no stuck PC, no unanswered trap); both gated.
   Against Hatari's sound (`quartet/avi_wav.py` pulls the PCM out of a `--sound 44100` AVI;
   `quartet/render.mjs` renders ours; a log-spectrogram correlation, `quartet/speccmp.py`):

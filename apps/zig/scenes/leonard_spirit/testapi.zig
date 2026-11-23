@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the cart (apps/leonard_spirit_headless.mjs):
+// The headless harness's door into the cart (apps/harness/leonard_spirit_headless.mjs):
 // the record's count, the show's counters and where the plane is, so the
 // harness can step its own model alongside. Pulled in only when this scene
 // IS the cart.

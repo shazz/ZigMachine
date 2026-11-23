@@ -59,10 +59,10 @@ read-only; **songs are saved on C:** (the SD card's `/HD`, the page's `?c=` imag
 the folder `C` (Tab, Tab to the selector, Return), and C:'s root a `..` back; device 9 is C: too.
 `patches/host__file.c.sed` and `kestrel_sw_files.c`: the folders, a file open that refuses the flat floppy's
 pseudo-folders (`@swconfig` is not there), `..` taken off the path by hand, and the extension filter case-blind
-(FAT names are upper case). `apps/sidwizard_save.mjs` saves the opened song to `C:\MYSONG.SWM` and reads it back
+(FAT names are upper case). `apps/harness/sidwizard_save.mjs` saves the opened song to `C:\MYSONG.SWM` and reads it back
 byte for byte.
 
-## Cost (`apps/frame_cost.mjs`, est. on ZIGGY at 100 MHz)
+## Cost (`apps/harness/frame_cost.mjs`, est. on ZIGGY at 100 MHz)
 
 | build | idle editor | playing Flash It Back | file browser |
 |---|---|---|---|
@@ -92,7 +92,7 @@ program after 85 % of each frame: frames of ~140 ms, past the 100 ms cap, so the
   bank the PLA maps unless the page is I/O (then upstream's own `rd`/`wr`/`wr2`). Upstream's took ~215 rv32
   instructions a 6502 instruction with its loop (every register a load or store through the `cRSID_C64.CPU`
   struct, a call per instruction); this ~135, and 9.8 KB of code for the two.
-  `apps/sidwizard_cpu_check.mjs` runs both on random C64s: every opcode on 48 machines, one instruction, and 4,000
+  `apps/harness/sidwizard_cpu_check.mjs` runs both on random C64s: every opcode on 48 machines, one instruction, and 4,000
   samples of random code; the whole 275 KB machine must be the same after each (`--break`: a wrong ADC carry).
   `SW_CPU_UPSTREAM` builds the cart on libcRSID's 6502: the pictures of 1,200 frames (browse, load, play) are the
   same.
@@ -137,23 +137,23 @@ SampleClockRatio`); SID live plays it on BARD (on the page: the worklet; nativel
 - Lost with it: the header's oscilloscope (the samples are BARD's) and the main-volume keys.
 - `SW_SID_ON_BARD 0` builds the old way (the light engine here, the audio as the clock) to measure against.
 
-Proofs: `apps/sidwizard_bard_check.mjs` (page = native host, 14.8 s from the first heard sample; tempo: 20 ms and 60
+Proofs: `apps/harness/sidwizard_bard_check.mjs` (page = native host, 14.8 s from the first heard sample; tempo: 20 ms and 60
 ms frames make the same writes with the same stamps and the same samples; hold: with the main program held ~3/4 of
 every frame the song's ticks are the same writes at the same distances; `--break stamp|reg` caught), and
-`apps/ports_headless.mjs sidwizard` hears the song on the page's SID live. `--dump <file>` writes the song's
+`apps/harness/ports_headless.mjs sidwizard` hears the song on the page's SID live. `--dump <file>` writes the song's
 commands for `make snd-bench SND_BARDQ=1 BARDQ_LOG=<file>` (BARD's load: not measured yet; the engine is BARD
 SID's, 58 %).
 
 ## Build
 
     make -C apps/ports/sidwizard link      # build/demo-sidwizard.wasm (zig cc, wasm32-wasi, -Os)
-    make -C apps/ports/sidwizard names     # the same with function names, for apps/frame_cost.mjs
+    make -C apps/ports/sidwizard names     # the same with function names, for apps/harness/frame_cost.mjs
     make -C apps/ports/sidwizard install   # copy it to docs/ and repack the disk (tools/mkdisks.sh)
     make -C apps/ports/sidwizard data      # data/FLASHBAK.SWM from upstream's example
     node apps/ports/sidwizard/run.mjs 400  # headless: PNGs, KEYS=, CLICKS=, AUDIO=1, C_IMAGE= (see its header)
 
 The cart is committed prebuilt (as every port: `./build.sh` does not rebuild it). Gates: `ports_sidwizard`
-(`apps/ports_headless.mjs sidwizard`, `apps/sidwizard_save.mjs`, `apps/sidwizard_bard_check.mjs`).
+(`apps/harness/ports_headless.mjs sidwizard`, `apps/harness/sidwizard_save.mjs`, `apps/harness/sidwizard_bard_check.mjs`).
 
 ## Provenance
 

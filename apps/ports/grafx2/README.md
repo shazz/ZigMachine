@@ -55,11 +55,11 @@ Built without TrueType, Lua, recoil, libpng and libtiff (`DEFS` in the Makefile)
 
 - C: (KOS GEMDOS, docs/os/KOS_GEMDOS.md): built with `-DKESTREL_CDRIVE`, the file selector's Select drive lists
   `/C` when C: mounts (the board's card `HD/`, the page's `?c=gemdos-c.img`, the native host's `--c-image`);
-  its folders open and pictures load from them (`apps/gemdos_grafx2_check.mjs`). Read-only.
+  its folders open and pictures load from them (`apps/harness/gemdos_grafx2_check.mjs`). Read-only.
 
 ## Status (2 Nov 2026)
 
 - Boots into GrafX2's DPaint skin; its first dialog warns that backups are off (the floppy is read-only).
   Tools, palette, menus and the file selector work; the floppy's PI1 / NEO / GIF pictures load.
 - Read-only floppy: saving fails with GrafX2's own error.
-- `node apps/ports_headless.mjs grafx2`: boot, UI pin, OK closes the warning, a freehand stroke paints.
+- `node apps/harness/ports_headless.mjs grafx2`: boot, UI pin, OK closes the warning, a freehand stroke paints.

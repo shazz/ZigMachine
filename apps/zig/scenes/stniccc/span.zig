@@ -3,7 +3,7 @@
 //
 // Why not CHISEL (stniccc/gpu.zig) for every span: on the posted-store board a
 // CHISEL op pays ~830 cycles of start, spin and D$ invalidate before its first
-// pixel, then ~1-1.85 clocks a pixel (apps/perf/cost_model.mjs BLIT_CALL,
+// pixel, then ~1-1.85 clocks a pixel (apps/harness/perf/cost_model.mjs BLIT_CALL,
 // BLIT_UNIT; BLITTER_HW_SPEC 10.5), while a ZIGGY word store drains in ~2.26
 // cycles for FOUR pixels (cost_model STORE_DRAIN, bench ms.lib.64K). The flight
 // makes ~2,100 fills a frame, ~2,000 of them under 256 pixels: 1.6 Mc of start
@@ -21,7 +21,7 @@ const std = @import("std");
 /// (~20 cycles) and CHISEL draws it while the edge walk goes on: EVERY fill is
 /// queued, because a polygon the CPU drew would be painted over by an earlier,
 /// bigger one still in the queue (painter's order: a 256-pixel threshold broke
-/// apps/stniccc_pins.mjs at frame 1). This is the queue branch's configuration,
+/// apps/harness/stniccc_pins.mjs at frame 1). This is the queue branch's configuration,
 /// board-measured x1.23 on 2026-10-20 before the posted stores; AN ESTIMATE, SET
 /// ON THE BOARD against maxInt (the CPU path): the board's OSD fps decides
 /// (bench row qu.list.f8.x64, Fable's ch.q.fill8.x64).

@@ -7,7 +7,7 @@ set -u
 A=$1 B=$2 OUT=${3:-apps/ports/klystrack/build/hashes}
 mkdir -p "$OUT"
 F5=57349 ESC=57362 CTRL=57364 F3=57347 F2=57346
-# right button held over the menu bar, the pointer moving every frame (as apps/klystrack_cost.mjs)
+# right button held over the menu bar, the pointer moving every frame (as apps/harness/klystrack_cost.mjs)
 menu() { s="$1,150,100,0;$(($1 + 1)),150,100,4"; f=$(($1 + 2)); while [ $f -le $2 ]; do s="$s;$f,$((150 + f % 8 * 2)),$((100 + f % 5)),4"; f=$((f + 1)); done; echo "$s"; }
 # File > Import's submenu: the right button held from the menu bar down to Import, across, then the pointer over the
 # submenu's items (round 5: the menu is a layer, kestrel_defer_layer.c)

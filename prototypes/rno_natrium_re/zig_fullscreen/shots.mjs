@@ -1,8 +1,8 @@
 // NATRIUM frames as PNGs, original or ZIG mode (Z pressed at $A0), one cart, one VBL a frame.
 //   node prototypes/rno_natrium_re/zig_fullscreen/shots.mjs <outdir> <prefix> <0|1> <counter hex>...
 // Run from the repository root (the boot reads docs/*.wasm). Each PNG is the 400x280 raster.
-import { boot } from "../../../apps/rno_natrium_boot.mjs";
-import { writePng } from "../../../apps/scene_png.mjs";
+import { boot } from "../../../apps/harness/rno_natrium_boot.mjs";
+import { writePng } from "../../../apps/harness/scene_png.mjs";
 
 const [out, prefix, zig, ...at] = process.argv.slice(2);
 const c = await boot();

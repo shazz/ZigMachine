@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // The game's LOGIC state as one number, for the harness's proof that ZIG
-// mode changes presentation and pacing only (apps/skystrike_zig_crc.mjs):
+// mode changes presentation and pacing only (apps/harness/skystrike_zig_crc.mjs):
 // every BASIC variable, the banks' bytes, RND, the zones, the sprite table,
 // the flow's place and the main loop's pass count, and both screens (POINT
 // reads them: they are game state here).

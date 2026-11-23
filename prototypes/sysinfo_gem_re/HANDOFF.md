@@ -16,9 +16,9 @@ because its disk was bootable: request 4 had no GEM to go back to.
   repacked byte-identical).
 - `tools/channels.py`: sysinfo excluded from +/- like st_replay ("a data disk that boots GEM + an
   app"); it stays in the menu. `docs/channels.json` regenerated.
-- `apps/sysinfo_check.mjs`: page 4's BOOT SECTOR is now expected from the disk's own sum
+- `apps/harness/sysinfo_check.mjs`: page 4's BOOT SECTOR is now expected from the disk's own sum
   (`DATA DISK`), not hardcoded `BOOTABLE ($1234)`.
-- NEW `apps/sysinfo_gem_check.mjs` + two `gate sysinfo_gem` lines in build.sh (+ `--break
+- NEW `apps/harness/sysinfo_gem_check.mjs` + two `gate sysinfo_gem` lines in build.sh (+ `--break
   bootable`): disk is a data disk; its one program BOOT.WSM depacks (romDepack, as the loader)
   to `demo-sysinfo.wasm` byte for byte; GEM over the real disk (real FAT, real blocks) launches it
   from the floppy window 3 times (> MAX_GUI) with Q between; Space still opens the menu after
@@ -52,7 +52,7 @@ branch; see "Re-run" below for the isolated rerun.
 
 See `stage/INSTALL.txt`.
 
-Isolated rerun of `node apps/raytrace_headless.mjs` under build.lock afterwards: `raytrace: OK`.
+Isolated rerun of `node apps/harness/raytrace_headless.mjs` under build.lock afterwards: `raytrace: OK`.
 So the only gate failure was load, not this branch. The fpga shelf tests
 (`uv run pytest tests/test_board_cartreq.py tests/test_board_gemdisk_shelf.py tests/test_shelf_titles.py`)
 pass 30/30.

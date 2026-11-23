@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into CHONCHON 2 (apps/chonchon2_headless.mjs).
+// The headless harness's door into CHONCHON 2 (apps/harness/chonchon2_headless.mjs).
 // Pulled in only when this scene IS the registered cart (chonchon2.zig checks
 // cart.Cart), so the exports never leak into another cart's build.
 //
@@ -17,7 +17,7 @@ const zg = @import("zigos");
 /// The Go's planar screen, from a planar Clock kept at the live tick (the
 /// live cart composes in the chunky domain and keeps no planar screen).
 /// zg.mem, not a static: a 40 KB `undefined` static lands in the data
-/// section as zeros (apps/zero_segments.mjs).
+/// section as zeros (apps/harness/zero_segments.mjs).
 var shadow: ?*clockmod.Clock = null;
 
 fn screen() *const [32000]u8 {

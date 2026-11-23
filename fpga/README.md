@@ -10,7 +10,7 @@ budget and the plan are in [`docs/hardware/ZIGMACHINE_IN_FPGA.md`](../docs/hardw
 - the video timing is RTL and tested
 - the SoC elaborates with the HBL as a CPU interrupt
 - every sampled cart runs on the SoC's own VexRiscv (Verilator) with
-  fingerprints identical to `apps/scene_hash.mjs`, and its cycles per frame are
+  fingerprints identical to `apps/harness/scene_hash.mjs`, and its cycles per frame are
   measured ([`CYCLES.md`](CYCLES.md))
 
 No bitstream has been built yet.
@@ -23,7 +23,7 @@ make -C fpga check   # memmap export + tests + SoC elaboration
 make -C fpga util    # what each block costs on the 7-series
 make -C fpga carts   # every docs/demo-*.wasm -> wasm2c -> rv32imf
 make -C fpga host CART=stniccc  # native C host: machine + rom + cart via wasm2c (host/README.md)
-make -C fpga host-check         # its fingerprints == apps/scene_hash.mjs, every cart
+make -C fpga host-check         # its fingerprints == apps/harness/scene_hash.mjs, every cart
 make -C fpga cycles CARTS="union_beatdis blitter"  # cycles/frame on VexRiscv in Verilator (cycles/README.md, CYCLES.md)
 make -C fpga glass               # the ARM program, host + arm-linux-musleabihf (docs/hardware/FPGA_GLASS.md)
 make -C fpga sd                  # stage the SD card in build/glass/sd (BR_OUT=<buildroot output> for plan A)
@@ -40,7 +40,7 @@ writes to it.
 | `rtl/` | Our Verilog, one directory per block (`video/` today). Includes `gen/memmap.vh`. |
 | `soc/` | LiteX: `zigmachine_soc.py` (the SoC, `sim` and `z7` targets), `zm_video.py` (RTL as a peripheral), `platform_z7.py` (the board, read from the vendor XDC). |
 | `tests/` | pytest. RTL testbenches are C++ in `tests/tb/`, compiled through Yosys CXXRTL (no system simulator needed). |
-| `host/` | The native host (plan step 0b-i): wasm2c'd machine + rom + one cart, driven like `apps/scene_hash.mjs`. |
+| `host/` | The native host (plan step 0b-i): wasm2c'd machine + rom + one cart, driven like `apps/harness/scene_hash.mjs`. |
 | `cycles/` | Plan step 0b-ii: that host bare-metal on the SoC's VexRiscv in Verilator, every frame timed and split cart / machine / blitter. Results in [`CYCLES.md`](CYCLES.md). |
 | `glass/` | The ARM side ([`docs/hardware/FPGA_GLASS.md`](../docs/hardware/FPGA_GLASS.md)): `glass`, the Zig program that loads carts off the SD card and drives the OSD menu (`src/`), the cart CPU's input routing (`firmware/`), and U-Boot, the device tree and Buildroot (`boot/`). |
 | `rtl/glass/` | The PL's front panel: the GP0 register block and the OSD overlay. |
@@ -61,7 +61,7 @@ writes to it.
 - **Costs are measured, not estimated.** Add a block to `tools/util.py` when it
   lands, and update the budget table in the FPGA doc from its numbers.
 - **The oracle is the wasm machine.** A block is done when the scene
-  fingerprints (`apps/scene_hash.mjs`) match through it.
+  fingerprints (`apps/harness/scene_hash.mjs`) match through it.
 
 ## Optional tools
 

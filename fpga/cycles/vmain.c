@@ -2,7 +2,7 @@
  * frame loop, with the machine's video done by the RTL compositor under the
  * sequencer (vseq.h) instead of hwClear/hwRenderPlane. The PFB the compositor
  * writes back into the region after each enabled plane is hashed as
- * apps/scene_hash.mjs hashes the machine's, so the two compare directly.
+ * apps/harness/scene_hash.mjs hashes the machine's, so the two compare directly.
  *
  *   ZM_FRAMES, ZM_EVERY, ZM_CART   as main.c
  *

@@ -219,7 +219,7 @@ insert, modified") and a horizontal scroll bar (11). That leaves ~157 px = **19 
 as wide, which is the authentic look.
 
 **Text scrolling cost on the board** (estimate from CLAUDE.md's board model; measure with
-`apps/frame_cost.mjs`):
+`apps/harness/frame_cost.mjs`):
 
 - The glyph writer stores a word at a time (`zigos.zig:921-925`, `glyph_line.zig`): 2 word stores per 8 px
   glyph row, so 16 stores a cell.
@@ -308,7 +308,7 @@ docs/os/GEM5_PLAN.md that already covers it.
 | M1 | ROM ABI exports: windows, menu bar (+ keyboard shortcuts), free text field, checkbox/radio, list | 4 d | A sample cart drives them through the harness; scene_hash pins; `rom_abi_check` passes |
 | M2 | Keyboard: Tab/Home/End/PgUp/PgDn codes, chords with Ctrl/Alt/Shift, page + board | 2 d | Harness types chords on the page; `binput` sim keys (`ZM_SIM_KEYS`) show the same codes |
 | M3 | Editor core (pure Zig, native tests): gap buffer, lines, cursor, blocks, find/replace, goto, tabs, bookmarks, undo of one step | 3 d | `zig test`: edits, a 200 KB file, break: a buffer full refuses with an error |
-| M4 | The IDE cart at 640x200: up to 4 windows, File/Edit/Search/Program/Options menus, load/save on C: through KOS GEMDOS, the file selector with folders | 3 d | `apps/zide_check.mjs` (gated) over a C: image: open, type, save, re-read through KFS byte-exact; break: a full disk keeps the old file |
+| M4 | The IDE cart at 640x200: up to 4 windows, File/Edit/Search/Program/Options menus, load/save on C: through KOS GEMDOS, the file selector with folders | 3 d | `apps/harness/zide_check.mjs` (gated) over a C: image: open, type, save, re-read through KFS byte-exact; break: a full disk keeps the old file |
 | M5 | Assembler library (68000, Devpac-like syntax: labels, `EQU`, `DC/DS`, all addressing modes, includes, macros, `REPT`, `IF`, `OPT`) + `tools/zasm` on the PC | 4 d (+ macros 2 d, can follow) | A corpus assembled byte-identically against vasm; errors carry file:line |
 | M6 | Assemble in the IDE: to memory, error list window, jump to the line. Run in the sandbox (Musashi + the first ABI calls: plane draw, key, VBL wait, exit) and return | 3 d (+ the ABI design note, 1 d) | Harness: assemble a sample with one error, jump to it, fix, run, the plane's hash matches; break: an endless loop is stopped by the frame budget, not a hang |
 

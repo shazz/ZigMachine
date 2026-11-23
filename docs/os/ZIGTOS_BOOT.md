@@ -226,9 +226,9 @@ desktop (≤ 6 frames after boot); then the board.
 | Stage | Where it is | Proof |
 |---|---|---|
 | 0 | glass `app_drive.zig powerOn`: ZIGGY starts over `drive_a=`, the OSD closed | glass zig tests |
-| 1 | `kosSetBoot` (rom/kos/kos.zig): boot kind from the glass's KOS boot words (W sets warm) | the sysvars read back in `apps/kos_boot_check.mjs` |
+| 1 | `kosSetBoot` (rom/kos/kos.zig): boot kind from the glass's KOS boot words (W sets warm) | the sysvars read back in `apps/harness/kos_boot_check.mjs` |
 | 3-4 | the POST in the ROM (`kosPostStart`/`kosPostFrame`), driven by `docs/kos-boot.js`, `fpga/host/kos_host.c`, `fpga/cycles/bkos.c`; `?post=N` / `post=0` / a key (browser) or Shift (board) skips | browser = node = native host, frame for frame; the board SoC sim |
-| 7-9, 12 | each host: the boot sector, the bootable disk's cart, or the desktop over a data disk / empty drive | five drives, `fpga/tests/test_kos_boot.py`, `apps/kos_boot_check.mjs` |
+| 7-9, 12 | each host: the boot sector, the bootable disk's cart, or the desktop over a data disk / empty drive | five drives, `fpga/tests/test_kos_boot.py`, `apps/harness/kos_boot_check.mjs` |
 | 13 | program quit = request 4, now "the desktop over drive A, no POST" (glass `backToOs`) | glass zig tests |
 | 4.1 | Insert / Eject / Enter on the shelf, `insertDisk` media change to the running cart | glass zig tests (the window's words); the firmware side needs the board |
 | 5 | the system variables block, `kosSysVarsPtr` (apps: `rom_sdk.kos.vars()`), sys_abi 1.3 | `sys_abi.py --check` |

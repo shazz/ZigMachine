@@ -268,7 +268,7 @@ the local rip.
 
 One RGB565 plane in the 320x200 window (FB_MODE 5) is the whole show, double-buffered; the
 flames alone swap it for an 8-bit plane (one plane enabled at a time: each costs ~0.6-0.7 Mc of
-FRESCO compositing). Measured with `apps/frame_cost.mjs` (the calibrated op-count model, not
+FRESCO compositing). Measured with `apps/harness/frame_cost.mjs` (the calibrated op-count model, not
 the board) on the cart built WITH the local rip, 30 frames from each time:
 
 | part (song s) | KESTREL mechanism | cart Mc | total est. Mc | est. fps |
@@ -347,7 +347,7 @@ Hatari's own screenshots, so compare against Hatari screenshots, not the AVI, fo
   prototypes/falcon_ays_re/scripts/shots.mjs <dir> <t...>` (from the checkout root), `python3
   scripts/compare.py shots <dir> out.png <t...>`. Comparison sheets of 3 Nov (rip build):
   `shots/cmp_rip_A.png` (0-51 s), `cmp_rip_B.png` (57-128 s), `cmp_rip_C.png` (133-220 s).
-- The gate: `node apps/falcon_ays_headless.mjs` (+ `--break script`, `--break art`).
+- The gate: `node apps/harness/falcon_ays_headless.mjs` (+ `--break script`, `--break art`).
 
 ## 7. Matt's third board run (4 Nov)
 
@@ -368,7 +368,7 @@ Hatari's own screenshots, so compare against Hatari screenshots, not the AVI, fo
 ## 8. Matt's board run of 13 Nov: four bugs
 
 All four showed in the browser too (none was a board-vs-browser difference). Pinned by
-`apps/falcon_ays_board.mjs` (+ `--break smear|flash|shake|band`).
+`apps/harness/falcon_ays_board.mjs` (+ `--break smear|flash|shake|band`).
 
 - **825's smear too strong, then frozen** (SHOT0006). The port ran a feedback pass every KESTREL
   frame while the jolt ran: 36 passes in 0.6 s, then the hold. The Hatari capture (frame by frame,
@@ -415,7 +415,7 @@ Two causes, both in show.zig, both in the browser too:
   the true-colour plane expands by bit replication (machine/video_tc.zig `expand`, the RTL's
   wiring): `e6cad5` beside `e7cbd6`. `rgbaOf` now replicates bits.
 - Why the 13 Nov proof missed it: falcon_ays_boot.mjs `raster()` clears AFTER the last frame, so
-  its border is the one the next frame shows. apps/falcon_ays_flash.mjs steps in the hosts' order
+  its border is the one the next frame shows. apps/harness/falcon_ays_flash.mjs steps in the hosts' order
   and checks every frame around the 25 flash commands (old cart: fails at 19.60 s, screen `e7cbd6`,
   border black).
 
@@ -428,7 +428,7 @@ so 1014 x 12 = **12,168** bytes from row 1, column 1. The port's 10,140 stopped 
 column 221: buffer rows 33..35 (the glyphs' rows 29..31: "PRESENTS" and "...MAG" have ink there)
 were never blurred and stayed sharp forever, and no text's glow spread below row 32 (a hard edge
 under every text). Now `text.zig` blurs 1014 x 12 bytes (reads stay inside the 320x42 buffer:
-the last, byte 12,488, reads 12,809 < 13,440). Proof apps/falcon_ays_text.mjs: for each of the
+the last, byte 12,488, reads 12,809 < 13,440). Proof apps/harness/falcon_ays_text.mjs: for each of the
 five texts, no lit pixel of band rows 33..38 still equals the frame it was drawn on both ~10
 passes after the blur starts and on its last frame, and the blur lights those rows at least once
 (old cart: 9 and 7 sharp pixels under PRESENTS and ...MAG, rows 33..38 never lit under the other

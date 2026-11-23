@@ -51,10 +51,10 @@ lower everywhere. The PSG matches the reference's pitches and levels; its noise 
 
 ## Proof in the gate
 
-`apps/vgm_check.mjs`: machine-audio.wasm = the native build, block for block (11 tunes, local ones too);
-each feature VGM's render = `apps/vgm_expected.json` (our own output, pinned); the player = the engine
+`apps/harness/vgm_check.mjs`: machine-audio.wasm = the native build, block for block (11 tunes, local ones too);
+each feature VGM's render = `apps/harness/vgm_expected.json` (our own output, pinned); the player = the engine
 resampled `>> 1`; five refusals. `--break envelope | lfo | feedback | dac | noise` each mutate one rule and
-must fail that feature's pinned hash. `apps/vgm_test_check.mjs`: the VGM TEST cart's keys and bytes.
+must fail that feature's pinned hash. `apps/harness/vgm_test_check.mjs`: the VGM TEST cart's keys and bytes.
 
 ## BARD load
 

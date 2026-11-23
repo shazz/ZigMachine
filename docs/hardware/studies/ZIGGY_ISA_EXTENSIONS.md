@@ -49,9 +49,9 @@ comes from a synth-only OOC run (staging below), not from a board bitstream.
 
 ## Method
 
-- **Dynamic census** (`apps/perf/isa_census.mjs`, new): runs each cart instrumented exactly as
+- **Dynamic census** (`apps/harness/perf/isa_census.mjs`, new): runs each cart instrumented exactly as
   frame_cost does (counter per straight-line segment, ROM included), then matches every executed wasm
-  op against peephole patterns using the operand producers of `apps/perf/flow.mjs` (e.g. an `i32.add`
+  op against peephole patterns using the operand producers of `apps/harness/perf/flow.mjs` (e.g. an `i32.add`
   or a load/store address fed by `i32.shl 1|2|3` is a Zba shift-add; a `select` on a compare of its own
   operands is a min/max). Matches x segment counts = matches a frame; x the rv32 instructions saved x
   CPI 0.86 = Mc. Window: warmup 120, 30 frames, one phase per cart (anima also measured at frames
@@ -173,7 +173,7 @@ Software first, either way: dirty-group p2c in rick_dangerous/rno_natrium costs 
 ## Reproduce
 
 ```sh
-node apps/perf/isa_census.mjs --all --json > census.jsonl      # ~4 min, serial, one phase per cart
-node apps/perf/isa_census.mjs docs/demo-rick_dangerous.wasm     # one cart: Mc saved by pattern
-node apps/frame_cost.mjs docs/demo-anima.wasm --warmup 3200 --frames 20   # anima's roto part
+node apps/harness/perf/isa_census.mjs --all --json > census.jsonl      # ~4 min, serial, one phase per cart
+node apps/harness/perf/isa_census.mjs docs/demo-rick_dangerous.wasm     # one cart: Mc saved by pattern
+node apps/harness/frame_cost.mjs docs/demo-anima.wasm --warmup 3200 --frames 20   # anima's roto part
 ```

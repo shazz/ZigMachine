@@ -5,7 +5,7 @@
 // this is a copy of tutorial.rs rather than a flag inside it (short version:
 // every snippet in docs/guide/TUTORIAL.md is quoted verbatim from tutorial.rs, and
 // gates in there would make the tutorial's own code untrue). The copy is held to
-// the original by apps/tutorial_steps_check.mjs, which asserts this cart at
+// the original by apps/harness/tutorial_steps_check.mjs, which asserts this cart at
 // step 7 renders frames byte-identical to demo-rust-tutorial.wasm.
 //
 // The step arrives via setShadeMode (the sealed ABI's per-scene mode switch),

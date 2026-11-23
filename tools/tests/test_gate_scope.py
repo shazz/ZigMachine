@@ -15,19 +15,19 @@ BUILD_ZIG = """
     const other = "demo-audio";
 """
 BUILD_SH = """
-gate big_demo node apps/big_demo_headless.mjs
-gate_timed digital_solution node apps/digital_solution_headless.mjs --break pixels
-gate union_tnt1 node apps/union_tnt1_headless.mjs "$SHOTS"
-gate union_multifake node apps/union_multifake_headless.mjs "$SHOTS"
-gate union_demo node apps/union_demo_headless.mjs "$SHOTS"
-gate dbug node apps/dbug_headless.mjs "$SHOTS"
-gate tex node apps/tex_headless.mjs "$SHOTS"
-gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS"
-gate sdk node apps/sdk_check.mjs --break still
+gate big_demo node apps/harness/big_demo_headless.mjs
+gate_timed digital_solution node apps/harness/digital_solution_headless.mjs --break pixels
+gate union_tnt1 node apps/harness/union_tnt1_headless.mjs "$SHOTS"
+gate union_multifake node apps/harness/union_multifake_headless.mjs "$SHOTS"
+gate union_demo node apps/harness/union_demo_headless.mjs "$SHOTS"
+gate dbug node apps/harness/dbug_headless.mjs "$SHOTS"
+gate tex node apps/harness/tex_headless.mjs "$SHOTS"
+gate tex_neoshow node apps/harness/tex_neoshow_headless.mjs "$SHOTS"
+gate sdk node apps/harness/sdk_check.mjs --break still
 """
 HARNESSES = {
     "big_demo_headless.mjs": 'import { m } from "./big_demo_machine.mjs"; load("docs/demo-big_demo.wasm")',
-    "big_demo_machine.mjs": 'const f = "apps/big_fixture.json";',
+    "big_demo_machine.mjs": 'const f = "apps/harness/big_fixture.json";',
     "digital_solution_headless.mjs": 'load("docs/demo-big_demo.wasm")',
     "union_tnt1_headless.mjs": 'load("docs/demo-union_tnt1.wasm"); load("docs/demo-union_multifake.wasm")',
     "union_multifake_headless.mjs": 'load("docs/demo-union_multifake.wasm")',
@@ -42,11 +42,11 @@ HARNESSES = {
 
 def fake_repo() -> gs.Repo:
     root = Path(tempfile.mkdtemp())
-    (root / "apps").mkdir()
+    (root / "apps" / "harness").mkdir(parents=True)
     (root / "build.zig").write_text(BUILD_ZIG)
     (root / "build.sh").write_text(BUILD_SH)
     for name, text in HARNESSES.items():
-        (root / "apps" / name).write_text(text)
+        (root / "apps" / "harness" / name).write_text(text)
     return gs.load(root)
 
 
@@ -88,11 +88,11 @@ class GateScope(unittest.TestCase):
         self.assertIsNone(self.scope("M\tapps/zig/scenes/dbug.zig", "M\tlibs/zig/zigos.zig"))
 
     def test_harness_helpers_select_the_harnesses_that_import_them(self) -> None:
-        self.assertEqual(self.scope("M\tapps/big_demo_machine.mjs"), ["big_demo"])
-        self.assertEqual(self.scope("M\tapps/big_fixture.json"), ["big_demo"])
+        self.assertEqual(self.scope("M\tapps/harness/big_demo_machine.mjs"), ["big_demo"])
+        self.assertEqual(self.scope("M\tapps/harness/big_fixture.json"), ["big_demo"])
 
     def test_an_apps_file_no_harness_reads_is_full(self) -> None:
-        self.assertIsNone(self.scope("M\tapps/check_fits.mjs"))
+        self.assertIsNone(self.scope("M\tapps/harness/check_fits.mjs"))
 
     def test_prose_selects_nothing_but_is_not_full(self) -> None:
         self.assertEqual(self.scope("M\tdocs/ports/SKYSTRIKE.md", "M\tdocs/project/DECISIONS.md"), [])

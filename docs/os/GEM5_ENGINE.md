@@ -60,9 +60,9 @@ decision: docs/project/DECISIONS.md 2026-11-09 "GEM 5 step 1". Matt: "look and s
   prefix (`zig build ... -Dgem_assets=... -p <scratch>`). The converter is proven on a made-up directory
   only (`tools/gem_assets_conv_test.py`, 3 break tests).
 
-## Speed (apps/frame_cost.mjs, the board's cost model)
+## Speed (apps/harness/frame_cost.mjs, the board's cost model)
 
-The desk, A:\ open, the pointer moving every frame (apps/gem_engine_cost.mjs):
+The desk, A:\ open, the pointer moving every frame (apps/harness/gem_engine_cost.mjs):
 
 | | est. Mc / frame | fps (model) |
 |---|---|---|
@@ -80,7 +80,7 @@ frame's code is ~29 KB against a 16 KB I$). Only the board says what the real fp
 
 ## Proofs
 
-- `apps/gem_engine_check.mjs` (gate `gem`): the engine paints the desk; frames with no input paint
+- `apps/harness/gem_engine_check.mjs` (gate `gem`): the engine paints the desk; frames with no input paint
   nothing (FB_BASE stays, a poisoned back buffer keeps every byte); a pointer move paints <= 512 px
   (two arrows) and nothing of a poisoned buffer outside them; a window dragged by its title bar paints
   its old and new places only and lands where dropped; after every gesture, painting the damage equals

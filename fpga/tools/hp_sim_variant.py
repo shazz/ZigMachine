@@ -85,7 +85,7 @@ class Variant:
             env["ZM_GLASS_POINTER"] = self.sim_pointer()
         REF.mkdir(parents=True, exist_ok=True)
         common = [str(frames), str(every), *args]
-        runs = (("js", ["node", "apps/scene_hash.mjs", f"docs/demo-{tag}.wasm", *common, *calls]),
+        runs = (("js", ["node", "apps/harness/scene_hash.mjs", f"docs/demo-{tag}.wasm", *common, *calls]),
                 ("native", [str(FPGA / f"build/host/{tag}/host"), tag, *common]))  # fmt: skip
         for kind, cmd in runs:
             out = REF / f"{tag}.{frames}.{every}.{kind}+disk{self.suffix}.json"

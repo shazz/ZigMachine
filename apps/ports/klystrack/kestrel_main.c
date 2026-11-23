@@ -74,7 +74,7 @@ __attribute__((export_name("boot"))) void boot(void)
 __attribute__((export_name("frame"))) void frame(float elapsed_ms)
 {
     /* Real time (kestrel_audio.h), but at most 2 frames: cyd costs ~13,000 cycles a sample at 22.05 kHz on the
-     * board (apps/frame_cost.mjs), more than the CPU has for real time, so a longer frame would only feed the
+     * board (apps/harness/frame_cost.mjs), more than the CPU has for real time, so a longer frame would only feed the
      * mixer more and slow the UI to ~1 fps. Until cyd fits the budget the song plays slow on the board. */
     uint32_t us = kestrel_frame_us(elapsed_ms, kestrel_bard_owns() ? 250 : 33); /* the machine plays: the clock is real */
     kestrel_sdl_vbl(us);

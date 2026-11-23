@@ -5,7 +5,7 @@
 // area Q8): 16.16 texels a pixel is (num << 12) / area. One u32 divide a triangle
 // gives inv = 2^31 / |area|; while the triangle is under 512 px (positions under 2^13
 // Q4) every num fits an i32, so each gradient is ONE 32 x 32 -> 64 multiply and a
-// shift (~20 cycles in apps/perf/cost_model.mjs; normalising num and inv with clz
+// shift (~20 cycles in apps/harness/perf/cost_model.mjs; normalising num and inv with clz
 // to stay in 32 bits measured ~25 % dearer: rv32im has no clz). A triangle reaching
 // far off screen takes the all-64-bit path.
 // No ZigOS import.

@@ -1,5 +1,5 @@
 // Run the SyncTERM cart headless on the sealed machine, its floppy mounted, and write PNGs of the desk
-// (640x480, from hwRenderDesk's two halves). For experiments; the gate's harness is apps/ports_headless.mjs.
+// (640x480, from hwRenderDesk's two halves). For experiments; the gate's harness is apps/harness/ports_headless.mjs.
 //   cd <repo> && node apps/ports/syncterm/run.mjs [frames=120] [out=apps/ports/syncterm/build/frame]
 //   KEYS="frame:text;..."   type text at a frame (\r = Enter)        DISK=<zmd>  another floppy
 //   EVERY=<n>               a PNG every n frames (30)
@@ -10,7 +10,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../../../docs/wasm_hiwater.js";
-import { makeCDrive, makeCFile } from "../../scene_hash_disk.mjs";
+import { makeCDrive, makeCFile } from "../../harness/scene_hash_disk.mjs";
 
 const FRAMES = +(process.argv[2] ?? 120), OUT = process.argv[3] ?? "apps/ports/syncterm/build/frame";
 const EVERY = +(process.env.EVERY ?? 30); // a PNG every EVERY frames

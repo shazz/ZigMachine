@@ -1,9 +1,9 @@
 #!/bin/sh
-# mkref.sh: rebuild apps/dune_gen4_ref.bin.br from the Hatari runs, frames dumped
+# mkref.sh: rebuild apps/harness/dune_gen4_ref.bin.br from the Hatari runs, frames dumped
 # beforehand with `python3 avi2png.py hatari/refN.avi /dev/shm/refN 1`.
 # Group offsets are each run's traced VBLs (trace.py): see NOTES.md.
 cd "$(dirname "$0")" || exit 1
-python3 mkref.py ../../apps/dune_gen4_ref.bin.br \
+python3 mkref.py ../../apps/harness/dune_gen4_ref.bin.br \
   /dev/shm/ref2:1220:intro bounce-first:1248 bounce-top:1280 bounce-bottom:1313 bounce-turn:1314 \
     bounce-late:1470 prep:1478 fade-s2:1486 fade-s4:1492 fade-s7:1503 logo-hold:1520 main-first:1657 \
     main-2:1658 main-9:1665 main-44:1700 main-144:1800 main-344:2000 main-443:2099 \

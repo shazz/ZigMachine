@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // The planar reference engine (engine.zig) inside the cart, for the harness
-// only: apps/lockbuster2_headless.mjs steps it in lockstep with the shown
+// only: apps/harness/lockbuster2_headless.mjs steps it in lockstep with the shown
 // chunky engine and compares the plane pixel for pixel, so the proof covers
 // the REAL blitter (machine-video.wasm's hwBlit), not just the native test's
 // array backend. Nothing in the cart's own frame calls it: its ~0.5 MB of ring

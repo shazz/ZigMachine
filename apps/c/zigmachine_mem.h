@@ -5,7 +5,7 @@
 // the video region. Prefer it to a big `static` buffer: with --import-memory the
 // linker cannot assume memory is zero, so a zero-filled static can be written
 // out byte for byte into the cart binary and count against the 3 MiB window
-// before the cart runs (apps/zero_segments.mjs fails the build on one of 64 KB+).
+// before the cart runs (apps/harness/zero_segments.mjs fails the build on one of 64 KB+).
 //
 //     #include "../zigmachine_mem.h"
 //     static u16 *work;                                   // in boot():

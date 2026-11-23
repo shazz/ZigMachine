@@ -1,5 +1,5 @@
 /* snd-bench SND_BARDQ=1: BARD's load for SID live, the BARD queue's raw-SID mode (host/bardq.h). No cart:
- * the commands are BARD SID's (apps/bard_queue_check.mjs --dump: {t, addr, value, 0} as the page's loader
+ * the commands are BARD SID's (apps/harness/bard_queue_check.mjs --dump: {t, addr, value, 0} as the page's loader
  * posted them), linked in as zm_bardq_log (cycles/sound.mk makes the C array). A ring in BARD's own memory
  * stands for the cart's: before each frame the commands a cart would have written by then (stamps up to a
  * lead past the frame's end) go in, and the frame is timed with the pump, as the play image runs it. */

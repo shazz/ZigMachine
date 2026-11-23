@@ -7,7 +7,7 @@
 // Integer physics in Q8 pixels, the whole fall a compile-time table (no
 // float, no per-frame maths): gravity G a frame, each bounce keeps R/256 of
 // the speed, and a bounce slower than STOP lands for good. The harness's
-// model (apps/leonard_spirit_model.mjs) runs the same steps.
+// model (apps/harness/leonard_spirit_model.mjs) runs the same steps.
 // --------------------------------------------------------------------------
 const lay = @import("layout.zig");
 const show = @import("show.zig");

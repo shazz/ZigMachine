@@ -6,7 +6,7 @@
 // four plane words with the copy it took last time (loads) and notes which
 // groups changed; present() converts only those, straight into the plane, and
 // stores only the plane words that differ. Same pixels as converting the whole
-// screen (apps/snyd_90_pins.mjs pins every frame to the old full conversion).
+// screen (apps/harness/snyd_90_pins.mjs pins every frame to the old full conversion).
 // A row is one of:
 //   blank   all colour 0 (borders, lines the part does not show)
 //   planar  `ng` groups of four plane words from an ST address, group g's

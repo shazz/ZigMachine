@@ -1,4 +1,4 @@
-"""Expected shots for apps/snyd_90_headless.mjs: [window indices, physical RGB frame] SHA-256 prefixes.
+"""Expected shots for apps/harness/snyd_90_headless.mjs: [window indices, physical RGB frame] SHA-256 prefixes.
 
 intro      the Spectrum 512 picture (spu.py, pixel-checked against Hatari's capture).
 f2-J       F2 after J VBLs: the screen VBL J-1 drew, under the registers VBL J left, from the

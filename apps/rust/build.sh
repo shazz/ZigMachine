@@ -51,4 +51,4 @@ else
     build hello.rs "$OUT/demo-rust.wasm"
     for src in scenes/*.rs; do build "$src" "$OUT/demo-rust-$(basename "$src" .rs).wasm"; done
 fi
-echo "OK — verify the ABI with: node apps/verify.mjs docs/demo-rust.wasm"
+echo "OK — verify the ABI with: node apps/harness/verify.mjs docs/demo-rust.wasm"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reference model for DMA Intro 5 (DMA / Larcociel), reading the CART assets.
 
-This is the dev-side twin of apps/larcociel5_headless.mjs: it composes a frame
+This is the dev-side twin of apps/harness/larcociel5_headless.mjs: it composes a frame
 exactly as the Go production (github.com/olivierh59500/go-larcociel5) and the Zig
 cart do, from the ripped files under apps/zig/assets/screens/larcociel5/, so the
 extraction can be proven against the Go's own captured PNGs.

@@ -175,7 +175,7 @@ contention between masters, CDC with real phase drift (CXXRTL ratios are integer
 **Next test (M, #9):** Verilator SoC = VexRiscv + `ZMVideo` + the cycles firmware acting as the
 sequencer (write passes to `cmd`, call `hblDispatch` between them, drain stores), with
 `zm_memtiming` on both the CPU and the DMA. Hash the display buffers per line (or the DDR frame buffer
-under A1(c)) and compare to `apps/scene_hash.mjs`. Carts: `tutorial`, `union_main`, `badflicker`,
+under A1(c)) and compare to `apps/harness/scene_hash.mjs`. Carts: `tutorial`, `union_main`, `badflicker`,
 `equinox`, `dhs_0pxl0reg`. Then a mutant: make the sequencer *not* drain the store buffer, and show
 the hash moves — that is the proof the drain rule is load-bearing.
 

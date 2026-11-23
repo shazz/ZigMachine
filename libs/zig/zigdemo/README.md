@@ -175,4 +175,4 @@ if (v.key(cp)) |k| { /* the cart decides what 'O' / 'K' mean */ }
 columns are cut. The text is painted once; a scroll step only rewrites the 18 bar rows and the one text row
 the bar uncovers (the desk has one plane, so the bar lives in the buffer). Characters with no glyph yet
 (accents, Greek, line drawing) show as a hollow box. Example cart: 138 `nfo_viewer`
-(`apps/zig/scenes/nfo_viewer.zig`), harness `apps/nfo_viewer_check.mjs`.
+(`apps/zig/scenes/nfo_viewer.zig`), harness `apps/harness/nfo_viewer_check.mjs`.

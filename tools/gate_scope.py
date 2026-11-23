@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 GATE_LINE = re.compile(r"^gate(?:_timed)? ([A-Za-z0-9_]+) (.*)$")
-MJS_REF = re.compile(r"apps/([A-Za-z0-9_]+\.mjs)")
+MJS_REF = re.compile(r"apps/harness/([A-Za-z0-9_]+\.mjs)")
 IMPORT = re.compile(r"""from\s+["']\./([A-Za-z0-9_]+\.mjs)["']""")
 CART_NAMES = re.compile(r"const cart_names = \[_\]\[\]const u8\{(.*?)\};", re.S)
 CART_NAME = re.compile(r'"demo-([a-z0-9_]+)"')
@@ -45,10 +45,10 @@ class Repo:
 def read_closure(root: Path, name: str, seen: set[str] | None = None) -> str:
     """A harness's source plus every ./x.mjs it imports, transitively."""
     seen = set() if seen is None else seen
-    if name in seen or not (root / "apps" / name).is_file():
+    if name in seen or not (root / "apps" / "harness" / name).is_file():
         return ""
     seen.add(name)
-    text = (root / "apps" / name).read_text(errors="replace")
+    text = (root / "apps" / "harness" / name).read_text(errors="replace")
     return text + "".join(read_closure(root, dep, seen) for dep in IMPORT.findall(text))
 
 
@@ -93,8 +93,8 @@ def component_tags(repo: Repo, name: str) -> set[str] | None:
 
 
 def apps_file_tags(repo: Repo, path: str) -> set[str] | None:
-    """A top-level apps/ file (a harness, a helper, a fixture): who reads it?"""
-    base = path.split("/", 1)[1]
+    """An apps/harness/ file (a harness, a helper, a fixture): who reads it?"""
+    base = path.rsplit("/", 1)[1]
     users = tags_using(repo, base)
     if users:
         return users
@@ -115,7 +115,7 @@ def classify(repo: Repo, status: str, path: str) -> set[str] | None:
         return component_tags(repo, parts[3].split(".")[0])
     if parts[0] == "tools" and len(parts) > 2 and parts[1] in repo.carts:
         return cart_tags(repo, parts[1]) | tags_using(repo, f"tools/{parts[1]}/")
-    if parts[0] == "apps" and len(parts) == 2:
+    if path.startswith("apps/harness/") and len(parts) == 3:
         return apps_file_tags(repo, path)
     if parts[0] == "sdk":  # the KESTREL SDK: read by its own harness only (build.zig's import of it is built anyway)
         return tags_using(repo, "sdk/template") or None

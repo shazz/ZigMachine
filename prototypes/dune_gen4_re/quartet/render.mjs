@@ -1,5 +1,5 @@
 // render.mjs TUNE.sndh SUBTUNE SECONDS OUT.wav -- play an SNDH on the sealed YM (the worktree's
-// docs/*.wasm, as apps/sndh_headless.mjs boots them) and write the left channel as a 16-bit
+// docs/*.wasm, as apps/harness/sndh_headless.mjs boots them) and write the left channel as a 16-bit
 // 44.1 kHz mono WAV. Also prints the MFP timer rates and whether the 68000 got stuck.
 import { readFile, writeFile } from "node:fs/promises";
 

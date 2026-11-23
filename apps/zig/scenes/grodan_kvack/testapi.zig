@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the demo (apps/grodan_kvack_headless.mjs).
+// The headless harness's door into the demo (apps/harness/grodan_kvack_headless.mjs).
 // It reads back the words compose() draws from -- the tick count, the four
 // scroll positions and the Go's own animation counters -- so a pixel check that
 // ever drifts can say WHERE (which layer) it drifted, not just that it did.

@@ -7,7 +7,7 @@
 //                 frames: each sprite run (vic_runs.zig) of frame n+1 is moved back toward where
 //                 the same sprite showed the same block in frame n by (6 - k)/6 of the way, k the
 //                 sixths of a C64 frame machine frame m is past n. On k = 0 the picture is
-//                 the C64's frame n exactly (apps/c64_1988_zig.mjs checks it against the default).
+//                 the C64's frame n exactly (apps/harness/c64_1988_zig.mjs checks it against the default).
 //   copper only   The border colour is the plane's colour 0 on EVERY line, borders opened by a
 //                 FLICK on all 280 lines of its copper list: no HBL handler runs at all, global
 //                 or plane (the default keeps the global one for the closed borders' colour and

@@ -5,7 +5,7 @@
 // in its data/BSS segment. The port keeps the same bytes: `Mem.ram` is flat
 // $1C3F0..$1DA80 (RAM = flat + $D0A8 in the reference session), big-endian, so
 // every field has the 68000's width, signedness and wrap, and the state can be
-// compared byte for byte with the reference model (apps/north_south_headless.mjs).
+// compared byte for byte with the reference model (apps/harness/north_south_headless.mjs).
 // Pointers are stored exactly as the game stores them: absolute RAM addresses.
 //
 // The read-only tables (animation scripts, formations, decor lists, terrain,

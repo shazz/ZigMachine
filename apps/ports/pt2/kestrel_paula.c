@@ -4,7 +4,7 @@
  * Why: upstream mixes in double (phase/delta per voice per sample) with BLEP synthesis, the A500/A1200
  * RC filters and a 2x-oversampled float path with dither. ZIGGY has an f32 FPU but no f64: on the
  * board that cost ~5,500 cycles a 48 kHz sample (pt2 fell from 28 to 10-13 fps while a module played;
- * apps/frame_cost.mjs agrees), so real-time audio was out of reach at any rate. Through the machine's
+ * apps/harness/frame_cost.mjs agrees), so real-time audio was out of reach at any rate. Through the machine's
  * 8-bit mono stream the BLEP's alias suppression and the dither are inaudible.
  *
  * What is kept: Paula's DMA behaviour as upstream models it (AUDxLEN/AUDxLC latched at the DMA

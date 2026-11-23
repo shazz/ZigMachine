@@ -156,7 +156,7 @@ every line.
 and composer). The menu calls init `$20B68` (d0 = 1), exit `$20B6C` and play `$20B70` from the VBL.
 The SNDH proper is `$582E` bytes, but the YMXR player uses the `$8266` zero bytes after it as a work
 buffer (watched in RAM), so the shipped file is `$DA94` bytes with that zero tail.
-Verified: `node apps/sndh_headless.mjs` PASS, peak 0.99, three voices.
+Verified: `node apps/harness/sndh_headless.mjs` PASS, peak 0.99, three voices.
 
 Shipped as `docs/music/erfurt_menu.sndh` (the scrolltext names the tune and the tool).
 

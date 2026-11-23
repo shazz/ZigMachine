@@ -18,7 +18,7 @@
 // Geometry: a 640x400 canvas, every PNG pixel-doubled on the (0,0) grid, so it
 // halves onto 320x200. The balls sit at fractional canvas positions, which
 // Chrome draws bilinearly; here each snaps to the nearest ST pixel,
-// round(c / 2), the closest a palette plane gets (apps/union_tnt1_replay.mjs).
+// round(c / 2), the closest a palette plane gets (apps/harness/union_tnt1_replay.mjs).
 // The Math.random of codef_bobfield.js is xorshift32 from a fixed seed.
 //
 // Loading: the remake's TEX loader panel (loader.js) is the REAL depack here
@@ -51,7 +51,7 @@ const K_ESC: u32 = 0xE012;
 const DEPACK_BYTES_PER_LINE = 1;
 
 /// jsApp.scrolltext (main.js:50). The hub packs it into menu_assets.bin; this is a
-/// byte-identical copy (apps/union_tnt1_headless.mjs checks it against the blob).
+/// byte-identical copy (apps/harness/union_tnt1_headless.mjs checks it against the blob).
 const TEXT = @embedFile("../assets/screens/union_tnt1/scrolltext.txt");
 /// tools/private_tools/union_tnt1_assets.py: 0 transparent, 1 #000040,
 /// 2 #800000 (logo, font), 3..10 blue balls, 11..17 red balls.
@@ -82,7 +82,7 @@ comptime {
 /// new ballfield(ballcanvas, n, 2.0, 640,400, 640/2,400/2, 60,0,0, balls, 17)
 const FIELD = ballfield.Params{ .w = 640, .h = 400, .centx = 320, .centy = 200, .speed = 2.0, .ratio = 60, .tiles = TILES };
 const Balls = ballfield.fixed.Field(FIELD); // whole-number speed and ratio: integers, no f64 per ball
-const SEED: u32 = 0x1D872B41; // apps/union_tnt1_replay.mjs SEED
+const SEED: u32 = 0x1D872B41; // apps/harness/union_tnt1_replay.mjs SEED
 const START_BALLS = 60;
 const MAX_BALLS = P.MAX_BALLS;
 const Pass = P.Pass;

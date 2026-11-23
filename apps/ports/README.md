@@ -43,6 +43,6 @@ into `upstream/` (gitignored), and checks each one.
 
 The carts in `docs/` are committed prebuilt, as `apps/c` and `apps/rust` carts are: `./build.sh` does not
 rebuild them (it needs the upstream checkouts), and a rebuild at the pinned commits is byte-identical.
-`tools/mkdisks.sh` packs each disk from the committed cart and files. `apps/ports_headless.mjs` is the gate's
+`tools/mkdisks.sh` packs each disk from the committed cart and files. `apps/harness/ports_headless.mjs` is the gate's
 harness for all four: it boots GEM over the disk, launches `BOOT.WSM` from the FLOPPY window
-(`apps/ports_gem.mjs`), uses the program, then quits it and checks the desktop comes back. Why it is laid out this way: docs/project/DECISIONS.md, "C program ports live in apps/ports".
+(`apps/harness/ports_gem.mjs`), uses the program, then quits it and checks the desktop comes back. Why it is laid out this way: docs/project/DECISIONS.md, "C program ports live in apps/ports".

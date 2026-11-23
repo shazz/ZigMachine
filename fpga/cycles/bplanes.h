@@ -9,7 +9,7 @@
  *
  * Line-major runs on the board (ZM_BOARD) unless the ARM's switch word says plane-major
  * (bdiag.h DIAG_OPT_PLANE_MAJOR), and in a sim only with ZM_LINEMAJOR: a hashed frame is always
- * plane-major, since its PFB is hashed after each plane as apps/scene_hash.mjs does. A group that
+ * plane-major, since its PFB is hashed after each plane as apps/harness/scene_hash.mjs does. A group that
  * is the frame's top layer stores no PFB row (nothing reads it after; DIAG_OPT_KEEP_PFB keeps it).
  *
  * ZM_LM_CHECK (sim): a hashed frame that groups cover whole (no plane handler, a fused clear) is

@@ -319,7 +319,7 @@ It writes every zero byte of a module-scope buffer into the data segment:</p>
 zeros, plus about 320 KB more zeros in its other segment: 1866 KB of the window
 used for about 600 KB of real content. The same zeros ride in every <code>.zmd</code> disk
 and every download.</p>
-<p><code>apps/zero_segments.mjs</code> (in <code>build.sh</code>) now <strong>fails the build</strong> on any cart
+<p><code>apps/harness/zero_segments.mjs</code> (in <code>build.sh</code>) now <strong>fails the build</strong> on any cart
 whose data section holds a run of zeros of 64 KB or more, naming the cart, the
 segment and the address. The carts that exceeded it when the gate landed are on
 its allow-list, each one a migration still to do. The list may only shrink: a
@@ -385,7 +385,7 @@ zm_mark m = <span class="tok-fn">zm_mark_now</span>();  <span class="tok-cm">/* 
 <span class="tok-kw">let</span> <span class="tok-kw">Some</span>(tri) = zigmachine_mem::alloc::&lt;<span class="tok-kw">u8</span>&gt;(<span class="tok-num">256</span>) <span class="tok-kw">else</span> { <span class="tok-kw">return</span> }; <span class="tok-cm">// &amp;&#x27;static mut [u8], zeroed</span>
 <span class="tok-kw">let</span> m = zigmachine_mem::<span class="tok-fn">mark</span>(); <span class="tok-cm">/* ... */</span> <span class="tok-kw">unsafe</span> { zigmachine_mem::<span class="tok-fn">release</span>(m) };</code></pre></figure>
 <p>Both "hello world" carts (<code>apps/c/scenes/hello.c</code>, <code>apps/rust/hello.rs</code>) take
-their plasma table from the arena, and <code>apps/verify.mjs</code> runs them on the real
+their plasma table from the arena, and <code>apps/harness/verify.mjs</code> runs them on the real
 machine.</p>
 <h4 id="memory-management-vram-is-a-different-pool">VRAM is a different pool</h4>
 <p>Plane framebuffers do not come from the cart window. They live in the <strong>1 MiB
@@ -397,7 +397,7 @@ and <code>resetForScene</code>.</p>
 the physical framebuffer, silently. A scene that allocates big backing buffers
 should check its total against <code>zg.VRAM_BYTES</code> at comptime.</p>
 <h4 id="memory-management-what-check-fits-cannot-see">What check_fits cannot see</h4>
-<p><code>apps/check_fits.mjs</code> measures the static footprint: data + stack, the same
+<p><code>apps/harness/check_fits.mjs</code> measures the static footprint: data + stack, the same
 number the host declares. It cannot see what a cart takes <strong>at run time</strong>:</p>
 <ul>
 <li>a ZX0-packed asset (<code>docs/guide/DEPACK.md</code>) is small in the data segment and large
@@ -412,7 +412,7 @@ buffer against <code>hwRamFree()</code> (or let <code>zg.mem.alloc</code> return
 <p><strong>Packing the shelf:</strong> <code>tools/mkdisks.sh</code> repacks every disk in <code>docs/</code> from the
 built carts (run by <code>build.sh</code>; only repacks what is stale, <code>-f</code> forces). It is
 the recipe the images used to lack — they drifted a week behind the wasm and
-froze an import list the host no longer had. <code>node apps/disk_check.mjs</code> then
+froze an import list the host no longer had. <code>node apps/harness/disk_check.mjs</code> then
 mounts every image and instantiates its cart against the host's real <code>env</code>,
 which is the check that would have caught that.</p>
 </blockquote>
@@ -643,8 +643,8 @@ packed; they are streamed block by block and must stay raw.</p>
 </ol>
 <p><code>romDepack</code> writes only inside the cart window and returns 0 for anything it
 cannot unpack. The host then fails loudly and does not boot a half-unpacked
-program. <code>apps/disk_check.mjs</code> unpacks every disk the same way, and
-<code>apps/rom_abi_check.mjs</code> throws truncated, oversized and out-of-window calls at
+program. <code>apps/harness/disk_check.mjs</code> unpacks every disk the same way, and
+<code>apps/harness/rom_abi_check.mjs</code> throws truncated, oversized and out-of-window calls at
 <code>romDepack</code>. A cart that is NOT packed still loads unchanged, so older disks
 keep working.</p>
 <h3 id="disk-cart-format-boot-sectors-format-v2-the-boot-sector-is-executable-a-wasm-chainloader">Format v2 — the boot sector <em>is</em> executable (a wasm chainloader)</h3>
@@ -1057,7 +1057,7 @@ _ = zg.<span class="tok-fn">sndhCall</span>(<span class="tok-str">&quot;rick_dan
   waits for the first gesture; a stale effect firing when sound comes on
   would be wrong.</li>
 </ul>
-<p>Proofs: <code>apps/sndh_call_check.mjs</code> (a call leaves the untouched channel, Timer
+<p>Proofs: <code>apps/harness/sndh_call_check.mjs</code> (a call leaves the untouched channel, Timer
 A's phase and the position exactly as an untouched run's; a reload in its
 place is caught) and the Rick Dangerous harness's resident check (the running
 driver's RAM equals the cart's transcription, tick for tick, with later
@@ -1109,7 +1109,7 @@ _ = zg.<span class="tok-fn">requestModVolume</span>(<span class="tok-num">0.2</s
   SKYSTRIKE's ZIG mode plays its flight music at 0.2: at 1.0 "The Hawk's Claw"
   with one channel lent is -19.8 dBFS RMS and its effects -27 to -29, 8 dB under
   it; at 0.2 the bed is -33.8 and every effect 4.6 to 7.0 dB over it
-  (<code>apps/skystrike_zig_mix.mjs</code> measures it on the audio modules).
+  (<code>apps/harness/skystrike_zig_mix.mjs</code> measures it on the audio modules).
   The YM has no such gain (it is the machine's): a game's PSG note is made
   quieter by sounding it on fewer of the YM's three voices (SKYSTRIKE's
   <code>psg_voices</code>: one voice is -9.5 dB).</li>
@@ -1130,9 +1130,9 @@ in time. The loader (<code>libs/zig/players/mod_format.zig</code>) refuses anyth
 song length of 0 or over 128. It counts each refusal (<code>audioModRejected</code>) with the
 reason (<code>audioModError</code>: 1 short, 2 not 4-channel, 3 bad length), and the host
 logs <code>MOD REJECTED</code> with the file's tag.</p>
-<p>Proofs: <code>apps/mod_sfx_check.mjs</code> (every rule above, on the real audio modules),
+<p>Proofs: <code>apps/harness/mod_sfx_check.mjs</code> (every rule above, on the real audio modules),
 <code>libs/zig/players/mod_format_test.zig</code> and <code>libs/zig/sfx_queue_test.zig</code> (native),
-and SKYSTRIKE's ZIG mode (<code>apps/skystrike_zig_sound.mjs</code>: a game's own effects
+and SKYSTRIKE's ZIG mode (<code>apps/harness/skystrike_zig_sound.mjs</code>: a game's own effects
 and engine note over its flight MOD).</p>
 <h4 id="music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</h4>
 <p><code>zg.requestSong("song.xm")</code> plays a FastTracker 2 module, in the browser and on
@@ -1152,7 +1152,7 @@ cannot carry: channel panning, global volume and unmapped effects.</p>
 libopenmpt renders a module (<code>ffmpeg -i song.xm -ar 44100 ref.wav</code>), and the
 song rendered through <code>demo-audio.wasm</code> should match it second by second. A
 real 1995 S3M, converted, matched at a spectral similarity of 0.995, in tune in
-90 % of the windows. The player's own generated test song (<code>apps/xm_song.mjs</code>,
+90 % of the windows. The player's own generated test song (<code>apps/harness/xm_song.mjs</code>,
 <code>testSong(8)</code> and <code>testSong(12)</code>) is for the harnesses, built in memory: it is not
 shipped as music.</p>
 <p><strong>A tracker module needs a licence that allows bundling it.</strong> The Mod Archive's
@@ -1163,7 +1163,7 @@ permission, and record the source URL, artist and licence in the scene's music
 comment and here.</p>
 <h5 id="music-sndh-player-zig-c-rust-bundled-modules">Bundled modules</h5>
 <p>The XMs the carts ship (music debug key 5, XM TEST keys 1 and 2), each the
-archive's file byte for byte (<code>apps/xm_test_check.mjs</code> holds the md5s):</p>
+archive's file byte for byte (<code>apps/harness/xm_test_check.mjs</code> holds the md5s):</p>
 <table>
 <thead>
 <tr>
@@ -1198,7 +1198,7 @@ archive's file byte for byte (<code>apps/xm_test_check.mjs</code> holds the md5s
 vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
 slide and the volume column's panning slide.</p>
 <p>The klystrack songs (<code>.kt</code>), upstream's example songs (kometbomb/klystrack, MIT, <code>apps/ports/klystrack/data/*.KT</code>
-copied byte for byte with lower-case names). KT TEST (keys 1-4) plays them. <code>apps/kt_test_check.mjs</code> holds the md5s:</p>
+copied byte for byte with lower-case names). KT TEST (keys 1-4) plays them. <code>apps/harness/kt_test_check.mjs</code> holds the md5s:</p>
 <table>
 <thead>
 <tr>
@@ -1282,7 +1282,7 @@ channels, and skips the oscillator reads of a channel nobody hears.</p>
 music.c untouched (from <code>apps/ports/fetch.sh</code>) and renders a song as the klystrack cart plays it;
 <code>tools/kt_render.zig</code> renders the same song with the player; the four bundled songs are byte
 identical for 300 s. The gate pins 45 s of each (<code>libs/zig/players/kt_core_test.zig</code>,
-<code>apps/kt_check.mjs</code>). What "upstream" means where it is not defined:</p>
+<code>apps/harness/kt_check.mjs</code>). What "upstream" means where it is not defined:</p>
 <ul>
 <li>the chorus delay curve is the klystrack cart's integer one (<code>kestrel_chorus.c</code>, within 1/256 of a
   sample of upstream's double <code>sin()</code>), computed when read rather than held as a 4 s table a bus;</li>
@@ -1312,13 +1312,13 @@ castlevania 0.48 (row 98), dpintro 1.28 (row 788: 1.17), starport2 1.03 (row 250
 intro (row 0: five FM-on-wavetable voices at once, 126 %). The synth runs a block at a time between
 sequencer ticks (<code>kt_block.zig</code>), each channel on a copy of its state in a loop built for the
 features it uses; ring modulation or hard sync in effect falls back to a sample at a time.
-<code>apps/kt_cost.mjs</code> ranks the player's code by function without a sim.</p>
+<code>apps/harness/kt_cost.mjs</code> ranks the player's code by function without a sim.</p>
 <h4 id="music-sndh-player-zig-c-rust-sid-commodore-64">SID (Commodore 64)</h4>
 <p><code>zg.requestSong("tune.sid")</code> plays a C64 <strong>PSID</strong> (the HVSC format), in the browser and on BARD:
 cRSID (Mihaly Horvath "Hermit", <code>libs/c/crsid/README.md</code>, credit him) runs the tune's 6502 code and
 the SID in its light engine at 22.05 kHz mono, and <code>libs/zig/players/sid.zig</code> plays it on the four
 Paula channels as MP3 does (a high and a low byte a side), upsampled to 44.1 kHz. BARD runs cRSID as
-native C; the page runs the same C in machine-audio.wasm, and <code>apps/sid_check.mjs</code> holds the two to
+native C; the page runs the same C in machine-audio.wasm, and <code>apps/harness/sid_check.mjs</code> holds the two to
 the same samples. <code>zg.requestSongBytes(bytes, .sid, subtune)</code> plays a .sid the cart holds (op 8,
 kind 6): the path a C64 port takes for the tune on its own disk.</p>
 <p><strong>RSID is refused</strong> ("RSID not supported", status 2): an RSID is a real C64 program whose IRQs and
@@ -1347,7 +1347,7 @@ our own YM2612 and SN76489 (<code>libs/c/ym2612</code>, <code>libs/c/sn76489</co
 hardware documents; <code>libs/c/vgm/README.md</code> has the sources, the limits and the accuracy against the Gens
 core). The chips render at the YM2612's clock / 288 (26,634 Hz NTSC) in stereo; <code>libs/zig/players/vgm.zig</code>
 plays it on the four Paula channels as MP3 does, resampled to 44.1 kHz (that stage is C too, <code>zm_vgm_out.c</code>). BARD runs the C natively; the page
-runs the same C in machine-audio.wasm, and <code>apps/vgm_check.mjs</code> holds the two to the same samples.
+runs the same C in machine-audio.wasm, and <code>apps/harness/vgm_check.mjs</code> holds the two to the same samples.
 <code>zg.requestSongBytes(bytes, .vgm, 0)</code> plays one the cart holds (op 8, kind 7), a <code>.vgz</code> included.</p>
 <p>The file sits whole in song RAM: up to 983,040 bytes (a <code>.vgz</code> and what it inflates to likewise). Played:
 the YM2612 (both ports, the DAC by 0x8n, 0xE0 and the 0x90-0x95 streams, type-0 data blocks), the SN76489
@@ -1386,7 +1386,7 @@ name: the cart owns the bytes. The status word's rate code (bits 4-7): 1 = 32 kH
 <th>Stream</th>
 <th>Samples a frame</th>
 <th>To the chip's 44.1 kHz</th>
-<th>Proof (<code>apps/mp3_check.mjs</code>)</th>
+<th>Proof (<code>apps/harness/mp3_check.mjs</code>)</th>
 </tr>
 </thead>
 <tbody>
@@ -1489,10 +1489,10 @@ the bench image's 2 MiB flash beside the players: 46 KB over.)</p>
 </ul>
 <h4 id="music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</h4>
 <ul>
-<li><code>node apps/sndh_headless.mjs docs/music/&lt;name&gt;.sndh</code> runs an SNDH through the
+<li><code>node apps/harness/sndh_headless.mjs docs/music/&lt;name&gt;.sndh</code> runs an SNDH through the
   real audio modules and reports the subtunes, timers, YM registers and the
   output peak.</li>
-<li><code>node apps/c_music_check.mjs</code> boots the C and Rust carts, polls their request
+<li><code>node apps/harness/c_music_check.mjs</code> boots the C and Rust carts, polls their request
   the way the loader does, and plays it: it must reach SNDH mode with a non-zero
   peak. It runs in <code>./build.sh</code>.</li>
 </ul></div></section>

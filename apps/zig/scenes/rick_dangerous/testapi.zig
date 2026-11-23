@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door (apps/rick_dangerous_headless.mjs), exported by
+// The headless harness's door (apps/harness/rick_dangerous_headless.mjs), exported by
 // rick_dangerous.zig's comptime block in this cart only.
 //
 //   buf(n)          a test buffer from the cart RAM arena (once; the harness

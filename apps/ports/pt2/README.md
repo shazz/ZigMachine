@@ -21,7 +21,7 @@ upstream's `src/smploaders`. The cart is built from upstream commit `d42d5f100f0
     apps/ports/fetch.sh                  # once: upstream at its pin, into apps/ports/upstream
     make -C apps/ports/pt2 link          # build/demo-pt2.wasm (byte-identical to docs/ at the pin)
     make -C apps/ports/pt2 install       # copy it to docs/, repack docs/demo-pt2.zmd (tools/mkdisks.sh)
-    node apps/ports_headless.mjs pt2     # the gate's check: boot, UI pin, DISK OP loads HYBRID.MOD, PLAY
+    node apps/harness/ports_headless.mjs pt2     # the gate's check: boot, UI pin, DISK OP loads HYBRID.MOD, PLAY
 
 Every upstream source is mirrored into `build/gen/` and patched there by `patches/<file>.sed` (a patch
 must change its file, or the build stops). `make EXTRA=-DKESTREL_AUTOLOAD=RONKEN.MOD link` builds a test
@@ -56,7 +56,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
   Row 0 of a folder is `..` (it leads up to `/C`, or to `/` from C:'s root).
 - Modules and samples are read from C: as from the floppy. Saving to C: is not built yet: SAVE MODULE and
   SAVE SAMPLE go through `askBox`, whose modal loop never returns on a cart.
-- `node apps/ports_cdrive_check.mjs pt2`: a copy of docs/gemdos-c.img with `HD/MODS/GLENZ.MOD` (the
+- `node apps/harness/ports_cdrive_check.mjs pt2`: a copy of docs/gemdos-c.img with `HD/MODS/GLENZ.MOD` (the
   floppy's HYBRID.MOD bytes); DISK OP types `/C/MODS`, row 1 loads GLENZ.MOD, and the frame equals the floppy's
   HYBRID.MOD loaded (`--break c|bytes|list` must fail).
 
@@ -71,7 +71,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
 - KESTREL board (2 Nov, before fix/pt2-board): 28 fps idle, 10-13 playing (the double-precision Paula). Since
   fix/pt2-board: an integer Paula (`kestrel_paula.c`, no BLEP, no ~5 Hz high-pass; 24 kHz mono), the audio
   fed by real time (`hostMicros`, `../kestrel_sdl2/include/kestrel_audio.h`), the pointer reaching the
-  borders (glass) and Right Alt (play song) its own key code 0xE018. `apps/frame_cost.mjs` estimates
+  borders (glass) and Right Alt (play song) its own key code 0xE018. `apps/harness/frame_cost.mjs` estimates
   2.6 Mc idle (was 3.9) and ~4.5 playing (was 9.9): to measure on the board. The idle UI (2.6 Mc against a
   1.67 Mc frame) was the 320x255 recolour in `present()`, bound by reading pt2's ARGB frame buffer (a D$ miss
   every 8 pixels).

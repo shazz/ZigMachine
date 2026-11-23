@@ -17,7 +17,7 @@ const logo = @import("stcs_logo.zig");
 
 pub const N = 48;
 /// Palette entries 32..34 (free: the font is 0..15, the logo 17..31), by speed:
-/// cold blues no font, logo or raster colour uses (apps/stcs_zig_headless.mjs
+/// cold blues no font, logo or raster colour uses (apps/harness/stcs_zig_headless.mjs
 /// tells the stars by them).
 pub const BASE: u8 = 32;
 pub const colours = [3]zg.Color{

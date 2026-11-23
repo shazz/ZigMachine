@@ -7,7 +7,7 @@
 // Every table, seed, increment and palette is the program's own
 // (rno_sodium/assets.zig); a Python model of the disassembly reproduces the
 // original's screen bytes, and this port was checked against Hatari RAM
-// snapshots of the real thing (apps/rno_sodium_headless.mjs).
+// snapshots of the real thing (apps/harness/rno_sodium_headless.mjs).
 //
 // WHAT IS ON SCREEN, part by part (C = frames since the music started):
 //      1..384   PO·RNO: a 256x256 logo wobbling per line, ghosted over four

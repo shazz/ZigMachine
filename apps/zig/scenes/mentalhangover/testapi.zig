@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the circle screen (apps/mentalhangover_headless.mjs).
+// The headless harness's door into the circle screen (apps/harness/mentalhangover_headless.mjs).
 // Pulled in only when this scene IS the cart, so the exports never leak into
 // another cart's build.
 //

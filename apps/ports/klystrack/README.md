@@ -18,14 +18,14 @@ songs. Ours (MIT, as the repo): every `kestrel_*` file, `mkbundle.py`, `patches/
     apps/ports/fetch.sh
     make -C apps/ports/klystrack link             # build/demo-klystrack.wasm (byte-identical to docs/ at the pin)
     make -C apps/ports/klystrack install          # copy it to docs/, repack docs/demo-klystrack.zmd (tools/mkdisks.sh)
-    node apps/ports_headless.mjs klystrack        # the gate's check: boot, UI pin, F5 plays STARPRT2.KT, Esc quits to GEM
-    node apps/klystrack_cost.mjs                  # the gate's repaint-cost ceilings (frame_cost est, playing and menu)
+    node apps/harness/ports_headless.mjs klystrack        # the gate's check: boot, UI pin, F5 plays STARPRT2.KT, Esc quits to GEM
+    node apps/harness/klystrack_cost.mjs                  # the gate's repaint-cost ceilings (frame_cost est, playing and menu)
     node apps/ports/klystrack/run.mjs 240         # from the repo root: headless run, PNGs in build/
     KEYS="30,57349" AUDIO=1 node ...run.mjs 240       # F5 (0xE005) at frame 30 = play; writes build/audio.wav
     CLICKS="30,270,87" node ...run.mjs 120            # click PLAY (klystrack 320x240 coordinates)
     CART=other.wasm node ...run.mjs 240               # the same run on another build (before/after)
     make -C apps/ports/klystrack names            # build/names/demo-klystrack.wasm: the cart with function names
-    node apps/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd
+    node apps/harness/frame_cost.mjs apps/ports/klystrack/build/names/demo-klystrack.wasm --disk docs/demo-klystrack.zmd
                                                   # board cost per frame; add --call 30:key:57349 --call 33:keyUp:57349
                                                   # to play (F5), or --warmup 0 --frames 1 for boot()
 
@@ -127,7 +127,7 @@ when the card has an HD folder (docs/os/KOS_GEMDOS.md §5). Path convention:
   `kestrel_getcwd`, as grafx2).
 - Songs and instruments open off C: as off the floppy. Saving to C: is not built yet (klystrack's save goes
   through the same fopen; to be proven with the write calls, docs/os/KOS_GEMDOS_WRITES.md).
-- `node apps/ports_cdrive_check.mjs klystrack`: a copy of docs/gemdos-c.img with `HD/SONGS/STARPORT.KT` (the
+- `node apps/harness/ports_cdrive_check.mjs klystrack`: a copy of docs/gemdos-c.img with `HD/SONGS/STARPORT.KT` (the
   floppy's STARPORT2.KT bytes); the box opens C, SONGS, STARPORT.KT, and the frame equals the floppy's
   STARPORT2.KT opened the same way (`--break c|bytes|list` must fail).
 
@@ -173,7 +173,7 @@ second of song time and re-sent from the row playing (the voices restart there).
 enables (cyd here keeps one). Keyjazz while a handed-over song plays is silent.
 `make EXTRA=-DKESTREL_NO_BARD` builds the cart with cyd as before.
 
-`apps/frame_cost.mjs` while playing STARPRT2.KT (est Mc a frame, frames 121-180): 34.1 with cyd ->
+`apps/harness/frame_cost.mjs` while playing STARPRT2.KT (est Mc a frame, frames 121-180): 34.1 with cyd ->
 23.8 with the hand-over (cart 9.6 -> 5.3, I$ misses 23.8 -> 17.9): the rest is the UI's 30 Hz repaint
 (SDL_RenderCopy / RenderPresent / colour_index), the next lever.
 
@@ -182,7 +182,7 @@ enables (cyd here keeps one). Keyjazz while a handed-over song plays is silent.
 Matt's board: 5 fps while a song plays, and also with the song stopped while a menu is open: any full repaint.
 klystron redraws its whole UI on every repaint (30 a second while a song plays, every event while a menu is
 open), and on the board once a frame takes longer than 33 ms the 30 Hz tick is due every frame, so the fps is
-~100 / (Mc of one repaint). `apps/frame_cost.mjs`, est Mc (STARPRT2 playing: frames 121-180; menu: the right
+~100 / (Mc of one repaint). `apps/harness/frame_cost.mjs`, est Mc (STARPRT2 playing: frames 121-180; menu: the right
 button held, the pointer moving every frame, frames 166-225, every frame a repaint; the worst case):
 
 | | before (main 14dcbbe1) | after |
@@ -230,7 +230,7 @@ and the chorus is allocated as before; they come back when 600 KB are free again
 
 Round 1 on the board: playing 11-13 fps (cart 6.3-8.9 Mc), idle 60. A repaint still made ~2,500 draw calls
 (~400 rv32 instructions each to record and compare), though nearly all drew what they drew the frame before.
-`apps/klystrack_cost.mjs` (frame_cost est Mc, same windows as round 1):
+`apps/harness/klystrack_cost.mjs` (frame_cost est Mc, same windows as round 1):
 
 | | round 1 | round 2 |
 |---|---|---|
@@ -454,7 +454,7 @@ frame_cost est (Mc a frame, frames 161-220):
 
 The same pixels: `hashes.sh` (16 scenarios, now with editpat and inst_editpat, Edit > Pattern's items crossed
 over the pattern and the instrument tabs) round 5 against round 6: identical in every frame. The gate
-(`apps/klystrack_cost.mjs`) checks Edit > Pattern over the instrument tab: one item <= 1.6, crossing items while
+(`apps/harness/klystrack_cost.mjs`) checks Edit > Pattern over the instrument tab: one item <= 1.6, crossing items while
 playing mean <= 4.5.
 
 ## What's left
@@ -469,7 +469,7 @@ playing mean <= 4.5.
   AmsterdamBoppe, StarChips, dr.happy, smp_dingleberries_fix). Lazily allocated pattern steps would lift the cap.
 - KESTREL board (2 Nov): 7.3 fps. cyd mixes at 22.05 kHz without oversampling now (`patches/cyd.c.sed`,
   `mused.c.sed`: upstream's 4x, which `cyd_init` set after the config was applied), ~13,000 cycles a sample
-  (`apps/frame_cost.mjs`; ~16,000 at 4x): more than real time leaves. The feed is capped at 2 frames of audio
+  (`apps/harness/frame_cost.mjs`; ~16,000 at 4x): more than real time leaves. The feed is capped at 2 frames of audio
   a frame so the UI keeps its rate; the song plays slow on the board until cyd fits the budget.
 - perf/ports-synth (frame_cost, STARPORT2 playing): est 47.5 -> 34.8 Mc a frame (cart 13.96 -> 9.81), idle
   33.6 -> 24.9 (cart 8.87 -> 6.68). UI: the renderer's indexed fast path and word presents (RenderCopy ~6.3 ->
@@ -479,9 +479,9 @@ playing mean <= 4.5.
   real time at 22.05 kHz: per sample, 8 channels of cyd (oscillators, wavetable, FM, ADSR, filter, stepping: ~9,900),
   2 reverb buses of 16 taps reading 345 KiB delay lines (~2,200, D$ misses) and the chorus (~300). What would fit: fewer
   channels or FX taps a song, cyd at a lower rate, or cyd on BARD. The 33 ms cap stays.
-- Registered (catalog, disk, `apps/ports_headless.mjs` in build.sh) on 2 Nov 2026.
+- Registered (catalog, disk, `apps/harness/ports_headless.mjs` in build.sh) on 2 Nov 2026.
 - perf/klystrack-board (2 Nov; Matt's board: 5-6 fps idle, OSD cart_c 19.9 Mc doing nothing, ~11 s to the first
-  picture). `apps/frame_cost.mjs`, est Mc a frame (cart part in brackets), same tool and windows before/after:
+  picture). `apps/harness/frame_cost.mjs`, est Mc a frame (cart part in brackets), same tool and windows before/after:
 
   | | before | after |
   |---|---|---|
@@ -497,7 +497,7 @@ playing mean <= 4.5.
   ARGB -> 8-bit convert, printf) plus cyd at ~12,500 cycles a sample (2.7x real time at 22.05 kHz), so the song
   still plays slow on the board and the UI is ~3-5 fps while it plays. Next: an 8-bit renderer target (textures are
   already indexed, the UI ~32 colours: draw straight into the plane, no present), and cyd itself (BARD, or
-  fewer channels / taps). The gate (`apps/ports_headless.mjs klystrack`) now also moves the pointer over the idle
+  fewer channels / taps). The gate (`apps/harness/ports_headless.mjs klystrack`) now also moves the pointer over the idle
   UI (`--break pointer`) and presses F5 only after cyd has gone quiet. A keyjazz note ('z') after cyd went quiet sounds as
   before (gate set at trigger, peak |s8| 9 on both builds). Disk: boot() reads 1,397 blocks (715 KB, ~3x the 245 KB
   floppy; theme bundle and song re-read) through the one-block cache: ~2 Mc of copying in the cart, the firmware's

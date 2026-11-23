@@ -70,5 +70,5 @@ trusts alignment and emulates the rare exception (what `trap.c` does, and what
 an SBI does) is the realistic board build. `ZM MIS` counts the exceptions.
 
 Every variant prints the scene_hash JSON for its sampled frames, and the report
-calls a run `ok` only if those hashes equal BOTH `apps/scene_hash.mjs`'s and the
+calls a run `ok` only if those hashes equal BOTH `apps/harness/scene_hash.mjs`'s and the
 native host's for the same frames. Hashing runs untimed (IDLE).

@@ -61,7 +61,7 @@ below).
 | tcb_spreadpoint | TCB SPREADPOINT | matches `tcb_spreadpoint.zig:2`: `THE CAREBEARS -- THE SPREADPOINT DEMO, from The Cuddly Demos` |
 | swedish_newyear | SWEDISH NEW YEAR | `swedish_newyear.zig:1-5` credits four groups (SYNC, AN COOL, TCB, OMEGA) for one multi-part disk — no single group fits, and the production's own title is the only accurate short name |
 | rick_dangerous | RICK DANGEROUS | matches `rick_dangerous.zig:2`: `RICK DANGEROUS -- Core Design / Firebird 1989` — game title |
-| union_intro_screen | UNION DEMO | **must not change**: `apps/union_demo_doors_check.mjs:91` hardcodes a regex match on `.name = "UNION DEMO"` to find this entry's tag; the name is already accurate (the demo's opening splash) |
+| union_intro_screen | UNION DEMO | **must not change**: `apps/harness/union_demo_doors_check.mjs:91` hardcodes a regex match on `.name = "UNION DEMO"` to find this entry's tag; the name is already accurate (the demo's opening splash) |
 | automation442 | AUTOMATION 442 | matches `automation442.zig` header (AUTOMATION disk-mag issue 442, part A); already short and accurate |
 | pt2 | PT2-CLONE (C) | the program's own name (`apps/ports/pt2`, upstream README: "pt2-clone"), a desktop program, not a demo; `(C)` marks a C port as for FUJIBOINK (C) |
 | grafx2 | GRAFX2 (C) | the program's own name (`apps/ports/grafx2`, upstream README: "GrafX2") |

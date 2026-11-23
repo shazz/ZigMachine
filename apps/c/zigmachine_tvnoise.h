@@ -9,7 +9,7 @@
 // This is that snow, BYTE-FOR-BYTE: libs/zig/tvnoise/tvnoise.zig's xorshift32,
 // ramp, rolling band and tear lines, with demo_main's seed, first index and plane
 // setup (a 400x280 overscan plane 0, borders flickered open on every line, its
-// buffer where resetForScene + openBorders put it). apps/tunein_check.mjs proves
+// buffer where resetForScene + openBorders put it). apps/harness/tunein_check.mjs proves
 // the pixels and palette match a Zig cart's frame for frame.
 //
 // Unlike demo_main, which starts the cart AFTER the snow, a C cart has already

@@ -67,7 +67,7 @@ const Engine = chunky.Engine(ChiselGpu);
 // two-tune image: Mad_Max/Games/Rollout.sndh (the Games/SID/ variant is
 // ~abdy STE-DMA and plays SILENCE here, the exact trap
 // replicants_emlyn documented). Subtune 1 is "Tune 1", the side the demo
-// carries; apps/sndh_headless.mjs PASSes both subtunes on the sealed YM.
+// carries; apps/harness/sndh_headless.mjs PASSes both subtunes on the sealed YM.
 const MUSIC = "lockbuster2_rollout.sndh";
 const MUSIC_TUNE: u8 = 1;
 

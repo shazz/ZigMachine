@@ -64,7 +64,7 @@ pub fn drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) v
    than clipping.
 
 Hazard 1 is a straight fix. Changing 2 or 3 shifts existing callers, so it needs
-a before/after framebuffer hash of every scene (`apps/scene_hash.mjs`).
+a before/after framebuffer hash of every scene (`apps/harness/scene_hash.mjs`).
 
 ---
 
@@ -222,9 +222,9 @@ not a bug to fix.
 
 ---
 
-## `apps/verify.mjs` fails a CORRECT polyglot cart
+## `apps/harness/verify.mjs` fails a CORRECT polyglot cart
 
-**Where:** `apps/verify.mjs:81-86`
+**Where:** `apps/harness/verify.mjs:81-86`
 **Found:** while porting CODEF 34 to C
 
 The polyglot gate asserts that palette entry 0 is opaque and samples only
@@ -263,7 +263,7 @@ because every packed scene widens the error.
 ## Headless "frame cost" reports JIT warm-up, not frame cost
 
 **Where:** the `frame cost:` line in the `apps/*_headless.mjs` harnesses
-(e.g. `apps/replicants_garfield_headless.mjs`)
+(e.g. `apps/harness/replicants_garfield_headless.mjs`)
 **Found:** 2026-09-12
 
 The timed run starts cold, so the number includes V8 warm-up: ~1.0 ms cold
@@ -304,7 +304,7 @@ that believes the comment lays out its buffer at half the stride.
 5. `docs/guide/FLOPPY_DISK.md` still says *"Status: MVP working… Still to do:
    FAT/multi-file, disk-browser menu, block streaming"*. **All three exist.**
    The disk shelf has a FAT, GEM browses it, and block streaming is gated by
-   `apps/stream_pacing_check.mjs`. A newcomer reads that and concludes the
+   `apps/harness/stream_pacing_check.mjs`. A newcomer reads that and concludes the
    machine cannot do what it demonstrably does.
 6. **ZigOS's module-level functions are documented NOWHERE.** `requestSong`,
    `requestSongTune`, `stopSong`, `readBlock`, `audioStreamStart/Feed/Stop`,
@@ -360,7 +360,7 @@ first.
 The fix belongs in the effect runner / tuneIn: restore the background on the
 LAST effect frame rather than leaving it for the first cart frame. Then update
 the harnesses that currently ALLOW the k=1 border diff
-(`apps/tunein_check.mjs:203`), or they will go on passing either way.
+(`apps/harness/tunein_check.mjs:203`), or they will go on passing either way.
 
 ---
 

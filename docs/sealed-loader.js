@@ -17,7 +17,7 @@
 // VRAM + PFB + the 2 MiB ROM window (8 MiB). Raising it is a BREAKING change for carts
 // packed against the old value — a cart declares the imported memory's
 // initial/max, so it refuses a memory bigger than its max. Repack with
-// tools/mkdisks.sh (node apps/disk_check.mjs catches it).
+// tools/mkdisks.sh (node apps/harness/disk_check.mjs catches it).
 const SHARED_PAGES = 128;
 
 // Cache-bust every wasm fetch with the page-load time, so a rebuilt .wasm is

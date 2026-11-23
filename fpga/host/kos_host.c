@@ -1,4 +1,4 @@
-/* KOS's power-on in the native host: kos_host.h. Step for step apps/scene_hash_kos.mjs. */
+/* KOS's power-on in the native host: kos_host.h. Step for step apps/harness/scene_hash_kos.mjs. */
 #include "kos_host.h"
 
 #include <stdio.h>

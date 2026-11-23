@@ -2,7 +2,7 @@
 # native C64 program on its own libcRSID C64), with a host of ours (kestrel_sw*.c) for the machine. README.md.
 # Upstream's files are vendored in upstream/ (unchanged; README.md "Provenance"): every one is mirrored into
 # build/gen/ and patched there by patches/<path with / as __>.sed when one exists (a patch must change its file).
-#   make link | make names | make install | make clean | make cputest OUT=build/cputest (apps/sidwizard_cpu_check.mjs)
+#   make link | make names | make install | make clean | make cputest OUT=build/cputest (apps/harness/sidwizard_cpu_check.mjs)
 ZIG    ?= $(HOME)/.local/zig/0.16.0/zig
 WABT   ?= ../../../fpga/.tools/wabt/bin
 OUT    := build
@@ -81,13 +81,13 @@ $(OUT)/gemdos.o: $(wildcard $(GEMDOS)/gemdos*.zig $(GEMDOS)/fat*.zig)
 $(OUT)/demo-sidwizard.wasm: $(OBJS)
 	$(ZIG) cc $(CFLAGS) $(LDFLAGS) $^ -o $@
 	@echo "imports (must all be env.*):"; $(WABT)/wasm-objdump -x -j Import $@ | grep -o '<- [^ ]*' | sort | uniq -c
-# The same cart with its function names, for apps/frame_cost.mjs and tools/perf_audit.sh
+# The same cart with its function names, for apps/harness/frame_cost.mjs and tools/perf_audit.sh
 names: $(OUT)/names/demo-sidwizard.wasm
 $(OUT)/names/demo-sidwizard.wasm: $(OBJS)
 	@mkdir -p $(dir $@)
 	$(ZIG) cc $(CFLAGS) $(filter-out -Wl$(comma)--strip-debug,$(LDFLAGS)) $^ -o $@
 comma := ,
-# The cart whose boot first runs kestrel_sw_cpu_test.c (the fast 6502 against libcRSID's): apps/sidwizard_cpu_check.mjs.
+# The cart whose boot first runs kestrel_sw_cpu_test.c (the fast 6502 against libcRSID's): apps/harness/sidwizard_cpu_check.mjs.
 # Give it its own OUT; CPUTEST_EXTRA=-DSW_CPU_BREAK plants the check's --break.
 cputest:
 	$(MAKE) link EXTRA="-DSW_CPU_TEST $(CPUTEST_EXTRA)"

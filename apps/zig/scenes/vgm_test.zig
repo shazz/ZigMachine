@@ -16,7 +16,7 @@
 //   4  stop
 //   5-7  LOCAL Sonic 1 tunes (docs/music/sonic1_*.vgm, never committed): "NOT ON THIS MACHINE" without them
 // Mode 7 (no key) asks for garbage bytes as a VGM, which the player refuses: the
-// harness's check (apps/vgm_test_check.mjs). On the board the screen shows BARD's
+// harness's check (apps/harness/vgm_test_check.mjs). On the board the screen shows BARD's
 // load (zg.mp3Status(.load): per mille of BARD, a second's mean of its renders,
 // the OSD's figure); the page has none.
 // --------------------------------------------------------------------------

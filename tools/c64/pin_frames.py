@@ -2,7 +2,7 @@
 
 The image is VICE's 384x272 view (raster lines 16..287), one byte per pixel = the colodore
 palette index (capture.py runs VICE with the neutral colour pipeline, so every pixel IS a
-palette entry). apps/c64_1988_headless.mjs hashes the cart's composite the same way: these
+palette entry). apps/harness/c64_1988_headless.mjs hashes the cart's composite the same way: these
 are its pinned references. Prints a JS object literal."""
 import hashlib
 import os

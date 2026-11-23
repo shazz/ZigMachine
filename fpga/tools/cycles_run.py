@@ -52,7 +52,7 @@ def references(tag: str, frames: int, every: int, disk: bool = False) -> None:
     args = [f"docs/demo-{tag}.wasm", str(frames), str(every)]
     zmd = shelf_disk(tag) if disk else None
     args += ["--disk", str(zmd)] if zmd else []
-    for name, cmd in (("js", ["node", "apps/scene_hash.mjs"]), ("native", [str(FPGA / f"build/host/{tag}/host")])):
+    for name, cmd in (("js", ["node", "apps/harness/scene_hash.mjs"]), ("native", [str(FPGA / f"build/host/{tag}/host")])):
         out = ref / f"{tag}.{frames}.{every}.{name}{'+disk' if disk else ''}.json"
         if not out.exists():
             with out.open("w") as f:

@@ -195,12 +195,12 @@ colodore (VICE's `colodore.vpl`), C64 colour c at index c + 1.
   for store.
 - **The VIC model alone** (`tools/c64/t64_snap.zig` on VICE's own memory and traces): every
   static frame identical; the racing ones too once VICE's traced stores are fed in at their cycle.
-- **The cart through the machine**: `apps/c64_transmission64_headless.mjs` pins C64 frames from
+- **The cart through the machine**: `apps/harness/c64_transmission64_headless.mjs` pins C64 frames from
   every part to VICE's SHA-256; side by side shots in `compare/`.
 
 ### Cost on KESTREL
 
-`apps/frame_cost.mjs` (estimates, 60-frame windows): part 1 **1.54 Mc** a frame (p95 1.96),
+`apps/harness/frame_cost.mjs` (estimates, 60-frame windows): part 1 **1.54 Mc** a frame (p95 1.96),
 part 2 **1.28** (p95 2.15, the colour-copy frames), part 3 dots **1.57**, panel **1.35**: ~60 fps,
 0.7 Mc of each the one plane's FRESCO compositing. What got it there (from 2.1 Mc on parts 1-2):
 the zig-reviewer pass (u32 line rendering instead of 64-bit ops, a fast path in the clock, one

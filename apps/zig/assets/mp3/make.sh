@@ -18,7 +18,7 @@ enc TONES32.MP3 32000 2 96 4 "Tones 32 kHz stereo"
 enc TONES48.MP3 48000 2 128 4 "Tones 48 kHz stereo"
 enc MONO44.MP3 44100 1 64 4 "Tones 44.1 kHz mono"
 # MPEG-2 / 2.5 (LSF) streams, 576 samples a frame: a pure 1000 Hz sine left (1500 Hz right when stereo),
-# so a check can read the pitch back (apps/mp3_check.mjs). Mono is the 1000 Hz tone alone.
+# so a check can read the pitch back (apps/harness/mp3_check.mjs). Mono is the 1000 Hz tone alone.
 lsf() { # <file> <rate> <channels> <kbps> <seconds> <title>
     local ex="0.5*sin(2*PI*1000*t)"
     [ "$3" = 2 ] && ex="$ex|0.5*sin(2*PI*1500*t)"

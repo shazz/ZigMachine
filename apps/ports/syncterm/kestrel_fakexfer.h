@@ -10,7 +10,7 @@ enum { XF_XMODEM = 'X', XF_YMODEM = 'Y', XF_YMODEM2 = 'W', XF_CANCEL = 'K' };
 struct xfer { int kind, st, blk, last, variant, len, cans; uint8_t buf[1030]; };
 
 /* The file the BBS offers: byte i = (i * 167 + 13 + 41 * variant) & 255, with CR NUL 255 255 at 300 (what telnet
- * would mangle without binary mode and IAC doubling); apps/syncterm_download.mjs builds the same bytes. */
+ * would mangle without binary mode and IAC doubling); apps/harness/syncterm_download.mjs builds the same bytes. */
 uint8_t kestrel_xfer_byte(int variant, int i);
 /* Begin a send of `kind` (XF_*); the sender then waits for the receiver's 'C'. */
 void kestrel_xfer_start(struct xfer *x, int kind);

@@ -10,7 +10,7 @@
 // Key 1 enters the desk again, key 2 leaves it for a low-res plane (a different picture on the
 // same buffer). Both redraw once, so the cart costs nothing a frame. Where the machine has no
 // desk mode (an older board bitstream: hwDeskAvailable() = 0) it stays low-res and says so.
-// apps/desk_check.mjs checks the pixels; desk_test/picture.zig is the picture both share.
+// apps/harness/desk_check.mjs checks the pixels; desk_test/picture.zig is the picture both share.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const pic = @import("desk_test/picture.zig");

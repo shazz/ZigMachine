@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into PHENOMENA (apps/phenomena_headless.mjs):
+// The headless harness's door into PHENOMENA (apps/harness/phenomena_headless.mjs):
 // every state word the sequence and the scroller touch. Pulled in only when
 // this scene IS the cart (phenomena.zig checks cart.Cart), so these exports
 // never leak into another cart's build. Pixels are read from the machine's

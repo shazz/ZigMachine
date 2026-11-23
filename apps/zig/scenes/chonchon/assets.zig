@@ -18,7 +18,7 @@
 //   meter-raw.bin    the meter bar mask (plane-0 words, 160 bytes/row)
 //   logo.idx         96 x 1071 logo-bank.png indices (R=idx*17, alpha 0 = 0)
 //   (music.seq, the YM6 register stream as per-frame deltas, is NOT embedded:
-//   the cart plays rollout.sndh; only apps/chonchon_headless.mjs reads it)
+//   the cart plays rollout.sndh; only apps/harness/chonchon_headless.mjs reads it)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 

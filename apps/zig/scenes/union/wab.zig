@@ -116,7 +116,7 @@ pub const Part = struct {
         _ = dt;
         const p0: *LogicalFB = &zigos.lfbs[0];
         // From ENDVBL every tile is at rest, unturned, at full alpha: the whole logo,
-        // exactly (apps/union_intro_wab_check.mjs proves those frames are wab.raw).
+        // exactly (apps/harness/union_intro_wab_check.mjs proves those frames are wab.raw).
         // It is drawn ONCE; the fade after it only scales the palette.
         if (self.phase == .fade or self.frame >= wt.ENDVBL) {
             if (self.shown == .logo) return;

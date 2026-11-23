@@ -1,5 +1,5 @@
 """Our own single-feature VGMs (libs/c/vgm/README.md): each exercises one part of the chips, for the
-local Gens comparison and the harness's hashes and --break tests (apps/vgm_check.mjs).
+local Gens comparison and the harness's hashes and --break tests (apps/harness/vgm_check.mjs).
 
     python3 libs/c/vgm/test_vgms.py <out dir>      writes <name>.vgm for every test below
 """

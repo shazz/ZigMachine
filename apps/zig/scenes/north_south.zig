@@ -6,7 +6,7 @@
 // matches the real battle on every frame of 13 scripted battles (state, screen
 // and sound). This port is a transcription of that model: the battle's state
 // IS the game's own RAM (north_south/mem.zig), every routine keeps the 16-bit
-// widths, wraps and RNG of the original, and apps/north_south_headless.mjs
+// widths, wraps and RNG of the original, and apps/harness/north_south_headless.mjs
 // replays the scripts through the cart and compares every frame with it.
 //
 // Only the battle: the strategic map is out of scope, so a small front page

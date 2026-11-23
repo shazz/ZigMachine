@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// The headless harness's door into the game (apps/bubblebobble_headless.mjs):
+// The headless harness's door into the game (apps/harness/bubblebobble_headless.mjs):
 // power on, run whole 50 Hz frames in lockstep with scripted input, read the
 // machine back (RAM, the shown screen, the palette, the counters that must
 // stay 0). Pulled in only when this scene IS the cart.

@@ -25,7 +25,7 @@ class ParseRealFile(unittest.TestCase):
         self.assertEqual(plain, ["before-you-start", "kestrel-only-hello-world-in-native-c-and-rv32-assembly", "where-next"])
 
     # Steps 1-7 are the buildable core: every one ships Zig, C and Rust, and
-    # apps/tutorial_steps_check.mjs fingerprints their carts (LAST_STEP = 7).
+    # apps/harness/tutorial_steps_check.mjs fingerprints their carts (LAST_STEP = 7).
     # Step 8 is prose. Steps 9+ are reference steps with no carts behind them
     # (RUNNABLE_THROUGH in tutorial_render.py gives them no Run button), and one
     # of them is deliberately Zig-only.

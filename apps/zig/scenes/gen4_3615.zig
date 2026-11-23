@@ -35,7 +35,7 @@
 // (gen4_3615/rasters.zig), their colours on the ST register grid rather than
 // the browser's #RGB x17. Every table and increment is screen.js's own; the
 // frame matches the remake run in Chrome at canvas (2X, 2Y), those colours
-// aside — apps/gen4_3615_headless.mjs replays screen.js and compares.
+// aside — apps/harness/gen4_3615_headless.mjs replays screen.js and compares.
 //
 // No depacker intro to skip: screen.js starts on the screen itself.
 // --------------------------------------------------------------------------

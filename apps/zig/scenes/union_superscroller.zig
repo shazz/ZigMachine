@@ -18,7 +18,7 @@
 // back and overlay blend in 16ths while they move. Those blends are exact per
 // line through a line palette (linepal.zig): 80 entries a line, 56 the most any
 // line needs. The JS replay of screen.js with that filtering matches Chrome at
-// 0 px on 29 frames (apps/union_superscroller_replay.mjs).
+// 0 px on 29 frames (apps/harness/union_superscroller_replay.mjs).
 //
 // Loading: the remake's TEX loader panel (loader.js) is the real depack here:
 // superscroller.bin ships ZX0-packed with fx = tex_loader and that panel. The

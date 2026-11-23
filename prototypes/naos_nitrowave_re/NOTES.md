@@ -72,7 +72,7 @@ looked like a timing bug in the model for an hour.
   are static: 15 star pixels (bottom_rows.py), drawn as measured.
 - **Verified**: menu_model.py vs Hatari (frameskip 0): 1100 consecutive frames
   pixel-exact (cmp_menu.py, CAPDIR=m3, sync capture 1276 = model frame 0).
-  The Zig port vs Hatari: apps/naos_nitrowave_headless.mjs, 12 frames exact.
+  The Zig port vs Hatari: apps/harness/naos_nitrowave_headless.mjs, 12 frames exact.
 
 ## Oracle: the original code on Musashi
 
@@ -185,7 +185,7 @@ Port (best effort, Matt 2026-10-02: "something looking like the real thing"):
   only the colours before the switch, which repeat). Hatari's first ~4 frames
   are still the title: the harness compares from frame 5.
 - Display: real per-row palettes from the plane HBL, every Timer B change at
-  its nominal line. Zig vs Hatari (apps/naos_nitrowave_f1.mjs): title exact,
+  its nominal line. Zig vs Hatari (apps/harness/naos_nitrowave_f1.mjs): title exact,
   frames 5..500 99.66..99.84% of the plane's pixels; another figure ~82%.
 - Figure = (menu VBLs at the key >> 1) & 3; title shown 747/748/672/594 VBLs,
   silent; Robocop_Tune_2 #1 from the main loop (ymcheck 1.000 @ -2).

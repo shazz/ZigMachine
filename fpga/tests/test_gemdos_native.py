@@ -1,11 +1,11 @@
 """KOS GEMDOS in the native host (docs/os/KOS_GEMDOS.md §6): GrafX2 (wasm2c'd, as the board runs it) with
 docs/gemdos-c.img as C: (--c-image) and its floppy in the drive (--disk) equals scene_hash.mjs frame for frame through the session
-apps/gemdos_grafx2_check.mjs drives: F3, Select drive, /C, PICTURES, PLASMA, ZIGPLASM.PI1 loaded. Both
-hosts serve C: by the same rules (fpga/host/disk.h host_kos_drive_read, apps/scene_hash_disk.mjs), and
+apps/harness/gemdos_grafx2_check.mjs drives: F3, Select drive, /C, PICTURES, PLASMA, ZIGPLASM.PI1 loaded. Both
+hosts serve C: by the same rules (fpga/host/disk.h host_kos_drive_read, apps/harness/scene_hash_disk.mjs), and
 the same GEMDOS (rom/kos/gemdos*.zig, linked in the cart) answers in both. The picture loaded off C:
 equals the floppy's own copy loaded (as in the harness), and a host with no C: never gets there.
 
-Phase 2 (docs/os/KOS_GEMDOS.md §7): GrafX2 SAVES the picture as C:\\PICTURES\\NEW.PI1 (apps/gemdos_grafx2_save.mjs's
+Phase 2 (docs/os/KOS_GEMDOS.md §7): GrafX2 SAVES the picture as C:\\PICTURES\\NEW.PI1 (apps/harness/gemdos_grafx2_save.mjs's
 session) in both hosts: the same frames, and the two C: images afterwards are byte-identical (the native
 host's KFS, wasm2c'd from docs/kos-cfs.wasm, wrote through --c-image-rw; the page's into --c-out), with
 NEW.PI1 the floppy's picture byte for byte (mtools, when installed).
@@ -29,7 +29,7 @@ PICTURE = ROOT / "apps/ports/grafx2/ownpics/ZIGPLASMA.PI1"
 
 
 def press(f: int, x: int, y: int, twice: bool = False) -> list[tuple[int, str]]:
-    """apps/gemdos_grafx2_check.mjs's click / twice: pointer() takes the window's x, doubled."""
+    """apps/harness/gemdos_grafx2_check.mjs's click / twice: pointer() takes the window's x, doubled."""
     steps = [(f - 1, 0), (f, 1), (f + 1, 0), (f + 3, 1), (f + 4, 0)] if twice else [(f - 1, 0), (f, 1), (f + 6, 0)]
     return [(sf, f"pointer:{x * 2},{y},{b}") for sf, b in steps]
 
@@ -62,7 +62,7 @@ def both(*args: str) -> list[str]:
     subprocess.run([*lock_argv(), "make", "-s", "memmap", "build/host/grafx2/host"], cwd=FPGA, check=True, capture_output=True)
     common = ["340", "30", "--disk", DISK, *args]  # the program GEM launched, its floppy in the drive
     nat = hashes([str(FPGA / "build/host/grafx2/host"), "grafx2", *common])
-    js = hashes(["node", "apps/scene_hash.mjs", "docs/demo-grafx2.wasm", *common])
+    js = hashes(["node", "apps/harness/scene_hash.mjs", "docs/demo-grafx2.wasm", *common])
     assert nat == js
     return nat
 
@@ -83,7 +83,7 @@ def test_grafx2_saves_a_picture_to_c_in_both_hosts_alike() -> None:
         shutil.copy(C_IMAGE, nat_img)
         common = ["600", "30", "--disk", DISK, *calls(SAVE)]
         nat = hashes([str(FPGA / "build/host/grafx2/host"), "grafx2", *common, "--c-image-rw", str(nat_img)])
-        js = hashes(["node", "apps/scene_hash.mjs", "docs/demo-grafx2.wasm", *common, "--c-image", C_IMAGE, "--c-out", str(js_img)])
+        js = hashes(["node", "apps/harness/scene_hash.mjs", "docs/demo-grafx2.wasm", *common, "--c-image", C_IMAGE, "--c-out", str(js_img)])
         assert nat == js
         assert nat_img.read_bytes() == js_img.read_bytes()  # the same KFS wrote the same sectors
         assert nat_img.read_bytes() != Path(C_IMAGE).read_bytes()  # ...and it wrote some

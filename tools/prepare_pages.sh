@@ -25,7 +25,7 @@ zig build -Drelease=true -Dwasm
 tools/mkdisks.sh
 python3 tools/channels.py
 python3 tools/channels.py --check
-node apps/disk_check.mjs > /dev/null
+node apps/harness/disk_check.mjs > /dev/null
 
 [ -z "$CHECK" ] && { echo "pages: docs/ rebuilt"; exit 0; }
 

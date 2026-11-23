@@ -87,7 +87,7 @@ headless harness (`apps/<tag>_headless.mjs`) are checked frame by frame against 
 ### 3. It runs in the board-SoC sim
 
 The board SoC in Verilator, running the same image built for the sim. Its frame hashes are compared
-with the browser (`apps/scene_hash.mjs`) and the native host:
+with the browser (`apps/harness/scene_hash.mjs`) and the native host:
 
 ```bash
 flock prototypes/_gate_logs/build.lock make -C fpga soc-hp-fpu          # once, a Verilator build

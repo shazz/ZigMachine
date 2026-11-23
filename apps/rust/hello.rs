@@ -121,7 +121,7 @@ pub extern "C" fn boot() {
 
 // A GEM panel drawn BY THE ROM over this program's plasma: the fills, GEM's
 // double border and the 8x8 system font all come from rom.wasm. Same geometry
-// as the C app, which is what apps/verify.mjs reads back.
+// as the C app, which is what apps/harness/verify.mjs reads back.
 unsafe fn draw_rom_panel() {
     if GUI == 0 {
         return;

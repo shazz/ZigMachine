@@ -3,7 +3,7 @@
 // descriptors the cart hands hwAstro, run here in the cart, op for op in the
 // order machine/astro_blas.zig and astro_linpack.zig use (netlib's dgefa /
 // dgesl, rolled BLAS), so every result is the same bits as ASTROLABE's (IEEE
-// ops, each rounded once; Zig never fuses a * b + c). apps/copro_check.mjs
+// ops, each rounded once; Zig never fuses a * b + c). apps/harness/copro_check.mjs
 // holds the two pages to the same pixels.
 // FLOAT ON PURPOSE: this is the soft-f64 baseline the A/B measures (CLAUDE.md
 // "Float math": no FPU for f64 on ZIGGY, every op here is compiler_rt).

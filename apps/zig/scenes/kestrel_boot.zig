@@ -16,7 +16,7 @@
 //            comes back
 //
 // Integer-only per frame; frames are counted, dt is ignored (timeline.zig).
-// apps/kestrel_boot_check.mjs proves it.
+// apps/harness/kestrel_boot_check.mjs proves it.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const tl = @import("kestrel_boot/timeline.zig");
