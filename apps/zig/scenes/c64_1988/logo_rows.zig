@@ -4,7 +4,7 @@
 // Row k's IRQ is at line base + 17 + 20(k-1); its writes land some lines later, as many as
 // the handler's stable-raster preamble takes, which depends on where the bad lines fall
 // (lines with (line & 7) == 0 steal 40 cycles; the screen is on in part 1). Measured over
-// two loops of VICE traces (prototypes/1988_re/ANALYSIS.md), by the IRQ line's phase:
+// two loops of VICE traces (docs/ports/c64_1988/ANALYSIS.md), by the IRQ line's phase:
 //   Y writes        +3 +2 +2 +2 +2 +2 +3 +3   (phase 0..7)
 //   pointer writes  +4 +3 +3 +3 +3 +4 +4 +4
 // The pointers land before the previous row's last fetch, so its last lines already show

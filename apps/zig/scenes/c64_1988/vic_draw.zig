@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // The sprite unit's output: one sprite row per line, into a 400x280 overscan plane.
 //
-// Geometry (measured on VICE captures, prototypes/1988_re/ANALYSIS.md): ZigMachine's
+// Geometry (measured on VICE captures, docs/ports/c64_1988/ANALYSIS.md): ZigMachine's
 // physical row r is raster line r + 11 and column c is sprite X c - 16 (PAL wraps X at
 // $1F8), so the C64's 320x200 window (lines 51..250, X 24..343) IS the machine's visible
 // 320x200 window and the C64 borders are the machine's borders. A pixel the C64's border

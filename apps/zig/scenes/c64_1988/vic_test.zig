@@ -1,5 +1,5 @@
 // The sprite unit against the VIC-II rules it models (the numbers are VICE's, measured on
-// 1988's captures: prototypes/1988_re/ANALYSIS.md).
+// 1988's captures: docs/ports/c64_1988/ANALYSIS.md).
 //   zig test apps/zig/scenes/c64_1988/vic_test.zig
 const std = @import("std");
 const vic = @import("vic.zig");

@@ -1,2 +1,0 @@
-d649cd0eb99226476e25d001cbf908df  zigmachine.bit
-a33ec0e096942dd01247544e502c195b  csr.json

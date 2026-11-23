@@ -3,7 +3,7 @@
 Study of 7 Nov 2026 (branch `study/gem5-tos4x`), for Matt's ask: "run an analysis of TOS and MultiTOS
 sources (https://github.com/mikrosk/tos4x) to see how we can improve our GEM 5.0, and propose a plan to
 make our GEM more 5.0 than 1.0". The file map and deeper notes are in
-[prototypes/tos4x_re/ANALYSIS.md](../../prototypes/tos4x_re/ANALYSIS.md).
+[docs/os/tos4x/ANALYSIS.md](tos4x/ANALYSIS.md).
 
 ## Summary
 

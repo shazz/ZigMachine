@@ -1,6 +1,6 @@
 # Copper LBASE + HSCROLL on overscan planes (HW 1.10.0): design (2026-10-31)
 
-Matt's choice (option 1b of `prototypes/mindwind_re/ANALYSIS.md` §7, branch analysis/mindwind): a
+Matt's choice (option 1b of `docs/ports/mindwind/ANALYSIS.md` §7, branch analysis/mindwind): a
 per-line SOURCE ADDRESS in the copper list, and HSCROLL honoured on overscan planes, so an STE
 line-list screen (Reservoir Gods' Mind Rewind: every line rewrites the video counter
 `$FF8205/07/09`, HSCROLL `$FF8264` and colour 0) ports as data the machine applies, with no CPU

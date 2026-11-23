@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // ARE YOU SITTING COMFORTABLY? (Reservoir Gods, Falcon 030, 2004; code Damo, graphics SH3,
 // music MSG, particles Mr Pink, screen modes / replay / ball-oid EarX). Matt's favourite intro,
-// ported from the depacked program: prototypes/falcon_ays_re/ANALYSIS.md says how each part
+// ported from the depacked program: docs/ports/falcon_ays/ANALYSIS.md says how each part
 // works and how it maps onto KESTREL.
 //
 // The MOD is the script. Its 164 `8xx` commands (falcon_ays/script.zig) each select one of the

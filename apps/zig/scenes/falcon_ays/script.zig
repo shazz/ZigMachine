@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // The show's script: the 164 `8xx` commands of COMFORT.MOD ("MSX 4 Damo's Demo", MSG), as
 // (row, value). Damo sequenced the intro in ProTracker: the replay hands the 8xx parameter to the
-// demo system, which loads that value's routine triple (prototypes/falcon_ays_re/ANALYSIS.md §0).
+// demo system, which loads that value's routine triple (docs/ports/falcon_ays/ANALYSIS.md §0).
 // The song runs at speed 7, 125 BPM, with no pattern break: a row is 7 ticks of 50 Hz (0.14 s)
 // and row = pattern * 64 + line. Extracted from the MOD (prototypes/falcon_ays_re/
 // sync_timeline.txt): sync data, not the music; the MOD itself is a local file, never in git.

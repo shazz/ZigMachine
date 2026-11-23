@@ -2,7 +2,7 @@
 // Transmission64 2021 invitation (Padua, C64, 19 February 2021). Code Anonym, Dano, Doomed,
 // Hoogo; graphics Sander; music Toggle ("Transmission 64"). CSDb release 200255, demozoo
 // 290038. Ported with Padua's go-ahead (VCF Montreal), from the depacked original
-// (prototypes/transmission64_re/ANALYSIS.md says how it works).
+// (docs/ports/c64_transmission64/ANALYSIS.md says how it works).
 //
 // The C64 is modelled, not imitated: c64_transmission64/vic.zig draws what the VIC-II shows
 // from a 64 KB copy of the C64's memory, a frame's register writes and the CPU's stores to

@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // 1988 (Tristar & Red Sector Inc., C64, Only Sprites compo, 16 Jan 2021, out of competition).
 // Code Shazz, graphics Elko, music Barney Gumble ("Ultimate Intro 12"). CSDb release 198974.
-// Ported from the depacked original (prototypes/1988_re/ANALYSIS.md says how it works).
+// Ported from the depacked original (docs/ports/c64_1988/ANALYSIS.md says how it works).
 //
 // Only sprites, so only sprites here too: one empty 400x280 overscan plane, and the eight
 // hardware sprites drawn into it by c64_1988/vic.zig, a model of the VIC-II's sprite unit,

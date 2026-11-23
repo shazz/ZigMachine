@@ -3,7 +3,7 @@
 // Pink, music Count Zero, SFX Damo, graphics Sh3 and Master.
 //
 // Ported from the depacked MINDWIND.TOS (fujiology), analysis in
-// prototypes/mindwind_re/ANALYSIS.md (branch analysis/mindwind).
+// docs/ports/mindwind/ANALYSIS.md (branch analysis/mindwind).
 //
 // The whole demo is ONE STE trick: a fullscreen kernel that, in the border
 // between two lines, rewrites the video counter, HSCROLL and colour 0 from a

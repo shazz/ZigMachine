@@ -1,5 +1,5 @@
 // The VIC model and the 6510 clock against the rules they model (the numbers are VICE 3.9's,
-// measured on Transmission64's captures: prototypes/transmission64_re/ANALYSIS.md).
+// measured on Transmission64's captures: docs/ports/c64_transmission64/ANALYSIS.md).
 //   zig test apps/zig/scenes/c64_transmission64/vic_test.zig
 const std = @import("std");
 const vic = @import("vic.zig");

@@ -6,7 +6,7 @@
 // at (line & 7) == 3) the VIC takes the bus from cycle 12 to 54: a READ cycle there waits for
 // cycle 55, a write goes through (the 6510 only stops on reads). Checked against VICE's store
 // trace of part 1's ring routine: every one of ~1700 stores a frame at its traced cycle
-// (prototypes/transmission64_re/ANALYSIS.md). Sprite 0's DMA (part 2's antenna) takes the bus
+// (docs/ports/c64_transmission64/ANALYSIS.md). Sprite 0's DMA (part 2's antenna) takes the bus
 // on the lines before each of its rows, cycles SPR_BA..SPR_END: reads there wait too.
 // --------------------------------------------------------------------------
 const vic = @import("vic.zig");

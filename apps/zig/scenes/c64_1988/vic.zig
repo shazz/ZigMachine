@@ -17,7 +17,7 @@
 // on line 51/55 only while DEN is set; a line's right border stays open when the $D016 DEC
 // lands between the X=335 and X=344 compares (cycles 55..56), and the next line's left border
 // with it. Checked against VICE 3.9 x64sc: 194 of 196 captured frames pixel-exact
-// (tools/c64/vicmodel.py, the same rules in Python; prototypes/1988_re/ANALYSIS.md).
+// (tools/c64/vicmodel.py, the same rules in Python; docs/ports/c64_1988/ANALYSIS.md).
 // --------------------------------------------------------------------------
 const draw = @import("vic_draw.zig");
 

@@ -10,7 +10,7 @@ have some local dev tools"* and *"I guess it has to run in our ST medium res"*.
 So the brief is a period-spirit tool that **runs alongside** cross-development. Zig and C on the PC stay
 the main way to build carts. The native IDE is for writing and running small programs on the machine
 itself, the way people used Devpac on an ST. Companion documents: [GEM5_PLAN.md](GEM5_PLAN.md) (the
-P-numbers below refer to it) and [prototypes/tos4x_re/ANALYSIS.md](../../prototypes/tos4x_re/ANALYSIS.md).
+P-numbers below refer to it) and [docs/os/tos4x/ANALYSIS.md](tos4x/ANALYSIS.md).
 
 ## Summary
 

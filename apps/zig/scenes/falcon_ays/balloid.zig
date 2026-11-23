@@ -103,7 +103,7 @@ fn cfgOf(k: Kind) Cfg {
 }
 
 // Ring r's meridian point (rho, h), the DSP's own formula (read from the running DSP program in
-// Hatari, P:$07E8; prototypes/falcon_ays_re/ANALYSIS.md 3.9): the ring's radius factor is
+// Hatari, P:$07E8; docs/ports/falcon_ays/ANALYSIS.md 3.9): the ring's radius factor is
 //     f(r) = 0.5 + 0.0625 sin(2 pi (r * morph mod 2048) / 2048)
 // (a 2048-entry table the CPU uploads, walked with a stride of `morph`: the bigger the morph,
 // the more ridges up the object, +-12.5 % deep), then rho = 400 f sin(lat), h = 400 f cos(lat)

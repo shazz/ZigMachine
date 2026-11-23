@@ -2,7 +2,7 @@
 
 Reads <dir>/COMFORT_unpacked.PRG (Reservoir Gods' "Are You Sitting Comfortably?", the Falcon
 program depacked; prototypes/falcon_ays_re) and writes <out>/ays_art.zig plus one .bin a table,
-sliced from the DATA segment at the addresses prototypes/falcon_ays_re/ANALYSIS.md gives. The
+sliced from the DATA segment at the addresses docs/ports/falcon_ays/ANALYSIS.md gives. The
 output is committed in apps/zig/assets/screens/falcon_ays/ (published, Matt 3 Nov 2026); rerun it
 only to change what is ripped:
     python3 tools/falcon_ays_art.py prototypes/falcon_ays_re apps/zig/assets/screens/falcon_ays

@@ -3,7 +3,7 @@
 // 2026; put together by 505, Slippy and Jade; menu and loader Slippy, music
 // Doclands). Ported from the ORIGINAL (protected) disks: the menu was extracted
 // and read as 68000. How it
-// works, the protection included: prototypes/erfurt_re/ANALYSIS.md.
+// works, the protection included: docs/ports/erfurt_menu/ANALYSIS.md.
 //
 // On screen, top to bottom: Jade's ERFURT logo (4 planes, a glint sweeping it
 // every 322 frames); a rainbow line, colour 0 rewritten 42 times along it,

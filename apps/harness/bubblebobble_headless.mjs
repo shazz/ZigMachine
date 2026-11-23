@@ -6,7 +6,7 @@
 //            $10EA into $2854: blocks, the walls, the air currents with their
 //            rectangles and mirrors), equal the grids an independent decoder of
 //            BDATA.DAT + AIRFLOW.DAT (below, from the format in
-//            prototypes/bubble_re/ANALYSIS.md) makes; and the enemy lists parse
+//            docs/ports/bubblebobble/ANALYSIS.md) makes; and the enemy lists parse
 //   play     power-on runs as on the ST: the title picture, the hi-score table
 //            with its Timer B rasters, the story; '1' starts round 1 with Bub
 //            and its three Zen-Chans dropping in; the joystick walks Bub, fire
