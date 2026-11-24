@@ -9,26 +9,28 @@
 // No ZigOS import: drive_test.zig runs it natively.
 // --------------------------------------------------------------------------
 const car = @import("car.zig");
+const carview = @import("carview.zig");
 const cam = @import("cam.zig");
 const carmodel = @import("carmodel.zig");
 const clip = @import("clip.zig");
 const data = @import("data.zig");
-const fix = @import("fix.zig");
 const frame = @import("frame.zig");
 const fx = @import("fx.zig");
-const project = @import("project.zig");
 const refrun = @import("refrun.zig");
 const skid = @import("skid.zig");
 const trk = @import("trk.zig");
-const types = @import("types.zig");
 const vec = @import("vec.zig");
 const xf = @import("xform.zig");
 
 pub const Mode = enum { off, drive, bench };
+
+fn zeroClock() u32 {
+    return 0;
+}
 pub const POV_FRAMES = 60; // 30 ticks
 pub const LAP_TICKS = 360;
 
-pub const Snap = struct { pos: [3]i32, angle: i32 };
+pub const Snap = carview.Snap;
 
 pub const Drive = struct {
     t: *const trk.Track,
@@ -44,6 +46,9 @@ pub const Drive = struct {
     slides: u32 = 0,
     prev: Snap,
     cur: Snap,
+    now: *const fn () u32 = zeroClock,
+    us_sum: u64 = 0,
+    us_max: u32 = 0,
 
     pub fn init(t: *const trk.Track) Drive {
         const c = refrun.spawn(t);
@@ -94,6 +99,7 @@ pub const Drive = struct {
 
     fn tick(self: *Drive) void {
         const b: u8 = if (self.mode == .bench) data.lap_v1[self.ticks % data.lap_v1.len] else self.held;
+        const t0 = self.now();
         self.prev = self.cur;
         self.car.tick(b);
         self.cur = .{ .pos = self.car.pos, .angle = self.car.angle };
@@ -101,6 +107,9 @@ pub const Drive = struct {
         self.slides += @intFromBool(self.car.sliding());
         self.emitSkids();
         self.skid.update();
+        const us = self.now() -% t0;
+        self.us_sum += us;
+        self.us_max = @max(self.us_max, us);
     }
 
     fn emitSkids(self: *Drive) void {
@@ -144,22 +153,20 @@ pub const Drive = struct {
         return .{ .pos = p, .yaw = yaw, .pitch = @bitCast(o[2]) };
     }
 
+    /// The HUD's name for the mode and POV.
+    pub fn label(self: *const Drive) []const u8 {
+        const names = [2][3][]const u8{ .{ "DRIVE FAR", "DRIVE NEAR", "DRIVE COCKPIT" }, .{ "BENCH FAR", "BENCH NEAR", "BENCH COCKPIT" } };
+        return names[@intFromBool(self.mode == .bench)][@intFromEnum(self.pov)];
+    }
+
     /// The near plane this frame's POV wants (the cockpit is inside the car).
     pub fn near(self: *const Drive) i32 {
         return if (self.pov == .cockpit and self.pov_frames == POV_FRAMES) clip.NEAR_COCKPIT else clip.NEAR;
     }
 
-    /// Push the car's polygons (not in the cockpit) into the frame's list, after collect and before sort.
+    /// Push the car's polygons (not in the cockpit) after collect and before sort.
     pub fn drawCar(self: *const Drive, fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View) void {
-        if (self.pov == .cockpit) return;
-        const s = self.shown();
-        const mv = modelView(v, s);
-        const floor = if (self.car.old) |o| fr.faceKey(o) orelse 0 else 0;
-        cache.next();
-        for (&carmodel.faces) |*f| {
-            if (types.facing(f, &mv) <= f.cp) continue;
-            _ = project.build(fr, cache, &carmodel.verts, &mv, f, .{ .floor = floor });
-        }
+        if (self.pov != .cockpit) carview.draw(fr, cache, v, self.shown(), self.car.old);
     }
 
     /// One line a host can compare with the reference: raw 16.16 state after `ticks` ticks.
@@ -182,20 +189,8 @@ fn povParams(p: cam.Pov) [3]i32 {
     return .{ cam.BACK[k], cam.HEIGHT[k], @bitCast(cam.PITCH[k]) };
 }
 
-/// The camera's view recomposed for the car's own space: rows right-multiplied by the car's yaw,
-/// the translation carrying the car's position, the eye in the car's Q7 space (the back-face test).
-pub fn modelView(v: *const cam.View, s: Snap) cam.View {
-    const c = fix.cos(s.angle);
-    const d = -fix.sin(s.angle);
-    var m = v.*;
-    for (0..3) |i| {
-        const r = v.r[i];
-        m.r[i] = .{ fx.mulsh16(r[0], c) + fx.mulsh16(r[2], -d), r[1], fx.mulsh16(r[0], d) + fx.mulsh16(r[2], c) };
-        m.t[i] = v.t[i] + ((fx.mulsh16(r[0], s.pos[0]) + fx.mulsh16(r[1], s.pos[1]) + fx.mulsh16(r[2], s.pos[2])) >> 9);
-    }
-    const dx = v.eye7[0] - (s.pos[0] >> 9);
-    const dz = v.eye7[2] - (s.pos[2] >> 9);
-    m.eye7 = .{ fx.mulsh16(c, dx) + fx.mulsh16(-d, dz), v.eye7[1] - (s.pos[1] >> 9), fx.mulsh16(d, dx) + fx.mulsh16(c, dz) };
-    if (fx.use_f32) cam.floatView(&m);
-    return m;
+/// The tick's own cost over the lap so far: average and worst microseconds a tick (the host clock; 0 headless).
+pub fn perfLine(d: *const Drive, buf: []u8) []const u8 {
+    const std = @import("std");
+    return std.fmt.bufPrint(buf, "racer,physus,{},{},{}", .{ d.ticks, if (d.ticks == 0) 0 else d.us_sum / d.ticks, d.us_max }) catch "racer,physus,overflow";
 }
