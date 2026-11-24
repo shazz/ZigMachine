@@ -9,6 +9,23 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-11-23 — The cart ABI is the contract between boards; a capability word says what optional hardware exists
+
+**Status:** accepted (board firmware side open, ROADMAP R41)
+**Context:** KESTREL (7010) and PEREGRINE (7020) must run the same carts, but not every unit exists on both
+(ASTROLABE's ARM, desk mode, CHISEL v2, an FPU...). Carts guessed from the host (browser vs board) or from per-unit probes.
+**Decision:** The system table version (`sys_abi.txt`) and HW_API version stay the single truth for both boards,
+additive only within a major. One new machine export `hwCaps()` (table 1.28, HW 1.19.0), set by the host with
+`hwSetCaps` as `hwSetDeskAvailable` already is: default every emulated unit (browser, native host), the board's
+firmware declares its bitstream's. Carts ask (`zg.caps.has`) and fall back; the gate has a "capabilities off" run
+(`apps/harness/caps_check.mjs`, COPRO's ASTROLABE pages). Rules and bit table: `docs/hardware/ABI_RULES.md`.
+**Alternatives considered:** a register in the video block (changes the register map, an RTL/ABI-offset risk); a
+per-unit probe export each (one table entry per unit); a cart-visible version number only (says nothing about options).
+**Consequences:** one extra table entry; a cart using `hwCaps` needs a 1.28+ system. Until the board firmware calls
+`hwSetCaps`, the board over-reports (every bit set).
+
+---
+
 ## 2026-10-04 — A primitive self-test bitstream, and an allowlist of silicon-proven modes in `make check`
 
 **Status:** accepted; the board run is pending (`fpga/rtl/board/prim_test_top.v`, `fpga/tools/prim_allowlist.py`, `fpga/silicon_prims.json`)

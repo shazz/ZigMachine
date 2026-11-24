@@ -15,7 +15,8 @@ const Desc = zg.astro.Desc;
 /// Runs `d` on the side the A/B asks for; counts what ZIGGY spent (µs) and what the call reported.
 pub fn run(ctx: *C.Ctx, d: []Desc) void {
     const t0 = C.micros();
-    if (ctx.asked == .ziggy) {
+    // No ASTROLABE hardware (caps.astro clear): the cart's own soft f64, as the A side does, never hwAstro's slow fallback.
+    if (ctx.asked == .ziggy or !zg.caps.has(.astro)) {
         soft64.run(d);
     } else {
         _ = zg.astro.run(d);

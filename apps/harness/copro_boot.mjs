@@ -50,7 +50,7 @@ function spoil(u, j) {
     if (at !== undefined) u[at >>> 2] = j[0] === 1 ? u[at >>> 2] ^ 0x01010101 : j[0] === 4 ? u[at >>> 2] ^ 1 : 5 * W + 5;
 }
 
-export async function boot(switches, brk = null, astro = null) {
+export async function boot(switches, brk = null, astro = null, caps = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const box = { memory, demo: null }, log = { calls: [], served: 0, block: 0 };
     const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
@@ -59,10 +59,12 @@ export async function boot(switches, brk = null, astro = null) {
     const romBytes = await readFile("site/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
+    if (caps !== null) machine.hwSetCaps(caps); // the "capabilities off" run: 0 (docs/hardware/ABI_RULES.md)
     const cartBytes = await readFile("site/carts/demo-copro.wasm");
     const jobs = await loaderJobs(box, log, brk);
     const env = { memory, ...rom, hostBardJob: jobs.hostBardJob };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
+    if (brk === "capsliar") env.hwCaps = () => 0x3f; // --break: a machine that says every unit is there, whatever was declared
     log.astro = 0; // hwAstro calls; `astro(desc, count, memory, machine)` stands in for the machine's when given
     env.hwAstro = (desc, n) => { log.astro++; return astro ? astro(desc, n, memory, machine) : machine.hwAstro(desc, n); };
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))

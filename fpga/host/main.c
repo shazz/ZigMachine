@@ -169,6 +169,7 @@ int main(int argc, char** argv) {
         else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (strcmp(argv[i], "--bootsec") == 0 && i + 1 < argc) g_bootsec = argv[++i];
         else if (strcmp(argv[i], "--kos") == 0 && i + 1 < argc) g_kos = argv[++i];
+        else if (strcmp(argv[i], "--caps") == 0 && i + 1 < argc) host_caps = (uint32_t)strtoul(argv[++i], NULL, 16);
         else if (strcmp(argv[i], "--warm") == 0) g_warm = 1;
         else if (strcmp(argv[i], "--post-frames") == 0 && i + 1 < argc) g_post = (uint32_t)strtoul(argv[++i], NULL, 10);
         else if (npos < 3) pos[npos++] = argv[i];

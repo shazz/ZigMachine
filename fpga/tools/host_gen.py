@@ -51,6 +51,7 @@ MACHINE_ENV = [
     "hwRomRamFree",
     "hwDeskAvailable",
     "hwAstro",
+    "hwCaps",
 ]
 
 # Imports whose time is NOT the machine's when the cycles build (fpga/cycles/)
@@ -80,7 +81,7 @@ SPAN_HOOKS = """/* Span hooks: empty in the native host. fpga/cycles/prof.h (-in
 # (bchisel_run), after its own setup.
 GETTERS = {
     "hwVideoBase", "hwRamBase", "hwRamTop", "hwRamSize", "hwRamUsed", "hwRamFree", "hwRamAllocFailures",
-    "hwRomRamBase", "hwRomRamTop", "hwRomRamSize", "hwRomRamUsed", "hwRomRamFree", "hwDeskAvailable",
+    "hwRomRamBase", "hwRomRamTop", "hwRomRamSize", "hwRomRamUsed", "hwRomRamFree", "hwDeskAvailable", "hwCaps",
     "romScratchLen", "romScratchPtr", "deskDirEntryBytes", "deskDirMaxFiles", "deskDirCap", "deskDirPtr",
 }  # fmt: skip
 NO_SYNC = {"hwBlit"} | GETTERS

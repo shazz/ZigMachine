@@ -236,6 +236,7 @@ NATIVE_TESTS="
     machine/audio/ym_dac_test.zig
     machine/arena_test.zig
     machine/astro_test.zig
+    machine/sdk/caps.zig
     libs/zig/mem_test.zig
     libs/zig/truecolor.zig
     libs/zig/libm_f32_test.zig
@@ -509,6 +510,8 @@ gate copro node apps/harness/scene_hash.mjs site/carts/demo-copro.wasm 720 60 --
 gate copro uv run --project fpga python -m pytest -q fpga/tests/test_bard_job.py   # ...and the C side's view of the job block (host/bjob.h, what ZIGGY polls on the board) is layout.zig's word for word (ZM_RTL_BREAK=1: a moved done word is caught)
 gate copro node apps/harness/copro_astro_check.mjs   # ...and the ASTROLABE pages (5 F64 zoom, 6 F64 cloth: env.hwAstro batches): ZIGGY's soft f64 (copro/soft64.zig) and hwAstro draw the same pixels frame for frame; one hwAstro call a frame on the coprocessor, none on ZIGGY; a board without the ARM (hwAstro's fallback: W_CYCLES set, SERVED_ARM clear) and with it draw the same pixels and the HUD names SOFT / ARM / HOST; the zoom's level 0 equals JavaScript's doubles cell for cell; the cloth moves
 gate copro node apps/harness/copro_astro_check.mjs --break astro   # ...and an ASTROLABE whose answer is not the soft f64's (one output element doubled) fails both pages' A/B
+gate copro node apps/harness/caps_check.mjs   # the capability word (HW 1.19.0, docs/hardware/ABI_RULES.md): hwCaps = every emulated unit, hwSetCaps(0) = none, unknown bits dropped, desk bit = hwDeskAvailable, the ABI doc lists every bit; COPRO's ASTROLABE pages in the "capabilities off" run make no hwAstro call and draw ZIGGY's soft f64 picture
+gate copro node apps/harness/caps_check.mjs --break caps   # ...and a machine that claims every unit whatever was declared (hwCaps lies) is caught: the cart calls hwAstro in the off run
 gate tri_test node apps/harness/tri_test_check.mjs   # TRI TEST (cart 125): every TRIANGLE of set A (edge cases + 160 seeded) and of set B (48 a frame, 300 frames) equals a rasteriser written in the harness from the spec; the cart's on-screen hashes are the GOLDEN_A / GOLDEN_B the board compares against
 gate tri_test node apps/harness/tri_test_check.mjs --break floor   # ...and a rasteriser that truncates instead of flooring is caught
 gate kt node apps/harness/kt_check.mjs   # klystrack (.kt) player: each bundled song's core output for 45 s is upstream klystron's render byte for byte (kt_ref's sha256), the Paula output (high + low byte a side) is that core to within 1/32768 over odd-sized renders, mode 1, never over full scale, not silent; a non-.kt / future version / truncated file refused with its reason and counted

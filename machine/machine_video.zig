@@ -8,6 +8,7 @@
 const video = @import("video.zig");
 const blitter = @import("blitter.zig");
 const memmap = @import("sdk/memmap.zig");
+const caps = @import("sdk/caps.zig");
 
 export fn hwVideoBase() i32 {
     return @intCast(video.basePtr());
@@ -38,11 +39,21 @@ export fn hwDeskBars() u32 {
 // board the firmware declares its bitstream's capability bit at boot (fpga/cycles/bmain.c), so a
 // cart asks before it switches. A hardware property: hwInit() leaves it alone.
 var desk_available: u32 = 1;
+var caps_word: u32 = caps.ALL;
 export fn hwDeskAvailable() u32 {
-    return desk_available;
+    return desk_available & @intFromBool(caps.has(caps_word, .desk));
 }
 export fn hwSetDeskAvailable(available: u32) void {
     desk_available = @intFromBool(available != 0);
+}
+// The capability word (HW 1.19.0, machine/sdk/caps.zig): the optional units this machine has. The browser and the
+// native host leave every bit set; the board's firmware declares its bitstream's, and a "capabilities off" run
+// sets 0. DESK is hwDeskAvailable's (both read the same two inputs), so the two never disagree.
+export fn hwCaps() u32 {
+    return caps_word & ~(caps.bit(.desk) * (1 - desk_available));
+}
+export fn hwSetCaps(word: u32) void {
+    caps_word = word & caps.ALL;
 }
 export fn hwBlit() void {
     blitter.execute();

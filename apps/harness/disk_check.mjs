@@ -89,6 +89,7 @@ async function hostEnv(memory, machine, rom) {
         hwRomRamFree: machine.hwRomRamFree,
         hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0
         hwAstro: machine.hwAstro, // 1.18.0: ASTROLABE (SPIKE)
+        hwCaps: machine.hwCaps, // 1.19.0
         beep: noop, diskReadBlock: noop,
         hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
         hostAudioStreamStartStereo: noop, hostAudioFeedStereo: noop, hostAudioStreamPlayed: () => 0, // table 1.27
