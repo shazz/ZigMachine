@@ -238,3 +238,16 @@ Printing order: 1) a back-wall test strip: `openscad -D 'back_d=14' -D 'part="ba
 kestrel_case.scad` is a 14 deep slice of the tub with the full port wall (and a short sidewall): fit the real
 extenders, shells and the SD holder, fix the cut-outs; 2) the two covers (fast; check the posts against the
 front parts); 3) back_left; 4) back_right (more ports). The reference's front parts: printed as is.
+
+## 6. Lead review of model v1 (23 Nov, night)
+- Renders checked (assembly, top, back): ports on the agreed walls, labels DEBUG/FPGA/HUB/LAN/HDMI
+  readable, board/hub/iCode ghosts placed, no part crosses the split, all 4 STLs manifold.
+- FOR MATT (morning):
+  1. **Your printer's bed size**: the model assumed 190 x 180 (my guess, never measured). The reference
+     cover overlaps the front part by 13.5 mm; ours only by 6 so it fits 176 deep. If the bed is >= 185
+     deep (most are 220-256), set `cover_overlap = 13.5` like the reference, otherwise a ~7 mm strip over the
+     front part's top edge may stay open: check on the printed front part where the reference cover ends.
+  2. **How the front/back joint is screwed** (both faces have blind d 3.15 holes: printed thread, threaded
+     studs, or dowels + glue?): look at your printed front part.
+  3. Print the back-wall test strip first (README) with the real extenders in hand.
+- Loop guides are full-height half cylinders: heavy on filament; v2 can make them 15 mm tall clips.
