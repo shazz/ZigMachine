@@ -63,13 +63,23 @@ end
 
 local function buttons(t,car)
 	if(RACER_INPUTS) return RACER_INPUTS[t] or 0
+	if(RACER_RAM) return 16
 	if(RACER_SCENARIO=="wall") return 18
 	return autopilot(car)
 end
 
+-- coverage counters (the dump's last two columns): contacts the engine reports (sfx 53), NPC hard-braking steers
+local CONTACTS,NBRAKE=0,0
+function sfx(n) if(n==53) CONTACTS+=1 end
+
 local function spawn(g,maker)
 	local car=maker(v_clone(g.pos),g.yaw,make_track(track.segments,g.seg))
 	car.m=make_m_from_euler(0,g.yaw,0)
+	local steer0=car.steer
+	car.steer=function(self,dt,rpm,braking,npc)
+		if(braking and npc) NBRAKE+=1
+		return steer0(self,dt,rpm,braking,npc)
+	end
 	return car
 end
 
@@ -84,6 +94,9 @@ end
 local npcs={}
 for k=2,1+RACER_NPCS do add(npcs,spawn(KTRK.grid[k],make_npc)) end
 
+-- the ram scenario: NPC 1 parked 6 m ahead of the player and never steered, so the player drives into it
+if RACER_RAM then npcs[1].pos=v_add(plyr.pos,m_fwd(plyr.m),6) end
+
 local function row(t,id,car,b)
 	local p,a=car:get_pos()
 	local v=car:get_velocity()
@@ -94,6 +107,8 @@ local function row(t,id,car,b)
 	end
 	add(out,tostr(b))
 	add(out,tostr(HITS))
+	add(out,tostr(CONTACTS))
+	add(out,tostr(NBRAKE))
 	if id==0 then
 		add(out,tostr(PARTS[1],true))
 		add(out,tostr(PARTS[2],true))
@@ -106,21 +121,24 @@ local function row(t,id,car,b)
 	print(table.concat(out,"\t"))
 end
 
-print("tick\tcar\tpx\tpy\tpz\tvx\tvy\tvz\tangle\tface\tu\tv\tbtn\thits\ttr\tsa\tslide")
+print("tick\tcar\tpx\tpy\tpz\tvx\tvy\tvz\tangle\tface\tu\tv\tbtn\thits\tsfx\tnbrake\ttr\tsa\tslide")
 for t=1,RACER_TICKS do
 	if t>=RACER_COUNTDOWN then BTN=buttons(t,plyr) else BTN=0 end
-	if(t>=RACER_COUNTDOWN) plyr:control()
-	plyr:update_contacts(npcs)
-	plyr:prepare()
-	plyr:integrate()
-	plyr:update()
-	for _,npc in pairs(npcs) do
-		npc:control()
-		npc:prepare()
-		npc:integrate()
-		npc:update()
+	-- RACER_HOLD: the race's grid + countdown: no car moves before the player's control starts (the engine's NPCs would drive)
+	if not RACER_HOLD or t>=RACER_COUNTDOWN then
+		if(t>=RACER_COUNTDOWN) plyr:control()
+		plyr:update_contacts(npcs)
+		plyr:prepare()
+		plyr:integrate()
+		plyr:update()
+		for i,npc in pairs(npcs) do
+			if not (RACER_RAM and i==1) then npc:control() end
+			npc:prepare()
+			npc:integrate()
+			npc:update()
+		end
+		skidmarks:update()
 	end
-	skidmarks:update()
 	row(t,0,plyr,BTN)
 	for i,npc in pairs(npcs) do row(t,i,npc,0) end
 end

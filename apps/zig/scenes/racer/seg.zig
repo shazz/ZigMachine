@@ -20,6 +20,8 @@ const V = vec.V;
 const FLAT = fix.lit(0.001);
 
 pub const Quad = struct { n: V, l: V, r: V };
+pub const Corners = struct { l: V, r: V };
+pub const MAXSEG = 256;
 
 pub const TrackPos = struct {
     t: *const trk.Track,
@@ -59,6 +61,11 @@ pub const TrackPos = struct {
         }
     }
 
+    /// `get_next(offset)`: the corners `offset` segments past the current one.
+    pub fn next(self: *const TrackPos, offset: i32) Corners {
+        return corners(self.t, self.segment + offset);
+    }
+
     pub fn update(self: *TrackPos, pos: V) void {
         var d = self.getD(pos);
         if (d > fix.ONE) {
@@ -70,6 +77,34 @@ pub const TrackPos = struct {
         const rr = vec.lerp(self.q0.r, self.q1.r, d);
         const w = vec.between(ll, rr);
         self.v = fix.div(vec.dot(w, vec.between(ll, pos)), vec.dot(w, w));
+    }
+};
+
+/// The left / right vertices of ring segment `i` (any integer: it wraps): `to_v` of the original, minus the normal.
+pub fn corners(t: *const trk.Track, i: i32) Corners {
+    const s = t.lr[@intCast(@mod(i, @as(i32, @intCast(t.lr.len))))];
+    return .{ .l = ground.vertex(t, s[0]), .r = ground.vertex(t, s[1]) };
+}
+
+/// The length of each side of every ring segment (`get_length`), computed once with the original's `v_len`.
+pub const Lens = struct {
+    v: [MAXSEG][2]i32 = undefined,
+    n: usize = 0,
+
+    pub fn init(t: *const trk.Track) error{TooManySegments}!Lens {
+        if (t.lr.len > MAXSEG) return error.TooManySegments;
+        var self = Lens{ .n = t.lr.len };
+        for (0..t.lr.len) |i| {
+            const a = corners(t, @intCast(i));
+            const b = corners(t, @intCast(i + 1));
+            self.v[i] = .{ vec.len(vec.between(a.l, b.l)), vec.len(vec.between(a.r, b.r)) };
+        }
+        return self;
+    }
+
+    /// Segment `i`'s left and right side lengths (any integer: it wraps).
+    pub fn at(self: *const Lens, i: i32) [2]i32 {
+        return self.v[@intCast(@mod(i, @as(i32, @intCast(self.n))))];
     }
 };
 

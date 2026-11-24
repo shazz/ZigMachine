@@ -51,7 +51,7 @@ class OvalTest(unittest.TestCase):
         g = self.doc["start_grid"]
         self.assertEqual((g[0]["segment"], g[0]["yaw_q16"]), (0, 0))
         self.assertEqual(g[0]["pos"][0], ktrk.q(gen_track.A))
-        self.assertEqual([e["segment"] for e in g], [0, 8, 16, 24, 32, 40, 48, 56])
+        self.assertEqual([e["segment"] for e in g], [0, 1, 1, 2, 2, 3, 3, 4])
         self.assertNotEqual(g[1]["yaw_q16"], 0)
 
     def test_main_writes_the_file_and_the_stress_option_switches_generator(self) -> None:

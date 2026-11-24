@@ -8,7 +8,7 @@
 const std = @import("std");
 
 pub const MAGIC: u32 = 0x4B52544B;
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 pub const HEADER = 128;
 pub const GRID = 32;
 pub const TILES = GRID * GRID;
@@ -51,6 +51,7 @@ pub const Track = struct {
     line: []const Seg,
     grid: []const Seg,
     lr: []const [2]u16, // per racing-line segment: the left and right vertex ids (the physics' quads)
+    checkpoints: []const u32, // racing-line segment indices, in lap order (the race rules)
     rbake: u32,
 
     pub fn tileFaces(self: *const Track, tile: usize) []const u16 {
@@ -98,7 +99,8 @@ pub fn parse(b: []align(4) const u8) Error!Track {
     t.pvs = try block(u16, b, word(b, 20), (word(b, 21) - word(b, 20)) / 2, word(b, 21));
     t.line = try block(Seg, b, word(b, 21), nseg, word(b, 22));
     t.grid = try block(Seg, b, word(b, 22), ngrid, word(b, 23));
-    t.lr = try block([2]u16, b, word(b, 23), nseg, total);
+    t.lr = try block([2]u16, b, word(b, 23), nseg, word(b, 24));
+    t.checkpoints = try block(u32, b, word(b, 24), word(b, 11), total);
     try check(&t);
     return t;
 }
@@ -115,4 +117,5 @@ fn check(t: *const Track) Error!void {
     for (t.tile_first[1..], t.tile_first[0..TILES]) |hi, lo| if (hi < lo) return error.BadBlock;
     if (t.line.len < 3) return error.BadBlock;
     for (t.lr) |s| if (s[0] >= t.verts.len or s[1] >= t.verts.len) return error.BadBlock;
+    for (t.checkpoints, 0..) |c, i| if (c >= t.line.len or (i > 0 and c <= t.checkpoints[i - 1])) return error.BadBlock;
 }

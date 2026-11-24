@@ -50,6 +50,8 @@ pub const Car = struct {
     front_slide: bool = false,
     rear_slide: bool = false,
     hits: u32 = 0,
+    npc: bool = false, // make_npc's steer: the angle is set, not accumulated; braking is harder (0.92)
+    brakes: u32 = 0, // NPC steers that braked (a coverage counter for the reference runs)
 
     pub fn init(t: *const trk.Track, pos: V, angle: i32, segment: i32) Car {
         return .{ .t = t, .pos = pos, .angle = angle, .track = seg.TrackPos.init(t, segment) };
@@ -81,7 +83,7 @@ pub const Car = struct {
 
     /// The tyres: slip angle, lateral grip, grip-scaled drive force and its torque. Returns the rpm to keep.
     pub fn steer(self: *Car, dt: i32, rpm_in: i32, braking: bool) i32 {
-        self.steer_angle = fix.mid(self.steer_angle +% dt, -MAX_STEER, MAX_STEER);
+        self.steer_angle = fix.mid(if (self.npc) dt else self.steer_angle +% dt, -MAX_STEER, MAX_STEER);
         const a = self.angle -% self.steer_angle;
         var sa = vec.dot(.{ fix.cos(a), 0, fix.sin(a) }, self.vel);
         self.front_slide = fix.abs(sa) > (if (break_slip) lit(0.25) else SLIP);
@@ -92,7 +94,10 @@ pub const Car = struct {
         const eff = fix.div(fix.mul(30 << 16, vec.dot(ax.fwd, self.vel)), GRIP);
         const rps = fix.mul(fix.mul(30 << 16, rpm), 2 << 16);
         if (rps > 10 << 16) rpm = fix.mul(rpm, fix.lerp(lit(0.63), fix.ONE, fix.div(eff, rps)));
-        if (braking) self.vel = vec.scale(self.vel, lit(0.95));
+        if (braking) {
+            self.vel = vec.scale(self.vel, if (self.npc) lit(0.92) else lit(0.95));
+            self.brakes += @intFromBool(self.npc);
+        }
         self.applyForceAndTorque(vec.scale(ax.fwd, rpm), fix.mul(fix.mul(-lit(0.72), sa), self.steer_angle));
         self.rear_slide = rps > 10 << 16 and fix.div(eff, rps) < lit(0.6);
         return fix.min(rpm, self.max_rpm);

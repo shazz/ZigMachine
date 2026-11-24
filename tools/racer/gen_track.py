@@ -91,8 +91,18 @@ def _grid_entry(st: tuple[float, ...], seg: int, lateral: float) -> Doc:
             "yaw_q16": int(round(yaw * 65536)) & 0xFFFF}
 
 
+def _grid_segment(slot: int) -> int:
+    """The race grid (M3): the player at the back on segment 0, the seven AI cars two a row on segments 1..4."""
+    return (slot + 1) // 2
+
+
+def _grid_lateral(slot: int) -> float:
+    """Metres right of the racing line: the player on it, the AI cars alternating right / left."""
+    return 0.0 if slot == 0 else (1.0 if slot % 2 else -1.0)
+
+
 def build_oval(segments: int = 120) -> Doc:
-    """The test oval as a ktrk-json document. `segments` >= 57 so seven AI cars can start at 8 * i."""
+    """The test oval as a ktrk-json document. `segments` >= 57 (kept from M0; the race grid itself needs 5)."""
     if segments < 57:
         raise ValueError("segments must be at least 57")
     b = Builder()
@@ -103,7 +113,7 @@ def build_oval(segments: int = 120) -> Doc:
         _segment_faces(b, i, g0, g1, t0, t1)
     line = [{"l": g[1], "r": g[2]} for g, _ in rows]
     checkpoints = [segments * k // 4 - 1 for k in (1, 2, 3, 4)]
-    grid = [_grid_entry(sts[8 * k], 8 * k, (0.0, 1.0, -1.0, 1.0)[k % 4]) for k in range(8)]
+    grid = [_grid_entry(sts[_grid_segment(k)], _grid_segment(k), _grid_lateral(k)) for k in range(8)]
     meta = {"kind": "oval", "segments": segments, "ellipse": [A, B], "half_width": HALF}
     return b.document("test_oval", meta, line, checkpoints, grid)
 

@@ -9,7 +9,8 @@ grid. The CRC-32 covers everything after the header. The cart refuses a bad magi
 Face record: v[4] u16 | flags u8 | nv u8 | colour u8 | inner_n u8 | n[3] i16 (Q14) | pad u16 |
 cp i32 (n . v0, Q21) | inner_first u32 | pad u32. (Version 2: the u16 after n is the BORDER MASK, bit k = edge k
 (vertex k to k+1) is a wall edge for the physics, ascending as the document lists them; a last block, one
-`{left, right}` u16 vertex-id pair a racing-line segment, gives the physics its segment quads.)
+`{left, right}` u16 vertex-id pair a racing-line segment, gives the physics its segment quads. Version 3 (M3) adds a last
+block, one u32 racing-line segment index per checkpoint: the race rules' checkpoints, in lap order.)
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ if __package__ in (None, ""):
 from racer import ktrk, ktrk_check, pvs_bake  # noqa: E402
 from racer.ktrk import Doc  # noqa: E402
 
-MAGIC, VERSION, HEADER = 0x4B52544B, 2, 128
+MAGIC, VERSION, HEADER = 0x4B52544B, 3, 128
 LIGHT = (0.4, 0.8, 0.45)
 MATERIALS = {  # name -> (ramp, full-light RGB): our own palette, 15 of the 30 ramps used so far
     "asphalt": (0, (96, 98, 104)), "grass": (1, (70, 150, 60)), "kerb_a": (2, (220, 40, 40)),
@@ -136,8 +137,9 @@ def convert(doc: Doc) -> bytes:
     index, lists = pvs_bake.bake(_camera_tiles(line_tiles), full, dirs)
     grid = b"".join(struct.pack("<3iHH", *(c * 512 for c in g["pos"]), g["yaw_q16"], g["segment"]) for g in doc["start_grid"])
     lr = b"".join(struct.pack("<2H", s["l"], s["r"]) for s in doc["racing_line"])
+    cps = struct.pack(f"<{len(doc['checkpoints'])}I", *doc["checkpoints"])
     blocks = [pal, verts, faces, inner, tfirst, tlists, rays, struct.pack(f"<{len(index)}I", *index),
-              _pad(struct.pack(f"<{len(lists)}H", *lists)), line, grid, lr]
+              _pad(struct.pack(f"<{len(lists)}H", *lists)), line, grid, lr, cps]
     offs, at = [], HEADER
     for b in blocks:
         offs.append(at)

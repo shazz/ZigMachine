@@ -81,21 +81,27 @@ def extract(text: str, names: list[str] = FUNCTIONS) -> str:
     return "\n".join(out) + "\n"
 
 
-def assemble(track_lua: str, scenario: str, ticks: int, npcs: int, inputs: list[int] | None) -> str:
+def assemble(track_lua: str, scenario: str, ticks: int, npcs: int, inputs: list[int] | None, hold: bool = False) -> str:
     inp = "nil" if inputs is None else "{" + ",".join(str(b) for b in inputs) + "}"
+    held = "true" if hold or scenario in ("race", "ram") else "nil"
+    flags = f"RACER_HOLD={held}\nRACER_RAM={'true' if scenario == 'ram' else 'nil'}\n"
     head = (f'RACER_SCENARIO="{scenario}"\nRACER_TICKS={ticks}\nRACER_NPCS={npcs}\n'
-            f"RACER_COUNTDOWN={COUNTDOWN}\nRACER_INPUTS={inp}\n")
+            f"RACER_COUNTDOWN={COUNTDOWN}\nRACER_INPUTS={inp}\n{flags}")
     engine = extract(source_path().read_text())
     return "\n".join([head, track_lua, (LUA_DIR / "prelude.lua").read_text(), engine, (LUA_DIR / "footer.lua").read_text()])
 
 
 def run(doc: ktrk.Doc, scenario: str = "lap", ticks: int = 600, npcs: int = 2,
-        inputs: list[int] | None = None) -> str:
-    """The per-tick dump (TSV text) of a run. Raises HarnessUnavailable without z8lua / the source."""
-    if scenario not in ("lap", "wall", "replay") or (scenario == "replay") != (inputs is not None):
-        raise ValueError("scenario must be lap, wall, or replay (with inputs)")
+        inputs: list[int] | None = None, hold: bool = False) -> str:
+    """The per-tick dump (TSV text) of a run. Raises HarnessUnavailable without z8lua / the source.
+
+    Scenarios: lap (the autopilot), wall, replay (with `inputs`), and the M3 race ones, which hold every car until the
+    player's control starts: race (the autopilot among the NPCs) and ram (accelerate; NPC 1 parked ahead, never steered).
+    `hold` makes a replay hold too."""
+    if scenario not in ("lap", "wall", "replay", "race", "ram") or (scenario == "replay") != (inputs is not None):
+        raise ValueError("scenario must be lap, wall, race, ram, or replay (with inputs)")
     exe = z8lua_path()
-    chunk = assemble(ktrk_lua.to_lua(doc), scenario, ticks, npcs, inputs)
+    chunk = assemble(ktrk_lua.to_lua(doc), scenario, ticks, npcs, inputs, hold)
     with tempfile.TemporaryDirectory() as tmp:
         script = Path(tmp) / "racer_ref.lua"
         script.write_text(chunk)
@@ -112,7 +118,7 @@ def parse(dump: str) -> list[dict[str, int]]:
     cols = lines[0].split("\t")
     for ln in lines[1:]:
         rec = dict(zip(cols, ln.split("\t"), strict=True))
-        row = {k: int(v) for k, v in rec.items() if k in ("tick", "car", "btn", "hits", "slide")}
+        row = {k: int(v) for k, v in rec.items() if k in ("tick", "car", "btn", "hits", "slide", "sfx", "nbrake")}
         for k in ("px", "py", "pz", "vx", "vy", "vz", "angle", "face", "u", "v", "tr", "sa"):
             if k not in rec:  # the wheel columns came with M2
                 continue
@@ -125,7 +131,7 @@ def parse(dump: str) -> list[dict[str, int]]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--track", required=True, help=".ktrk.json file")
-    ap.add_argument("--scenario", default="lap", choices=("lap", "wall"))
+    ap.add_argument("--scenario", default="lap", choices=("lap", "wall", "race", "ram"))
     ap.add_argument("--ticks", type=int, default=600)
     ap.add_argument("--npcs", type=int, default=2)
     args = ap.parse_args(argv)
