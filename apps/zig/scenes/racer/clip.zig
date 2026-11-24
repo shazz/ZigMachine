@@ -28,7 +28,11 @@
 const fx = @import("fx.zig");
 
 pub const V3 = [3]i32;
-pub const NEAR: i32 = 1 << 14; // 0.25 units
+pub const NEAR: i32 = 1 << 14; // 0.25 units, the default near plane
+pub const NEAR_COCKPIT: i32 = 3277; // 0.05 units: the cockpit view sits inside the car, the clip's worst case
+
+/// The near plane now: a view sets it before its frame (drive.zig); NEAR everywhere else.
+pub var near: i32 = NEAR;
 pub const MAXV = 9;
 pub const Plane = enum(u3) { near, left, right, down, up };
 
@@ -45,7 +49,7 @@ pub const Poly = struct {
 
 fn dist(pl: Plane, v: V3) i32 {
     return switch (pl) {
-        .near => v[2] - NEAR,
+        .near => v[2] - near,
         .left => v[0] + 3 * v[2],
         .right => 3 * v[2] - v[0],
         .down => v[1] + 3 * v[2],
@@ -67,7 +71,7 @@ fn cut(pl: Plane, a: V3, b: V3) V3 {
     const t: i32 = @intCast(@divTrunc(dlo << 16, dlo - dhi));
     var out: V3 = undefined;
     for (&out, lo, hi) |*o, l, h| o.* = l + fx.mulsh16(h - l, t);
-    if (pl == .near) out[2] = NEAR;
+    if (pl == .near) out[2] = near;
     return out;
 }
 

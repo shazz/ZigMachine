@@ -15,9 +15,9 @@ pub const Pov = enum(u2) { far, near, cockpit };
 pub const LAP_FRAMES: u32 = 720;
 pub const POSES = 8;
 
-const BACK = [3]i32{ 6 << 16, 3 << 16, 0 };
-const HEIGHT = [3]i32{ (5 << 16) / 2, (3 << 16) / 2, (3 << 16) / 4 };
-const PITCH = [3]u32{ 0x0600_0000, 0x0400_0000, 0x0100_0000 }; // 8.4, 5.6, 1.4 degrees
+pub const BACK = [3]i32{ 6 << 16, 3 << 16, 0 };
+pub const HEIGHT = [3]i32{ (5 << 16) / 2, (3 << 16) / 2, (3 << 16) / 4 };
+pub const PITCH = [3]u32{ 0x0600_0000, 0x0400_0000, 0x0100_0000 }; // 8.4, 5.6, 1.4 degrees
 
 pub const View = struct {
     r: [3][3]i32, // Q25 rows: right, up, forward

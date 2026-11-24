@@ -29,11 +29,13 @@ from racer.ktrk import Doc  # noqa: E402
 
 MAGIC, VERSION, HEADER = 0x4B52544B, 2, 128
 LIGHT = (0.4, 0.8, 0.45)
-MATERIALS = {  # name -> (ramp, full-light RGB): our own palette, 12 of the 30 ramps used so far
+MATERIALS = {  # name -> (ramp, full-light RGB): our own palette, 15 of the 30 ramps used so far
     "asphalt": (0, (96, 98, 104)), "grass": (1, (70, 150, 60)), "kerb_a": (2, (220, 40, 40)),
     "kerb_b": (3, (235, 235, 235)), "paint": (4, (240, 240, 230)), "paint_start": (5, (250, 210, 40)),
     "wall": (6, (150, 140, 120)), "building": (7, (150, 120, 100)), "plaza": (8, (130, 130, 120)),
     "roof": (9, (90, 100, 130)), "roof_mark": (10, (230, 180, 60)), "street_mark": (11, (210, 210, 200)),
+    # the player's car and the skidmarks (apps/zig/scenes/racer/carmodel.zig names these ramps 12-14)
+    "car_body": (12, (205, 35, 35)), "car_dark": (13, (45, 45, 55)), "car_glass": (14, (110, 150, 190)),
 }
 NRAMPS = len(MATERIALS)
 

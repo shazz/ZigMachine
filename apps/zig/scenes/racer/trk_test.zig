@@ -20,7 +20,7 @@ test "the oval parses: counts, palette, a start grid of eight" {
     try std.testing.expectEqual(@as(usize, 301), t.inner.len);
     try std.testing.expectEqual(@as(usize, 120), t.line.len);
     try std.testing.expectEqual(@as(usize, 8), t.grid.len);
-    try std.testing.expectEqual(@as(usize, 12), t.palette.len);
+    try std.testing.expectEqual(@as(usize, 15), t.palette.len);
     try std.testing.expectEqualStrings("test_oval", std.mem.sliceTo(&t.name, 0));
 }
 

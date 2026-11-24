@@ -25,13 +25,14 @@
 //   sort        a counting sort on the key: 1,024 buckets of 1/8 unit, far to near, stable (a
 //               decal stays after its parent)
 //   emit        far to near through poly.Emitter into a Sink (CPU spans or AFFINE records)
-// Cars will join the same sort (M2): one list, so a crest hides a car behind it.
+// Cars and skidmarks join the same sort (M2, project.zig): one list, so a crest hides a car behind it.
 // No ZigOS import: the Sink is a parameter.
 // --------------------------------------------------------------------------
 const cam = @import("cam.zig");
 const clip = @import("clip.zig");
 const fx = @import("fx.zig");
 const poly = @import("poly.zig");
+const project = @import("project.zig");
 const pvs = @import("pvs.zig");
 const trk = @import("trk.zig");
 const types = @import("types.zig");
@@ -42,6 +43,7 @@ const xf = @import("xform.zig");
 pub const BUCKETS = 1024;
 pub const MAXP = 6144; // polygons kept a frame (the stress city at R = 8 stays under it); past it they are dropped, counted
 pub const MAXV = types.MAXV;
+const NO_KEY: u16 = 0xFFFF;
 pub const Rec = types.Rec;
 pub const Stats = types.Stats;
 
@@ -52,6 +54,7 @@ pub const Frame = struct {
     order: []u16, // MAXP, far to near
     count: *[BUCKETS + 1]u32,
     seen: []u32, // a face's frame stamp
+    fkey: []u16 = &.{}, // the key a face was kept with (read through faceKey: valid when seen == the stamp)
     seen_stamp: u32 = 0,
     entries: [pvs.MAX_ENTRIES]u16 = undefined,
     list: []const u16 = &.{},
@@ -74,13 +77,14 @@ pub const Frame = struct {
             for (t.tileFaces(pvs.tileOf(e))) |fid| {
                 if (self.seen[fid] == self.seen_stamp) continue;
                 self.seen[fid] = self.seen_stamp;
+                if (self.fkey.len != 0) self.fkey[fid] = NO_KEY;
                 self.stats.faces += 1;
                 const f = &t.faces[fid];
                 if (f.flags & trk.FLAG_DUAL == 0 and facing(f, v) <= f.cp) {
                     self.stats.back += 1;
                     continue;
                 }
-                self.face(t, v, f, decals);
+                self.face(t, v, fid, decals);
             }
         }
         self.stats.verts = self.cache.touched;
@@ -108,77 +112,17 @@ pub const Frame = struct {
         }
     }
 
-    fn face(self: *Frame, t: *const trk.Track, v: *const cam.View, f: *const trk.Face, decals: bool) void {
-        const key = self.build(t, v, f, null) orelse return;
+    fn face(self: *Frame, t: *const trk.Track, v: *const cam.View, fid: u16, decals: bool) void {
+        const f = &t.faces[fid];
+        const key = project.build(self, &self.cache, t.verts, v, f, .{}) orelse return;
+        if (self.fkey.len != 0) self.fkey[fid] = key;
         if (!decals) return;
-        for (t.inner[f.inner_first..][0..f.inner_n]) |*d| _ = self.build(t, v, d, key);
+        for (t.inner[f.inner_first..][0..f.inner_n]) |*d| _ = project.build(self, &self.cache, t.verts, v, d, .{ .fixed = key });
     }
 
-    /// Project one face into `kept`; the key is the face's own (mean view depth) unless a parent's is given.
-    /// Returns the key kept, or null when nothing is left to draw.
-    fn build(self: *Frame, t: *const trk.Track, v: *const cam.View, f: *const trk.Face, parent_key: ?u16) ?u16 {
-        const nv = f.nv;
-        var es: [4]*xf.Entry = undefined;
-        var all: u8 = 0xFF;
-        var any_guard: u8 = 0;
-        var zsum: i32 = 0;
-        for (0..nv) |i| {
-            es[i] = xf.get(&self.cache, v, t.verts, f.v[i]);
-            all &= es[i].rej;
-            any_guard |= es[i].guard;
-            zsum += es[i].v[2];
-        }
-        if (all != 0) {
-            self.stats.rejected += 1;
-            return null;
-        }
-        var rec: Rec = undefined;
-        if (clip.break_drop and any_guard != 0) return null;
-        if (any_guard == 0) {
-            rec.n = nv;
-            for (0..nv) |i| {
-                rec.x[i] = es[i].sx;
-                rec.y[i] = es[i].sy;
-            }
-        } else if (!self.clipped(&rec, es[0..nv], any_guard)) {
-            self.stats.rejected += 1;
-            return null;
-        }
-        if (offScreen(&rec)) return null;
-        rec.c = f.colour;
-        const mean = if (nv == 4) zsum >> 2 else fx.mulsh16(zsum, 21845);
-        const key: u16 = parent_key orelse @intCast(BUCKETS - 1 - @min(@max(mean >> 13, 0), BUCKETS - 1));
-        return self.push(rec, key);
-    }
-
-    fn clipped(self: *Frame, rec: *Rec, es: []*xf.Entry, mask: u8) bool {
-        var p = clip.Poly{};
-        for (es) |e| {
-            p.p[p.n] = e.v;
-            p.n += 1;
-        }
-        clip.clip(&p, mask);
-        if (p.n < 3) return false;
-        self.stats.clipped += 1;
-        rec.n = @intCast(p.n);
-        for (p.p[0..p.n], 0..) |q, i| {
-            const s = xf.project(q);
-            rec.x[i] = @intCast(s.x);
-            rec.y[i] = @intCast(s.y);
-        }
-        return true;
-    }
-
-    fn push(self: *Frame, rec: Rec, key: u16) ?u16 {
-        const i = self.stats.polys;
-        if (i == self.kept.len) {
-            self.stats.dropped += 1;
-            return null;
-        }
-        self.kept[i] = rec;
-        self.key[i] = key;
-        self.count[key + 1] += 1;
-        self.stats.polys = i + 1;
-        return key;
+    /// The key a ground face was kept with this frame, or null when it was culled or not reached (decals ride on it).
+    pub fn faceKey(self: *const Frame, fid: u16) ?u16 {
+        if (self.fkey.len == 0 or self.seen[fid] != self.seen_stamp) return null;
+        return if (self.fkey[fid] == NO_KEY) null else self.fkey[fid];
     }
 };

@@ -75,7 +75,7 @@ fn rejectCodes(v: clip.V3) u8 {
     const y = v[1];
     const z = v[2];
     var m: u8 = 0;
-    if (z < clip.NEAR) m |= 1;
+    if (z < clip.near) m |= 1;
     if (x < -z) m |= 2;
     if (x > z) m |= 4;
     if (20 * y + 11 * z < 0) m |= 8;
