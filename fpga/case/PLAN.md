@@ -68,7 +68,7 @@ Our model is drawn from scratch from these measurements (inspiration only, nothi
 | Part | L x W x H | Notes |
 |---|---|---|
 | MicroPhase Z7-Lite (FPGA) | 80 x 60 x 2 | 2 = PCB; tallest part to measure |
-| E-YOOSO Z-66 keyboard (USB, gaming, no numpad) | W 255 x D 125 x H 10 (+ keycaps); Matt's first note said 355 wide: TO CONFIRM | RESTS ON the top of the wedge (not built in), like the RetroDeck photo (printables 220606 image 3672); |
+| E-YOOSO Z-66 keyboard (USB, gaming, no numpad) | W 355 x D 125 x H 10 (+ keycaps) | RESTS ON the top of the wedge (not built in), like the RetroDeck photo (printables 220606 image 3672); |
 | iCode (USB to DB9 joysticks) | 90 x 40 x 20 | |
 | mini powered USB hub, 6 ports, USB-C 9 V in, USB2 | 75 x 40 x 10 | cables leave on ALL 4 sides: keep clearance |
 
