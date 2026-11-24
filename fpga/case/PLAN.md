@@ -57,3 +57,34 @@ Origin: the PCB's bottom-left corner seen from the top, HDMI side = "back" (tell
 - Lid with vents over B3, light pipes on B6, a reset push-rod.
 - Split to fit the bed; screws, not glue (the board comes out for JTAG).
 - Variant flag `board = "7010" | "7020"` if the 7020 PCB differs.
+
+## 3. Matt's measurements and choices (23 Nov 2026)
+
+Style: a **wedge with the keyboard on top**, after the RetroDeck (printables 220606, Raspberry Pi 3 +
+MiSTer wedge) **made deeper**; other references looked at: printables 106485, 1431330, 106475, 964115.
+Our model is drawn from scratch from these measurements (inspiration only, nothing copied).
+
+### Parts inside (mm; Matt wrote "cm", the numbers are mm: to confirm)
+| Part | L x W x H | Notes |
+|---|---|---|
+| MicroPhase Z7-Lite (FPGA) | 80 x 60 x 2 | 2 = PCB; tallest part to measure |
+| E-YOOSO Z-66 keyboard (USB) | 355 x 25 x 1 (+ keys) | on top of the wedge; depth to confirm |
+| iCode (USB to DB9 joysticks) | 90 x 40 x 20 | |
+| mini powered USB hub, 6 ports, USB-C 9 V in, USB2 | 75 x 40 x 10 | cables leave on ALL 4 sides: keep clearance |
+
+### Panel connectors (male/female extensions, case side <- inside)
+| Case connector | Goes to |
+|---|---|
+| USB-C | FPGA board power |
+| USB-C | FPGA board debug (USB-UART serial console) |
+| USB-A | hub: mouse |
+| USB-A | hub: Wi-Fi dongle (outside: better antenna) |
+| DB9 | iCode: joystick 0 |
+| DB9 | iCode: joystick 1 |
+| 3.5 mm jack | a USB sound card on the hub (PEREGRINE R88: KESTREL has no USB audio path) |
+| HDMI | FPGA board |
+| RJ45 | FPGA board (Ethernet, EMIO, later) |
+| SD card extension | FPGA board's SD slot |
+
+Inside: keyboard -> hub, iCode -> hub, hub upstream -> the board's USB host; hub ports: keyboard, iCode,
+mouse, Wi-Fi, sound card = 5 of 6 (1 spare: the USB floppy?).
