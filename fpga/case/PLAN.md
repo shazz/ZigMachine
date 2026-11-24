@@ -89,3 +89,14 @@ Our model is drawn from scratch from these measurements (inspiration only, nothi
 
 Inside: keyboard -> hub, iCode -> hub, hub upstream -> the board's USB host; hub ports: keyboard, iCode,
 mouse, Wi-Fi, sound card, floppy (external, via its case USB-A) = 6 of 6 (no spare port).
+
+### Z7-Lite layout (from the product photo, top view, long edges = 80 mm)
+- LEFT short edge: USB-C "UART" (top) and USB-C "JTAG" (below): the debug cable and, presumably, the power one
+  (to confirm which USB-C powers the board); 4 push buttons K1-K4 and the LEDs near the bottom-left.
+- RIGHT short edge: USB-A host (top, -> the hub), RJ45 "ETH" (middle, the tallest part), HDMI TX (bottom).
+- LONG edges: two 2x20 GPIO headers (GPIO2 top, GPIO1 bottom): keep clearance above them (free pins:
+  the I2S DAC option of R88 would plug here).
+- SD card slot: not visible on top: underneath (to confirm) -> the SD extension leaves from below.
+- 4 corner holes.
+So the board sits with its right edge facing the back panel (HDMI + RJ45 extensions short) and its
+left edge reachable for the two USB-C extensions.
