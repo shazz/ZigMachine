@@ -106,3 +106,14 @@ Board -> case: one male/female extender per port: RJ45, 2x USB-C, 1x USB2 (USB-A
 They are SEMI-RIGID (hard to bend): the layout must give them room: straight runs from the board's
 edge to the panel where possible, large bend radii, no tight U-turns. Needed: each one's length, its
 minimum bend radius, and how its female end mounts (screw ears + spacing, or a clip/glue).
+
+### The reference case's STLs (prototypes/kestrel_case/*.STL: a MiSTer wedge, NOT ours: never committed)
+Six parts, printed lying, measured from the meshes (mm):
+| Part | depth x half-width x height |
+|---|---|
+| front left / front right (keyboard tray) | 157 x 186.5 x 49 |
+| back left / back right (electronics, port cut-outs in the back wall) | 120 x 186.5 x 49 |
+| top left / top right (covers over the back, vent slots) | 133.5 x 186.5 x 5 |
+So the whole case is 373 wide (2 x 186.5) x ~277 deep x 49 high, split in the middle; every part fits a
+~190 x 160 mm bed. Matt: the back (120) is too shallow for the semi-rigid extenders. Ours keeps the same
+6-part split and heights but a deeper back section, set from the extenders' lengths and bend radii.
