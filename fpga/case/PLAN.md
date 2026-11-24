@@ -144,3 +144,7 @@ whichever is higher (minus ~0.4 V) feeds the board. The GPIO headers also carry 
 These are much longer than the straight runs (board edge to panel ~3-10 cm), so each semi-rigid cable
 needs a SLACK LOOP inside: plan cable channels/loop bays along the walls (one big U per cable, radius >=
 the cable's minimum bend), and clips to hold the loops. That, not the board, sets the back's depth.
+Bend (Matt): about a 6 cm wide U (inner radius ~30 mm). A 31 cm cable with a ~10 cm direct run keeps ~21 cm
+of slack = one U with ~6 cm legs (2 x 60 + pi x 30 ~ 21 cm): a ~60 x 90 mm footprint per loop, or one
+shared bay where same-direction cables loop together (they stack: 49 mm of height). First estimate: back
+section ~170 deep instead of 120 (case ~327 deep in all); the top-view layout will settle it.
