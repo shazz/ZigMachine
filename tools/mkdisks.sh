@@ -199,6 +199,9 @@ for w in "$OUT"/demo-*.wasm; do
         # SID-Wizard: Hermit's own example song "Flash It Back" (upstream native/examples, WTF licence,
         # data/), which the cart opens at start (kestrel_sw_keysim.c); saves go to C: (README.md).
         sidwizard) portdisk "$tag" "$w" --file "FLASHBAK.SWM=apps/ports/sidwizard/data/FLASHBAK.SWM" ;;
+        # SID-WIZARD Z (Zig UI, the 6502 player on cpu6502) is a GEM program as NOTEPAD is: a data disk, BOOT.WSM, the same
+        # example song as the C cart, which it opens at start; songs are saved on C:.
+        sidwizard_z) pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot --file "FLASHBAK.SWM=apps/ports/sidwizard/data/FLASHBAK.SWM" ;;
         # SyncTERM (the spike): the mocked BBS's welcome screen, our own CP437 ANSI art (mkansi.py), which
         # the in-cart fake BBS sends when SyncTERM dials telnet://fakebbs.zig (kestrel_fakebbs.c).
         syncterm)  portdisk "$tag" "$w" --file "WELCOME.ANS=apps/ports/syncterm/data/BBS.ANS" --file "DIAL.TXT=apps/ports/syncterm/data/DIAL.TXT" ;;

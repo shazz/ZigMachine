@@ -314,6 +314,9 @@ for t in $NATIVE_TESTS; do
         tests_failed="$tests_failed $t"
     fi
 done
+# SID-WIZARD Z's player: the 6502 player driven from Zig writes the C cart's first 4000 SID writes (its own module: cpu6502)
+zig test --dep cpu6502 -Mroot=apps/zig/scenes/sidwizard_z/player_test.zig -Mcpu6502=libs/zig/players/cpu6502.zig > "$TESTQ/sidwizard_z_player.out" 2>&1 \
+    && tail -1 "$TESTQ/sidwizard_z_player.out" || { tail -20 "$TESTQ/sidwizard_z_player.out"; tests_failed="$tests_failed sidwizard_z/player_test.zig"; }
 [ -n "$tests_failed" ] || rm -rf "$TESTQ"
 if [ -n "$tests_failed" ]; then
     echo "native tests: FAILED ❌$tests_failed"
@@ -912,6 +915,13 @@ gate ports_sidwizard node apps/harness/sidwizard_bard_check.mjs --break stamp   
 gate ports_sidwizard node apps/harness/sidwizard_bard_check.mjs --break reg   # ...and the loader writing the next SID register fails parity
 gate ports_sidwizard node apps/harness/sidwizard_cpu_check.mjs   # SID-WIZARD's fast 6502 (kestrel_sw_cpu.c, the registers in locals) = libcRSID's own, byte for byte: every opcode on 48 random C64s (the whole 275 KB machine compared after one instruction) and 4,000 C64 samples of random code (interrupts, the wait, I/O)
 gate ports_sidwizard node apps/harness/sidwizard_cpu_check.mjs --break   # ...and a wrong ADC carry is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs   # SID-WIZARD Z (cart 140: SID-Wizard 1.97's UI in native Zig + Hermit's own 6502 player on cpu6502, its SID on BARD): launched from GEM off its data disk; the editor's picture up on one 400x280 plane; FLASHBAK.SWM opened off the floppy: F1 plays it, and its first 1000 SID writes are the C cart's (apps/ports/sidwizard), register for register, on the page's SID live; Run/Stop silences and resumes; Tab, Down, Space, W types a note in track 2; F8, Up, Return, MYSONG, Return saves to C: (KOS GEMDOS), the note in the file; Shift+F8, Y quits back to GEM
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break silent   # ...and F1 never pressed (silence) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break edit   # ...and no note typed is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break write   # ...and a C: that refuses writes (no file) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break quit   # ...and no quit is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break bard   # ...and a host with no BARD queue (the song cannot be heard) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break nodisk   # ...and a drive emptied as the program starts (no start song) is caught
 gate ports_syncterm node apps/harness/syncterm_headless.mjs   # SYNCTERM (C, GPLv2, the spike: apps/ports/syncterm, fibers on Asyncify, the network MOCKED): launched from GEM over its data disk, it enters the desk mode (640x480), dials telnet://fakebbs.zig (the in-cart BBS), the telnet options are negotiated and WELCOME.ANS is drawn (rows pinned), typed keys come back as the BBS's echo (pinned), Alt+X + No quits back to the desktop as it was (no C: here: the dial-at-once path)
 gate ports_syncterm node apps/harness/syncterm_headless.mjs --break type   # ...and keys never typed (no echo) are caught
 gate ports_syncterm node apps/harness/syncterm_headless.mjs --break quit   # ...and no quit is caught

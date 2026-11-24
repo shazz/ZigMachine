@@ -60,6 +60,8 @@ SHELF = (
     # The GEM 5 programs (tools): data disks as st_replay and sysinfo are, the cart is BOOT.WSM: NOTEPAD
     # (C:\\*.TXT) and GEMTEST (every GEM 5 component, docs/os/GEMTEST.md).
     "notepad", "gemtest",
+    # SID-WIZARD Z: the tracker with its UI in Zig (a data disk with FLASHBAK.SWM; the cart is BOOT.WSM), beside the C one.
+    "sidwizard_z",
     # The .sid player's test screen: a C64 PSID on cRSID, native on BARD.
     "sid_test",
     # The .vgm player's test screen: a Mega Drive VGM on our own YM2612 + SN76489, native on BARD.

@@ -93,6 +93,7 @@ pub fn build(b: *std.Build) void {
     // through fat.zig too, and a file in two modules of a compilation is an error (every cart parses
     // every scene: the desktop shell's kos_fat and the MP3 player's kos_gemdos met there).
     const kos_gemdos_mod = b.createModule(.{ .root_source_file = b.path("rom/kos/gemdos_cart.zig"), .target = wasm_target, .optimize = optimize });
+    const cpu6502_mod = b.createModule(.{ .root_source_file = b.path("libs/zig/players/cpu6502.zig"), .target = wasm_target, .optimize = optimize });
     const depackers_mod = b.createModule(.{
         .root_source_file = b.path("libs/zig/depackers/depackers.zig"),
         .target = wasm_target,
@@ -664,6 +665,7 @@ pub fn build(b: *std.Build) void {
         "", // 137: reserved (spike/rift-* branches)
         "demo-nfo_viewer", // 138 — NFO VIEWER: the zigdemo NFO / ASCII-art viewer (an Amiga ASCII viewer's look) on the desk plane: a sample NFO painted once into a tall buffer, panned 1 px a step, a fixed prompt bar, keys A/B
         "demo-vgm_test", // 139 — VGM TEST: a Mega Drive VGM (KESTREL FM, our own tune, libs/c/vgm/make_tune.py) on our own YM2612 + SN76489 (libs/c/vgm, MIT): native on BARD, machine-audio.wasm on the page; keys 1-3 by name (.vgm, .vgz) and as bytes, 4 stops; BARD load on screen
+        "demo-sidwizard_z", // 140 — SID-WIZARD Z: Hermit's SID-Wizard 1.97 tracker with its UI in native Zig (apps/zig/scenes/sidwizard_z/) and the original 6502 player on libs/zig/players/cpu6502.zig, its SID on BARD; a GEM program beside the C cart "sidwizard" (apps/ports/sidwizard), to compare the two
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -690,6 +692,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
                 .{ .name = "kos_gemdos", .module = kos_gemdos_mod }, // KOS GEMDOS (docs/os/KOS_GEMDOS.md): no cart pays unless it imports it
                 .{ .name = "nfo", .module = nfo_mod }, // zigdemo's NFO viewer: pure, a cart pays only for what it uses
+                .{ .name = "cpu6502", .module = cpu6502_mod }, // the 6502 (SAP player, SID-WIZARD Z's SID-Wizard player): a cart pays only if it imports it
             },
         });
         if (std.mem.eql(u8, name, "demo-tc_test")) cart_mod.addImport("tc_art", tcArt(b, tc_art_dir, wasm_target, optimize));
