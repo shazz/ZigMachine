@@ -1,0 +1,80 @@
+// --------------------------------------------------------------------------
+// Algorithms of this file follow freds72's PICO-8 racer engine (github.com/freds72/virtua-on,
+// vracing_main.p8; MIT, Copyright (c) freds72; licence text at the head of frame.zig):
+// play_state's clock, checkpoints and laps.
+//
+// RACER: the player's race rules, one `tick` per physics tick of the race state. The clock starts
+// at 75 s; each checkpoint (the track's four, in lap order) adds 10 s and shows "extend time" for
+// 5 s; passing the last checkpoint closes the lap (its time is kept, the best lap noted), and the
+// third lap is a win; the clock reaching 0 is a loss (it is judged first, as in the original).
+// A checkpoint is passed when the player's track u is past `lap * segments + checkpoint`.
+// Times are ticks (30 Hz). Integer only. No ZigOS import.
+// --------------------------------------------------------------------------
+const trk = @import("trk.zig");
+
+pub const LAPS = 3;
+pub const HZ = 30;
+pub const START_TICKS = 75 * HZ;
+pub const EXTEND_TICKS = 10 * HZ;
+pub const MESSAGE_TICKS = 5 * HZ;
+const NO_BEST: u32 = 32000;
+
+pub const Result = enum { none, checkpoint, lap, win, timeout };
+
+pub const Rules = struct {
+    segments: i32,
+    checkpoints: []const u32,
+    remaining: i32 = START_TICKS,
+    total: u32 = 0,
+    lap_t: u32 = 0,
+    extend_t: i32 = 0,
+    checkpoint: u32 = 0,
+    laps: [LAPS]u32 = [_]u32{0} ** LAPS,
+    nlaps: u32 = 0,
+    best_t: u32 = NO_BEST,
+    best_i: u32 = 0, // 1-based index of the best lap, 0 before the first
+
+    pub fn init(t: *const trk.Track) error{NoCheckpoints}!Rules {
+        if (t.checkpoints.len == 0) return error.NoCheckpoints;
+        return .{ .segments = @intCast(t.line.len), .checkpoints = t.checkpoints };
+    }
+
+    /// One tick of the race clock with the player's track `u` (16.16, unwrapped: it grows over laps).
+    pub fn tick(self: *Rules, u: i32) Result {
+        self.extend_t -= 1;
+        self.total += 1;
+        self.remaining -= 1;
+        self.lap_t += 1;
+        if (self.remaining == 0) return .timeout;
+        const gate = (@as(i32, @intCast(self.nlaps)) * self.segments + @as(i32, @intCast(self.checkpoints[self.checkpoint]))) << 16;
+        if (u <= gate) return .none;
+        self.checkpoint += 1;
+        self.remaining += EXTEND_TICKS;
+        self.extend_t = MESSAGE_TICKS;
+        if (self.checkpoint < self.checkpoints.len) return .checkpoint;
+        return self.closeLap();
+    }
+
+    fn closeLap(self: *Rules) Result {
+        self.laps[self.nlaps] = self.lap_t;
+        self.nlaps += 1;
+        if (self.lap_t < self.best_t) {
+            self.best_t = self.lap_t;
+            self.best_i = self.nlaps;
+        }
+        self.checkpoint = 0;
+        self.lap_t = 0;
+        return if (self.nlaps == LAPS) .win else .lap;
+    }
+
+    /// The u past which the player has finished all the laps (the last checkpoint of the last lap).
+    pub fn finishU(self: *const Rules) i32 {
+        const last: i32 = @intCast(self.checkpoints[self.checkpoints.len - 1]);
+        return ((LAPS - 1) * self.segments + last) << 16;
+    }
+
+    /// Seconds left on the clock, rounded up (the HUD's number).
+    pub fn seconds(self: *const Rules) i32 {
+        return @divFloor(self.remaining + HZ - 1, HZ);
+    }
+};

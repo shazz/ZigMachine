@@ -15,6 +15,10 @@ const npc = @import("npc.zig");
 const seg = @import("seg.zig");
 const trk = @import("trk.zig");
 
+fn zeroClock() u32 {
+    return 0;
+}
+
 pub const NCARS = 8; // the player + seven AI cars
 pub const WORDS_CAR = 10;
 pub const WORDS = NCARS * WORDS_CAR + 3;
@@ -28,6 +32,9 @@ pub const Race = struct {
     contacts: u32 = 0, // the original's hit sound: car-vs-car pushes on the player
     parked: u8 = 0, // a test hook: bit k set = AI car k+1 is never steered (the reference's `ram` run)
     ticks: u32 = 0,
+    now: *const fn () u32 = zeroClock, // the host's microsecond clock on the board (0 headless): times the AI half of a tick
+    ai_us: u64 = 0,
+    ai_max: u32 = 0,
 
     pub fn init(t: *const trk.Track, n: usize) error{ NoGrid, TooManySegments }!Race {
         if (n < 1 or n > NCARS or t.grid.len < n) return error.NoGrid;
@@ -47,13 +54,21 @@ pub const Race = struct {
         p.prepare();
         p.integrate();
         p.update();
+        const t0 = self.now();
+        self.aiTick();
+        const us = self.now() -% t0;
+        self.ai_us += us;
+        self.ai_max = @max(self.ai_max, us);
+        self.ticks += 1;
+    }
+
+    fn aiTick(self: *Race) void {
         for (self.cars[1..self.n], self.pids[0 .. self.n - 1], 0..) |*c, *pid, k| {
             if (self.parked >> @intCast(k) & 1 == 0) npc.control(c, pid, &self.lens);
             c.prepare();
             c.integrate();
             c.update();
         }
-        self.ticks += 1;
     }
 
     pub fn hits(self: *const Race) u32 {

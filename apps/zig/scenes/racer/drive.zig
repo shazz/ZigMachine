@@ -15,7 +15,7 @@ const carmodel = @import("carmodel.zig");
 const clip = @import("clip.zig");
 const data = @import("data.zig");
 const frame = @import("frame.zig");
-const fx = @import("fx.zig");
+const pov = @import("pov.zig");
 const refrun = @import("refrun.zig");
 const skid = @import("skid.zig");
 const trk = @import("trk.zig");
@@ -27,7 +27,7 @@ pub const Mode = enum { off, drive, bench };
 fn zeroClock() u32 {
     return 0;
 }
-pub const POV_FRAMES = 60; // 30 ticks
+pub const POV_FRAMES = pov.FRAMES; // 30 ticks
 pub const LAP_TICKS = 360;
 
 pub const Snap = carview.Snap;
@@ -37,7 +37,7 @@ pub const Drive = struct {
     car: car.Car,
     skid: skid.Skid = .{},
     mode: Mode = .off,
-    pov: cam.Pov = .far,
+    pov: cam.Pov = .far, // (pov.zig has the camera maths)
     from: cam.Pov = .far,
     pov_frames: u32 = POV_FRAMES,
     held: u8 = 0,
@@ -72,7 +72,7 @@ pub const Drive = struct {
 
     pub fn nextPov(self: *Drive) void {
         self.from = self.pov;
-        self.pov = @enumFromInt((@intFromEnum(self.pov) + 1) % 3);
+        self.pov = pov.next(self.pov);
         self.pov_frames = 0;
     }
 
@@ -132,25 +132,10 @@ pub const Drive = struct {
         return @as(i16, @truncate(self.cur.angle -% self.prev.angle));
     }
 
-    fn offsets(self: *const Drive) [3]i32 {
-        const to = povParams(self.pov);
-        const from = povParams(self.from);
-        const k: i32 = @intCast(self.pov_frames * 65536 / POV_FRAMES);
-        var o: [3]i32 = undefined;
-        for (&o, from, to) |*r, a, b| r.* = a + fx.mulsh16(b - a, k);
-        return o;
-    }
-
     /// The chase / cockpit camera behind the shown pose.
     pub fn pose(self: *const Drive) cam.Pose {
         const s = self.shown();
-        const yaw: u32 = @as(u32, @as(u16, @truncate(@as(u32, @bitCast(s.angle))))) << 16;
-        const o = self.offsets();
-        var p = s.pos;
-        p[0] -= fx.mulsh16(o[0], fx.sin(yaw));
-        p[2] -= fx.mulsh16(o[0], fx.cos(yaw));
-        p[1] += o[1];
-        return .{ .pos = p, .yaw = yaw, .pitch = @bitCast(o[2]) };
+        return pov.pose(s.pos, s.angle, pov.offsets(self.pov, self.from, self.pov_frames));
     }
 
     /// The HUD's name for the mode and POV.
@@ -161,7 +146,7 @@ pub const Drive = struct {
 
     /// The near plane this frame's POV wants (the cockpit is inside the car).
     pub fn near(self: *const Drive) i32 {
-        return if (self.pov == .cockpit and self.pov_frames == POV_FRAMES) clip.NEAR_COCKPIT else clip.NEAR;
+        return pov.near(self.pov, self.pov_frames);
     }
 
     /// Push the car's polygons (not in the cockpit) after collect and before sort.
@@ -181,12 +166,6 @@ pub const Drive = struct {
 
 fn mid(a: [3]i32, b: [3]i32) [3]i32 {
     return .{ a[0] + ((b[0] - a[0]) >> 1), a[1] + ((b[1] - a[1]) >> 1), a[2] + ((b[2] - a[2]) >> 1) };
-}
-
-/// back (Q16), height (Q16), pitch (turns u32 as i32) of a POV.
-fn povParams(p: cam.Pov) [3]i32 {
-    const k = @intFromEnum(p);
-    return .{ cam.BACK[k], cam.HEIGHT[k], @bitCast(cam.PITCH[k]) };
 }
 
 /// The tick's own cost over the lap so far: average and worst microseconds a tick (the host clock; 0 headless).

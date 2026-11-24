@@ -10,4 +10,5 @@ test {
     _ = @import("scenes/racer/car_test.zig");
     _ = @import("scenes/racer/drive_test.zig");
     _ = @import("scenes/racer/race_test.zig");
+    _ = @import("scenes/racer/session_test.zig");
 }
