@@ -922,6 +922,10 @@ gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break write   # ...an
 gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break quit   # ...and no quit is caught
 gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break bard   # ...and a host with no BARD queue (the song cannot be heard) is caught
 gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break nodisk   # ...and a drive emptied as the program starts (no start song) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break clist   # ...and a file dialog that never enters the folder C (C: not browsed) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break follow   # ...and follow-play never switched on (C= not held) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break blink   # ...and a song paused (the order list's played positions not blinking, the strip static) is caught
+gate sidwizard_z node apps/harness/sidwizard_z_check.mjs --break theme   # ...and a colour theme the editor ignores (SWITCH THEME never applied: the pattern view keeps its colours) is caught
 gate ports_syncterm node apps/harness/syncterm_headless.mjs   # SYNCTERM (C, GPLv2, the spike: apps/ports/syncterm, fibers on Asyncify, the network MOCKED): launched from GEM over its data disk, it enters the desk mode (640x480), dials telnet://fakebbs.zig (the in-cart BBS), the telnet options are negotiated and WELCOME.ANS is drawn (rows pinned), typed keys come back as the BBS's echo (pinned), Alt+X + No quits back to the desktop as it was (no C: here: the dial-at-once path)
 gate ports_syncterm node apps/harness/syncterm_headless.mjs --break type   # ...and keys never typed (no echo) are caught
 gate ports_syncterm node apps/harness/syncterm_headless.mjs --break quit   # ...and no quit is caught

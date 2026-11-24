@@ -82,7 +82,7 @@ fn sprites(f: *Frame, data: []const u8, y0: usize, ghost: bool) void {
 pub fn compose(f: *Frame, scr: *const dsp.Screen, over: ?*const dsp.Overlay, b: ?*const border.Border) void {
     @memset(@as([*]u8, @ptrCast(&f.px))[0 .. W * H], 0); // not `f.* = .{}`: that is a 112 KB zero blob in the cart
     textRows(f, scr);
-    if (over) |o| row26(f, o, 12);
+    if (over) |o| row26(f, o, o.fx_colour);
     if (b) |bb| {
         sprites(f, bb.up[0x40..], 14, false);
         sprites(f, &bb.low, 246, true);

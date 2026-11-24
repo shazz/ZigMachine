@@ -345,3 +345,41 @@ test "dummy pattern end string" {
     try std.testing.expectEqual(@as(u8, 0xbd), scr.chars[2][1]);
     try std.testing.expectEqual(@as(u8, 0x5b), scr.chars[0][1]); // note $00
 }
+
+// -- colour themes (displayer2.inc coloriz / ColorThemes) ----------------------
+
+fn themeScreen(n: u8) dsp.Screen {
+    var v = startupView();
+    v.themeno = n;
+    var s: dsp.Screen = .{};
+    dsp.render(&song, &v, &s);
+    return s;
+}
+
+test "every theme recolours the whole editor from the asm's table, not only the menu" {
+    try swm.load(&song, tune);
+    const base = themeScreen(0);
+    for (1..dsp.themes.len) |n| {
+        const t = dsp.themes[n];
+        const s = themeScreen(@intCast(n));
+        var differ: usize = 0;
+        for (0..dsp.ROWS) |r| {
+            for (0..dsp.COLS) |c| differ += @intFromBool(s.colours[r][c] != base.colours[r][c]);
+        }
+        try std.testing.expect(differ > 50); // the pattern view and the panel, not a few cells
+        try std.testing.expectEqual(t[3], s.colours[0][29]); // the underlay and fx columns: fxcol
+        var o: dsp.Overlay = .{};
+        var v = startupView();
+        v.themeno = @intCast(n);
+        dsp.overlayRender(&song, &v, &o);
+        try std.testing.expectEqual(t[0], o.sprite_colour); // the border sprites: borderspcol
+        try std.testing.expectEqual(t[3], o.fx_colour); // the 26th row: fxcol
+    }
+}
+
+test "theme 0 is the colour scheme the editor starts with" {
+    try swm.load(&song, tune);
+    const s = themeScreen(0);
+    try std.testing.expectEqual(@as(u4, 12), s.colours[0][29]);
+    try std.testing.expectEqual(@as(u4, 12), s.colours[24][31]); // the panel's default: ipacol
+}

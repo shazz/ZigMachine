@@ -8,6 +8,7 @@ const kh = @import("keys.zig");
 const filer = @import("filer.zig");
 const Editor = @import("editor.zig").Editor;
 const files = @import("files.zig");
+const names = @import("names.zig");
 const Play = @import("play.zig").Play;
 
 pub const START_SONG = "FLASHBAK.SWM";
@@ -18,11 +19,12 @@ pub const Session = struct {
     play: Play = .{},
     wants_quit: bool = false,
     exit_ask: bool = false, // "DO YOU REALLY WANT TO EXIT? (Y/N)" is up
+    cwd: names.Cwd = .{}, // where the file dialog is: the floppy's root or a folder of C:
     last_fail: ?files.Fail = null, // the last file error, for the harness and the log
 
     /// Open the example song off the floppy, as the C cart's key simulator does at start.
     pub fn openStart(self: *Session) bool {
-        const bytes = files.read(START_SONG, self.io) catch |e| {
+        const bytes = files.readStart(START_SONG, self.io) catch |e| {
             self.last_fail = e;
             return false;
         };
@@ -57,18 +59,38 @@ pub const Session = struct {
     fn listing(self: *Session) void {
         var entries: [filer.max_files]filer.Entry = undefined;
         const ext = extOf(self.ed.view.filer.kind);
-        const n = files.listing(&ext, &entries);
+        const n = files.listing(&self.cwd, &ext, &entries);
         self.ed.filerListing(entries[0..n], false);
+        self.label();
+    }
+
+    /// The dialog's "DR:" text for where it is.
+    pub fn label(self: *Session) void {
+        const l = self.cwd.label(&self.ed.view.filer_loc);
+        @memset(self.ed.view.filer_loc[l.len..], ' ');
+    }
+
+    /// A folder entry picked (FOLDER + name + extension): go there and list it again, the dialog stays open.
+    fn folder(self: *Session, ref: kh.FileRef) bool {
+        if (ref.name.len < 1 + 4 or ref.name.buf[0] != names.FOLDER) return false;
+        const dir = ref.name.buf[1 .. ref.name.len - 4];
+        if (std.mem.eql(u8, dir, "..")) self.cwd.up() else _ = self.cwd.enter(dir);
+        self.ed.view.filer.open = true;
+        @memset(&self.ed.view.filer.name, ' ');
+        self.ed.view.filer.name_pos = 0;
+        self.listing();
+        return true;
     }
 
     fn load(self: *Session, ref: kh.FileRef) void {
+        if (self.folder(ref)) return;
         const ok = self.loadFile(ref);
         self.ed.filerResult(ok);
     }
 
     fn loadFile(self: *Session, ref: kh.FileRef) bool {
         if (ref.kind != .tune) return false; // instrument and config files are not read here yet
-        const bytes = files.read(ref.name.buf[0..ref.name.len], self.io) catch |e| {
+        const bytes = files.read(&self.cwd, ref.name.buf[0..ref.name.len], self.io) catch |e| {
             self.last_fail = e;
             return false;
         };
@@ -78,13 +100,14 @@ pub const Session = struct {
     }
 
     fn save(self: *Session, ref: kh.FileRef) void {
+        if (self.folder(ref)) return;
         self.ed.filerResult(self.saveFile(ref));
     }
 
     fn saveFile(self: *Session, ref: kh.FileRef) bool {
         if (ref.kind != .tune) return false;
         const n = self.ed.save(self.io) catch return false;
-        files.write(ref.name.buf[0..ref.name.len], self.io[0..n]) catch |e| {
+        files.write(&self.cwd, ref.name.buf[0..ref.name.len], self.io[0..n]) catch |e| {
             self.last_fail = e;
             return false;
         };

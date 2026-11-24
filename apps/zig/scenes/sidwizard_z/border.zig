@@ -115,14 +115,16 @@ fn ptnSizes(b: *Border, o: *const dsp.Overlay) void {
 
 /// The oscilloscope window: edge pixels, then the flat centre line a silent
 /// SID (OSC3 = ENV3 = 0) draws: row 7, OsciPixel ORs on both bytes.
-fn scope(b: *Border) void {
+fn scope(b: *Border, rows: *const [12]u8) void {
     const base: usize = 0xdac6 - up_base;
     for (0..16) |r| {
         b.up[base + 3 * r] = 0x80;
         b.up[base + 3 * r + 1] = 0x05;
     }
-    b.up[base + 21] |= 0x3f; // OsciPixel $20..$01 (x = 0..5)
-    b.up[base + 22] |= 0xfc; // OsciPixel $80..$04 (x = 6..11)
+    for (rows, 0..) |row, x| {
+        const r: usize = @min(row, 15);
+        if (x < 6) b.up[base + 3 * r] |= @as(u8, 0x20) >> @intCast(x) else b.up[base + 3 * r + 1] |= @as(u8, 0x80) >> @intCast(x - 6);
+    }
 }
 
 /// upbordisp: redraw every readout. `rastime` is the player-runtime
@@ -137,7 +139,7 @@ pub fn upperRender(b: *Border, o: *const dsp.Overlay) void {
     meter(b, 0xdaad, o.pw_meter[1]);
     meter(b, 0xdab0, o.pw_meter[2]);
     meter(b, 0xdab6, o.ct_meter);
-    scope(b);
+    scope(b, &o.scope);
 }
 
 // -- low border (displayer2.inc ordldis) -----------------------------------------
@@ -147,7 +149,7 @@ fn colOffset(k: usize) usize {
     return (k / 3) * 0x40 + k % 3;
 }
 
-fn orderValue(b: *Border, off: usize, v: u8, mark: bool) void {
+fn orderValue(b: *Border, off: usize, v: u8, mark: bool, blank: bool) void {
     b.low[off + 15] = if (mark) 0xc8 else 0; // markpos underline, line 5
     var lo: usize = 0x11; // value 0 shows dots, $f0 the NOP separator
     if (v == 0) lo = 0x10 else if (v != 0xf0) lo = v & 0x0f;
@@ -155,7 +157,7 @@ fn orderValue(b: *Border, off: usize, v: u8, mark: bool) void {
     for (0..5) |x| {
         const r = glyphs[rightGlyph(lo) + x] & 0x0f;
         const l = glyphs[leftGlyph(hi) + x] & 0xf0;
-        b.low[off + 3 * x] = l | r;
+        b.low[off + 3 * x] = if (blank) 0 else l | r;
     }
 }
 
@@ -165,7 +167,7 @@ pub fn lowerRender(b: *Border, o: *const dsp.Overlay) void {
         for (0..20) |k| {
             const off = colOffset(k) + t * 21;
             const mark = o.ordl_mark[t] == @as(i16, @intCast(k));
-            orderValue(b, off, o.ordl_val[t][k], mark);
+            orderValue(b, off, o.ordl_val[t][k], mark, o.ordl_blank[t] == @as(i16, @intCast(k)));
         }
     }
 }

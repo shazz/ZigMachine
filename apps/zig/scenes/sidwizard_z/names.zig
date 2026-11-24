@@ -24,6 +24,106 @@ pub fn addEntry(out: *[filer.max_files]filer.Entry, n: usize, file: []const u8, 
     return n + 1;
 }
 
+/// The mark the C editor's emulator hosts put before a folder's name in a listing (SWEMU_FOLDER_CHAR).
+pub const FOLDER: u8 = 0x7F;
+
+/// Add the folder `name` ("MUSIC", "..") to the listing as its folder entry (FOLDER + the name).
+pub fn addFolder(out: *[filer.max_files]filer.Entry, n: usize, name: []const u8) usize {
+    if (n >= out.len or name.len == 0 or name.len + 1 > filer.max_name) return n;
+    out[n] = .{};
+    out[n].name[0] = FOLDER;
+    for (name, 0..) |c, i| out[n].name[i + 1] = std.ascii.toUpper(c);
+    out[n].len = @intCast(name.len + 1);
+    return n + 1;
+}
+
+/// Where the file dialog is: the floppy's root (read-only), or a folder of C: (the KOS GEMDOS drive).
+pub const Cwd = struct {
+    on_c: bool = false,
+    buf: [48]u8 = undefined, // the folders under C:\ joined by backslashes: "MUSIC\SIDS"
+    len: u8 = 0,
+
+    /// Go into folder `name` (a floppy's root has one: "C", the other drive). False: refused.
+    pub fn enter(self: *Cwd, name: []const u8) bool {
+        if (!self.on_c) {
+            if (!std.ascii.eqlIgnoreCase(name, "C")) return false;
+            self.on_c = true;
+            self.len = 0;
+            return true;
+        }
+        const add = name.len + @intFromBool(self.len > 0);
+        if (name.len == 0 or self.len + add > self.buf.len) return false;
+        if (self.len > 0) {
+            self.buf[self.len] = '\\';
+            self.len += 1;
+        }
+        for (name) |c| {
+            self.buf[self.len] = std.ascii.toUpper(c);
+            self.len += 1;
+        }
+        return true;
+    }
+
+    /// "..": one folder up; from C:'s root back to the floppy.
+    pub fn up(self: *Cwd) void {
+        if (!self.on_c) return;
+        if (self.len == 0) {
+            self.on_c = false;
+            return;
+        }
+        const cut = std.mem.lastIndexOfScalar(u8, self.buf[0..self.len], '\\');
+        self.len = if (cut) |c| @intCast(c) else 0;
+    }
+
+    /// `C:\MUSIC\NAME` into `out`; `name` empty: the folder itself (a search path's base).
+    pub fn path(self: *const Cwd, out: []u8, name: []const u8) ?[]u8 {
+        const sep: []const u8 = if (self.len > 0 and name.len > 0) "\\" else "";
+        return std.fmt.bufPrint(out, "C:\\{s}{s}{s}", .{ self.buf[0..self.len], sep, name }) catch null;
+    }
+
+    /// The dialog's "DR:" text: "A:\" for the floppy, "C:\MUSIC" on C:.
+    pub fn label(self: *const Cwd, out: []u8) []u8 {
+        if (!self.on_c) return std.fmt.bufPrint(out, "A:\\", .{}) catch out[0..0];
+        return std.fmt.bufPrint(out, "C:\\{s}", .{self.buf[0..self.len]}) catch out[0..0];
+    }
+};
+
+test "Cwd: the floppy's C folder opens C:, folders nest, .. climbs back to the floppy" {
+    var c: Cwd = .{};
+    try std.testing.expect(!c.enter("MUSIC")); // the floppy has no such folder
+    try std.testing.expect(c.enter("C"));
+    try std.testing.expect(c.enter("music"));
+    try std.testing.expect(c.enter("SIDS"));
+    var b: [64]u8 = undefined;
+    try std.testing.expectEqualStrings("C:\\MUSIC\\SIDS\\TUNE.SWM", c.path(&b, "TUNE.SWM").?);
+    try std.testing.expectEqualStrings("C:\\MUSIC\\SIDS", c.label(&b));
+    c.up();
+    try std.testing.expectEqualStrings("C:\\MUSIC\\X.SWM", c.path(&b, "X.SWM").?);
+    c.up();
+    try std.testing.expectEqualStrings("C:\\X.SWM", c.path(&b, "X.SWM").?);
+    c.up();
+    try std.testing.expect(!c.on_c);
+    try std.testing.expectEqualStrings("A:\\", c.label(&b));
+}
+
+test "Cwd refuses a path that does not fit" {
+    var c: Cwd = .{ .on_c = true };
+    try std.testing.expect(c.enter("ABCDEFGHIJK"));
+    try std.testing.expect(c.enter("ABCDEFGHIJK"));
+    try std.testing.expect(c.enter("ABCDEFGHIJK"));
+    try std.testing.expect(c.enter("ABCDEFGHIJK"));
+    try std.testing.expect(!c.enter("ABCDEFGHIJK"));
+}
+
+test "addFolder marks a folder entry and refuses a too long name" {
+    var out: [filer.max_files]filer.Entry = undefined;
+    var n = addFolder(&out, 0, "music");
+    n = addFolder(&out, n, "ABCDEFGHIJKL"); // 12 + the mark: 13 > 12
+    try std.testing.expectEqual(@as(usize, 1), n);
+    try std.testing.expectEqual(FOLDER, out[0].name[0]);
+    try std.testing.expectEqualStrings("MUSIC", out[0].name[1..out[0].len]);
+}
+
 test "valid: 8.3 with a dot, no path or wildcard characters" {
     try std.testing.expect(valid("MYSONG.SWM"));
     try std.testing.expect(valid("A.SWM"));

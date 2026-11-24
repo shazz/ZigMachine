@@ -14,6 +14,7 @@ const WIN_Y = 36;
 /// Clear the plane and write `scr`'s 25 rows of 40 ASCII cells, a run of one colour at a time.
 pub fn draw(os: *zg.ZigOS, fb: *zg.LogicalFB, scr: *const dsp.Screen) void {
     fb.clearFrameBuffer(0);
+    for (0..200) |y| @memset(fb.fb[(WIN_Y + y) * @as(usize, fb.stride) + WIN_X ..][0..320], dsp.file_bg); // fileBGcolor under the text
     for (0..dsp.ROWS) |r| {
         var c: usize = 0;
         while (c < dsp.COLS) {
@@ -21,7 +22,7 @@ pub fn draw(os: *zg.ZigOS, fb: *zg.LogicalFB, scr: *const dsp.Screen) void {
             var e = c;
             while (e < dsp.COLS and scr.colours[r][e] == col) e += 1;
             const run = scr.chars[r][c..e];
-            if (!allBlank(run)) os.printText(fb, run, @intCast(WIN_X + c * 8), @intCast(WIN_Y + r * 8), col, 0);
+            if (!allBlank(run)) os.printText(fb, run, @intCast(WIN_X + c * 8), @intCast(WIN_Y + r * 8), col, dsp.file_bg);
             c = e;
         }
     }

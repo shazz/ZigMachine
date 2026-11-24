@@ -26,6 +26,8 @@ test {
     _ = @import("scenes/sidwizard_z/keymap.zig");
     _ = @import("scenes/sidwizard_z/names.zig");
     _ = @import("scenes/sidwizard_z/video.zig");
+    _ = @import("scenes/sidwizard_z/follow.zig");
+    _ = @import("scenes/sidwizard_z/scope.zig");
     _ = @import("scenes/sysinfo/stref.zig");
     _ = @import("scenes/sysinfo/refs.zig");
     _ = @import("scenes/sysinfo/view.zig");
