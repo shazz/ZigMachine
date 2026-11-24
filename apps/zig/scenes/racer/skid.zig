@@ -12,6 +12,7 @@
 // 0.0078 grid. No ZigOS import.
 // --------------------------------------------------------------------------
 const cam = @import("cam.zig");
+const car = @import("car.zig");
 const carmodel = @import("carmodel.zig");
 const fix = @import("fix.zig");
 const frame = @import("frame.zig");
@@ -102,6 +103,16 @@ pub const Skid = struct {
         if (!m.live) return;
         m.c[0] = vec.add(pos, right, -WIDTH); // the leading edge: left, right of the quad's winding
         m.c[1] = vec.add(pos, right, WIDTH);
+    }
+
+    /// The tick's emission of one car: each sliding wheel (front pair, rear pair) lays on the ground face under the car.
+    pub fn emitCar(self: *Skid, t: *const trk.Track, c: *const car.Car) void {
+        const old = c.old orelse return;
+        const ax = c.axes();
+        for (carmodel.WHEELS, 0..) |w, k| {
+            if (!(if (k < 2) c.front_slide else c.rear_slide)) continue;
+            self.emit(t, k, vec.add(vec.add(c.pos, ax.right, w[0]), ax.fwd, w[2]), old);
+        }
     }
 
     /// Push every mark whose face was kept this frame, with that face's key (so it follows the road quad).

@@ -13,6 +13,14 @@ const trk = @import("trk.zig");
 pub const RAMP_BODY = 12;
 pub const RAMP_DARK = 13;
 pub const RAMP_GLASS = 14;
+/// The AI cars' liveries: body ramps 15..18 (the cart's own, past the track's 15), the player keeps 12.
+pub const RAMP_LIVERY = 15;
+pub const LIVERIES = 4;
+
+/// The palette-index shift of a body face for AI car `k` (0-based): the livery k % 4's ramp for ramp 12's.
+pub fn liveryShift(k: usize) u8 {
+    return @intCast((RAMP_LIVERY + k % LIVERIES - RAMP_BODY) * 8);
+}
 pub const SKID_COLOUR: u8 = 16 + RAMP_DARK * 8 + 0;
 
 /// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start.

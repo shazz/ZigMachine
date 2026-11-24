@@ -18,7 +18,7 @@ const trk = @import("trk.zig");
 const types = @import("types.zig");
 const xf = @import("xform.zig");
 
-pub const Key = struct { fixed: ?u16 = null, floor: u16 = 0 };
+pub const Key = struct { fixed: ?u16 = null, floor: u16 = 0, dc: u8 = 0 }; // dc: added to the face's palette index (a car's livery)
 
 /// Project face `f` (vertex ids into `verts`) into `fr`. Returns the key kept, or null when nothing is left to draw.
 pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *const cam.View, f: *const trk.Face, k: Key) ?u16 {
@@ -50,7 +50,7 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
         return null;
     }
     if (types.offScreen(&rec)) return null;
-    rec.c = f.colour;
+    rec.c = f.colour +% k.dc;
     const mean = if (nv == 4) zsum >> 2 else fx.mulsh16(zsum, 21845);
     const own: u16 = @intCast(frame.BUCKETS - 1 - @min(@max(mean >> 13, 0), frame.BUCKETS - 1));
     return push(fr, rec, k.fixed orelse @max(own, k.floor));

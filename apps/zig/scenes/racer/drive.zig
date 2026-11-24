@@ -105,21 +105,11 @@ pub const Drive = struct {
         self.cur = .{ .pos = self.car.pos, .angle = self.car.angle };
         self.ticks += 1;
         self.slides += @intFromBool(self.car.sliding());
-        self.emitSkids();
+        self.skid.emitCar(self.t, &self.car);
         self.skid.update();
         const us = self.now() -% t0;
         self.us_sum += us;
         self.us_max = @max(self.us_max, us);
-    }
-
-    fn emitSkids(self: *Drive) void {
-        const old = self.car.old orelse return;
-        const ax = self.car.axes();
-        for (carmodel.WHEELS, 0..) |w, k| {
-            if (!(if (k < 2) self.car.front_slide else self.car.rear_slide)) continue;
-            const p = vec.add(vec.add(self.car.pos, ax.right, w[0]), ax.fwd, w[2]);
-            self.skid.emit(self.t, k, p, old);
-        }
     }
 
     /// Where the car is drawn: the previous / current pose midpoint on a tick's frame, the current one after.
@@ -151,7 +141,7 @@ pub const Drive = struct {
 
     /// Push the car's polygons (not in the cockpit) after collect and before sort.
     pub fn drawCar(self: *const Drive, fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View) void {
-        if (self.pov != .cockpit) carview.draw(fr, cache, v, self.shown(), self.car.old);
+        if (self.pov != .cockpit) carview.draw(fr, cache, v, self.shown(), self.car.old, 0);
     }
 
     /// One line a host can compare with the reference: raw 16.16 state after `ticks` ticks.

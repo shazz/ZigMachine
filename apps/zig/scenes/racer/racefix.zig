@@ -12,7 +12,7 @@ const CRC_RAW = @embedFile("../../assets/screens/racer/race_full.bin");
 const full0: [FULL0.len]u8 align(16) = FULL0.*;
 const full1: [FULL1.len]u8 align(16) = FULL1.*;
 const crc_blob: [CRC_RAW.len]u8 align(16) = CRC_RAW.*;
-pub const player_btn: []const u8 = @embedFile("../../assets/screens/racer/race_v2.btn");
+pub const player_btn = @import("data.zig").race_v2;
 
 pub const Which = enum { npc2, ram };
 

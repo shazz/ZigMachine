@@ -4,7 +4,11 @@
 // converter names: 16 + ramp * 8 + light (its RGB is the track file's palette block).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+const carmodel = @import("carmodel.zig");
 const trk = @import("trk.zig");
+
+/// The AI cars' body colours (blue, yellow, green, white), ramps 15..18.
+const LIVERY_RGB = [carmodel.LIVERIES][3]u8{ .{ 40, 90, 220 }, .{ 235, 200, 40 }, .{ 50, 170, 70 }, .{ 232, 232, 236 } };
 
 pub const SKY: u8 = 1;
 pub const PAPER: u8 = 2;
@@ -30,6 +34,9 @@ pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_ramp: usize) void 
     put(fb, 14, 60, 60, 90);
     for (t.palette, 0..) |rgb, k| {
         for (0..8) |l| put(fb, 16 + k * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
+    }
+    for (LIVERY_RGB, 0..) |rgb, k| {
+        for (0..8) |l| put(fb, 16 + (carmodel.RAMP_LIVERY + k) * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
     }
     const g = t.palette[ground_ramp];
     put(fb, GROUND, lit(g[0], 4), lit(g[1], 4), lit(g[2], 4));
