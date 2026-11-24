@@ -130,3 +130,17 @@ Schematic check (Z7-LITE_R11.pdf p.14): both USB-C ports power the board: VCC_US
 VCC_USB2JTAG_5V each go through an SS24 Schottky diode (D8, D9) into VCC_5V, behind a 2 A fuse (F2). So the
 power supply on JTAG and the laptop on UART at the same time is safe (diode-OR, no back-feed between them);
 whichever is higher (minus ~0.4 V) feeds the board. The GPIO headers also carry VCC_5V.
+
+### Extender lengths (Matt, 23 Nov; plug to plug, cm)
+| Extender | Length | Count |
+|---|---|---|
+| USB2 (USB-A) | 55 | mouse, Wi-Fi, (board USB-A -> hub?) |
+| USB-C | 31 | 3 (DEBUG, FPGA, HUB) |
+| HDMI | 31 | 1 |
+| RJ45 | 31 | 1 |
+| DB9 | 32 | 2 (joysticks, from the iCode) |
+| SD card (full-size SD holder at the panel) | 20 | 1 |
+| USB audio (jack) | 28 | 1 |
+These are much longer than the straight runs (board edge to panel ~3-10 cm), so each semi-rigid cable
+needs a SLACK LOOP inside: plan cable channels/loop bays along the walls (one big U per cable, radius >=
+the cable's minimum bend), and clips to hold the loops. That, not the board, sets the back's depth.
