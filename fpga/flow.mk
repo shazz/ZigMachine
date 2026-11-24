@@ -3,8 +3,8 @@
 # build/build_times.txt. P&R runs through tools/pnr_slot.sh: at most two openXC7 containers
 # (6 GB each) on the box, slot 0 being the lock every other P&R target takes.
 #
-#   make bitstream             THE board's release bitstream, Vivado, the board's BOARD_SOC_FLAGS
-#                              (boards/<board>/board.mk) -> build/<board>/release/ (BOARD=kestrel|peregrine)
+#   make bitstream             THE board's release bitstream, Vivado, the board's SoC parameters
+#                              (soc/boards.py Board.soc, --release) -> build/<board>/release/ (BOARD=kestrel|peregrine)
 #   make soc-z7                the openXC7 build: pinned seed (soc/openxc7.py SEED) -> build/<board>/soc_z7
 #   make soc-dev               a stable-names build in build/soc_dev, REPLAYING the last one's placement
 #                              when there is one (FRESH=1: place from scratch, a new base)
@@ -30,7 +30,7 @@ DEV_REUSE  = $(if $(and $(wildcard $(DEV_OUT)/gateware/platform_z7_placement.jso
 # One Vivado at a time on the box (~8 GB).
 bitstream: memmap $(BOARD_CPU_CORE) $(BOARD_SOUND_CORE)
 	@mkdir -p $(BOARD_BUILD)
-	$(VIVADO_LOCK) $(SOC_RUN_VIVADO) $(BOARD_SOC_FLAGS) --out $(RELEASE) $(SOC_ARGS)
+	$(VIVADO_LOCK) $(SOC_RUN_VIVADO) --board $(BOARD) --release --out $(RELEASE) $(SOC_ARGS)
 
 soc-z7: memmap
 	$(SOC_SEED) $(SLOT) $(SOC_RUN) --out $(SOC_OUT) $(SOC_ARGS)

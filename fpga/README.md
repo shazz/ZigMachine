@@ -115,8 +115,10 @@ make -C fpga soc-z7      # the full SoC, glass included, openXC7, pinned seed ->
 ```
 
 The board's release bitstream is Vivado's: `make -C fpga bitstream [BOARD=kestrel|peregrine]` runs
-the board's `BOARD_SOC_FLAGS` (`boards/<dir>/board.mk`) into `build/<board>/release/`, under the
-box-wide Vivado lock. Every board output lands in `build/<board>/` (`soc_z7/`, `soc_dev/`, `release/`);
+the board's release SoC (`soc/boards.py` `Board.soc`, a `soc/board_soc.py` `SocParams`: the two
+vexgen netlists, CHISEL, BARD, posted stores, refill mode, clocks, directive set; `--release` on
+`soc.zigmachine_soc` makes them the defaults, `SOC_ARGS` still overrides) into `build/<board>/release/`,
+under the box-wide Vivado lock. Every board output lands in `build/<board>/` (`soc_z7/`, `soc_dev/`, `release/`);
 the shared host, test and sim outputs (`build/host`, `build/tests`, `build/vdump`...) do not move.
 
 ### When is a full rebuild needed
