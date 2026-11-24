@@ -23,6 +23,7 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--rootfs-overlay", type=Path, metavar="DIR", help="appended to --rootfs-base as one more newc archive")
     s.add_argument("--rootfs-base", type=Path, help="the board's own rootfs.cpio.uboot")
     s.add_argument("--shelf-from", type=Path, help="the board's CARTS/shelf.txt: staged with the new carts' lines added")
+    s.add_argument("--boot-dir", type=Path, help="a card from blank: BOOT.BIN (checked for the board), boot.scr, zImage, dtb, rootfs")
     s.add_argument("--out", required=True, type=Path)
     i = sub.add_parser("install", help="tar a staged card to the board over ssh and run its install.sh")
     i.add_argument("--host", required=True, help="root@<ip>")
@@ -35,7 +36,7 @@ def run_stage(a: argparse.Namespace) -> None:
     from . import stage as st  # imports the repo's tools: only when staging
 
     req = st.Request(a.board, a.name, a.out, a.cart, a.fw_dir or st.FW_DIR, a.system, a.system_version, a.bit,
-                     a.rootfs_overlay, a.rootfs_base, a.shelf_from)  # fmt: skip
+                     a.rootfs_overlay, a.rootfs_base, a.shelf_from, a.boot_dir)  # fmt: skip
     up, rows = st.stage(req)
     for name, src in rows:
         print(f"   {name:40} {src}")

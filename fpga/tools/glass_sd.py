@@ -46,10 +46,15 @@ import rootfs_glass  # after the path insert
 import sd_layout
 from glass_shelf import BOARD_FW, OS_CART, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
 from uboot_script import script_image, script_text  # after the path insert; re-exported
+from card_stage.bootbin import zest_boot
+
+sys.path.insert(0, str(FPGA))
+from soc import boards  # after the path insert
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
 ZEST_TAR = ZEST / "zeST-20260518.tar.xz"
-ZEST_BOOT = ZEST / "zeST-20260518/boards/z7lite_7010/boot.bin"
+# zeST's BOOT.BIN embeds a bitstream for ONE chip (its FSBL loads it): the board's own ($ZM_BOARD, kestrel)
+ZEST_BOOT = zest_boot(boards.current().directory, boards.current().dbpart)
 BOOT_CMD = FPGA / "glass/boot/boot.cmd"
 BITSTREAM = FPGA / "build/board_hp/zm_blit_vivado_100.bit"
 GLASS_ARM = FPGA / "glass/zig-out/arm/bin/glass"

@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import bitfile, install_sh, rootfs, shelf
+from . import bitfile, boot, install_sh, rootfs, shelf
 from .errors import CardError
 
 FPGA = Path(__file__).resolve().parent.parent.parent
@@ -41,6 +41,7 @@ class Request:
     rootfs_overlay: Path | None = None
     rootfs_base: Path | None = None
     shelf_from: Path | None = None
+    boot_dir: Path | None = None  # a card from blank: the root's boot files (boot.py)
 
 
 def parse_version(text: str) -> int:
@@ -70,6 +71,8 @@ def check_request(r: Request) -> boards.Board:
         raise CardError("--shelf-from without --cart: nothing to add to the shelf")
     if r.bit:
         bitfile.check_board(r.bit.read_bytes(), board.dbpart, board.name, str(r.bit))
+    if r.boot_dir:
+        boot.check(r.boot_dir, board.dbpart, board.name)
     return board
 
 
@@ -114,6 +117,10 @@ def _extras(r: Request, up: Path) -> list[tuple[str, str]]:
         rows.append(("rootfs.cpio.uboot", f"{r.rootfs_base} + {r.rootfs_overlay}"))
     if r.shelf_from:
         rows.append(_shelf(r, up, r.shelf_from))
+    if r.boot_dir:
+        b = boards.get(r.board)
+        verdict = boot.check(r.boot_dir, b.dbpart, b.name)
+        rows += boot.stage(r.boot_dir, up, verdict, keep_rootfs=r.rootfs_overlay is None)
     (up / sd_layout.SYSTEM / "BOARD").write_text(r.board + "\n")
     rows.append((sd_layout.system("BOARD"), r.board))
     return rows

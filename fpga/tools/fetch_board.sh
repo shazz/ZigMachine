@@ -43,7 +43,8 @@ peregrine() {  # the 7020's, from KESTREL's files (the zeST tarball, board.xdc)
     mkdir -p "$P"
     get https://www.xilinx.com/content/dam/xilinx/support/packagefiles/z7packages/xc7z020clg400pkg.txt \
         "$P/xc7z020clg400pkg.txt" 1bb5ed0955b2a11d3f13f194b4598eabccfe6d4caecb8f5d0a20f39c6024d446
-    tar xJf "$V/zest-bin/$ZBIN" -C "$P" zeST-20260518/boards/z7lite_7020/boot.bin
+    mkdir -p "$P/zest-bin"
+    tar xJf "$V/zest-bin/$ZBIN" -C "$P/zest-bin" zeST-20260518/boards/z7lite_7020/boot.bin
     (cd "$FPGA" && uv run python tools/board_xdc.py derive kestrel peregrine)
 }
 
