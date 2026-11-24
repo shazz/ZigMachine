@@ -350,6 +350,11 @@
   "type": "pc"
  },
  {
+  "tag": "racer",
+  "title": "RACER",
+  "type": "zigmachine"
+ },
+ {
   "tag": "raytrace",
   "title": "RAYTRACE",
   "type": "zigmachine"

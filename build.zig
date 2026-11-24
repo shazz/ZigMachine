@@ -666,6 +666,26 @@ pub fn build(b: *std.Build) void {
         "demo-nfo_viewer", // 138 — NFO VIEWER: the zigdemo NFO / ASCII-art viewer (an Amiga ASCII viewer's look) on the desk plane: a sample NFO painted once into a tall buffer, panned 1 px a step, a fixed prompt bar, keys A/B
         "demo-vgm_test", // 139 — VGM TEST: a Mega Drive VGM (KESTREL FM, our own tune, libs/c/vgm/make_tune.py) on our own YM2612 + SN76489 (libs/c/vgm, MIT): native on BARD, machine-audio.wasm on the page; keys 1-3 by name (.vgm, .vgz) and as bytes, 4 stops; BARD load on screen
         "demo-sidwizard_z", // 140 — SID-WIZARD Z: Hermit's SID-Wizard 1.97 tracker with its UI in native Zig (apps/zig/scenes/sidwizard_z/) and the original 6502 player on libs/zig/players/cpu6502.zig, its SID on BARD; a GEM program beside the C cart "sidwizard" (apps/ports/sidwizard), to compare the two
+        "", // 141: reserved (the Rift part agents' local carts, other branches)
+        "", // 142: reserved (the Rift part agents' local carts, other branches)
+        "", // 143: reserved (the Rift part agents' local carts, other branches)
+        "", // 144: reserved (the Rift part agents' local carts, other branches)
+        "", // 145: reserved (the Rift part agents' local carts, other branches)
+        "", // 146: reserved (the Rift part agents' local carts, other branches)
+        "", // 147: reserved (the Rift part agents' local carts, other branches)
+        "", // 148: reserved (the Rift part agents' local carts, other branches)
+        "", // 149: reserved (the Rift part agents' local carts, other branches)
+        "", // 150: reserved (the Rift part agents' local carts, other branches)
+        "", // 151: reserved (the Rift part agents' local carts, other branches)
+        "", // 152: reserved (the Rift part agents' local carts, other branches)
+        "", // 153: reserved (the Rift part agents' local carts, other branches)
+        "", // 154: reserved (the Rift part agents' local carts, other branches)
+        "", // 155: reserved (the Rift part agents' local carts, other branches)
+        "", // 156: reserved (the Rift part agents' local carts, other branches)
+        "", // 157: reserved (the Rift part agents' local carts, other branches)
+        "", // 158: reserved (the Rift part agents' local carts, other branches)
+        "", // 159: reserved (the Rift part agents' local carts, other branches)
+        "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
