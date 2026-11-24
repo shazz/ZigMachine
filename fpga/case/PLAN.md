@@ -96,7 +96,7 @@ mouse, Wi-Fi, sound card, floppy (external, via its case USB-A) = 6 of 6 (no spa
 - RIGHT short edge: USB-A host (top, -> the hub), RJ45 "ETH" (middle, the tallest part), HDMI TX (bottom).
 - LONG edges: two 2x20 GPIO headers (GPIO2 top, GPIO1 bottom): keep clearance above them (free pins:
   the I2S DAC option of R88 would plug here).
-- SD card slot: not visible on top: underneath (to confirm) -> the SD extension leaves from below.
+- SD card slot: UNDERNEATH, under the 4 buttons (left edge, Matt): the SD extension plugs in from the left, below the board -> standoffs >= 8 mm so the extension plug clears the base.
 - 4 corner holes.
 So the board sits with its right edge facing the back panel (HDMI + RJ45 extensions short) and its
 left edge reachable for the two USB-C extensions.
