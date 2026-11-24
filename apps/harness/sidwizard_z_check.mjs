@@ -112,6 +112,8 @@ if (edited) {
 // --- load: F8, Down (LOAD TUNE), Return: the dialog lists C: then the floppy; the third entry is FLASHBAK ---
 d.key(K.F8); d.arrow(DOWN); d.key(13); d.frame(4);
 shots.load = d.picture();
+const lp = shots.load.px, at = (260 * 4 + 100 * 800 * 4);
+check("the file dialog is text on black (the repo's system font), not the editor's bar charset", lp[at] === 0 && lp[at + 1] === 0 && lp[at + 2] === 0 && colours(shots.load) >= 3);
 d.arrow(RIGHT); d.arrow(RIGHT); d.key(13); d.frame(6);
 const again = await save("again");
 check("LOAD TUNE, FLASHBAK (listed off the floppy beside C:'s files): saved again it is the floppy's song (the edit is gone)", again !== null && again.equals(song), again ? `${again.length} bytes` : "no file");
