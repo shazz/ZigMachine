@@ -17,7 +17,7 @@ MEMMAP   := $(ROOT)/machine/sdk/memmap.zig
 EXPORT   := tools/memmap_export.zig
 export PATH := $(CURDIR)/.tools/bin:$(CURDIR)/.tools/wabt/bin:$(PATH)
 
-.PHONY: host-vdirty setup memmap test soc check util carts host host-check clean
+.PHONY: host-vdirty setup memmap test test-board soc check util carts host host-check clean
 
 setup:
 	tools/setup.sh
@@ -69,6 +69,13 @@ test: memmap
 	@mkdir -p build
 	flock build/test.lock systemd-run --user --scope -q -p MemoryMax=$(TEST_MEM) -p MemorySwapMax=0 \
 		uv run pytest -q
+
+# The board's own checks, no hardware (repo reorg B5): its XDC on its part, its release SoC elaborated,
+# the card tool. `make test` runs them for kestrel; `make test-board BOARD=peregrine` for the other board.
+BOARD_TESTS := tests/test_boards.py tests/test_board_soc.py tests/test_board_xdc.py tests/test_board_files.py \
+	tests/test_platform_xdc.py tests/test_card_tool.py tests/test_card_boot.py
+test-board: memmap
+	uv run pytest -q $(BOARD_TESTS)
 
 soc: memmap
 	uv run python -m soc.zigmachine_soc --target sim
@@ -376,3 +383,6 @@ include cycles/native/native.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
 include flow.mk
+
+# --- day 1 on a new board: blink / HDMI / OSD test with Vivado (boards/bringup.mk) ---
+include boards/bringup.mk

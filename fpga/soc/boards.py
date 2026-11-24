@@ -2,7 +2,8 @@
 
 `ZM_BOARD` (set by `make BOARD=...`, or `--board` on soc.zigmachine_soc) picks one; the default is
 KESTREL, so every command that predates the board parameter builds exactly what it built before.
-B2 adds the per-board SoC parameters (D$ size, CHISEL options, BARD FPU...) to `Board`.
+B2: each board's release SoC parameters (soc/board_soc.py) are `Board.soc`, read by soc.zigmachine_soc
+`--release` (what `make bitstream` passes).
 """
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from soc.board_soc import KESTREL_V13, SocParams
 
 FPGA = Path(__file__).resolve().parent.parent
 DEFAULT = "kestrel"
@@ -21,7 +24,8 @@ class Board:
     directory: str  # fpga/boards/<directory>: the physical board (board.xdc, board.mk, README)
     device: str  # the Vivado / LiteX part
     dbpart: str  # openXC7's chipdb name (no speed grade)
-    verified: bool  # False until the part and pins are checked against the vendor's package
+    verified: bool  # False until the board has run the SoC (its part and pins are checked: README.md)
+    soc: SocParams  # the release bitstream's SoC (soc/board_soc.py)
 
     @property
     def xdc(self) -> Path:
@@ -33,10 +37,10 @@ class Board:
 
 
 BOARDS: dict[str, Board] = {
-    "kestrel": Board("kestrel", "microphase_z7_7010", "xc7z010clg400-1", "xc7z010clg400", verified=True),
-    # PEREGRINE: the MicroPhase Z7 with a 7020 (ordered 14 Nov 2026). Part and speed grade unverified
-    # until the board and its vendor package are in hand.
-    "peregrine": Board("peregrine", "microphase_z7_7020", "xc7z020clg400-1", "xc7z020clg400", verified=False),
+    "kestrel": Board("kestrel", "microphase_z7_7010", "xc7z010clg400-1", "xc7z010clg400", True, KESTREL_V13),
+    # PEREGRINE: the same Z7-Lite PCB with a XC7Z020-1CLG400C (ordered 14 Nov 2026). It starts with
+    # KESTREL's SoC: its extra LUTs are R84/R85's, one measured parameter at a time.
+    "peregrine": Board("peregrine", "microphase_z7_7020", "xc7z020clg400-1", "xc7z020clg400", False, KESTREL_V13),
 }
 
 

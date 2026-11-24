@@ -11,6 +11,10 @@
 #   vendor/zest/…             zeST (GPL-3): its Z7-Lite XDC and the Vivado PS7 config
 #   vendor/zest-bin/…/z7lite_7010/boot.bin  zeST's prebuilt FSBL+U-Boot for the 7010:
 #                             a working PS7 init (DDR3, clocks, MIO) without Vivado
+#
+#   tools/fetch_board.sh peregrine   also PEREGRINE's (boards/microphase_z7_7020/, the same PCB with a 7020):
+#                             vendor/xc7z020clg400pkg.txt, zeST's z7lite_7020/boot.bin, and board.xdc
+#                             DERIVED from KESTREL's by tools/board_xdc.py (every ball checked on both chips)
 set -euo pipefail
 
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,6 +38,16 @@ get() {  # get <url> <dest> <sha256>
     fi
 }
 
+peregrine() {  # the 7020's, from KESTREL's files (the zeST tarball, board.xdc)
+    local P="$FPGA/boards/microphase_z7_7020/vendor"
+    mkdir -p "$P"
+    get https://www.xilinx.com/content/dam/xilinx/support/packagefiles/z7packages/xc7z020clg400pkg.txt \
+        "$P/xc7z020clg400pkg.txt" 1bb5ed0955b2a11d3f13f194b4598eabccfe6d4caecb8f5d0a20f39c6024d446
+    mkdir -p "$P/zest-bin"
+    tar xJf "$V/zest-bin/$ZBIN" -C "$P/zest-bin" zeST-20260518/boards/z7lite_7020/boot.bin
+    (cd "$FPGA" && uv run python tools/board_xdc.py derive kestrel peregrine)
+}
+
 get "$LEE/Z7_LITE.xdc" "$V/Z7_LITE.xdc" e977e1f79510a4d3585fd7cfb74a711fe02666d8a60a9a12da271c2e03adfa3c
 get "$MPH/schematic/Z7-LITE_R11.pdf" "$V/Z7-LITE_R11.pdf" 7e6c992efc270e7884f4c9517f0966b43084a5621b0695bb6c37710de6d6e5ea
 get "$MPH/source/DEV_BOARD/Z7-LITE/Z7-Lite_Reference_Manual.md" "$V/Z7-Lite_Reference_Manual.md" \
@@ -50,3 +64,4 @@ tar xJf "$V/zest-bin/$ZBIN" -C "$V/zest-bin" zeST-20260518/boards/z7lite_7010/bo
 
 cp "$V/Z7_LITE.xdc" "$BOARD/board.xdc"
 echo "fetch_board: board.xdc + vendor/ ready in $BOARD"
+[ "${1:-kestrel}" != peregrine ] || peregrine

@@ -190,7 +190,7 @@ def build_z7(args: argparse.Namespace) -> None:
     zm_z7.build_z7(args)
 
 
-def main() -> None:
+def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--target", choices=["sim", "z7"], required=True)
     p.add_argument("--run", action="store_true", help="sim: compile and run with Verilator")
@@ -236,7 +236,25 @@ def main() -> None:
         help="z7, vivado: directive set (soc/zm_z7.py DIRECTIVES; closure = c72c58ca's, fit = area synthesis)",
     )  # fmt: skip
     p.add_argument("--vivado-threads", type=int, default=2, help="z7, vivado: general.maxThreads (memory)")
-    args = p.parse_args()
+    p.add_argument(
+        "--release", action="store_true",
+        help="z7: the board's release SoC (soc/boards.py Board.soc, `make bitstream`) as the defaults; a flag still wins",
+    )  # fmt: skip
+    return p
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """The command line; with --release, the board's SoC parameters (soc/boards.py) are the defaults."""
+    p = parser()
+    args = p.parse_args(argv)
+    if args.release:  # parse again with the board's parameters as defaults: given flags keep their values
+        p.set_defaults(**boards.get(args.board).soc.parser_defaults())
+        args = p.parse_args(argv)
+    return args
+
+
+def main() -> None:
+    args = parse_args()
     os.environ["ZM_BOARD"] = args.board  # soc/platform_z7.py and soc/openxc7.py read it
     (build_sim if args.target == "sim" else build_z7)(args)
 
