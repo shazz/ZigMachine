@@ -6,6 +6,7 @@ const car = @import("car.zig");
 const clip = @import("clip.zig");
 const crest = @import("crest.zig");
 const fx = @import("fx.zig");
+const local_music = @import("local_music.zig");
 const npc = @import("npc.zig");
 const poly = @import("poly.zig");
 
@@ -41,7 +42,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'X' => poly.break_edge = !poly.break_edge, // the harness' --break switches (see racer_headless.mjs)
         'Y' => clip.break_drop = !clip.break_drop,
         'A'...'H' => self.pose = cp - 'A',
-        else => {},
+        else => local_music.key(self, cp), // `z`: -Dracer_music only
     }
 }
 

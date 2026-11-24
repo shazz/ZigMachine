@@ -33,6 +33,8 @@ HANDOFF.md
 site/music/local.xm
 site/music/local.vgm
 site/music/sonic1_*.vgm
+# RACER's local test tunes (-Dracer_music, apps/zig/scenes/racer/music.zig): Virtua Racing rips, never committed.
+site/music/racer_*.vgz
 # SID TEST's HVSC tunes (keys 1-4): PSIDs from the High Voltage SID Collection, the owner's card only.
 site/music/cybernoid_ii.sid
 site/music/wizball.sid
