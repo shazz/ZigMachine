@@ -8,7 +8,7 @@
 const std = @import("std");
 
 pub const MAGIC: u32 = 0x4B52544B;
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 pub const HEADER = 128;
 pub const GRID = 32;
 pub const TILES = GRID * GRID;
@@ -28,13 +28,13 @@ pub const Face = extern struct {
     colour: u8,
     inner_n: u8,
     n: [3]i16,
-    _p0: u16,
+    borders: u16, // physics: bit k = edge k (vertex k to k + 1) is a wall edge
     cp: i32,
     inner_first: u32,
     _p1: u32,
 };
-/// A racing-line centre (Q16) with its yaw (turns, Q16), or a start-grid pose.
-pub const Seg = extern struct { pos: [3]i32, yaw: u16, _p: u16 };
+
+pub const Seg = extern struct { pos: [3]i32, yaw: u16, segment: u16 }; // segment: the racing-line index (a start-grid pose; 0 on the line)
 pub const Vert = [3]i16; // 1/128 unit
 
 pub const Track = struct {
@@ -50,6 +50,7 @@ pub const Track = struct {
     pvs: []const u16,
     line: []const Seg,
     grid: []const Seg,
+    lr: []const [2]u16, // per racing-line segment: the left and right vertex ids (the physics' quads)
     rbake: u32,
 
     pub fn tileFaces(self: *const Track, tile: usize) []const u16 {
@@ -81,7 +82,7 @@ pub fn parse(b: []align(4) const u8) Error!Track {
     const nseg = word(b, 7);
     const ngrid = word(b, 8);
     const nramps = word(b, 9);
-    // offsets are words 12..22; each block ends where the next begins
+    // offsets are words 12..23; each block ends where the next begins
     var t: Track = undefined;
     t.rbake = word(b, 10);
     @memcpy(&t.name, b[104..128]);
@@ -96,7 +97,8 @@ pub fn parse(b: []align(4) const u8) Error!Track {
     t.pvs_index = try block(u32, b, word(b, 19), TILES * BUCKETS, word(b, 20));
     t.pvs = try block(u16, b, word(b, 20), (word(b, 21) - word(b, 20)) / 2, word(b, 21));
     t.line = try block(Seg, b, word(b, 21), nseg, word(b, 22));
-    t.grid = try block(Seg, b, word(b, 22), ngrid, total);
+    t.grid = try block(Seg, b, word(b, 22), ngrid, word(b, 23));
+    t.lr = try block([2]u16, b, word(b, 23), nseg, total);
     try check(&t);
     return t;
 }
@@ -112,4 +114,5 @@ fn check(t: *const Track) Error!void {
     for (t.tile_faces) |f| if (f >= t.faces.len) return error.BadBlock;
     for (t.tile_first[1..], t.tile_first[0..TILES]) |hi, lo| if (hi < lo) return error.BadBlock;
     if (t.line.len < 3) return error.BadBlock;
+    for (t.lr) |s| if (s[0] >= t.verts.len or s[1] >= t.verts.len) return error.BadBlock;
 }

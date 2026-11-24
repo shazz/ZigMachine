@@ -6,4 +6,6 @@ test {
     _ = @import("scenes/racer/poly_test.zig");
     _ = @import("scenes/racer/clip_test.zig");
     _ = @import("scenes/racer/xform_test.zig");
+    _ = @import("scenes/racer/fix_test.zig");
+    _ = @import("scenes/racer/car_test.zig");
 }

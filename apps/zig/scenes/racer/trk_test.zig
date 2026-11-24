@@ -39,7 +39,7 @@ test "a refused blob: bad magic, version, CRC, size and a block out of bounds" {
     b[0] ^= 1;
     b[4] = 9;
     try std.testing.expectError(error.BadVersion, trk.parse(b));
-    b[4] = 1;
+    b[4] = trk.VERSION;
     b[trk.HEADER + 100] ^= 0x40;
     try std.testing.expectError(error.BadCrc, trk.parse(b));
     b[trk.HEADER + 100] ^= 0x40;

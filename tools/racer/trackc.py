@@ -7,7 +7,9 @@ palette (RGB x ramps), vertices (i16 x3, 1/128 unit), faces + inner faces (32 B 
 ray directions, the baked PVS (pvs_bake.py), the racing line (centre Q16 x3, yaw turns Q16), the start
 grid. The CRC-32 covers everything after the header. The cart refuses a bad magic, version or CRC.
 Face record: v[4] u16 | flags u8 | nv u8 | colour u8 | inner_n u8 | n[3] i16 (Q14) | pad u16 |
-cp i32 (n . v0, Q21) | inner_first u32 | pad u32.
+cp i32 (n . v0, Q21) | inner_first u32 | pad u32. (Version 2: the u16 after n is the BORDER MASK, bit k = edge k
+(vertex k to k+1) is a wall edge for the physics, ascending as the document lists them; a last block, one
+`{left, right}` u16 vertex-id pair a racing-line segment, gives the physics its segment quads.)
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ if __package__ in (None, ""):
 from racer import ktrk, ktrk_check, pvs_bake  # noqa: E402
 from racer.ktrk import Doc  # noqa: E402
 
-MAGIC, VERSION, HEADER = 0x4B52544B, 1, 128
+MAGIC, VERSION, HEADER = 0x4B52544B, 2, 128
 LIGHT = (0.4, 0.8, 0.45)
 MATERIALS = {  # name -> (ramp, full-light RGB): our own palette, 12 of the 30 ramps used so far
     "asphalt": (0, (96, 98, 104)), "grass": (1, (70, 150, 60)), "kerb_a": (2, (220, 40, 40)),
@@ -48,7 +50,7 @@ def colour(mat: str, n: ktrk.Vec) -> int:
     return 16 + MATERIALS[mat][0] * 8 + min(7, int((0.25 + 0.75 * lam) * 8))
 
 
-def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int]) -> bytes:
+def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], borders: int = 0) -> bytes:
     ids = face["v"]
     p = ktrk.pts(doc, ids)
     n = ktrk.normal(p)
@@ -56,7 +58,14 @@ def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int]) -> 
     v0 = doc["vertices"][ids[0]]
     cp = sum(n14[i] * v0[i] for i in range(3))
     v = (ids + [ids[-1]] * 4)[:4]
-    return struct.pack("<4HBBBB3hHiII", *v, flags, len(ids), colour(mat, n), inner[1], *n14, 0, cp, inner[0], 0)
+    return struct.pack("<4HBBBB3hHiII", *v, flags, len(ids), colour(mat, n), inner[1], *n14, borders, cp, inner[0], 0)
+
+
+def _border_mask(face: Doc) -> int:
+    edges = face.get("borders", [])
+    if edges != sorted(set(edges)) or any(not 0 <= e < len(face["v"]) for e in edges):
+        raise ConvertError(f"border edges {edges} must be ascending and inside the face")
+    return sum(1 << e for e in edges)
 
 
 def _faces(doc: Doc) -> tuple[bytes, bytes]:
@@ -64,7 +73,7 @@ def _faces(doc: Doc) -> tuple[bytes, bytes]:
     for f in doc["faces"]:
         sub = f.get("inner", [])
         flags = ktrk.face_flags(f) & 0x1F
-        top.append(_face(doc, f, f["mat"], flags, (len(inner), len(sub))))
+        top.append(_face(doc, f, f["mat"], flags, (len(inner), len(sub)), _border_mask(f)))
         for i in sub:
             inner.append(_face(doc, i, i["mat"], flags | 0x20, (0, 0)))
     return b"".join(top), b"".join(inner)
@@ -123,9 +132,10 @@ def convert(doc: Doc) -> bytes:
     rays = struct.pack("<%dh" % (16 * 33 * 2), *[c for row in dirs for d in row for c in d])
     line, line_tiles = _line(doc)
     index, lists = pvs_bake.bake(_camera_tiles(line_tiles), full, dirs)
-    grid = b"".join(struct.pack("<3iHH", *(c * 512 for c in g["pos"]), g["yaw_q16"], 0) for g in doc["start_grid"])
+    grid = b"".join(struct.pack("<3iHH", *(c * 512 for c in g["pos"]), g["yaw_q16"], g["segment"]) for g in doc["start_grid"])
+    lr = b"".join(struct.pack("<2H", s["l"], s["r"]) for s in doc["racing_line"])
     blocks = [pal, verts, faces, inner, tfirst, tlists, rays, struct.pack(f"<{len(index)}I", *index),
-              _pad(struct.pack(f"<{len(lists)}H", *lists)), line, grid]
+              _pad(struct.pack(f"<{len(lists)}H", *lists)), line, grid, lr]
     offs, at = [], HEADER
     for b in blocks:
         offs.append(at)

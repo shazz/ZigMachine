@@ -32,7 +32,7 @@ class ConvertTest(unittest.TestCase):
 
     def test_header_carries_magic_version_size_counts_and_a_crc_of_the_body(self) -> None:
         b = self.blob
-        self.assertEqual((word(b, 0), word(b, 1), word(b, 3)), (trackc.MAGIC, 1, len(b)))
+        self.assertEqual((word(b, 0), word(b, 1), word(b, 3)), (trackc.MAGIC, trackc.VERSION, len(b)))
         self.assertEqual(word(b, 2), zlib.crc32(b[trackc.HEADER:]))
         self.assertEqual((word(b, 4), word(b, 5), word(b, 6), word(b, 7)), (1301, 600, 301, 120))
         self.assertEqual(b[104:128].rstrip(b"\0"), b"test_oval")
