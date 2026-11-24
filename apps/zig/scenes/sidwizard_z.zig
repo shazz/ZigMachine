@@ -115,6 +115,7 @@ pub const App = struct {
         if (!self.dirty) return;
         self.dirty = false;
         const ed = self.s.ed;
+        if (ed.view.filer.open) self.s.label();
         ed.render(&self.scr);
         if (self.s.exit_ask) text(&self.scr, 11, 3, EXIT_TEXT);
         if (ed.view.filer.open) { // the file dialog: text in the system font, the editor repaints whole after it

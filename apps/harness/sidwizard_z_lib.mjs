@@ -64,3 +64,33 @@ function driver(m, img) {
 }
 
 export { W, H };
+
+/** The pixels of rows y0..y1 that differ between two pictures. */
+export function bandDiff(a, b, y0, y1) {
+    let n = 0;
+    for (let y = y0; y <= y1; y++) for (let x = 0; x < a.W; x++) {
+        const i = (y * a.W + x) * 4;
+        if (a.px[i] !== b.px[i] || a.px[i + 1] !== b.px[i + 1] || a.px[i + 2] !== b.px[i + 2]) n++;
+    }
+    return n;
+}
+
+/** The C cart (apps/ports/sidwizard) on the same song: F1, 150 frames, then what changes in the next 30 (header rows 0..35, pattern rows 36..235). */
+export async function referenceLive() {
+    const m = await machine(new Uint8Array(await readFile("site/carts/demo-sidwizard.zmd")));
+    m.env.kosDriveRead = () => 0; m.env.kosFileOp = () => -46;
+    m.env.jsConsoleLogWrite = () => {}; m.env.jsConsoleLogFlush = () => {};
+    await launchFromGem(m, "site/carts/demo-sidwizard.wasm");
+    const fr = (n) => { for (let i = 0; i < n; i++) step(m); };
+    fr(320); m.demo.key(K.F1); fr(4); m.demo.keyUp(K.F1);
+    fr(150);
+    const r = { upper: 0, pattern: 0 };
+    for (let prev = picture(m), i = 0; i < 20; i++) { // the same 120 frames, a picture every 6
+        fr(6);
+        const cur = picture(m);
+        r.upper += bandDiff(prev, cur, 0, 35);
+        r.pattern += bandDiff(prev, cur, 36, 235);
+        prev = cur;
+    }
+    return r;
+}

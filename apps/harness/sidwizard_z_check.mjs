@@ -16,11 +16,11 @@
 import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { rig, K, DOWN, RIGHT, SONG } from "./sidwizard_z_lib.mjs";
+import { rig, K, UP, DOWN, RIGHT, SONG, referenceLive, bandDiff } from "./sidwizard_z_lib.mjs";
 import { png, colours, sha } from "./ports_machine.mjs";
 
 const GOLDEN = "apps/zig/scenes/sidwizard_z/old_cart_sid.bin";
-const BREAKS = ["silent", "edit", "write", "quit", "bard", "nodisk"];
+const BREAKS = ["silent", "edit", "write", "quit", "bard", "nodisk", "clist", "follow"];
 const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : ""; };
 const brk = opt("--break"), pngDir = opt("--png");
@@ -57,6 +57,19 @@ for (let i = 0; i < Math.min(1000, w.length) && same; i++) same = w[i][1] - 0xd4
 check("its first 1000 writes are the C cart's, register for register", same);
 shots.play = d.picture();
 
+// --- live: while it plays the pattern's play-row marks, the readouts and the scope move, as the C cart's do ---
+const live = { upper: 0, pattern: 0 };
+for (let prev = d.picture(), i = 0; i < 20; i++) { // 120 frames, a picture every 6: what changes between them
+    d.frame(6);
+    const cur = d.picture();
+    live.upper += bandDiff(prev, cur, 0, 35);
+    live.pattern += bandDiff(prev, cur, 36, 235);
+    prev = cur;
+}
+const ref = await referenceLive();
+check("playing, the header's readouts (time, meters, scope) change over 120 frames, as the C cart's do", live.upper > 0 && live.upper * 4 >= ref.upper, `${live.upper} px here, ${ref.upper} in the C cart`);
+check("playing, the pattern view's play-row marks change over 120 frames, as the C cart's do", live.pattern > 0 && live.pattern * 4 >= ref.pattern, `${live.pattern} px here, ${ref.pattern} in the C cart`);
+
 // --- stop / continue ---
 const r0 = sid().length;
 d.frame(40);
@@ -78,9 +91,22 @@ check("every stamp is at or after the one before (a pause never sends the past)"
 d.key(K.ESC);
 d.frame(10);
 
+// --- follow-play: Control (C=) + F1 plays following: the pattern view scrolls with the played row ---
+d.key(K.ESC); d.frame(4);
+if (brk === "follow") d.key(K.F1); else d.with(K.CTRL, () => d.key(K.F1));
+d.frame(200);
+const f1 = d.picture();
+d.frame(30);
+const f2 = d.picture();
+const follow = bandDiff(f1, f2, 36, 235);
+shots.follow = f2;
+check("C= + F1: the pattern view follows the played row (it scrolls: far more of it changes than with the marks alone)", follow > Math.max(2000, live.pattern / 4), `${follow} px in 30 frames; the marks alone: ${live.pattern} in 120`);
+d.key(K.ESC); d.frame(10);
+
 // --- save: F8 (the menu opens on SAVE TUNE), Return, a name, Return ---
-const save = async (name) => {
+const save = async (name, fromLoad = false) => {
     d.key(K.F8);
+    if (fromLoad) d.arrow(UP); // the menu remembers its row: LOAD TUNE after a load dialog
     d.key(13);
     d.frame(2);
     shots["save_" + name] = d.picture();
@@ -114,17 +140,42 @@ if (edited) {
     check("it is the song with the typed note (one place differs from the floppy's, a few bytes)", head > 64 && tail > 64 && mid > 0 && mid < 8, `${head} bytes alike at the start, ${tail} at the end, ${mid} between (${edited.length} vs ${song.length})`);
 }
 
-// --- load: F8, Down (LOAD TUNE), Return: the dialog lists C: then the floppy; the third entry is FLASHBAK ---
+// --- load: F8, Down (LOAD TUNE), Return: the dialog lists the floppy's root: FLASHBAK, then the folder C ---
 d.key(K.F8); d.arrow(DOWN); d.key(13); d.frame(4);
 shots.load = d.picture();
 const lp = shots.load.px, at = (260 * 4 + 100 * 800 * 4);
-check("the file dialog is text on black (the repo's system font), not the editor's bar charset", lp[at] === 0 && lp[at + 1] === 0 && lp[at + 2] === 0 && colours(shots.load) >= 3);
-d.arrow(RIGHT); d.arrow(RIGHT); d.key(13); d.frame(6);
+check("the file dialog is the original's light grey page with its text, in the repo's system font (not the editor's bar charset)", lp[at] === 149 && lp[at + 1] === 149 && lp[at + 2] === 149 && colours(shots.load) >= 3, `${lp[at]},${lp[at + 1]},${lp[at + 2]}`);
+d.key(13); d.frame(6); // the floppy root lists FLASHBAK first (then the folder C)
 const again = await save("again");
-check("LOAD TUNE, FLASHBAK (listed off the floppy beside C:'s files): saved again it is the floppy's song (the edit is gone)", again !== null && again.equals(song), again ? `${again.length} bytes` : "no file");
+check("LOAD TUNE, FLASHBAK (the floppy's root): saved again it is the floppy's song (the edit is gone)", again !== null && again.equals(song), again ? `${again.length} bytes` : "no file");
 
 const st = d.stats();
 check("heard on SID live, nothing refused, dropped or re-anchored, over the whole session", st.mode === 1 && st.refused === 0 && st.dropped === 0 && st.resyncs === 0, JSON.stringify(st));
+
+// --- C: in the dialog: the floppy's root lists the folder C; into it, into TEXTS, save there; up and out ---
+const openLoad = () => { d.key(K.F8); d.arrow(DOWN); d.key(13); d.frame(4); };
+const step = (n) => { for (let i = 0; i < n; i++) d.arrow(RIGHT); };
+const home = () => d.key(0xe01a);
+openLoad();
+shots.floppy_root = d.picture();
+if (brk !== "clist") { step(1); d.key(13); d.frame(4); } // FLASHBAK, then the folder C: Return enters it
+shots.c_root = d.picture();
+home(); d.key(K.TAB); home(); d.type("mysong"); d.key(13); d.frame(6); // the name typer, MYSONG: loaded from C:\
+const viaC = await save("viac");
+check("the dialog browses C: (floppy root -> folder C): MYSONG loads from C:\\ and saves back byte for byte", viaC !== null && edited !== null && viaC.equals(edited), viaC ? `${viaC.length} bytes` : "no file");
+openLoad();
+step(2); d.key(13); d.frame(4); // "..", PICTURES, TEXTS: into C:\TEXTS
+shots.c_texts = d.picture();
+d.key(K.ESC); d.frame(4);
+d.key(K.ESC); d.frame(4); // the dialog closes back into the menu, which Run/Stop closes (a no-op when none is open)
+const deep = await save("deep", true);
+const deepOk = await mtype(d.img, "TEXTS/DEEP.SWM");
+check("into a folder and saving there: C:\\TEXTS\\DEEP.SWM", deepOk !== null && deep === null, deepOk ? `${deepOk.length} bytes` : "no ::HD/TEXTS/DEEP.SWM");
+openLoad();
+d.key(13); d.frame(4); // "..": back to C:\
+d.key(K.ESC); d.frame(4);
+await save("up", true);
+check("the parent folder (..): the next save is in C:\\ again", (await mtype(d.img, "UP.SWM")) !== null);
 
 // --- quit ---
 d.with(K.SHIFT, () => d.key(K.F8));

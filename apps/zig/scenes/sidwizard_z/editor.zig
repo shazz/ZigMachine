@@ -97,6 +97,25 @@ pub const Editor = struct {
             self.song.header[swm.H_MUTE + 2],
         };
         self.view.titledi = true; // dispaut after loading a tune
+        self.resetune();
+    }
+
+    /// playadapter.resetune: each track shows the first pattern of its orderlist (subtune `selsubt`), from its top.
+    /// An orderlist with no pattern in it keeps the view's (1 when it had none).
+    pub fn resetune(self: *Editor) void {
+        const sub: usize = @min(self.view.selsubt, 7);
+        for (0..3) |t| {
+            const seq = &self.song.seqs[sub * 3 + t];
+            for (seq) |v| {
+                if (v == 0 or v >= 0xFE) break; // no pattern here (resetune's `invalip`)
+                if (v <= 100) {
+                    self.view.curptn1[t] = v;
+                    break;
+                }
+            } // above maxptnamount: a SEQ-Fx, look at the next position
+            self.view.prowpos[t] = 0;
+        }
+        self.view.subwpos3[0] = 0;
     }
 
     /// Save to a caller buffer; returns the byte count.

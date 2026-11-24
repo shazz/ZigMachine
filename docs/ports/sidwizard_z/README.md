@@ -41,7 +41,9 @@ The picture stores only what changed (a glyph cell, a sprite byte, the cursor's 
 
 - The editor starts in **jam mode** as the C one does (Space switches to edit), but a jammed note makes **no sound here yet**.
 - The SID's clock is exact PAL (a tick = 19656 cycles = 879.8 samples of the 44.1 kHz clock, 50.125 Hz); the C cart stamps by libcRSID's 714/16 cycles a 22.05 kHz sample (0.1 % off).
-- No oscilloscope, no main-volume keys; the file dialog is in the repo's 8x8 system font (the C one's is the C64 character ROM look).
+- The oscilloscope is a model of voice 3 from the SID registers (the real OSC3 is BARD's), no main-volume keys; the file dialog has the C editor's layout and colours in the repo's 8x8 system font (the C one's is the C64 character ROM).
+- Follow-play: C= (Control) + F1 / F3, or the menu's AutoFollow; the pattern view then scrolls with the played row.
+- The file dialog: Tab switches name / list, cursor-down moves 3, cursor-right 1 (Shift reverses), Return on `/C` enters C:, on `/NAME` a folder, on `/..` goes up; the floppy is read-only, a save from its root goes to C:\.
 - Playing from the start sends a SID reset (an 8580, as the C cart's), the first writes are the C editor's own (the player's init and the adapter's instrument reset).
 
 ## Staging on the SD card (nothing is built for the board yet)
@@ -66,6 +68,6 @@ image are untouched by this cart (no new `system.rv32`). A stale `progs/demo-sid
 
 - The start-up menu (the player/tuning picker): the cart boots straight into the editor, so no C64 character ROM (Commodore's, never shipped) is needed. The file dialog and
   menus use SID-Wizard's own charset (`editor_charset.bin`); its capitals, digits and punctuation are all the dialog uses.
-- Jamming (a note key sounding in the editor; the C editor's `jamplay` needs more of its program than the player's block), instrument and config files (`.SWI`, `.CFG`), the oscilloscope (it needs the SID's OSC3, which is BARD's), fast-forward, the mouse, themes beyond the
+- Jamming (a note key sounding in the editor; the C editor's `jamplay` needs more of its program than the player's block), instrument and config files (`.SWI`, `.CFG`), fast-forward, the mouse, themes beyond the
   menu's, markers play (F2 plays from the top), and editing a song while it plays (the player plays the image taken at F1).
 - The cursor is a hollow box over the cell (the C64's sprite, placed by the cell, not the raster split's exact offset).

@@ -66,6 +66,7 @@ pub const View = struct {
     autoadv: u8 = 0, // Config.autoadv counter (upbordisp arrow when != 0)
     // -- Part 3 (keyhandler) state ------------------------------------------------
     jammode: bool = false, // jammode+1: keys jam instead of type when playing
+    filer_loc: [24]u8 = [_]u8{' '} ** 24, // the file dialog's "DR:" text (host-set: where it is)
     followp: bool = false, // playadapter.followp+1: follow-play while playing
     framesp: u8 = 1, // framesp: frame-speed (PALmaxframespeed = 1..6, 1 = fastest)
     prevwin: u8 = 0, // keyrtbb save: window reter returns to
@@ -167,6 +168,7 @@ pub const Overlay = struct {
     pw_meter: [3]u8 = @splat(0), // upbordisp DisPWmt 5-bit inputs (0..31); the
     //   host (player adapter) presetts them, overlayRender leaves them.
     ct_meter: u8 = 0, // upbordisp CTFMETR input (0..31); host presets.
+    scope: [12]u8 = @splat(7), // the oscilloscope: the pixel row (0 top .. 15) of each of its 12 columns; 7 = the flat centre line of a silent SID
 };
 
 // -- static data ------------------------------------------------------------
@@ -948,44 +950,39 @@ pub fn filerRender(view: *const View, scr: *Screen) void {
     for (0..ROWS) |r| {
         for (0..COLS) |c| {
             scr.chars[r][c] = ' ';
-            scr.colours[r][c] = 1;
+            scr.colours[r][c] = file_fg;
         }
     }
-    const title = switch (st.kind) {
-        .tune => " SID-WIZARD TUNE FILE ",
-        .instrument => " SID-WIZARD INSTRUMENT FILE ",
-        .config => " SID-WIZARD CONFIG FILE ",
+    // menu.inc filetx1/filetx2: the layout of the C editor's own dialog (its character-ROM look is the host's font)
+    textAt(scr, 0, 0, "FILENAME:", file_fg);
+    const ext: []const u8 = switch (st.kind) {
+        .tune => ".SWM)",
+        .instrument => ".SWI)",
+        .config => ".CFG)",
     };
-    textAt(scr, 0, 0, title, 15);
-    const mode = switch (st.mode) {
-        .load => "LOAD",
-        .save => "SAVE",
+    textAt(scr, 0, 22, "|(FILETYPE:*", file_fg);
+    textAt(scr, 0, 34, ext, file_fg);
+    typer(scr, 0, 10, &st.name, st.window == .name_typer, st.name_pos);
+    for (0..COLS) |c| for ([_]usize{ 1, 3, 23 }) |r| {
+        scr.chars[r][c] = '-';
     };
-    textAt(scr, 1, 0, mode, 12);
-    textAt(scr, 2, 0, "FILE: ", 12);
-    const name_col: u4 = if (st.window == .name_typer) 15 else 1;
-    for (0..filer.max_name) |i| {
-        scr.chars[2][6 + i] = st.name[i];
-        scr.colours[2][6 + i] = name_col;
-    }
-    if (st.editauth) {
-        textAt(scr, 3, 0, "AUTHOR: ", 12);
-        const auth_col: u4 = if (st.window == .author_typer) 15 else 1;
-        for (0..filer.author_len) |i| {
-            scr.chars[3][8 + i] = st.author[i];
-            scr.colours[3][8 + i] = auth_col;
-        }
-    }
-    textAt(scr, 4, 0, "TAB: next window   F1: re-read   F3: page", 11);
+    if (st.editauth) typer(scr, 2, 0, &st.author, st.window == .author_typer, st.author_pos);
     for (0..st.count) |i| {
-        const row = 6 + i % filer.page_rows;
+        const row = 4 + i % filer.page_rows;
         const col = 1 + (i / filer.page_rows) * 13;
         const e = st.entries[i];
         const n = @min(e.len, filer.max_name);
         const sel = st.window == .selector and i == st.sel;
-        const colr: u4 = if (sel) 15 else 1;
-        textAt(scr, row, col, e.name[0..n], colr);
+        const colr: u4 = if (sel) file_sel else file_fg;
+        if (e.name[0] == 0x7F) { // a folder: its name after a slash
+            scr.chars[row][col] = '/';
+            textAt(scr, row, col + 1, e.name[1..n], colr);
+            scr.colours[row][col] = colr;
+        } else textAt(scr, row, col, e.name[0..n], colr);
     }
+    textAt(scr, 24, 0, "DR:", file_fg);
+    textAt(scr, 24, 3, std.mem.trimEnd(u8, &view.filer_loc, " "), file_fg);
+    textAt(scr, 24, 28, "F1,F3:DIR", file_fg);
     const status = switch (st.status) {
         .ok => "",
         .no_device => " NO DISK OR DRIVE PRESENT!!! ",
@@ -993,5 +990,21 @@ pub fn filerRender(view: *const View, scr: *Screen) void {
         .version => " WRONG VERSION0! PRESS SPACE.",
         .save_error => " SAVING ERROR 0! PRESS SPACE. ",
     };
-    textAt(scr, 24, 0, status, 1);
+    textAt(scr, 1, 0, status, file_sel);
+}
+
+pub const file_fg: u4 = 11; // fileFGcolor
+pub const file_bg: u4 = 15; // fileBGcolor
+const file_sel: u4 = 1;
+
+/// A typed field: its text, white while it is the active window, an underline at the cursor.
+fn typer(scr: *Screen, row: usize, col: usize, buf: []const u8, active: bool, pos: u8) void {
+    const colr: u4 = if (active) file_sel else file_fg;
+    for (buf, 0..) |ch, i| {
+        scr.chars[row][col + i] = if (ch == 0x7F) '/' else ch; // a folder's mark
+        scr.colours[row][col + i] = colr;
+    }
+    if (active and pos < buf.len) {
+        scr.chars[row][col + pos] = if (buf[pos] == ' ') '_' else buf[pos];
+    }
 }

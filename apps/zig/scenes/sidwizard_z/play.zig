@@ -11,6 +11,8 @@ const Editor = @import("editor.zig").Editor;
 const mem = @import("c64mem.zig");
 const player = @import("player.zig");
 const sidout = @import("sidout.zig");
+const Scope = @import("scope.zig").Scope;
+const follow = @import("follow.zig");
 
 const MUTESOLO: usize = swm.music_data + swm.o_tuneheader + swm.H_MUTE; // the player reads it ($2045)
 const FRAME_HZ_X1000: u32 = 50_125; // PAL: 985248 / 19656
@@ -25,6 +27,7 @@ pub const Play = struct {
     ticks: u32 = 0, // player frames since the song started
     frame_acc: u32 = 0, // no queue: 60 Hz frames -> 50.1 Hz ticks
     sid: [25]u8 = [_]u8{0} ** 25, // the SID's registers as the player left them
+    osc: Scope = .{},
     dead: bool = false, // the player's CPU stopped: the song ended itself
 
     /// F1 / F3: start the song (or the displayed patterns) from the top.
@@ -41,6 +44,7 @@ pub const Play = struct {
         self.frame_acc = 0;
         self.dead = false;
         self.sid = [_]u8{0} ** 25;
+        self.osc = .{};
         self.send();
         ed.view.ptrowpos = .{ 0, 0, 0 };
         return true;
@@ -130,14 +134,17 @@ pub const Play = struct {
         self.ticks +%= 1;
         self.send();
         ed.syncPlayback(mem.ram(), true);
+        if (ed.view.followp) follow.apply(&ed.song, &ed.view);
+        self.osc.advance(&self.sid);
     }
 
     /// The editor's play-runtime readouts (display.Overlay's "host presets"): song time, PW and cut-off meters.
-    pub fn readouts(self: *const Play, over: *dsp.Overlay) void {
+    pub fn readouts(self: *Play, over: *dsp.Overlay) void {
         const secs = self.ticks * 1000 / FRAME_HZ_X1000;
         over.upbord_songtime = .{ bcd(secs / 60 % 100), bcd(secs % 60) };
         for (0..3) |c| over.pw_meter[c] = (self.sid[3 + 7 * c] & 0x0F) << 1 | self.sid[2 + 7 * c] >> 7;
         over.ct_meter = self.sid[0x16] >> 3;
+        self.osc.trace(&self.sid, &over.scope);
     }
 };
 

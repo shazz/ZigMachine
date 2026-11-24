@@ -140,3 +140,12 @@ test "syncPlayback advances the row on a tempo tick and resets on PTNPOS=0" {
     e.syncPlayback(&mem, false);
     try std.testing.expectEqual(@as(u8, 4), e.view.ptrowpos[0]);
 }
+
+test "a load puts each track on the first pattern of its own orderlist (resetune)" {
+    var e = Editor.init();
+    try e.load(tune);
+    const first = [3]u8{ e.song.seqs[0][0], e.song.seqs[1][0], e.song.seqs[2][0] };
+    try std.testing.expectEqual(first, e.view.curptn1);
+    try std.testing.expect(e.view.curptn1[0] != e.view.curptn1[1] or e.view.curptn1[1] != e.view.curptn1[2]);
+    try std.testing.expectEqual([3]u8{ 0, 0, 0 }, e.view.prowpos);
+}
