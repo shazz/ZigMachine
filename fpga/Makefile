@@ -383,3 +383,6 @@ include cycles/native/native.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
 include flow.mk
+
+# --- day 1 on a new board: blink / HDMI / OSD test with Vivado (boards/bringup.mk) ---
+include boards/bringup.mk

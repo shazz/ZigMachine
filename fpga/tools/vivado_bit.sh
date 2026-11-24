@@ -7,6 +7,7 @@ top=$1 out=$2 xdc=$3 defs=$4; shift 4
 mkdir -p "$out"
 inc=$(cd "$(dirname "$0")/.." && pwd)/gen
 {
+    echo "set_param general.maxThreads ${MAXTHREADS:-2}"  # memory: Vivado beside a sim was OOM-killed
     for f in "$@"; do echo "read_verilog {$f}"; done
     echo "read_xdc {$xdc}"
     vdefs=""; for d in $defs; do vdefs="$vdefs -verilog_define $d"; done
