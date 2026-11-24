@@ -67,7 +67,7 @@ Our model is drawn from scratch from these measurements (inspiration only, nothi
 ### Parts inside (mm, confirmed by Matt)
 | Part | L x W x H | Notes |
 |---|---|---|
-| MicroPhase Z7-Lite (FPGA) | 80 x 60 x 2 | 2 = PCB; tallest part to measure |
+| MicroPhase Z7-Lite (FPGA) | 80 x 60 (credit-card size), PCB ~2 | tallest part = its RJ45 jack (~13-14 typical, to measure) + PCB; budget ~20 above the standoffs |
 | E-YOOSO Z-66 keyboard (USB, gaming, no numpad) | W 355 x D 125 x H 10 (+ keycaps) | low-profile TKL, 87 keys (US), blue switches, 740 g, spec width ~360 (tray sized 362 inside), aluminium-look frame, RGB, flip-out feet (folded in the tray), DETACHABLE USB-C cable (port position: to confirm); product photo szaosd.com, manual manuals.plus/asin/B095KGQ4PJ | RESTS ON the top of the wedge (not built in), like the RetroDeck photo (printables 220606 image 3672); |
 | iCode (USB to DB9 joysticks) | 90 x 40 x 20 | |
 | mini powered USB hub, 6 ports, USB-C 9 V in, USB2 | 75 x 40 x 10 | cables leave on ALL 4 sides: keep clearance |
