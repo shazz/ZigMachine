@@ -30,8 +30,8 @@ pub fn handle(self: anytype, cp: u32) void {
         'e' => self.setGame(if (self.game.mode == .race) .off else .race),
         'x' => self.setGame(.bench),
         's' => self.game.go(),
-        'a' => self.game.auto = !self.game.auto,
-        'w' => self.game.warp = !self.game.warp,
+        'a' => self.game.toggleAuto(),
+        'w' => self.game.toggleWarp(),
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);

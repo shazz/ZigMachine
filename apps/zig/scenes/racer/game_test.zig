@@ -52,6 +52,21 @@ test "lap v2 starts by itself after 1 s on the grid, races on the recorded strea
     try std.testing.expectEqual(@as(u32, 0), g.s.race.ticks);
 }
 
+test "lap v2 ignores the keys: fire, s, a and w at frame 10 change nothing (every CRC would move)" {
+    const t = try trk.parse(data.oval);
+    var g = try game.Game.init(&t, zero);
+    g.setMode(.bench);
+    for (0..10) |_| g.update();
+    g.press(5, true);
+    g.go();
+    g.toggleAuto();
+    g.toggleWarp();
+    try std.testing.expectEqual(fsm.State.grid, g.s.fsm.state);
+    for (0..game.ROUND_FRAMES - 10 - 1) |_| g.update();
+    try std.testing.expectEqual(@as(u32, 1320), g.s.race.ticks);
+    try std.testing.expect(g.auto and !g.warp);
+}
+
 test "the start grid: all 8 cars are in view from the player's chase camera, the AI cars in their liveries, the player in red" {
     const t = try trk.parse(data.oval);
     var g = try game.Game.init(&t, zero);

@@ -48,7 +48,6 @@ pub const Game = struct {
     cur: [N]Snap = undefined,
     skid: skid.Skid = .{},
     now: *const fn () u32 = zeroClock,
-    fixed: ?cam.Pose = null, // a test pose (crest): the camera does not follow the player
     logged: fsm.State = .grid,
 
     pub fn init(t: *const trk.Track, now: *const fn () u32) !Game {
@@ -69,13 +68,13 @@ pub const Game = struct {
         self.s.race.now = self.now;
         self.skid = .{};
         self.frames = 0;
-        self.fixed = null;
         self.snap();
         self.prev = self.cur;
     }
 
     pub fn setMode(self: *Game, m: Mode) void {
         self.mode = m;
+        self.warp = false;
         self.auto = m == .bench;
         self.reset();
         self.logged = .grid; // a new mode starts a new log (a reset inside a mode logs the state change)
@@ -100,9 +99,22 @@ pub const Game = struct {
         if (down and (dir == 0 or dir == 5)) self.go();
     }
 
-    /// The start key: grid -> countdown. Anywhere else it is refused (nothing happens).
+    /// The start key: grid -> countdown. Refused anywhere else, and in the benchmark (which starts itself: input must not move its CRCs).
     pub fn go(self: *Game) void {
+        if (self.mode != .bench) self.startRace();
+    }
+
+    fn startRace(self: *Game) void {
         self.s.start() catch {}; // WHY: only the grid may start; in any other state the key does nothing
+    }
+
+    /// Keys `a` and `w`: the recorded driver and warp, both fixed in the benchmark.
+    pub fn toggleAuto(self: *Game) void {
+        if (self.mode != .bench) self.auto = !self.auto;
+    }
+
+    pub fn toggleWarp(self: *Game) void {
+        if (self.mode != .bench) self.warp = !self.warp;
     }
 
     /// The abort / again key (Enter, R): a fresh grid. Refused on the grid itself.
@@ -131,7 +143,7 @@ pub const Game = struct {
     fn benchClock(self: *Game) void {
         const f = self.frames % ROUND_FRAMES;
         if (f == 0 and self.frames != 0) self.reset();
-        if (f == GRID_FRAMES) self.go();
+        if (f == GRID_FRAMES) self.startRace();
     }
 
     fn tick(self: *Game) void {
@@ -154,7 +166,6 @@ pub const Game = struct {
     }
 
     pub fn pose(self: *const Game) cam.Pose {
-        if (self.fixed) |p| return p;
         const s = self.shown(0);
         return pov.pose(s.pos, s.angle, pov.offsets(self.pov, self.from, self.pov_frames));
     }
@@ -166,7 +177,7 @@ pub const Game = struct {
     /// Push every car in range (the player's body not in the cockpit) after collect and before sort.
     pub fn drawCars(self: *const Game, fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, tiles: u32) void {
         for (self.s.race.cars[0..N], 0..) |*c, k| {
-            if (k == 0 and self.pov == .cockpit and self.fixed == null) continue;
+            if (k == 0 and self.pov == .cockpit) continue;
             const s = self.shown(k);
             if (!carview.inRange(v, s.pos, tiles + 1)) continue;
             carview.draw(fr, cache, v, s, c.old, if (k == 0) 0 else carmodel.liveryShift(k - 1));
