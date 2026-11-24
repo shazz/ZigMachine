@@ -6,7 +6,7 @@
 //           register and value for value, what the C cart (apps/ports/sidwizard: the whole C64 program on an emulated 6502) wrote
 //   queue   the writes are on the page's SID live (BARD queue), none dropped; the player's ticks are paced by the sound side
 //   stop    Run/Stop silences (attack/decay and sustain/release zeroed) and no write follows; Run/Stop again plays on
-//   edit    Tab (CONTROL: next track), Down, W: a note lands in the pattern (the picture changes there)
+//   edit    Tab (CONTROL: next track), Down, Space (the editor starts in jam mode: edit on), W: a note lands in the pattern (the picture changes there)
 //   save    F8 (the menu opens on SAVE TUNE), Return, a name, Return: C:\<name>.SWM is the floppy's song byte for byte when unedited,
 //           and with the note typed differs from it, by a few bytes, and loads back (F8, LOAD TUNE shows it listed)
 //   quit    Shift+F8 asks, Y asks the machine for request 4, GEM comes back
@@ -55,21 +55,26 @@ check("F1 plays: SID writes are on the BARD queue", w.length > 1000, `${w.length
 let same = w.length >= 1000;
 for (let i = 0; i < Math.min(1000, w.length) && same; i++) same = w[i][1] - 0xd400 === golden[2 * i] && w[i][2] === golden[2 * i + 1];
 check("its first 1000 writes are the C cart's, register for register", same);
-const st = d.stats();
-check("heard on SID live, nothing refused or dropped", st.mode === 1 && st.refused === 0 && st.dropped === 0, JSON.stringify(st));
 shots.play = d.picture();
 
 // --- stop / continue ---
+const r0 = sid().length;
+d.frame(40);
+const rate = sid().length - r0; // writes in 40 frames of normal play
 const n1 = sid().length;
 d.key(K.ESC);
 d.frame(6);
 const n2 = sid().length;
 const quiet = sid().slice(n1).filter(([, a, v]) => [5, 6, 12, 13, 19, 20].includes(a - 0xd400) && v === 0).length;
-d.frame(40);
+d.frame(120); // paused: the sound side's clock runs on
 check("Run/Stop silences every channel's ADSR, then no write follows", quiet >= 6 && sid().length === n2, `${quiet} zeroed, ${sid().length - n2} after`);
 d.key(K.ESC);
+const c0 = sid().length;
 d.frame(40);
-check("Run/Stop again plays on", sid().length > n2 + 20);
+const cont = sid().length - c0;
+check("Run/Stop again plays on at the song's speed (no replay of the pause)", cont > rate * 0.5 && cont < rate * 1.6, `${cont} writes in 40 frames after the pause, ${rate} in 40 of normal play`);
+const ts = d.sid().filter(([, a]) => a >= 0xd400 && a <= 0xd418).map(([tt]) => tt);
+check("every stamp is at or after the one before (a pause never sends the past)", ts.every((v, i) => i === 0 || v >= ts[i - 1]));
 d.key(K.ESC);
 d.frame(10);
 
@@ -90,11 +95,11 @@ check("saved as it was opened, C:\\PLAIN.SWM is the floppy's FLASHBAK.SWM byte f
 
 // --- edit: a note in track 2 ---
 const before = sha(d.rows(36, 236));
-if (brk !== "edit") { d.key(K.TAB); d.arrow(DOWN); d.key("w".charCodeAt(0)); }
+if (brk !== "edit") { d.key(K.TAB); d.arrow(DOWN); d.key(0x20); d.key("w".charCodeAt(0)); }
 d.frame(4);
 shots.edited = d.picture();
 const after = sha(d.rows(36, 236));
-check("Tab, Down, W: the pattern changes (a note typed in track 2)", before !== after);
+check("Tab, Down, Space (jam -> edit), W: the pattern changes (a note typed in track 2)", before !== after);
 
 const edited = await save("mysong");
 check("the save reached C: (the host was asked to write)", d.m.cWrites > 0, `${d.m.cWrites} request(s)`);
@@ -117,6 +122,9 @@ check("the file dialog is text on black (the repo's system font), not the editor
 d.arrow(RIGHT); d.arrow(RIGHT); d.key(13); d.frame(6);
 const again = await save("again");
 check("LOAD TUNE, FLASHBAK (listed off the floppy beside C:'s files): saved again it is the floppy's song (the edit is gone)", again !== null && again.equals(song), again ? `${again.length} bytes` : "no file");
+
+const st = d.stats();
+check("heard on SID live, nothing refused, dropped or re-anchored, over the whole session", st.mode === 1 && st.refused === 0 && st.dropped === 0 && st.resyncs === 0, JSON.stringify(st));
 
 // --- quit ---
 d.with(K.SHIFT, () => d.key(K.F8));

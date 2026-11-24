@@ -73,7 +73,7 @@ pub const Session = struct {
             return false;
         };
         self.ed.load(bytes) catch return false;
-        self.play.state = .stopped;
+        self.play.halt(self.ed);
         return true;
     }
 

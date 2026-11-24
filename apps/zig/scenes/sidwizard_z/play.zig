@@ -56,12 +56,36 @@ pub const Play = struct {
                 ed.view.followp = false;
             },
             .paused => {
+                self.out.anchor(player.frameStart()); // the sound side's clock ran on while paused
                 player.unpause(self.mode);
                 self.send();
                 self.state = .playing;
             },
             .stopped => {},
         }
+    }
+
+    /// Every voice's gate off and its envelope released, without the CPU (a dead player has none).
+    fn hush(self: *Play) void {
+        const at = player.frameStart();
+        var w: [9]mem.SidWrite = undefined;
+        for (0..3) |v| {
+            w[v * 3] = .{ .cycle = at, .reg = @intCast(v * 7 + 5), .val = 0 };
+            w[v * 3 + 1] = .{ .cycle = at, .reg = @intCast(v * 7 + 6), .val = 0 };
+            w[v * 3 + 2] = .{ .cycle = at, .reg = @intCast(v * 7 + 4), .val = 8 };
+        }
+        for (w) |x| self.sid[x.reg] = x.val;
+        self.out.send(&w);
+    }
+
+    /// A load (or anything that replaces the song) while it plays: silence it like Run/Stop does.
+    pub fn halt(self: *Play, ed: *Editor) void {
+        if (self.state == .playing) {
+            player.pause(ed.view.selinst);
+            self.send();
+        }
+        self.state = .stopped;
+        ed.view.followp = false;
     }
 
     fn send(self: *Play) void {
@@ -73,6 +97,10 @@ pub const Play = struct {
     /// Run the player's frames that are due; returns true when the song's position moved (a redraw).
     pub fn pump(self: *Play, ed: *Editor) bool {
         if (self.state != .playing) return false;
+        if (!self.out.open and self.out.ensureOpen()) { // the sound side came up after the song started
+            self.out.anchor(player.frameStart());
+            self.out.reset_sent = false;
+        }
         var ran = false;
         var n: u32 = 0;
         while (n < sidout.MAX_TICKS and self.due()) : (n += 1) {
@@ -93,10 +121,10 @@ pub const Play = struct {
 
     fn tick(self: *Play, ed: *Editor) void {
         for (0..3) |c| mem.ram()[MUTESOLO + c] = ed.view.mutesolo[c];
-        if (player.tick() == null) {
+        if (player.tick() == null) { // the CPU stopped (a JAM): the song ends itself, the notes must not hang
             self.dead = true;
             self.state = .stopped;
-            self.send();
+            self.hush();
             return;
         }
         self.ticks +%= 1;

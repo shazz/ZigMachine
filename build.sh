@@ -313,10 +313,10 @@ for t in $NATIVE_TESTS; do
         tests_failed="$tests_failed $t"
     fi
 done
-[ -n "$tests_failed" ] || rm -rf "$TESTQ"
 # SID-WIZARD Z's player: the 6502 player driven from Zig writes the C cart's first 4000 SID writes (its own module: cpu6502)
 zig test --dep cpu6502 -Mroot=apps/zig/scenes/sidwizard_z/player_test.zig -Mcpu6502=libs/zig/players/cpu6502.zig > "$TESTQ/sidwizard_z_player.out" 2>&1 \
     && tail -1 "$TESTQ/sidwizard_z_player.out" || { tail -20 "$TESTQ/sidwizard_z_player.out"; tests_failed="$tests_failed sidwizard_z/player_test.zig"; }
+[ -n "$tests_failed" ] || rm -rf "$TESTQ"
 if [ -n "$tests_failed" ]; then
     echo "native tests: FAILED ❌$tests_failed"
     exit 1

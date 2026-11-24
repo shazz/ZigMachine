@@ -48,6 +48,7 @@ pub const App = struct {
         ed.view = .{}; // field by field: `ed.* = .{}` would put the whole Editor's defaults (~35 KB) in the cart's data
         ed.startup = .{ .open = false };
         ed.reset();
+        ed.view.jammode = true; // the C editor starts in jam mode (displayer2.inc: `jammode ldy #1`); Space switches to edit
         self.s = .{ .ed = ed, .io = zg.mem.mustAlloc(u8, IO_BYTES) };
         c64.attach(@ptrCast(zg.mem.mustAlloc(u8, 65536).ptr), @ptrCast(zg.mem.mustAlloc(c64.SidWrite, c64.QCAP).ptr));
         self.bord = border.Border.init();

@@ -450,6 +450,11 @@
   "type": "pc"
  },
  {
+  "tag": "sidwizard_z",
+  "title": "SID-WIZARD Z",
+  "type": "pc"
+ },
+ {
   "tag": "falcon_ays",
   "title": "SITTING COMFORTABLY?",
   "type": "atari falcon"

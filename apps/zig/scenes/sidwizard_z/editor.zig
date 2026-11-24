@@ -79,6 +79,7 @@ pub const Editor = struct {
             .framesp = self.view.framesp,
             .stptick = self.view.stptick,
             .cfgstat = self.view.cfgstat,
+            .jammode = self.view.jammode, // a self-modified byte in the C editor: a load leaves it
         };
         self.view = .{};
         self.view.confbits = cfg.confbits;
@@ -89,6 +90,7 @@ pub const Editor = struct {
         self.view.framesp = cfg.framesp;
         self.view.stptick = cfg.stptick;
         self.view.cfgstat = cfg.cfgstat;
+        self.view.jammode = cfg.jammode;
         self.view.mutesolo = .{
             self.song.header[swm.H_MUTE],
             self.song.header[swm.H_MUTE + 1],

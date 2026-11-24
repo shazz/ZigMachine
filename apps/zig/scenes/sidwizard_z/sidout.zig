@@ -26,6 +26,8 @@ pub const Out = struct {
     base: u32 = 0, // the sample the song's cycle 0 plays at
     reset_sent: bool = false,
     dropped: u32 = 0,
+    last: u32 = 0, // the latest stamp sent: stamps never go back
+    sent: bool = false,
 
     /// The queue (the players may come up after the cart's boot: ask for a while).
     pub fn ensureOpen(self: *Out) bool {
@@ -36,10 +38,18 @@ pub const Out = struct {
         return self.open;
     }
 
-    /// A song starts now: a fresh SID, the song's cycle 0 a few ms after what the sound side has played.
+    /// The song's 6502 cycle `c` is to play a few ms after what the sound side has played, and after every
+    /// stamp already sent: a start, a continue after a pause (the sound side's clock ran on meanwhile).
+    pub fn anchor(self: *Out, c: u64) void {
+        var target: u32 = if (bard.anchored()) bard.position() +% 441 else 0;
+        if (self.sent and @as(i32, @bitCast(target -% (self.last +% 1))) < 0) target = self.last +% 1;
+        self.base = target -% @as(u32, @truncate(c * RATE / PAL_HZ));
+    }
+
+    /// A song starts now: a fresh SID at its first write.
     pub fn begin(self: *Out) void {
         self.reset_sent = false;
-        self.base = if (bard.anchored()) bard.position() +% 441 else 0;
+        self.anchor(0);
     }
 
     /// The sample of 6502 cycle `c` of this song.
@@ -60,9 +70,13 @@ pub const Out = struct {
             const t0 = if (writes.len > 0) self.stamp(writes[0].cycle) else self.base;
             _ = bard.sidReset(t0, .mos8580);
         }
-        for (writes) |w| if (!bard.sidWrite(self.stamp(w.cycle), w.reg, w.val)) {
-            self.dropped +%= 1;
-        };
+        for (writes) |w| {
+            const t = self.stamp(w.cycle);
+            if (bard.sidWrite(t, w.reg, w.val)) {
+                self.last = t;
+                self.sent = true;
+            } else self.dropped +%= 1;
+        }
         while (bard.pollEvent()) |_| {} // resets, re-anchors, drops: read and let go
     }
 
