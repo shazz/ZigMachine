@@ -2,8 +2,8 @@
 // RACER: two text lines in the viewport's bands (top rows 1..8, bottom rows 191..198), no plane
 // of their own. Each page of the flip remembers what it shows and a line is redrawn only when its
 // text changed for that page. The bench band (key O) is the OSD of PORT_PLAN 2.5: stage
-// microseconds, the counts, fps, and the "uncapped" figure (1e6 / avg_us: what the frame rate
-// would be with no VBL wait, derived because a cart cannot skip the wait today).
+// microseconds, the counts, fps, and the cart-only rate (1e6 / avg_us: the frame rate if only the cart's own work counted: it
+// leaves out FRESCO's ~0.7 Mc, which the board frame waits for; a cart cannot skip the VBL wait today).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -57,7 +57,7 @@ fn bufStages(b: []u8, i: Info) []const u8 {
 
 fn bufUncapped(b: []u8, i: Info) []const u8 {
     const eq: u32 = if (i.avg_us == 0) 0 else 1_000_000 / i.avg_us;
-    return std.fmt.bufPrint(b, "UNCAPPED-EQ {} FPS  ({}US A FRAME)", .{ eq, i.avg_us }) catch "";
+    return std.fmt.bufPrint(b, "CART-ONLY {} FPS  ({}US A FRAME)", .{ eq, i.avg_us }) catch "";
 }
 
 fn pad(dst: *Line, text: []const u8) void {

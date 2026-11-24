@@ -7,7 +7,7 @@
 //
 //   3-8 draw distance R (tiles)   f the fill path: CPU word stores / CHISEL AFFINE spans
 //   m mulsh instruction / plain twin   g the vertex transform in f32   d decals on / off   t oval / stress city   p pause
-//   o the benchmark OSD   u report the "uncapped" figure   l back to the lap   A-H a fixed pose
+//   o the benchmark OSD   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose
 // One plane in two pages (the shown one is enabled), the sky a per-line palette entry on the
 // copper, the backdrop one AFFINE op. No float: nothing here costs an FPU op.
 // Benchmark lines go to the console: apps/zig/scenes/racer/bench.zig.
@@ -104,6 +104,7 @@ pub const Demo = struct {
             'd' => self.decals = !self.decals,
             'o' => self.osd = !self.osd,
             'u' => self.uncapped = !self.uncapped,
+            'c' => self.rep.crc_on = !self.rep.crc_on,
             't' => self.setTrack(1 - self.which),
             'p', ' ' => self.paused = !self.paused,
             'l' => self.pose = null,

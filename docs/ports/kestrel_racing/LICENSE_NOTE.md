@@ -11,6 +11,10 @@ Kestrel Racing is an original flat-shaded racer. Its engine design is freds72's.
   the only evidence. Save the page (URL, date, screenshot) next to the plan when it is next visited.
 - Every Zig file ported from his Lua keeps "Copyright (c) freds72, MIT" and the MIT licence text in its header.
   M0 ports nothing: the reference harness reads his functions from a local clone at run time and copies none.
+  M1 (the renderer spike) re-implements the pipeline's ALGORITHMS from `PORT_PLAN.md` section 1 (tile visibility by a
+  ray DDA, the per-tile face collection with the back-face test, the vertex cache, the near-plane clip, the sort, the
+  inner-face order); freds72's Lua text was not read for it. The files that follow his engine carry the notice:
+  `apps/zig/scenes/racer/{frame,pvs,clip,xform}.zig`, `tools/racer/pvs_bake.py`.
 - The title screen credits him ("engine based on work by freds72, MIT"), as the plan suggests.
 
 ## What is not used

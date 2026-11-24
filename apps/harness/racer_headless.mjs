@@ -152,13 +152,15 @@ async function counts(B) {
     return on;
 }
 
-async function lap(fillKey) {
+async function lap(fillKey, noCrc = false) {
     const B = await boot();
+    if (noCrc) key(B.S, "c");
     if (fillKey) key(B.S, "f");
     B.run(724);
     const crc = B.lines("crc").map((l) => l.split(",")[3]);
     const sum = B.lines("lap");
-    if (crc.length !== 12) fail(`lap (${fillKey ? "affine" : "cpu"}): ${crc.length} CRC lines, want 12`);
+    if (noCrc && crc.length !== 0) fail(`key c: ${crc.length} CRC lines with the CRC off`);
+    if (!noCrc && crc.length !== 12) fail(`lap (${fillKey ? "affine" : "cpu"}): ${crc.length} CRC lines, want 12`);
     if (sum.length < 1 || !sum[0].startsWith("racer,lap,720,")) fail(`lap summary missing or wrong: ${sum[0]}`);
     return crc;
 }
@@ -181,6 +183,7 @@ if (!BREAK) {
     const a = await lap(false), b = await lap(false), c = await lap(true);
     if (PRINT) console.log(`lap CRC list (oval, R5, CPU, mulsh): ${a.join(" ")}`);
     if (!PRINT && a.join(" ") !== LAP_PIN) fail(`lap CRC list ${a.join(" ")} != pin`);
+    await lap(false, true); // key c: no CRC lines, the lap summary still printed
     if (a.join() !== b.join()) fail(`lap CRC list differs between two runs: ${a} vs ${b}`);
     if (a.join() !== c.join()) fail(`lap CRC list differs between the CPU and the AFFINE fill: ${a} vs ${c}`);
 }

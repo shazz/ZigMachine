@@ -1,4 +1,19 @@
 // --------------------------------------------------------------------------
+// Algorithms of this file follow freds72's PICO-8 racer engine (github.com/freds72/virtua-on,
+// vracing_main.p8; his itch.io page states "Code license: MIT"), re-written in Zig integers.
+// Copyright (c) freds72, MIT. The MIT licence:
+//   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+//   associated documentation files (the "Software"), to deal in the Software without restriction,
+//   including without limitation the rights to use, copy, modify, merge, publish, distribute,
+//   sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+//   furnished to do so, subject to the following conditions: the above copyright notice and this
+//   permission notice shall be included in all copies or substantial portions of the Software.
+//   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+//   NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+//   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+//   DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+//   OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+//
 // RACER: vertices to the screen, once a frame each (a frame stamp in the cache entry, as the
 // original's per-frame vertex metatable did). A vertex is an i16 triple at 1/128 unit; the view's
 // rows are Q25 so `mulsh16(row, v)` is a Q16 view coordinate in one multiply, nine a vertex.

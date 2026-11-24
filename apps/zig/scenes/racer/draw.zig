@@ -48,6 +48,7 @@ pub const Painter = struct {
             var e = poly.Emitter(sinks.AffineSink){ .sink = &self.aff, .y_min = xf.Y0, .y_max = xf.Y1, .w = 320 };
             f.emit(sinks.AffineSink, &e);
             self.aff.flush();
+            self.os.blitSync(); // the last op's tail counts in this frame's time (a NOP in the browser: pins hold)
             c.spans = self.aff.spans;
             c.pixels = self.aff.pixels;
         }

@@ -52,18 +52,20 @@ for (const track of ["oval", "city"]) {
     }
     console.log(`\n## ${track}: heaviest pose ${"ABCDEFGH"[worst.pose]} (R = 5, CPU fill: ${worst.mc.toFixed(2)} Mc)\n`);
     console.log("| R | CPU fill | AFFINE fill |\n|---|---|---|");
+    const stages = [];
     for (const r of [3, 4, 5, 6, 7, 8]) {
         const a = await cost(track, worst.pose, r), b = await cost(track, worst.pose, r, { affine: true });
         console.log(`| ${r} | ${row(a)} | ${row(b)} |`);
+        stages.push([r, "cpu", stageSplit(a)], [r, "affine", stageSplit(b)]);
     }
+    if (stages[0][2]) {
+        const cols = Object.keys(stages[0][2]).map((k) => k.replace(/ \(.*/, "").replace("mulsh bodies", "mulsh bodies*"));
+        console.log(`\nCart Mc by stage (regions >= 0.01 Mc; * the ROM import's bodies, one ZM-X op on the board):\n\n| R | fill | ${cols.join(" | ")} |\n|---|---|${cols.map(() => "---").join("|")}|`);
+        for (const [r, f, sp] of stages) console.log(`| ${r} | ${f} | ${Object.values(sp).map((v) => v.toFixed(2)).join(" | ")} |`);
+    } else console.log("\n(no names twin: run tools/perf_names.sh under the build lock for the per-stage split)");
     console.log("\nMultiply A/B at R = 5 (CPU fill):");
     for (const mul of ["", "plain", "f32"]) {
         const r = await cost(track, worst.pose, 5, { mul });
         console.log(`- ${mul || "mulsh import (billed as a ROM call here: pessimistic, the board runs one instruction)"}: ${row(r)}`);
-    }
-    for (const r of [5, 8]) {
-        const split = stageSplit(await cost(track, worst.pose, r, { mul: "" }));
-        if (split) console.log(`\nCart Mc by stage at R = ${r} (mulsh import, CPU fill):\n` + Object.entries(split).map(([k, v]) => `- ${k}: ${v.toFixed(3)}`).join("\n"));
-        else console.log("\n(no names twin: run tools/perf_names.sh under the build lock for the per-stage split)");
     }
 }

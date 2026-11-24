@@ -1,4 +1,5 @@
-"""The baked potentially-visible set of Kestrel Racing's converter (R82 M1): which tiles a camera in tile T,
+"""(The ray-DDA idea, 16 rays over the FOV a few tiles deep, is freds72's PICO-8 `visible_tiles`: Copyright (c) freds72, MIT.)
+The baked potentially-visible set of Kestrel Racing's converter (R82 M1): which tiles a camera in tile T,
 looking along yaw bucket B, can see within R tiles, far to near.
 
 The DEFINITION (the Zig cart's `pvs.zig` runs the same integers; a native test compares them on every tile

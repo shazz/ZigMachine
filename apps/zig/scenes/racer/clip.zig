@@ -32,10 +32,10 @@ pub const NEAR: i32 = 1 << 14; // 0.25 units
 pub const MAXV = 9;
 pub const Plane = enum(u3) { near, left, right, down, up };
 
-/// Set by the harness' --break clip: intersections from the edge's first end, not its lower one.
+/// Set by clip_test.zig only: intersections from the edge's first end, not its lower one (the seam test).
 pub var break_canonical: bool = false;
 
-/// Set by the harness' --break clip: a polygon that needs clipping is dropped, not clipped.
+/// Set by the harness' --break clip (key Y): a polygon that needs clipping is dropped, not clipped.
 pub var break_drop: bool = false;
 
 pub const Poly = struct {

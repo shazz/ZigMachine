@@ -10,7 +10,6 @@ The pipeline is PORT_PLAN 1.5-1.8 as the cart does it; see apps/zig/scenes/racer
 from __future__ import annotations
 
 import argparse
-import math
 import struct
 import sys
 from pathlib import Path
@@ -20,6 +19,7 @@ if __package__ in (None, ""):
 
 from racer import ref_fx as fx  # noqa: E402
 from racer.ref_fx import mulsh16  # noqa: E402
+from racer.ref_sky import backdrop  # noqa: E402
 
 Y0, Y1, CX16, CY16, F4 = 12, 188, 160 * 16, 100 * 16, 160 * 16
 BACK, HEIGHT = (6 << 16, 3 << 16, 0), ((5 << 16) // 2, (3 << 16) // 2, (3 << 16) // 4)
@@ -167,35 +167,12 @@ def fill_poly(img: bytearray, xs: list[int], ys: list[int], c: int) -> None:
         a[0], b[0] = fx.i32(a[0] + a[1]), fx.i32(b[0] + b[1])
 
 
-def strip() -> bytes:
-    t = bytearray(1024 * 64)
-    for x in range(1024):
-        a = x * 2.0 * math.pi / 1024
-        far = 18.0 + 8.0 * math.sin(a * 3.0) + 4.0 * math.sin(a * 7.0 + 1.0)
-        near = 9.0 + 5.0 * math.sin(a * 5.0 + 2.0) + 2.5 * math.sin(a * 11.0)
-        tower = 6.0 + (x // 8) % 5 if (x // 8) % 7 == 3 else 0.0
-        for r in range(48):
-            up = 47 - r
-            t[r * 1024 + x] = 12 if up < far else t[r * 1024 + x]
-            if up < near + tower:
-                t[r * 1024 + x] = 14 if (tower > 0 and up >= near) else 13
-    return bytes(t)
-
-
 def render(t: Track, pos: list[int], yaw: int, pitch: int, r: int = 5, decals: bool = True) -> bytes:
     vw = view(pos, yaw, pitch)
     img = bytearray(320 * 200)
     for y in range(Y0, Y1):
         img[y * 320:(y + 1) * 320] = bytes([SKY if y < vw["hz"] else GROUND]) * 320
-    tex, du = strip(), 52429
-    u0 = ((yaw >> 6) - du * 160) & fx.M32
-    for row in range(48):
-        y = vw["hz"] - 48 + row
-        if Y0 <= y < vw["hz"]:
-            for x in range(320):
-                v = tex[row * 1024 + (((u0 + x * du) & fx.M32) >> 16 & 1023)]
-                if v:
-                    img[y * 320 + x] = v
+    backdrop(img, yaw, vw["hz"], Y0)
     polys = collect(t, vw, r, decals)
     for _, c, xs, ys in sorted(polys, key=lambda p: p[0]):
         fill_poly(img, xs, ys, c)
