@@ -6,6 +6,7 @@
 //
 //   zig test apps/zig/scene_tests.zig
 test {
+    _ = @import("racer_tests.zig"); // RACER (R82 M1): track loader, PVS = DDA, edge rule, clip, sort, bench
     _ = @import("scenes/fuji_hobbytronic/fixed.zig");
     _ = @import("scenes/obj/tests.zig");
     _ = @import("scenes/obj/raster_tests.zig");

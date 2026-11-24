@@ -146,6 +146,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "TRANSMISSION64", .tag = "c64_transmission64" }, // c64 — Padua's invitation to Transmission64 2021 (code Anonym, Dano, Doomed, Hoogo), ported from the depacked original
     .{ .name = "ERFURT MEGADEMO", .tag = "erfurt_menu" }, // atari st — the Atari Scene Collective megademo's menu (2026), ported from the original (protected) disks
     .{ .name = "SB SPIKE", .tag = "sb_spike" }, // unknown — PSP: The Black Lotus's Suicide Barbie (2007, MIT): the mix3 scene, the port's feasibility spike (textured triangles a frame)
+    .{ .name = "RACER", .tag = "racer" }, // zigmachine — Kestrel Racing M1 (R82): an original flat-shaded racer renderer spike on freds72's MIT engine (PICO-8), benchmark lap v0
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
     .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2
     .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2

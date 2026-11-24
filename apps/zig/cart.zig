@@ -145,6 +145,7 @@ const scene = switch (opts.index) {
     138 => @import("scenes/nfo_viewer.zig"), // NFO VIEWER: zigdemo's NFO / ASCII-art viewer on the desk plane, a sample NFO scrolling under a fixed prompt bar
     139 => @import("scenes/vgm_test.zig"), // VGM TEST: one text plane, keys 1-3 play KESTREL FM by name (.vgm, .vgz) and as bytes, 4 stops; BARD load (libs/zig/players/vgm.zig)
     140 => @import("scenes/sidwizard_z.zig"), // SID-WIZARD Z: SID-Wizard 1.97's UI in native Zig, its original 6502 player on cpu6502, the SID on BARD
+    160 => @import("scenes/racer.zig"), // RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer on freds72's engine, benchmark lap v0
     else => @compileError("bad cart index"),
 };
 
