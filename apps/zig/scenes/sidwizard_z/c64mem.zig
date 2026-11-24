@@ -15,8 +15,9 @@ const RUNAWAY: u32 = 400_000; // instructions a call may take (a tick is ~600 cy
 pub const SidWrite = struct { cycle: u64, reg: u8, val: u8 };
 pub const QCAP = 512;
 
-var ram_: [65536]u8 = undefined;
-var queue_: [QCAP]SidWrite = undefined;
+// The buffers are the cart's (zg.mem at boot): a 64 KB static would be a zero-filled data segment (zero_segments).
+var ram_: *[65536]u8 = undefined;
+var queue_: *[QCAP]SidWrite = undefined;
 var qn_: usize = 0;
 var lost_: u32 = 0;
 var cyc_: *const u64 = &zero;
@@ -40,8 +41,14 @@ const Bus = struct {
 const Cpu = cpu6502.Cpu(Bus);
 var cpu_: Cpu = .{};
 
+/// Give the C64 its memory: 64 KiB of RAM and room for QCAP SID writes. Once, before `reset`.
+pub fn attach(ram_buf: *[65536]u8, queue_buf: *[QCAP]SidWrite) void {
+    ram_ = ram_buf;
+    queue_ = queue_buf;
+}
+
 pub fn ram() *[65536]u8 {
-    return &ram_;
+    return ram_;
 }
 
 /// SID writes made since the last `takeWrites`, oldest first.
@@ -57,7 +64,7 @@ pub fn lost() u32 {
 
 /// A cold C64: zeroed RAM, the player and the adapter's variables as the editor program has them.
 pub fn reset() void {
-    @memset(&ram_, 0);
+    @memset(ram_, 0);
     var at: usize = 0;
     while (at + 4 <= image.len) {
         const addr = @as(usize, image[at]) | @as(usize, image[at + 1]) << 8;

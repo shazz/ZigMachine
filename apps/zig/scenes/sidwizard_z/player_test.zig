@@ -10,8 +10,11 @@ const player = @import("player.zig");
 const tune = @embedFile("tunes/FLASHITBACK.SWM");
 const golden = @embedFile("old_cart_sid.bin");
 var song: swm.Song = undefined;
+var ram: [65536]u8 = undefined;
+var queue: [mem.QCAP]mem.SidWrite = undefined;
 
 fn loadSong() !void {
+    mem.attach(&ram, &queue);
     swm.reset(&song);
     try swm.load(&song, tune);
 }

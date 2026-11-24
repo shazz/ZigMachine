@@ -22,6 +22,7 @@ On the shelf, one cart is a third-party program as a whole, not a port of a scre
 | Part | What | Licence | Source |
 |---|---|---|---|
 | `CARTS/tools/demo-sidwizard.zmd` | Mihaly Horvath's (Hermit) SID-Wizard 1.97, the C64 SID tracker (with much help from Soci of Singular Crew), as its PC version runs it: the native C64 program on SID-Wizard's own libcRSID, under our host; the disk carries Hermit's example song "Flash It Back" | WTF: "Do what the frick you want with this code, but mentioning me if you use it would still be nice." (its README, in `licenses/SID-Wizard-README.txt`) | `zigmachine/apps/ports/sidwizard/` (`README.md` there; upstream's files, unchanged, in `upstream/`) |
+| `CARTS/tools/demo-sidwizard_z.zmd` | the same SID-Wizard 1.97 (Hermit), with its editor's UI in native Zig (a port of the C64 program's screens and key handlers) and Hermit's own 6502 player (cut from the 1.97 editor program) run on the repo's 6502; the disk carries "Flash It Back" | WTF, as above (`licenses/SID-Wizard-README.txt`) | `zigmachine/apps/zig/scenes/sidwizard_z/` and `docs/ports/sidwizard_z/README.md` |
 
 Everything else on the card is ZigMachine's: `zigmachine.bit` is the KESTREL RTL in
 `zigmachine/fpga/` (the maintainer's combo16 Vivado build), `boot.scr` is

@@ -51,11 +51,17 @@ pub const Editor = struct {
     /// leaves (unmuted tracks, default pattern length, subtune tempos).
     pub fn init() Editor {
         var e = Editor{};
+        e.reset();
+        return e;
+    }
+
+    /// The same fresh workfile in place: a cart builds its Editor on its own memory, not on the
+    /// stack (a Song alone is ~34 KB) and without a struct-literal blob in the cart's data.
+    pub fn reset(e: *Editor) void {
         swm.reset(&e.song);
         for (0..3) |t| e.song.header[swm.H_MUTE + t] = 0xff;
         e.song.header[swm.H_DEFLEN] = swm.default_ptn_len;
         e.view.mutesolo = .{ 0xff, 0xff, 0xff };
-        return e;
     }
 
     /// Load a .SWM file's bytes (the host did the I/O) and reset the view the
@@ -113,7 +119,7 @@ pub const Editor = struct {
         dsp.overlayRender(&self.song, &self.view, over);
     }
 
-    /// swm.toC64 into the emulated C64 image at $1D00 (music_data). The host
+    /// swm.toC64 into the emulated C64 image at music_data. The host
     /// still has to place the player code at $1000 and call its initer.
     pub fn songForPlayer(self: *const Editor, mem: *[65536]u8) !void {
         try swm.toC64(&self.song, mem[swm.music_data..]);

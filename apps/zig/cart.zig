@@ -144,6 +144,7 @@ const scene = switch (opts.index) {
     133 => @import("scenes/kestramp.zig"), // KESTRAMP: a classic desktop MP3 window for C:\MUSIC (its layout after Webamp, MIT; our own pixels), decoded by the sound side (pvmp3)
     138 => @import("scenes/nfo_viewer.zig"), // NFO VIEWER: zigdemo's NFO / ASCII-art viewer on the desk plane, a sample NFO scrolling under a fixed prompt bar
     139 => @import("scenes/vgm_test.zig"), // VGM TEST: one text plane, keys 1-3 play KESTREL FM by name (.vgm, .vgz) and as bytes, 4 stops; BARD load (libs/zig/players/vgm.zig)
+    140 => @import("scenes/sidwizard_z.zig"), // SID-WIZARD Z: SID-Wizard 1.97's UI in native Zig, its original 6502 player on cpu6502, the SID on BARD
     else => @compileError("bad cart index"),
 };
 

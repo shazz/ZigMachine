@@ -83,7 +83,7 @@ test "boot -> load -> three notes -> save -> reload" {
     try std.testing.expectEqual(@as(u8, 0xc0), scr.chars[0][0]); // the template's top-left
 }
 
-test "songForPlayer writes the tune at $1D00 and playerState reads $10.." {
+test "songForPlayer writes the tune at music_data ($1DBB) and playerState reads $10.." {
     var e = Editor.init();
     try e.load(tune);
     var mem = [_]u8{0} ** 65536;

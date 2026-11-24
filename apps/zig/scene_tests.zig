@@ -13,6 +13,19 @@ test {
     _ = @import("scenes/sysinfo/grid.zig");
     _ = @import("scenes/notepad/doc_test.zig"); // NOTEPAD's text, cursor, selection, clipboard, find
     _ = @import("scenes/notepad/names.zig");
+    // SID-WIZARD Z: the editor library (74 tests of the port) and the host's pure parts; player_test.zig needs the cpu6502 module (build.sh runs it with --dep)
+    _ = @import("scenes/sidwizard_z/swm_test.zig");
+    _ = @import("scenes/sidwizard_z/display_test.zig");
+    _ = @import("scenes/sidwizard_z/keys_test.zig");
+    _ = @import("scenes/sidwizard_z/menu_test.zig");
+    _ = @import("scenes/sidwizard_z/filer_test.zig");
+    _ = @import("scenes/sidwizard_z/startup_test.zig");
+    _ = @import("scenes/sidwizard_z/border_test.zig");
+    _ = @import("scenes/sidwizard_z/frame_test.zig");
+    _ = @import("scenes/sidwizard_z/editor_test.zig");
+    _ = @import("scenes/sidwizard_z/keymap.zig");
+    _ = @import("scenes/sidwizard_z/names.zig");
+    _ = @import("scenes/sidwizard_z/video.zig");
     _ = @import("scenes/sysinfo/stref.zig");
     _ = @import("scenes/sysinfo/refs.zig");
     _ = @import("scenes/sysinfo/view.zig");
