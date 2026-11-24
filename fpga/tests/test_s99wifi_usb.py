@@ -160,3 +160,40 @@ def test_the_gateway_answering_resets_the_count_and_the_give_up(fake: Path) -> N
     no_wlan0_looks(fake, 4030, 30, 1)  # new trouble: a plain re-probe first again, then rebind 1/3
     assert syslog(fake).count("re-probe: no wlan0") == 2
     assert "USB rebind 1/3: still no wlan0 after a re-probe" in syslog(fake).split("re-armed")[1]
+
+
+def test_a_rebind_that_worked_does_not_block_the_next_wedge(fake: Path) -> None:
+    """23 Nov, SID-Wizard on the board: wedges at 01:27, 01:34, 01:56 and 02:00. The 02:00 one came
+    3 min after a rebind that had brought Wi-Fi back, and the 600 s gap left the OSD dead."""
+    no_wlan0_looks(fake, 1000, 30, 1)
+    assert rebinds(fake) == 1
+    (fake / "sys/class/net/wlan0").mkdir()
+    uptime(fake, 1060)
+    run(fake, "tick")
+    assert "the watchdog re-armed" in syslog(fake)
+    no_wlan0_looks(fake, 1200, 30, 1)  # 200 s after the first: under the old gap
+    assert rebinds(fake) == 2
+    assert "USB rebind 1/3: still no wlan0 after a re-probe" in syslog(fake).split("re-armed")[1]
+
+
+def test_failed_rebinds_still_wait_the_gap(fake: Path) -> None:
+    """...but a rebind that did NOT help (no gateway answer) still holds the next one off for 600 s."""
+    no_wlan0_looks(fake, 1000, 30, 1)
+    no_wlan0_looks(fake, 1030, 30, 10)  # no answer in between: up to 1300 s
+    assert rebinds(fake) == 1
+
+
+def test_a_frozen_count_right_after_a_good_rebind_rebinds_again(fake: Path) -> None:
+    """The 23 Nov 02:00 path itself: the count frozen across two unanswered pings, 3 min after a good rebind."""
+    no_wlan0_looks(fake, 1000, 30, 1)
+    (fake / "sys/class/net/wlan0").mkdir()
+    (fake / "sys/class/net/wlan0/carrier").write_text("1\n")  # joined: pings count again
+    uptime(fake, 1060)
+    run(fake, "tick")  # the gateway answers: re-armed
+    (fake / "ping_rc").write_text("1")
+    set_irqs(fake, 11700)
+    for t in (1180, 1210, 1240):
+        uptime(fake, t)
+        run(fake, "tick")
+    assert "USB rebind 1/3: e0002000.usb interrupts frozen for 2 looks" in syslog(fake).split("re-armed")[1]
+    assert rebinds(fake) == 2

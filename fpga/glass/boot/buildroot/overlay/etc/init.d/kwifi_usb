@@ -7,6 +7,8 @@
 # So a re-probe that did not help escalates to that rebind, and so does the controller's count frozen
 # across looks that sent it traffic. At most one rebind per REBIND_GAP s; after REBIND_MAX in a row
 # without the gateway answering, it gives up (no more re-probes or rebinds, rejoins only) until it does.
+# A recovery that WORKED (the gateway answered since) frees the re-probe and rebind gaps (v2, 23 Nov: four
+# wedges in 35 min under SID-Wizard; the 4th came 3 min after a good rebind and the gap left it dead).
 # Not the dongle's idProduct: a healthy BCM43143 also shows 0a5c:bd1e after its firmware download.
 USB_CTRL=${KWIFI_USB_CTRL:-e0002000.usb}
 CI_DRV=$SYS/bus/platform/drivers/chipidea-usb2
@@ -123,5 +125,5 @@ check_usb() {
 usb_rearm() {
     [ -e $RUN/reprobed ] || [ -e $RUN/rebinds ] || [ -e $RUN/gaveup ] || return 0
     log "gateway answers: Wi-Fi back ($(cat $RUN/rebinds 2>/dev/null || echo 0) USB rebinds), the watchdog re-armed"
-    rm -f $RUN/reprobed $RUN/rebinds $RUN/gaveup
+    rm -f $RUN/reprobed $RUN/rebinds $RUN/gaveup $RUN/rebind.at $RUN/reprobe.at  # a good recovery frees both gaps (v2)
 }
