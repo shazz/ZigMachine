@@ -70,7 +70,6 @@ pub const Game = struct {
         self.skid = .{};
         self.frames = 0;
         self.fixed = null;
-        self.logged = .grid;
         self.snap();
         self.prev = self.cur;
     }
@@ -79,6 +78,7 @@ pub const Game = struct {
         self.mode = m;
         self.auto = m == .bench;
         self.reset();
+        self.logged = .grid; // a new mode starts a new log (a reset inside a mode logs the state change)
     }
 
     pub fn nextPov(self: *Game) void {

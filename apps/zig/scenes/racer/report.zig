@@ -9,7 +9,7 @@ const bench = @import("bench.zig");
 const cam = @import("cam.zig");
 const xf = @import("xform.zig");
 
-pub const Where = struct { script: u32, scripted: bool };
+pub const Where = struct { script: u32, scripted: bool, lap_frames: u32 = cam.LAP_FRAMES };
 
 pub const Reporter = struct {
     frames: u32 = 0,
@@ -27,7 +27,7 @@ pub const Reporter = struct {
             self.crc_xor ^= crc;
             zg.Console.log("{s}", .{bench.crcLine(&buf, at.script, crc)});
         }
-        if (at.script % cam.LAP_FRAMES == 0) {
+        if (at.script % at.lap_frames == 0) {
             zg.Console.log("{s}", .{b.summary(&buf, k, self.crc_xor)});
             b.resetLap();
             self.crc_xor = 0;

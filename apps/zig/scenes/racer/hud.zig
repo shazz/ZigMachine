@@ -26,6 +26,8 @@ pub const Info = struct {
     avg_us: u32,
     fps10: u32,
     stage_us: [6]u32,
+    line0: ?[]const u8 = null, // the race's lines (racehud.zig) replace the benchmark's two
+    line1: ?[]const u8 = null,
 };
 
 pub const Hud = struct {
@@ -36,11 +38,11 @@ pub const Hud = struct {
     pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, plane: usize, i: Info) void {
         var l: [2]Line align(4) = undefined;
         var b0: [64]u8 = undefined;
-        pad(&l[0], std.fmt.bufPrint(&b0, "{s} R{} {s} {s}{s} {s} P{} S{}", .{
+        pad(&l[0], i.line0 orelse std.fmt.bufPrint(&b0, "{s} R{} {s} {s}{s} {s} P{} S{}", .{
             i.track, i.r, if (i.cpu) "CPU" else "AFFINE", i.mul, if (i.decals) "" else " NODECAL", i.pov, i.polys, i.spans,
         }) catch "");
         var b1: [96]u8 = undefined;
-        pad(&l[1], if (!i.osd) HELP else if (i.uncapped) bufUncapped(&b1, i) else bufStages(&b1, i));
+        pad(&l[1], if (i.osd) (if (i.uncapped) bufUncapped(&b1, i) else bufStages(&b1, i)) else i.line1 orelse HELP);
         const ys = [2]i16{ 2, 191 };
         for (0..2) |k| {
             if (std.mem.eql(u8, &l[k], &self.shown[plane][k])) continue;

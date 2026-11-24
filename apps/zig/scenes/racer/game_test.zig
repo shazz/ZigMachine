@@ -3,6 +3,7 @@
 // `zig test apps/zig/racer_tests.zig`.
 const std = @import("std");
 const cam = @import("cam.zig");
+const crest = @import("crest.zig");
 const car = @import("car.zig");
 const carmodel = @import("carmodel.zig");
 const data = @import("data.zig");
@@ -76,36 +77,12 @@ test "the start grid: all 8 cars are in view from the player's chase camera, the
     try std.testing.expectEqualSlices(bool, &.{ true, true, true, true, true }, &seen);
 }
 
-/// Put car `k` on the racing line at segment `s`, on the ground.
-fn place(g: *game.Game, k: usize, s: usize) void {
-    const l = g.t.line[s];
-    var c = car.Car.init(g.t, l.pos, @as(i32, l.yaw), @intCast(s));
-    c.npc = k > 0;
-    c.update();
-    g.s.race.cars[k] = c;
-    g.cur[k] = .{ .pos = c.pos, .angle = c.angle };
-    g.prev[k] = g.cur[k];
-}
-
-fn crestSegment(t: *const trk.Track) usize {
-    var best: usize = 0;
-    for (t.line, 0..) |s, i| {
-        if (s.pos[1] > t.line[best].pos[1]) best = i;
-    }
-    return best;
-}
-
 test "painter's order: a car past the crest is drawn BEFORE the crest's road (hidden), a car before it AFTER (seen)" {
     const t = try trk.parse(data.oval);
     var g = try game.Game.init(&t, zero);
     g.setMode(.race);
-    const ci = crestSegment(&t);
-    for (2..8) |k| place(&g, k, ci + 40 + k); // the rest of the field far from the camera
-    place(&g, 0, ci - 8);
-    place(&g, 1, ci - 4);
-    place(&g, 2, ci + 5);
-    g.cur[0] = .{ .pos = g.s.race.cars[0].pos, .angle = g.s.race.cars[0].angle };
-    g.prev = g.cur;
+    const ci = crest.segment(&t);
+    crest.setup(&g);
     var f = try testutil.newFrame(&t);
     defer testutil.freeFrame(&f);
     var cache = try testutil.newCache(carmodel.NV);
@@ -113,8 +90,8 @@ test "painter's order: a car past the crest is drawn BEFORE the crest's road (hi
     const v = cam.view(g.pose());
     f.visibility(&t, &v, 8);
     f.collect(&t, &v, true);
-    const crest = ground.findFace(&t, t.line[ci].pos, null).?.face;
-    const crest_key = f.faceKey(crest).?;
+    const crest_face = ground.findFace(&t, t.line[ci].pos, null).?.face;
+    const crest_key = f.faceKey(crest_face).?;
     var near_min: u16 = 0xFFFF; // the car before the crest: its lowest key
     var far_max: u16 = 0; // the car past it: its highest key
     for ([_]usize{ 1, 2 }) |k| {
@@ -134,10 +111,10 @@ test "car vs car: the nearer car's polygons are drawn after the farther one's, w
     const t = try trk.parse(data.oval);
     var g = try game.Game.init(&t, zero);
     g.setMode(.race);
-    for (3..8) |k| place(&g, k, 60 + k);
-    place(&g, 0, 0);
-    place(&g, 1, 4); // far
-    place(&g, 2, 2); // near
+    for (3..8) |k| crest.place(&g, k, 60 + k);
+    crest.place(&g, 0, 0);
+    crest.place(&g, 1, 4); // far
+    crest.place(&g, 2, 2); // near
     g.prev = g.cur;
     var f = try testutil.newFrame(&t);
     defer testutil.freeFrame(&f);

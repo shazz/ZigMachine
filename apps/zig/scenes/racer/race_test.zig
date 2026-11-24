@@ -18,6 +18,15 @@ test "2 AI cars and the player match the Lua every tick for 600 ticks, every col
     try std.testing.expect(r.brakes() > 0); // the AI's hard braking ran, not only the straight line
 }
 
+test "--break pid: the derivative gain moved makes the 2-AI run differ from the Lua, at the AI cars' first steer" {
+    const t = try trk.parse(data.oval);
+    npc.break_pid = true;
+    defer npc.break_pid = false;
+    var r = try race.Race.init(&t, 3);
+    const d = racefix.firstDiff(&r, try racefix.full(.npc2));
+    try std.testing.expect(d != null and d.? < 60);
+}
+
 test "the AI cars follow the racing line (its far target is ahead, the heading error folded)" {
     const t = try trk.parse(data.oval);
     var r = try race.Race.init(&t, 3);

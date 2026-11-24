@@ -9,6 +9,7 @@
 // at the back; slots 1..7 the AI cars, two a row ahead). The race's own clock and rules are in
 // rules.zig, the grid / countdown / finish states in fsm.zig. Integer only. No ZigOS import.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const car = @import("car.zig");
 const contacts = @import("contacts.zig");
 const npc = @import("npc.zig");
@@ -81,6 +82,12 @@ pub const Race = struct {
         var n: u32 = 0;
         for (self.cars[0..self.n]) |*c| n += c.brakes;
         return n;
+    }
+
+    /// The CRC-32 of the state words: what the fixtures hold per tick and the cart logs (`racer,cars`).
+    pub fn crc(self: *const Race) u32 {
+        var w: [WORDS]i32 = undefined;
+        return std.hash.crc.Crc32IsoHdlc.hash(std.mem.sliceAsBytes(self.words(&w)));
     }
 
     /// The state the reference dumps, per car (pos, vel, angle, face id, u, v) then the global hits, contacts and AI brakes.

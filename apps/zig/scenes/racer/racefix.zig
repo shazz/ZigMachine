@@ -70,6 +70,5 @@ pub fn firstDiff(r: *race.Race, f: Full) ?u32 {
 
 /// The CRC-32 of one tick's words, as the fixture writer takes it.
 pub fn crcOf(r: *const race.Race) u32 {
-    var w: [race.WORDS]i32 = undefined;
-    return std.hash.crc.Crc32IsoHdlc.hash(std.mem.sliceAsBytes(r.words(&w)));
+    return r.crc();
 }

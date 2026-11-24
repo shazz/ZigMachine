@@ -24,6 +24,9 @@ const NPC_RPM = lit(0.7);
 const BRAKE_AT = lit(0.12);
 const LOOKAHEAD_MAX = 5;
 
+/// The harness' `--break pid` (key W): the derivative gain 0.5 -> 0.45, which every AI car's steering shows at once.
+pub var break_pid: bool = false;
+
 /// make_pid(2, 1, 0.5): fresh (nil) on the first call, so the state is optional, not zero.
 pub const Pid = struct {
     prev_err: ?i32 = null,
@@ -36,7 +39,7 @@ pub const Pid = struct {
         self.i_err = i_err;
         const d_err = fix.div(err -% prev, dt);
         self.prev_err = err;
-        return fix.mul(2 << 16, err) +% fix.mul(fix.ONE, i_err) +% fix.mul(lit(0.5), d_err);
+        return fix.mul(2 << 16, err) +% fix.mul(fix.ONE, i_err) +% fix.mul(if (break_pid) lit(0.45) else lit(0.5), d_err);
     }
 };
 

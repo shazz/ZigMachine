@@ -69,3 +69,19 @@ for (const track of ["oval", "city"]) {
         console.log(`- ${mul || "mulsh import (billed as a ROM call here: pessimistic, the board runs one instruction)"}: ${row(r)}`);
     }
 }
+
+// M3: the race. One car driving (M2) against the grid with 8 cars in view, a race frame mid-lap (the AI tick is
+// every second frame, so the average includes half a tick of 7 AI cars + contacts) and the crest pose.
+async function raceCost(keys, warmup, r = 5, affine = false) {
+    const ks = [code("0") + r, ...(affine ? [code("f"), code("m")] : [code("m")]), ...keys];
+    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(warmup), "--no-disk", "--top", "400", ...ks.flatMap((k) => ["--call", `1:key:${k}`])]);
+    return costOf(CART, o);
+}
+console.log("\n## M3: the race (oval, plain multiply twin, estimates)\n");
+console.log("| scene | R | CPU fill | AFFINE fill |\n|---|---|---|---|");
+for (const [name, keys, warm] of [["driving, 1 car (M2)", [code("n")], 30], ["grid, 8 cars in view", [code("e")], 30], ["race, mid-lap (lap v2, AI ticking)", [code("x")], 700], ["crest pose, 3 cars", [code("k")], 30]]) {
+    for (const r of [5, 8]) {
+        const a = await raceCost(keys, warm, r), b = await raceCost(keys, warm, r, true);
+        console.log(`| ${name} | ${r} | ${row(a)} | ${row(b)} |`);
+    }
+}
