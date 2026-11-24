@@ -4,6 +4,7 @@
  * instead of through wasm2c: per output frame it was a fifth of the player's cost. apps/harness/vgm_check.mjs holds it
  * to a JavaScript copy of the Zig stage, sample for sample. Our own code. */
 #include "zm_vgm.h"
+#include "zm_vgm_sfx.h"
 
 #define OUT_RATE 44100u
 #define RECIP 48696u               /* ceil(2^31 / 44100): pos x RECIP >> 16 is pos / 44100 in Q15 */
@@ -12,6 +13,7 @@
 
 static struct {
     uint32_t rate, pos, at, n, primed;
+    uint32_t taken, made; /* engine frames taken by the resampler, rendered into chunks (since the reset) */
     int32_t a[2], b[2];
     int16_t chunk[2 * CHUNK];
 } zo;
@@ -19,18 +21,21 @@ static struct {
 void zm_vgm_out_reset(uint32_t rate) {
     zo.rate = rate;
     zo.pos = zo.at = zo.n = zo.primed = 0;
+    zo.taken = zo.made = 0;
     zo.a[0] = zo.a[1] = zo.b[0] = zo.b[1] = 0;
 }
 
 static void push(void) {
     if (zo.at >= zo.n) {
         zm_vgm_render(zo.chunk, CHUNK);
+        zo.made += CHUNK;
         zo.at = 0;
         zo.n = CHUNK;
     }
     zo.a[0] = zo.b[0], zo.a[1] = zo.b[1];
     zo.b[0] = zo.chunk[2 * zo.at], zo.b[1] = zo.chunk[2 * zo.at + 1];
     zo.at++;
+    zo.taken++;
 }
 
 static void split(int32_t x, int8_t *hi, int8_t *lo) {
@@ -53,4 +58,12 @@ void zm_vgm_render_paula(int8_t *hl, int8_t *hr, int8_t *ll, int8_t *lr, uint32_
         split(zo.a[1] + (((zo.b[1] - zo.a[1]) * q) >> 15), &hr[i], &lr[i]);
         for (zo.pos += zo.rate; zo.pos >= OUT_RATE; zo.pos -= OUT_RATE) push();
     }
+    zm_sfx_output(n);
+}
+
+/* The SFX device's map (zm_vgm_sfx.h): each output frame takes the engine frames its position passes, after
+ * the two a first call primes. d < 2^32 / rate (the device holds it to 100,000). */
+int32_t zm_vgm_out_lead(uint32_t d) {
+    uint32_t taken = zo.taken + (zo.primed ? 0u : 2u) + (zo.pos + d * zo.rate) / OUT_RATE;
+    return (int32_t)(taken - zo.made);
 }

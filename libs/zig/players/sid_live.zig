@@ -18,6 +18,10 @@
 // writes land at their output sample exactly. One device an open: the first
 // SID reset or AY configure picks it, and the other's writes are refused.
 //
+// The FM device ($C000..$C3FF, fm_live.zig) is the VGM engine's YM2612 + SN76489 under the tune the VGM
+// player plays: picked when its first write is queued (the VGM player then plays the queue), its writes
+// handed to the engine's own ring (libs/c/vgm/zm_vgm_sfx.c), which applies them at their stamp.
+//
 // Plain state, no chip calls (sid_live_test.zig): the player that renders it
 // is sid.zig (SidPlayer.live), the exports apps/zig/demo_audio_sidlive.zig.
 // --------------------------------------------------------------------------
@@ -35,6 +39,22 @@ pub const OP_MARK: u32 = 2; // an event back when the write's sample comes; valu
 pub const AY_BASE: u32 = 0xA000;
 pub const AY_SPAN: u32 = 0x100;
 pub const AY_REG_CONFIG: u32 = 14;
+/// The FM device: addr = FM_BASE + the engine's SFX address (zm_vgm.h: 0x000 / 0x100 + reg the YM2612's
+/// ports, 0x200 a PSG byte, 0x300 the channels owned, 0x301 the tune).
+pub const FM_BASE: u32 = 0xC000;
+pub const FM_SPAN: u32 = 0x400;
+
+pub fn isFm(addr: u32) bool {
+    return addr >= FM_BASE and addr < FM_BASE + FM_SPAN;
+}
+
+/// The device a write picks on an open that has none yet (SID reset, AY configure, any FM write), or null.
+pub fn picks(addr: u32) ?Live.Device {
+    if (isFm(addr)) return .fm;
+    if (addr == OP_RESET) return .sid;
+    if (addr >= AY_BASE and addr < AY_BASE + AY_SPAN and (addr - AY_BASE) & 0x8F == AY_REG_CONFIG) return .ay;
+    return null;
+}
 
 /// What comes back to the cart (zg.bard.pollEvent), at the sample it happened.
 pub const Kind = enum(u32) { mark = 1, reset = 2, resync = 3, dropped = 4 };
@@ -57,7 +77,11 @@ pub const Live = struct {
     engine_on: bool = false,
     /// What this open plays: picked by the first SID reset or AY configure.
     device: Device = .none,
-    pub const Device = enum(u8) { none, sid, ay };
+    /// The FM device's marks, held until their sample comes (its writes go ahead early: fm_live.zig).
+    marks: [MARKS]Entry = undefined,
+    nmarks: u32 = 0,
+    pub const Device = enum(u8) { none, sid, ay, fm };
+    pub const MARKS = 16;
 
     pub fn reset(self: *Live, lead: u32) void {
         self.queue.reset(lead);
@@ -66,6 +90,7 @@ pub const Live = struct {
         self.refused = 0;
         self.engine_on = false;
         self.device = .none;
+        self.nmarks = 0;
     }
 
     fn event(self: *Live, t: u32, kind: Kind, arg: u32) void {
@@ -96,8 +121,13 @@ pub const Live = struct {
     /// What a write does here beside the chip: the counters, and its event. Returns
     /// .sid (write the register), .reset (a fresh engine), .ay (the AY device's write: the caller
     /// counts it with ayAnswer, as the device takes it or not) or .none.
-    pub const Do = enum { none, sid, reset, ay };
+    pub const Do = enum { none, sid, reset, ay, fm };
     pub fn classify(self: *Live, e: Entry) Do {
+        if (isFm(e.addr) and self.device == .fm) return .fm; // counted by the engine as it applies it
+        if (self.device == .fm and e.addr != OP_MARK) {
+            self.refused +%= 1;
+            return .none;
+        }
         if (e.addr >= AY_BASE and e.addr < AY_BASE + AY_SPAN and self.device != .sid) {
             if ((e.addr - AY_BASE) & 0x8F == AY_REG_CONFIG) self.device = .ay;
             return .ay;

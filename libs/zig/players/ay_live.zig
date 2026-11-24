@@ -24,6 +24,7 @@ pub fn render(l: *sid_live.Live, bufs: out.Bufs, n: u32, chunk_off: u32) u32 {
     while (f < n) {
         while (l.take()) |e| switch (l.classify(e)) {
             .ay => l.ayAnswer(audio.machineAyWrite(e.addr - sid_live.AY_BASE, e.value) != 0),
+            .fm => {}, // never here: an FM open is the VGM player's (fm_live.zig)
             .sid => audio.machineSidWrite(e.addr - sid_live.SID_BASE, e.value),
             .reset => {
                 _ = audio.machineSidRaw(e.value);

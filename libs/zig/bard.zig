@@ -11,13 +11,16 @@
 // due(t) says when to produce the command stamped t, so a 50 Hz replay keeps
 // the sound side's time whatever the cart's frame rate.
 //
-// Devices: SID live (cRSID with no tune: libs/zig/players/sid_live.zig) and up
-// to eight AY / YM chips (libs/c/ayumi zm_ay_bank.h); one of the two an open.
+// Devices: SID live (cRSID with no tune: libs/zig/players/sid_live.zig), up to
+// eight AY / YM chips (libs/c/ayumi zm_ay_bank.h) and the FM device (the VGM
+// engine's YM2612 + SN76489 under its tune: bard_fm.zig); one of them an open.
 // --------------------------------------------------------------------------
 extern fn hostBardAttach(block: u32, lead: u32) u32;
 
 /// Jobs for BARD (table 1.24): a coprocessor for non-music work (bard_job.zig).
 pub const job = @import("bard_job.zig");
+/// The FM device (system 1.28, HW 1.20.0 zg.caps .bard_fm): the YM2612 + SN76489 under a VGM tune (bard_fm.zig).
+pub const fm = @import("bard_fm.zig");
 
 pub const MAGIC: u32 = 0x51424d5a; // "ZMBQ"
 pub const CAP: u32 = 256; // commands the ring holds (a power of two)
@@ -68,6 +71,7 @@ fn word(i: u32) *volatile u32 {
 /// its stamp's turn (the cart's longest frame plus a frame; 256..16384). False: no BARD queue here
 /// (no sound side yet, or a host without one): every command is then refused.
 pub fn open(lead: u32) bool {
+    fm.reset();
     for (&block.head) |*h| h.* = 0;
     // No slot's seq is its index before the cart writes it (a zeroed slot 0 would pass for command 0).
     for (&block.cmds) |*c| @as(*volatile u32, @ptrCast(&c.seq)).* = 0xFFFF_FFFF;
@@ -82,8 +86,14 @@ pub fn open(lead: u32) bool {
 
 /// Stop the sound side playing the queue (the next cart's reset does too).
 pub fn close() void {
+    fm.reset();
     if (attached) _ = hostBardAttach(0, 0);
     attached = false;
+}
+
+/// A command as it is (bard_fm.zig builds the FM device's): false when refused (closed, the ring full).
+pub fn pushRaw(t: u32, addr: u32, value: u32) bool {
+    return push(t, addr, value);
 }
 
 fn push(t: u32, addr: u32, value: u32) bool {

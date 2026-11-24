@@ -13,6 +13,8 @@ native host. The player's output stage is C too (`zm_vgm_out.c`: linear to 44.1 
 | `vgm_seq.h`, `vgm_seq.c` | the sequencer (VGM specification 1.71, vgmrips.net): waits, 0x52/0x53, 0x50, 0x4F, 0x66 + loop, 0x67 type-0 data blocks (up to 16, one bank), 0x8n, 0xE0 |
 | `vgm_stream.c` | 0x90-0x95 DAC stream control (one stream, to the YM2612's DAC) |
 | `zm_vgm_out.c` | the player's output: mp3_resample's linear to 44.1 kHz and mp3_out's hi/lo bytes, in C (native on BARD) |
+| `zm_vgm_sfx.c`, `zm_vgm_sfx.h` | the SFX device (the BARD queue's FM device, `zg.bard.fm`): a cart's timed writes on the channels it owns, applied at the engine frame their stamp maps to; off by default (nothing changes) |
+| `zm_vgm_own.c`, `zm_vgm_own.h` | the device's owners: which channel a register is for, each writer's register image (put back when a channel changes hands or a load resets the chips) |
 | `zm_inflate.h`, `zm_inflate.c` | gzip (RFC 1952) / DEFLATE (RFC 1951) for `.vgz` |
 | `zm_mem.h` | memset / memmove: libc's, or the compiler runtime's in the freestanding wasm build |
 | `vgm_write.py`, `test_vgms.py` | a VGM writer; our single-feature VGMs (algorithms, feedback, envelope, LFO, detune, SSG, channel 3, DAC, PSG) |

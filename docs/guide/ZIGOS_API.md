@@ -388,6 +388,40 @@ _ = bard.ayWrite(t, 0, 8, 15);                // register 8 (A's volume) of chip
 C carts write the same ring (`apps/ports/chipnomad/kestrel_bard.cpp`): addr = `0xA000 + chip x 16 + reg` (14
 configure, 15 the pans), `0xA080 + chip` the gain (`libs/c/ayumi/zm_ay_bank.h`).
 
+**FM** (24 Nov 2026, HW 1.20.0, `zg.caps.has(.bard_fm)`): the queue's third device is the **VGM engine's own
+YM2612 + SN76489** (`libs/c/vgm`), under the tune the VGM player plays. The cart **owns** some channels (sound
+effects, an engine note); the tune keeps the others. `zg.bard.fm` (`libs/zig/bard_fm.zig`):
+
+```zig
+const fm = zg.bard.fm;
+if (!zg.caps.has(.bard_fm) or !zg.bard.open(3072)) return playWithoutEffects(); // a lead >= fm.LEAD_MIN (1024)
+_ = fm.own(t, fm.SFX_DEFAULT);                // FM 5-6, PSG tone 3 and the noise from t; the tune keeps FM 1-4 + PSG 1-2
+_ = fm.patch(t, 5, &engine_patch);            // 30 writes: four operators, algorithm, pans
+_ = fm.freq(t, 5, 3, 600);                    // block, F-number (A6 then A2: the cart's own latch)
+_ = fm.key(t, 5, 0xF);                        // the four operators keyed on (0 off)
+_ = fm.tone(t, 2, 254, 3);                    // PSG tone 3 at a period, attenuation 0..15
+zg.requestSong("race.vgm");                   // the tune: with the device open a VGM load keeps the queue
+_ = fm.tuneStop(t);                           // the tune stops at t (zg.stopSong would end the queue too)
+```
+
+- **Ownership**: a write to a channel the cart does not own is refused (false here, counted by the device).
+  The tune's writes to an owned channel are kept aside and put back when the cart lets it go (`own(t, 0)`);
+  the cart's own state is put back after a tune load resets the chips. 0x22-0x27 (LFO, timers, channel 3's
+  mode) and 0xA8-0xAE stay the tune's; the DAC (0x2A, 0x2B) is FM 6's. Each side has its own A4-A6 latch and
+  PSG latch, so a cart pair never takes the tune's high byte or channel.
+- **Time**: the device takes a write ahead of time and applies it at the engine frame (26.6 kHz) its stamp maps
+  to, in the order written, the same on every host whatever its render size, if it arrives at least ~430
+  samples before its stamp (the output stage reads 256 engine frames ahead): use a lead of >= `fm.LEAD_MIN`.
+  Later writes apply at once (`late`, counted). Marks come back at their sample, as on the other devices.
+- **Opening**: the first FM write hands the queue to the VGM player; a VGM playing when the queue opens keeps
+  playing; a VGM loaded with the device open (or no device picked yet) plays under the queue, in the song RAM
+  below the queue's block (`audioSongCapacity` shrinks by 88 KB while the queue is open). Any other song, or
+  `stopSong`, or the next cart ends the queue.
+- C carts: addr = `0xC000 +` 0x000 / 0x100 + reg (the YM2612's ports), 0x200 (a PSG byte), 0x300 (the owned
+  mask: FM n = bit n, PSG n = bit 8 + n), 0x301 value 0 (the tune stops).
+- The worked example is the racer (cart 160, `apps/zig/scenes/racer/audio.zig`, `sfx.zig`); proof
+  `apps/harness/fm_sfx_check.mjs`.
+
 ## 8e. BARD jobs: a coprocessor for non-music work (system table 1.24)
 
 `zg.bard.job` (`libs/zig/bard_job.zig`) hands **jobs** to a server outside the cart's frame: on the board

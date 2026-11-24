@@ -13,8 +13,9 @@ export const W = 320, H = 200;
 // the HUD lines sit outside them, so these rows are the object alone.
 export const OBJ_Y0 = 24, OBJ_Y1 = 176;
 
-// onLog gets each Console.log line (the cart logs V/F on every model change).
-export async function bootObj(cartPath = "site/carts/demo-obj.wasm", onLog = () => {}) {
+// onLog gets each Console.log line (the cart logs V/F on every model change). `hook(env, machine)`, if
+// given, may replace imports and set the machine (fm_sfx_check.mjs: a BARD queue host, capabilities off).
+export async function bootObj(cartPath = "site/carts/demo-obj.wasm", onLog = () => {}, hook = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"),
@@ -30,6 +31,7 @@ export async function bootObj(cartPath = "site/carts/demo-obj.wasm", onLog = () 
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => 0;
+    if (hook) hook(env, machine);
     demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
     machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
     machine.hwInit();

@@ -554,7 +554,17 @@ machineVgmRate() u32                     // the engine's rate: the file's YM2612
 machineVgmRender(dst_abs, n) void        // the next n stereo s16 frames (L, R) at that rate into dst_abs
 machineVgmRenderPaula(hl, hr, ll, lr, n) void // the player's output: n 44.1 kHz frames, resampled linearly and
                                          // split into the four Paula channels' bytes (hi L, hi R, lo L, lo R)
+machineVgmSfxOn(on) void                 // audio 1.4.0: the SFX device on (its clocks from 0; silent chips with no tune) / off
+machineVgmSfxPush(stamp, addr, value) u32 // a cart write for output frame `stamp` (since the on): 0x000 / 0x100 + reg the
+                                         // YM2612's ports, 0x200 a PSG byte, 0x300 the owned channels, 0x301 0 the tune stops;
+                                         // applied at the engine frame the output stage reaches then. 1 queued, 0 off / full (512)
+machineVgmSfxStat(i) u32                 // 0 applied, 1 refused (a channel not owned), 2 waiting, 3 late, 4 output frames, 5 owned, 6 on
 ```
+
+The SFX device is the BARD queue's **FM device** (`zg.bard.fm`, capability bit 6 `bard_fm`, HW 1.20.0;
+docs/project/DECISIONS.md 2026-11-24): `libs/c/vgm/zm_vgm_sfx.c` (the ring, the clocks, the commands) and
+`zm_vgm_own.c` (which channel a register is for, each writer's register image). With it off the engine is
+unchanged sample for sample (`vgm_check.mjs`'s pins); `apps/harness/fm_sfx_check.mjs` holds it.
 
 **The AY engine** (13 Nov 2026): eight AY-3-8910 / YM2149 chips in integers (`libs/c/ayumi`, ayumi's chip model
 as ChipNomad's cart runs it on ZIGGY), the BARD queue's AY device. On the page it is in `machine-audio.wasm`; on

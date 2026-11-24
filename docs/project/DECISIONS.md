@@ -2167,3 +2167,40 @@ match. BARD (snd-bench, v1.3's core model, the whole player): 57.7 % mean / 64.8
 Zone's busy part, 65.5 % / 73 % with all six FM channels. Not modelled: timers / CSM, the DAC's ladder
 distortion, second chips; SSG-EG unproven (the references disagree). A card needs the new system.rv32 (BARD's
 image carries the player): an older 1.27 system plays nothing for a .vgm. The snd image has ~52 KB left.
+
+## 2026-11-24 — The BARD queue's FM device: a cart's timed YM2612 + SN76489 writes under the VGM tune
+
+**Status:** accepted
+**Context:** Kestrel Racing (R82 M4) needs sound effects over its FM music: an engine note whose pitch follows the rpm,
+impacts, a skid, countdown beeps and jingles. The music is a VGM on our own YM2612 + SN76489 (2026-11-21), played
+by BARD. PORT_PLAN.md 4.5 offered three paths; Matt chose option A (24 Nov): a device on the BARD queue, as the AY's.
+The queue's open stopped every player and a VGM load ended the queue, the queue's block sat in song RAM where a VGM
+file goes, and the engine read 256 frames ahead of its output, so a write applied "now" would land late and at a
+point that depends on the host's render size.
+**Decision:**
+- **The device is the engine itself** (`libs/c/vgm/zm_vgm_sfx.c`, `zm_vgm_own.c`): writes wait in a 512-entry ring
+  in C, each applied between engine frames at the frame its stamp maps to, from the output stage's own state
+  (`zm_vgm_out_lead`), in the order written. The map is pure arithmetic, so the samples depend on the stamps only,
+  not on when a write came or on the render calls, as long as it comes ~430 samples ahead (`fm.LEAD_MIN` 1024).
+  Three imports (`machineVgmSfxOn / Push / Stat`, audio 1.4.0) answered by machine-audio.wasm on the page and by
+  the same C natively on BARD: one source, so identical behaviour (proved by `fm_sfx_check.mjs`, wasm = native).
+- **Channel ownership**: the cart owns a mask (FM n, PSG n); a cart write elsewhere is refused (in `zg.bard.fm` at
+  once and by the device, counted); the tune's writes to owned channels are kept in its register image and put back
+  when the cart lets go; the cart's image is put back after a tune load resets the chips. Globals (LFO, timers,
+  channel 3's mode) are the tune's; the DAC is FM 6's. Each writer keeps its own A4 latch and PSG latch.
+- **The queue** keeps its anchoring (cart_paula_queue); `$C000..$C3FF` is the FM device; its first write hands the
+  queue from the SID player to the VGM player (`fm_live.zig`), which feeds the engine before each render. The
+  queue's block moved to the top of song RAM, below the Paula rings, so a VGM loads under an open queue (the song
+  room shrinks by 88 KB while it is open). A VGM playing at the open keeps playing; a VGM load keeps a queue whose
+  device is FM or not picked yet. `fm.tuneStop` (a timed command) stops the tune; `zg.stopSong` stays the machine's
+  reset of every player and ends the queue.
+- **Capability bit 6 `bard_fm`** (HW 1.20.0): a cart asks before it opens the device; the fallback is the tune alone.
+  No new `env.*` entry: the system table stays 1.28.
+**Alternatives considered:** B, a channel mask in the VGM player through the mailbox (smaller, but no timing and
+only for one cart's channels); C, sampled effects on R7's 16-bit Paula mode (needs RTL; the 7010 is full); applying
+the writes in Zig between render calls (host-dependent: the C output stage renders ahead); a second YM2612 for the
+effects (twice the BARD load).
+**Consequences:** every cart can now play FM effects over a VGM; BARD's load grows with the channels the cart keys
+(the racer's held engine note is ~1,800 operators a frame: ~61 % estimated with music, ~69 % on the busiest frames).
+snd.bin grows ~9.6 KB (43 KB left). The PSG noise's phase is not linear (the engine stops its counters while every
+PSG channel is off), so tune + effects differ from the sum of the two only there. A board needs the new system image.
