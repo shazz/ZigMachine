@@ -33,6 +33,8 @@ const PINS = {
     oval: ["73b40e652b6f1152", "7469c1026ea9488d", "b90e4efe830312ec", "99eba9b50593537e", "4cb27eb8f026df6b", "ff3abcf5332ec1fd", "1d62c33d4492024e", "171b995ea576f9ad"],
     city: ["292d027ec9a7401c", "c2a7377e26b7b730", "3f543653cd05ac55", "8173d090b8f801f4", "6a0151e50c7a850f", "054f9eac43845961", "1164588c62f89828", "25da3355919bf37c"],
 };
+// the lap's CRC32 list (every 60 script frames of the oval at R = 5, CPU fill, mulsh): the benchmark's proof of sameness
+const LAP_PIN = "6d55d849 bff1c7be a9f66c2b e3bfc562 3ea0fc9b fb56cdc3 0630972a 0f744af9 9b52f6ef 7f8d7500 a994fa26 62a4919a";
 const errors = [];
 const fail = (m) => errors.push(m);
 
@@ -177,6 +179,8 @@ for (let f = 0; f < 20; f++) {
 }
 if (!BREAK) {
     const a = await lap(false), b = await lap(false), c = await lap(true);
+    if (PRINT) console.log(`lap CRC list (oval, R5, CPU, mulsh): ${a.join(" ")}`);
+    if (!PRINT && a.join(" ") !== LAP_PIN) fail(`lap CRC list ${a.join(" ")} != pin`);
     if (a.join() !== b.join()) fail(`lap CRC list differs between two runs: ${a} vs ${b}`);
     if (a.join() !== c.join()) fail(`lap CRC list differs between the CPU and the AFFINE fill: ${a} vs ${c}`);
 }
