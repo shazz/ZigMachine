@@ -123,6 +123,10 @@ Three USB-C panel ports, two power supplies:
 | Case USB-C | Inside to | Notes |
 |---|---|---|
 | DEBUG | the board's UART USB-C | the serial console (the lead's line to the board) |
-| FPGA POWER | the board's power USB-C (JTAG port, to confirm) | supply 1 |
+| FPGA POWER | the board's JTAG USB-C | supply 1 |
 | HUB POWER | the hub's USB-C power input (9 V) | supply 2; a 3rd USB-C extender to buy |
 Label the three on the panel (DEBUG / FPGA / HUB) so a 9 V supply never goes into the board's port.
+Schematic check (Z7-LITE_R11.pdf p.14): both USB-C ports power the board: VCC_USB2UART_5V and
+VCC_USB2JTAG_5V each go through an SS24 Schottky diode (D8, D9) into VCC_5V, behind a 2 A fuse (F2). So the
+power supply on JTAG and the laptop on UART at the same time is safe (diode-OR, no back-feed between them);
+whichever is higher (minus ~0.4 V) feeds the board. The GPIO headers also carry VCC_5V.
