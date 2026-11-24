@@ -5,10 +5,14 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from host_make import FPGA, make_host
 
-from soc import board_soc, boards
-from soc.board_soc import BoardSocError, SocParams
-from soc.zigmachine_soc import parse_args
+if not (FPGA / "gen" / "memmap.py").exists():  # a clean tree (the gate's): soc.zigmachine_soc imports gen/
+    make_host("memmap")
+
+from soc import board_soc, boards  # noqa: E402  (after gen/ exists)
+from soc.board_soc import BoardSocError, SocParams  # noqa: E402
+from soc.zigmachine_soc import parse_args  # noqa: E402
 
 # KESTREL v1.3's flags as fpga/boards/microphase_z7_7010/board.mk held them before B2 (BOARD_SOC_FLAGS).
 OLD_FLAGS = (
