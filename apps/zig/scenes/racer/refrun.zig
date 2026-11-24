@@ -9,7 +9,7 @@ const car = @import("car.zig");
 const trk = @import("trk.zig");
 
 pub const COUNTDOWN: u32 = 90; // the engine's start_ttl: control begins on tick 90
-pub const Row = extern struct { btn: i32, hits: i32, pos: [3]i32, vel: [3]i32, angle: i32, face: i32, u: i32, v: i32 };
+pub const Row = extern struct { btn: i32, hits: i32, pos: [3]i32, vel: [3]i32, angle: i32, face: i32, u: i32, v: i32, tr: i32, sa: i32, slide: i32 };
 
 pub const Fixture = struct {
     rows: []const Row,
@@ -46,5 +46,8 @@ pub fn diff(c: *const car.Car, r: Row) ?[]const u8 {
     if (c.track.u != r.u) return "u";
     if (c.track.v != r.v) return "v";
     if (c.hits != r.hits) return "hits";
+    if (c.total_r != r.tr) return "tr";
+    if (c.steer_angle != r.sa) return "sa";
+    if (@intFromBool(c.sliding()) != r.slide) return "slide";
     return null;
 }

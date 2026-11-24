@@ -74,6 +74,13 @@ local function spawn(g,maker)
 end
 
 local plyr=spawn(KTRK.grid[1],make_plyr)
+-- observe the wheel state the engine hands to update_parts: total wheel turn, steering angle, sliding
+local PARTS={0,0,false}
+local update_parts0=plyr.update_parts
+plyr.update_parts=function(self,tr,sa,sl)
+	PARTS={tr,sa,sl}
+	update_parts0(self,tr,sa,sl)
+end
 local npcs={}
 for k=2,1+RACER_NPCS do add(npcs,spawn(KTRK.grid[k],make_npc)) end
 
@@ -87,10 +94,19 @@ local function row(t,id,car,b)
 	end
 	add(out,tostr(b))
 	add(out,tostr(HITS))
+	if id==0 then
+		add(out,tostr(PARTS[1],true))
+		add(out,tostr(PARTS[2],true))
+		add(out,PARTS[3] and "1" or "0")
+	else
+		add(out,"0x0000.0000")
+		add(out,"0x0000.0000")
+		add(out,"0")
+	end
 	print(table.concat(out,"\t"))
 end
 
-print("tick\tcar\tpx\tpy\tpz\tvx\tvy\tvz\tangle\tface\tu\tv\tbtn\thits")
+print("tick\tcar\tpx\tpy\tpz\tvx\tvy\tvz\tangle\tface\tu\tv\tbtn\thits\ttr\tsa\tslide")
 for t=1,RACER_TICKS do
 	if t>=RACER_COUNTDOWN then BTN=buttons(t,plyr) else BTN=0 end
 	if(t>=RACER_COUNTDOWN) plyr:control()

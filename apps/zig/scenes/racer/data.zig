@@ -10,3 +10,5 @@ const oval_blob: [OVAL_RAW.len]u8 align(16) = OVAL_RAW.*;
 const city_blob: [CITY_RAW.len]u8 align(16) = CITY_RAW.*;
 pub const oval: []align(4) const u8 = &oval_blob;
 pub const city: []align(4) const u8 = &city_blob;
+/// Lap v1's input stream: the buttons of the Lua reference's lap from the tick control starts, one byte a tick (tools/racer/phys_fixture.py).
+pub const lap_v1: []const u8 = @embedFile("../../assets/screens/racer/lap_v1.btn");

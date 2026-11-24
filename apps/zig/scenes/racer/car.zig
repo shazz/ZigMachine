@@ -28,6 +28,9 @@ pub const BTN_BRAKE: u8 = 32;
 const DT = lit(0.5 / 30.0); // the constant 0.5/30 of the Lua, folded: 1092
 const GRIP = lit(0.2638); // metres of road per wheel turn
 const SLIP = lit(0.22); // front tyres slide above this slip
+
+/// The harness' `--break slip` (key Z): the slip threshold moved, which the slide flag shows at once.
+pub var break_slip: bool = false;
 const MAX_STEER = lit(0.15);
 
 pub const Car = struct {
@@ -81,7 +84,7 @@ pub const Car = struct {
         self.steer_angle = fix.mid(self.steer_angle +% dt, -MAX_STEER, MAX_STEER);
         const a = self.angle -% self.steer_angle;
         var sa = vec.dot(.{ fix.cos(a), 0, fix.sin(a) }, self.vel);
-        self.front_slide = fix.abs(sa) > SLIP;
+        self.front_slide = fix.abs(sa) > (if (break_slip) lit(0.25) else SLIP);
         sa = fix.ONE -% fix.div(fix.min(fix.abs(sa), lit(0.2)), lit(0.8));
         const ax = self.axes();
         self.killLateral(ax.right, ax.fwd);
@@ -150,6 +153,10 @@ pub const Car = struct {
         self.pos = vec.add(self.pos, h.force, fix.ONE);
         const friction = vec.dot(self.vel, h.n);
         if (friction < lit(-0.01)) self.vel = vec.scale(self.vel, fix.ONE +% friction);
+    }
+
+    pub fn sliding(self: *const Car) bool {
+        return self.front_slide or self.rear_slide;
     }
 
     /// The reference's dump id: the 1-based face index in 16.16, 0 off the ground.

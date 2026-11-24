@@ -112,8 +112,10 @@ def parse(dump: str) -> list[dict[str, int]]:
     cols = lines[0].split("\t")
     for ln in lines[1:]:
         rec = dict(zip(cols, ln.split("\t"), strict=True))
-        row = {k: int(v) for k, v in rec.items() if k in ("tick", "car", "btn", "hits")}
-        for k in ("px", "py", "pz", "vx", "vy", "vz", "angle", "face", "u", "v"):
+        row = {k: int(v) for k, v in rec.items() if k in ("tick", "car", "btn", "hits", "slide")}
+        for k in ("px", "py", "pz", "vx", "vy", "vz", "angle", "face", "u", "v", "tr", "sa"):
+            if k not in rec:  # the wheel columns came with M2
+                continue
             raw = int(rec[k][2:6] + rec[k][7:11], 16)
             row[k] = raw - (1 << 32) if raw >= 1 << 31 else raw
         rows.append(row)

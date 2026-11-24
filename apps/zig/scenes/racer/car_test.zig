@@ -27,7 +27,7 @@ fn firstDiff(blob: []align(4) const u8) !?struct { tick: u32, field: []const u8 
     return null;
 }
 
-test "600 ticks of the autopilot's buttons on the oval match the Lua bit for bit" {
+test "1,500 ticks of the autopilot's buttons (a whole lap) match the Lua bit for bit" {
     try std.testing.expect((try firstDiff(&lap_blob)) == null);
 }
 
@@ -37,15 +37,34 @@ test "600 ticks into the outer wall match the Lua bit for bit, hits included" {
     try std.testing.expect(fx.rows[599].hits > 10);
 }
 
-test "the tyre grip constant is pinned: --break slip changes it and the lap diverges" {
+test "--break slip: the slip threshold moved makes the lap differ, in the slide column" {
+    car.break_slip = true;
+    defer car.break_slip = false;
+    const d = (try firstDiff(&lap_blob)).?;
+    try std.testing.expectEqualStrings("slide", d.field);
+}
+
+test "the lap and the wall run both slide (the slide flag is exercised, not constant)" {
+    for ([_][]align(4) const u8{ &lap_blob, &wall_blob }) |b| {
+        const fx = try refrun.Fixture.parse(b);
+        var on: usize = 0;
+        for (fx.rows) |r| on += @intCast(r.slide);
+        try std.testing.expect(on > 50 and on < fx.rows.len);
+    }
+}
+
+test "lap v1's stream from the grid, control from tick 0, ends where the reference is at tick 449" {
     const t = try trk.parse(data.oval);
     const fx = try refrun.Fixture.parse(&lap_blob);
     var c = refrun.spawn(&t);
-    for (fx.rows, 1..) |r, tick| {
-        refrun.step(&c, @intCast(tick), @intCast(r.btn));
-        if (tick == 300) c.max_rpm = fix.lit(0.55); // one constant moved: the next ticks differ
+    for (data.lap_v1) |b| {
+        c.control(b);
+        c.prepare();
+        c.integrate();
+        c.update();
     }
-    try std.testing.expect(refrun.diff(&c, fx.rows[599]) != null);
+    try std.testing.expectEqual(@as(usize, 360), data.lap_v1.len);
+    try std.testing.expectEqual(@as(?[]const u8, null), refrun.diff(&c, fx.rows[448]));
 }
 
 test "an unknown fixture is refused" {
@@ -53,7 +72,7 @@ test "an unknown fixture is refused" {
     try std.testing.expectError(error.BadFixture, refrun.Fixture.parse(&bad));
 }
 
-test "the car stays on the ground, never slides through a wall and laps the oval" {
+test "the car stays on the ground, never touches a wall and laps the oval" {
     const t = try trk.parse(data.oval);
     const fx = try refrun.Fixture.parse(&lap_blob);
     var c = refrun.spawn(&t);
@@ -61,7 +80,7 @@ test "the car stays on the ground, never slides through a wall and laps the oval
         refrun.step(&c, @intCast(tick), @intCast(r.btn));
         try std.testing.expect(c.old != null);
     }
-    try std.testing.expect(c.track.u > 30 << 16);
+    try std.testing.expect(c.track.u > 120 << 16); // a whole lap: past segment 120
     try std.testing.expectEqual(@as(u32, 0), c.hits);
 }
 
