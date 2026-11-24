@@ -71,6 +71,7 @@ Our model is drawn from scratch from these measurements (inspiration only, nothi
 | E-YOOSO Z-66 keyboard (USB) | 355 x 25 x 1 (+ keys) | on top of the wedge; depth to confirm |
 | iCode (USB to DB9 joysticks) | 90 x 40 x 20 | |
 | mini powered USB hub, 6 ports, USB-C 9 V in, USB2 | 75 x 40 x 10 | cables leave on ALL 4 sides: keep clearance |
+| LaCie USB floppy drive | 140 x 45 x 16 | inside, its slot on a face (disk in/out + eject button reachable); on the hub's 6th port |
 
 ### Panel connectors (male/female extensions, case side <- inside)
 | Case connector | Goes to |
@@ -87,4 +88,4 @@ Our model is drawn from scratch from these measurements (inspiration only, nothi
 | SD card extension | FPGA board's SD slot |
 
 Inside: keyboard -> hub, iCode -> hub, hub upstream -> the board's USB host; hub ports: keyboard, iCode,
-mouse, Wi-Fi, sound card = 5 of 6 (1 spare: the USB floppy?).
+mouse, Wi-Fi, sound card, floppy = 6 of 6 (no spare port).
