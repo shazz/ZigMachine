@@ -162,3 +162,92 @@ Cut-out sizes: measured from the female shell (W x H) at fit-test time; the mode
 standard opening + 0.4 mm clearance meanwhile.
 SD holder on the RIGHT side, where an Atari ST has its floppy drive (Matt: "replace the floppy disk"):
 style it like the ST's drive slot (a recessed slot + an eject-notch look).
+
+## 4. The joint to the reference front parts (measured 23 Nov 2026, `tools/joint_analysis.py`)
+
+Method: slice the STLs (read only, never copied) at planes near each mating face with numpy-stl, cluster the
+cut segments into loops, report round loops (holes) and bosses. The parts lie as printed: x = depth (the back
+part's joint face is x = 120.83, the front part's is x = 1.2; the front tip is x = 158.2), y = width
+(0.85 .. 187.35), z = height 0 .. 49. LEFT parts: the OUTER side is y = 0.85, the CENTRE is y = 187.35
+(RIGHT parts: mirrored).
+`uv run --with numpy-stl --with numpy python fpga/case/tools/joint_analysis.py <dir> "front left.STL" backleft-mister.STL --slice 0 1.5`
+
+| Interface | Numbers (mm) | Where measured |
+|---|---|---|
+| Front <-> back joint face | flat, NO lip or tongue: the section at x = 1.3 / 120.7 is the plain 186.5 x 49 outline | front x = 1.3..6, back x = 119..120.7 |
+| Joint holes | 2 per half, round **d 3.15**, axis along x, centre **z = 39**, at y = 11.85 and 182.35 = **11.0 from the outer side and 5.0 from the centre face**; same on front and back, so they line up | both faces |
+| Joint hole depth | ~10 each side (present at x = 8, gone at x = 12 on the front; present at x = 113, gone at 110 on the back): blind holes in both faces, no nut trap found | slices x = 1.3..30 and 120.7..100 |
+| Hole bosses | 10 mm round bosses around the holes (z 36..42, y 182.35), ribs behind them on the front | z = 36/39/42 slices |
+| Centre joint (left <-> right back halves) | holes **d 3.15, axis along y, z = 29**, at x = 12.32 and 115.82 (11.5 from the back wall's outside, 5.0 from the joint face), ~9-10 deep from the centre face; the outer face (y = 0.85) has none | slices y = 168..186.9 |
+| Front parts' centre holes | d 3.15 at x = 15.19 (z 14) and 117.76 (z 7.5) along y | y = 186.9 |
+| Cover fixing | 4 posts per half, **pilot d 2.75** (self-tapping M3) in the top (z = 49), ~10 deep, at (x, y) = (7.3, 7.35), (115.8, 5.84), (7.3, 182.35), (115.8, 182.35): 7 from the back wall's outside, 5 from the joint face, 5-7 from the sides; the cover: d 2.75 holes with a **d 6 counterbore** at the same spots | back z = 46..48.5; cover z = 0.5 / 2.5 |
+| Cover size | 133.5 deep: the 120 back + ~13.5 over the front part; 4-5 thick | top bbox |
+| Reference back wall | window-like wall at x = 0.8..4.5 and a bulkhead at x ~ 6 with port holes d 3.15 at z = 26.74 (y = 18.44 and 50.93 = 32.5 apart) | x = 1.5..6 (not reproduced: our wall is our own) |
+
+Reproduced in our back parts (`lib/params_ports.scad`, group "Joint"): the same two d 3.15 x 10 blind holes in
+the joint face (z 39, 11.0 / 5.0 from the sides; the outer one in a 13 x 10 block fused to the side wall, the
+inner one in the corner post), the same open joint face, the same cover pilots (d 2.75 x 10) and counterbored
+cover holes. The centre joint holes (d 3.15, z 29) are cut at 4 positions along the 170 depth (the reference's
+two are at 5 and 11.5 from the ends). The mesh shows no nut trap: how a screw bites is NOT visible (d 3.15 on both
+sides suggests M3 screws into a printed thread, a threaded stud or dowel pins): settle it by looking at the
+printed front parts.
+
+## 5. Model v1 (23 Nov 2026)
+
+Done: `kestrel_case.scad` + `lib/*.scad` (each under 100 lines): every dimension a Customizer variable
+(`lib/params_ports.scad`: groups Case, Joint, Cover, Board, Loops, Ports); `part = "all"` (assembly) |
+`back_left` | `back_right` | `top_left` | `top_right`; assembly ghosts (board 80 x 60 with the 14 mm RJ45, hub,
+iCode, keyboard on the wedge slope, the two reference front STLs as `%import` ghosts, read from
+`prototypes/kestrel_case/` for the view only; a missing file is a warning). Checked by `tools/check_stl.py`:
+
+| Part | Size (mm) | Bed 190 x 180 | Manifold |
+|---|---|---|---|
+| back_left / back_right | 186.5 x 170.0 x 49 | fits | yes (OpenSCAD "Simple: yes", 0 open edges) |
+| top_left / top_right | 186.5 x 176.0 x 4 | fits (176 of 180) | yes |
+
+No part crosses the left | right split (x = 186.5).
+
+Features: walls 3, floor 3, height 49, open top and open joint face (the cables go on into the tray); back-wall
+and side-wall cut-outs for the 11 ports at the layout's positions with the 2 screw holes at the given spacings
+(USB-C 17, USB-A 30, HDMI 28, RJ45 28, DB9 25 standard D shape; jack d 6.5; the SD slot 27 x 3.2 with a recessed
+bezel, an eject-button recess and a finger notch, ST-floppy style, on the right wall); labels engraved 0.6 deep
+outside (FPGA, DEBUG, HUB, HDMI, LAN, J0, J1, MOUSE, WI-FI, AUDIO, SD); 4 standoffs 8 tall (d 7, M3 insert hole d 4.2
+x 6) 2.6 mm from the board corners; corner-clip trays for the hub (75 x 40, open on all 4 sides) and the iCode
+(90 x 40) with zip-tie slots; 5 semicircular loop guides (inner radius 30, the cable runs round the OUTSIDE, 4 mm
+lip); 11 vent slots in the left cover over the board; "KESTREL" engraved 1.2 deep on the left cover; 5 cover
+screws per half.
+
+Changes against `layout_topview.py` (a sketch): its loops overlapped each other and ran through the back wall,
+so the centres moved: HDMI/RJ45 (70,270) -> (85,292), USB2 (340,300) -> (335,292), DB9 (60,250) -> (45,245),
+SD/jack (330,185) -> (325,185); the model also clamps every guide inside the walls (the USB2 and HDMI loops end
+at y = 289 rather than 292).
+
+ASSUMED, to test-fit:
+- the joint hole depth and the screw type (section 4); the front part's own rib bosses are not modelled;
+- cut-out sizes (standard shell + 0.4 mm): measure each female shell; port height 24 for every port; the SD
+  holder's real W x H and screw spacing (`sd_sp = 0`: no holes yet) and the jack's nut;
+- the board's hole d (3.2), edge (2.6), RJ45 height (14); its back edge (the 60 wide short edge) faces the back
+  wall, ~29 mm from it; PEREGRINE (7020) assumed identical;
+- the cover sits ON the 49 high walls (53 at the back) and overlaps the front part by 6 mm (the reference's 13.5
+  would make a 183.5 deep part, too long for the bed): how it meets the wedge top is untested;
+- 5 cover screws per half (no outer middle post: it would meet the WI-FI holes); a 4 mm plate may flex;
+- the cable loops' real bend radius and the stacking (3 USB-C x 31 cm in one guide: ring 26 high);
+- the two halves' 3 mm centre walls make a 6 mm double wall, screwed at 4 centre holes.
+
+Printing order: 1) a back-wall test strip: `openscad -D 'back_d=14' -D 'part="back_right"' -o strip.stl
+kestrel_case.scad` is a 14 deep slice of the tub with the full port wall (and a short sidewall): fit the real
+extenders, shells and the SD holder, fix the cut-outs; 2) the two covers (fast; check the posts against the
+front parts); 3) back_left; 4) back_right (more ports). The reference's front parts: printed as is.
+
+## 6. Lead review of model v1 (23 Nov, night)
+- Renders checked (assembly, top, back): ports on the agreed walls, labels DEBUG/FPGA/HUB/LAN/HDMI
+  readable, board/hub/iCode ghosts placed, no part crosses the split, all 4 STLs manifold.
+- FOR MATT (morning):
+  1. **Your printer's bed size**: the model assumed 190 x 180 (my guess, never measured). The reference
+     cover overlaps the front part by 13.5 mm; ours only by 6 so it fits 176 deep. If the bed is >= 185
+     deep (most are 220-256), set `cover_overlap = 13.5` like the reference, otherwise a ~7 mm strip over the
+     front part's top edge may stay open: check on the printed front part where the reference cover ends.
+  2. **How the front/back joint is screwed** (both faces have blind d 3.15 holes: printed thread, threaded
+     studs, or dowels + glue?): look at your printed front part.
+  3. Print the back-wall test strip first (README) with the real extenders in hand.
+- Loop guides are full-height half cylinders: heavy on filament; v2 can make them 15 mm tall clips.
