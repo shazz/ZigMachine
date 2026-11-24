@@ -30,7 +30,7 @@ const PINS = {
 };
 const errors = [];
 const fail = (m) => errors.push(m);
-const sha = (px) => createHash("sha256").update(px).digest("hex").slice(0, 12);
+const sha = (px) => createHash("sha256").update(px).digest("hex").slice(0, 12); // a short pin
 
 async function boot() {
     const log = [];
@@ -45,11 +45,9 @@ async function boot() {
     const until = (kind, state, max) => { for (let i = 0; i < max; i++) { S.frame(); if (lines(kind).some((l) => l[0] === state)) return true; } return false; };
     return { S, log, view, lines, run, until };
 }
-
 const count = (px, [lo, hi], rows = [Y0, Y1]) => { let n = 0; for (let i = rows[0] * W; i < rows[1] * W; i++) if (px[i] >= lo && px[i] < hi) n++; return n; };
 const bands = (px) => sha(Buffer.concat([px.subarray(0, Y0 * W), px.subarray(Y1 * W, H * W)]));
 const viewHash = (px) => sha(px.subarray(Y0 * W, Y1 * W));
-
 /** The reference fixture's per-tick CRC list and each car's finish tick (tools/racer/race_fixture.py, "RCRC"). */
 async function fixture() {
     const b = await readFile("apps/zig/assets/screens/racer/race_full.bin"), dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
@@ -160,7 +158,6 @@ async function crest() {
     if (PRINT) console.log(`PIN_CREST = "${h}"`);
     else if (h !== PINS.crest) fail(`crest pose: view hash ${h} != the pin ${PINS.crest}`);
     const hidden = count(px, [LIVERY[0] + 8, LIVERY[0] + 16]); // AI car 2 (yellow), past the crest: painted over by the road
-    if (PRINT) console.log(`crest: car before ${near} px, car past ${hidden} px`);
     if (near < 12) fail(`crest pose: the car before the crest is not drawn (${near} pixels)`);
     if (hidden !== 0) fail(`crest pose: the car past the crest shows ${hidden} pixels through the road`);
     if (OUT) await shot(`${OUT}/race_crest.png`, B, px);

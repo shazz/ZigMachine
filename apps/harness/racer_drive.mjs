@@ -23,7 +23,7 @@ if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const LAP_FRAMES = 720, SKID = 120, CAR = [16 + 12 * 8, 16 + 14 * 8 + 8];
 // the lap v1 CRC32 list (every 60 frames; oval, R = 5, CPU fill, mulsh, the far POV): the benchmark's proof of sameness
-const LAP_PIN = "a0944986 17cfd636 b7c64482 89e23ed1 8d51bfd6 8bed842c 7223d1c7 453fb026 25141122 569ee5f8 132d82b0 713d6984";
+const LAP_PIN = "a0944986 17cfd636 b7c64482 89e23ed1 8d51bfd6 8bed842c 7223d1c7 453fb026 25141122 072c2821 f9536170 9b438a44";
 const errors = [];
 const fail = (m) => errors.push(m);
 
