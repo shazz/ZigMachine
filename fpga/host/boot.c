@@ -10,6 +10,10 @@
  * `new WebAssembly.Memory({ initial: PAGES, maximum: PAGES })`. */
 wasm_rt_memory_t* w2c_env_memory(struct w2c_env* e) { return &e->memory; }
 
+/* --caps <hex>: the optional units this run declares (docs/hardware/ABI_RULES.md); HOST_CAPS_DEFAULT leaves
+ * the machine's own (every unit it emulates). 0 is the "capabilities off" run. */
+uint32_t host_caps = HOST_CAPS_DEFAULT;
+
 /* The order is scene_hash.mjs's, and it matters: instantiation runs each
  * module's data segments into the shared memory, and hwSetRomHigh lands between
  * the rom and the cart. */
@@ -20,6 +24,7 @@ void host_boot_machine(struct w2c_env* e) {
     wasm2c_machine_instantiate(&e->machine, e);
     wasm2c_rom_instantiate(&e->rom, e);
     w2c_machine_hwSetRomHigh(&e->machine, host_rom_high);
+    if (host_caps != HOST_CAPS_DEFAULT) w2c_machine_hwSetCaps(&e->machine, host_caps);
 }
 
 void host_boot(struct w2c_env* e) {

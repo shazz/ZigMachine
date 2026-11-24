@@ -194,6 +194,9 @@ pub extern fn hwDeskAvailable() u32; // 1.17.0: 1 where RES_DESK shows (0 on an 
 // 1.18.0, SPIKE: ASTROLABE, the f64 coprocessor (docs/hardware/studies/ARM_FPU_COPROC.md): `count` descriptors at `desc`
 pub extern fn hwAstro(desc: u32, count: u32) u32;
 pub const astro = @import("astro.zig"); // its descriptor and ops
+// 1.19.0 (system table 1.28): the capability word, which optional units exist (docs/hardware/ABI_RULES.md): ask, don't guess
+pub extern fn hwCaps() u32;
+pub const caps = @import("caps.zig"); // its bits
 
 // --- RAM instructions ---
 // How much of the cart's RAM window [CART_RAM_BASE, CART_RAM_TOP) is left. The

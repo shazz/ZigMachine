@@ -469,6 +469,9 @@ async function boot() {
     const machineMod = await WebAssembly.instantiateStreaming(fetch("machine-video.wasm" + BUST), machineImports);
     machine = machineMod.instance.exports;
     console.log("Sealed machine-video.wasm loaded, HW version 0x" + machine.hwVersion().toString(16));
+    // ?caps=<hex> declares the optional units (docs/hardware/ABI_RULES.md); ?caps=0 is the "capabilities off" run.
+    const caps = new URLSearchParams(window.location.search).get("caps");
+    if (caps !== null && machine.hwSetCaps) machine.hwSetCaps(parseInt(caps, 16) || 0);
 
     // The ROM CHIP (Phase 2). Its own module in its own RAM window, linked against
     // the machine exactly like a cart — it imports nothing but memory and two hw*
@@ -521,6 +524,7 @@ async function boot() {
             hwRomRamFree: machine.hwRomRamFree,
             hwDeskAvailable: machine.hwDeskAvailable, // 1.17.0: the desk mode exists here
             hwAstro: machine.hwAstro, // 1.18.0: ASTROLABE, the f64 coprocessor (SPIKE): the machine computes it here
+            hwCaps: machine.hwCaps, // 1.19.0: which optional units exist (docs/hardware/ABI_RULES.md)
             // The ROM chip's flat ABI (rom/sdk/rom.zig). Spread, not listed: the
             // ROM's exports ARE the surface, so a new entry point needs no host
             // change — and the host cannot silently omit one and leave an app

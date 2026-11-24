@@ -672,6 +672,12 @@ void hostPaulaRelease(void);                     // give them back (the next car
   Paula channels`, the board logs `ZM PAULA ... refused`).
 - No read-back (POS) in 1.14.0: a cart that shows scopes keeps its own (pt2's are its replayer's).
 
+### The capability word (`env.hwCaps`, system table 1.28, HW 1.19.0)
+
+`u32 hwCaps(void)`: one bit per OPTIONAL unit (ASTROLABE hardware, desk mode, CHISEL v2, BARD jobs, ZIGGY f32 FPU,
+second pad). A cart asks before it uses one and falls back when the bit is clear; it never infers a unit from the
+host. Bits, rules (additive only within a major) and the board's part: [ABI_RULES.md](ABI_RULES.md).
+
 ### Player 2 input (two optional cart exports, not a HW version, no system table bump)
 
 A second joystick is two optional exports of the cart, with the same direction codes as `input`/`inputRelease`
