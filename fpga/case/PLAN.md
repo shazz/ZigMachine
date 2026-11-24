@@ -156,7 +156,7 @@ section ~170 deep instead of 120 (case ~327 deep in all); the top-view layout wi
 | USB2 (USB-A) | 30 mm |
 | HDMI | 28 mm |
 | RJ45 | 28 mm |
-| DB9 | 25 mm (the D-sub standard: to confirm) |
+| DB9 | 25 mm (D-sub standard, confirmed) |
 | SD holder, audio jack | to measure (jack: threaded nut?) |
 Cut-out sizes: measured from the female shell (W x H) at fit-test time; the model uses each connector's
 standard opening + 0.4 mm clearance meanwhile.
