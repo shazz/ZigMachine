@@ -160,3 +160,5 @@ section ~170 deep instead of 120 (case ~327 deep in all); the top-view layout wi
 | SD holder, audio jack | to measure (jack: threaded nut?) |
 Cut-out sizes: measured from the female shell (W x H) at fit-test time; the model uses each connector's
 standard opening + 0.4 mm clearance meanwhile.
+SD holder on the RIGHT side, where an Atari ST has its floppy drive (Matt: "replace the floppy disk"):
+style it like the ST's drive slot (a recessed slot + an eject-notch look).
