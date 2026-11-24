@@ -64,7 +64,7 @@ Style: a **wedge with the keyboard on top**, after the RetroDeck (printables 220
 MiSTer wedge) **made deeper**; other references looked at: printables 106485, 1431330, 106475, 964115.
 Our model is drawn from scratch from these measurements (inspiration only, nothing copied).
 
-### Parts inside (mm; Matt wrote "cm", the numbers are mm: to confirm)
+### Parts inside (mm, confirmed by Matt)
 | Part | L x W x H | Notes |
 |---|---|---|
 | MicroPhase Z7-Lite (FPGA) | 80 x 60 x 2 | 2 = PCB; tallest part to measure |
