@@ -117,3 +117,12 @@ Six parts, printed lying, measured from the meshes (mm):
 So the whole case is 373 wide (2 x 186.5) x ~277 deep x 49 high, split in the middle; every part fits a
 ~190 x 160 mm bed. Matt: the back (120) is too shallow for the semi-rigid extenders. Ours keeps the same
 6-part split and heights but a deeper back section, set from the extenders' lengths and bend radii.
+
+### Power and USB-C (Matt, 23 Nov)
+Three USB-C panel ports, two power supplies:
+| Case USB-C | Inside to | Notes |
+|---|---|---|
+| DEBUG | the board's UART USB-C | the serial console (the lead's line to the board) |
+| FPGA POWER | the board's power USB-C (JTAG port, to confirm) | supply 1 |
+| HUB POWER | the hub's USB-C power input (9 V) | supply 2; a 3rd USB-C extender to buy |
+Label the three on the panel (DEBUG / FPGA / HUB) so a 9 V supply never goes into the board's port.
