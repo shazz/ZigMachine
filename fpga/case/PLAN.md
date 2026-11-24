@@ -100,3 +100,9 @@ mouse, Wi-Fi, sound card, floppy (external, via its case USB-A) = 6 of 6 (no spa
 - 4 corner holes.
 So the board sits with its right edge facing the back panel (HDMI + RJ45 extensions short) and its
 left edge reachable for the two USB-C extensions.
+
+### Extension cables (Matt, 23 Nov)
+Board -> case: one male/female extender per port: RJ45, 2x USB-C, 1x USB2 (USB-A), HDMI, SD card.
+They are SEMI-RIGID (hard to bend): the layout must give them room: straight runs from the board's
+edge to the panel where possible, large bend radii, no tight U-turns. Needed: each one's length, its
+minimum bend radius, and how its female end mounts (screw ears + spacing, or a clip/glue).
