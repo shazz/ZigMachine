@@ -27,3 +27,13 @@ test "the default effects mask is FM 5-6, PSG tone 3 and the noise, inside OWNAB
     try std.testing.expectEqual(fm.fmBit(4) | fm.fmBit(5) | fm.psgBit(2) | fm.psgBit(3), fm.SFX_DEFAULT);
     try std.testing.expectEqual(@as(u32, 0), fm.SFX_DEFAULT & ~fm.OWNABLE);
 }
+
+test "a closed queue refuses every FM write, and a channel not owned is refused before the queue" {
+    fm.reset();
+    try std.testing.expect(!fm.own(0, fm.SFX_DEFAULT)); // no queue opened: refused, nothing owned
+    try std.testing.expect(!fm.owns(fm.fmBit(5)));
+    try std.testing.expect(!fm.key(0, 5, 0xF)); // not owned: refused here
+    try std.testing.expect(!fm.psg(0, 0xDF));
+    try std.testing.expect(!fm.tuneStop(0));
+    try std.testing.expect(!fm.own(0, 0x1000)); // a bit outside OWNABLE
+}

@@ -6,8 +6,10 @@
 //     system, a host with no queue) the music plays alone and stops by zg.stopSong.
 //   - The music: SHIPPED's placeholder tunes; with `-Dracer_music` the LOCAL tunes win (they use every
 //     channel, so the effects start OFF there: key h takes the channels, muting those parts).
-//   - Stamps: each frame's writes at the sound side's position + AHEAD (never going back), so they
-//     arrive ~35 ms ahead whatever the cart's frame rate, past the device's ~430-sample read-ahead.
+//   - Stamps: the cart's own sample clock, moved on by the real time between two frames (hostMicros), so
+//     the queue's anchor keeps every write ~LEAD (70 ms) ahead whatever the cart's frame rate; if the
+//     clock falls within MIN_AHEAD of the sound side's position (drift, a stall, no clock on a harness
+//     machine) it jumps ahead to it. The device needs a write ~430 samples ahead to land on its stamp.
 //   - The benchmark laps (b, x) are silent unless key j switches their audio on (music + effects), so
 //     the earlier silent pins stay comparable; the audio never touches a pixel or a physics tick.
 // Keys: z the music, h the effects, j the benchmark's audio.
@@ -16,11 +18,12 @@ const zg = @import("zigos");
 const opts = @import("cart_opts");
 const music = @import("music.zig");
 const sfx = @import("sfx.zig");
-const fsm = @import("fsm.zig");
+const voices = @import("voices.zig");
 
 pub const local: bool = opts.racer_music;
 pub const LEAD: u32 = 3072; // the queue's lead, samples
-pub const AHEAD: u32 = 1536; // a frame's writes are stamped this far past the sound side's position
+pub const MIN_AHEAD: u32 = 2048; // the clock never stamps closer than this to the sound side's position
+const MAX_STEP_US: u32 = 200_000; // a longer gap between frames (a stall, a pause) counts as this
 const fm = zg.bard.fm;
 
 pub const Audio = struct {
@@ -31,33 +34,44 @@ pub const Audio = struct {
     effects: bool = !local,
     owning: bool = false,
     bench_audio: bool = false,
-    t: u32 = 0,
+    t: u32 = 0, // the cart's sample clock: this frame's stamp
+    now: *const fn () u32 = zeroClock, // microseconds (racer.zig gives hostMicros)
+    last_us: u32 = 0,
+    frac: u32 = 0, // samples x 10,000 not yet whole
     refused: u32 = 0, // writes the cart's ring or the device refused
 
     fn start(self: *Audio) void {
         self.started = true;
         if (!zg.caps.has(.bard_fm) or !zg.bard.open(LEAD)) return;
         self.device = true;
-        self.t = AHEAD;
+        self.t = MIN_AHEAD;
+        self.last_us = self.now();
         if (self.effects) self.take();
     }
 
     fn take(self: *Audio) void {
-        self.owning = fm.own(self.t, fm.SFX_DEFAULT) and fm.patch(self.t, sfx.ENGINE, &ENGINE_PATCH) and
-            fm.patch(self.t, sfx.IMPACT, &IMPACT_PATCH) and fm.freq(self.t, sfx.IMPACT, 2, 700);
+        self.owning = fm.own(self.t, fm.SFX_DEFAULT) and fm.patch(self.t, sfx.ENGINE, &voices.ENGINE) and
+            fm.patch(self.t, sfx.IMPACT, &voices.IMPACT) and fm.freq(self.t, sfx.IMPACT, 2, 700);
         if (!self.owning) self.refused += 1;
     }
 
-    fn stamp(self: *Audio) u32 {
-        const at = zg.bard.position() +% AHEAD;
-        if (@as(i32, @bitCast(at -% self.t)) > 0) self.t = at;
+    /// Once a frame: the clock moved on by the real time since the last frame, never too close to the sound side.
+    fn tick(self: *Audio) u32 {
+        const us = self.now();
+        const dt = @min(us -% self.last_us, MAX_STEP_US);
+        self.last_us = us;
+        const x = @as(u64, dt) * 441 + self.frac; // 44,100 samples a second = 441 per 10,000 us
+        self.t +%= @intCast(x / 10_000);
+        self.frac = @intCast(x % 10_000);
+        const floor = zg.bard.position() +% MIN_AHEAD;
+        if (zg.bard.anchored() and @as(i32, @bitCast(floor -% self.t)) > 0) self.t = floor;
         return self.t;
     }
 
     /// One frame: the music's wish and the effects' writes.
     pub fn step(self: *Audio, m: music.Ctx, s: sfx.Snap) void {
         if (!self.started) self.start();
-        const t = if (self.device) self.stamp() else 0;
+        const t = if (self.device) self.tick() else 0;
         if (self.player.step(m)) |c| self.ask(c, t);
         if (!self.owning or !zg.bard.anchored()) return; // nothing taken yet (the page before its sound is on): no effect state to lose
         var out: sfx.Out = .{};
@@ -92,7 +106,7 @@ pub const Audio = struct {
     pub fn toggleEffects(self: *Audio) void {
         self.effects = !self.effects;
         if (!self.device) return;
-        const t = self.stamp();
+        const t = self.t;
         if (self.effects) return self.take();
         var out: sfx.Out = .{};
         self.fx.quiet(&out);
@@ -102,20 +116,18 @@ pub const Audio = struct {
     }
 };
 
-/// The engine: algorithm 4 (two pairs), a growl of feedback, held while keyed.
-pub const ENGINE_PATCH = fm.Patch{ .fb_alg = 5 << 3 | 4, .ops = .{
-    .{ .dt_mul = 0x01, .tl = 30, .ks_ar = 31, .sl_rr = 0x0F },
-    .{ .dt_mul = 0x01, .tl = 22, .ks_ar = 31, .sl_rr = 0x0F },
-    .{ .dt_mul = 0x02, .tl = 28, .ks_ar = 31, .sl_rr = 0x0F },
-    .{ .dt_mul = 0x01, .tl = 24, .ks_ar = 31, .sl_rr = 0x0F },
-} };
-/// The impact: a serial chain with full feedback, low, decaying in ~0.2 s.
-pub const IMPACT_PATCH = fm.Patch{ .fb_alg = 7 << 3 | 0, .ops = .{
-    .{ .dt_mul = 0x03, .tl = 20, .ks_ar = 31, .am_dr = 14, .sl_rr = 0xFF },
-    .{ .dt_mul = 0x01, .tl = 28, .ks_ar = 31, .am_dr = 12, .sl_rr = 0xFF },
-    .{ .dt_mul = 0x05, .tl = 30, .ks_ar = 31, .am_dr = 12, .sl_rr = 0xFF },
-    .{ .dt_mul = 0x01, .tl = 6, .ks_ar = 31, .am_dr = 16, .sl_rr = 0xFF },
-} };
+fn zeroClock() u32 {
+    return 0;
+}
+
+/// The pause: what the effects sound is silenced (the music plays on); they start again with the race.
+pub fn pause(self: anytype) void {
+    const a = &self.audio;
+    if (!a.owning) return;
+    var out: sfx.Out = .{};
+    a.fx.quiet(&out);
+    a.send(&out, a.t);
+}
 
 /// The music's and the effects' view of a Demo, once a frame.
 pub fn frame(self: anytype) void {

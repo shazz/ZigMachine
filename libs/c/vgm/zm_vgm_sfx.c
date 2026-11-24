@@ -96,6 +96,7 @@ static void cart_own(vgm_seq *v, uint32_t mask) {
     zs.own = mask;
     for (uint32_t ch = 0; ch < 6; ch++) {
         if (got >> ch & 1u) zm_ym_key(&v->ym, ch, 0);
+        if (got >> ch & 1u && ch == 5) ym2612_write(&v->ym, 0, 0x2B, 0); /* the tune's DAC would replace the cart's FM 6 */
         if (gone >> ch & 1u) zm_ym_key(&v->ym, ch, 0), zm_ym_put(&v->ym, &zs.tune, ch);
     }
     for (uint32_t c = 0; c < 4; c++) {

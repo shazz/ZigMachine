@@ -20,6 +20,9 @@ pub const IDLE_FNUM: u32 = 300; // block 3: ~61 Hz
 pub const TOP_FNUM: u32 = 1200; // ~244 Hz at max rpm
 const PITCH_STEP: u32 = 6; // a smaller move is not written
 const BEEP_ATT: u4 = 3;
+/// Frames an impact stays keyed: its sound has decayed by then, and a tune load (which puts the cart's
+/// channels back as they were, keys included) must not replay it.
+pub const IMPACT_FRAMES: u8 = 12;
 const SKID_ATT: u4 = 5;
 
 /// What the effects look at, once a frame.
@@ -77,6 +80,7 @@ pub const Sfx = struct {
     engine: bool = false,
     fnum: u32 = 0,
     skid: bool = false,
+    impact_left: u8 = 0,
     phrase: []const Note = &.{},
     at: u32 = 0, // the note playing
     left: u32 = 0, // its frames left
@@ -84,7 +88,7 @@ pub const Sfx = struct {
     pub fn step(self: *Sfx, s: Snap, out: *Out) void {
         self.engineStep(s, out);
         self.skidStep(s, out);
-        if (s.knocks > self.prev.knocks) impact(out);
+        self.impactStep(s, out);
         if (cue(self.prev, s)) |p| self.play(p, out) else self.advance(out);
         self.prev = s;
     }
@@ -92,6 +96,7 @@ pub const Sfx = struct {
     /// Everything the cart owns silent (a mode change, the effects switched off).
     pub fn quiet(self: *Sfx, out: *Out) void {
         if (self.engine) key(out, ENGINE, 0);
+        if (self.impact_left > 0) key(out, IMPACT, 0);
         if (self.skid) out.put(.{ .kind = .psg, .val = 0xF0 | 15 });
         if (self.left > 0) out.put(.{ .kind = .psg, .val = 0x90 | @as(u8, BEEP) << 5 | 15 });
         self.* = .{};
@@ -113,6 +118,16 @@ pub const Sfx = struct {
         self.fnum = f;
         out.put(.{ .kind = .ym1, .reg = 0xA6, .val = 3 << 3 | @as(u8, @intCast(f >> 8)) });
         out.put(.{ .kind = .ym1, .reg = 0xA2, .val = @truncate(f) });
+    }
+
+    fn impactStep(self: *Sfx, s: Snap, out: *Out) void {
+        if (s.knocks > self.prev.knocks) {
+            impact(out);
+            self.impact_left = IMPACT_FRAMES;
+        } else if (self.impact_left > 0) {
+            self.impact_left -= 1;
+            if (self.impact_left == 0) key(out, IMPACT, 0);
+        }
     }
 
     fn skidStep(self: *Sfx, s: Snap, out: *Out) void {

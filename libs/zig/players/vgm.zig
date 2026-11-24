@@ -46,7 +46,12 @@ pub const VgmPlayer = struct {
     /// The FM device's open: a new tune under the queue (`cap`: the song RAM below the queue's block), the
     /// queue playing on; a refused tune leaves the device's chips playing.
     pub fn loadUnderLive(self: *VgmPlayer, len: u32, cap: u32) bool {
-        return self.loadTune(len, @min(cap, FILE_MAX));
+        const room = @min(cap, FILE_MAX);
+        if (self.loadTune(len, room)) return true;
+        // Too big never reached the engine: the old tune would sequence over the bytes just staged. A load of
+        // nothing is refused there too, and leaves the device's chips with no tune (zm_vgm_load's fallback).
+        if (len > room) _ = audio.machineVgmLoad(audio.songAddr(0), 0, room);
+        return false;
     }
 
     fn loadTune(self: *VgmPlayer, len: u32, cap: u32) bool {

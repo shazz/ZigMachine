@@ -46,6 +46,8 @@ test "a knock retriggers the impact voice; a slide starts and stops the noise" {
     s.knocks = 1;
     var o = run(&f, s);
     try std.testing.expect(has(o, .{ .kind = .ym0, .reg = 0x28, .val = 0x05 }) and has(o, .{ .kind = .ym0, .reg = 0x28, .val = 0xF5 }));
+    for (0..sfx.IMPACT_FRAMES - 1) |_| try std.testing.expect(!has(run(&f, s), .{ .kind = .ym0, .reg = 0x28, .val = 0x05 }));
+    try std.testing.expect(has(run(&f, s), .{ .kind = .ym0, .reg = 0x28, .val = 0x05 })); // keyed off once decayed
     s.slide = true;
     o = run(&f, s);
     try std.testing.expect(has(o, .{ .kind = .psg, .val = 0xE5 }) and has(o, .{ .kind = .psg, .val = 0xF5 }));

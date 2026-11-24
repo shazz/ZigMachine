@@ -43,7 +43,7 @@ pub fn cueFor(c: Ctx) Cue {
 
 pub const Player = struct {
     on: bool = true,
-    songs: *const Table = &SONGS,
+    songs: *const Table = &SHIPPED, // audio.zig picks SONGS only with -Dracer_music (no local name in a shipped cart)
     cur: ?Cue = null, // null: nothing asked yet
 
     /// The cue to request now, or null when the file it names already plays.

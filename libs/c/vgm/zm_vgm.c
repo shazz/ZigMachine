@@ -26,7 +26,10 @@ uint32_t zm_vgm_load(uint8_t *file, uint32_t len, uint32_t cap) {
     zm_vgm_loaded = 0;
     if (len >= 2 && file[0] == 0x1F && file[1] == 0x8B) {
         uint32_t n = zm_gunzip_in_place(file, len, cap);
-        if (!n) return ZM_VGM_PACKED;
+        if (!n) {
+            if (zm_vgm_sfx_stat(ZM_SFX_ST_ON)) zm_vgm_live(); /* the cart's channels play on, over no tune */
+            return ZM_VGM_PACKED;
+        }
         len = n;
     }
     int rc = vgm_open(&zm_vgm, file, len, ZM_VGM_DIV, ZM_VGM_YM_GAIN, ZM_VGM_PSG_GAIN);

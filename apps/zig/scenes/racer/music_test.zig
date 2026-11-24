@@ -33,7 +33,7 @@ test "the benchmark laps and free driving are silent, whatever the state" {
 }
 
 test "the player asks once per change, and the toggle silences and restores" {
-    var p = music.Player{};
+    var p = music.Player{ .songs = &music.SONGS };
     try std.testing.expectEqual(@as(?Cue, .start), p.step(ctx(.countdown, 0)));
     try std.testing.expectEqual(@as(?Cue, null), p.step(ctx(.countdown, 1)));
     try std.testing.expectEqual(@as(?Cue, .loop), p.step(ctx(.race, music.LOOP_AT)));

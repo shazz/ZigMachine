@@ -83,6 +83,12 @@ async function tune(errors, notes) {
     const mute = await engine([[0, 0x300, 0x0f3f], [2 * 44100, 0x300, 0]], n, FULL);
     const lastHalf = sq(mute.pcm, 26633, 2 * 26633), back = sq(mute.pcm, 2 * 26633 + 2000, n);
     const plain = await engine([], n, TUNE), owned = await engine([[0, 0x300, OWN]], n, TUNE);
+    // KESTREL FM plays drums on the DAC (FM 6's): taking FM 6 switches the DAC off, so the cart's FM 6 is heard as
+    // loud as with no tune at all (every channel owned: the tune silent by 1 s).
+    const dacW = [[0, 0x300, 0x0f3f], ...patch(2, 4, 28, 0), [0, 0x1a6, 3 << 3 | 2], [0, 0x1a2, 0x58], [0, 0x028, 0xf6]];
+    const overDac = sq((await engine(dacW, n, FULL)).pcm, 26633, n), alone = sq((await engine(dacW, n)).pcm, 26633, n);
+    if (Math.abs(overDac / alone - 1) > 0.1) errors.push(`tune: the cart's FM 6 over a DAC tune at ${(overDac / alone).toFixed(2)} of its level alone`);
+    else notes.push(`tune: the cart's FM 6 over KESTREL FM's DAC drums = ${(overDac / alone).toFixed(3)} of its level alone (the DAC switched off when FM 6 is taken)`);
     const same = plain.pcm.every((v, i) => v === owned.pcm[i]);
     if (lastHalf !== 0 || back === 0 || !same) errors.push(`tune: owned-everything energy ${lastHalf}, given back ${back}, kr_race unchanged by its owners ${same}`);
     else notes.push("tune: every channel owned silences KESTREL FM (1-2 s), given back it plays (2-3 s); owning FM 5-6 + PSG 3 + noise leaves kr_race sample for sample");

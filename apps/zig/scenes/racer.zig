@@ -75,6 +75,7 @@ pub const Demo = struct {
         self.* = .{};
         self.os = zigos;
         self.bench = .{ .now = micros };
+        self.audio.now = micros;
         for (BLOBS, 0..) |b, i| self.tracks[i] = trk.parse(b) catch |e| @panic(@errorName(e));
         const nv = @max(self.tracks[0].verts.len, self.tracks[1].verts.len);
         const nf = @max(self.tracks[0].faces.len, self.tracks[1].faces.len);
@@ -149,7 +150,7 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = zigos;
         _ = dt;
-        if (self.paused) return;
+        if (self.paused) return audio.pause(self);
         if (self.pose == null and self.drive.mode == .off and self.game.mode == .off) self.script +%= 1;
         self.drive.update();
         self.game.update();
