@@ -28,6 +28,7 @@ pub const Play = struct {
     frame_acc: u32 = 0, // no queue: 60 Hz frames -> 50.1 Hz ticks
     sid: [25]u8 = [_]u8{0} ** 25, // the SID's registers as the player left them
     osc: Scope = .{},
+    blink: i8 = 0, // blinkpos's counter: the played orderlist positions go blank for 6 of every 31 frames
     dead: bool = false, // the player's CPU stopped: the song ended itself
 
     /// F1 / F3: start the song (or the displayed patterns) from the top.
@@ -45,6 +46,8 @@ pub const Play = struct {
         self.dead = false;
         self.sid = [_]u8{0} ** 25;
         self.osc = .{};
+        self.blink = 0;
+        ed.view.ordl_blink_off = false;
         self.send();
         ed.view.ptrowpos = .{ 0, 0, 0 };
         return true;
@@ -69,6 +72,15 @@ pub const Play = struct {
         }
     }
 
+    /// displayer2.inc blinkpos (PBLINKSPEED 30, ratio 6; blinking only while the song plays): reload at -1 (shown), blank at 5.
+    fn blinkTick(self: *Play, ed: *Editor) void {
+        self.blink -= 1;
+        if (self.blink < 0) {
+            self.blink = 30;
+            ed.view.ordl_blink_off = false;
+        } else if (self.blink == 5 and self.mode == .song) ed.view.ordl_blink_off = true;
+    }
+
     /// Every voice's gate off and its envelope released, without the CPU (a dead player has none).
     fn hush(self: *Play) void {
         const at = player.frameStart();
@@ -90,6 +102,7 @@ pub const Play = struct {
         }
         self.state = .stopped;
         ed.view.followp = false;
+        ed.view.ordl_blink_off = false;
     }
 
     fn send(self: *Play) void {
@@ -136,6 +149,7 @@ pub const Play = struct {
         ed.syncPlayback(mem.ram(), true);
         if (ed.view.followp) follow.apply(&ed.song, &ed.view);
         self.osc.advance(&self.sid);
+        self.blinkTick(ed);
     }
 
     /// The editor's play-runtime readouts (display.Overlay's "host presets"): song time, PW and cut-off meters.

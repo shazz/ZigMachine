@@ -24,7 +24,7 @@ const CURSOR_BOX = [9]u16{ 0x1FF, 0x101, 0x101, 0x101, 0x101, 0x101, 0x101, 0x10
 pub const Shadow = struct {
     scr: dsp.Screen = undefined,
     row26: [dsp.COLS]u8 = undefined,
-    row26_on: bool = false,
+    row26_col: u4 = 12,
     up: [0x240]u8 = undefined,
     low: [0x1c0]u8 = undefined,
     cursor: ?Cursor = null,
@@ -50,10 +50,10 @@ fn cell(px: []u8, r: usize, c: usize, code: u8, col: u8) void {
     }
 }
 
-fn row26Cell(px: []u8, c: usize, code: u8) void {
+fn row26Cell(px: []u8, c: usize, code: u8, col: u8) void {
     for (1..8) |l| {
         const bits = frame.charset[@as(usize, code) * 8 + l];
-        for (0..8) |i| px[(ROW26_Y + l) * W + WIN_X + c * 8 + i] = if (bits & (@as(u8, 0x80) >> @intCast(i)) != 0) 12 else 0;
+        for (0..8) |i| px[(ROW26_Y + l) * W + WIN_X + c * 8 + i] = if (bits & (@as(u8, 0x80) >> @intCast(i)) != 0) col else 0;
     }
 }
 
@@ -131,8 +131,9 @@ pub fn present(sh: *Shadow, px: []u8, scr: *const dsp.Screen, over: ?*const dsp.
 
 fn editorLayers(sh: *Shadow, px: []u8, over: *const dsp.Overlay, b: *const border.Border, full: bool) void {
     if (full) bars(px, frame.bar_col);
-    for (0..dsp.COLS) |c| if (full or sh.row26[c] != over.row26[c]) row26Cell(px, c, over.row26[c]);
+    for (0..dsp.COLS) |c| if (full or sh.row26_col != over.fx_colour or sh.row26[c] != over.row26[c]) row26Cell(px, c, over.row26[c], over.fx_colour);
     sh.row26 = over.row26;
+    sh.row26_col = over.fx_colour;
     sprites(px, b.up[0x40..], if (full) null else sh.up[0x40..], UP_Y, false);
     sprites(px, &b.low, if (full) null else &sh.low, LOW_Y, true);
     sh.up = b.up;

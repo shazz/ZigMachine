@@ -20,7 +20,7 @@ import { rig, K, UP, DOWN, RIGHT, SONG, referenceLive, bandDiff } from "./sidwiz
 import { png, colours, sha } from "./ports_machine.mjs";
 
 const GOLDEN = "apps/zig/scenes/sidwizard_z/old_cart_sid.bin";
-const BREAKS = ["silent", "edit", "write", "quit", "bard", "nodisk", "clist", "follow"];
+const BREAKS = ["silent", "edit", "write", "quit", "bard", "nodisk", "clist", "follow", "blink", "theme"];
 const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : ""; };
 const brk = opt("--break"), pngDir = opt("--png");
@@ -58,15 +58,18 @@ check("its first 1000 writes are the C cart's, register for register", same);
 shots.play = d.picture();
 
 // --- live: while it plays the pattern's play-row marks, the readouts and the scope move, as the C cart's do ---
-const live = { upper: 0, pattern: 0 };
+if (brk === "blink") { d.key(K.ESC); d.frame(4); } // paused: the order list's played positions do not blink
+const live = { upper: 0, pattern: 0, low: 0 };
 for (let prev = d.picture(), i = 0; i < 20; i++) { // 120 frames, a picture every 6: what changes between them
     d.frame(6);
     const cur = d.picture();
     live.upper += bandDiff(prev, cur, 0, 35);
     live.pattern += bandDiff(prev, cur, 36, 235);
+    live.low += bandDiff(prev, cur, 236, 279);
     prev = cur;
 }
 const ref = await referenceLive();
+check("playing, the order-list strip under the pattern (the numbering row and the three sprite rows: the played positions blink, the marker moves) changes over 120 frames, as the C cart's does", live.low > 0 && live.low * 4 >= ref.low, `${live.low} px here, ${ref.low} in the C cart`);
 check("playing, the header's readouts (time, meters, scope) change over 120 frames, as the C cart's do", live.upper > 0 && live.upper * 4 >= ref.upper, `${live.upper} px here, ${ref.upper} in the C cart`);
 check("playing, the pattern view's play-row marks change over 120 frames, as the C cart's do", live.pattern > 0 && live.pattern * 4 >= ref.pattern, `${live.pattern} px here, ${ref.pattern} in the C cart`);
 
@@ -176,6 +179,18 @@ d.key(13); d.frame(4); // "..": back to C:\
 d.key(K.ESC); d.frame(4);
 await save("up", true);
 check("the parent folder (..): the next save is in C:\\ again", (await mtype(d.img, "UP.SWM")) !== null);
+
+// --- colour theme: F8, ten Down to SWITCH THEME (the menu is on SAVE TUNE), Return: the whole editor is recoloured ---
+const t0 = d.picture();
+d.key(K.F8);
+for (let i = 0; i < 10; i++) d.arrow(DOWN);
+if (brk !== "theme") d.key(13);
+d.frame(2);
+d.key(K.ESC); d.frame(4);
+d.key(K.ESC); d.frame(4);
+const t1 = d.picture();
+shots.theme = t1;
+check("the theme recolours the pattern view and the panels, not only the menu (BRIGHTER: pixels change under the editor's text)", bandDiff(t0, t1, 36, 235) > 500, `${bandDiff(t0, t1, 36, 235)} px`);
 
 // --- quit ---
 d.with(K.SHIFT, () => d.key(K.F8));

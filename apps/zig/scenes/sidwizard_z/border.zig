@@ -149,7 +149,7 @@ fn colOffset(k: usize) usize {
     return (k / 3) * 0x40 + k % 3;
 }
 
-fn orderValue(b: *Border, off: usize, v: u8, mark: bool) void {
+fn orderValue(b: *Border, off: usize, v: u8, mark: bool, blank: bool) void {
     b.low[off + 15] = if (mark) 0xc8 else 0; // markpos underline, line 5
     var lo: usize = 0x11; // value 0 shows dots, $f0 the NOP separator
     if (v == 0) lo = 0x10 else if (v != 0xf0) lo = v & 0x0f;
@@ -157,7 +157,7 @@ fn orderValue(b: *Border, off: usize, v: u8, mark: bool) void {
     for (0..5) |x| {
         const r = glyphs[rightGlyph(lo) + x] & 0x0f;
         const l = glyphs[leftGlyph(hi) + x] & 0xf0;
-        b.low[off + 3 * x] = l | r;
+        b.low[off + 3 * x] = if (blank) 0 else l | r;
     }
 }
 
@@ -167,7 +167,7 @@ pub fn lowerRender(b: *Border, o: *const dsp.Overlay) void {
         for (0..20) |k| {
             const off = colOffset(k) + t * 21;
             const mark = o.ordl_mark[t] == @as(i16, @intCast(k));
-            orderValue(b, off, o.ordl_val[t][k], mark);
+            orderValue(b, off, o.ordl_val[t][k], mark, o.ordl_blank[t] == @as(i16, @intCast(k)));
         }
     }
 }

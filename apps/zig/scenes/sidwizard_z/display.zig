@@ -67,6 +67,7 @@ pub const View = struct {
     // -- Part 3 (keyhandler) state ------------------------------------------------
     jammode: bool = false, // jammode+1: keys jam instead of type when playing
     filer_loc: [24]u8 = [_]u8{' '} ** 24, // the file dialog's "DR:" text (host-set: where it is)
+    ordl_blink_off: bool = false, // POS_DISP_MOD 2: the played orderlist positions blink; host-set, true while they are blank
     followp: bool = false, // playadapter.followp+1: follow-play while playing
     framesp: u8 = 1, // framesp: frame-speed (PALmaxframespeed = 1..6, 1 = fastest)
     prevwin: u8 = 0, // keyrtbb save: window reter returns to
@@ -138,7 +139,28 @@ pub const Palette = struct {
     fltkt: u4 = 8, // fltktcol
 };
 
-const palette = Palette{};
+/// ColorThemes (displayer2.inc), 9 themes of the 16 ColorSet bytes: borderspcol, notecolucol, instcolucol, fxcol,
+/// ptrownumcol, downbeatcol, playposicol, instnumcol, inacol, ipacol, itahdrcol, itacol, itaemphcol, gateoffcol, menubgcol, menucurcol.
+pub const themes = [9][16]u4{
+    .{ 12, 15, 3, 12, 11, 12, 15, 13, 15, 12, 15, 3, 15, 11, 14, 15 }, // DEFAULT
+    .{ 15, 1, 15, 12, 11, 15, 1, 13, 1, 15, 15, 12, 3, 11, 14, 13 }, // BRIGHTER
+    .{ 5, 13, 3, 5, 5, 13, 1, 3, 7, 5, 13, 3, 13, 7, 13, 3 }, // GREENISH
+    .{ 3, 15, 3, 5, 11, 12, 15, 3, 13, 3, 13, 15, 13, 13, 3, 1 }, // TURKISH
+    .{ 14, 15, 14, 6, 6, 14, 13, 14, 15, 14, 3, 15, 13, 15, 14, 3 }, // BLUISH
+    .{ 4, 10, 14, 4, 4, 10, 7, 10, 12, 4, 15, 10, 7, 10, 4, 7 }, // PURPLE
+    .{ 8, 10, 8, 9, 9, 8, 7, 8, 10, 8, 10, 10, 7, 7, 8, 7 }, // BROWNISH
+    .{ 2, 15, 10, 2, 11, 12, 15, 10, 15, 2, 10, 15, 1, 10, 2, 10 }, // RED&GREY
+    .{ 15, 15, 12, 15, 11, 15, 1, 12, 15, 15, 15, 15, 15, 11, 12, 1 }, // AMISH :)
+};
+
+/// The editor palette of theme `n` (coloriz: the 16 bytes into ColorSet; the rest are not theme colours).
+pub fn themePal(n: u8) Palette {
+    const t = themes[n % themes.len];
+    return .{ .bordersp = t[0], .notecolu = t[1], .instcolu = t[2], .fx = t[3], .ptrownum = t[4], .downbeat = t[5], .playposi = t[6], .instnum = t[7], .ina = t[8], .ipa = t[9], .itahdr = t[10], .ita = t[11], .itaemph = t[12], .gateoff = t[13] };
+}
+
+/// The theme being drawn: set by render()/overlayRender() from the view (the dynamic passes read it).
+var palette: Palette = .{};
 
 /// What the editor shows with sprites instead of screen cells.
 pub const Overlay = struct {
@@ -168,6 +190,9 @@ pub const Overlay = struct {
     pw_meter: [3]u8 = @splat(0), // upbordisp DisPWmt 5-bit inputs (0..31); the
     //   host (player adapter) presetts them, overlayRender leaves them.
     ct_meter: u8 = 0, // upbordisp CTFMETR input (0..31); host presets.
+    ordl_blank: [3]i16 = @splat(-1), // ordldis blink: the display column (0..19) of each track's played position while it is blank, -1 = none
+    fx_colour: u4 = 12, // fxcol: the 26th row's colour (the theme's)
+    sprite_colour: u4 = 12, // borderspcol: the border sprites' colour (the theme's)
     scope: [12]u8 = @splat(7), // the oscilloscope: the pixel row (0 top .. 15) of each of its 12 columns; 7 = the flat centre line of a silent SID
 };
 
@@ -235,51 +260,57 @@ const octachar_hex =
 // instrument panel (cols 30..39) gets the differentiated scheme. Rows 0..23
 // cols 0..29 are later re-coloured dynamically (stpdisp/mutesolodisp), row 24
 // by row25back.
-fn colCell(row: usize, col: usize) u4 {
-    if (col < 30) return palette.fx; // Cpattn: horizontal division at col 30
+fn colCell(pal: Palette, row: usize, col: usize) u4 {
+    if (col < 30) return pal.fx; // Cpattn: horizontal division at col 30
     const x = 24 - row; // iniscrn's row counter
-    if (x == 0) return palette.ipa; // SiPanel: row 24 (row25back re-differentiates)
-    if (x == 19) return palette.itahdr; // SiTbHdr: row 5, c>=37 keeps itahdr (chChdSu)
+    if (x == 0) return pal.ipa; // SiPanel: row 24 (row25back re-differentiates)
+    if (x == 19) return pal.itahdr; // SiTbHdr: row 5, c>=37 keeps itahdr (chChdSu)
     if (x > 19) { // rows 0..4: CiName/CiHeadr
         if (x == 24) { // row 0: instrument number + name
-            return if (col >= 32) palette.ina else palette.instnum;
+            return if (col >= 32) pal.ina else pal.instnum;
         }
-        if (col < 32) return palette.ipa; // CiHeadr value-titles' edge columns
-        const emph: u4 = if (x == 22 or x == 20) palette.ita else palette.itaemph;
-        if (col < 38) return if (col < 36) emph else palette.disable;
+        if (col < 32) return pal.ipa; // CiHeadr value-titles' edge columns
+        const emph: u4 = if (x == 22 or x == 20) pal.ita else pal.itaemph;
+        if (col < 38) return if (col < 36) emph else pal.disable;
         // c 38..39: fx colour (12) except the HRTY value (row 2, col 38,
         // `stx COLRPOS+2*40+38`); verified against cram dumped from VICE.
-        return if (x == 22 and col == 38) palette.ita else palette.fx;
+        return if (x == 22 and col == 38) pal.ita else pal.fx;
     }
-    if (x == 5) return palette.itahdr; // row 19 (Cchdtmp beq, TEMPOPRGSUPP on)
+    if (x == 5) return pal.itahdr; // row 19 (Cchdtmp beq, TEMPOPRGSUPP on)
     if (x < 5) { // rows 20..23: CtempoT (tempo table)
-        if (col < 35) return palette.ita; // SiTable
-        if (col < 37) return palette.fltkt; // c35/36: FILTKBTRACK on (X<10)
-        return if (col == 37) palette.ipa else palette.ita; // c37 beq keeps ipacol
+        if (col < 35) return pal.ita; // SiTable
+        if (col < 37) return pal.fltkt; // c35/36: FILTKBTRACK on (X<10)
+        return if (col == 37) pal.ipa else pal.ita; // c37 beq keeps ipacol
     }
     // rows 6..18: CchordT (chord table)
-    if (col == 34 and x == 10) return palette.itahdr; // PULSEKT's 'E' (VICE cram)
-    if (col < 35) return palette.ita;
-    if (col < 37) return if (x < 10) palette.pwtkt else palette.detut; // cpx #10: bpl taken on equal
-    return if (col == 37) palette.ipa else palette.ita; // c37 chChdSu keeps ipacol
+    if (col == 34 and x == 10) return pal.itahdr; // PULSEKT's 'E' (VICE cram)
+    if (col < 35) return pal.ita;
+    if (col < 37) return if (x < 10) pal.pwtkt else pal.detut; // cpx #10: bpl taken on equal
+    return if (col == 37) pal.ipa else pal.ita; // c37 chChdSu keeps ipacol
 }
 
 /// The editor's colour RAM as iniscrn leaves it, before the dynamic passes.
-const colortable: [ROWS][COLS]u4 = blk: {
-    @setEvalBranchQuota(10000);
+const colortables: [themes.len][ROWS][COLS]u4 = blk: {
+    @setEvalBranchQuota(200000);
+    var all: [themes.len][ROWS][COLS]u4 = undefined;
+    for (0..themes.len) |n| all[n] = colorTable(themePal(@intCast(n)));
+    break :blk all;
+};
+
+fn colorTable(pal: Palette) [ROWS][COLS]u4 {
     var t: [ROWS][COLS]u4 = undefined;
     for (0..ROWS) |r| {
-        for (0..COLS) |c| t[r][c] = colCell(r, c);
+        for (0..COLS) |c| t[r][c] = colCell(pal, r, c);
     }
     // the post-loop pre-sets (features all ON keep the "pre-set" colours)
     t[5][35] = 13; // DETUNESUPPORT: detune-table header colour 13
     t[5][36] = 13;
-    t[14][35] = palette.pwtkt; // PWKBEYBTRACK
-    t[14][36] = palette.pwtkt;
-    t[19][35] = palette.fltkt; // FILTKBTRACK
-    t[19][36] = palette.fltkt;
-    break :blk t;
-};
+    t[14][35] = pal.pwtkt; // PWKBEYBTRACK
+    t[14][36] = pal.pwtkt;
+    t[19][35] = pal.fltkt; // FILTKBTRACK
+    t[19][36] = pal.fltkt;
+    return t;
+}
 
 // -- pattern area (ptndisp/stpdisp/mutedis/row25back) -------------------------
 
@@ -812,6 +843,11 @@ fn ordlDis(song: *const swm.Song, view: *const View, over: *Overlay) void {
         }
         // markpos: skip track 0 and tracks sharing track 0's position
         over.ordl_mark[t] = -1;
+        over.ordl_blank[t] = -1;
+        if (view.ordl_blink_off) { // blinkit = 0: the played position's characters are cleared (displayer2.inc `blinkit`)
+            const at = view.olstart[t] -% view.seqposdisp;
+            if (at < 20) over.ordl_blank[t] = @intCast(at);
+        }
         if (t != 0 and view.olstart[t] != view.olstart[0]) {
             const col = view.olstart[t] -% view.seqposdisp;
             if (col < 20) over.ordl_mark[t] = @intCast(col);
@@ -892,6 +928,8 @@ fn upbordDis(song: *const swm.Song, view: *const View, over: *Overlay) void {
 /// render(): the editor's 25x40 text screen (screen codes + colour RAM),
 /// exactly as displayer1/displayer2 paint it. Pure: no I/O, no globals.
 pub fn render(song: *const swm.Song, view: *const View, screen: *Screen) void {
+    palette = themePal(view.themeno);
+    const colortable = &colortables[view.themeno % themes.len];
     // iniscrn: the static template + ColoRow scheme every frame starts from
     for (0..ROWS) |r| {
         for (0..COLS) |c| {
@@ -913,6 +951,9 @@ pub fn render(song: *const swm.Song, view: *const View, screen: *Screen) void {
 /// the upper-border readouts. Pure; play-runtime Overlay fields (songtime,
 /// PW/cutoff meters) must be presetted by the host and are left untouched.
 pub fn overlayRender(song: *const swm.Song, view: *const View, over: *Overlay) void {
+    palette = themePal(view.themeno);
+    over.fx_colour = palette.fx;
+    over.sprite_colour = palette.bordersp;
     // display's order: seqdisp (unless titledi) -> ordldis -> upbordisp ->
     // cursord; the screen-side passes live in render().
     if (view.titledi) dispAut(song, view, over) else seqDisp(view, over);

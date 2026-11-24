@@ -84,12 +84,13 @@ export async function referenceLive() {
     const fr = (n) => { for (let i = 0; i < n; i++) step(m); };
     fr(320); m.demo.key(K.F1); fr(4); m.demo.keyUp(K.F1);
     fr(150);
-    const r = { upper: 0, pattern: 0 };
+    const r = { upper: 0, pattern: 0, low: 0 };
     for (let prev = picture(m), i = 0; i < 20; i++) { // the same 120 frames, a picture every 6
         fr(6);
         const cur = picture(m);
         r.upper += bandDiff(prev, cur, 0, 35);
         r.pattern += bandDiff(prev, cur, 36, 235);
+        r.low += bandDiff(prev, cur, 236, 279);
         prev = cur;
     }
     return r;

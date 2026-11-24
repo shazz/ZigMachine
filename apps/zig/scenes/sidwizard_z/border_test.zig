@@ -55,3 +55,20 @@ test "upbordisp on the blank tune reproduces the static header bytes" {
     std.debug.print("updispr bytes differing from VICE: {d}\n", .{bad});
     try std.testing.expect(bad <= 8); // only the live oscilloscope trace differs (dad5..dadf)
 }
+
+test "a blinking played position is cleared in its sprite cell and nowhere else (displayer2 blinkit)" {
+    var over: dsp.Overlay = .{};
+    over.ordl_val[1][3] = 0x2b;
+    var shown = border.Border.init();
+    border.lowerRender(&shown, &over);
+    over.ordl_blank[1] = 3;
+    var blank = border.Border.init();
+    border.lowerRender(&blank, &over);
+    var changed: usize = 0;
+    for (shown.low, blank.low) |a, b| changed += @intFromBool(a != b);
+    try std.testing.expect(changed >= 3 and changed <= 5); // the glyph rows of one cell
+    over.ordl_blank[1] = -1;
+    var again = border.Border.init();
+    border.lowerRender(&again, &over);
+    try std.testing.expectEqualSlices(u8, &shown.low, &again.low);
+}

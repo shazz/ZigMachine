@@ -40,6 +40,7 @@ pub const App = struct {
     bord: border.Border = .{},
     dirty: bool = true,
     frames: u32 = 0,
+    sprite_col: u4 = 12, // the border sprites' colour now in palette entry 16 (the theme's borderspcol)
 
     pub fn init(self: *App, os: *zg.ZigOS) void {
         g_app = self;
@@ -110,6 +111,14 @@ pub const App = struct {
         }
     }
 
+    /// The theme's borderspcol into the sprite palette entry (12 keeps the measured grey the VICE shot had).
+    fn themeSprites(self: *App) void {
+        if (self.over.sprite_colour == self.sprite_col) return;
+        self.sprite_col = self.over.sprite_colour;
+        const c = if (self.sprite_col == 12) PALETTE[16] else PALETTE[self.sprite_col];
+        self.fb.setPaletteEntry(16, .{ .r = c[0], .g = c[1], .b = c[2], .a = 255 });
+    }
+
     pub fn render(self: *App, os: *zg.ZigOS, dt: f32) void {
         _ = dt;
         if (!self.dirty) return;
@@ -125,6 +134,7 @@ pub const App = struct {
         }
         ed.overlay(&self.over);
         self.s.play.readouts(&self.over);
+        self.themeSprites();
         border.upperRender(&self.bord, &self.over);
         border.lowerRender(&self.bord, &self.over);
         const cur: video.Cursor = .{ .x = self.over.cursor_x, .y = self.over.cursor_y, .wide = self.over.cursor_2x, .col = self.over.cursor_col };
