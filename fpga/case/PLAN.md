@@ -148,3 +148,15 @@ Bend (Matt): about a 6 cm wide U (inner radius ~30 mm). A 31 cm cable with a ~10
 of slack = one U with ~6 cm legs (2 x 60 + pi x 30 ~ 21 cm): a ~60 x 90 mm footprint per loop, or one
 shared bay where same-direction cables loop together (they stack: 49 mm of height). First estimate: back
 section ~170 deep instead of 120 (case ~327 deep in all); the top-view layout will settle it.
+
+### Panel mounting (female ends, 2 screw holes, centre to centre; Matt)
+| Female end | Screw spacing |
+|---|---|
+| USB-C | 17 mm |
+| USB2 (USB-A) | 30 mm |
+| HDMI | 28 mm |
+| RJ45 | 28 mm |
+| DB9 | 25 mm (the D-sub standard: to confirm) |
+| SD holder, audio jack | to measure (jack: threaded nut?) |
+Cut-out sizes: measured from the female shell (W x H) at fit-test time; the model uses each connector's
+standard opening + 0.4 mm clearance meanwhile.
