@@ -16,7 +16,7 @@ Licence: WTFPL ("Do what the frick you want with this code, but mentioning me if
 | `.../keymap.zig` `video.zig` `files.zig` `names.zig` `play.zig` `player.zig` `c64mem.zig` `sidout.zig` `session.zig` | the host: keys, the incremental picture, the floppy and C:, the 6502 player, the BARD queue, the effects |
 | `.../sw_player.bin` | the player and playadapter code and variables cut out of SID-Wizard 1.97's editor program (`tools/sidwizard_z_player.py`; the 64tass build of `native/sources` equals `apps/ports/sidwizard/upstream/resources/SID-Wizard.cmp` unpacked, byte for byte) |
 | `.../editor_charset.bin`, `sw_header.bin`, `vice_empty_*.bin` | SID-Wizard's own charset (a VICE dump of `$D000` while the editor runs), its header sprites, and four VICE dumps the library's tests compare against: all Hermit's, WTFPL |
-| `.../old_cart_sid.bin`, `player_test.zig` | the C cart's first 4000 SID writes after F1 on FLASHBAK.SWM, and the test that the Zig-driven player writes the same |
+| `.../old_cart_sid.bin`, `player_test.zig`, `apps/harness/sidwizard_z_golden.mjs` | the C cart's first 4000 SID writes after F1 on FLASHBAK.SWM (the script regenerates them from `site/carts/demo-sidwizard.wasm`), and the test that the Zig-driven player writes the same |
 | `apps/harness/sidwizard_z_check.mjs`, `sidwizard_z_lib.mjs` | the gate harness (`gate sidwizard_z` in `build.sh`) |
 
 ## The player path
@@ -30,6 +30,27 @@ three pieces already existed and are tested (the 6502, the queue, the SID live o
 
 Proof: `player_test.zig` — the Zig-driven player's first 4000 SID writes after F1 are the C cart's, register for register and value for value
 (needs `playmod`, the mute/solo bytes and the editor's start-up init state, all replicated); the gate harness repeats it end to end over the page's BARD.
+
+## Cost (`node apps/harness/frame_cost.mjs site/carts/demo-sidwizard_z.wasm --bard --disk site/carts/demo-sidwizard_z.zmd`, an estimate)
+
+Idle editor and playing Flash It Back alike: **0.74 Mc a frame**, of which the cart 0.03 Mc (the 6502 player's tick is ~600 6502 cycles, ~0.02 Mc a 60th) and FRESCO 0.7 Mc
+(one plane); ~60 fps. The C cart's figure for the same screen is 1.7 Mc (apps/ports/sidwizard/README.md: it runs the editor's own 6502 code too). Not measured on the board yet.
+The picture stores only what changed (a glyph cell, a sprite byte, the cursor's box); a frame with nothing new stores nothing.
+
+## Differences to look for when comparing with the C cart
+
+- The editor starts in **jam mode** as the C one does (Space switches to edit), but a jammed note makes **no sound here yet**.
+- The SID's clock is exact PAL (a tick = 19656 cycles = 879.8 samples of the 44.1 kHz clock, 50.125 Hz); the C cart stamps by libcRSID's 714/16 cycles a 22.05 kHz sample (0.1 % off).
+- No oscilloscope, no main-volume keys; the file dialog is in the repo's 8x8 system font (the C one's is the C64 character ROM look).
+- Playing from the start sends a SID reset (an 8580, as the C cart's), the first writes are the C editor's own (the player's init and the adapter's instrument reset).
+
+## Staging on the SD card (nothing is built for the board yet)
+
+Board firmware first (the lock held, one build at a time): `cd fpga && make board-fw CART=sidwizard_z ZM_FPU=1 ZM_AUDIO=snd ZM_ZMX=1`
+-> `fpga/build/hcycles/board_snd_fpu/sidwizard_z/fw.bin`; then `uv run python tools/glass_sd.py --out <dir> --fw-dir build/hcycles/board_snd_fpu --bit <bitstream>`.
+It is a data disk (a GEM program, like NOTEPAD), so the card needs **two files**: `CARTS/tools/demo-sidwizard_z.zmd` (the disk as it is, `site/carts/demo-sidwizard_z.zmd`) and
+`KESTREL/progs/demo-sidwizard_z/BOOT.WSM.zmd` (the same disk plus the board image), and `CARTS/shelf.txt` (the OSD's text) regenerated; read `MANIFEST.txt` for MISSING / STALE. The ROM, BARD and system
+image are untouched by this cart (no new `system.rv32`). A stale `progs/demo-sidwizard_z/` from an earlier cart boots the old firmware (CartSilent): replace it whole.
 
 ## Deviations from the library as it came
 
@@ -45,6 +66,6 @@ Proof: `player_test.zig` — the Zig-driven player's first 4000 SID writes after
 
 - The start-up menu (the player/tuning picker): the cart boots straight into the editor, so no C64 character ROM (Commodore's, never shipped) is needed. The file dialog and
   menus use SID-Wizard's own charset (`editor_charset.bin`); its capitals, digits and punctuation are all the dialog uses.
-- Jamming (a note key sounding in the editor), instrument and config files (`.SWI`, `.CFG`), the oscilloscope (it needs the SID's OSC3, which is BARD's), fast-forward, the mouse, themes beyond the
+- Jamming (a note key sounding in the editor; the C editor's `jamplay` needs more of its program than the player's block), instrument and config files (`.SWI`, `.CFG`), the oscilloscope (it needs the SID's OSC3, which is BARD's), fast-forward, the mouse, themes beyond the
   menu's, markers play (F2 plays from the top), and editing a song while it plays (the player plays the image taken at F1).
 - The cursor is a hollow box over the cell (the C64's sprite, placed by the cell, not the raster split's exact offset).
