@@ -53,7 +53,7 @@ comp 125 MHz +0.553, pix 40 MHz +1.178, pix5x 200 MHz +0.555, hold +0.018, TNS 0
 | zeST's FSBL / ps7_init | Different but equivalent | `tools/ps7_from_bootbin.py` on both images: DDR, MIO and ARM PLL tables identical. Only the IO PLL differs (x54 = 1800 MHz on the 7020's, x48 = 1600 on the 7010's) with dividers that keep SDIO 100, UART 100, PCAP 200 and FCLK0 100 MHz. The SoC uses no FCLK. |
 | zeST's U-Boot partition | Yes | 7 bytes differ: its build date. Its DTB partition (0x800000) is identical. |
 | Plan A's `BOOT.BIN.ours` (U-Boot SPL) | Yes | It carries no bitstream; its ps7_init is read from the 7010 FSBL, and the PS is the same silicon. Not yet run on either board. |
-| `boot.scr` (`glass/boot/boot.cmd`) | Yes | `fpga loadb` reads the part off the .bit header and compares it to the IDCODE's name (U-Boot `drivers/fpga/xilinx.c`, `arch/arm/mach-zynq/cpu.c` lists 7Z020): a KESTREL .bit on PEREGRINE prints "Wrong bitstream ID" and boots on without a PL. The 7020's .bit (~4 MB) at 0x1000000 ends below the DTB at 0x1F00000. The AFI writes are PS registers. |
+| `boot.scr` (`glass/boot/boot.cmd`) | Yes | `fpga loadb` reads the part off the .bit header and compares it to the IDCODE's name (read in upstream U-Boot 2025.10 `drivers/fpga/xilinx.c` and `arch/arm/mach-zynq/cpu.c`; zeST's own U-Boot 2025.01 in both images carries the same "Wrong bitstream ID" message and the device table with 7z020): a KESTREL .bit on PEREGRINE prints "Wrong bitstream ID" and boots on without a PL. The 7020's .bit (~4 MB) at 0x1000000 ends below the DTB at 0x1F00000. The AFI writes are PS registers. |
 | zImage, `zigmachine.dtb`, rootfs, glass | Yes | Same PS, same 512 MiB DDR3, same cart-window reservation; nothing in glass or the DTS names the part. |
 | `zigmachine.bit` | **No** | `card.py stage` refuses a .bit for the other part (header). |
 | `KESTREL/BOARD` | **No** | `peregrine`; install.sh refuses a card of the other board, or a card with no BOARD file. |
@@ -75,15 +75,22 @@ with KESTREL running the same thing.
    (proves N18's 50 MHz and the LED balls).
 3. **HDMI.** `.../hdmi_test_top/hdmi_test_top.bit` with HDMI1 on the monitor KESTREL uses: 800x600@60
    bars, castellations, the bouncing box, PL_LED2 lit, PL_LED1 at 1 Hz. Compare against KESTREL's
-   `make hdmi-test` picture on the same monitor and cable.
-4. **SD boot to U-Boot.** J1 to SD, a card with zeST's **z7lite_7020** `BOOT.BIN` alone: the UART
-   (921600 on KESTREL's boot.scr; zeST's U-Boot default first) shows `CPU: Zynq 7z020` and DRAM 512 MiB.
-   This is the first proof that the 7010's DDR/MIO init is right for this PCB.
+   `make hdmi-test-oddr` picture (the same ODDR serialiser) on the same monitor and cable.
+4. **SD boot to U-Boot.** J1 to SD, a card with zeST's **z7lite_7020** `BOOT.BIN` alone. The UART runs at
+   921600 (zeST's U-Boot environment, bootdelay 0: send Ctrl-C at power-on to stop at `Zynq>`). Expect
+   `CPU: Zynq 7z020` and DRAM 512 MiB. That proves zeST's 7020 init on this PCB (its DDR and MIO tables
+   are the 7010 image's, so it is also the evidence for plan A's SPL, which replays the 7010's).
 5. **OSD.** From U-Boot, `fatload` + `fpga loadb` the `osd_test_top.bit`, then `fpga/tools/osd_uboot_demo.sh`
    (KESTREL README): `md.l 0x43C00000 1` reads 0x5A4D474C and the OSD changes the screen (GP0 works).
-6. **The SoC.** A full card: `card.py stage --board peregrine --boot-dir <z7lite_7020 BOOT.BIN + boot.scr
-   + plan A kernel/DTB/rootfs> --bit build/peregrine/release/gateware/platform_z7.bit --system <sys.bin>
-   --cart <tag> ...`. Expect the KESTREL menu on HDMI, Wi-Fi join, carts from the shelf.
+6. **The SoC.** A full card. `card.py stage` writes the files that differ per board (BOOT.BIN, the .bit,
+   `KESTREL/BOARD`) plus what it is given: `card.py stage --board peregrine --name day1 --boot-dir <DIR>
+   --bit fpga/build/peregrine/release/gateware/platform_z7.bit --system <sys.bin> --cart <tag> ...
+   --shelf-from <KESTREL's CARTS/shelf.txt> --rootfs-base <KESTREL's rootfs.cpio.uboot> --rootfs-overlay <dir>`,
+   with DIR = zeST's z7lite_7020 BOOT.BIN + boot.scr + KESTREL's card's zImage, zigmachine.dtb and
+   rootfs.cpio.uboot (the card's rootfs carries the current glass; Buildroot's raw image does not). It
+   does NOT stage `KESTREL/kos/desktop.rv32` or an empty `HD/`: the simplest complete card is a copy of
+   KESTREL's card (everything), then `up/` copied over it (BOOT.BIN, zigmachine.bit, KESTREL/BOARD
+   replaced). Expect the KESTREL menu on HDMI, the Wi-Fi join, carts from the shelf.
 7. **Compare with KESTREL** on the same carts: OSD fps (the same SoC at the same clocks should give
    the same fps: a difference is DDR timing or a clock, not the chip), audio, `board_fps.py` numbers,
    and `bdiag` / `board_preflight.py` (HP0/HP1 bursts). Then record the part as verified

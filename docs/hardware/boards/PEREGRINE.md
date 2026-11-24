@@ -42,7 +42,7 @@ AreaOptimized_high synthesis, so the LUTs are the area-optimised count; a defaul
 more on KESTREL). 40 min, placed and routed first try, every constraint met. The .bit is 4,045,766 bytes
 (KESTREL's ~2 MB), IDCODE 7z020.
 
-| Resource | Used | 7020 total | % | Free | On the 7010 (its totals; slices from its 10-11 Nov builds) |
+| Resource | Used | 7020 total | % | Free | On the 7010 (its totals; slices from its 10-11 Nov builds; BRAM/DSP: the same netlist, inferred) |
 |---|---|---|---|---|---|
 | LUT after synthesis | 17,018 | 53,200 | 32.0 | 36,182 | 17,600 total: the 7010 is full |
 | LUT placed | 15,823 | 53,200 | 29.7 | **37,377** | |
