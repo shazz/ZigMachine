@@ -1,6 +1,6 @@
-# PEREGRINE: MicroPhase Z7 with an XC7Z020 (CLG400). UNVERIFIED until the board is here: the part's
-# speed grade and the vendor's board.xdc (no XDC is seeded from the 7010's: a build stops at
-# BoardXdcMissingError until the real one is copied in, README.md).
+# PEREGRINE: MicroPhase Z7-Lite with an XC7Z020-1CLG400C (the vendor manual: the same PCB as the 7010).
+# board.xdc is KESTREL's, every ball checked on both chips (tools/board_xdc.py derive kestrel peregrine,
+# run by tools/fetch_board.sh peregrine; README.md). Without it a build stops at BoardXdcMissingError.
 BOARD_PART := xc7z020clg400-1
 BOARD_DBPART := xc7z020clg400
 BOARD_CHIP := xc7z020
