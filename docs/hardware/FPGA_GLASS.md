@@ -467,6 +467,34 @@ it must not become the override), and `HD/` is made. It prints each `mv`, skips 
 at its target, moves nothing when run again, and `--back` moves it all back (for the old rootfs,
 whose S99glass runs `glass run /mnt/sd/zigmachine`); `--dry-run` only prints.
 
+## Staging a card
+
+`fpga/tools/card.py` is the one per-board staging tool (it replaces the per-card `stage_card.py` + `install.sh`
+copies; the code is `fpga/tools/card_stage/`, not `card/`, because `sdk/card.py` is already `card`).
+
+```
+uv run python tools/card.py stage --board kestrel|peregrine --name <card> --cart TAG [--cart TAG...] \
+    [--system SYS.bin | --system-version 1.27] [--fw-dir DIR] [--bit F.bit] \
+    [--rootfs-base BOARD_rootfs.cpio.uboot --rootfs-overlay DIR] [--shelf-from BOARD_shelf.txt] --out DIR
+uv run python tools/card.py install --host root@<ip> DIR/<card>      # only when asked
+```
+
+`stage` writes `DIR/<card>/up/`: the carts (bootable disks, data disks + their program disks, by-hash images:
+`glass_shelf`), `KESTREL/system.rv32` (`--system`; its table version is what the lean carts are checked against,
+or `--system-version` for a system already on the card), `zigmachine.bit`, `rootfs.cpio.uboot` (the board's own
+image plus the overlay as one more newc archive: later files win), `CARTS/shelf.txt` (the board's own file plus
+a line per new cart, no second header, a cart already listed keeps the board's line), `KESTREL/BOARD` (the board's
+name), then `up_list.txt`, `MD5SUMS_up` and `install.sh` (one template; old files go to
+`KESTREL/rollback/<card>/`, the FIRST old copy only). Copy `up/` to the board's `/tmp/up` and run
+`sh /tmp/up/install.sh`, or let `install` do the tar over ssh and show the md5 check.
+
+It refuses (non-zero exit, nothing left in DIR): a bitstream whose header part is not the board's
+(`soc/boards.py` dbpart), carts a system's table version does not run, a card name that exists, a MISSING / STALE /
+REFUSED row, a shelf with a duplicate FILE or a comment in the middle. `install.sh` refuses a card whose
+`KESTREL/BOARD` names another board; no file = an old KESTREL card, allowed for kestrel only (and written).
+`ZM_SD` / `ZM_UP` point `install.sh` at directories instead of `/mnt/sd` and `/tmp/up` (the tests do).
+Tests: `fpga/tests/test_card_tool.py`.
+
 ## The OSD
 
 - **Window:** 32 × 16 characters of the machine's own 8×8 system font
