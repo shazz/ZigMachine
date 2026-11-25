@@ -56,6 +56,7 @@ _BY_CATEGORY = {
         "sb_spike",  # Suicide Barbie mix3 feasibility spike (textured triangles on CHISEL AFFINE)
     ),
     "demos": (  # the "zigmachine" screens that are shows, not tests
+        "badapple",  # Bad Apple!! as row-span edits streamed off the disk (R90, docs/ports/badapple/README.md)
         "scroll", "obj", "fullscreen", "maxi", "medium_overscan", "res_switch",
         "mandelbrot", "fuji_hobbytronic", "anima", "leonard_spirit",
     ),
