@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// BAD APPLE!! (cart 162): a 1-bit film as a stream of ROW-TRANSITION EDITS, our own player (design: docs/ports/badapple).
+// BAD APPLE!! (cart 166): a 1-bit film as a stream of ROW-TRANSITION EDITS, our own player (design: docs/ports/badapple).
 //   - SPANS.BIN (format "BASP", tools/badapple/spans.py) is on the .zmd floppy and is read one 1 s (30 frame)
 //     ZX0 block at a time, a block ahead (badapple/blocks.zig).
 //   - A frame is decoded row by row (badapple/decoder.zig); only the rows whose edges moved are repainted, with

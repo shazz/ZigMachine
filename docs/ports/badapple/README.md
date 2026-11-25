@@ -1,4 +1,4 @@
-# BAD APPLE!! (cart 162, R89)
+# BAD APPLE!! (cart 166, R89)
 
 A 1-bit film played from a stream of row-transition edits. The design is `HINTS.md` (the lead's brief, written
 before any code); this is what was built and what it costs.

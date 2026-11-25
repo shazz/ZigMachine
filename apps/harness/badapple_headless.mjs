@@ -1,4 +1,4 @@
-// BAD APPLE!! (cart 162) end to end on the sealed machine + ROM, against a Python REFERENCE decoder
+// BAD APPLE!! (cart 166) end to end on the sealed machine + ROM, against a Python REFERENCE decoder
 // (tools/badapple/{zx0,spans}.py: its own ZX0 depacker and format reader, none of the cart's code).
 //   1. the cart's plane = the reference's frame, pixel for pixel, at fixed frames (first, block starts and ends,
 //      the hard cut, the all-white / all-black frames, the last), the film frame following the clock (hostMicros);

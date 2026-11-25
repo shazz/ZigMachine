@@ -693,7 +693,11 @@ pub fn build(b: *std.Build) void {
         "", // 159: reserved (the Rift part agents' local carts, other branches)
         "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
         "", // 161: reserved (AURORA BOOT, another branch)
-        "demo-badapple", // 162 — BAD APPLE!! (R89): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
+        "", // 162: reserved (aurora_boot_b, another branch)
+        "", // 163: reserved (aurora_boot_c, another branch)
+        "", // 164: reserved (aurora_boot_d, another branch)
+        "", // 165: reserved (aurora_boot_e, another branch)
+        "demo-badapple", // 166 — BAD APPLE!! (R89): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
