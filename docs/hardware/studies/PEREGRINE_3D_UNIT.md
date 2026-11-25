@@ -107,3 +107,39 @@ collect 3.1 Mc + fill 1.6 Mc of the cart's 4.9 Mc) and the real Virtua Racing tr
 1. S3's shape: one VU, or two (a VU0-like sync macro mode + a VU1-like async unit, as on the PS2)?
 2. S3's ISA: its own microcode, or RISC-V + ZM-X so the existing toolchain just works?
 3. A study with OOC synth LUT numbers per scenario on the xc7z020 (Opus, after racer M4)?
+
+## The dream target: Aura for Laura (Soopadoopa, PS2, Scene Event 2003)
+
+Matt's favourite PS2 demo, source in `prototypes/aura_re/AuraSource` (local study copy). Read 24 Nov:
+
+| part | where the work is | S3 (VU core) | S4 (fixed T&L) |
+|---|---|---|---|
+| tunnel raytracer (`tracer_vu.vsm`, 748 lines) | per-pixel ray tracing on VU1 at 320x128, GS bilinear upscale to 640x512 | yes (a program) | no |
+| metaballs + cubemap (`meta_vu.vsm`, 1,596 lines) | 40 balls into a 45x16x16 field on the EE, surface + env map on VU1 | yes (scratchpad + f32 SIMD) | no |
+| plasma, pixel particles, bonbon | per-point maths, lights, matrices on VU1 | yes | transform + light only |
+| mesh test (`mesh_vu.vsm`) | textured mesh: transform, light, clip | yes | yes (its one job) |
+| glow, radial / directional / gaussian blur (`glow.cpp`) | GS only: render to texture, alpha-blended bilinear copies, feedback | - | - (S2 / FRESCO) |
+| music | Ogg Vorbis decoded on the EE | BARD (cf. MP3_BARD_STUDY) | |
+
+What it changes:
+1. **S4 is out** for this kind of demo: one part in six is T&L. The VU was used as a general SIMD computer.
+2. **S3 must be f32 SIMD, not Q16**: the VU is 4-wide float and all of Aura's microcode is float. A faithful VU-class
+   core is ~4x the f32 FPU (2,348 LUT measured) plus DSPs: ~8-12k LUT [e]. Fits the 7020's ~36k free.
+3. **The GS side is the bigger gap**: render to texture, bilinear filtering, alpha blending of full-screen textured
+   quads several times a frame, a 640x512 true-colour frame (see TRUECOLOR_PLANE.md). CHISEL today: palette fills,
+   copies, AFFINE. S2 needs blend + bilinear + true colour.
+4. **Fill rate decides**: one 640x512 blur pass = 330k pixels, several a frame; the GS had eDRAM bandwidth, we have
+   DDR. Measure that first. A reduced port (320x256, fewer blur passes) is plausible; 1:1 is probably beyond a 7020.
+
+### Base camps (each one a cart or a measurement on its own)
+
+| camp | what | hardware needed | proves |
+|---|---|---|---|
+| 0 | reference captures: the original in PCSX2 (local), frame timings per part (`timings.txt`) | none | the target, frame by frame |
+| 1 | the tunnel tracer in software on KESTREL at 160x64 / 320x128 (Q16 or the FPU), upscaled | none | per-pixel cost; the raytrace carts are the precedent |
+| 2 | a VU software model in the machine wasm (4 x f32 lanes, VU-like ops, a scratchpad, a job queue on BARD-jobs plumbing) + the tracer on it in the browser | none | the ISA and the cycle counts before any RTL |
+| 3 | CHISEL blend + bilinear (+ the true-colour plane) on KESTREL or PEREGRINE: one glow / radial blur cart | RTL (S2) | the fill-rate question (point 4) |
+| 4 | the VU core in RTL on PEREGRINE (BARD-like VexRiscv + f32x4), the tracer and plasma ported | RTL (S3) | S3's real LUT / speed |
+| 5 | the remaining parts one by one: particles, mesh, metaballs + cubemap, then the whole demo | S3 + S2 | Aura for Laura on PEREGRINE |
+
+Camps 0-2 need no hardware and no PEREGRINE board; camp 1 alone already shows how far KESTREL gets.
