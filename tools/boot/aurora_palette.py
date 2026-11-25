@@ -1,28 +1,32 @@
 """The shared aurora palette: 256 RGB565-level DIFFERENCES chosen from every frame's real colours.
 
-No dithering anywhere: each pixel takes its nearest entry. Entry 0 is exactly (0, 0, 0) (no aurora), the
-others come from a weighted median cut refined by a fixed number of Lloyd steps (deterministic: no random
-init), then sorted by brightness so that index distance follows colour distance (small deltas between
-frames pack better). `weight_pow` < 1 favours the rare dark / low-intensity colours of the soft fade.
+No dithering anywhere: each pixel takes its nearest entry, and that choice is made on the aurora's FLOAT
+light (not on its integer-rounded 565 difference, whose per-channel rounding jitter would flip pixels between
+neighbouring entries and read as speckle): the cell boundaries are then smooth contours. Entry 0 is exactly
+(0, 0, 0) (no aurora); the others come from a weighted median cut refined by a fixed number of Lloyd steps
+(deterministic: no random init), snapped to integer levels (they are added to a 565 pixel), sorted by
+brightness so that index distance follows colour distance. `weight_pow` < 1 favours the rare dark /
+low-intensity colours of the soft fade.
 """
 import numpy as np
 
 SCALE = np.array([8.0, 4.0, 8.0])  # a 565 level in 8-bit-ish units (r5 = 8, g6 = 4, b5 = 8)
 LLOYD_STEPS = 12
+LATTICE = 4  # histogram cell: 1/4 of a level
+CHUNK = 200_000
 
 
 class PaletteError(ValueError):
     pass
 
 
-def unpack(keys):
-    k = keys.astype(np.int64)
-    return np.stack([k & 31, (k >> 5) & 63, (k >> 11) & 31], axis=-1)
-
-
-def histogram(frames_keys):
-    """(unique keys, counts) over all frames."""
-    return np.unique(frames_keys, return_counts=True)
+def histogram(frames_f):
+    """(points, counts): the distinct 1/4-level cells of every frame's float deltas (n, H, W, 3), as float levels."""
+    q = np.rint(frames_f * LATTICE).astype(np.int64)
+    key = q[..., 0] | (q[..., 1] << 10) | (q[..., 2] << 20)
+    uniq, counts = np.unique(key, return_counts=True)
+    pts = np.stack([uniq & 1023, (uniq >> 10) & 1023, (uniq >> 20) & 1023], -1) / LATTICE
+    return pts, counts
 
 
 def _median_cut(pts, w, n):
@@ -42,41 +46,45 @@ def _median_cut(pts, w, n):
     return np.array([np.average(pts[b], axis=0, weights=w[b]) for b in boxes])
 
 
-def _nearest(pts, centres):
-    d = ((pts[:, None, :] - centres[None, :, :]) * SCALE) ** 2
-    return d.sum(-1).argmin(1)
+def nearest(pts, centres):
+    """Index of the nearest centre for each point (N, 3), in perceptual units, chunked matrix maths."""
+    a, c = pts * SCALE, centres * SCALE
+    c2 = (c * c).sum(1)
+    out = np.empty(len(a), dtype=np.int64)
+    for i in range(0, len(a), CHUNK):
+        blk = a[i:i + CHUNK]
+        out[i:i + CHUNK] = ((blk * blk).sum(1)[:, None] - 2 * blk @ c.T + c2[None]).argmin(1)
+    return out
 
 
-def build(keys, counts, size=256, weight_pow=0.5):
-    """(palette (size, 3) int levels, index_of_key: dict-like array over uniq keys)."""
+def build(pts, counts, size=256, weight_pow=0.5):
+    """The palette (<= size, 3) of int levels from histogram points."""
     if size < 2 or size > 256:
         raise PaletteError(f"palette size {size} outside 2..256")
-    pts = unpack(keys).astype(float)
-    w = counts.astype(float) ** weight_pow
-    nz = np.nonzero(keys != 0)[0]
-    if len(nz) == 0:
+    live = np.nonzero((pts >= 0.5).any(1))[0]  # cells that round to some light
+    if len(live) == 0:
         raise PaletteError("no aurora pixels in any frame")
-    cen = _median_cut(pts[nz], w[nz], size - 1)
+    p, w = pts[live], counts[live].astype(float) ** weight_pow
+    cen = _median_cut(p, w, size - 1)
     for _ in range(LLOYD_STEPS):
-        a = _nearest(pts[nz], cen)
-        for c in range(len(cen)):
-            m = a == c
-            if m.any():
-                cen[c] = np.average(pts[nz][m], axis=0, weights=w[nz][m])
+        a = nearest(p, cen)
+        tot = np.bincount(a, weights=w, minlength=len(cen))
+        for ch in range(3):
+            sums = np.bincount(a, weights=w * p[:, ch], minlength=len(cen))
+            cen[:, ch] = np.where(tot > 0, sums / np.maximum(tot, 1e-12), cen[:, ch])
     cen = np.unique(np.rint(cen).astype(int), axis=0)
+    cen = cen[(cen != 0).any(1)]
     cen = cen[np.lexsort((cen[:, 2], cen[:, 0], (cen * SCALE).sum(1)))]
-    pal = np.vstack([[0, 0, 0], cen[(cen != 0).any(1)]])
-    return pal.astype(np.int16)
+    return np.vstack([[0, 0, 0], cen]).astype(np.int16)
 
 
-def quantise(keys_frames, uniq, pal):
-    """Index frames (n, H, W) uint8: each pixel's nearest palette entry; 0 stays exactly 0."""
-    idx_u = _nearest(unpack(uniq).astype(float), pal.astype(float))
-    idx_u[uniq == 0] = 0
-    return idx_u.astype(np.uint8)[np.searchsorted(uniq, keys_frames)]
+def quantise(frames_f, pal):
+    """Index frames (n, H, W) uint8: each pixel's nearest palette entry (on the float light); no dither."""
+    flat = frames_f.reshape(-1, 3)
+    return nearest(flat, pal.astype(float)).astype(np.uint8).reshape(frames_f.shape[:-1])
 
 
-def error(uniq, counts, pal, idx_u):
-    """(mean, max) absolute error in 565 levels per channel, pixel-weighted."""
-    e = np.abs(unpack(uniq) - pal[idx_u]).astype(float)
-    return (e * counts[:, None]).sum(0) / counts.sum(), e.max(0)
+def error(frames_f, idx, pal):
+    """(mean, max) absolute error in 565 levels per channel against the float light."""
+    e = np.abs(frames_f - pal[idx]).reshape(-1, 3)
+    return e.mean(0), e.max(0)

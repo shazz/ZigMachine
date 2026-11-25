@@ -41,6 +41,9 @@ def load_settings(path):
         raise SettingsError(f"unknown preset {s['preset']!r}")
     if s["bird"] not in ("KESTREL", "PEREGRINE"):
         raise SettingsError(f"unknown bird {s['bird']!r}")
+    s.setdefault("bandTop", 0.0)  # the star detector's vertical band, % of the height (the lab's sliders)
+    s.setdefault("bandBot", 70.0)
+    s.setdefault("fadeInSky", 0.8)  # the sky fades in from black over this many seconds (the end fade is 0.6 s)
     return {**s, **PRESETS[s["preset"]]}
 
 

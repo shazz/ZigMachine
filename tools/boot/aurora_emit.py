@@ -19,11 +19,11 @@ from aurora_common import H, W
 from aurora_stars import LEVELS, Q4
 
 
-def plane_after(base_q, pal_words, idx_acc, r0):
+def plane_after(base_q, pal_words, idx_acc, r0, step):
     """The reference TC plane (H, W) u16 with aurora frame `idx_acc` (stored rows, W) added: the cart's loop in numpy."""
     plane = ((base_q[..., 0].astype(np.uint16) << 11) | (base_q[..., 1].astype(np.uint16) << 5) | base_q[..., 2].astype(np.uint16))
     add = pal_words[idx_acc].astype(np.uint16)
-    rows = np.repeat(add, pk.ROW_STEP, axis=0)[:H - r0]
+    rows = np.repeat(add, step, axis=0)[:H - r0]
     out = plane.copy()
     out[r0:r0 + len(rows)] = plane[r0:r0 + len(rows)] + rows  # the baker proved no channel overflows: a plain add
     return out
@@ -44,17 +44,18 @@ pub const SAMPLE_LEN: u32 = {m['sample_len']};
 pub const AURORA_FRAMES: u32 = {m['aurora_frames']};
 pub const AURORA_AT: u32 = {m['aurora_at']}; // the star record at which aurora frame 0 shows
 pub const BAND_Y0: u32 = {m['band_y0']};
-pub const BAND_ROWS: u32 = {m['band_rows']}; // stored rows; each shows on {pk.ROW_STEP} screen rows
-pub const ROW_STEP: u32 = {pk.ROW_STEP};
+pub const BAND_ROWS: u32 = {m['band_rows']}; // stored rows; each shows on {m['row_step']} screen rows
+pub const ROW_STEP: u32 = {m['row_step']};
 pub const EDGES = [_][2]u8{{ {edges} }};
 pub const PALETTE = [256]u16{{ {pal} }};
 """
 
 
-def write_assets(out, sky_blob, aurora_blob, offs, stars_blob, meta, pcm):
+def write_assets(out, files, meta):
+    """`files` maps a file name to its bytes; the meta source is written beside them."""
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    for name, data in (("sky.zx0", sky_blob), ("aurora.zx0", aurora_blob), ("aurora.idx", offs), ("stars.zx0", stars_blob), ("boot.raw", pcm)):
+    for name, data in files.items():
         (out / name).write_bytes(data)
     (out / "aurora_meta.zig").write_text(meta_source(meta))
 
@@ -65,8 +66,9 @@ def md5(a):
 
 def reference(base_q, pal_words, idx_stored, r0, rec_rows, meta, probes):
     """The reference JSON: TC plane md5 per probed aurora frame, star pixels per probed record."""
-    planes = {str(j): md5(plane_after(base_q, pal_words, idx_stored[j], r0).astype("<u2")) for j in probes["aurora"]}
+    step = meta["row_step"]
+    planes = {str(j): md5(plane_after(base_q, pal_words, idx_stored[j], r0, step).astype("<u2")) for j in probes["aurora"]}
     n = meta["n_stars"]
     stars = {str(i): [[int(rec_rows[i][k]), int(rec_rows[i][n + k])] for k in range(n)] for i in probes["stars"]}
-    return dict(planes_md5=planes, stars_xy=stars, sky_md5=md5(plane_after(base_q, pal_words, np.zeros_like(idx_stored[0]), r0).astype("<u2")),
+    return dict(planes_md5=planes, stars_xy=stars, sky_md5=md5(plane_after(base_q, pal_words, np.zeros_like(idx_stored[0]), r0, step).astype("<u2")),
                 sizes=meta["sizes"], aurora_frames=meta["aurora_frames"], width=W, height=H)

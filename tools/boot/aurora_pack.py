@@ -12,34 +12,34 @@ import numpy as np
 import aurora_palette as pal_mod
 
 HYST = 2  # levels (a 565 channel step); the bound on how far a shown pixel may sit from the exact one
-ROW_STEP = 2
+ROW_STEP = 2  # the default: every other row of the band is stored and shown twice
 
 
 class PackError(RuntimeError):
     pass
 
 
-def band_rows(keys):
-    """(r0, r1): the rows that ever light up, r0 rounded down to a multiple of ROW_STEP."""
-    rows = np.nonzero(keys.any(0).any(1))[0]
+def band_rows(idx, step=ROW_STEP):
+    """(r0, r1): the rows that ever light up (a non-zero palette index), r0 rounded down to a multiple of `step`."""
+    rows = np.nonzero(idx.any(0).any(1))[0]
     if len(rows) == 0:
         raise PackError("no aurora pixels in any frame")
-    return int(rows.min()) // ROW_STEP * ROW_STEP, int(rows.max()) + 1
+    return int(rows.min()) // step * step, int(rows.max()) + 1
 
 
-def stored_rows(arr, r0, r1):
-    """The band's even rows (the rows the cart stores and doubles): (n, rows, W)."""
-    return arr[:, r0:r1:ROW_STEP]
+def stored_rows(arr, r0, r1, step=ROW_STEP):
+    """The band's first row of every `step` (the rows the cart stores and repeats): (n, rows, W)."""
+    return arr[:, r0:r1:step]
 
 
-def headroom(base, r0, r1):
-    """Per stored pixel and channel: the most the aurora may add to BOTH rows it covers without overflowing."""
+def headroom(base, r0, r1, step=ROW_STEP):
+    """Per stored pixel and channel: the most the aurora may add to ALL the rows it covers without overflowing."""
     mx = np.array([31, 63, 31])
-    top = mx - base[r0:r1:ROW_STEP]
-    bot = np.full_like(top, 99)
-    n = base[r0 + 1:r1:ROW_STEP].shape[0]
-    bot[:n] = mx - base[r0 + 1:r1:ROW_STEP]
-    return np.minimum(top, bot)
+    room = mx - base[r0:r1:step]
+    for k in range(1, step):
+        rows = base[r0 + k:r1:step]
+        room[:len(rows)] = np.minimum(room[:len(rows)], mx - rows)
+    return room
 
 
 def fit_headroom(idx, pal, room):
@@ -55,7 +55,9 @@ def fit_headroom(idx, pal, room):
 
 
 def hysteresis(idx, pal, eps=HYST):
-    """Temporal hold; the final frame is exact (the aurora's end must restore the sky, not sit 2 levels off)."""
+    """Temporal hold (eps 0 = off); the final frame is exact (the aurora's end must restore the sky)."""
+    if eps <= 0:
+        return idx.copy()
     out = idx.copy()
     for t in range(1, len(idx)):
         keep = np.abs(pal[out[t - 1]] - pal[idx[t]]).max(-1) <= eps

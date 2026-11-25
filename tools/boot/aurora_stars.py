@@ -49,9 +49,10 @@ def frame_state(i, stars, dots, dot_of, delay, p):
     edges_a = min(1.0, max(0.0, (t - b.m1) / (b.e1 - b.m1)))
     word = min(1.0, (t - b.w0) / 0.6) if t > b.w0 else 0.0
     fade = max(0.0, 1 - (t - b.end) / 0.6) if t > b.end else 1.0
+    fade_in = max(0.0, 1 - t / p["fadeInSky"]) if p["fadeInSky"] > 0 else 0.0  # from black at t = 0
     return dict(sx=sx, sy=sy, lv=lv, vx=np.rint(proj[:, 0] * Q4).astype(int), vy=np.rint(proj[:, 1] * Q4).astype(int),
                 line=round(0.5 * edges_a * LEVELS * 2), word=round(word * LEVELS),
-                fade=round(31 * (1 - fade)))
+                fade=round(31 * max(1 - fade, fade_in)))
 
 
 def bake_stars(stars, p):

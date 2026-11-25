@@ -70,37 +70,95 @@ class PhotoTest(unittest.TestCase):
         rgb = photo.resize_cover(PHOTO)
         stars, cleaned = photo.extract(rgb, 0.10)
         self.assertEqual(rgb.shape, (200, 320, 3))
-        self.assertEqual(len(stars), 237)  # the lab's JSON says 254 with the browser's resampler
+        self.assertEqual(len(stars), 214)  # 237 over the whole height; the lab's JSON says 254 with the browser's resampler
         x, y, _, _ = stars[0]
-        self.assertTrue((cleaned[y - 1:y + 2, x - 1:x + 2] == cleaned[y, x]).all())
+        self.assertGreater(int(rgb[y, x].max()), int(cleaned[y, x].max()))  # the star's own pixel is no longer the peak
         self.assertGreater(len(stars), len(photo.extract(cleaned, 0.10)[0]))
+
+
+class StarBandTest(unittest.TestCase):
+    def _sky(self):
+        yy, xx = np.mgrid[0:200, 0:320]
+        base = (20 + yy * 0.8 + xx * 0.4)[..., None] * np.array([1.0, 1.2, 1.0])
+        img = np.clip(base, 0, 255)
+        for x, y in ((50, 30), (100, 120), (60, 150)):
+            img[y, x] = 250
+        return img.astype(np.uint8)
+
+    def test_no_star_is_found_below_the_band(self):
+        stars, _ = photo.extract(self._sky(), 0.10, band=(0.0, 70.0))
+        self.assertEqual(sorted((x, y) for x, y, _, _ in stars), [(50, 30), (100, 120)])  # row 150 is 75 %
+        self.assertTrue(all(y < 140 for _, y, _, _ in stars))
+        low, _ = photo.extract(self._sky(), 0.10, band=(0.0, 100.0))
+        self.assertIn((60, 150), [(x, y) for x, y, _, _ in low])  # it IS a detectable star: only the band excluded it
+
+    def test_a_band_that_starts_lower_skips_the_top(self):
+        stars, _ = photo.extract(self._sky(), 0.10, band=(30.0, 100.0))
+        self.assertEqual(sorted((x, y) for x, y, _, _ in stars), [(60, 150), (100, 120)])
+
+    def test_painting_a_star_out_of_a_gradient_leaves_no_flat_block_and_no_star(self):
+        img = self._sky()
+        _, cleaned = photo.extract(img, 0.10)
+        block = cleaned[29:32, 49:52, 1].astype(int)
+        self.assertGreater(len(set(block.ravel().tolist())), 3)  # a gradient, not one flat value
+        ref = np.asarray(self._sky(), dtype=int)
+        ref[30, 50] = ref[30, 49]
+        self.assertLessEqual(np.abs(cleaned[29:32, 49:52].astype(int) - ref[29:32, 49:52]).max(), 4)
+        self.assertLess(int(cleaned[30, 50, 1]), 100)  # the 250 spike is gone
 
 
 class PaletteTest(unittest.TestCase):
     def test_few_colours_are_kept_exactly_and_zero_stays_zero(self):
-        keys = np.array([0, 1, 33, 1, 33, 2049, 0], dtype=np.uint16)
-        uniq, counts = palette.histogram(keys)
-        pal = palette.build(uniq, counts, 256)
-        idx = palette.quantise(keys, uniq, pal)
-        self.assertTrue((pal[idx] == palette.unpack(keys)).all())
+        light = np.zeros((1, 2, 4, 3), dtype=np.float32)
+        light[0, 0, 1] = (1, 2, 1)
+        light[0, 1, 2] = (4, 9, 6)
+        pts, counts = palette.histogram(light)
+        pal = palette.build(pts, counts, 256)
+        idx = palette.quantise(light, pal)
+        self.assertTrue((pal[idx] == np.rint(light)).all())
         self.assertEqual(tuple(pal[0]), (0, 0, 0))
-        self.assertEqual(idx[0], 0)
+        self.assertEqual(int(idx[0, 0, 0]), 0)
 
     def test_palette_never_exceeds_256_and_error_is_a_few_levels(self):
         rng = np.random.default_rng(3)
-        keys = (rng.integers(0, 24, 5000) | (rng.integers(0, 48, 5000) << 5) | (rng.integers(0, 24, 5000) << 11)).astype(np.uint16)
-        uniq, counts = palette.histogram(keys)
-        pal = palette.build(uniq, counts, 256)
+        light = (rng.random((2, 40, 50, 3)) * np.array([24, 48, 24])).astype(np.float32)
+        pts, counts = palette.histogram(light)
+        pal = palette.build(pts, counts, 256)
         self.assertLessEqual(len(pal), 256)
-        _, worst = palette.error(uniq, counts, pal, palette._nearest(palette.unpack(uniq).astype(float), pal.astype(float)))
-        self.assertLessEqual(worst.max(), 6)
+        self.assertLessEqual(palette.error(light, palette.quantise(light, pal), pal)[1].max(), 8)
+
+    def test_smooth_ramp_maps_to_monotonic_entries_without_speckle(self):
+        ramp = np.linspace(0, 20, 400, dtype=np.float32)
+        light = np.stack([ramp * 0.4, ramp, ramp * 0.6], -1)[None, None]
+        pal = palette.build(*palette.histogram(light), 64)
+        idx = palette.quantise(light, pal)[0, 0].astype(int)
+        steps = np.sign(np.diff(pal[idx].sum(1)))
+        self.assertGreaterEqual(steps.min(), 0)  # never steps back: contours, not salt and pepper
 
     def test_bad_sizes_and_empty_input_are_refused(self):
-        uniq, counts = palette.histogram(np.array([5, 9], dtype=np.uint16))
+        pts, counts = palette.histogram(np.full((1, 1, 2, 3), 5.0, dtype=np.float32))
         with self.assertRaises(palette.PaletteError):
-            palette.build(uniq, counts, 300)
+            palette.build(pts, counts, 300)
         with self.assertRaises(palette.PaletteError):
-            palette.build(*palette.histogram(np.zeros(4, dtype=np.uint16)), size=16)
+            palette.build(*palette.histogram(np.zeros((1, 2, 2, 3), dtype=np.float32)), size=16)
+
+
+class HaloTest(unittest.TestCase):
+    def test_faint_light_is_moved_onto_one_hue_and_bright_light_is_untouched(self):
+        import aurora_halo as halo
+        light = np.zeros((1, 1, 4, 3), dtype=np.float32)
+        light[0, 0, 0] = (0.4, 1.8, 1.2)
+        light[0, 0, 1] = (0.8, 1.2, 2.0)
+        light[0, 0, 2] = (20, 40, 30)
+        out = halo.lock(light)
+        a, b = out[0, 0, 0], out[0, 0, 1]
+        self.assertAlmostEqual(float(a[0] / a[1]), float(b[0] / b[1]), places=4)  # one hue
+        self.assertTrue((out[0, 0, 2] == light[0, 0, 2]).all())
+
+    def test_no_faint_light_is_an_error(self):
+        import aurora_halo as halo
+        with self.assertRaises(ValueError):
+            halo.lock(np.zeros((1, 2, 2, 3), dtype=np.float32))
 
 
 class PackTest(unittest.TestCase):
@@ -128,7 +186,14 @@ class PackTest(unittest.TestCase):
 
     def test_band_of_an_empty_aurora_is_refused(self):
         with self.assertRaises(pack.PackError):
-            pack.band_rows(np.zeros((2, 8, 8), dtype=np.uint16))
+            pack.band_rows(np.zeros((2, 8, 8), dtype=np.uint8))
+
+    def test_rows_that_a_repeated_row_would_overflow_leave_less_headroom(self):
+        base = np.zeros((4, 1, 3), dtype=int)
+        base[1] = (30, 60, 30)  # the second row of the first stored row is nearly white
+        room = pack.headroom(base, 0, 4, 2)
+        self.assertEqual(room[0, 0].tolist(), [1, 3, 1])
+        self.assertEqual(room[1, 0].tolist(), [31, 63, 31])
 
     def test_missing_packer_is_a_clear_error(self):
         with tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(pack.PackError, "zx0pack not found"):
@@ -183,8 +248,17 @@ class BakeTest(unittest.TestCase):
             outs.append({f.name: f.read_bytes() for f in Path(d).iterdir()})
         self.assertEqual(outs[0], outs[1])
         self.assertEqual(sorted(outs[0]), ["aurora.idx", "aurora.zx0", "aurora_meta.zig", "aurora_ref.json", "boot.raw", "sky.zx0", "stars.zx0"])
-        self.assertIn(b"pub const N_STARS: u32 = 237;", outs[0]["aurora_meta.zig"])
+        self.assertIn(b"pub const N_STARS: u32 = 214;", outs[0]["aurora_meta.zig"])
         self.assertEqual(len(outs[0]["boot.raw"]), json.loads(outs[0]["aurora_ref.json"])["sizes"]["sound"])
+
+    def test_a_variant_writes_only_its_aurora_files_and_full_rows_double_the_stored_rows(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as e:
+            ref_c = bake.bake(SETTINGS, PHOTO, d, ZX0PACK, frames=2, variant="c", sound=WAV)
+            ref_d = bake.bake(SETTINGS, PHOTO, e, ZX0PACK, frames=2, variant="d", sound=WAV)
+            self.assertEqual(sorted(p.name for p in Path(d).iterdir()), ["aurora.idx", "aurora.zx0", "aurora_meta.zig", "aurora_ref.json", "sky.zx0", "stars.zx0"])
+            self.assertEqual(ref_c["stats"]["row_step"], 2)
+            self.assertEqual(ref_d["stats"]["row_step"], 1)
+            self.assertIn(b"pub const ROW_STEP: u32 = 1;", Path(e, "aurora_meta.zig").read_bytes())
 
 
 if __name__ == "__main__":

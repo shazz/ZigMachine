@@ -117,10 +117,51 @@ asks for feedback if it is used in artworks).
 Cart RAM window: 1,011 KB of 3,072 KB used (2,061 KB free), `check_fits` ok. Run time memory: sky copy 128 KB, star records 407 KB, aurora frame delta 26.5 KB, state 26.5 KB; VRAM: the
 TC plane (128 KB) and the star plane (64 KB).
 
-Cost on ZIGGY (`tools/perf_audit.sh aurora_boot`, estimate, `apps/harness/perf/cost_model.mjs`): about 0.6 Mc a
+Cost on ZIGGY (cart 161; the variants write more or fewer pixels per frame, the plane cost is the same) (`tools/perf_audit.sh aurora_boot`, estimate, `apps/harness/perf/cost_model.mjs`): about 0.6 Mc a
 frame of cart work and 1.3 Mc of FRESCO for the two planes (2 enabled planes are the big lever: 0.59 Mc each),
 ~2.0 Mc total (p95 2.3), ~50 fps estimated; the board's band is 1.75-2.1 Mc, so the board decides. The cart half
 is the ZX0 unpack (byte copies, ~0.16 Mc), the plane 1 clear and ~240 star pixels.
+
+## Variants to compare on the board (24 Nov night)
+
+Matt saw the first bake's aurora as dithered / stained ("JPEG-like stains of colour around the aurora"). Cart 161
+is that first bake, kept as shipped (variant **A**); `aurora_boot_b` .. `_e` (carts 162-165, the same scene on
+other baked data, `apps/zig/assets/screens/aurora_art_<v>.zig`) are the fixes, each measured on the board's
+shots (`prototypes/boot_screen/aurora_compare/`, side by side at 4x, A to E left to right, a stretched row under each).
+
+| | what | aurora data | total baked (+ sky 29 KB, stars 35 KB, shared sound 187 KB) |
+|---|---|---|---|
+| A (161) | the first bake: jittered march, integer-difference palette, 2-level hold, every other row | 351 KB | 604 KB (old sky and 237 stars) |
+| B | no ray-march jitter, the palette chosen on the FLOAT light, 2-level hold, every other row | 302 KB | 553 KB |
+| C | B without the hold | 689 KB | 940 KB |
+| D | C with every row | 1,346 KB | 1,597 KB |
+| E | D with the faint halo's hue locked (`aurora_halo.py`) | 1,310 KB | 1,561 KB |
+
+What each cause contributed (crops at the shot's frames, upper halo, curtain base, ground glow):
+
+1. **The temporal hold is the main culprit.** A and B (both hold) show the large violet / blue patches in the halo
+   and rectangular steps at the curtain base: neighbours freeze at different moments, so the dim top of the ramp
+   becomes blotches. C (no hold) already turns them into soft vertical rays. Cost: the stream doubles (302 to 689 KB).
+2. **Jitter is not the grain.** B differs from A only by smooth light and float quantisation: the halo is no less
+   blotchy (the hold is still there), so the ray-march jitter was not what Matt saw; it is gone anyway.
+3. **Palette quantisation on rounded channels** made a coloured fringe at the halo's first level (R steps alone):
+   quantising on the float light (B..E) removes the salt and pepper between neighbouring palette cells; E's hue lock
+   removes the remaining dark red / green fringe of the first levels (D shows a faint red rim, E does not).
+4. **Every other row** shows as 2-pixel steps along the curtain base and the horizon; D / E (every row) are the
+   smoothest, at twice C's data. The cart's 3 MB window holds D (cart 1.5 MB) with room.
+
+My pick for Matt: **E** if 1.3 MB is acceptable, else **C** (0.69 MB) with a visible but small edge step.
+The A-vs-the-rest data are from my crops; the final judgement is Matt's, on the board.
+
+Star detector (all variants): stars are found only between `bandTop` and `bandBot` percent of the height (the lab's
+two sliders, defaults 0 and 70), because the green airglow near the treeline produced false stars; and a star is
+painted out by a horizontal + vertical linear interpolation of the ring (`aurora_photo.inpaint`) instead of a flat
+3x3 fill, so a star in a gradient leaves no rectangle. 214 stars remain (237 before the band).
+
+Fade in: `fadeInSky` (default 0.8 s) ramps TC_FADE from 31 (black) to 0 at the start, the star plane's palette in
+step (the same baked coefficient). The beats are unchanged: the stars alone second still starts at 0 and the aurora
+at 1.0 s, so the 0.8 s fade-in ends before the aurora and nothing overlaps; the end fade is 0.6 s. Cart 161 (A)
+has no fade-in (its star records predate it).
 
 ## Fidelity to the lab, and deviations
 

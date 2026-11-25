@@ -9,22 +9,24 @@
 //   stars     at the probed records every baked star pixel is lit on plane 1 (8-bit, over the TC plane)
 //   flight    plane 1 changes every frame while the stars fly; the wire (palette entry 16) is absent before the
 //             falcon forms and present at the hold; the name (entry 17) only from its beat
-//   fade      TC_FADE is 0 until the end and 31 at the last record; the composed picture is black from then on
+//   fade      TC_FADE starts at 31 (black) and falls to 0 over the fade-in (the sky fades in), stays 0, and is 31 at the last record; the composed picture is black from then on
 //   end       the cart asks to leave (pollCartRequest -1) from the last frame, never before
 //   sound     ONE sample op (zg.samplePlay) at frame 0: signed 8-bit at the baked rate, the bytes the baker wrote
 //             (md5), not looped, never stopped: it lasts as long as the picture (a frame of slack)
 //   replay    a key restarts: the sky is back at once, the sample is stopped and started again
 //   node apps/harness/aurora_boot_check.mjs [cart.wasm]
 //   node apps/harness/aurora_boot_check.mjs --break   each mutant must be caught by the checks
+//   node apps/harness/aurora_boot_check.mjs --variant=c   the variant cart aurora_boot_c against its own reference (b, c, d, e)
 // The pins are the baker's own reference file: a re-bake rewrites it, nothing here is hand-copied.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128, REG_FB_BASE = 0x44, REG_TC_FADE = 0x0C, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7;
-const DIR = "apps/zig/assets/screens/aurora_boot/";
+const VARIANT = process.argv.find((a) => a.startsWith("--variant="))?.slice(10) ?? ""; // b..e: the cart aurora_boot_<v>
+const DIR = `apps/zig/assets/screens/aurora_boot${VARIANT && "_" + VARIANT}/`;
 const BROKE = process.argv.includes("--break");
-const [cart = "site/carts/demo-aurora_boot.wasm"] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const [cart = `site/carts/demo-aurora_boot${VARIANT && "_" + VARIANT}.wasm`] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const ref = JSON.parse(await readFile(DIR + "aurora_ref.json", "utf8"));
 const metaSrc = await readFile(DIR + "aurora_meta.zig", "utf8");
 const meta = Object.fromEntries([...metaSrc.matchAll(/pub const (\w+): (?:u32|i32) = (\d+);/g)].map((m) => [m[1], +m[2]]));
@@ -143,9 +145,17 @@ function checks({ shots, replay }) {
     need(count(at(shots, 100).st, 16) === 0, "wire: lines drawn before the falcon forms");
     need(count(at(shots, 400).st, 16) > 150, `wire: only ${count(at(shots, 400).st, 16)} line pixels at the hold`);
     need(count(at(shots, 200).st, 17) === 0 && count(at(shots, 400).st, 17) > 500, "word: the name is not lit only from its beat");
-    for (let k = 0; k < LAST; k++) { need(at(shots, k).fade === 0 || k > LAST - 40, `fade: TC_FADE ${at(shots, k).fade} at frame ${k}`); if (bad.length > 20) break; }
+    // The sky fades in from black (ref.fade_in_frames 60 Hz frames; a set baked before the fade-in has none), is 0 until the end fade.
+    const fin = ref.fade_in_frames ?? 0;
+    if (fin > 0) {
+        need(at(shots, 0).fade >= 30, `fade-in: TC_FADE ${at(shots, 0).fade} at frame 0 (31 = black expected)`);
+        need(at(shots, Math.floor(fin / 2)).fade > 5 && at(shots, Math.floor(fin / 2)).fade < 26, `fade-in: TC_FADE ${at(shots, Math.floor(fin / 2)).fade} halfway (a ramp expected)`);
+        for (let k = 1; k < fin; k++) need(at(shots, k).fade <= at(shots, k - 1).fade, `fade-in: TC_FADE rises at frame ${k}`);
+    }
+    for (let k = fin + 1; k < LAST - 40; k++) { need(at(shots, k).fade === 0, `fade: TC_FADE ${at(shots, k).fade} at frame ${k} (0 from the end of the fade-in)`); if (bad.length > 20) break; }
     need(at(shots, LAST).fade === 31, `fade: ${at(shots, LAST).fade} at the last frame (31 expected)`);
-    need(at(shots, 30).lit > 20000 && at(shots, 400).lit > 20000, "picture: the sky is not lit");
+    need(at(shots, 90).lit > 20000 && at(shots, 400).lit > 20000, "picture: the sky is not lit");
+    if (fin > 0) need(at(shots, 0).lit < 2000, `fade-in: ${at(shots, 0).lit} lit pixels at frame 0 (black expected)`);
     for (let k = LAST; k < FRAMES; k++) need(at(shots, k).lit === 0, `black end: frame ${k} is not black`);
     const asked = shots.findIndex((s) => s.req === -1);
     need(asked === LAST && shots.slice(asked).every((s) => s.req === -1), `end: asks to leave from frame ${asked} (${LAST} expected, then every frame)`);
