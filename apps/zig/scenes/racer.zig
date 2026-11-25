@@ -6,7 +6,7 @@
 // transformed, clipped, bucket-sorted far to near and filled flat. docs/ports/kestrel_racing/.
 //
 //   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
-//   g the vertex transform in f32   d decals on / off   t oval / stress city   p pause   o the benchmark OSD
+//   g the vertex transform in f32   d decals on / off   t oval / stress city / Salt Flats (M5)   p pause   o the benchmark OSD
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)

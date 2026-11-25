@@ -24,6 +24,7 @@ FLAG_DUAL, FLAG_QUAD, FLAG_ASPHALT, FLAG_INNER, FLAG_GROUND = 1, 2, 4, 8, 16
 GROUND_KINDS = ("track", "ground")
 KINDS = GROUND_KINDS + ("wall", "prop")
 PLANAR_EPS = 0.12
+DECAL_TOL = 0.02  # units a decal vertex may sit outside its parent (grid rounding)
 
 Vec = tuple[float, float, float]
 Doc = dict[str, Any]
@@ -65,6 +66,18 @@ def interior(p: list[Vec], at: Vec, slack: float = 0.0) -> bool:
     prev = p[-1]
     for cur in p:
         if (prev[2] - cur[2]) * (at[0] - prev[0]) + (cur[0] - prev[0]) * (at[2] - prev[2]) < -slack:
+            return False
+        prev = cur
+    return True
+
+
+def inside_by(p: list[Vec], at: Vec, tol: float) -> bool:
+    """`interior` with the slack as a DISTANCE (units) from each edge: a decal vertex rounded onto the 1/128 grid just
+    across its parent's edge (by up to ~0.006 units) still counts, whatever the edge's length."""
+    prev = p[-1]
+    for cur in p:
+        e = (prev[2] - cur[2]) * (at[0] - prev[0]) + (cur[0] - prev[0]) * (at[2] - prev[2])
+        if e < -tol * math.hypot(cur[0] - prev[0], cur[2] - prev[2]):
             return False
         prev = cur
     return True
