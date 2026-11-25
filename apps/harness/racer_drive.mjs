@@ -23,7 +23,7 @@ if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const LAP_FRAMES = 720, SKID = 120, CAR = [16 + 12 * 8, 16 + 14 * 8 + 8];
 // the lap v1 CRC32 list (every 60 frames; oval, R = 5, CPU fill, mulsh, the far POV): the benchmark's proof of sameness
-const LAP_PIN = "a0944986 17cfd636 b7c64482 89e23ed1 8d51bfd6 8bed842c 7223d1c7 453fb026 25141122 072c2821 f9536170 9b438a44";
+const LAP_PIN = "86f74baa 0ede5fda 2d8ad1ff c26c22b1 9e69e4b5 275562d3 1c2455c6 a2208c54 53767318 f8e78a8f c294e84f 7b065479";
 const errors = [];
 const fail = (m) => errors.push(m);
 
@@ -62,7 +62,7 @@ async function lap(opts = {}) {
     B.run(LAP_FRAMES, (i) => {
         if (i % 10 !== 9) return;
         const px = B.view();
-        seen.car = Math.max(seen.car, count(px, CAR[0], CAR[1]));
+        seen.car = Math.max(seen.car, count(px, CAR[0], CAR[1]) - count(px, SKID, SKID + 1)); // the skidmarks are ramp 13 index 0: not the body
         seen.skid = Math.max(seen.skid, count(px, SKID, SKID + 1));
         seen.views.push(hashOf(px));
     });

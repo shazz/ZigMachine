@@ -25,20 +25,21 @@ pub const SKID_COLOUR: u8 = 16 + RAMP_DARK * 8 + 0;
 
 /// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start.
 pub const WHEELS = [4][3]i32{
-    .{ -19660, 0, 26214 }, // left front
-    .{ 19660, 0, 26214 }, // right front
-    .{ -19660, 0, -26214 }, // left rear
-    .{ 19660, 0, -26214 }, // right rear
+    .{ -9830, 0, 13107 }, // left front
+    .{ 9830, 0, 13107 }, // right front
+    .{ -9830, 0, -13107 }, // left rear
+    .{ 9830, 0, -13107 }, // right rear
 };
 
 const Box = struct { lo: [3]i16, hi: [3]i16, ramp: u8 };
+// Half the size M2 gave it: freds72's car is 0.24 wide on a 6-unit road (Q7: ~31 wide, 41 long, 23 high); ours was 0.47 x 0.9 x 0.36.
 const BOXES = [_]Box{
-    .{ .lo = .{ -30, 8, -58 }, .hi = .{ 30, 30, 58 }, .ramp = RAMP_BODY },
-    .{ .lo = .{ -22, 30, -28 }, .hi = .{ 22, 46, 22 }, .ramp = RAMP_GLASS },
-    .{ .lo = .{ -40, 0, 41 }, .hi = .{ -30, 18, 61 }, .ramp = RAMP_DARK },
-    .{ .lo = .{ 30, 0, 41 }, .hi = .{ 40, 18, 61 }, .ramp = RAMP_DARK },
-    .{ .lo = .{ -40, 0, -61 }, .hi = .{ -30, 18, -41 }, .ramp = RAMP_DARK },
-    .{ .lo = .{ 30, 0, -61 }, .hi = .{ 40, 18, -41 }, .ramp = RAMP_DARK },
+    .{ .lo = .{ -15, 4, -29 }, .hi = .{ 15, 15, 29 }, .ramp = RAMP_BODY },
+    .{ .lo = .{ -11, 15, -14 }, .hi = .{ 11, 23, 11 }, .ramp = RAMP_GLASS },
+    .{ .lo = .{ -20, 0, 20 }, .hi = .{ -15, 9, 30 }, .ramp = RAMP_DARK },
+    .{ .lo = .{ 15, 0, 20 }, .hi = .{ 20, 9, 30 }, .ramp = RAMP_DARK },
+    .{ .lo = .{ -20, 0, -30 }, .hi = .{ -15, 9, -20 }, .ramp = RAMP_DARK },
+    .{ .lo = .{ 15, 0, -30 }, .hi = .{ 20, 9, -20 }, .ramp = RAMP_DARK },
 };
 
 /// A box face: the axis, the side, and its corners as (x, y, z) picks of lo (0) or hi (1).
