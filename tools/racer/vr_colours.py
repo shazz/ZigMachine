@@ -12,7 +12,8 @@ Two tone tables, one per PICO-8 index (TONES picks one):
 - ARCADE (the default): OUR calibration, not ripped data. PICO-8's 16 colours are a coarse stand-in for the Mega Drive's
   (his exporter folds Genesis "7" and "8" into 6, and puts the road's darker panel, Genesis "9", on 13, far darker), so this
   table maps each index to the tone of the same surface sampled from two arcade screenshots (road panels ~90-116 grey,
-  grass greens, sand and beige rock, dark trees). Change TONES to PICO to see his palette.
+  grass greens, dark trees; the banks and rock, indices 4 and 9, keep his luma order and spacing, darker: one PICO-8 index
+  stands for two Genesis colours there). Change TONES to PICO to see his palette.
 """
 
 from __future__ import annotations
@@ -25,12 +26,12 @@ PICO = ["000000", "1D2B53", "7E2553", "008751", "AB5236", "5F574F", "C2C3C7", "F
 ARCADE = {  # PICO index -> the arcade tone (Genesis colour per blender_export_track.py, then the screenshot surface)
     0: (0, 0, 0), 1: (24, 48, 120), 2: (126, 37, 83),
     3: (34, 88, 12),     # Genesis "a" dark green: the darker grass band
-    4: (176, 150, 110),  # "d" light yellow and "f" brown: the beige rock faces
+    4: (104, 78, 48),    # "d" light yellow and "f" brown: banks and rock, kept in his luma order (below the light grass)
     5: (70, 70, 72),     # "6" dark grey
     6: (112, 112, 114),  # "7" / "8" light greys: the road's lighter panel
-    7: (214, 214, 214),  # "2" white: lane lines, the light verge
+    7: (200, 200, 200),  # "2" white: lane lines, the light verge
     8: (206, 32, 32),    # "3" red
-    9: (228, 178, 112),  # "e" dark yellow: sand
+    9: (176, 116, 48),   # "e" dark yellow: sand, ochre banks
     10: (232, 204, 64),  # "5" yellow
     11: (70, 132, 12),   # "b" light green: the lighter grass band
     12: (32, 110, 228),  # "4" dark blue

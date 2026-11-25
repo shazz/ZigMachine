@@ -81,17 +81,25 @@ colours, no dither, mid-tone, low contrast between the alternating faces. What t
 The importer now gives each face ONE solid colour: the average of its dither pair (his fill pattern `0xa5a5` is a 50 % checkerboard,
 so the average is what it reads as), each nibble taken through a tone table, unlit (palette level 7 = the stored RGB; the far
 ground too, as his `rectfill`). `TONES = "ARCADE"` (default) is **our calibration, not ripped data**: per PICO-8 index, the tone of
-the same surface sampled from two arcade screenshots (road 112 / 92 grey, grass greens, sand, beige rock, dark trees); `TONES = "PICO"`
+the same surface sampled from two arcade screenshots (road panels 112 / 92 grey, grass greens, dark trees), the banks and rock
+(indices 4 and 9: one PICO-8 index stands for two Genesis colours there) kept in his luma ORDER and spacing, darker; `TONES = "PICO"`
 is his palette decoded right, to compare. A track with more colour bytes than the 23 free ramps puts the rest on the nearest
 (ramp, level) shade (`vr_report.txt` lists them and the error: 2-4 rarely used bytes a track).
 
-| luma, edge-adjacent ground faces of different bytes (median) | his PICO-8 | before | after |
-|---|---|---|---|
-| road panel on road panel, VR1 / VR2 / VR3 | 35 / 35 / 35 | 31 / 31 / 31 | 10 / 10 / 10 |
-| any pair, VR1 / VR3 | 34 / 38 | 31 / 34 | 18 / 19 |
-| same byte, max | 0 | 18-22 | 0 |
+Measured over every pair of edge-adjacent faces (props included) with different colour bytes, |luma difference|, median:
 
-(VR2's "any pair" median rises, 53 -> 74: its white verge next to the now mid-grey road, as in the arcade's light verge beside a dark road.)
+| | his PICO-8 | before | after |
+|---|---|---|---|
+| road panel on road panel (`66`/`6d`/`dd`), every track | 35 | 31 | 10 |
+| VR1 banks `44`/`49` (337 pairs), `49`/`99` | 33, 34 | | 22, 22 |
+| grass bands `33`/`3b`, `3b`/`bb` | 25, 26 | | 18, 18 |
+| any pair, VR1 / VR2 / VR3 | 33 / 42 / 53 | 30 / 34 / 37 | 21 / 31 / 31 |
+| two faces of the SAME byte, max | 0 | 18-22 | 0 |
+| face-weighted mean luma, VR1 / VR2 / VR3 | 134 / 161 / 154 | 116 / 146 / 127 | 97 / 113 / 103 |
+
+Every alternation is now closer than in his palette; the pairs that grow are boundaries, not alternations (the light verge `77`
+beside the now mid-grey road: 49 -> 88, as the arcade's ~200 verge beside its ~90 road). Arcade samples for reference: road
+107 / 116 (Big Forest), 90 / 66 (Acropolis), verge 198-202, grass (76,138,0) and darker (34,90,1), trees (0,49,2), sky (0,49,247).
 
 **Debug key `i`** (Matt wants to compare on the board): the import stores two more shades per face in the record's last word
 (`trk.Face.alt`, 0 on every committed track and the cars, so nothing else changes): FLAT (default) = the colour as stored; LIT = the
