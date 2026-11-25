@@ -22,7 +22,7 @@ const racehud = @import("racehud.zig");
 const session = @import("session.zig");
 const standings = @import("standings.zig");
 
-const TRACKS = [_][]const u8{ "OVAL", "CITY" };
+const TRACKS = @import("trackset.zig").NAMES;
 
 pub fn mulName() []const u8 {
     return if (fx.use_f32) "F32" else if (fx.use_zmx) "MULSH" else "PLAIN";

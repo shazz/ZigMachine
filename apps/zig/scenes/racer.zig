@@ -28,7 +28,6 @@ const game = @import("racer/game.zig");
 const keys = @import("racer/keys.zig");
 const audio = @import("racer/audio.zig");
 const Hud = @import("racer/hud.zig").Hud;
-const data = @import("racer/data.zig");
 const minimap = @import("racer/minimap.zig");
 const palette = @import("racer/palette.zig");
 const present = @import("racer/present.zig");
@@ -36,15 +35,14 @@ const report = @import("racer/report.zig");
 const setup = @import("racer/setup.zig");
 const sinks = @import("racer/sinks.zig");
 const trk = @import("racer/trk.zig");
+const ts = @import("racer/trackset.zig");
 const xf = @import("racer/xform.zig");
 
 extern fn hostMicros() u32;
-const BLOBS = [_][]align(4) const u8{ data.oval, data.city };
 // Draw distance (tiles). 8 by default (Matt, 24 Nov: it avoids the far-view cut; the oval holds 60 fps there on the board).
 // The benchmark laps (b, x) pin 5, as every earlier CRC list and board number was taken, whatever the default is.
 pub const PLAY_R: u32 = 8;
 pub const BENCH_R: u32 = 5;
-const GROUND_RAMP = [_]usize{ 1, 8 }; // the ramp the ground beyond R takes: grass, plaza
 
 var sky_tbl: [2][1]zg.copper.Table = undefined;
 
@@ -53,7 +51,7 @@ fn micros() u32 {
 }
 pub const Demo = struct {
     os: *zg.ZigOS = undefined,
-    tracks: [2]trk.Track = undefined,
+    tracks: [ts.NT]trk.Track = undefined,
     which: usize = 0,
     f: frame.Frame = undefined,
     drive: drive.Drive = undefined,
@@ -81,10 +79,8 @@ pub const Demo = struct {
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
-        for (BLOBS, 0..) |b, i| self.tracks[i] = trk.parse(b) catch |e| @panic(@errorName(e));
-        const nv = @max(self.tracks[0].verts.len, self.tracks[1].verts.len);
-        const nf = @max(self.tracks[0].faces.len, self.tracks[1].faces.len);
-        self.f = setup.frameFor(nv, nf);
+        const most = ts.parseAll(&self.tracks);
+        self.f = setup.frameFor(most[0], most[1]);
         self.caches = .{ setup.carCache(), setup.skidCache() };
         self.drive = drive.Drive.init(&self.tracks[0]);
         self.drive.now = micros;
@@ -93,14 +89,14 @@ pub const Demo = struct {
         self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK) } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
-            palette.install(fb, &self.tracks[0], GROUND_RAMP[0]);
+            palette.install(fb, &self.tracks[0], ts.groundRamp(0));
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
             palette.skyFill(zg.copper.visible(fb, 0));
             fb.is_enabled = p == 0;
         }
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);
-        zg.Console.log("racer: oval {} faces, city {} faces, cart RAM free {} KB", .{ self.tracks[0].faces.len, self.tracks[1].faces.len, zg.mem.free() / 1024 });
+        zg.Console.log("racer: oval {} faces, {s} {} faces, cart RAM free {} KB", .{ self.tracks[0].faces.len, ts.NAMES[1], self.tracks[1].faces.len, zg.mem.free() / 1024 });
     }
 
     pub fn ownsKeyboard(self: *Demo) u32 {
@@ -123,9 +119,9 @@ pub const Demo = struct {
         self.game.press(dir, false);
     }
 
-    /// Driving needs the oval (the physics fixtures and the car's grid are its).
+    /// Driving needs a racing line: the oval (lap v1's stream is its) or a local VR track, never the city.
     pub fn setDrive(self: *Demo, m: drive.Mode) void {
-        if (m != .off and self.which != 0) self.setTrack(0);
+        if (m != .off and ts.needsOval(self.which, m == .bench) and self.which != 0) self.setTrack(0);
         self.pose = null;
         self.game.setMode(.off);
         self.drive.setMode(m);
@@ -134,9 +130,9 @@ pub const Demo = struct {
         self.bench.resetLap();
     }
 
-    /// The race (M3), likewise on the oval; it replaces driving.
+    /// The race (M3), likewise; it replaces driving.
     pub fn setGame(self: *Demo, m: game.Mode) void {
-        if (m != .off and self.which != 0) self.setTrack(0);
+        if (m != .off and ts.needsOval(self.which, false) and self.which != 0) self.setTrack(0);
         self.pose = null;
         self.drive.setMode(.off);
         self.game.setMode(m);
@@ -151,7 +147,9 @@ pub const Demo = struct {
         self.f.seen_stamp = 0;
         @memset(self.f.seen, 0);
         for (self.f.cache.e) |*e| e.stamp = 0;
-        for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], GROUND_RAMP[w]);
+        for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], ts.groundRamp(w));
+        ts.bind(self, w, micros);
+        self.r = self.play_r;
     }
 
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {

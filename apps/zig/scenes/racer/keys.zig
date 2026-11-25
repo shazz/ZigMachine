@@ -9,6 +9,7 @@ const fx = @import("fx.zig");
 const audio = @import("audio.zig");
 const npc = @import("npc.zig");
 const poly = @import("poly.zig");
+const ts = @import("trackset.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     switch (cp) {
@@ -24,7 +25,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'o' => self.osd = !self.osd,
         'u' => self.uncapped = !self.uncapped,
         'c' => self.rep.crc_on = !self.rep.crc_on,
-        't' => self.setTrack(1 - self.which),
+        't' => self.setTrack((self.which + 1) % ts.NT),
         'p', ' ' => self.paused = !self.paused,
         'l' => self.setDrive(.off),
         'n' => self.setDrive(if (self.drive.mode == .drive) .off else .drive),
