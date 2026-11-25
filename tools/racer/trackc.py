@@ -45,15 +45,16 @@ class ConvertError(ValueError):
     """The document cannot become a cart track."""
 
 
-def colour(mat: str, n: ktrk.Vec) -> int:
+def colour(mat: str, n: ktrk.Vec, mats: dict | None = None) -> int:
     """Palette index 16 + ramp * 8 + a light level baked from n . L (0..7)."""
-    if mat not in MATERIALS:
+    mats = mats or MATERIALS
+    if mat not in mats:
         raise ConvertError(f"material {mat!r} has no palette ramp")
     lam = max(0.0, ktrk.dot(n, ktrk.unit(LIGHT)))
-    return 16 + MATERIALS[mat][0] * 8 + min(7, int((0.25 + 0.75 * lam) * 8))
+    return 16 + mats[mat][0] * 8 + min(7, int((0.25 + 0.75 * lam) * 8))
 
 
-def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], borders: int = 0) -> bytes:
+def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], borders: int = 0, mats: dict | None = None) -> bytes:
     ids = face["v"]
     p = ktrk.pts(doc, ids)
     n = ktrk.normal(p)
@@ -61,7 +62,7 @@ def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], bor
     v0 = doc["vertices"][ids[0]]
     cp = sum(n14[i] * v0[i] for i in range(3))
     v = (ids + [ids[-1]] * 4)[:4]
-    return struct.pack("<4HBBBB3hHiII", *v, flags, len(ids), colour(mat, n), inner[1], *n14, borders, cp, inner[0], 0)
+    return struct.pack("<4HBBBB3hHiII", *v, flags, len(ids), colour(mat, n, mats), inner[1], *n14, borders, cp, inner[0], 0)
 
 
 def _border_mask(face: Doc) -> int:
@@ -71,14 +72,14 @@ def _border_mask(face: Doc) -> int:
     return sum(1 << e for e in edges)
 
 
-def _faces(doc: Doc) -> tuple[bytes, bytes]:
+def _faces(doc: Doc, mats: dict | None = None) -> tuple[bytes, bytes]:
     top, inner = [], []
     for f in doc["faces"]:
         sub = f.get("inner", [])
         flags = ktrk.face_flags(f) & 0x1F
-        top.append(_face(doc, f, f["mat"], flags, (len(inner), len(sub)), _border_mask(f)))
+        top.append(_face(doc, f, f["mat"], flags, (len(inner), len(sub)), _border_mask(f), mats))
         for i in sub:
-            inner.append(_face(doc, i, i["mat"], flags | 0x20, (0, 0)))
+            inner.append(_face(doc, i, i["mat"], flags | 0x20, (0, 0), 0, mats))
     return b"".join(top), b"".join(inner)
 
 
@@ -123,13 +124,15 @@ def _camera_tiles(line_tiles: list[tuple[int, int]]) -> list[int]:
     return sorted(out)
 
 
-def convert(doc: Doc) -> bytes:
-    errs = ktrk_check.validate(doc)
+def convert(doc: Doc, mats: dict | None = None, validate: bool = True) -> bytes:
+    """`mats` (name -> (ramp, rgb)) replaces the committed tracks' palette; `validate=False` is the local VR import's."""
+    mats = mats or MATERIALS
+    errs = ktrk_check.validate(doc) if validate else []
     if errs:
         raise ConvertError("; ".join(errs[:5]))
-    pal = b"".join(bytes(rgb) + b"\0" for _, rgb in sorted(MATERIALS.values()))
+    pal = b"".join(bytes(rgb) + b"\0" for _, rgb in sorted(mats.values()))
     verts = _pad(b"".join(struct.pack("<3h", *v) for v in doc["vertices"]))
-    faces, inner = _faces(doc)
+    faces, inner = _faces(doc, mats)
     tfirst, tlists, full = _tiles(doc)
     dirs = pvs_bake.ray_dirs()
     rays = struct.pack("<%dh" % (16 * 33 * 2), *[c for row in dirs for d in row for c in d])
@@ -146,7 +149,7 @@ def convert(doc: Doc) -> bytes:
         at += len(b)
     name = doc["name"].encode()[:24].ljust(24, b"\0")
     words = [MAGIC, VERSION, 0, at, len(doc["vertices"]), len(doc["faces"]), sum(len(f.get("inner", [])) for f in doc["faces"]),
-             len(doc["racing_line"]), len(doc["start_grid"]), NRAMPS, pvs_bake.R_BAKE, len(doc["checkpoints"])] + offs
+             len(doc["racing_line"]), len(doc["start_grid"]), len(mats), pvs_bake.R_BAKE, len(doc["checkpoints"])] + offs
     head = struct.pack(f"<{len(words)}I", *words) + b"\0" * (HEADER - 24 - 4 * len(words)) + name
     body = b"".join(blocks)
     crc = zlib.crc32(body)

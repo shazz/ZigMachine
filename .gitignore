@@ -51,3 +51,6 @@ apps/ports/*/*/build/
 site/carts/.sdk/
 site/carts/demo-hello.wasm
 site/carts/demo-hello.zmd
+
+# LOCAL ONLY (never commit): the real Virtua Racing tracks for benchmarking (tools/racer/vr_import.py, -Dracer_vr=true)
+apps/zig/assets/screens/racer_vr/

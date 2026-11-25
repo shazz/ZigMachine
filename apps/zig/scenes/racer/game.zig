@@ -42,6 +42,7 @@ pub const Game = struct {
     pov_frames: u32 = pov.FRAMES,
     held: u8 = 0,
     auto: bool = false, // the player follows the recorded stream
+    pilot: bool = false, // ... or, on a local VR track (no stream), the AI's controller flies the player
     warp: bool = false,
     frames: u32 = 0,
     prev: [N]Snap = undefined,
@@ -148,6 +149,7 @@ pub const Game = struct {
 
     fn tick(self: *Game) void {
         self.prev = self.cur;
+        self.s.race.pilot = self.pilot and self.auto;
         self.s.tick(self.buttons());
         self.snap();
         const st = self.s.fsm.state;

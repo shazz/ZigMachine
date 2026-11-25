@@ -9,11 +9,15 @@ const fx = @import("fx.zig");
 const audio = @import("audio.zig");
 const npc = @import("npc.zig");
 const poly = @import("poly.zig");
+const ts = @import("trackset.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     switch (cp) {
         0xE012 => self.wants_quit = true,
-        '3'...'8' => self.r = cp - '0',
+        '3'...'8' => {
+            self.r = cp - '0';
+            if (self.drive.mode != .bench and self.game.mode != .bench) self.play_r = self.r; // a bench lap's knob is its own
+        },
         'f' => self.p.cpu_fill = !self.p.cpu_fill,
         'm' => fx.use_zmx = !fx.use_zmx,
         'g' => fx.use_f32 = !fx.use_f32,
@@ -21,7 +25,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'o' => self.osd = !self.osd,
         'u' => self.uncapped = !self.uncapped,
         'c' => self.rep.crc_on = !self.rep.crc_on,
-        't' => self.setTrack(1 - self.which),
+        't' => self.setTrack((self.which + 1) % ts.NT),
         'p', ' ' => self.paused = !self.paused,
         'l' => self.setDrive(.off),
         'n' => self.setDrive(if (self.drive.mode == .drive) .off else .drive),

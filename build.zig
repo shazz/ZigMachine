@@ -44,6 +44,9 @@ pub fn build(b: *std.Build) void {
     // RACER's LOCAL test tunes (apps/zig/scenes/racer/music.zig): Matt's own Virtua Racing VGM rips, never committed. Off by
     // default: the cart then holds no song name and asks for no song (docs/ports/kestrel_racing/M3.md).
     const racer_music = b.option(bool, "racer_music", "RACER: ask for the local racer_*.vgz tunes (site/music/, gitignored; never ship that cart).") orelse false;
+    // RACER's LOCAL real-track benchmark (apps/zig/scenes/racer/vr.zig): freds72's decoded Virtua Racing tracks (Sega-derived),
+    // imported by tools/racer/vr_import.py into the git-ignored apps/zig/assets/screens/racer_vr/. Never commit, never ship.
+    const racer_vr = b.option(bool, "racer_vr", "RACER: add the 3 local Virtua Racing tracks (apps/zig/assets/screens/racer_vr/, gitignored; never ship that cart).") orelse false;
     const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
 
     if (!build_wasm) return;
@@ -696,6 +699,7 @@ pub fn build(b: *std.Build) void {
         const cart_opts = b.addOptions();
         cart_opts.addOption(usize, "index", idx);
         cart_opts.addOption(bool, "racer_music", racer_music);
+        cart_opts.addOption(bool, "racer_vr", racer_vr);
         const cart_mod = b.createModule(.{
             .root_source_file = b.path("apps/zig/cart.zig"),
             .target = wasm_target,
