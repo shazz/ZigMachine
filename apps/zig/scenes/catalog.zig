@@ -146,6 +146,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "TRANSMISSION64", .tag = "c64_transmission64" }, // c64 — Padua's invitation to Transmission64 2021 (code Anonym, Dano, Doomed, Hoogo), ported from the depacked original
     .{ .name = "ERFURT MEGADEMO", .tag = "erfurt_menu" }, // atari st — the Atari Scene Collective megademo's menu (2026), ported from the original (protected) disks
     .{ .name = "SB SPIKE", .tag = "sb_spike" }, // unknown — PSP: The Black Lotus's Suicide Barbie (2007, MIT): the mix3 scene, the port's feasibility spike (textured triangles a frame)
+    .{ .name = "BAD APPLE!!", .tag = "badapple" }, // zigmachine — R89: a 1-bit film as row-transition span edits, ZX0 blocks off the disk (the shelf disk holds our synthetic test film; the real film + song are a local build)
     .{ .name = "RACER", .tag = "racer" }, // zigmachine — Kestrel Racing M1 (R82): an original flat-shaded racer renderer spike on freds72's MIT engine (PICO-8), benchmark lap v0
     .{ .name = "AURORA BOOT", .tag = "aurora_boot" }, // zigmachine — the new KESTREL boot screen (R89 spike): night sky, baked aurora, stars flying into a wireframe falcon, CC0 pad
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.

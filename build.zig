@@ -47,6 +47,9 @@ pub fn build(b: *std.Build) void {
     // RACER's LOCAL real-track benchmark (apps/zig/scenes/racer/vr.zig): freds72's decoded Virtua Racing tracks (Sega-derived),
     // imported by tools/racer/vr_import.py into the git-ignored apps/zig/assets/screens/racer_vr/. Never commit, never ship.
     const racer_vr = b.option(bool, "racer_vr", "RACER: add the 3 local Virtua Racing tracks (apps/zig/assets/screens/racer_vr/, gitignored; never ship that cart).") orelse false;
+    // BAD APPLE's LOCAL song (apps/zig/scenes/badapple.zig): an XM of unknown licence, git-ignored as
+    // apps/zig/assets/screens/badapple/local.xm, never committed. Off by default: the cart is silent.
+    const badapple_music = b.option(bool, "badapple_music", "BAD APPLE: embed the local song (apps/zig/assets/screens/badapple/local.xm, gitignored; never ship that cart).") orelse false;
     const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
 
     if (!build_wasm) return;
@@ -693,6 +696,11 @@ pub fn build(b: *std.Build) void {
         "", // 159: reserved (the Rift part agents' local carts, other branches)
         "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
         "demo-aurora_boot", // 161 — AURORA BOOT (R89 spike): the new KESTREL boot screen: a night photo, a baked aurora added on the true-colour plane, every star flying into a wireframe falcon, a CC0 pad; all computed offline (tools/boot/aurora_bake.py, docs/boot/AURORA_BOOT.md)
+        "", // 162: reserved (aurora_boot_b, another branch)
+        "", // 163: reserved (aurora_boot_c, another branch)
+        "", // 164: reserved (aurora_boot_d, another branch)
+        "", // 165: reserved (aurora_boot_e, another branch)
+        "demo-badapple", // 166 — BAD APPLE!! (R90): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -700,6 +708,7 @@ pub fn build(b: *std.Build) void {
         cart_opts.addOption(usize, "index", idx);
         cart_opts.addOption(bool, "racer_music", racer_music);
         cart_opts.addOption(bool, "racer_vr", racer_vr);
+        cart_opts.addOption(bool, "badapple_music", badapple_music);
         const cart_mod = b.createModule(.{
             .root_source_file = b.path("apps/zig/cart.zig"),
             .target = wasm_target,

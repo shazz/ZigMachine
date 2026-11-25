@@ -158,6 +158,11 @@ for w in "$OUT"/demo-*.wasm; do
         # STNICCC 2000 streams its polygon data off the disk, 64 KB at a time.
         stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;
+        # BAD APPLE streams its film off the disk, a 1 s ZX0 block at a time. The shelf disk carries OUR synthetic test
+        # film (tools/badapple/synth.py); BADAPPLE_SPANS=<file> packs the real, local-only one instead
+        # (prototypes/cards/build_badapple.sh).
+        badapple)  pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                        --file "SPANS.BIN=${BADAPPLE_SPANS:-apps/zig/assets/screens/badapple/test_spans.bin}" ;;
         # The streaming demo carries the track it block-streams.
         stream)    pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "MICROMIX.RAW=site/music/micromix30.raw" ;;

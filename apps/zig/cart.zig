@@ -147,6 +147,7 @@ const scene = switch (opts.index) {
     140 => @import("scenes/sidwizard_z.zig"), // SID-WIZARD Z: SID-Wizard 1.97's UI in native Zig, its original 6502 player on cpu6502, the SID on BARD
     161 => @import("scenes/aurora_boot.zig"), // AURORA BOOT (R89 spike): night sky, aurora, stars flying into a wireframe falcon; baked offline (docs/boot/AURORA_BOOT.md)
     160 => @import("scenes/racer.zig"), // RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer on freds72's engine, benchmark lap v0
+    166 => @import("scenes/badapple.zig"), // BAD APPLE!! (R89): a 1-bit film as row-transition edits, ZX0 blocks streamed off the disk; the shelf carries our synthetic test film, the real one is local-only
     else => @compileError("bad cart index"),
 };
 

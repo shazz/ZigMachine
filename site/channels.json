@@ -30,6 +30,11 @@
   "type": "atari st"
  },
  {
+  "tag": "badapple",
+  "title": "BAD APPLE!!",
+  "type": "zigmachine"
+ },
+ {
   "tag": "bard_sid",
   "title": "BARD SID",
   "type": "zigmachine"
