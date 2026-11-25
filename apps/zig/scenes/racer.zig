@@ -7,7 +7,7 @@
 //
 //   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
 //   g the vertex transform in f32   d decals on / off   t oval / stress city   p pause   o the benchmark OSD
-//   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose
+//   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
 // M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
@@ -89,7 +89,7 @@ pub const Demo = struct {
         self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK) } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
-            palette.install(fb, &self.tracks[0], ts.groundRamp(0));
+            palette.install(fb, &self.tracks[0], ts.groundRamp(0), ts.groundLevel(0));
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
             palette.skyFill(zg.copper.visible(fb, 0));
             fb.is_enabled = p == 0;
@@ -147,7 +147,7 @@ pub const Demo = struct {
         self.f.seen_stamp = 0;
         @memset(self.f.seen, 0);
         for (self.f.cache.e) |*e| e.stamp = 0;
-        for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], ts.groundRamp(w));
+        for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], ts.groundRamp(w), ts.groundLevel(w));
         ts.bind(self, w, micros);
         self.r = self.play_r;
     }

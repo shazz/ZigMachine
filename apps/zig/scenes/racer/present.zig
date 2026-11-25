@@ -17,6 +17,7 @@ const cam = @import("cam.zig");
 const drive = @import("drive.zig");
 const fx = @import("fx.zig");
 const game = @import("game.zig");
+const project = @import("project.zig");
 const race = @import("race.zig");
 const racehud = @import("racehud.zig");
 const session = @import("session.zig");
@@ -56,7 +57,7 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     var b1: [48]u8 = undefined;
     const racing = d.game.mode != .off and d.pose == null;
     d.hud.draw(zigos, fb, d.back, .{
-        .track = TRACKS[d.which], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
+        .track = TRACKS[d.which], .shade = project.TAGS[project.shade], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
         .pov = povName(d), .polys = c.polys, .spans = c.spans, .osd = d.osd,
         .uncapped = d.uncapped, .avg_us = d.bench.avg_us, .fps10 = d.bench.fps10, .stage_us = d.bench.stage_us,
         .line0 = if (racing) racehud.top(&b0, &d.game) else null,

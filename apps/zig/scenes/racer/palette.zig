@@ -24,7 +24,8 @@ fn put(fb: *zg.LogicalFB, i: usize, r: u8, g: u8, b: u8) void {
     fb.palette[i] = zg.linepal.rgb(r, g, b);
 }
 
-pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_ramp: usize) void {
+/// `ground_level`: the far ground's light (4, darker than the near grass, on our tracks; a VR track's flat faces: 7, his rectfill).
+pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_ramp: usize, ground_level: u32) void {
     for (0..256) |i| put(fb, i, 0, 0, 0);
     put(fb, SKY, 90, 140, 220);
     put(fb, PAPER, 0, 0, 0);
@@ -39,7 +40,7 @@ pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_ramp: usize) void 
         for (0..8) |l| put(fb, 16 + (carmodel.RAMP_LIVERY + k) * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
     }
     const g = t.palette[ground_ramp];
-    put(fb, GROUND, lit(g[0], 4), lit(g[1], 4), lit(g[2], 4));
+    put(fb, GROUND, lit(g[0], ground_level), lit(g[1], ground_level), lit(g[2], ground_level));
 }
 
 /// The sky's colour on each visible row: dusk blue at the top to a pale horizon at row 100.
