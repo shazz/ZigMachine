@@ -44,6 +44,9 @@ pub fn build(b: *std.Build) void {
     // RACER's LOCAL test tunes (apps/zig/scenes/racer/music.zig): Matt's own Virtua Racing VGM rips, never committed. Off by
     // default: the cart then holds no song name and asks for no song (docs/ports/kestrel_racing/M3.md).
     const racer_music = b.option(bool, "racer_music", "RACER: ask for the local racer_*.vgz tunes (site/music/, gitignored; never ship that cart).") orelse false;
+    // BAD APPLE's LOCAL song (apps/zig/scenes/badapple.zig): an XM of unknown licence, git-ignored as
+    // apps/zig/assets/screens/badapple/local.xm, never committed. Off by default: the cart is silent.
+    const badapple_music = b.option(bool, "badapple_music", "BAD APPLE: embed the local song (apps/zig/assets/screens/badapple/local.xm, gitignored; never ship that cart).") orelse false;
     const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
 
     if (!build_wasm) return;
@@ -689,12 +692,15 @@ pub fn build(b: *std.Build) void {
         "", // 158: reserved (the Rift part agents' local carts, other branches)
         "", // 159: reserved (the Rift part agents' local carts, other branches)
         "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
+        "", // 161: reserved (AURORA BOOT, another branch)
+        "demo-badapple", // 162 — BAD APPLE!! (R89): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
         const cart_opts = b.addOptions();
         cart_opts.addOption(usize, "index", idx);
         cart_opts.addOption(bool, "racer_music", racer_music);
+        cart_opts.addOption(bool, "badapple_music", badapple_music);
         const cart_mod = b.createModule(.{
             .root_source_file = b.path("apps/zig/cart.zig"),
             .target = wasm_target,

@@ -84,4 +84,5 @@ test {
     _ = @import("scenes/dune_gen4/hades/scroll.zig");
     _ = @import("scenes/naos_nitrowave/planar.zig");
     _ = @import("scenes/tcb_colorshock/inkpal_test.zig");
+    _ = @import("scenes/badapple/decoder_test.zig");
 }
