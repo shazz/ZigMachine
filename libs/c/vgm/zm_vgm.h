@@ -40,4 +40,31 @@ void zm_vgm_seek(uint32_t tenths);
 /* How many times the file has looped (0 in its first pass). */
 uint32_t zm_vgm_loops(void);
 
+/* SFX (zm_vgm_sfx.c): a cart's timed writes to the same chips, on the channels it owns, while the tune plays
+ * (the BARD queue's YM2612 + SN76489 device: libs/zig/players/fm_live.zig, docs/project/DECISIONS.md
+ * 2026-11-24 "The BARD queue's FM device"). Off by default: then nothing here changes a sample.
+ * A write: `addr` ZM_SFX_YM0 + reg / ZM_SFX_YM1 + reg (the YM2612's two ports), ZM_SFX_PSG (a byte to the
+ * SN76489), ZM_SFX_OWN (value: the channels the cart owns from then, ZM_SFX_FM(n) | ZM_SFX_PSG_CH(n)),
+ * ZM_SFX_TUNE (value ZM_SFX_TUNE_STOP: the tune stops there, the cart's channels play on). `stamp`: the
+ * output frame (44.1 kHz) it is for, counted from the device's on; it is applied at the engine frame the
+ * output stage will reach then, in the order pushed. */
+#define ZM_SFX_YM0 0x000u
+#define ZM_SFX_YM1 0x100u
+#define ZM_SFX_PSG 0x200u
+#define ZM_SFX_OWN 0x300u
+#define ZM_SFX_TUNE 0x301u
+#define ZM_SFX_TUNE_STOP 0u
+#define ZM_SFX_FM(n) (1u << (n))           /* FM channel n, 0..5 */
+#define ZM_SFX_PSG_CH(n) (1u << (8u + (n))) /* PSG tone 0..2, 3 the noise */
+#define ZM_SFX_OWNABLE 0x0F3Fu
+enum { ZM_SFX_ST_APPLIED, ZM_SFX_ST_REFUSED, ZM_SFX_ST_PENDING, ZM_SFX_ST_LATE, ZM_SFX_ST_OUT, ZM_SFX_ST_OWN, ZM_SFX_ST_ON };
+
+/* On: the clocks start at 0, the chips play (silent ones when no tune is loaded). Off: every channel the tune's. */
+void zm_vgm_sfx_on(uint32_t on);
+/* 1 queued; 0 the device is off or its ring (512) is full. */
+uint32_t zm_vgm_sfx_push(uint32_t stamp, uint32_t addr, uint32_t value);
+/* A counter (ZM_SFX_ST_*): writes applied, refused (a channel not owned, an unknown address), waiting, late (their
+ * engine frame was rendered before they came), output frames made since on, the channels owned, on. */
+uint32_t zm_vgm_sfx_stat(uint32_t i);
+
 #endif

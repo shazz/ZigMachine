@@ -11,6 +11,8 @@
 #include "../../libs/c/vgm/zm_inflate.c"
 #include "../../libs/c/vgm/zm_vgm.c"
 #include "../../libs/c/vgm/zm_vgm_out.c"
+#include "../../libs/c/vgm/zm_vgm_own.c"
+#include "../../libs/c/vgm/zm_vgm_sfx.c"
 #include "../../libs/c/ym2612/ym2612.c"
 #include "../../libs/c/ym2612/ym2612_eg.c"
 #include "../../libs/c/ym2612/ym2612_render.c"
@@ -43,6 +45,22 @@ void w2c_aud_machineVgmRenderPaula(struct w2c_aud* a, u32 hl, u32 hr, u32 ll, u3
         if (at[k] > AUDIO_MEM_BYTES || n > AUDIO_MEM_BYTES - at[k]) return;
     uint8_t* m = g_aud.memory.data;
     zm_vgm_render_paula((int8_t*)(m + hl), (int8_t*)(m + hr), (int8_t*)(m + ll), (int8_t*)(m + lr), n);
+}
+
+/* The SFX device (machine/audio/vgm.zig machineVgmSfx*): libs/c/vgm/zm_vgm_sfx.c, native. */
+void w2c_aud_machineVgmSfxOn(struct w2c_aud* a, u32 on) {
+    (void)a;
+    zm_vgm_sfx_on(on);
+}
+
+u32 w2c_aud_machineVgmSfxPush(struct w2c_aud* a, u32 stamp, u32 addr, u32 value) {
+    (void)a;
+    return zm_vgm_sfx_push(stamp, addr, value);
+}
+
+u32 w2c_aud_machineVgmSfxStat(struct w2c_aud* a, u32 i) {
+    (void)a;
+    return zm_vgm_sfx_stat(i);
 }
 
 /* load_paula's .vgm / .vgz (host/audio.c): play it, or say why not. */

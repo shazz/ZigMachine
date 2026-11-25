@@ -28,7 +28,7 @@ pub const SONG_CAP: usize = 0x100000; // 1 MiB
 pub const AUDIO_PAGES: u32 = 48; // 3 MiB shared, initial == max
 pub const DEMO_GLOBAL_BASE: u64 = 0x100000;
 
-pub const ZM_AUDIO_VERSION: u32 = 0x0001_0200; // 1.2.0 — added the POKEY (machinePokey*, machineRenderPokey)
+pub const ZM_AUDIO_VERSION: u32 = 0x0001_0400; // 1.4.0 — the VGM engine's SFX device (machineVgmSfxOn / Push / Stat: libs/c/vgm/zm_vgm_sfx.c); 1.3.0 — the VGM engine (machineVgm*); 1.2.0 — added the POKEY (machinePokey*, machineRenderPokey)
 
 // --- sealed chip control surface (implemented in machine-audio.wasm) ---
 pub extern fn machineAudioInit() void;
@@ -65,6 +65,9 @@ pub extern fn machineVgmLoad(file_abs: u32, len: u32, cap: u32) u32; // 0 ok, 1 
 pub extern fn machineVgmRate() u32; // the engine's rate, Hz
 pub extern fn machineVgmRender(dst_abs: u32, n: u32) void; // n stereo s16 frames (L, R) at machineVgmRate
 pub extern fn machineVgmRenderPaula(hl_abs: u32, hr_abs: u32, ll_abs: u32, lr_abs: u32, n: u32) void; // n 44.1 kHz frames as Paula hi/lo bytes
+pub extern fn machineVgmSfxOn(on: u32) void; // the SFX device on (1) / off (0): libs/c/vgm/zm_vgm_sfx.c
+pub extern fn machineVgmSfxPush(stamp: u32, addr: u32, value: u32) u32; // a timed write (0x000/0x100 + reg YM, 0x200 PSG, 0x300 own, 0x301 tune); 1 queued
+pub extern fn machineVgmSfxStat(i: u32) u32; // 0 applied, 1 refused, 2 waiting, 3 late, 4 output frames, 5 owned, 6 on
 
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.

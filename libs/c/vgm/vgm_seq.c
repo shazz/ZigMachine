@@ -3,6 +3,7 @@
 #include "vgm_seq.h"
 
 #include "zm_mem.h"
+#include "zm_vgm_sfx.h"
 
 #define VGM_RATE 44100u
 
@@ -34,7 +35,7 @@ uint32_t vgm_bank_byte(const vgm_bank *b, uint32_t off) {
     return 0x80;
 }
 
-static void dac(vgm_seq *v, uint32_t byte) { ym2612_write(&v->ym, 0, 0x2A, byte); }
+static void dac(vgm_seq *v, uint32_t byte) { zm_sfx_music_ym(v, 0, 0x2A, byte); }
 
 /* The end, or the loop: a loop pass that waited nothing would spin for ever (a malformed loop offset), so the
  * second such pass ends the tune. */
@@ -90,8 +91,8 @@ static uint32_t step(vgm_seq *v) {
     uint32_t n = arg_len(c);
     if (n == 0xFFFFFFFFu || room < n + 1) return v->unknown++, v->ended = 1, 0;
     v->pos += n + 1;
-    if (c == 0x52 || c == 0x53) ym2612_write(&v->ym, c & 1u, p[1], p[2]);
-    else if (c == 0x50) sn76489_write(&v->psg, p[1]);
+    if (c == 0x52 || c == 0x53) zm_sfx_music_ym(v, c & 1u, p[1], p[2]); /* through the SFX device's owners */
+    else if (c == 0x50) zm_sfx_music_psg(v, p[1]);
     else if (c == 0x4F) sn76489_stereo(&v->psg, p[1]);
     else if (c == 0x61) return p[1] | (uint32_t)p[2] << 8;
     else if (c == 0xE0) v->pcm_pos = vgm_u32(p + 1);
@@ -122,7 +123,9 @@ void vgm_fill(vgm_seq *v, int16_t *lr, uint32_t n) {
         advance(v);
         uint32_t k = v->ended ? n : (v->due < n ? v->due : n);
         if (v->st.on) k = 1; /* a DAC stream writes between chip samples: one at a time */
+        k = zm_sfx_due(v, k); /* the SFX writes due applied; render up to the next */
         render(v, lr, k);
+        zm_sfx_rendered(k);
         if (v->st.on) vgm_stream_tick(v);
         if (!v->ended) v->due -= k;
         lr += 2 * k;

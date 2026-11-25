@@ -2,6 +2,7 @@
  * fed from the data bank at a set frequency, between chip samples. One stream, to the YM2612's register
  * 0x2A (the only target the Mega Drive's logs use); a stream set up for another chip is ignored. */
 #include "vgm_seq.h"
+#include "zm_vgm_sfx.h"
 
 static uint32_t bank_start(const vgm_bank *b, uint32_t block) {
     uint32_t off = 0;
@@ -52,7 +53,7 @@ void vgm_stream_tick(vgm_seq *v) {
     vgm_stream *s = &v->st;
     for (s->acc += s->freq; s->acc >= v->rate && s->on; s->acc -= v->rate) {
         uint32_t off = s->data_start + s->base + s->pos * s->step;
-        ym2612_write(&v->ym, 0, 0x2A, vgm_bank_byte(&v->bank, off));
+        zm_sfx_music_ym(v, 0, 0x2A, vgm_bank_byte(&v->bank, off)); /* the DAC: FM 6's owner's */
         if (++s->pos < s->data_len) continue;
         s->pos = 0;
         if (!s->mode) s->on = 0;

@@ -1,4 +1,4 @@
-// The capability word (HW 1.19.0, system table 1.28): which OPTIONAL units this machine has.
+// The capability word (HW 1.19.0, bard_fm 1.20.0; system table 1.28): which OPTIONAL units this machine has.
 // docs/hardware/ABI_RULES.md is the contract; this file is the bit table.
 //
 // A cart that uses an optional unit asks first (`zg.caps.has(.astro)`) and falls back when the bit is
@@ -20,10 +20,13 @@ pub const Cap = enum(u5) {
     ziggy_fpu = 4,
     /// A second joystick reaches the cart's input2/inputRelease2 exports (otherwise merged into player 1).
     joy2 = 5,
+    /// The BARD queue's FM device (HW 1.20.0): a cart's timed writes to the YM2612 + SN76489 under the
+    /// VGM tune (zg.bard.fm). Clear: the device's writes are refused; play the tune without effects.
+    bard_fm = 6,
 };
 
 /// The bits defined so far: the mask a host may set; everything else is dropped.
-pub const ALL: u32 = (1 << 6) - 1;
+pub const ALL: u32 = (1 << 7) - 1;
 
 pub fn bit(c: Cap) u32 {
     return @as(u32, 1) << @intFromEnum(c);

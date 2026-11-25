@@ -23,7 +23,7 @@ import { gzipSync } from "node:zlib";
 const TUNE = "site/music/kestrel_fm.vgm", TUNE_Z = "site/music/kestrel_fm.vgz", SECS = 6, OUT = 735;
 const LOCAL = process.env.VGM_LOCAL || "prototypes/gens_fm/dl/s1/x"; // Sonic 1's VGMs, the Gens study's local set
 const PIN = "apps/harness/vgm_expected.json";
-const SRC = ["vgm/zm_vgm.c", "vgm/vgm_seq.c", "vgm/vgm_stream.c", "vgm/zm_inflate.c", "vgm/zm_vgm_out.c", "ym2612/ym2612.c",
+const SRC = ["vgm/zm_vgm.c", "vgm/zm_vgm_sfx.c", "vgm/zm_vgm_own.c", "vgm/vgm_seq.c", "vgm/vgm_stream.c", "vgm/zm_inflate.c", "vgm/zm_vgm_out.c", "ym2612/ym2612.c",
     "ym2612/ym2612_eg.c", "ym2612/ym2612_render.c", "sn76489/sn76489.c"];
 // --break <feature>: [file, the rule, its mutant, the feature VGM whose pinned hash must then fail]
 const BREAKS = {

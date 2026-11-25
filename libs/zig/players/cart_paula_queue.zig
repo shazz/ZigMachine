@@ -121,6 +121,22 @@ pub fn QueueOf(comptime cap: u32, comptime stage_n: u32) type {
             return e;
         }
 
+        /// The first write, whatever its stamp (the FM device hands its writes over early: fm_live.zig).
+        pub fn front(self: *const Self) ?Entry {
+            return if (self.len == 0) null else self.ring[self.head];
+        }
+
+        pub fn pop(self: *Self) void {
+            if (self.len == 0) return;
+            self.head = (self.head + 1) % cap;
+            self.len -= 1;
+        }
+
+        /// A stamp on the audio side's own clock (`now`).
+        pub fn local(self: *const Self, t: u32) u32 {
+            return t +% self.offset;
+        }
+
         /// Samples until the next write's stamp, at most `max` (all of it when none waits).
         pub fn untilNext(self: *const Self, max: u32) u32 {
             if (self.len == 0) return max;

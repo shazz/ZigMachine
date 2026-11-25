@@ -92,12 +92,13 @@ static inline void sndinfo_paula(uint32_t route, int held) {
 /* A cart's BARD queue opened (kind 1) or closed (0) (env.hostBardAttach, host/bardq_pump.c): SID live, the
  * cart's own register writes on cRSID, so the page says "SID" with the load (glass PLAYER_SID), song
  * "sidlive". Kind 2: the queue's first command was an AY write (zg.bard AY_BASE, ChipNomad), so "AY"
- * (PLAYER_AY), song "aylive": one queue carries both, the commands' addresses tell which. */
+ * (PLAYER_AY), song "aylive": one queue carries both, the commands' addresses tell which. Kind 3: an FM write
+ * (zg.bard.fm, $C000): the VGM engine's SFX device, "VGM" (PLAYER_VGM), song "fmlive". */
 static inline void sndinfo_bard(uint32_t route, int kind) {
-    sndinfo_song(route, kind == 2 ? "aylive" : kind ? "sidlive" : "none", 0);
+    sndinfo_song(route, kind == 3 ? "fmlive" : kind == 2 ? "aylive" : kind ? "sidlive" : "none", 0);
     if (!kind) return;
     sndinfo_open();
-    sndinfo_head(route, kind == 2 ? PLAYER_AY : PLAYER_SID, 0);
+    sndinfo_head(route, kind == 3 ? PLAYER_VGM : kind == 2 ? PLAYER_AY : PLAYER_SID, 0);
     ZM_SND_INFO[SI_FLAGS] = SIF_STARTED;
     sndinfo_close();
 }

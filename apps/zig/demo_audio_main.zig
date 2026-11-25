@@ -123,8 +123,10 @@ export fn audioRender(frames: u32) void {
 export fn audioSongPtr() [*]u8 {
     return @ptrFromInt(audio.SONG_BASE);
 }
+/// The room for a song: all of song RAM, or below the BARD queue's block while it is open (a VGM under its FM device).
 export fn audioSongCapacity() u32 {
-    return @intCast(audio.SONG_CAP);
+    const q = @import("demo_audio_sidlive.zig");
+    return if (q.open()) q.LIVE_OFF else @intCast(audio.SONG_CAP);
 }
 
 // Active player mode (0 none, 1 MOD, 2 YM, 3 sample). Drives the scope view.

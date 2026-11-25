@@ -33,7 +33,7 @@ test "the benchmark laps and free driving are silent, whatever the state" {
 }
 
 test "the player asks once per change, and the toggle silences and restores" {
-    var p = music.Player{};
+    var p = music.Player{ .songs = &music.SONGS };
     try std.testing.expectEqual(@as(?Cue, .start), p.step(ctx(.countdown, 0)));
     try std.testing.expectEqual(@as(?Cue, null), p.step(ctx(.countdown, 1)));
     try std.testing.expectEqual(@as(?Cue, .loop), p.step(ctx(.race, music.LOOP_AT)));
@@ -49,4 +49,20 @@ test "every cue but silent names a racer_*.vgz file the song pack can find" {
         if (i == 0) continue;
         try std.testing.expect(std.mem.startsWith(u8, s, "racer_") and std.mem.endsWith(u8, s, ".vgz"));
     }
+}
+
+test "the shipped table asks once for the race tune across start and loop, and names our kr_*.vgm files" {
+    var p = music.Player{ .songs = &music.SHIPPED };
+    try std.testing.expectEqual(@as(?Cue, .start), p.step(ctx(.countdown, 0)));
+    try std.testing.expectEqual(@as(?Cue, null), p.step(ctx(.race, music.LOOP_AT))); // the same file: no reload
+    try std.testing.expectEqualStrings("kr_race.vgm", p.name(.loop));
+    for (music.SHIPPED[1..]) |s| try std.testing.expect(std.mem.startsWith(u8, s, "kr_") and std.mem.endsWith(u8, s, ".vgm"));
+}
+
+test "forget asks again for the same cue" {
+    var p = music.Player{ .songs = &music.SHIPPED };
+    _ = p.step(ctx(.race, 0));
+    try std.testing.expectEqual(@as(?Cue, null), p.step(ctx(.race, 1)));
+    p.forget();
+    try std.testing.expectEqual(@as(?Cue, .start), p.step(ctx(.race, 2)));
 }

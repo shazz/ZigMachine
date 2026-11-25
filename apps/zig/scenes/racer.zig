@@ -10,7 +10,7 @@
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
-// -Dracer_music (LOCAL tunes, never shipped; racer/music.zig): z the music off / on
+// M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
 // M3 (oval only): e the race (8 cars, 3 laps; fire or s starts the countdown, r / Enter aborts or goes again)
 //   x bench lap v2 (the reference benchmark)   a the recorded driver   w warp (16 ticks a frame)   k the crest test pose
 // One plane in two pages (the shown one is enabled), the sky a per-line palette entry on the copper, the
@@ -26,7 +26,7 @@ const frame = @import("racer/frame.zig");
 const fx = @import("racer/fx.zig");
 const game = @import("racer/game.zig");
 const keys = @import("racer/keys.zig");
-const local_music = @import("racer/local_music.zig");
+const audio = @import("racer/audio.zig");
 const Hud = @import("racer/hud.zig").Hud;
 const data = @import("racer/data.zig");
 const minimap = @import("racer/minimap.zig");
@@ -69,12 +69,13 @@ pub const Demo = struct {
     back: usize = 0,
     rep: report.Reporter = .{},
     wants_quit: bool = false,
-    music: local_music.State = .{}, // -Dracer_music only (local test tunes, `z` toggles)
+    audio: audio.Audio = .{}, // M4: music + effects on the BARD queue's FM device (racer/audio.zig; z, h, j)
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
         self.* = .{};
         self.os = zigos;
         self.bench = .{ .now = micros };
+        self.audio.now = micros;
         for (BLOBS, 0..) |b, i| self.tracks[i] = trk.parse(b) catch |e| @panic(@errorName(e));
         const nv = @max(self.tracks[0].verts.len, self.tracks[1].verts.len);
         const nf = @max(self.tracks[0].faces.len, self.tracks[1].faces.len);
@@ -149,11 +150,11 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = zigos;
         _ = dt;
-        if (self.paused) return;
+        if (self.paused) return audio.pause(self);
         if (self.pose == null and self.drive.mode == .off and self.game.mode == .off) self.script +%= 1;
         self.drive.update();
         self.game.update();
-        local_music.step(self);
+        audio.frame(self);
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {

@@ -96,3 +96,43 @@ test "a SID open refuses the AY range; an AY gain or register write does not pic
     try std.testing.expectEqual(Live.Device.sid, l.device);
     try std.testing.expectEqual(Live.Do.none, l.classify(l.take().?));
 }
+
+test "the FM device: an FM write picks it; its writes are the engine's, SID and AY writes refused" {
+    try std.testing.expectEqual(@as(?Live.Device, .fm), live_mod.picks(live_mod.FM_BASE + 0x128));
+    try std.testing.expectEqual(@as(?Live.Device, .sid), live_mod.picks(live_mod.OP_RESET));
+    try std.testing.expectEqual(@as(?Live.Device, .ay), live_mod.picks(live_mod.AY_BASE + 0x1E));
+    try std.testing.expectEqual(@as(?Live.Device, null), live_mod.picks(live_mod.AY_BASE + 3)); // a register, not a configure
+    var l: Live = .{};
+    l.reset(1024);
+    l.device = .fm;
+    try std.testing.expectEqual(Live.Do.fm, l.classify(w(0, live_mod.FM_BASE + 0x200, 0x9F)));
+    try std.testing.expectEqual(Live.Do.none, l.classify(w(0, 0xD418, 15)));
+    try std.testing.expectEqual(Live.Do.none, l.classify(w(0, live_mod.OP_RESET, 6581)));
+    try std.testing.expectEqual(Live.Do.none, l.classify(w(0, live_mod.AY_BASE + 0x0E, 1773400)));
+    try std.testing.expectEqual(@as(u32, 3), l.refused);
+    try std.testing.expectEqual(@as(u32, 0), l.applied); // the engine counts the FM writes it applies
+    try std.testing.expectEqual(Live.Do.none, l.classify(w(9, live_mod.OP_MARK, 7))); // a mark is still the queue's
+    try std.testing.expectEqual(@as(u32, 9), l.events[0].t);
+}
+
+test "an FM write on a SID open is refused" {
+    var l: Live = .{};
+    l.reset(1024);
+    _ = l.classify(w(0, live_mod.OP_RESET, 6581));
+    try std.testing.expectEqual(Live.Do.none, l.classify(w(0, live_mod.FM_BASE + 0x28, 0xF6)));
+    try std.testing.expectEqual(@as(u32, 1), l.refused);
+}
+
+test "the queue hands its writes over in order whatever their stamps (front / pop), on its own clock" {
+    var l: Live = .{};
+    l.reset(1024);
+    _ = l.push(&.{ w(100, live_mod.FM_BASE, 1), w(5000, live_mod.FM_BASE, 2) });
+    try std.testing.expectEqual(@as(u32, 1), l.queue.front().?.value);
+    try std.testing.expectEqual(@as(u32, 1024), l.queue.local(100)); // the first write: a lead from now
+    l.queue.pop();
+    try std.testing.expectEqual(@as(u32, 2), l.queue.front().?.value);
+    l.queue.pop();
+    try std.testing.expect(l.queue.front() == null);
+    l.queue.pop(); // nothing to pop: no harm
+    try std.testing.expectEqual(@as(u32, 0), l.queue.len);
+}

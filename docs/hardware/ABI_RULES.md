@@ -45,8 +45,9 @@ mirrors (`apps/c`, `apps/rust`) carry only memory helpers, so no header changes.
 | 3 | `bard_jobs` | a coprocessor serves `hostBardJob` (BARD on the board) | `zg.bard.job` serves the job in the cart |
 | 4 | `ziggy_fpu` | ZIGGY has an f32 FPU | integer / fixed point (the rule for per-frame code anyway) |
 | 5 | `joy2` | a second pad reaches `input2` / `inputRelease2` | player 2 is merged into player 1 |
+| 6 | `bard_fm` | the BARD queue has the FM device (HW 1.20.0, `zg.bard.fm`: timed YM2612 + SN76489 writes under the VGM tune; the browser, the native host and a system with the M4 audio image) | play the tune alone (`zg.requestSong`, `zg.stopSong`), no effects; the device's writes would be refused (counted) |
 
-Bits 6..31 are free.
+Bits 7..31 are free.
 
 ### Who sets it
 

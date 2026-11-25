@@ -125,7 +125,7 @@ fn liveChunk(l: *sid_live.Live) u32 {
     while (l.take()) |e| switch (l.classify(e)) {
         .sid => audio.machineSidWrite(e.addr - sid_live.SID_BASE, e.value),
         .reset => _ = audio.machineSidRaw(e.value),
-        .ay => {}, // never on a SID open (sid_live: the device is picked once)
+        .ay, .fm => {}, // never on a SID open (sid_live: the device is picked once)
         .none => {},
     };
     const n = l.chunk(LIVE_CHUNK);
