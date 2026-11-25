@@ -108,18 +108,18 @@ asks for feedback if it is used in artworks).
 | | bytes |
 |---|---|
 | sky (565, ZX0) | 28,590 |
-| aurora (151 delta containers + offsets) | 351,000 (see aurora_ref.json `sizes`) |
+| aurora (151 delta containers + offsets) | 351,026 |
 | star plane records (ZX0) | 37,714 |
 | sound (s8 mono 22,050 Hz) | 186,690 |
 | **baked total** | **~604,000** |
 | cart wasm | 654 KB; disk `demo-aurora_boot.zmd` ~539 KB |
 
-Run time memory: sky copy 128 KB, star records 407 KB, aurora frame delta 26.5 KB, state 26.5 KB; VRAM: the
+Cart RAM window: 1,011 KB of 3,072 KB used (2,061 KB free), `check_fits` ok. Run time memory: sky copy 128 KB, star records 407 KB, aurora frame delta 26.5 KB, state 26.5 KB; VRAM: the
 TC plane (128 KB) and the star plane (64 KB).
 
 Cost on ZIGGY (`tools/perf_audit.sh aurora_boot`, estimate, `apps/harness/perf/cost_model.mjs`): about 0.6 Mc a
 frame of cart work and 1.3 Mc of FRESCO for the two planes (2 enabled planes are the big lever: 0.59 Mc each),
-~1.9 Mc total (p95 2.3), ~52 fps estimated; the board's band is 1.75-2.1 Mc, so the board decides. The cart half
+~2.0 Mc total (p95 2.3), ~50 fps estimated; the board's band is 1.75-2.1 Mc, so the board decides. The cart half
 is the ZX0 unpack (byte copies, ~0.16 Mc), the plane 1 clear and ~240 star pixels.
 
 ## Fidelity to the lab, and deviations
