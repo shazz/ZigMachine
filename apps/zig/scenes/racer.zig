@@ -5,7 +5,7 @@
 // (the benchmark's lap v0), the PVS and a ray DDA pick the tiles, faces are back-face culled,
 // transformed, clipped, bucket-sorted far to near and filled flat. docs/ports/kestrel_racing/.
 //
-//   3-8 draw distance R (tiles)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
+//   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
 //   g the vertex transform in f32   d decals on / off   t oval / stress city   p pause   o the benchmark OSD
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
@@ -40,6 +40,10 @@ const xf = @import("racer/xform.zig");
 
 extern fn hostMicros() u32;
 const BLOBS = [_][]align(4) const u8{ data.oval, data.city };
+// Draw distance (tiles). 8 by default (Matt, 24 Nov: it avoids the far-view cut; the oval holds 60 fps there on the board).
+// The benchmark laps (b, x) pin 5, as every earlier CRC list and board number was taken, whatever the default is.
+pub const PLAY_R: u32 = 8;
+pub const BENCH_R: u32 = 5;
 const GROUND_RAMP = [_]usize{ 1, 8 }; // the ramp the ground beyond R takes: grass, plaza
 
 var sky_tbl: [2][1]zg.copper.Table = undefined;
@@ -59,7 +63,8 @@ pub const Demo = struct {
     p: draw.Painter = undefined,
     hud: Hud = .{},
     bench: bench.Bench = .{ .now = micros },
-    r: u32 = 5,
+    r: u32 = PLAY_R, // the draw distance in force (the benchmark laps pin BENCH_R while they run)
+    play_r: u32 = PLAY_R, // the one the player picked: what drive / race / the free view use, restored after a bench lap
     decals: bool = true,
     osd: bool = false,
     uncapped: bool = false,
@@ -124,6 +129,7 @@ pub const Demo = struct {
         self.pose = null;
         self.game.setMode(.off);
         self.drive.setMode(m);
+        self.r = if (m == .bench) BENCH_R else self.play_r;
         self.rep = .{ .crc_on = self.rep.crc_on };
         self.bench.resetLap();
     }
@@ -134,6 +140,7 @@ pub const Demo = struct {
         self.pose = null;
         self.drive.setMode(.off);
         self.game.setMode(m);
+        self.r = if (m == .bench) BENCH_R else self.play_r;
         self.rep = .{ .crc_on = self.rep.crc_on };
         self.bench.resetLap();
     }

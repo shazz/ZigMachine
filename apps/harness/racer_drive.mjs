@@ -34,9 +34,10 @@ const fixture = async () => {
     return rows; // btn hits px py pz vx vy vz angle face u v tr sa slide
 };
 
-async function boot() {
+async function boot(opts) {
     const log = [];
     const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s));
+    if (!opts?.raw) key(S, "5"); // every pin was taken at R = 5; the cart's default is 8 (racer.zig PLAY_R)
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p))[0] ?? 0;
     const view = () => {
         const vb = S.machine.hwVideoBase(), dv = new DataView(S.memory.buffer, vb, OFF_PAL);

@@ -13,7 +13,10 @@ const poly = @import("poly.zig");
 pub fn handle(self: anytype, cp: u32) void {
     switch (cp) {
         0xE012 => self.wants_quit = true,
-        '3'...'8' => self.r = cp - '0',
+        '3'...'8' => {
+            self.r = cp - '0';
+            if (self.drive.mode != .bench and self.game.mode != .bench) self.play_r = self.r; // a bench lap's knob is its own
+        },
         'f' => self.p.cpu_fill = !self.p.cpu_fill,
         'm' => fx.use_zmx = !fx.use_zmx,
         'g' => fx.use_f32 = !fx.use_f32,
