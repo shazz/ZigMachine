@@ -62,7 +62,7 @@ class SaltFlatsTest(unittest.TestCase):
 
 class BakeTest(unittest.TestCase):
     def test_a_face_square_to_the_noon_sun_bakes_to_level_7_the_far_grounds_level(self) -> None:
-        self.assertEqual(bake.level((0.0, 1.0, 0.0), kit.sun(salt())), 7)  # trackset.zig SALT_FLAT_LEVEL
+        self.assertEqual(bake.level((0.0, 1.0, 0.0), kit.sun(salt())), 7)  # its mood block's far-ground level (tools/racer/mood.py)
 
     def test_a_face_turned_from_the_sun_is_at_most_three_levels_darker(self) -> None:
         sun = kit.sun(salt())

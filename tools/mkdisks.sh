@@ -167,7 +167,7 @@ for w in "$OUT"/demo-*.wasm; do
         # (tools/racer/trackc.py), ZX0-packed here (cached like the carts); the key t order is this order. The cart
         # embeds only the oval. RACER_EXTRA="VR1.KTR=<file> ..." adds LOCAL tracks (the decoded Virtua Racing ones:
         # never on the committed shelf disk; prototypes/cards/build_racer_vr.sh sets it).
-        racer)     set --; for t in CITY=city SALT=salt; do
+        racer)     set --; for t in CITY=city SALT=salt NEON=neon GLACIER=glacier; do
                        set -- "$@" --file "${t%%=*}.KTR=$(packcart "apps/zig/assets/screens/racer/${t#*=}.ktrk")"
                    done
                    for t in ${RACER_EXTRA:-}; do set -- "$@" --file "${t%%=*}=$(packcart "${t#*=}")"; done

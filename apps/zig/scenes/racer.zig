@@ -37,6 +37,7 @@ const sinks = @import("racer/sinks.zig");
 const trk = @import("racer/trk.zig");
 const ts = @import("racer/trackset.zig");
 const library = @import("racer/library.zig");
+const backdrop = @import("racer/backdrop.zig");
 const data = @import("racer/data.zig");
 const xf = @import("racer/xform.zig");
 
@@ -97,6 +98,7 @@ pub const Demo = struct {
             palette.install(fb, &self.tracks[0], ts.groundLevel(&self.tracks[0]));
             fb.is_enabled = p == 0;
         }
+        backdrop.select(self.tracks[0].mood.backdrop);
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);
         self.lib.scan(); // last: its buffers take what the RAM window has left (library.RESERVE kept)
@@ -157,6 +159,7 @@ pub const Demo = struct {
         @memset(self.f.seen, 0);
         for (self.f.cache.e) |*e| e.stamp = 0;
         for (0..2) |p| palette.install(&self.os.lfbs[p], self.cur(), ts.groundLevel(self.cur()));
+        backdrop.select(self.cur().mood.backdrop);
         self.r = self.play_r;
     }
 

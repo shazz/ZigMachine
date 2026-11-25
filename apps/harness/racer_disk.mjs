@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 
 export const ZMD = process.env.RACER_ZMD || "site/carts/demo-racer.zmd";
 
-export function diskHook(path = ZMD, stats = { reads: 0 }) {
-    const img = new Uint8Array(readFileSync(path));
+export function diskHook(path = ZMD, stats = { reads: 0 }) { // path: a .zmd file, or its bytes
+    const img = typeof path === "string" ? new Uint8Array(readFileSync(path)) : path;
     return (env) => {
         env.diskReadBlock = (block, dst) => {
             const at = block * 512;
@@ -18,4 +18,16 @@ export function diskHook(path = ZMD, stats = { reads: 0 }) {
             return n;
         };
     };
+}
+
+/** A file's { start, len } in a .zmd image (v1: FAT at $300, count at $2E4; v2: $800 / $4F4), or null. */
+export function fatEntry(img, name) {
+    const v2 = img[0x400] === 0x5a && img[0x401] === 0x4d; // "ZM" of ZMDISK at $400
+    const dv = new DataView(img.buffer, img.byteOffset);
+    const count = dv.getUint16(v2 ? 0x4f4 : 0x2e4, true), fat = v2 ? 0x800 : 0x300;
+    for (let i = 0; i < count; i++) {
+        const e = fat + 32 * i, n = new TextDecoder().decode(img.subarray(e, e + 16)).replace(/\0.*$/s, "");
+        if (n === name) return { start: dv.getUint32(e + 16, true), len: dv.getUint32(e + 20, true) };
+    }
+    return null;
 }
