@@ -27,7 +27,7 @@ from racer import ktrk, trackc, vr_cart, vr_colours  # noqa: E402
 
 FREE_RAMPS = list(range(0, 12)) + list(range(19, 30))
 CAR = {k: v for k, v in trackc.MATERIALS.items() if k.startswith("car_")}
-SOLID, NOT_ASPHALT, DUAL = 16, 4, 1
+SOLID, ASPHALT, DUAL = 16, 4, 1  # his bit 2 SET = asphalt: vracing_main.p8 slows and shakes the car when `flags&0x4==0`
 Mats = dict[str, tuple[int, tuple[int, int, int]]]
 
 
@@ -51,7 +51,7 @@ def palette(track: dict[str, Any]) -> tuple[dict[int, str], Mats, dict[int, tupl
     uses[ground] = uses.get(ground, 0) + 1
     road: dict[int, int] = {}
     for f in track["faces"]:
-        if f["flags"] & SOLID and not f["flags"] & NOT_ASPHALT:
+        if f["flags"] & SOLID and f["flags"] & ASPHALT:
             road[f["c"]] = road.get(f["c"], 0) + 1
     asphalt = max(road, key=lambda c: road[c]) if road else ground
     lead = [asphalt] + ([ground] if ground != asphalt else [])  # ramp 0: the road (the minimap's line), ramp 1: the ground (cart: GROUND_RAMP)
@@ -90,7 +90,7 @@ def build(track: dict[str, Any], names: dict[int, str]) -> tuple[ktrk.Doc, dict[
             dropped += 1
             continue
         fl = f["flags"]
-        kind = ("ground" if fl & NOT_ASPHALT else "track") if fl & SOLID else "prop"
+        kind = ("track" if fl & ASPHALT else "ground") if fl & SOLID else "prop"
         out: ktrk.Doc = {"v": f["v"], "kind": kind, "mat": names[f["c"]]}
         if fl & DUAL:
             out["dual"] = True

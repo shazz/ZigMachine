@@ -24,7 +24,7 @@ tracks of the Mega Drive game, so this is a **local-only** path, in the spirit o
 **Decoding checks.** The three tracks decode to coherent geometry: coordinates inside +-100 units (the 32 x 32 tile world is +-128),
 every face and segment index in range, 121 / 166 / 166 racing-line segments, 3 checkpoints each (his are 1-based Lua indices, the last is
 the segment count: stored -1), start positions on the racing line (within 1-4 units of segment 0-3). The flags layout is the one our
-converter's was designed on (bit 0 dual, 1 quad, 3 inner faces, 4 ground, 5-7 border count; bit 2 = NOT asphalt, inverted on import).
+converter's was designed on (bit 0 dual, 1 quad, 3 inner faces, 4 ground, 5-7 border count; bit 2 = asphalt: set on the road's grey faces; his engine caps the rpm and shakes the camera when it is clear. The first import had it inverted, 25 Nov fix).
 Three tracks, not twelve: `vracing_1..12.p8` are the data's overflow carts (the track directory in cart 0 holds 3 entries).
 
 ## Keys (a `-Dracer_vr` cart)
