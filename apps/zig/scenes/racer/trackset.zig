@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// RACER: the cart's track set: the oval and the stress city, plus the three LOCAL Virtua Racing tracks with -Dracer_vr (vr.zig).
+// RACER: the cart's track set: the oval, the stress city and Salt Flats (M5, the first authored track), plus the three LOCAL Virtua Racing tracks with -Dracer_vr (vr.zig).
 // Driving, the race and the minimap are bound to one track at a time (the oval, or the VR track on show): `bind` re-creates them
 // when the track changes. On a VR track the player is flown by the AI's controller (`Game.pilot`), because the recorded button
 // streams are the oval's, so the race benchmark (x) runs there too.
@@ -13,11 +13,15 @@ const trk = @import("trk.zig");
 const vr = @import("vr.zig");
 
 // A VR build DROPS the city (755 KB of the cart's 2 MiB window; the three VR tracks are 1.29 MB, the base cart has 546 KB free):
-// the tracks are then oval, VR1, VR2, VR3 and key t cycles them. Without the option: oval, city, as ever.
-pub const NT = (if (vr.on) 1 else 2) + vr.blobs.len;
-pub const BLOBS = (if (vr.on) [_][]align(4) const u8{data.oval} else [_][]align(4) const u8{ data.oval, data.city }) ++ vr.blobs;
-pub const NAMES = (if (vr.on) [_][]const u8{"OVAL"} else [_][]const u8{ "OVAL", "CITY" }) ++ vr.names[0..vr.blobs.len].*;
-const FIRST_VR: usize = if (vr.on) 1 else 2;
+// the tracks are then oval, VR1, VR2, VR3 and key t cycles them (Salt Flats is not in that cart: its RAM is the VR tracks').
+// Without the option: oval, city, salt.
+pub const NT = (if (vr.on) 1 else 3) + vr.blobs.len;
+pub const BLOBS = (if (vr.on) [_][]align(4) const u8{data.oval} else [_][]align(4) const u8{ data.oval, data.city, data.salt }) ++ vr.blobs;
+pub const NAMES = (if (vr.on) [_][]const u8{"OVAL"} else [_][]const u8{ "OVAL", "CITY", "SALT" }) ++ vr.names[0..vr.blobs.len].*;
+const FIRST_VR: usize = if (vr.on) 1 else 3;
+/// Salt Flats' far ground: the salt on ramp 1 (tools/racer/kit.py GROUND_RAMP) at its baked level for a face square to the
+/// noon sun, 7 (bake.py; tools/tests/test_racer_kit.py pins it), so no seam shows where the draw distance ends.
+const SALT_FLAT_LEVEL: u32 = 7;
 
 /// The ramp the ground beyond the draw distance takes: grass, plaza, and each VR track's own ground colour.
 pub fn groundRamp(w: usize) usize {
@@ -27,10 +31,16 @@ pub fn groundRamp(w: usize) usize {
     };
 }
 
-/// Its light: our tracks darken the far ground (level 4); a VR track's ground faces are drawn unlit at level 7, and so is
-/// his far ground (`rectfill(..., ground_color)`), unless the debug shading (key i) lights the faces again.
+/// Its light: our generated tracks darken the far ground (level 4); a VR track's ground faces are drawn unlit at level 7, and so
+/// is his far ground (`rectfill(..., ground_color)`); Salt Flats' at its baked flat level; unless the debug shading (key i)
+/// lights the faces again.
 pub fn groundLevel(w: usize) u32 {
-    return if (isVr(w) and project.shade == 0) 7 else 4;
+    if (project.shade != 0) return 4;
+    return if (isVr(w)) 7 else if (isSalt(w)) SALT_FLAT_LEVEL else 4;
+}
+
+pub fn isSalt(w: usize) bool {
+    return !vr.on and w == 2;
 }
 
 pub fn isVr(w: usize) bool {
@@ -43,7 +53,7 @@ pub fn isCity(w: usize) bool {
 
 /// Where a drive / race mode needs to be: not the city (no racing line); lap v1's button stream is the oval's.
 pub fn needsOval(w: usize, lap_v1: bool) bool {
-    return isCity(w) or (lap_v1 and isVr(w));
+    return isCity(w) or (lap_v1 and (isVr(w) or isSalt(w)));
 }
 
 /// Parse every blob (a bad one panics at init, as before) and return the largest vertex and face counts the frame buffers must hold.
@@ -65,6 +75,6 @@ pub fn bind(d: anytype, w: usize, now: *const fn () u32) void {
     d.drive = drive.Drive.init(t);
     d.drive.now = now;
     d.game = game.Game.init(t, now) catch |e| @panic(@errorName(e));
-    d.game.pilot = isVr(w);
+    d.game.pilot = isVr(w) or isSalt(w); // the recorded button streams are the oval's
     d.map = minimap.Map.init(t);
 }

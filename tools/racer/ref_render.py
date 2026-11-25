@@ -1,10 +1,8 @@
 """RACER reference renderer (R82 M1): the Zig cart's frame in Python integers, from the track binary.
 
-    python3 -I tools/racer/ref_render.py oval.ktrk --pose 3 [--r 5] [--no-decals] -o view.raw
-
-Writes rows 12..187 of the 320-wide plane (176 x 320 bytes, palette indices) for fixed pose `k` (the
-cart's keys A-H), CPU path, mulsh. apps/harness/racer_headless.mjs diffs it against the cart: pixel diff 0.
-The pipeline is PORT_PLAN 1.5-1.8 as the cart does it; see apps/zig/scenes/racer/frame.zig for the stages.
+    python3 -I tools/racer/ref_render.py oval.ktrk --pose 3 | --frame F [--r 5] [--no-decals] -o view.raw
+Rows 12..187 of the 320-wide plane (176 x 320 palette indices) at fixed pose k (keys A-H) or lap v0 frame F (M5), CPU
+path, mulsh; racer_headless.mjs / racer_salt.mjs diff it against the cart: pixel diff 0. Stages: racer/frame.zig.
 """
 
 from __future__ import annotations
@@ -63,6 +61,10 @@ def lap_pose(t: Track, frame: int, pov: int) -> tuple[list[int], int, int]:
     pos[2] -= mulsh16(BACK[pov], fx.cos(yaw))
     pos[1] += HEIGHT[pov]
     return pos, yaw, PITCH[pov]
+
+
+def pov_at(frame: int) -> int:  # cam.povAt: far, near, cockpit by thirds of the lap
+    return min((frame % LAP) // (LAP // 3), 2)
 
 
 def view(pos: list[int], yaw: int, pitch: int) -> dict:
@@ -182,13 +184,14 @@ def render(t: Track, pos: list[int], yaw: int, pitch: int, r: int = 5, decals: b
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("track")
-    ap.add_argument("--pose", type=int, required=True)
+    pick = ap.add_mutually_exclusive_group(required=True)
+    pick.add_argument("--pose", type=int), pick.add_argument("--frame", type=int)
     ap.add_argument("--r", type=int, default=5)
     ap.add_argument("--no-decals", action="store_true")
     ap.add_argument("-o", "--out", required=True)
     a = ap.parse_args(argv)
     t = Track(Path(a.track).read_bytes())
-    pos, yaw, pitch = lap_pose(t, a.pose * (LAP // 8), a.pose % 3)
+    pos, yaw, pitch = lap_pose(t, a.pose * (LAP // 8), a.pose % 3) if a.frame is None else lap_pose(t, a.frame, pov_at(a.frame))
     Path(a.out).write_bytes(render(t, pos, yaw, pitch, a.r, not a.no_decals))
     return 0
 
