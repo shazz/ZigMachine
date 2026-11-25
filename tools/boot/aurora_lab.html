@@ -1,0 +1,562 @@
+<title>Aurora Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the machine's screen on top (two stacked planes: the baked aurora and the live star plane), the tuning desk below in grouped columns. Single dark look on purpose: it is a night sky. */
+:root {
+  --night: #060a12;
+  --panel: #0d1320;
+  --line: #1c2638;
+  --fg: #d8e1f0;
+  --muted: #7d89a1;
+  --green: #5cf2a6;
+  --violet: #c779de;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html { background: var(--night); }
+body { background: var(--night); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(22px, 3.2vw, 30px); letter-spacing: 0.01em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--green); }
+.sub { color: var(--muted); margin: 0; max-width: 64ch; }
+.screen { position: relative; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; aspect-ratio: 16 / 10; max-width: 100%; }
+.screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.hud { position: absolute; left: 10px; top: 8px; right: 10px; display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 12px; color: #9fb0c8; pointer-events: none; text-shadow: 0 1px 2px #000; }
+.err { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: rgba(6,10,18,.92); color: var(--fg); }
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+button, select { font: 500 13px var(--body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 7px 12px; cursor: pointer; }
+button:hover, select:hover { border-color: #33435f; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+button.primary { border-color: #2c6e52; background: #0f2a20; color: var(--green); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button[aria-pressed="true"] { border-color: var(--violet); color: #f0d4fa; background: #24142c; }
+.timeline { flex: 1 1 260px; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.timeline input { flex: 1; min-width: 0; accent-color: var(--violet); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
+.beats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.beats b { color: var(--fg); font-weight: 500; }
+.desk { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; }
+fieldset { margin: 0; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px 14px; background: var(--panel); min-width: 0; display: grid; gap: 9px; align-content: start; }
+legend { font-family: var(--display); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 0 6px; }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+.row label { font-size: 13px; }
+.row output { font-family: var(--mono); font-size: 12px; color: var(--green); font-variant-numeric: tabular-nums; }
+.row input[type=range], .row select { grid-column: 1 / -1; width: 100%; accent-color: var(--green); }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.check input { accent-color: var(--violet); }
+.file { display: grid; gap: 6px; font-size: 13px; }
+.file input { font: 12px var(--body); color: var(--muted); max-width: 100%; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.note { border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); min-width: 0; }
+.note h2 { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg); margin: 0 0 6px; font-weight: 500; }
+.note p { margin: 0 0 6px; max-width: 65ch; }
+.note b { color: var(--fg); font-weight: 500; }
+textarea { width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical; background: #050810; color: #a9b8cf; border: 1px solid var(--line); border-radius: 5px; font: 12px/1.45 var(--mono); padding: 10px; }
+.export { display: grid; gap: 8px; }
+.export .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Aurora <span>Lab</span></h1>
+    <p class="sub">The KESTREL / PEREGRINE boot screen, sketched: a night sky, a curtain of light, then every star flies into the falcon. Rendered at the machine's own resolution.</p>
+  </header>
+
+  <div class="screen">
+    <canvas id="cv" width="320" height="200" aria-label="Aurora plane"></canvas>
+    <canvas id="stars" width="320" height="200" aria-label="Star plane"></canvas>
+    <div class="hud"><span id="hudL">0.00 s</span><span id="hudR">-- fps</span></div>
+    <div class="err" id="err" hidden></div>
+  </div>
+
+  <div class="transport">
+    <button id="play" class="primary" type="button">Pause</button>
+    <div class="timeline"><span class="mono">t</span><input id="scrub" type="range" min="0" max="1" step="0.0005" value="0" aria-label="Sequence time"><span class="mono" id="tval">0.00 s</span></div>
+    <div class="chips" id="birds" role="group" aria-label="Board"></div>
+    <div class="chips" id="presets" role="group" aria-label="Colour presets"></div>
+  </div>
+  <div class="beats" id="beats"></div>
+
+  <div class="desk" id="desk"></div>
+
+  <div class="notes">
+    <div class="note">
+      <h2>The model</h2>
+      <p>Each curtain is a thin vertical sheet hanging along a wandering curve (sines plus noise folds drifting over time). A ray from the eye is marched only through the slab around each sheet. Light peaks just above a <b>sharp lower edge</b> and fades upward; the colour follows altitude (violet fringe, green body, red top, like oxygen 557.7 nm and 630 nm). Vertical <b>rays</b> are noise along the curtain. It all adds as light, then glow and filmic tone mapping.</p>
+    </div>
+    <div class="note">
+      <h2>Two planes, as on the machine</h2>
+      <p>The <b>aurora plane</b> is the one we bake offline and play back. The <b>star plane</b> is live: the stars, their flight and the falcon are a few hundred points and lines a frame, cheap on ZIGGY. Load your own night photo: its stars are extracted, painted out of the picture, and become the flying points. The falcon is our own placeholder model.</p>
+      <p class="mono" id="sizeEst"></p>
+    </div>
+    <div class="note export">
+      <h2>Settings for the baker</h2>
+      <textarea id="json" readonly aria-label="Settings JSON"></textarea>
+      <div class="bar"><button id="copy" type="button">Copy settings</button><span class="mono" id="copied"></span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------- settings ---------- */
+const PRESETS = {
+  "Classic green":   { c0: [0.95, 0.35, 0.75], c1: [0.25, 1.0, 0.55], c2: [0.55, 0.15, 0.45], s0: 0.10, s1: 0.85 },
+  "Red-top storm":   { c0: [0.9, 0.3, 0.8],    c1: [0.3, 1.0, 0.5],   c2: [1.0, 0.18, 0.2],  s0: 0.12, s1: 0.6 },
+  "Magenta fringe":  { c0: [1.0, 0.2, 0.85],   c1: [0.3, 0.95, 0.6],  c2: [0.35, 0.2, 0.6],  s0: 0.22, s1: 0.9 },
+  "Teal and violet": { c0: [0.6, 0.3, 1.0],    c1: [0.2, 0.9, 0.85],  c2: [0.5, 0.2, 0.9],   s0: 0.15, s1: 0.75 },
+};
+const SPEC = [
+  ["Curtain", [
+    ["curtains", "Curtains", 1, 3, 1, 3], ["dist", "Distance", 30, 140, 1, 76], ["foldAmp", "Fold depth", 0, 40, 0.5, 12],
+    ["foldFreq", "Fold count", 0.2, 4, 0.05, 3.5], ["foldSpeed", "Fold speed", 0, 2, 0.01, 1.64], ["thick", "Sheet thickness", 0.3, 8, 0.1, 1.6],
+  ]],
+  ["Height and rays", [
+    ["base", "Lower edge height", 3, 30, 0.5, 11.5], ["height", "Curtain height", 10, 80, 1, 44], ["edge", "Edge sharpness", 0.005, 0.2, 0.005, 0.045],
+    ["decay", "Upward fade", 0.5, 8, 0.1, 4.8], ["rayDen", "Ray density", 0.5, 20, 0.1, 5.8], ["rayCon", "Ray contrast", 0.5, 6, 0.1, 2.5], ["raySpd", "Ray drift", 0, 3, 0.01, 0.64],
+  ]],
+  ["Light and camera", [
+    ["gain", "Brightness", 0.1, 6, 0.05, 2.4], ["bloom", "Glow", 0, 3, 0.05, 1.05], ["exposure", "Exposure", 0.3, 3, 0.05, 1.3],
+    ["pitch", "Look up", 0, 0.6, 0.01, 0.29], ["yaw", "Turn", -0.8, 0.8, 0.01, 0.04], ["fov", "Field of view", 0.5, 1.6, 0.01, 1.03], ["steps", "March steps", 12, 96, 1, 51],
+  ]],
+  ["Stars", [
+    ["starGain", "Star brightness", 0.1, 3, 0.05, 0.7], ["starMin", "Faint stars lifted", 0, 0.8, 0.01, 0.18],
+    ["nStars", "Stars (procedural sky)", 80, 800, 10, 80], ["starThr", "Photo: detection threshold", 0.1, 0.9, 0.01, 0.1], ["photoDim", "Photo: brightness", 0, 1.5, 0.01, 0.2],
+    ["horizon", "Photo: aurora horizon", 0, 0.8, 0.01, 0.17],
+  ]],
+  ["Sequence", [
+    ["starsAlone", "Stars alone (s)", 0, 3, 0.05, 1.0], ["dur", "Aurora (s)", 1.5, 5, 0.1, 5], ["flyAt", "Stars start flying at (s)", 0.5, 9, 0.05, 1.7], ["fadeIn", "Aurora appears (s)", 0.1, 2, 0.05, 0.7],
+    ["fadeOut", "Aurora fades (s)", 0.1, 2, 0.05, 0.8], ["morphLen", "Stars fly (s)", 0.8, 4, 0.05, 3.45], ["swirl", "Flight swirl", 0, 1.5, 0.01, 0.55], ["wingHz", "Wingbeats per second", 0, 8, 0.1, 0.1], ["wingAmp", "Wingbeat depth", 0, 1, 0.01, 0.42], ["hold", "Falcon holds (s)", 0.5, 4, 0.05, 2],
+  ]],
+];
+const P = {};
+SPEC.forEach(([, rows]) => rows.forEach(r => { P[r[0]] = r[5]; }));
+Object.assign(P, { preset: "Teal and violet", bird: "KESTREL", sweep: false, auroraOnly: false, quant: "565", res: "320x200" }, PRESETS["Teal and violet"]);
+
+/* the sequence's beats, in seconds */
+function beats() {
+  const a0 = P.starsAlone, a1 = a0 + P.dur;
+  const m0 = Math.max(0.2, P.flyAt), m1 = m0 + P.morphLen;
+  const e1 = m1 + 0.7, w0 = e1, end = Math.max(w0 + P.hold, a1), total = end + 0.6;
+  return { a0, a1, m0, m1, e1, w0, end, total };
+}
+
+/* ---------- the desk ---------- */
+const desk = document.getElementById("desk");
+function fmt(v, step) { return step >= 1 ? String(Math.round(v)) : Number(v).toFixed(step < 0.01 ? 3 : 2); }
+SPEC.forEach(([group, rows]) => {
+  const fs = document.createElement("fieldset");
+  fs.innerHTML = `<legend>${group}</legend>`;
+  rows.forEach(([key, label, min, max, step]) => {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = `<label for="p-${key}">${label}</label><output id="o-${key}">${fmt(P[key], step)}</output><input id="p-${key}" type="range" min="${min}" max="${max}" step="${step}" value="${P[key]}">`;
+    row.querySelector("input").addEventListener("input", e => {
+      P[key] = parseFloat(e.target.value); row.querySelector("output").textContent = fmt(P[key], step);
+      if (["nStars", "pitch", "yaw", "fov"].includes(key) && !photo) makeStars();
+      if (key === "starThr" && photo) extractPhoto();
+      onChange();
+    });
+    fs.appendChild(row);
+  });
+  if (group === "Light and camera") fs.insertAdjacentHTML("beforeend", `
+    <div class="row"><label for="p-quant">Colour on the machine</label><span></span>
+    <select id="p-quant"><option value="565">True colour RGB565 (KESTREL TC plane)</option><option value="full">Full browser colour</option><option value="256">256 colours (rough)</option></select></div>
+    <div class="row"><label for="p-res">Machine resolution</label><span></span>
+    <select id="p-res"><option value="320x200">320 × 200 (KESTREL)</option><option value="160x100">160 × 100 (half)</option><option value="640x400">640 × 400 (PEREGRINE desk)</option></select></div>`);
+  if (group === "Stars") fs.insertAdjacentHTML("beforeend", `
+    <div class="file"><label for="p-photo">Your night photo (stays in this browser)</label><input id="p-photo" type="file" accept="image/*">
+    <button id="p-nophoto" type="button">Back to the procedural sky</button><span class="mono" id="photoInfo"></span></div>`);
+  if (group === "Sequence") fs.insertAdjacentHTML("beforeend", `
+    <label class="check"><input id="p-sweep" type="checkbox"> Curtain sweeps in from the side (off: a plain fade)</label>
+    <label class="check"><input id="p-auroraOnly" type="checkbox"> Loop the aurora only (tuning)</label>`);
+  desk.appendChild(fs);
+});
+document.getElementById("p-quant").addEventListener("change", e => { P.quant = e.target.value; onChange(); });
+["sweep", "auroraOnly"].forEach(k => document.getElementById("p-" + k).addEventListener("change", e => { P[k] = e.target.checked; onChange(); }));
+document.getElementById("p-res").addEventListener("change", e => { P.res = e.target.value; resize(); if (photo) extractPhoto(); else makeStars(); onChange(); });
+
+function chipGroup(el, names, key, apply) {
+  names.forEach(name => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = name; b.setAttribute("aria-pressed", String(name === P[key]));
+    b.addEventListener("click", () => { P[key] = name; if (apply) apply(name); el.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); onChange(); });
+    el.appendChild(b);
+  });
+}
+chipGroup(document.getElementById("birds"), ["KESTREL", "PEREGRINE"], "bird", () => assignTargets());
+chipGroup(document.getElementById("presets"), Object.keys(PRESETS), "preset", n => Object.assign(P, PRESETS[n]));
+
+function onChange() {
+  const out = {}; Object.keys(P).forEach(k => { out[k] = Array.isArray(P[k]) ? P[k].map(v => +v.toFixed(3)) : (typeof P[k] === "number" ? +P[k].toFixed(4) : P[k]); });
+  document.getElementById("json").value = JSON.stringify(out, null, 1);
+  const [w, h] = P.res.split("x").map(Number), frames = Math.round(P.dur*30), band = Math.round(h*0.6), raw = w*band*frames;
+  document.getElementById("sizeEst").textContent = `Baked aurora: ${frames} frames of ${w} × ${band} at 30 fps = ${(raw/1048576).toFixed(1)} MB raw, ~${(raw/8/1024).toFixed(0)}-${(raw/5/1024).toFixed(0)} KB packed (estimate).`;
+  const B = beats();
+  document.getElementById("beats").innerHTML =
+    `<span><b>${B.a0.toFixed(1)} s</b> aurora</span><span><b>${B.m0.toFixed(1)} s</b> stars fly</span><span><b>${B.m1.toFixed(1)} s</b> falcon lines</span><span><b>${B.w0.toFixed(1)} s</b> name</span><span><b>${B.end.toFixed(1)} s</b> fade</span><span>total <b>${B.total.toFixed(1)} s</b>, ${stars.length} stars</span>`;
+  if (paused) draw();
+}
+document.getElementById("copy").addEventListener("click", async () => {
+  const ta = document.getElementById("json"), msg = document.getElementById("copied");
+  try { await navigator.clipboard.writeText(ta.value); msg.textContent = "Copied"; } catch { ta.focus(); ta.select(); msg.textContent = "Selected: press Ctrl+C"; }
+});
+
+/* ---------- noise and the mountain line, shared by the star plane and the shader ---------- */
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const H1 = (() => { const r = rng(7), a = new Float32Array(1024); for (let i = 0; i < 1024; i++) a[i] = r(); return a; })();
+function vn(x) { const i = Math.floor(x), f = x - i, s = f*f*(3 - 2*f); return H1[i & 1023]*(1 - s) + H1[(i + 1) & 1023]*s; }
+function fbm(x) { return 0.5*vn(x) + 0.25*vn(x*2.03 + 3.1) + 0.125*vn(x*4.11 + 7.7); }
+const MOUNT_N = 512, MOUNT = new Float32Array(MOUNT_N);
+for (let i = 0; i < MOUNT_N; i++) { const az = (i/(MOUNT_N - 1) - 0.5)*Math.PI; MOUNT[i] = 0.015 + 0.055*fbm(az*5 + 20) + 0.02*fbm(az*21 + 40); }
+function mountAt(az) { const u = Math.min(1, Math.max(0, az/Math.PI + 0.5))*(MOUNT_N - 1), i = Math.floor(u), f = u - i; return MOUNT[i]*(1 - f) + MOUNT[Math.min(MOUNT_N - 1, i + 1)]*f; }
+/* the shader's camera, for a pixel of the 2D plane (y from the top) */
+function pixelDir(x, y) {
+  let ux = (x + 0.5 - 0.5*W)/H*P.fov, uy = ((H - y - 0.5) - 0.5*H)/H*P.fov;
+  let l = Math.hypot(ux, uy, 1), dx = ux/l, dy = uy/l, dz = 1/l;
+  const cp = Math.cos(P.pitch), sp = Math.sin(P.pitch); [dy, dz] = [dy*cp + dz*sp, -dy*sp + dz*cp];
+  const cy = Math.cos(P.yaw), sy = Math.sin(P.yaw); [dx, dz] = [dx*cy + dz*sy, -dx*sy + dz*cy];
+  return { el: Math.asin(Math.max(-1, Math.min(1, dy))), az: Math.atan2(dx, dz) };
+}
+
+/* ---------- stars: procedural or extracted from a photo ---------- */
+let stars = [], photo = null, photoTex = null;
+function makeStars() {
+  const r = rng(1234), out = []; let guard = 0;
+  while (out.length < P.nStars && guard++ < 40000) {
+    const x = Math.floor(r()*W), y = Math.floor(r()*H*0.92), d = pixelDir(x, y);
+    if (d.el < mountAt(d.az) + 0.012) continue;
+    out.push({ x, y, b: 0.25 + 0.75*Math.pow(r(), 2.6), ph: r()*6.28 });
+  }
+  stars = out; assignTargets();
+}
+document.getElementById("p-photo").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const img = new Image(); img.onload = () => { photo = img; extractPhoto(); onChange(); }; img.onerror = () => { document.getElementById("photoInfo").textContent = "That file is not a picture this browser can read."; };
+  img.src = URL.createObjectURL(f);
+});
+document.getElementById("p-nophoto").addEventListener("click", () => { photo = null; document.getElementById("photoInfo").textContent = ""; document.getElementById("p-photo").value = ""; makeStars(); onChange(); });
+function extractPhoto() {
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const x2 = c.getContext("2d", { willReadFrequently: true });
+  const s = Math.max(W/photo.width, H/photo.height), dw = photo.width*s, dh = photo.height*s;
+  x2.drawImage(photo, (W - dw)/2, (H - dh)/2, dw, dh);
+  const im = x2.getImageData(0, 0, W, H), d = im.data, L = new Float32Array(W*H);
+  for (let i = 0; i < W*H; i++) L[i] = (0.2126*d[i*4] + 0.7152*d[i*4 + 1] + 0.0722*d[i*4 + 2])/255;
+  const found = [];
+  for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+    const v = L[y*W + x]; if (v < P.starThr) continue;
+    let max = true, ring = 0;
+    for (let j = -1; j <= 1 && max; j++) for (let i = -1; i <= 1; i++) if ((i || j) && L[(y + j)*W + x + i] > v) { max = false; break; }
+    if (!max) continue;
+    for (let i = -2; i <= 2; i++) { ring += L[(y - 2)*W + x + i] + L[(y + 2)*W + x + i]; }
+    for (let j = -1; j <= 1; j++) { ring += L[(y + j)*W + x - 2] + L[(y + j)*W + x + 2]; }
+    ring /= 16; if (v - ring < 0.12) continue;
+    found.push({ x, y, b: Math.min(1, (v - ring)*1.6 + 0.2), ph: (x*7 + y*13) % 628 / 100, ring });
+  }
+  found.sort((a, b) => b.b - a.b); stars = found.slice(0, 800);
+  for (const st of stars) { /* paint the star out of the picture: the live plane draws it */
+    let r = 0, g = 0, bl = 0, n = 0;
+    for (let i = -2; i <= 2; i++) for (const j of [-2, 2]) { const k = ((st.y + j)*W + st.x + i)*4; r += d[k]; g += d[k + 1]; bl += d[k + 2]; n++; }
+    r /= n; g /= n; bl /= n;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const k = ((st.y + j)*W + st.x + i)*4; d[k] = r; d[k + 1] = g; d[k + 2] = bl; }
+  }
+  x2.putImageData(im, 0, 0);
+  if (gl) { gl.bindTexture(gl.TEXTURE_2D, photoTex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); }
+  document.getElementById("photoInfo").textContent = `${stars.length} stars extracted${found.length > 800 ? " (the 800 brightest kept)" : ""}.`;
+  assignTargets();
+}
+
+/* ---------- the falcon: our own placeholder wireframe ---------- */
+const V = {}, E = [];
+function v(n, x, y, z) { V[n] = [x, y, z]; }
+v("beak", 0, 0.03, 1.12); v("crown", 0, 0.17, 0.93); v("chin", 0, -0.04, 0.9); v("chest", 0, -0.13, 0.55); v("back", 0, 0.12, 0.5);
+v("belly", 0, -0.1, 0.02); v("rump", 0, 0.06, -0.25); v("tailB", 0, 0.02, -0.4);
+v("tL2", -0.24, 0, -0.95); v("tL1", -0.09, 0, -1.02); v("tR1", 0.09, 0, -1.02); v("tR2", 0.24, 0, -0.95);
+for (const [s, k] of [["R", 1], ["L", -1]]) {
+  v("side" + s, 0.12*k, 0.02, 0.55); v("hip" + s, 0.13*k, 0, 0.12); v("tsd" + s, 0.08*k, 0, -0.3);
+  v("sh" + s, 0.13*k, 0.06, 0.44); v("le1" + s, 0.45*k, 0.12, 0.42); v("wr" + s, 0.8*k, 0.15, 0.3); v("le3" + s, 1.15*k, 0.12, 0.1); v("tip" + s, 1.47*k, 0.08, -0.16);
+  v("p1" + s, 1.38*k, 0.06, -0.33); v("p2" + s, 1.24*k, 0.05, -0.43); v("p3" + s, 1.06*k, 0.04, -0.46); v("p4" + s, 0.86*k, 0.03, -0.39);
+  v("s1" + s, 0.6*k, 0.02, -0.3); v("s2" + s, 0.35*k, 0.03, -0.18); v("s3" + s, 0.14*k, 0.02, 0.06);
+  const w = n => n + s;
+  [["crown", w("side")], ["chin", w("side")], [w("side"), w("hip")], [w("hip"), w("tsd")], [w("tsd"), "tailB"], [w("side"), "back"], [w("side"), "chest"], [w("hip"), "belly"],
+   [w("sh"), w("le1")], [w("le1"), w("wr")], [w("wr"), w("le3")], [w("le3"), w("tip")], [w("tip"), w("p1")], [w("p1"), w("p2")], [w("p2"), w("p3")], [w("p3"), w("p4")],
+   [w("p4"), w("s1")], [w("s1"), w("s2")], [w("s2"), w("s3")], [w("s3"), w("hip")], [w("le1"), w("s2")], [w("wr"), w("s1")], [w("le3"), w("p4")], [w("le3"), w("p3")], [w("le3"), w("p2")]]
+   .forEach(e => E.push(e));
+}
+[["beak", "crown"], ["beak", "chin"], ["crown", "back"], ["chin", "chest"], ["back", "rump"], ["chest", "belly"], ["belly", "tailB"], ["rump", "tailB"],
+ ["tailB", "tL2"], ["tailB", "tL1"], ["tailB", "tR1"], ["tailB", "tR2"], ["tL2", "tL1"], ["tL1", "tR1"], ["tR1", "tR2"]].forEach(e => E.push(e));
+const edgeLen = E.map(([a, b]) => Math.hypot(V[a][0] - V[b][0], V[a][1] - V[b][1], V[a][2] - V[b][2]));
+const totalLen = edgeLen.reduce((s, x) => s + x, 0);
+
+function rotAbout(p, cx, cy, a) { const c = Math.cos(a), s = Math.sin(a), x = p[0] - cx, y = p[1] - cy; return [cx + x*c - y*s, cy + x*s + y*c, p[2]]; }
+/* the pose at time t: KESTREL hovers (fast wingbeats, head still), PEREGRINE stoops (wings tucked, diving in, then flaring open) */
+function pose(t, B) {
+  const out = {}, peg = P.bird === "PEREGRINE";
+  const flap = (peg ? 0.5 : 1)*P.wingAmp*Math.sin(t*2*Math.PI*P.wingHz*(peg ? 0.5 : 1));
+  const dive = peg ? Math.min(1, Math.max(0, (t - B.m0)/(B.m1 + 0.4 - B.m0))) : 1;
+  const tuck = peg ? (1 - smooth(Math.min(1, Math.max(0, (dive - 0.75)/0.25)))) : 0;
+  for (const n in V) {
+    let p = V[n].slice(); const side = n.endsWith("R") ? 1 : n.endsWith("L") ? -1 : 0;
+    const wing = side && !/^(side|hip|tsd)/.test(n);
+    if (wing) {
+      let q = [p[0]*side, p[1], p[2]];
+      if (q[0] > 0.8) q = rotAbout(q, 0.8, 0.15, flap*0.6);
+      q = rotAbout(q, 0.13, 0.06, flap);
+      if (tuck > 0) { const ex = q[0] - 0.13; q = [0.13 + ex*(1 - 0.72*tuck), q[1] - 0.05*tuck*ex, q[2] - ex*0.7*tuck]; }
+      p = [q[0]*side, q[1], q[2]];
+    }
+    out[n] = p;
+  }
+  /* body placement: hover bob, or the dive path */
+  const bob = peg ? 0 : 0.06*P.wingAmp*Math.sin(t*2*Math.PI*P.wingHz + 1.2);
+  const s = smooth(dive);
+  return { V: out, dist: peg ? 9 - 6.4*s : 2.7, lift: peg ? 1.1*(1 - s) + bob : bob, nose: peg ? -1.05*(1 - s) - 0.15 : -0.12, yaw: peg ? 0.15 : 0.55 + 0.08*Math.sin(t*0.7) };
+}
+function smooth(x) { return x*x*(3 - 2*x); }
+function project(p, ps) {
+  let [x, y, z] = p;
+  const cn = Math.cos(ps.nose), sn = Math.sin(ps.nose); [y, z] = [y*cn - z*sn, y*sn + z*cn];
+  const cy = Math.cos(ps.yaw), sy = Math.sin(ps.yaw); [x, z] = [x*cy + z*sy, -x*sy + z*cy];
+  const tilt = 0.42, ct = Math.cos(tilt), st = Math.sin(tilt); [y, z] = [y*ct - z*st, y*st + z*ct];
+  y += ps.lift; const zz = z + ps.dist, f = H*0.95;
+  return [W*0.5 + f*x/zz, H*0.44 - f*y/zz];
+}
+/* the dots along the wireframe, one per star, and which star goes where */
+let dots = [];
+function assignTargets() {
+  const n = stars.length; dots = [];
+  if (!n) return;
+  let e = 0, acc = 0;
+  for (let i = 0; i < n; i++) {
+    const at = (i + 0.5)/n*totalLen;
+    while (e < E.length - 1 && acc + edgeLen[e] < at) { acc += edgeLen[e]; e++; }
+    dots.push({ e, u: Math.min(1, (at - acc)/edgeLen[e]) });
+  }
+  const B = beats(), ps = pose(B.m1, B);
+  const cx = W*0.5, cy = H*0.44;
+  const dAng = dots.map((d, i) => { const [a, b] = E[d.e], pa = ps.V[a], pb = ps.V[b];
+    const q = project([pa[0] + (pb[0] - pa[0])*d.u, pa[1] + (pb[1] - pa[1])*d.u, pa[2] + (pb[2] - pa[2])*d.u], ps); return { i, a: Math.atan2(q[1] - cy, q[0] - cx) }; });
+  const sAng = stars.map((s, i) => ({ i, a: Math.atan2(s.y - cy, s.x - cx), r: Math.hypot(s.y - cy, s.x - cx) }));
+  dAng.sort((a, b) => a.a - b.a); sAng.sort((a, b) => a.a - b.a);
+  const rmax = Math.max(1, ...sAng.map(s => s.r));
+  sAng.forEach((s, k) => { stars[s.i].dot = dAng[k].i; stars[s.i].delay = 0.35*(s.r/rmax); });
+}
+
+/* ---------- the star plane (2D) ---------- */
+const sc = document.getElementById("stars"), sx = sc.getContext("2d");
+function drawStarPlane(t) {
+  sx.clearRect(0, 0, W, H);
+  const B = beats(), k = W/320;
+  const sb = s => Math.min(1, s.b*P.starGain);
+  if (P.auroraOnly) { for (const s of stars) { sx.fillStyle = `rgba(222,232,255,${Math.min(1, (P.starMin + (1 - P.starMin)*sb(s))*Math.min(1, P.starGain))})`; sx.fillRect(s.x, s.y, k, k); } return; }
+  const fade = t > B.end ? Math.max(0, 1 - (t - B.end)/0.6) : 1;
+  const ps = pose(t, B), proj = {};
+  for (const n in ps.V) proj[n] = project(ps.V[n], ps);
+  const edgesA = Math.min(1, Math.max(0, (t - B.m1)/(B.e1 - B.m1)));
+  if (edgesA > 0) {
+    sx.strokeStyle = `rgba(150,215,255,${0.5*edgesA*fade})`; sx.lineWidth = k; sx.beginPath();
+    for (const [a, b] of E) { sx.moveTo(proj[a][0], proj[a][1]); sx.lineTo(proj[b][0], proj[b][1]); }
+    sx.stroke();
+  }
+  const fly = P.morphLen*0.65;
+  for (const s of stars) {
+    let x = s.x, y = s.y, b = sb(s)*(0.82 + 0.18*Math.sin(t*3 + s.ph));
+    if (t > B.m0 && s.dot !== undefined) {
+      const d = dots[s.dot], [ea, eb] = E[d.e], pa = proj[ea], pb = proj[eb];
+      const tx = pa[0] + (pb[0] - pa[0])*d.u, ty = pa[1] + (pb[1] - pa[1])*d.u;
+      const p = smooth(Math.min(1, Math.max(0, (t - B.m0 - s.delay*P.morphLen)/fly)));
+      const mx = (s.x + tx)/2, my = (s.y + ty)/2, nx = -(ty - s.y)*P.swirl, ny = (tx - s.x)*P.swirl;
+      const cx = mx + nx*0.5, cy = my + ny*0.5, q = 1 - p;
+      x = q*q*s.x + 2*q*p*cx + p*p*tx; y = q*q*s.y + 2*q*p*cy + p*p*ty;
+      b = b + (1 - b)*p;
+    }
+    sx.fillStyle = `rgba(225,236,255,${Math.min(1, (P.starMin + (1 - P.starMin)*b)*Math.min(1, P.starGain))*fade})`;
+    sx.fillRect(Math.round(x), Math.round(y), k, k);
+    if (b > 0.85) { sx.fillStyle = `rgba(225,236,255,${0.35*fade})`; sx.fillRect(Math.round(x) - k, Math.round(y), 3*k, k); sx.fillRect(Math.round(x), Math.round(y) - k, k, 3*k); }
+  }
+  if (t > B.w0) {
+    const a = Math.min(1, (t - B.w0)/0.6)*fade, name = P.bird;
+    sx.font = `600 ${Math.round(13*k)}px Sora, sans-serif`; sx.textAlign = "center"; sx.textBaseline = "middle";
+    sx.fillStyle = `rgba(232,240,255,${a})`;
+    if ("letterSpacing" in sx) sx.letterSpacing = `${Math.round(4*k)}px`;
+    sx.fillText(name, W/2, H*0.86);
+  }
+}
+
+/* ---------- WebGL: the aurora plane ---------- */
+const cv = document.getElementById("cv"), errBox = document.getElementById("err");
+function showErr(msg) { errBox.hidden = false; errBox.textContent = msg; }
+const gl = cv.getContext("webgl2", { antialias: false, powerPreference: "low-power" });
+const VS = `#version 300 es
+in vec2 a; out vec2 v; void main(){ v = a*.5+.5; gl_Position = vec4(a,0.,1.); }`;
+const FS_SCENE = `#version 300 es
+precision highp float;
+in vec2 v; out vec4 o;
+uniform vec2 uRes; uniform float uTime, uEnv, uReveal;
+uniform float uCurtains, uDist, uFoldAmp, uFoldFreq, uFoldSpeed, uThick;
+uniform float uBase, uHeight, uEdge, uDecay, uRayDen, uRayCon, uRaySpd, uGain, uSteps;
+uniform float uPitch, uYaw, uFov; uniform vec3 uC0, uC1, uC2; uniform vec2 uStops;
+uniform sampler2D uMount, uPhotoTex; uniform float uPhoto, uPhotoDim, uHorizon;
+float h1(float n){ return fract(sin(n)*43758.5453); }
+float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float vn(float x){ float i=floor(x), f=fract(x); f=f*f*(3.-2.*f); return mix(h1(i), h1(i+1.), f); }
+float fbm(float x){ return .5*vn(x) + .25*vn(x*2.03+3.1) + .125*vn(x*4.11+7.7); }
+float curtainZ(float x, float k, float t){
+  float s = uDist*(1. + .38*k);
+  float w = sin(x*uFoldFreq*.020 + t*uFoldSpeed + k*2.1)*.55 + sin(x*uFoldFreq*.047 - t*uFoldSpeed*1.3 + k)*.3;
+  return s + uFoldAmp*(w + 1.3*(fbm(x*uFoldFreq*.012 + t*uFoldSpeed*.25 + k*10.) - .5));
+}
+vec3 emis(float h){ vec3 c = mix(uC0, uC1, smoothstep(0., uStops.x, h)); return mix(c, uC2, smoothstep(uStops.x, uStops.y, h)); }
+void main(){
+  vec2 uv = (gl_FragCoord.xy - .5*uRes) / uRes.y;
+  vec3 d = normalize(vec3(uv*uFov, 1.));
+  float cp = cos(uPitch), sp = sin(uPitch); d = vec3(d.x, d.y*cp + d.z*sp, -d.y*sp + d.z*cp);
+  float cy = cos(uYaw), sy = sin(uYaw); d = vec3(d.x*cy + d.z*sy, d.y, -d.x*sy + d.z*cy);
+  float el = asin(clamp(d.y, -1., 1.)), az = atan(d.x, d.z);
+  vec3 col; bool sky;
+  if (uPhoto > .5) { col = pow(texture(uPhotoTex, v).rgb, vec3(2.2))*uPhotoDim; sky = v.y > uHorizon; }
+  else {
+    float mount = texture(uMount, vec2(clamp(az/3.14159265 + .5, 0., 1.), .5)).r*.2;
+    col = mix(vec3(.010,.018,.040), vec3(.002,.004,.012), smoothstep(0., .6, el));
+    sky = el >= mount;
+    if (!sky) col = vec3(.004,.006,.012)*(1. + 2.*smoothstep(mount - .02, mount, el));
+  }
+  vec3 acc = vec3(0.);
+  if (sky && uEnv > 0. && d.y > .002 && d.z > .02) {
+    float tb0 = uBase/d.y, tb1 = (uBase + uHeight)/d.y;
+    float jit = h2(gl_FragCoord.xy + fract(uTime*7.));
+    for (int k = 0; k < 3; k++) {
+      if (float(k) >= uCurtains) break;
+      float fk = float(k), s = uDist*(1. + .38*fk), m = 2.2*uFoldAmp + 3.*uThick;
+      float t0 = max(tb0, (s - m)/d.z), t1 = min(tb1, (s + m)/d.z);
+      if (t0 >= t1) continue;
+      float dt = (t1 - t0)/uSteps;
+      for (int i = 0; i < 96; i++) {
+        if (float(i) >= uSteps) break;
+        vec3 p = d*(t0 + dt*(float(i) + jit));
+        float q = (p.z - curtainZ(p.x, fk, uTime))/uThick, sheet = exp(-q*q);
+        if (sheet < .02) continue;
+        float h = (p.y - uBase)/uHeight;
+        float prof = smoothstep(0., uEdge, h)*exp(-h*uDecay);
+        float r = pow(fbm(p.x*uRayDen*.06 + uTime*uRaySpd + fk*31.), uRayCon)*2.2;
+        float rv = uReveal >= 1. ? 1. : smoothstep(-25., 25., mix(-220., 220., uReveal) - p.x);
+        acc += emis(h)*sheet*prof*r*rv*dt;
+      }
+    }
+  }
+  col += acc*uGain*uEnv*.045;
+  o = vec4(col*.25, 1.);
+}`;
+const FS_BLUR = `#version 300 es
+precision highp float;
+in vec2 v; out vec4 o; uniform sampler2D uTex; uniform vec2 uDir;
+void main(){
+  float w[5] = float[5](.227, .195, .122, .054, .016);
+  vec3 c = texture(uTex, v).rgb*w[0];
+  for (int i = 1; i < 5; i++) { vec2 off = uDir*float(i)*1.5; c += (texture(uTex, v + off).rgb + texture(uTex, v - off).rgb)*w[i]; }
+  o = vec4(c, 1.);
+}`;
+const FS_OUT = `#version 300 es
+precision highp float;
+in vec2 v; out vec4 o; uniform sampler2D uScene, uGlow; uniform float uBloom, uExp, uQuant, uFade;
+vec3 aces(vec3 x){ return clamp((x*(2.51*x + .03))/(x*(2.43*x + .59) + .14), 0., 1.); }
+float bayer(vec2 p){ int x = int(mod(p.x, 4.)), y = int(mod(p.y, 4.));
+  int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5); return (float(m[y*4 + x]) + .5)/16.; }
+void main(){
+  vec3 c = texture(uScene, v).rgb*4. + texture(uGlow, v).rgb*4.*uBloom;
+  c = pow(aces(c*uExp), vec3(1./2.2))*uFade;
+  if (uQuant > 1.5) { vec3 L = vec3(31., 63., 31.); c = floor(c*L + .5)/L; }
+  else if (uQuant > .5) { vec3 L = vec3(5., 6., 5.); c = floor(c*L + bayer(gl_FragCoord.xy))/L; }
+  o = vec4(c, 1.);
+}`;
+let progScene, progBlur, progOut, vao, texScene, texA, texB, fbScene, fbA, fbB, mountTex, W = 320, H = 200, fmt16 = false;
+function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function program(fs) { const p = gl.createProgram(); gl.attachShader(p, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, "a"); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); p.u = {}; return p; }
+function U(p, n) { if (!(n in p.u)) p.u[n] = gl.getUniformLocation(p, n); return p.u[n]; }
+function texParams() { gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+function makeTarget(w, h) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  if (fmt16) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null); else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  texParams(); const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return [t, f];
+}
+function resize() {
+  [W, H] = P.res.split("x").map(Number); cv.width = W; cv.height = H; sc.width = W; sc.height = H;
+  if (!gl) return;
+  [texScene, fbScene] = makeTarget(W, H); [texA, fbA] = makeTarget(Math.max(8, W >> 2), Math.max(8, H >> 2)); [texB, fbB] = makeTarget(Math.max(8, W >> 2), Math.max(8, H >> 2));
+}
+function initGL() {
+  if (!gl) { showErr("The aurora needs WebGL2, which this browser did not provide. The star plane still runs."); return false; }
+  fmt16 = !!gl.getExtension("EXT_color_buffer_float");
+  progScene = program(FS_SCENE); progBlur = program(FS_BLUR); progOut = program(FS_OUT);
+  vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  mountTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, mountTex);
+  const m8 = new Uint8Array(MOUNT_N*4); for (let i = 0; i < MOUNT_N; i++) m8[i*4] = Math.round(Math.min(1, MOUNT[i]/0.2)*255);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, MOUNT_N, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, m8); texParams();
+  photoTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, photoTex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); texParams();
+  resize(); return true;
+}
+function drawAurora(t) {
+  if (!gl || lost) return;
+  const B = beats(), ta = P.auroraOnly ? t : t - B.a0;
+  let env = 0;
+  if (ta >= 0 && ta <= P.dur) { const a = Math.min(1, ta/P.fadeIn), b = Math.min(1, Math.max(0, (P.dur - ta)/P.fadeOut)); env = smooth(a)*smooth(b); }
+  const reveal = P.sweep ? Math.min(1, Math.max(0, ta/Math.max(0.2, P.dur*0.55))) : 1;
+  const fade = P.auroraOnly ? 1 : (t > B.end ? Math.max(0, 1 - (t - B.end)/0.6) : 1);
+  gl.bindVertexArray(vao);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbScene); gl.viewport(0, 0, W, H); gl.useProgram(progScene);
+  const p = progScene;
+  gl.uniform2f(U(p, "uRes"), W, H); gl.uniform1f(U(p, "uTime"), 2.0 + Math.max(0, ta)); gl.uniform1f(U(p, "uEnv"), env); gl.uniform1f(U(p, "uReveal"), reveal);
+  ["curtains","dist","foldAmp","foldFreq","foldSpeed","thick","base","height","edge","decay","rayDen","rayCon","raySpd","gain","steps","pitch","yaw","fov","photoDim","horizon"]
+    .forEach(k => gl.uniform1f(U(p, "u" + k[0].toUpperCase() + k.slice(1)), P[k]));
+  gl.uniform3fv(U(p, "uC0"), P.c0); gl.uniform3fv(U(p, "uC1"), P.c1); gl.uniform3fv(U(p, "uC2"), P.c2); gl.uniform2f(U(p, "uStops"), P.s0, P.s1);
+  gl.uniform1f(U(p, "uPhoto"), photo ? 1 : 0);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mountTex); gl.uniform1i(U(p, "uMount"), 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, photoTex); gl.uniform1i(U(p, "uPhotoTex"), 1);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const bw = Math.max(8, W >> 2), bh = Math.max(8, H >> 2);
+  gl.useProgram(progBlur); gl.activeTexture(gl.TEXTURE0); gl.uniform1i(U(progBlur, "uTex"), 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbA); gl.viewport(0, 0, bw, bh); gl.bindTexture(gl.TEXTURE_2D, texScene); gl.uniform2f(U(progBlur, "uDir"), 4/W, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbB); gl.bindTexture(gl.TEXTURE_2D, texA); gl.uniform2f(U(progBlur, "uDir"), 0, 1/bh); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.useProgram(progOut);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texScene); gl.uniform1i(U(progOut, "uScene"), 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB); gl.uniform1i(U(progOut, "uGlow"), 1);
+  gl.uniform1f(U(progOut, "uBloom"), P.bloom); gl.uniform1f(U(progOut, "uExp"), P.exposure); gl.uniform1f(U(progOut, "uQuant"), P.quant === "565" ? 2 : P.quant === "256" ? 1 : 0); gl.uniform1f(U(progOut, "uFade"), fade);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+/* ---------- time ---------- */
+let paused = false, seqT = 0, last = performance.now(), fpsAcc = 0, fpsN = 0, fpsShown = performance.now(), lost = false;
+const scrub = document.getElementById("scrub"), playBtn = document.getElementById("play");
+function period() { return P.auroraOnly ? P.dur + 0.8 : beats().total; }
+playBtn.addEventListener("click", () => { paused = !paused; playBtn.textContent = paused ? "Play" : "Pause"; if (!paused) { last = performance.now(); requestAnimationFrame(loop); } });
+scrub.addEventListener("input", () => { seqT = parseFloat(scrub.value)*period(); if (paused) draw(); });
+function draw() {
+  drawAurora(seqT); drawStarPlane(seqT);
+  document.getElementById("hudL").textContent = `${seqT.toFixed(2)} s · frame ${Math.floor(seqT*30)} at 30 fps`;
+  document.getElementById("tval").textContent = `${seqT.toFixed(2)} s`;
+}
+function loop() {
+  if (paused) return;
+  const now = performance.now(), dt = Math.min(0.1, (now - last)/1000); last = now;
+  seqT = (seqT + dt) % period(); scrub.value = String(seqT/period());
+  draw();
+  fpsAcc += dt; fpsN++;
+  if (now - fpsShown > 500) { document.getElementById("hudR").textContent = `${(fpsN/fpsAcc).toFixed(0)} fps in this browser`; fpsAcc = 0; fpsN = 0; fpsShown = now; }
+  requestAnimationFrame(loop);
+}
+cv.addEventListener("webglcontextlost", e => { e.preventDefault(); lost = true; showErr("The graphics card dropped the aurora. Lower the march steps or the resolution; it restarts by itself."); });
+cv.addEventListener("webglcontextrestored", () => { try { initGL(); if (photo) extractPhoto(); lost = false; errBox.hidden = true; } catch (e) { showErr(String(e.message || e)); } });
+
+try { initGL(); } catch (e) { showErr("The aurora could not start: " + (e.message || e)); }
+if (!gl) resize();
+makeStars(); onChange(); requestAnimationFrame(loop);
+/* Matt's preferred sky, published beside the page; the procedural sky stays if it cannot load */
+(() => { const img = new Image(); img.onload = () => { photo = img; extractPhoto(); document.getElementById("photoInfo").textContent += " (default sky: stars2.jpg)"; onChange(); }; img.src = "../../apps/zig/assets/screens/aurora_boot/stars2.jpg"; })();
+</script>

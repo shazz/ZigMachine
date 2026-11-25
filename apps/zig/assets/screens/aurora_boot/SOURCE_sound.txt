@@ -1,0 +1,3 @@
+boot_northern_lights_8s5.wav: first 8.5 s of "Northern Lights soft" by neolein, Freesound 721140, CC0 1.0
+https://freesound.org/people/neolein/sounds/721140/
+Trimmed + 0.7 s fade-in, 1.2 s fade-out, 48 kHz 16-bit stereo master (24 Nov 2026). Author asks for feedback if used in artworks.

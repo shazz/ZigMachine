@@ -689,6 +689,7 @@ pub fn build(b: *std.Build) void {
         "", // 158: reserved (the Rift part agents' local carts, other branches)
         "", // 159: reserved (the Rift part agents' local carts, other branches)
         "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
+        "demo-aurora_boot", // 161 — AURORA BOOT (R89 spike): the new KESTREL boot screen: a night photo, a baked aurora added on the true-colour plane, every star flying into a wireframe falcon, a CC0 pad; all computed offline (tools/boot/aurora_bake.py, docs/boot/AURORA_BOOT.md)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -720,6 +721,7 @@ pub fn build(b: *std.Build) void {
             },
         });
         if (std.mem.eql(u8, name, "demo-tc_test")) cart_mod.addImport("tc_art", tcArt(b, tc_art_dir, wasm_target, optimize));
+        if (std.mem.eql(u8, name, "demo-aurora_boot")) cart_mod.addImport("aurora_art", b.createModule(.{ .root_source_file = b.path("apps/zig/assets/screens/aurora_boot/aurora_art.zig"), .target = wasm_target, .optimize = optimize })); // the baked data
         if (std.mem.eql(u8, name, "demo-falcon_ays")) cart_mod.addImport("ays_art", b.createModule(.{ .root_source_file = b.path("apps/zig/assets/screens/falcon_ays/ays_art.zig"), .target = wasm_target, .optimize = optimize })); // the tables tools/falcon_ays_art.py ripped
         const exe = b.addExecutable(.{
             .name = name,
