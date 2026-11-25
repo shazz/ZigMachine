@@ -1,80 +1,75 @@
 // --------------------------------------------------------------------------
-// RACER: the cart's track set: the oval, the stress city and Salt Flats (M5, the first authored track), plus the three LOCAL Virtua Racing tracks with -Dracer_vr (vr.zig).
-// Driving, the race and the minimap are bound to one track at a time (the oval, or the VR track on show): `bind` re-creates them
-// when the track changes. On a VR track the player is flown by the AI's controller (`Game.pilot`), because the recorded button
-// streams are the oval's, so the race benchmark (x) runs there too.
+// RACER: the track on show (M5 step 2). `tracks[0]` is the built-in oval; `tracks[1]` views the ONE
+// track buffer (library.zig), which holds whichever file track was chosen last. Key t walks the library
+// (oval, then the disk's files in its FAT order, then C:\RACER\'s), loading each into the buffer; a file
+// the loader refuses is marked bad, named on the console and skipped, and the oval is the fallback.
+// Driving, the race and the minimap are bound to one track at a time: a load first moves them to the
+// oval (the buffer is about to change under them), then rebinds them. What a track looks like beyond its
+// faces (far ground, sky, backdrop) and whether it can be raced is its file's mood block (trk.Mood).
+// On every track but the oval the player is flown by the AI's controller (`Game.pilot`): the recorded
+// button streams are the oval's.
 // --------------------------------------------------------------------------
-const data = @import("data.zig");
+const zg = @import("zigos");
 const drive = @import("drive.zig");
 const game = @import("game.zig");
 const minimap = @import("minimap.zig");
 const project = @import("project.zig");
 const trk = @import("trk.zig");
-const vr = @import("vr.zig");
 
-// A VR build DROPS the city (755 KB of the cart's 2 MiB window; the three VR tracks are 1.29 MB, the base cart has 546 KB free):
-// the tracks are then oval, VR1, VR2, VR3 and key t cycles them (Salt Flats is not in that cart: its RAM is the VR tracks').
-// Without the option: oval, city, salt.
-pub const NT = (if (vr.on) 1 else 3) + vr.blobs.len;
-pub const BLOBS = (if (vr.on) [_][]align(4) const u8{data.oval} else [_][]align(4) const u8{ data.oval, data.city, data.salt }) ++ vr.blobs;
-pub const NAMES = (if (vr.on) [_][]const u8{"OVAL"} else [_][]const u8{ "OVAL", "CITY", "SALT" }) ++ vr.names[0..vr.blobs.len].*;
-const FIRST_VR: usize = if (vr.on) 1 else 3;
-/// Salt Flats' far ground: the salt on ramp 1 (tools/racer/kit.py GROUND_RAMP) at its baked level for a face square to the
-/// noon sun, 7 (bake.py; tools/tests/test_racer_kit.py pins it), so no seam shows where the draw distance ends.
-const SALT_FLAT_LEVEL: u32 = 7;
-
-/// The ramp the ground beyond the draw distance takes: grass, plaza, and each VR track's own ground colour.
-pub fn groundRamp(w: usize) usize {
-    return switch (w) {
-        0 => 1,
-        else => if (isCity(w)) 8 else vr.GROUND_RAMP,
-    };
+pub fn slotOf(w: usize) usize {
+    return if (w == 0) 0 else 1;
 }
 
-/// Its light: our generated tracks darken the far ground (level 4); a VR track's ground faces are drawn unlit at level 7, and so
-/// is his far ground (`rectfill(..., ground_color)`); Salt Flats' at its baked flat level; unless the debug shading (key i)
-/// lights the faces again.
-pub fn groundLevel(w: usize) u32 {
-    if (project.shade != 0) return 4;
-    return if (isVr(w)) 7 else if (isSalt(w)) SALT_FLAT_LEVEL else 4;
+/// The light of the far ground (palette index 4): the mood's, unless the debug shading (key i) lights the faces again.
+pub fn groundLevel(t: *const trk.Track) u32 {
+    return if (project.shade != 0) 4 else t.mood.ground_level;
 }
 
-pub fn isSalt(w: usize) bool {
-    return !vr.on and w == 2;
+/// Where a drive / race mode needs to be: not a benchmark-only track (the city), and lap v1's button stream is the oval's.
+pub fn needsOval(t: *const trk.Track, w: usize, lap_v1: bool) bool {
+    return t.mood.flags & trk.BENCH_ONLY != 0 or (lap_v1 and w != 0);
 }
 
-pub fn isVr(w: usize) bool {
-    return w >= FIRST_VR;
+/// Library entry `w` on show: loaded (a file) and bound. Returns the entry actually shown: `w`, or the oval when `w` is refused.
+pub fn show(d: anytype, w: usize, now: *const fn () u32) usize {
+    if (w == 0) return bindTo(d, 0, now);
+    toOval(d, now); // the buffer is about to change under driving, the race and the minimap
+    const e = &d.lib.list[w];
+    const t0 = now();
+    d.tracks[1] = d.lib.load(w) catch |err| return refused(d, w, @errorName(err), now);
+    zg.Console.log("racer,load,{s},{},{},{},{}", .{ e.label(), e.stored, e.raw, d.lib.blocks, now() -% t0 });
+    if (d.tracks[1].mood.flags & trk.BENCH_ONLY != 0) return w; // nothing races here: driving stays on the oval
+    return bindTo(d, w, now);
 }
 
-pub fn isCity(w: usize) bool {
-    return !vr.on and w == 1;
-}
-
-/// Where a drive / race mode needs to be: not the city (no racing line); lap v1's button stream is the oval's.
-pub fn needsOval(w: usize, lap_v1: bool) bool {
-    return isCity(w) or (lap_v1 and (isVr(w) or isSalt(w)));
-}
-
-/// Parse every blob (a bad one panics at init, as before) and return the largest vertex and face counts the frame buffers must hold.
-pub fn parseAll(tracks: *[NT]trk.Track) [2]usize {
-    var nv: usize = 0;
-    var nf: usize = 0;
-    for (BLOBS, tracks) |b, *t| {
-        t.* = trk.parse(b) catch |e| @panic(@errorName(e));
-        nv = @max(nv, t.verts.len);
-        nf = @max(nf, t.faces.len);
+/// The next library entry after `w` that is not marked bad (the oval at the end of the list).
+pub fn next(d: anytype, w: usize) usize {
+    var i = w;
+    for (0..d.lib.n) |_| {
+        i = (i + 1) % d.lib.n;
+        if (!d.lib.list[i].bad) return i;
     }
-    return .{ nv, nf };
+    return 0;
 }
 
-/// Point driving, the race and the minimap at track `w` (a no-op for the city, and when they already are).
-pub fn bind(d: anytype, w: usize, now: *const fn () u32) void {
-    const t = &d.tracks[w];
-    if (isCity(w) or d.game.t == t) return;
+fn refused(d: anytype, w: usize, why: []const u8, now: *const fn () u32) usize {
+    d.lib.list[w].bad = true;
+    zg.Console.log("racer,track,refused,{s},{s}", .{ d.lib.list[w].label(), why });
+    return bindTo(d, 0, now);
+}
+
+fn toOval(d: anytype, now: *const fn () u32) void {
+    _ = bindTo(d, 0, now);
+}
+
+fn bindTo(d: anytype, w: usize, now: *const fn () u32) usize {
+    const t = &d.tracks[slotOf(w)];
+    if (w == 0 and d.game.t == t) return 0; // already there: the race and the drive keep their state
+    const g = game.Game.init(t, now) catch |err| return if (w == 0) @panic(@errorName(err)) else refused(d, w, @errorName(err), now);
     d.drive = drive.Drive.init(t);
     d.drive.now = now;
-    d.game = game.Game.init(t, now) catch |e| @panic(@errorName(e));
-    d.game.pilot = isVr(w) or isSalt(w); // the recorded button streams are the oval's
+    d.game = g;
+    d.game.pilot = w != 0; // the recorded button streams are the oval's
     d.map = minimap.Map.init(t);
+    return w;
 }

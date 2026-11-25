@@ -23,7 +23,7 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from racer import ktrk, trackc, vr_cart, vr_colours  # noqa: E402
+from racer import ktrk, mood, trackc, vr_cart, vr_colours  # noqa: E402
 
 FREE_RAMPS = list(range(0, 12)) + list(range(19, 30))
 CAR = {k: v for k, v in trackc.MATERIALS.items() if k.startswith("car_")}
@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         names, mats, at = palette(track)
         doc, extra = build(track, names)
         (out / f"vr_{tid + 1}.ktrk.json").write_text(ktrk.dumps(doc))
-        blob = trackc.convert(doc, mats, validate=False, shade=vr_colours.shader(at))
+        blob = trackc.convert(doc, mats, validate=False, shade=vr_colours.shader(at), look=mood.Mood(ground_level=7))  # his far ground: unlit
         (out / f"vr_{tid + 1}.ktrk").write_bytes(blob)
         lines.append(report(tid + 1, track, doc, extra, blob) + f"; tones {vr_colours.TONES}, shaded below a ramp: {merged(at)}")
     (out / "vr_report.txt").write_text("\n".join(lines) + "\n")

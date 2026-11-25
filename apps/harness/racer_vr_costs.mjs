@@ -18,7 +18,7 @@ const row = (r) => `${r.mc.avg.toFixed(2)} Mc (cart ${r.split.cart.toFixed(2)}, 
 async function cost(vr, keys, warmup, { affine = false } = {}) {
     const taps = Array.from({ length: vr }, () => code("t")); // oval -> VR1 -> VR2 -> VR3 (a VR cart has no city)
     const ks = [...taps, code("m"), ...(affine ? [code("f")] : []), ...keys];
-    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(warmup), "--no-disk", "--top", "400", ...ks.flatMap((k) => ["--call", `1:key:${k}`])]);
+    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(warmup), "--disk", process.env.RACER_ZMD || "site/carts/demo-racer.zmd", "--top", "400", ...ks.flatMap((k) => ["--call", `1:key:${k}`])]);
     return costOf(CART, o);
 }
 

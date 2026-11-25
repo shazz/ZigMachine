@@ -26,7 +26,7 @@ async function cost(track, pose, r, { affine = false, mul = "plain" } = {}) {
     if (affine) keys.push(code("f"));
     if (mul === "plain") keys.push(code("m")); // the plain twin: what a cart without ZM_ZMX=1 runs, an upper bound for the ZM-X op
     if (mul === "f32") keys.push(code("g"));
-    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(WARMUP), "--no-disk", "--top", "400", ...keys.flatMap((k) => ["--call", `1:key:${k}`])]);
+    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(WARMUP), "--disk", process.env.RACER_ZMD || "site/carts/demo-racer.zmd", "--top", "400", ...keys.flatMap((k) => ["--call", `1:key:${k}`])]);
     return costOf(CART, o);
 }
 
@@ -74,7 +74,7 @@ for (const track of ["oval", "city"]) {
 // every second frame, so the average includes half a tick of 7 AI cars + contacts) and the crest pose.
 async function raceCost(keys, warmup, r = 5, affine = false) {
     const ks = [code("0") + r, ...(affine ? [code("f"), code("m")] : [code("m")]), ...keys];
-    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(warmup), "--no-disk", "--top", "400", ...ks.flatMap((k) => ["--call", `1:key:${k}`])]);
+    const o = parseArgs([CART, "--frames", String(FRAMES), "--warmup", String(warmup), "--disk", process.env.RACER_ZMD || "site/carts/demo-racer.zmd", "--top", "400", ...ks.flatMap((k) => ["--call", `1:key:${k}`])]);
     return costOf(CART, o);
 }
 console.log("\n## M3: the race (oval, plain multiply twin, estimates)\n");

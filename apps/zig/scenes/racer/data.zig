@@ -1,8 +1,10 @@
 // --------------------------------------------------------------------------
-// RACER: the two tracks' binaries (tools/racer/trackc.py from tools/racer/gen_track.py, committed
+// RACER: the track binaries (tools/racer/trackc.py from tools/racer/gen_track.py, committed
 // under apps/zig/assets/screens/racer/; tools/tests/test_racer_trackc.py checks the files are what
 // the generator and converter write today). Copied into aligned arrays at compile time: a
-// misaligned load traps on the board. No ZigOS import: the native tests read them too.
+// misaligned load traps on the board. No ZigOS import: the native tests read them too. Since M5 step 2
+// the CART embeds only the oval (Zig analyses only what is used): the city, Salt Flats and the other
+// tracks reach it as disk files (library.zig, tools/mkdisks.sh); `city` and `salt` are the native tests'.
 // --------------------------------------------------------------------------
 const OVAL_RAW = @embedFile("../../assets/screens/racer/oval.ktrk");
 const CITY_RAW = @embedFile("../../assets/screens/racer/city.ktrk");

@@ -18,6 +18,7 @@ import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+import { diskHook } from "./racer_disk.mjs";
 import { bootObj, key } from "./obj_machine.mjs";
 import { png } from "./skystrike_zig_frame.mjs";
 
@@ -40,7 +41,7 @@ const fail = (m) => errors.push(m);
 
 async function boot(opts) {
     const log = [];
-    const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s));
+    const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), diskHook());
     if (!opts?.raw) key(S, "5"); // every pin was taken at R = 5; the cart's default is 8 (racer.zig PLAY_R)
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p));
     const view = () => {

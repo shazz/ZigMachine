@@ -2,16 +2,18 @@
 
 An authored document carries what the generated test tracks get from trackc's fixed tables:
     "palette":    {material: [r, g, b]}   the track's own ramps (ints 0..255: the colour of a face square to the sun)
-    "mood":       {"name": str, "sun": [x, y, z]}   the fixed sun the face colours are baked against (bake.py)
+    "mood":       {"name": str, "sun": [x, y, z]}   the fixed sun the face colours are baked against (bake.py); optional
+                  "sky": [r,g,b, r,g,b] (top, horizon), "hills": 3 x [r,g,b] flat (the backdrop), "backdrop": "hills" | "docks" | "peaks"
     "far_ground": material                the colour of the ground beyond the draw distance (it goes on ramp 1)
-The budget check (budget.py) runs first and refuses the track over a limit; then trackc's validation and conversion run
+The far ground's level is the bake of a face square to the up axis (no seam at the draw distance); it and the look go into
+the file's mood block (mood.py). The budget check (budget.py) runs first and refuses the track over a limit; then trackc's validation and conversion run
 with the track's palette and the baked shading. The test oval and the stress city do not come through here (their bytes
 are pinned as trackc writes them).
 """
 
 from __future__ import annotations
 
-from racer import bake, budget, ktrk, limits, trackc
+from racer import bake, budget, ktrk, limits, mood, trackc
 from racer.ktrk import Doc
 
 GROUND_RAMP = 1  # trackset.zig: the far ground is ramp 1 on every track
@@ -56,9 +58,29 @@ def sun(doc: Doc) -> ktrk.Vec:
     return (float(s[0]), float(s[1]), float(s[2]))
 
 
+def _rgbs(doc: Doc, key: str, n: int) -> list[tuple[int, int, int]] | None:
+    v = doc["mood"].get(key)
+    if v is None:
+        return None
+    if not (isinstance(v, list) and len(v) == 3 * n):
+        raise trackc.ConvertError(f"mood {key} {v!r}: want {n} x [r, g, b] flattened ({3 * n} ints)")
+    return [_rgb(key, v[3 * k:3 * k + 3]) for k in range(n)]
+
+
+def look(doc: Doc) -> mood.Mood:
+    """The mood block: the far ground on ramp 1 at the baked flat level, the sky, the backdrop (the oval's where unset)."""
+    base = mood.Mood()
+    shape = doc["mood"].get("backdrop", mood.BACKDROPS[0])
+    if shape not in mood.BACKDROPS:
+        raise trackc.ConvertError(f"mood backdrop {shape!r}: one of {', '.join(mood.BACKDROPS)}")
+    sky, hills = _rgbs(doc, "sky", 2), _rgbs(doc, "hills", 3)
+    return mood.Mood(GROUND_RAMP, bake.level((0.0, 1.0, 0.0), sun(doc)), 0, mood.BACKDROPS.index(shape),
+                     (sky[0], sky[1]) if sky else base.sky, (hills[0], hills[1], hills[2]) if hills else base.hills)
+
+
 def convert(doc: Doc) -> bytes:
     errs = budget.problems(doc)
     if errs:
         raise trackc.ConvertError("; ".join(errs[:5]))
     at, mats = ramps(doc)
-    return trackc.convert(doc, mats, shade=bake.shader(at, sun(doc)))
+    return trackc.convert(doc, mats, shade=bake.shader(at, sun(doc)), look=look(doc))

@@ -7,12 +7,13 @@ Boxes are skipped in the two lattice rows on the road, so a road tile holds abou
 
 from __future__ import annotations
 
-from racer import ktrk
+from racer import ktrk, mood
 from racer.ktrk import Builder, Doc
 
 LATTICE, CELL, BOX = 4, 2.0, 1.2  # 4 x 4 boxes of 1.2 units in 2 unit cells of an 8 unit tile
 ROAD_W = 2.0  # half width of the ring road
 PER_TILE = 100
+MOOD = mood.Mood(ground_ramp=8, flags=mood.BENCH_ONLY)  # the plaza beyond the draw distance; no race here (one grid slot)
 
 
 def _height(tx: int, tz: int, k: int) -> float:

@@ -24,33 +24,35 @@ fn put(fb: *zg.LogicalFB, i: usize, r: u8, g: u8, b: u8) void {
     fb.palette[i] = zg.linepal.rgb(r, g, b);
 }
 
-/// `ground_level`: the far ground's light (4, darker than the near grass, on our tracks; a VR track's flat faces: 7, his rectfill).
-pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_ramp: usize, ground_level: u32) void {
+/// The track's palette and its mood (trk.Mood: the far ground's ramp, the backdrop's colours, the sky rows on the copper).
+/// `ground_level`: the far ground's light (the mood's, or 4 under the debug shading: trackset.groundLevel).
+pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_level: u32) void {
     for (0..256) |i| put(fb, i, 0, 0, 0);
     put(fb, SKY, 90, 140, 220);
     put(fb, PAPER, 0, 0, 0);
     put(fb, INK, 240, 240, 240);
-    put(fb, 12, 110, 130, 170);
-    put(fb, 13, 70, 100, 90);
-    put(fb, 14, 60, 60, 90);
+    for (t.mood.hills, 12..) |c, i| put(fb, i, c[0], c[1], c[2]);
     for (t.palette, 0..) |rgb, k| {
         for (0..8) |l| put(fb, 16 + k * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
     }
     for (LIVERY_RGB, 0..) |rgb, k| {
         for (0..8) |l| put(fb, 16 + (carmodel.RAMP_LIVERY + k) * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
     }
-    const g = t.palette[ground_ramp];
+    const g = t.palette[t.mood.ground_ramp];
     put(fb, GROUND, lit(g[0], ground_level), lit(g[1], ground_level), lit(g[2], ground_level));
+    skyFill(zg.copper.visible(fb, 0), &t.mood);
 }
 
-/// The sky's colour on each visible row: dusk blue at the top to a pale horizon at row 100.
-pub fn skyFill(rows: []u32) void {
+/// The sky's colour on each visible row: the mood's top colour to its horizon colour at row 100 (the oval: dusk blue to pale).
+pub fn skyFill(rows: []u32, m: *const trk.Mood) void {
+    const a = m.sky[0];
+    const h = m.sky[1];
     for (rows, 0..) |*o, y| {
         const t: u32 = @as(u32, @intCast(@min(y, 100))) * 256 / 100;
         const u: u32 = 256 - t;
-        const r: u8 = @intCast((28 * u + 170 * t) >> 8);
-        const g: u8 = @intCast((60 * u + 205 * t) >> 8);
-        const b: u8 = @intCast((150 * u + 235 * t) >> 8);
+        const r: u8 = @intCast((a[0] * u + h[0] * t) >> 8);
+        const g: u8 = @intCast((a[1] * u + h[1] * t) >> 8);
+        const b: u8 = @intCast((a[2] * u + h[2] * t) >> 8);
         o.* = zg.linepal.rgb(r, g, b);
     }
 }

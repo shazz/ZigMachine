@@ -1,0 +1,176 @@
+// --------------------------------------------------------------------------
+// RACER: the track library (M5 step 2). The oval is built in (the gate's fallback, and the recorded
+// button streams are its); every other track is a FILE: each `*.KTR` on the cart's own disk (zg.disk's
+// FAT, in the FAT's order) and in C:\RACER\ (KOS GEMDOS: a user's own tracks on the SD card's /HD).
+// A file is the converter's v3 binary (tools/racer/trackc.py), raw or ZX0-packed (tools/mkdisks.sh
+// packs the disk's). The scan reads each file's first block only; a track is read into ONE buffer
+// when it is chosen and parsed there (trk.parse bounds every count and offset), and a bad file is
+// refused by name with the reason, never trapped on. docs/ports/kestrel_racing/M5.md.
+// --------------------------------------------------------------------------
+const std = @import("std");
+const zg = @import("zigos");
+const gemdos = @import("kos_gemdos");
+const zx0 = @import("depackers").zx0;
+const data = @import("data.zig");
+const trk = @import("trk.zig");
+
+pub const MAX = 16; // tracks listed, the oval included
+pub const MAX_FILE: u32 = 1 << 20; // a track's bytes once depacked (the stress city: 755,720)
+pub const MAX_VERTS = 25600; // the frame's vertex cache (the stress city: 25,009)
+pub const MAX_FACES = 10240; // ... and its face stamps (the stress city: 9,904)
+pub const HD_DIR = "C:\\RACER\\";
+const RESERVE: usize = 64 * 1024; // cart RAM left for everything allocated after the library
+const BLOCK = 512;
+
+pub const Source = enum { builtin, disk, hd };
+pub const Fail = error{ BadPack, ReadFailed, TooBig } || trk.Error;
+
+pub const Entry = struct {
+    name: [8]u8 = .{0} ** 8,
+    src: Source = .builtin,
+    start: u32 = 0, // disk: the file's byte offset in the image
+    stored: u32 = 0, // its bytes on the medium
+    raw: u32 = 0, // its bytes once depacked (= stored when raw)
+    bad: bool = false,
+
+    pub fn label(self: *const Entry) []const u8 {
+        return std.mem.sliceTo(&self.name, 0);
+    }
+    fn packed_(self: *const Entry) bool {
+        return self.raw != self.stored;
+    }
+};
+
+pub const Library = struct {
+    list: [MAX]Entry = .{Entry{}} ** MAX,
+    n: usize = 1,
+    buf: []align(4) u8 = &.{}, // the one loaded track's bytes
+    stage: []u8 = &.{}, // a packed file's bytes before the depack
+    blocks: u32 = 0, // disk blocks the last load read (the board estimate: docs M5.md)
+
+    /// The oval, then the disk's files, then C:'s; then the two buffers, sized to the largest file listed.
+    pub fn scan(self: *Library) void {
+        self.* = .{};
+        @memcpy(self.list[0].name[0..4], "OVAL");
+        self.list[0].raw = @intCast(data.oval.len);
+        if (zg.disk.mount()) |lay| self.scanDisk(lay);
+        self.scanHd();
+        self.size();
+    }
+
+    fn scanDisk(self: *Library, lay: zg.disk.Layout) void {
+        var i: u16 = 0;
+        while (i < lay.count and self.n < MAX) : (i += 1) {
+            const e = zg.disk.entryAt(lay, i) orelse continue;
+            const name = std.mem.sliceTo(&e.name, 0);
+            if (!std.ascii.endsWithIgnoreCase(name, ".KTR")) continue;
+            var head: [BLOCK]u8 = undefined;
+            const got = zg.disk.read(e.e, &head);
+            self.add(name, .disk, e.e.start, e.e.len, head[0..got]);
+        }
+    }
+
+    fn scanHd(self: *Library) void {
+        const dos = gemdos.dos();
+        var dta: gemdos.Dta = .{};
+        dos.Fsetdta(&dta);
+        var r = dos.Fsfirst(HD_DIR ++ "*.KTR", 0);
+        while (r == 0 and self.n < MAX) : (r = dos.Fsnext()) {
+            const name = std.mem.sliceTo(&dta.name, 0);
+            var head: [BLOCK]u8 = undefined;
+            var path: [32]u8 = undefined;
+            const got = hdRead(hdPath(&path, name), head[0..]) catch continue;
+            self.add(name, .hd, 0, std.mem.readInt(u32, &dta.length, .little), head[0..got]);
+        }
+    }
+
+    /// One listed file from its first bytes: a v3 header (its size must be the file's) or a ZX0 header.
+    fn add(self: *Library, name: []const u8, src: Source, start: u32, stored: u32, head: []const u8) void {
+        const raw = rawLen(head, stored) orelse return refuse(name, "not a track (magic, version or size)");
+        if (raw > MAX_FILE) return refuse(name, "over the 1 MiB track buffer");
+        var e = Entry{ .src = src, .start = start, .stored = stored, .raw = raw };
+        const stem = name[0 .. std.mem.indexOfScalar(u8, name, '.') orelse name.len];
+        @memcpy(e.name[0..@min(stem.len, 8)], stem[0..@min(stem.len, 8)]);
+        self.list[self.n] = e;
+        self.n += 1;
+    }
+
+    /// The buffers for the largest files; files that do not fit the RAM left are dropped from the list, the largest first.
+    fn size(self: *Library) void {
+        while (self.n > 1) {
+            var raw: usize = 0;
+            var stage: usize = 0;
+            var big: usize = 1;
+            for (self.list[1..self.n], 1..) |e, i| {
+                raw = @max(raw, e.raw);
+                if (e.packed_()) stage = @max(stage, e.stored);
+                if (e.raw > self.list[big].raw) big = i;
+            }
+            const need = std.mem.alignForward(usize, raw, 4) + std.mem.alignForward(usize, stage, 4);
+            if (need + RESERVE <= zg.mem.free()) {
+                self.buf = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, (raw + 3) / 4))[0..raw];
+                self.stage = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, (stage + 3) / 4))[0..stage];
+                return;
+            }
+            refuse(self.list[big].label(), "no cart RAM left for it");
+            std.mem.copyForwards(Entry, self.list[big .. self.n - 1], self.list[big + 1 .. self.n]);
+            self.n -= 1;
+        }
+    }
+
+    /// Track `i` into the buffer (the built-in oval needs none) and parsed. The buffer's old track is gone either way.
+    pub fn load(self: *Library, i: usize) Fail!trk.Track {
+        const e = &self.list[i];
+        if (e.src == .builtin) return trk.parse(data.oval);
+        if (e.raw > self.buf.len or (e.packed_() and e.stored > self.stage.len)) return error.TooBig;
+        const dst = if (e.packed_()) self.stage[0..e.stored] else self.buf[0..e.raw];
+        self.blocks = (e.start % BLOCK + e.stored + BLOCK - 1) / BLOCK;
+        switch (e.src) {
+            .disk => if (zg.disk.read(.{ .start = e.start, .len = e.stored, .kind = 0 }, dst) != dst.len) return error.ReadFailed,
+            .hd => {
+                var path: [32]u8 = undefined;
+                var full: [16]u8 = undefined;
+                const name = std.fmt.bufPrint(&full, "{s}.KTR", .{e.label()}) catch return error.ReadFailed;
+                if ((hdRead(hdPath(&path, name), dst) catch return error.ReadFailed) != dst.len) return error.ReadFailed;
+            },
+            .builtin => unreachable,
+        }
+        if (e.packed_() and (zx0.depack(dst, self.buf[0..e.raw]) orelse 0) != e.raw) return error.BadPack;
+        const t = try trk.parse(self.buf[0..e.raw]);
+        if (t.verts.len > MAX_VERTS or t.faces.len > MAX_FACES) return error.TooBig;
+        return t;
+    }
+};
+
+/// The size a file's first bytes say it depacks to: a v3 track whose total is the file's size, or a ZX0 image's stated length.
+pub fn rawLen(head: []const u8, stored: u32) ?u32 {
+    if (zx0.isPacked(head)) return zx0.depackedLen(head);
+    if (head.len < 16 or std.mem.readInt(u32, head[0..4], .little) != trk.MAGIC) return null;
+    if (std.mem.readInt(u32, head[4..8], .little) != trk.VERSION) return null;
+    const total = std.mem.readInt(u32, head[12..16], .little);
+    return if (total == stored) total else null;
+}
+
+fn refuse(name: []const u8, why: []const u8) void {
+    zg.Console.log("racer,track,refused,{s},{s}", .{ name, why });
+}
+
+fn hdPath(buf: *[32]u8, name: []const u8) []const u8 {
+    return std.fmt.bufPrint(buf, HD_DIR ++ "{s}", .{name}) catch buf[0..0];
+}
+
+/// Up to dst.len bytes of a C: file: the count read (GEMDOS's negative code is an error).
+fn hdRead(path: []const u8, dst: []u8) error{ReadFailed}!usize {
+    const dos = gemdos.dos();
+    const h = dos.Fopen(path, 0);
+    if (h < 0) return error.ReadFailed;
+    defer _ = dos.Fclose(h);
+    var got: usize = 0;
+    while (got < dst.len) {
+        const r = dos.Fread(h, @intCast(@min(dst.len - got, 64 * 1024)), dst.ptr + got);
+        if (r < 0) return error.ReadFailed;
+        if (r == 0) break;
+        got += @intCast(r);
+    }
+    return got;
+}

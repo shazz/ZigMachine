@@ -28,7 +28,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'o' => self.osd = !self.osd,
         'u' => self.uncapped = !self.uncapped,
         'c' => self.rep.crc_on = !self.rep.crc_on,
-        't' => self.setTrack((self.which + 1) % ts.NT),
+        't' => self.setTrack(ts.next(self, self.which)),
         'p', ' ' => self.paused = !self.paused,
         'l' => self.setDrive(.off),
         'n' => self.setDrive(if (self.drive.mode == .drive) .off else .drive),
@@ -59,7 +59,6 @@ pub fn handle(self: anytype, cp: u32) void {
 /// SOFT (a gentle light). The far ground follows (trackset.groundLevel). Our tracks store no alternates: nothing changes there.
 fn nextShade(self: anytype) void {
     project.shade = (project.shade + 1) % @as(u8, project.SHADES.len);
-    const w = self.which;
-    for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], ts.groundRamp(w), ts.groundLevel(w));
+    for (0..2) |p| palette.install(&self.os.lfbs[p], self.cur(), ts.groundLevel(self.cur()));
     zg.Console.log("racer,shade,{s}", .{project.SHADES[project.shade]});
 }
