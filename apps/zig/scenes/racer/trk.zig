@@ -31,7 +31,7 @@ pub const Face = extern struct {
     borders: u16, // physics: bit k = edge k (vertex k to k + 1) is a wall edge
     cp: i32,
     inner_first: u32,
-    _p1: u32,
+    alt: u32, // 0, or (a local VR import) the debug key's other shades: byte 0 lit by the normal, byte 1 gently lit (project.shade)
 };
 
 pub const Seg = extern struct { pos: [3]i32, yaw: u16, segment: u16 }; // segment: the racing-line index (a start-grid pose; 0 on the line)

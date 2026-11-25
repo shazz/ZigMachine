@@ -7,8 +7,8 @@ palette (RGB x ramps), vertices (i16 x3, 1/128 unit), faces + inner faces (32 B 
 ray directions, the baked PVS (pvs_bake.py), the racing line (centre Q16 x3, yaw turns Q16), the start
 grid. The CRC-32 covers everything after the header. The cart refuses a bad magic, version or CRC.
 Face record: v[4] u16 | flags u8 | nv u8 | colour u8 | inner_n u8 | n[3] i16 (Q14) | pad u16 |
-cp i32 (n . v0, Q21) | inner_first u32 | pad u32. (Version 2: the u16 after n is the BORDER MASK, bit k = edge k
-(vertex k to k+1) is a wall edge for the physics, ascending as the document lists them; a last block, one
+cp i32 (n . v0, Q21) | inner_first u32 | alt u32 (0; a local VR import: the debug key's alternate shades).
+(Version 2: the u16 after n is the BORDER MASK, bit k = edge k (vertex k to k+1) is a wall edge for the physics, ascending as the document lists them; a last block, one
 `{left, right}` u16 vertex-id pair a racing-line segment, gives the physics its segment quads. Version 3 (M3) adds a last
 block, one u32 racing-line segment index per checkpoint: the race rules' checkpoints, in lap order.)
 """
@@ -21,6 +21,7 @@ import struct
 import sys
 import zlib
 from pathlib import Path
+from typing import Callable
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -39,6 +40,7 @@ MATERIALS = {  # name -> (ramp, full-light RGB): our own palette, 15 of the 30 r
     "car_body": (12, (205, 35, 35)), "car_dark": (13, (45, 45, 55)), "car_glass": (14, (110, 150, 190)),
 }
 NRAMPS = len(MATERIALS)
+Shade = Callable[[str, ktrk.Vec], tuple[int, int]]
 
 
 class ConvertError(ValueError):
@@ -54,7 +56,7 @@ def colour(mat: str, n: ktrk.Vec, mats: dict | None = None) -> int:
     return 16 + mats[mat][0] * 8 + min(7, int((0.25 + 0.75 * lam) * 8))
 
 
-def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], borders: int = 0, mats: dict | None = None) -> bytes:
+def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], borders: int, shade: Shade) -> bytes:
     ids = face["v"]
     p = ktrk.pts(doc, ids)
     n = ktrk.normal(p)
@@ -62,7 +64,8 @@ def _face(doc: Doc, face: Doc, mat: str, flags: int, inner: tuple[int, int], bor
     v0 = doc["vertices"][ids[0]]
     cp = sum(n14[i] * v0[i] for i in range(3))
     v = (ids + [ids[-1]] * 4)[:4]
-    return struct.pack("<4HBBBB3hHiII", *v, flags, len(ids), colour(mat, n, mats), inner[1], *n14, borders, cp, inner[0], 0)
+    c, alt = shade(mat, n)
+    return struct.pack("<4HBBBB3hHiII", *v, flags, len(ids), c, inner[1], *n14, borders, cp, inner[0], alt)
 
 
 def _border_mask(face: Doc) -> int:
@@ -72,14 +75,14 @@ def _border_mask(face: Doc) -> int:
     return sum(1 << e for e in edges)
 
 
-def _faces(doc: Doc, mats: dict | None = None) -> tuple[bytes, bytes]:
+def _faces(doc: Doc, shade: Shade) -> tuple[bytes, bytes]:
     top, inner = [], []
     for f in doc["faces"]:
         sub = f.get("inner", [])
         flags = ktrk.face_flags(f) & 0x1F
-        top.append(_face(doc, f, f["mat"], flags, (len(inner), len(sub)), _border_mask(f), mats))
+        top.append(_face(doc, f, f["mat"], flags, (len(inner), len(sub)), _border_mask(f), shade))
         for i in sub:
-            inner.append(_face(doc, i, i["mat"], flags | 0x20, (0, 0), 0, mats))
+            inner.append(_face(doc, i, i["mat"], flags | 0x20, (0, 0), 0, shade))
     return b"".join(top), b"".join(inner)
 
 
@@ -124,15 +127,17 @@ def _camera_tiles(line_tiles: list[tuple[int, int]]) -> list[int]:
     return sorted(out)
 
 
-def convert(doc: Doc, mats: dict | None = None, validate: bool = True) -> bytes:
-    """`mats` (name -> (ramp, rgb)) replaces the committed tracks' palette; `validate=False` is the local VR import's."""
+def convert(doc: Doc, mats: dict | None = None, validate: bool = True, shade: Shade | None = None) -> bytes:
+    """`mats` (name -> (ramp, rgb)) replaces the committed tracks' palette; `validate=False` and `shade` (material, normal ->
+    the face's palette index and the record's last word) are the local VR import's (tools/racer/vr_colours.py)."""
     mats = mats or MATERIALS
+    shade = shade or (lambda mat, n: (colour(mat, n, mats), 0))
     errs = ktrk_check.validate(doc) if validate else []
     if errs:
         raise ConvertError("; ".join(errs[:5]))
     pal = b"".join(bytes(rgb) + b"\0" for _, rgb in sorted(mats.values()))
     verts = _pad(b"".join(struct.pack("<3h", *v) for v in doc["vertices"]))
-    faces, inner = _faces(doc, mats)
+    faces, inner = _faces(doc, shade)
     tfirst, tlists, full = _tiles(doc)
     dirs = pvs_bake.ray_dirs()
     rays = struct.pack("<%dh" % (16 * 33 * 2), *[c for row in dirs for d in row for c in d])

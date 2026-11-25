@@ -5,9 +5,12 @@
 const car = @import("car.zig");
 const clip = @import("clip.zig");
 const crest = @import("crest.zig");
+const zg = @import("zigos");
 const fx = @import("fx.zig");
 const audio = @import("audio.zig");
 const npc = @import("npc.zig");
+const palette = @import("palette.zig");
+const project = @import("project.zig");
 const poly = @import("poly.zig");
 const ts = @import("trackset.zig");
 
@@ -37,6 +40,7 @@ pub fn handle(self: anytype, cp: u32) void {
         's' => self.game.go(),
         'a' => self.game.toggleAuto(),
         'w' => self.game.toggleWarp(),
+        'i' => nextShade(self),
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);
@@ -50,3 +54,12 @@ pub fn handle(self: anytype, cp: u32) void {
     }
 }
 
+
+/// Key i: the VR tracks' debug shading, FLAT (his stored colours, the default) / LIT (the converter's light, the old look) /
+/// SOFT (a gentle light). The far ground follows (trackset.groundLevel). Our tracks store no alternates: nothing changes there.
+fn nextShade(self: anytype) void {
+    project.shade = (project.shade + 1) % @as(u8, project.SHADES.len);
+    const w = self.which;
+    for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], ts.groundRamp(w), ts.groundLevel(w));
+    zg.Console.log("racer,shade,{s}", .{project.SHADES[project.shade]});
+}

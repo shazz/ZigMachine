@@ -8,6 +8,7 @@ const data = @import("data.zig");
 const drive = @import("drive.zig");
 const game = @import("game.zig");
 const minimap = @import("minimap.zig");
+const project = @import("project.zig");
 const trk = @import("trk.zig");
 const vr = @import("vr.zig");
 
@@ -24,6 +25,12 @@ pub fn groundRamp(w: usize) usize {
         0 => 1,
         else => if (isCity(w)) 8 else vr.GROUND_RAMP,
     };
+}
+
+/// Its light: our tracks darken the far ground (level 4); a VR track's ground faces are drawn unlit at level 7, and so is
+/// his far ground (`rectfill(..., ground_color)`), unless the debug shading (key i) lights the faces again.
+pub fn groundLevel(w: usize) u32 {
+    return if (isVr(w) and project.shade == 0) 7 else 4;
 }
 
 pub fn isVr(w: usize) bool {

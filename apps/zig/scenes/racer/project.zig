@@ -20,6 +20,17 @@ const xf = @import("xform.zig");
 
 pub const Key = struct { fixed: ?u16 = null, floor: u16 = 0, dc: u8 = 0 }; // dc: added to the face's palette index (a car's livery)
 
+/// The debug shading (key i): 0 the face's stored colour, 1 / 2 the alternates a VR import stores in `alt` (lit by the
+/// normal as the converter lights the oval; gently lit). A face with no alternates (every committed track, the cars) keeps its colour.
+pub const SHADES = [_][]const u8{ "FLAT", "LIT", "SOFT" };
+pub const TAGS = [_][]const u8{ "", "/LIT", "/SOFT" }; // after the track name on the HUD (none in the default)
+pub var shade: u8 = 0;
+
+fn colourOf(f: *const trk.Face) u8 {
+    if (shade == 0 or f.alt == 0) return f.colour;
+    return @truncate(f.alt >> @intCast(8 * (shade - 1)));
+}
+
 /// Project face `f` (vertex ids into `verts`) into `fr`. Returns the key kept, or null when nothing is left to draw.
 pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *const cam.View, f: *const trk.Face, k: Key) ?u16 {
     const nv = f.nv;
@@ -50,7 +61,7 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
         return null;
     }
     if (types.offScreen(&rec)) return null;
-    rec.c = f.colour +% k.dc;
+    rec.c = colourOf(f) +% k.dc;
     const mean = if (nv == 4) zsum >> 2 else fx.mulsh16(zsum, 21845);
     const own: u16 = @intCast(frame.BUCKETS - 1 - @min(@max(mean >> 13, 0), frame.BUCKETS - 1));
     return push(fr, rec, k.fixed orelse @max(own, k.floor));

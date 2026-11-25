@@ -69,7 +69,7 @@ const BUILT = blk: {
         for (SIDES, 0..) |s, si| {
             var f = trk.Face{
                 .v = undefined, .flags = 0, .nv = 4, .colour = @intCast(16 + @as(u32, b.ramp) * 8 + s.light), .inner_n = 0,
-                .n = .{ 0, 0, 0 }, .borders = 0, .cp = 0, .inner_first = 0, ._p1 = 0,
+                .n = .{ 0, 0, 0 }, .borders = 0, .cp = 0, .inner_first = 0, .alt = 0,
             };
             for (s.c, 0..) |pick, k| f.v[k] = @intCast(bi * 8 + @as(usize, pick[0]) + 2 * @as(usize, pick[1]) + 4 * @as(usize, pick[2]));
             const sign: i16 = if (s.hi) 16384 else -16384;

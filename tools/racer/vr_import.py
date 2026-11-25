@@ -6,9 +6,10 @@ The data is derived from Sega's Mega Drive game: this script holds none, writes 
 (default <main checkout>/prototypes/racer_re/vr_local/), and nothing it writes may ever be committed. Per track N (1..3)
 it writes `vr_N.ktrk.json` (our intermediate) and `vr_N.ktrk` (the converter's v3 binary) plus `vr_report.txt` (the budgets).
 
-Mapping: a face's PICO-8 colour byte (low nibble / high nibble: the engine's dither pair) becomes the average RGB of the two,
-merged to the nearest ramp when a track uses more colours than the palette has ramps (ramps 0-11 and 19-29: 12-18 are the
-cart's car and liveries). Ramp 0 is the road's dominant colour and ramp 1 the track's own ground colour (the cart darkens it beyond the draw distance), as in the oval.
+Colours (tools/racer/vr_colours.py): a face's PICO-8 colour byte (his dither pair) becomes one solid colour, UNLIT as his
+engine draws it; each distinct byte owns a ramp (0-11 and 19-29: 12-18 are the cart's car and liveries) at the flat level,
+and a track with more bytes than ramps puts the rest on the nearest (ramp, level) shade. Ramp 0 is the road's dominant colour
+and ramp 1 the track's own ground colour, as in the oval.
 """
 
 from __future__ import annotations
@@ -22,18 +23,12 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from racer import ktrk, trackc, vr_cart  # noqa: E402
+from racer import ktrk, trackc, vr_cart, vr_colours  # noqa: E402
 
-PICO = ["000000", "1D2B53", "7E2553", "008751", "AB5236", "5F574F", "C2C3C7", "FFF1E8", "FF004D", "FFA300", "FFEC27",
-        "00E436", "29ADFF", "83769C", "FF77A8", "FFCCAA"]
 FREE_RAMPS = list(range(0, 12)) + list(range(19, 30))
 CAR = {k: v for k, v in trackc.MATERIALS.items() if k.startswith("car_")}
-SOLID, NOT_ASPHALT, DUAL = 16, 4, 1
-
-
-def rgb_of(c: int) -> tuple[int, int, int]:
-    a, b = PICO[c & 15], PICO[(c >> 4) & 15]
-    return tuple((int(a[i:i + 2], 16) + int(b[i:i + 2], 16)) // 2 for i in (0, 2, 4))  # type: ignore[return-value]  # 3 ints
+SOLID, ASPHALT, DUAL = 16, 4, 1  # his bit 2 SET = asphalt: vracing_main.p8 slows and shakes the car when `flags&0x4==0`
+Mats = dict[str, tuple[int, tuple[int, int, int]]]
 
 
 def _root() -> Path:
@@ -45,8 +40,9 @@ def _root() -> Path:
     return Path.cwd()
 
 
-def palette(track: dict[str, Any]) -> tuple[dict[int, str], dict[str, tuple[int, tuple[int, int, int]]]]:
-    """colour byte -> material name, and the material table (ramp, rgb) incl. the cart's car ramps."""
+def palette(track: dict[str, Any]) -> tuple[dict[int, str], Mats, dict[int, tuple[int, int]]]:
+    """colour byte -> material name ("c<byte>"), the palette's material table (ramp, rgb) incl. the cart's car ramps, and
+    each byte's (ramp, level) (vr_colours.place)."""
     uses: dict[int, int] = {}
     for f in track["faces"]:
         for g in [f] + f.get("inner", []):
@@ -55,26 +51,29 @@ def palette(track: dict[str, Any]) -> tuple[dict[int, str], dict[str, tuple[int,
     uses[ground] = uses.get(ground, 0) + 1
     road: dict[int, int] = {}
     for f in track["faces"]:
-        if f["flags"] & SOLID and not f["flags"] & NOT_ASPHALT:
+        if f["flags"] & SOLID and f["flags"] & ASPHALT:
             road[f["c"]] = road.get(f["c"], 0) + 1
     asphalt = max(road, key=lambda c: road[c]) if road else ground
-    first = [asphalt] + ([ground] if ground != asphalt else [])  # ramp 0: the road (the minimap's line), ramp 1: the ground (cart: GROUND_RAMP)
-    groups: list[list[int]] = [[c] for c in first] + [[c] for c in sorted(uses, key=lambda c: -uses[c]) if c not in first]
-    while len(groups) > len(FREE_RAMPS):  # merge the least used colour into the nearest other group
-        small = min(groups[2:], key=lambda g: sum(uses[c] for c in g))
-        rest = [g for g in groups if g is not small]
-        near = min(rest, key=lambda g: math.dist(rgb_of(g[0]), rgb_of(small[0])))
-        near += small
-        groups = rest
-    mats: dict[str, tuple[int, tuple[int, int, int]]] = dict(CAR)
-    names: dict[int, str] = {}
-    for ramp, g in zip(FREE_RAMPS, groups, strict=False):
-        mats[f"vr{ramp}"] = (ramp, rgb_of(g[0]))
-        for c in g:
-            names[c] = f"vr{ramp}"
+    lead = [asphalt] + ([ground] if ground != asphalt else [])  # ramp 0: the road (the minimap's line), ramp 1: the ground (cart: GROUND_RAMP)
+    at, rgb = vr_colours.place(sorted(uses, key=lambda c: -uses[c]), FREE_RAMPS, lead)
+    mats: Mats = dict(CAR)
+    for ramp, c in rgb.items():
+        mats[f"vr{ramp}"] = (ramp, c)
     for ramp in range(15, 19):
         mats[f"pad{ramp}"] = (ramp, (128, 128, 128))
-    return names, mats
+    return {c: f"c{c:02x}" for c in uses}, mats, at
+
+
+def merged(at: dict[int, tuple[int, int]]) -> str:
+    """The bytes that share a ramp (a shade below the flat level), with their colour error: for the report."""
+    out = []
+    for c, (ramp, level) in sorted(at.items()):
+        if level != vr_colours.FLAT:
+            own = next(k for k, (r, lv) in at.items() if r == ramp and lv == vr_colours.FLAT)
+            got = tuple(vr_colours.lit(x, level) for x in vr_colours.rgb_of(own))
+            out.append(f"{c:02x}->ramp {ramp} level {level} (err {math.dist(got, vr_colours.rgb_of(c)):.0f})")
+    return ", ".join(out) or "none"
+
 
 
 def _degenerate(vs: list[list[int]], ids: list[int]) -> bool:
@@ -91,7 +90,7 @@ def build(track: dict[str, Any], names: dict[int, str]) -> tuple[ktrk.Doc, dict[
             dropped += 1
             continue
         fl = f["flags"]
-        kind = ("ground" if fl & NOT_ASPHALT else "track") if fl & SOLID else "prop"
+        kind = ("track" if fl & ASPHALT else "ground") if fl & SOLID else "prop"
         out: ktrk.Doc = {"v": f["v"], "kind": kind, "mat": names[f["c"]]}
         if fl & DUAL:
             out["dual"] = True
@@ -144,12 +143,12 @@ def main(argv: list[str] | None = None) -> int:
     lines = []
     for tid in range(3):
         track = vr_cart.read_track(Path(args.src), tid)
-        names, mats = palette(track)
+        names, mats, at = palette(track)
         doc, extra = build(track, names)
         (out / f"vr_{tid + 1}.ktrk.json").write_text(ktrk.dumps(doc))
-        blob = trackc.convert(doc, mats, validate=False)
+        blob = trackc.convert(doc, mats, validate=False, shade=vr_colours.shader(at))
         (out / f"vr_{tid + 1}.ktrk").write_bytes(blob)
-        lines.append(report(tid + 1, track, doc, extra, blob))
+        lines.append(report(tid + 1, track, doc, extra, blob) + f"; tones {vr_colours.TONES}, shaded below a ramp: {merged(at)}")
     (out / "vr_report.txt").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 0
