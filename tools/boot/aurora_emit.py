@@ -48,7 +48,7 @@ pub const BAND_ROWS: u32 = {m['band_rows']}; // stored rows; each shows on {m['r
 pub const ROW_STEP: u32 = {m['row_step']};
 pub const EDGES = [_][2]u8{{ {edges} }};
 pub const PALETTE = [256]u16{{ {pal} }};
-"""
+{m.get('extra', '')}"""
 
 
 def write_assets(out, files, meta):
@@ -65,10 +65,20 @@ def md5(a):
 
 
 def reference(base_q, pal_words, idx_stored, r0, rec_rows, meta, probes):
-    """The reference JSON: TC plane md5 per probed aurora frame, star pixels per probed record."""
+    """The reference JSON for a shared-palette set (A..E): TC plane md5 per probed aurora frame, star pixels per probed record."""
     step = meta["row_step"]
-    planes = {str(j): md5(plane_after(base_q, pal_words, idx_stored[j], r0, step).astype("<u2")) for j in probes["aurora"]}
+    planes = {j: plane_after(base_q, pal_words, idx_stored[j], r0, step) for j in probes["aurora"]}
+    sky = plane_after(base_q, pal_words, np.zeros_like(idx_stored[0]), r0, step)
+    return reference_planes(planes, sky, rec_rows, meta, probes)
+
+
+def sky_plane(base_q):
+    return ((base_q[..., 0].astype(np.uint16) << 11) | (base_q[..., 1].astype(np.uint16) << 5) | base_q[..., 2].astype(np.uint16))
+
+
+def reference_planes(planes, sky, rec_rows, meta, probes):
+    """The reference JSON from the TC planes (H, W) u16 of the probed aurora frames (F, G build their own)."""
     n = meta["n_stars"]
     stars = {str(i): [[int(rec_rows[i][k]), int(rec_rows[i][n + k])] for k in range(n)] for i in probes["stars"]}
-    return dict(planes_md5=planes, stars_xy=stars, sky_md5=md5(plane_after(base_q, pal_words, np.zeros_like(idx_stored[0]), r0, step).astype("<u2")),
+    return dict(planes_md5={str(j): md5(p.astype("<u2")) for j, p in planes.items()}, stars_xy=stars, sky_md5=md5(sky.astype("<u2")),
                 sizes=meta["sizes"], aurora_frames=meta["aurora_frames"], width=W, height=H)

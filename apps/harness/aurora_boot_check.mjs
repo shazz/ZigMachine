@@ -16,7 +16,7 @@
 //   replay    a key restarts: the sky is back at once, the sample is stopped and started again
 //   node apps/harness/aurora_boot_check.mjs [cart.wasm]
 //   node apps/harness/aurora_boot_check.mjs --break   each mutant must be caught by the checks
-//   node apps/harness/aurora_boot_check.mjs --variant=c   the variant cart aurora_boot_c against its own reference (b, c, d, e)
+//   node apps/harness/aurora_boot_check.mjs --variant=c   the variant cart aurora_boot_c against its own reference (b..g; F / G draw no name)
 // The pins are the baker's own reference file: a re-bake rewrites it, nothing here is hand-copied.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -144,7 +144,10 @@ function checks({ shots, replay }) {
     need(moved >= (t1 - t0) * 0.9, `flight: plane 1 changed on ${moved} of ${t1 - t0} frames`);
     need(count(at(shots, 100).st, 16) === 0, "wire: lines drawn before the falcon forms");
     need(count(at(shots, 400).st, 16) > 150, `wire: only ${count(at(shots, 400).st, 16)} line pixels at the hold`);
-    need(count(at(shots, 200).st, 17) === 0 && count(at(shots, 400).st, 17) > 500, "word: the name is not lit only from its beat");
+    const img = (a) => { let n = 0; for (const v of a) n += v >= 128; return n; }; // F / G: the baked name, entries 128..255
+    if (meta.WORDMARK === 2) need(shots.every((s) => count(s.st, 17) === 0) && img(at(shots, 200).st) === 0 && img(at(shots, 400).st) > 800, `word: the baked name is not drawn only from its beat (${img(at(shots, 400).st)} pixels at the hold)`);
+    else if (meta.WORDMARK === 0) need(shots.every((s) => count(s.st, 17) === 0), "word: the name is drawn in a set without a wordmark (WORDMARK 0)");
+    else need(count(at(shots, 200).st, 17) === 0 && count(at(shots, 400).st, 17) > 500, "word: the name is not lit only from its beat");
     // The sky fades in from black (ref.fade_in_frames 60 Hz frames; a set baked before the fade-in has none), is 0 until the end fade.
     const fin = ref.fade_in_frames ?? 0;
     if (fin > 0) {

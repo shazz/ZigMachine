@@ -6,7 +6,8 @@
 // fade to black. Everything was computed OFFLINE by tools/boot/aurora_bake.py: this cart is a player.
 //
 //   plane 0  RGB565 true colour, 320x200: the photo with its stars painted out; the aurora is added in place
-//            from palette-indexed, delta-coded, ZX0-packed frames (blend.zig); the final fade is TC_FADE
+//            from palette-indexed, delta-coded, ZX0-packed frames (blend.zig); the final fade is TC_FADE.
+//            F: a palette per row; G: no palette, 16-bit deltas of the final 565 picture (blend.Direct)
 //   plane 1  8-bit, on top (the TC plane has no colour key): the stars, their flight, the falcon's wire and
 //            the wordmark, replayed from the baked records (stars.zig, plot.zig, look.zig)
 //   sound    "Northern Lights soft" (CC0), signed 8-bit mono, handed whole to zg.samplePlay at frame 0
@@ -23,7 +24,12 @@ const tl = @import("aurora_boot/timeline.zig");
 const blend = @import("aurora_boot/blend.zig");
 const look = @import("aurora_boot/look.zig");
 const stars = @import("aurora_boot/stars.zig");
+const colours = @import("aurora_boot/colours.zig");
 const meta = art.meta;
+// Variants F / G (docs/boot/AURORA_BOOT.md) declare these; A..E have neither: one shared palette, the name drawn.
+const PAL_MODE: u32 = if (@hasDecl(meta, "PAL_MODE")) meta.PAL_MODE else 0; // 0 shared, 1 per row, 2 direct 16-bit
+const WORDMARK: u32 = if (@hasDecl(meta, "WORDMARK")) meta.WORDMARK else 1; // 1 bitmap capitals (A..E), 2 the baked script image
+const BPP: u32 = if (PAL_MODE == 2) 2 else 1; // bytes a pixel in the aurora's delta frames
 const ZigOS = zg.ZigOS;
 
 const K_ESC: u32 = 0xE012;
@@ -35,12 +41,12 @@ pub const Demo = struct {
     ok: bool = false, // init found the RAM it needs and every depack succeeded
     wants_quit: bool = false, // demo_main's pollCartRequest: the picture is black, glass takes over
     layer: blend.Layer = undefined,
-    delta: []u32 = &.{}, // one aurora frame's deltas (BAND_ROWS x 320 bytes)
+    direct: blend.Direct = undefined, // G
+    delta: []u32 = &.{}, // one aurora frame's deltas (BAND_ROWS x 320 x BPP bytes)
     stream: zx0.Stream = undefined, // the aurora frame being unpacked (resumes on the odd 60 Hz frame)
     next_row: u32 = 0, // the first stored row not yet added
     player: stars.Player = undefined,
-    drawn: [look.WORD + 1]u8 = [_]u8{255} ** (look.WORD + 1), // the last level written per ramp entry
-    coef: u8 = 255, // the fade last applied to the palette
+    colours: colours.Colours = .{}, // plane 1's palette, rewritten only when a level or the fade changes
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         self.* = .{ .os = os };
@@ -52,26 +58,49 @@ pub const Demo = struct {
     }
 
     fn load(self: *Demo, tc: zg.tc.Fb) bool {
-        const sky = zg.mem.alloc(u16, PLANE) orelse return false;
-        const state = zg.mem.alloc(u8, meta.BAND_ROWS * blend.W) orelse return false;
         const deltas = zg.mem.alloc(i16, meta.STAR_FRAMES * meta.REC) orelse return false;
-        self.delta = zg.mem.alloc(u32, meta.BAND_ROWS * blend.W / 4) orelse return false;
-        if (zx0.depack(art.sky, std.mem.sliceAsBytes(sky)) == null) return false;
         if (zx0.depack(art.stars, std.mem.sliceAsBytes(deltas)) == null) return false;
-        @memcpy(tc.pixels[0..PLANE], sky);
-        self.layer = .{ .sky = sky.ptr, .plane = tc.pixels, .stride = tc.stride, .pal = &meta.PALETTE, .state = state, .y0 = meta.BAND_Y0, .step = meta.ROW_STEP, .rows = meta.BAND_ROWS };
         self.player = .{ .deltas = deltas };
+        if (PAL_MODE == 2) {
+            // G keeps no sky copy (its RAM is tight): the sky is unpacked straight into the plane, again on a replay,
+            // and the delta buffer holds half a frame (the baker stores each half in its own container).
+            self.delta = zg.mem.alloc(u32, (meta.BAND_ROWS - tl.splitRow(meta.BAND_ROWS)) * blend.W * BPP / 4) orelse return false;
+            if (tc.stride != blend.W or !skyToPlane(tc.pixels)) return false;
+            self.direct = .{ .plane = tc.pixels, .stride = tc.stride, .y0 = meta.BAND_Y0, .rows = meta.BAND_ROWS };
+            return true;
+        }
+        const sky = zg.mem.alloc(u16, PLANE) orelse return false;
+        self.delta = zg.mem.alloc(u32, meta.BAND_ROWS * blend.W * BPP / 4) orelse return false;
+        if (zx0.depack(art.sky, std.mem.sliceAsBytes(sky)) == null) return false;
+        @memcpy(tc.pixels[0..PLANE], sky);
+        const state = zg.mem.alloc(u8, meta.BAND_ROWS * blend.W) orelse return false;
+        const pal = rowPalette() orelse return false;
+        self.layer = .{ .sky = sky.ptr, .plane = tc.pixels, .stride = tc.stride, .pal = pal.ptr, .pal_stride = if (PAL_MODE == 1) 256 else 0, .state = state, .y0 = meta.BAND_Y0, .step = meta.ROW_STEP, .rows = meta.BAND_ROWS };
         return true;
+    }
+
+    fn skyToPlane(px: [*]u16) bool {
+        return zx0.depack(art.sky, std.mem.sliceAsBytes(px[0..PLANE])) != null;
+    }
+
+    /// The palette the layer reads: the shared one, or (F) the per-row tables copied to aligned RAM (an embedded
+    /// file is byte-aligned, and a misaligned u16 load traps on the board).
+    fn rowPalette() ?[]const u16 {
+        if (PAL_MODE != 1) return &meta.PALETTE;
+        const t = zg.mem.alloc(u16, meta.BAND_ROWS * 256) orelse return null;
+        @memcpy(std.mem.sliceAsBytes(t), art.palette[0 .. meta.BAND_ROWS * 512]);
+        return t;
     }
 
     /// Replay from the first frame: the sky back, the records and the sound restarted.
     fn restart(self: *Demo, os: *ZigOS) void {
         if (!self.ok) return;
-        self.layer.reset();
+        if (PAL_MODE == 2) {
+            if (!skyToPlane(self.direct.plane)) return self.fail();
+        } else self.layer.reset();
         self.player.restart();
         self.f = 0;
-        self.coef = 255;
-        self.drawn = [_]u8{255} ** (look.WORD + 1);
+        self.colours = .{};
         os.lfbs[0].setTruecolorFade(0, .black);
         _ = zg.sampleStop();
     }
@@ -91,8 +120,10 @@ pub const Demo = struct {
         const plane = os.lfbs[1].fb;
         @memset(plane[0..PLANE], 0);
         self.player.draw(plane, s.odd and s.rec + 1 < meta.STAR_FRAMES);
-        if (self.player.scalar(1) > 0) look.drawWord(plane);
-        self.palette(&os.lfbs[1]);
+        if (self.player.scalar(1) > 0) {
+            if (WORDMARK == 2) look.drawImage(plane, art.word) else if (WORDMARK == 1) look.drawWord(plane);
+        }
+        self.colours.apply(&os.lfbs[1], self.player.scalar(0), self.player.scalar(1), @intCast(self.player.scalar(2)), WORDMARK == 2);
         os.lfbs[0].setTruecolorFade(@intCast(self.player.scalar(2)), .black);
         if (self.f >= tl.lastFrame(meta.STAR_FRAMES)) self.wants_quit = true else self.f += 1;
     }
@@ -102,6 +133,7 @@ pub const Demo = struct {
     fn aurora(self: *Demo, rec: u32) void {
         const j = tl.auroraFrame(rec, meta.AURORA_AT, meta.AURORA_FRAMES) orelse return;
         const even = self.f & 1 == 0;
+        if (PAL_MODE == 2) return self.auroraDirect(j, even);
         if (even) {
             const o = std.mem.readInt(u32, art.aurora_idx[4 * j ..][0..4], .little);
             const e = std.mem.readInt(u32, art.aurora_idx[4 * j + 4 ..][0..4], .little);
@@ -109,31 +141,25 @@ pub const Demo = struct {
             self.next_row = 0;
         }
         const mid = tl.splitRow(meta.BAND_ROWS);
-        _ = self.stream.step(if (even) mid * blend.W else std.math.maxInt(u32));
-        const ready: u32 = if (even) self.stream.written() / blend.W else meta.BAND_ROWS;
+        _ = self.stream.step(if (even) mid * blend.W * BPP else std.math.maxInt(u32));
+        const ready: u32 = if (even) self.stream.written() / (blend.W * BPP) else meta.BAND_ROWS;
         self.layer.apply(std.mem.sliceAsBytes(self.delta), self.next_row, ready);
         self.next_row = ready;
     }
 
+    /// G: the even 60 Hz frame unpacks and adds the band's top half (container 2j), the odd one the bottom (2j + 1).
+    fn auroraDirect(self: *Demo, j: u32, even: bool) void {
+        const k = 2 * j + @intFromBool(!even);
+        const o = std.mem.readInt(u32, art.aurora_idx[4 * k ..][0..4], .little);
+        const e = std.mem.readInt(u32, art.aurora_idx[4 * k + 4 ..][0..4], .little);
+        const buf = std.mem.sliceAsBytes(self.delta);
+        if (zx0.depack(art.aurora[o..e], buf) == null) return self.fail();
+        const mid = tl.splitRow(meta.BAND_ROWS);
+        if (even) self.direct.apply(buf, 0, mid) else self.direct.apply(buf, mid, meta.BAND_ROWS);
+    }
+
     fn fail(self: *Demo) void {
         self.ok = false;
-    }
-
-    /// Plane 1's colours: the star ramp, the wire and the name by their levels, all through the fade.
-    fn palette(self: *Demo, fb: *zg.LogicalFB) void {
-        const c: u5 = @intCast(self.player.scalar(2));
-        const redo = c != self.coef;
-        self.coef = c;
-        for (1..look.LEVELS + 1) |lv| self.set(fb, @intCast(lv), look.star(@intCast(lv)), lv, c, redo);
-        self.set(fb, look.LINE, look.wire(self.player.scalar(0)), self.player.scalar(0), c, redo);
-        self.set(fb, look.WORD, look.ink(self.player.scalar(1)), self.player.scalar(1), c, redo);
-    }
-
-    fn set(self: *Demo, fb: *zg.LogicalFB, e: u8, rgb: look.Rgb, level: usize, c: u5, redo: bool) void {
-        if (!redo and self.drawn[e] == level) return;
-        self.drawn[e] = @intCast(level);
-        const col = zg.Color{ .r = look.fadeChannel(rgb.r, c), .g = look.fadeChannel(rgb.g, c), .b = look.fadeChannel(rgb.b, c), .a = 255 };
-        fb.palette[e] = col.toRGBA();
     }
 
     pub fn key(self: *Demo, cp: u32) void {

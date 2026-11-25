@@ -694,6 +694,9 @@ pub fn build(b: *std.Build) void {
         "demo-aurora_boot_c", // 163 — AURORA BOOT variant C: as B, no temporal hold
         "demo-aurora_boot_d", // 164 — AURORA BOOT variant D: as C, every row
         "demo-aurora_boot_e", // 165 — AURORA BOOT variant E: as D, the faint halo's hue locked (tools/boot/aurora_halo.py)
+        "", // 166: reserved (BAD APPLE, feat/badapple)
+        "demo-aurora_boot_f", // 167 — AURORA BOOT variant F: a 256-entry palette PER ROW, every row, the soft curtain base, no wordmark (tools/boot/aurora_fg.py)
+        "demo-aurora_boot_g", // 168 — AURORA BOOT variant G: no palette, the final RGB565 picture as 16-bit deltas, the soft curtain base, no wordmark
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

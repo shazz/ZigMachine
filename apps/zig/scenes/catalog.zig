@@ -152,6 +152,8 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "AURORA C", .tag = "aurora_boot_c" }, // zigmachine — aurora boot variant C (no hold)
     .{ .name = "AURORA D", .tag = "aurora_boot_d" }, // zigmachine — aurora boot variant D (no hold, every row)
     .{ .name = "AURORA E", .tag = "aurora_boot_e" }, // zigmachine — aurora boot variant E (D + hue-locked halo)
+    .{ .name = "AURORA F", .tag = "aurora_boot_f" }, // zigmachine — aurora boot variant F (a palette per row, soft curtain base, no name)
+    .{ .name = "AURORA G", .tag = "aurora_boot_g" }, // zigmachine — aurora boot variant G (the final 565 picture as 16-bit deltas, no palette)
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
     .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2
     .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2

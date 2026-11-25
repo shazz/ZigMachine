@@ -45,6 +45,16 @@
   "type": "zigmachine"
  },
  {
+  "tag": "aurora_boot_f",
+  "title": "AURORA F",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "aurora_boot_g",
+  "title": "AURORA G",
+  "type": "zigmachine"
+ },
+ {
   "tag": "automation442",
   "title": "AUTOMATION 442",
   "type": "atari st"
