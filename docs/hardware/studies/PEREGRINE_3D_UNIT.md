@@ -70,6 +70,31 @@ stone to measure on the racer first.
   Suggested order: S1 now (also helps KESTREL carts via SIMD), then S2 on PEREGRINE (texture spans in CHISEL),
   S3 only if the counters still show transform dominating after S1+S2.
 
+## Fast and rigid vs 10-30x slower but programmable: the gap may not matter (24 Nov)
+
+Per vertex S4 is ~10-30x faster than S3. At our polygon counts that gap mostly disappears (estimates): a frame is
+~1.67 Mc at 100 MHz / 60 fps; take 3,000 vertices a frame (several times the racer oval):
+
+| | cycles a vertex | 3,000 vertices | share of a frame |
+|---|---|---|---|
+| S0 (ZIGGY software) | ~150-250 | ~0.6 Mc | ~35 %, on the game CPU |
+| S3 (VU core) | ~10-30 | ~30-90 k | ~2-5 %, in parallel |
+| S4 (fixed T&L) | ~1 | ~3 k | ~0.2 %, in parallel |
+
+- Both S3 and S4 take transform off the critical path. Once it is async and under ~5 % of a frame, the frame is
+  set by **fill and sort** (S2's job), which neither touches. S4's extra speed pays only at tens of thousands of
+  vertices a frame, and there CHISEL's fill rate and DDR bandwidth hit the wall first.
+- **The gap shrinks if S3 is not a plain RISC-V**: a 4-lane Q16 MAC instruction on DSPs (matrix x vertex in 4
+  instructions instead of 16 multiplies + adds: ~5-8 cycles a vertex), reciprocal and clamp as single instructions
+  (shared with S1), two VU cores if LUTs allow. That is ~3-5x slower than S4, not 10-30x, and still programmable:
+  essentially the real VU1 (a programmable core whose instructions are built around 4x4 matrix work).
+- So the decision is not speed vs flexibility but **which bottleneck we buy for**. At "a few thousand polygons,
+  flat or textured", S3 is fast enough and its flexibility (skinning, particles, morphing, demo effects) is free;
+  S4 wins only at PS2-level polygon counts, where S2's fill rate is the real project.
+- **Decide with data**: import the real Virtua Racing tracks (local only), read the racer's per-stage counters on
+  KESTREL (vertex count, transform, collect, fill). Transform under ~20 % of the frame: S3, with S2 the priority.
+  Transform dominating even with S1: S4 (or S4-lite) earns its rigidity.
+
 ## The yardstick
 
 Kestrel Racing's per-stage counters (transform / sort / fill; R82). The oval no longer separates the scenarios:
