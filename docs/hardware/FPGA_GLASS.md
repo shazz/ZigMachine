@@ -1021,21 +1021,23 @@ as an unknown key: `glass.cfg: bad line 7` on its status line, every other setti
 
 ## Boot splash (`app_splash.zig`)
 
-The first glass after a power cycle plays KESTREL BOOT (WINDHOVER, cart 131,
-`demo-kestrel_boot.zmd` anywhere on the shelf; prototypes/boot_screen/STUDY.md) as a plain cart
-load (no KOS boot words), then powers KOS on exactly as without it (drive A, the POST).
+The first glass after a power cycle plays AURORA BOOT (cart 161, `demo-aurora_boot.zmd` anywhere on
+the shelf; docs/boot/AURORA_BOOT.md; until 26 Nov it was KESTREL BOOT, WINDHOVER, cart 131) as a plain
+cart load (no KOS boot words), then powers KOS on exactly as without it (drive A, the POST). Its 8.5 s
+pad is the cart's own `samplePlay`, on BARD.
 
 - **Plays** when `splash=1` (the default), this is the first start since power-on (the mark
   `/tmp/glass.splashed`, in tmpfs: created by the first glass, found by S99glass's restart loop
   or a `killall glass`), no cart is RUNNING in the window already, `glass run` was not given
   `--no-splash`, and the shelf has the disk. Otherwise KOS powers on at once; the log says why
   (`boot splash: restart`, `off`, `missing`...).
-- **Ends** when the cart asks to leave (it does at its black frame 290, 4.8 s in:
-  `pollCartRequest` -1, the firmware's REQ_BACK; any request counts, but one before 4 s, `MIN_MS`,
+- **Ends** when the cart asks to leave (it does at its black frame 508, 8.47 s in:
+  `pollCartRequest` -1, the firmware's REQ_BACK; any request counts, but one before 8 s, `MIN_MS`,
   is logged and held until then, so the picture cannot vanish at once), traps (the trap code is
   logged), a key or a pad button goes down (swallowed with its release: KOS never sees it), or
-  after 9 s (`CAP_MS`). The log says how long it played (`boot splash: the cart is done after
-  4850 ms, KOS powers on`) and how long its load took.
+  after 12 s (`CAP_MS`: the cart counts frames, so late frames make it longer). The log says how
+  long it played (`boot splash: the cart is done after 8500 ms, KOS powers on`) and how long its
+  load took.
 - **Plays alone** (Matt, 14 Nov, card14o: "black screen, shows the OSD, then the KESTREL BOOT behind
   the OSD. The OSD should only appear after"): `glass run` starts with `App.initHidden` (nothing on the
   OSD; the menu used to show for half a second before the decision), then once the policy says
@@ -1052,8 +1054,9 @@ Tests: `app_splash_test.zig` (the policy, the first-boot flow to the desktop, re
 missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load over it, a request
 at once held to `MIN_MS`, no OSD bit written from the decision to the end, the overlay back after,
 a skip that opens nothing);
-`apps/harness/kestrel_boot_check.mjs` checks the cart asks to leave at 290 and never before
-(`--break stays`).
+`apps/harness/aurora_boot_check.mjs` checks the cart asks to leave at 508 and never before
+(`--break stays`). The way back: `splash=0`, or the previous glass kept on the card as
+`KESTREL/glass.pre-aurora` (WINDHOVER's splash) copied over `KESTREL/glass`.
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
   is reported, as nothing is wrong.

@@ -1,10 +1,11 @@
-// The boot screen at power-on (docs/hardware/FPGA_GLASS.md, "Boot splash"; prototypes/boot_screen/STUDY.md):
-// the first glass after a power cycle runs KESTREL BOOT (WINDHOVER, cart 131) before KOS, then
-// powers KOS on as it always did (app_drive.powerOn). It is a plain cart load: no KOS boot words.
+// The boot screen at power-on (docs/hardware/FPGA_GLASS.md, "Boot splash"; docs/boot/AURORA_BOOT.md):
+// the first glass after a power cycle runs AURORA BOOT (cart 161: the aurora, the stars flying into the
+// falcon, the 8.5 s pad) before KOS, then powers KOS on as it always did (app_drive.powerOn). It is a
+// plain cart load: no KOS boot words. (Until 26 Nov it was KESTREL BOOT, WINDHOVER, cart 131.)
 //
 //   plays     glass.cfg splash=1 (the default), the first start since power-on, no cart already
 //             running in the window, no --no-splash, and the shelf has DISK
-//   ends      the cart asks to leave (it does at its black frame 290, 4.8 s; a request before MIN_MS
+//   ends      the cart asks to leave (it does at its black frame 508, 8.47 s; a request before MIN_MS
 //             is logged and held until MIN_MS, so the picture cannot vanish at once), or it traps
 //             (logged with its code), or a key / pad button (swallowed), or CAP_MS: then KOS powers on
 //   yields    a load from elsewhere (glass ctl load) takes the window: the splash just stops
@@ -23,14 +24,16 @@ const drive = @import("app_drive.zig");
 const app_stats = @import("app_stats.zig");
 const App = @import("app.zig").App;
 
-pub const DISK = "demo-kestrel_boot.zmd";
+pub const DISK = "demo-aurora_boot.zmd";
 pub const MARK = "/tmp/glass.splashed";
-/// The cart is black and asks to leave 4.8 s in; past this a slow or stuck one is cut short.
-pub const CAP_MS: i64 = 9000;
-/// A request sooner than this is not the cart's own end (frame 290 is 4833 ms at 60 Hz): it is
+/// The cart is black and asks to leave 8.47 s in (its frames are counted: a late frame makes it longer);
+/// past this a slow or stuck one is cut short.
+pub const CAP_MS: i64 = 12000;
+/// A request sooner than this is not the cart's own end (frame 508 is 8467 ms at 60 Hz, and the cart
+/// cannot run faster than 60 Hz): it is
 /// logged, and the splash ends here instead. The log line says which way it went (MIN_MS, the board
 /// test of 14 Nov: no splash seen after the OSD's Reboot, no log to say why).
-pub const MIN_MS: i64 = 4000;
+pub const MIN_MS: i64 = 8000;
 
 /// Why glass did (play) or did not run the splash; main.zig logs it.
 pub const Why = enum { play, off, restart, running, asked, missing, failed };
