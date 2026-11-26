@@ -10,6 +10,7 @@ const clip = @import("clip.zig");
 const fx = @import("fx.zig");
 const frontdraw = @import("frontdraw.zig");
 const front = @import("front.zig");
+const haze = @import("haze.zig");
 const present = @import("present.zig");
 
 /// The camera this frame: a fixed pose (A-H), the race's or the drive's chase camera, or the flyby.
@@ -32,6 +33,7 @@ pub fn render(d: anytype, zigos: *zg.ZigOS) void {
     if (fx.use_f32) cam.floatView(&v);
     d.p.sky(fb, &v, p.yaw);
     d.bench.lap(.sky);
+    haze.setR(d.r); // M6: the haze's bands follow the draw distance (rebuilt only when it changed)
     d.f.visibility(t, &v, d.r);
     d.bench.lap(.vis);
     d.f.collect(t, &v, d.decals);

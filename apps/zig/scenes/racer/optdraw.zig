@@ -10,7 +10,7 @@ const menu = @import("menu.zig");
 const options = @import("options.zig");
 const palette = @import("palette.zig");
 
-pub const BOX = [4]i32{ 24, 40, 272, 116 }; // x, y, w, h
+pub const BOX = [4]i32{ 24, 36, 272, 132 }; // x, y, w, h (M6: 7 rows)
 pub const ROW = 16;
 pub const FOOT = "UP/DN ROW  LEFT/RIGHT SET  BKSP BACK";
 

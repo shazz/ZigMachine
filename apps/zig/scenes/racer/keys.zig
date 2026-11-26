@@ -18,6 +18,7 @@ const clock = @import("clock.zig");
 const seldraw = @import("seldraw.zig");
 const options = @import("options.zig");
 const press = @import("press.zig");
+const haze = @import("haze.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
@@ -48,6 +49,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'w' => self.game.toggleWarp(),
         'i' => options.setShade(self, (project.shade + 1) % @as(u8, project.SHADES.len)), // the VR tracks' debug shading (M5_VR.md)
         'y' => options.setShadow(!shadow.fake),
+        'q' => options.setHaze(self, !haze.on), // M6: the horizon haze on / off (a track whose mood has one)
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);
@@ -63,6 +65,8 @@ pub fn handle(self: anytype, cp: u32) void {
         'V' => front.break_results = true, // ... --break fsm: fire on the results goes to the title
         'R' => press.break_repeat = true, // ... --break repeat: a held key's repeats count as presses
         'K' => @import("zone.zig").break_zone = true, // racer_zone.mjs --break zone: no camera zone anywhere
+        'N' => options.breakHaze(self, &haze.break_absent), // racer_haze.mjs --break absent: the haze built, never applied
+        'P' => options.breakHaze(self, &haze.break_near), // ... --break near: every band one nearer (near faces hazed)
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

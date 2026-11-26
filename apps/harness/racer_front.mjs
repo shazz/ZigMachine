@@ -11,7 +11,7 @@
 //   5. (M5 finish) a HELD Enter (its repeats, no keyUp) on the select picks nothing: only a fresh press counts; moving the
 //      cursor loads nothing (the scan's previews: no racer,load line until the pick), the scan refused GLACIER at boot;
 //   6. (M5 finish) the OPTIONS screen from the select and the title (the right arrow): laps 1 / 3 / 5, shadow, shading,
-//      draw distance, music, each change logged and shown, BACK to where it came from, the screen pinned; the select then
+//      draw distance, music, (M6) haze, each change logged and shown, BACK to where it came from, the screen pinned; the select then
 //      says 5 LAPS; a 1-lap race on SALT finishes in under half the 3-lap race's ticks;
 //   7. --break refuse (key J: the scan's refusals not listed), clock (key U: every computed clock back to 75 s + 10 s),
 //      fsm (key V: the results' fire goes to the title), repeat (key R: a held key's repeats count): each must be caught.
@@ -33,7 +33,7 @@ const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const INK = 3, LOGO = [5, 6, 7], PANEL = 9, HILITE = 10, ALERT = 11; // palette.zig / menu.zig
-const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "b5ea15bd8a26" }; // select: M5 finish (its footer names RIGHT OPTS)
+const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "fe183b3700e0" }; // select: M5 finish (its footer names RIGHT OPTS); options: M6 (the HAZE row, a taller box)
 const FONT = new Uint8Array(await readFile("libs/zig/assets/fonts/system_font_atari_1bit.raw"));
 const errors = [];
 const fail = (m) => errors.push(m);
@@ -201,20 +201,24 @@ async function optionsScreen(B, race3) {
     B.tap(1); B.tap(3); // SHADING: LIT
     B.tap(1); B.tap(2); // DRAW DISTANCE 8 -> 7
     B.tap(1); B.tap(5); // MUSIC: OFF
+    B.tap(1); // M6: HAZE, NONE on the track on show (NEON's mood has none)
+    if (!onScreen(B.view(), ">HAZE          < NONE >", HILITE)) fail("options: HAZE NONE (NEON) is not on screen");
+    B.tap(5); // the haze off (racer,hazeopt,OFF): no change on NEON
     px = B.view();
-    for (const want of ["racer,option,laps,5", "racer,shadow,DITHER", "racer,shade,LIT", "racer,option,distance,7", "racer,option,music,OFF"])
+    for (const want of ["racer,option,laps,5", "racer,shadow,DITHER", "racer,shade,LIT", "racer,option,distance,7", "racer,option,music,OFF", "racer,hazeopt,OFF"])
         if (!logged(B, want)) fail(`options: no ${want} line`);
-    if (!onScreen(px, " SHADOW        < CHECKERBOARD >", INK) || !onScreen(px, ">MUSIC         < OFF >", HILITE)) fail("options: the changed values are not on screen");
+    if (!onScreen(px, " SHADOW        < CHECKERBOARD >", INK) || !onScreen(px, " MUSIC         < OFF >", INK)) fail("options: the changed values are not on screen");
     B.tap(1); B.tap(5); // BACK: the select (it came from there)
     if (B.fronts().slice(-2).join(" ") !== "options select") return fail(`BACK on the options: ${B.fronts().slice(-2)}, want the select`);
     if (!onScreen(B.view(), "LAP 684 M  5 LAPS", INK)) fail("select after the options: SALT's laps do not say 5");
     B.press("\b"); // the title
     B.tap(3); // right on the title: the options
     B.tap(1); B.tap(5); B.tap(1); B.tap(3); B.tap(3); B.tap(1); B.tap(3); B.tap(1); B.tap(5); // shadow, shading, distance, music back
-    B.tap(0); B.tap(0); B.tap(0); B.tap(0); B.tap(2); B.tap(2); // LAPS 5 -> 1
+    B.tap(1); B.tap(5); // M6: the haze back on
+    B.tap(0); B.tap(0); B.tap(0); B.tap(0); B.tap(0); B.tap(2); B.tap(2); // LAPS 5 -> 1
     B.press("\b"); // back where it came from: the title
     if (B.fronts().slice(-2).join(" ") !== "options title") return fail(`Backspace on the options: ${B.fronts().slice(-2)}, want the title`);
-    if (!logged(B, "racer,option,laps,1") || !logged(B, "racer,shade,FLAT") || !logged(B, "racer,option,distance,8")) fail("options: the values were not set back");
+    if (!logged(B, "racer,option,laps,1") || !logged(B, "racer,shade,FLAT") || !logged(B, "racer,option,distance,8") || !logged(B, "racer,hazeopt,ON")) fail("options: the values were not set back");
     B.tap(5); B.tap(0); // the select (the cursor on the track on show, NEON), up to SALT
     const race1 = raceToResults(B);
     if (!race3 || !race1 || race1 * 2 >= race3) fail(`a 1-lap race finished at tick ${race1}, the 3-lap one at ${race3}: want under half`);

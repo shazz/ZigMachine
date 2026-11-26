@@ -115,7 +115,9 @@ pub const Frame = struct {
 
     fn face(self: *Frame, t: *const trk.Track, v: *const cam.View, fid: u16, decals: bool) void {
         const f = &t.faces[fid];
-        const key = project.build(self, &self.cache, t.verts, v, f, .{}) orelse return;
+        const kept = project.build(self, &self.cache, t.verts, v, f, .{});
+        if (kept == project.NONE) return;
+        const key: u16 = @intCast(kept);
         if (self.fkey.len != 0) self.fkey[fid] = key;
         if (!decals) return;
         for (t.inner[f.inner_first..][0..f.inner_n]) |*d| _ = project.build(self, &self.cache, t.verts, v, d, .{ .fixed = key });

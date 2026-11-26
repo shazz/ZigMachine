@@ -56,6 +56,7 @@ async function boot() {
     const log = [];
     const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), diskHook());
     key(S, "5");
+    key(S, "q"); // M6: the horizon haze off, so every pin here is still M5's (racer_haze.mjs checks the haze on)
     for (let i = 0; i < T.taps; i++) key(S, "t"); // oval -> CITY -> SALT -> NEON -> GLACIER; the lap script restarts at frame 0
     const view = () => {
         const vb = S.machine.hwVideoBase(), dv = new DataView(S.memory.buffer, vb, OFF_PAL);

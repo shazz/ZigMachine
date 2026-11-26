@@ -34,6 +34,9 @@ PROPS: Final = (
     Prop("backdrop", "Backdrop shape", mood.BACKDROPS[0], "one of " + ", ".join(mood.BACKDROPS)),
     Prop("clock", "Race clock start, extension", [0, 0], f"seconds; 0 = computed (max {mood.MAX_CLOCK[0]}, {mood.MAX_CLOCK[1]})"),
     Prop("draw_r", "Draw distance cap", 0, f"tiles {mood.R_MIN}..{mood.R_MAX}; 0 = none (the player's)"),
+    Prop("haze", "Haze colour", [0, 0, 0], "RGB: what far faces blend toward (M6; usually the sky's horizon)"),
+    Prop("haze_start", "Haze start", 0, "x/256 of the draw distance: nearer faces are untouched"),
+    Prop("haze_strength", "Haze strength", 0, "x/255: the blend at the draw distance; 0 = no haze"),
 )
 
 
@@ -53,7 +56,9 @@ def problem(p: Prop, value: object) -> str:
     if p.key == "draw_r":
         ok = isinstance(value, int) and (value == 0 or mood.R_MIN <= value <= mood.R_MAX)
         return "" if ok else f"draw_r {value!r}: 0 or {mood.R_MIN}..{mood.R_MAX}"
-    n = {"sky": 6, "hills": 9, "clock": 2, "sun": 3}.get(p.key)
+    if p.key in ("haze_start", "haze_strength"):
+        return "" if isinstance(value, int) and 0 <= value <= 255 else f"{p.key} {value!r}: 0..255"
+    n = {"sky": 6, "hills": 9, "clock": 2, "sun": 3, "haze": 3}.get(p.key)
     if n is None:
         return ""
     try:
@@ -64,6 +69,6 @@ def problem(p: Prop, value: object) -> str:
         return f"{p.key}: {n} numbers"
     if p.key == "clock" and not all(0 <= int(c) <= m for c, m in zip(vals, mood.MAX_CLOCK, strict=True)):
         return f"clock: start 0..{mood.MAX_CLOCK[0]}, extension 0..{mood.MAX_CLOCK[1]}"
-    if p.key in ("sky", "hills") and not all(0 <= int(c) <= 255 for c in vals):
+    if p.key in ("sky", "hills", "haze") and not all(0 <= int(c) <= 255 for c in vals):
         return f"{p.key}: 0..255 each"
     return ""

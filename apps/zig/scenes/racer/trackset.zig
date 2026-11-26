@@ -14,6 +14,7 @@ const backdrop = @import("backdrop.zig");
 const palette = @import("palette.zig");
 const drive = @import("drive.zig");
 const game = @import("game.zig");
+const haze = @import("haze.zig");
 const minimap = @import("minimap.zig");
 const project = @import("project.zig");
 const trk = @import("trk.zig");
@@ -22,9 +23,13 @@ pub fn slotOf(w: usize) usize {
     return if (w == 0) 0 else 1;
 }
 
-/// The track on show's look on both pages: its palette and mood (far ground, sky rows, backdrop colours), its backdrop strip.
+/// The track on show's look on both pages: its palette and mood (far ground, sky rows, backdrop colours, M6 the haze), its
+/// backdrop strip.
 pub fn look(d: anytype) void {
     for (0..2) |p| palette.install(&d.os.lfbs[p], d.cur(), groundLevel(d.cur()));
+    const h = haze.build(d.os.lfbs[0].palette, d.cur(), project.shade);
+    for (0..2) |p| haze.paint(d.os.lfbs[p].palette);
+    if (h != .none) zg.Console.log("racer,haze,{s},{},{}", .{ @tagName(h), haze.used, 256 - haze.pool_lo });
     backdrop.select(d.cur().mood.backdrop);
 }
 
