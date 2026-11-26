@@ -4,12 +4,14 @@
 // play_state's clock, checkpoints and laps.
 //
 // RACER: the player's race rules, one `tick` per physics tick of the race state. The clock starts
-// at 75 s; each checkpoint (the track's four, in lap order) adds 10 s and shows "extend time" for
+// at 75 s (M5 step 4: the track's own clock, clock.zig; the oval's is still 75 s + 10 s); each
+// checkpoint (the track's, in lap order) adds 10 s and shows "extend time" for
 // 5 s; passing the last checkpoint closes the lap (its time is kept, the best lap noted), and the
 // third lap is a win; the clock reaching 0 is a loss (it is judged first, as in the original).
 // A checkpoint is passed when the player's track u is past `lap * segments + checkpoint`.
 // Times are ticks (30 Hz). Integer only. No ZigOS import.
 // --------------------------------------------------------------------------
+const clock = @import("clock.zig");
 const trk = @import("trk.zig");
 
 pub const LAPS = 3;
@@ -25,6 +27,8 @@ pub const Rules = struct {
     segments: i32,
     checkpoints: []const u32,
     remaining: i32 = START_TICKS,
+    start_ticks: u32 = START_TICKS, // this track's clock (clock.zig: the file's, or computed from its line)
+    extend_ticks: u32 = EXTEND_TICKS,
     total: u32 = 0,
     lap_t: u32 = 0,
     extend_t: i32 = 0,
@@ -36,7 +40,8 @@ pub const Rules = struct {
 
     pub fn init(t: *const trk.Track) error{NoCheckpoints}!Rules {
         if (t.checkpoints.len == 0) return error.NoCheckpoints;
-        return .{ .segments = @intCast(t.line.len), .checkpoints = t.checkpoints };
+        const c = clock.of(t);
+        return .{ .segments = @intCast(t.line.len), .checkpoints = t.checkpoints, .remaining = @intCast(c.start), .start_ticks = c.start, .extend_ticks = c.extend };
     }
 
     /// One tick of the race clock with the player's track `u` (16.16, unwrapped: it grows over laps).
@@ -49,7 +54,7 @@ pub const Rules = struct {
         const gate = (@as(i32, @intCast(self.nlaps)) * self.segments + @as(i32, @intCast(self.checkpoints[self.checkpoint]))) << 16;
         if (u <= gate) return .none;
         self.checkpoint += 1;
-        self.remaining += EXTEND_TICKS;
+        self.remaining += @intCast(self.extend_ticks);
         self.extend_t = MESSAGE_TICKS;
         if (self.checkpoint < self.checkpoints.len) return .checkpoint;
         return self.closeLap();

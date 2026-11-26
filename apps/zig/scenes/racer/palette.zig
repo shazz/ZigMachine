@@ -10,6 +10,9 @@ const trk = @import("trk.zig");
 /// The AI cars' body colours (blue, yellow, green, white), ramps 15..18.
 const LIVERY_RGB = [carmodel.LIVERIES][3]u8{ .{ 40, 90, 220 }, .{ 235, 200, 40 }, .{ 50, 170, 70 }, .{ 232, 232, 236 } };
 
+/// The front end's colours on entries 5..11 (menu.zig): the logo's amber-to-red, its shadow, the panel, the highlight, red.
+const MENU_RGB = [7][3]u8{ .{ 255, 200, 70 }, .{ 240, 130, 40 }, .{ 210, 60, 40 }, .{ 12, 10, 26 }, .{ 20, 26, 48 }, .{ 255, 214, 90 }, .{ 235, 70, 60 } };
+
 pub const SKY: u8 = 1;
 pub const PAPER: u8 = 2;
 pub const INK: u8 = 3;
@@ -31,6 +34,7 @@ pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_level: u32) void {
     put(fb, SKY, 90, 140, 220);
     put(fb, PAPER, 0, 0, 0);
     put(fb, INK, 240, 240, 240);
+    for (MENU_RGB, 5..) |c, i| put(fb, i, c[0], c[1], c[2]); // menu.zig: the front end's colours
     for (t.mood.hills, 12..) |c, i| put(fb, i, c[0], c[1], c[2]);
     for (t.palette, 0..) |rgb, k| {
         for (0..8) |l| put(fb, 16 + k * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));

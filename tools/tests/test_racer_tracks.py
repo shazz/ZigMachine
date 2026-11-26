@@ -87,15 +87,26 @@ class MoodTest(unittest.TestCase):
         at = int.from_bytes(blob[100:104], "little")
         self.assertEqual(at + mood.SIZE, len(blob))
 
+    def test_a_track_clock_packs_into_bytes_24_25_and_reads_back_and_the_shipped_tracks_leave_it_to_the_cart(self) -> None:
+        d = doc("neon_docks")
+        d["mood"]["clock"] = [120, 18]
+        m = kit.look(d)
+        self.assertEqual(m.pack()[24:26], bytes([120, 18]))
+        self.assertEqual(m.pack()[26:], bytes(6))
+        for blob in ("salt", "neon", "glacier", "city"):
+            with self.subTest(blob):
+                self.assertEqual(mood.unpack((ASSETS / f"{blob}.ktrk").read_bytes()).clock, (0, 0))  # computed (clock.zig)
+
     def test_bad_moods_are_refused_by_the_converter(self) -> None:
-        for bad in (mood.Mood(ground_level=8), mood.Mood(backdrop=3), mood.Mood(flags=2), mood.Mood(sky=((0, 0, 256), (0, 0, 0)))):
+        for bad in (mood.Mood(ground_level=8), mood.Mood(backdrop=3), mood.Mood(flags=2), mood.Mood(sky=((0, 0, 256), (0, 0, 0))),
+                    mood.Mood(clock=(251, 0)), mood.Mood(clock=(0, 61))):
             with self.subTest(bad), self.assertRaises(ValueError):
                 bad.pack()
         with self.assertRaises(trackc.ConvertError):
             trackc.convert(gen_city.build_city(2), look=mood.Mood(ground_ramp=40))
 
     def test_an_unknown_backdrop_name_or_a_short_sky_is_refused_by_the_kit(self) -> None:
-        for key, value in (("backdrop", "moon"), ("sky", [1, 2, 3])):
+        for key, value in (("backdrop", "moon"), ("sky", [1, 2, 3]), ("clock", [90]), ("clock", [300, 10])):
             d = doc("neon_docks")
             d["mood"][key] = value
             with self.subTest(key), self.assertRaises(trackc.ConvertError):

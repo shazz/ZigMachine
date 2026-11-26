@@ -12,7 +12,8 @@ document. Authoring conventions (freds72's, PORT_PLAN 3.5, rewritten for our for
 - materials: custom property `ktrk_rgb` = [r, g, b] (the palette colour), `ktrk_dual` = 1 for double-sided faces.
 - scene custom properties: `ktrk_name`, `ktrk_mood`, `ktrk_sun` [x, y, z] (Blender axes), `ktrk_far_ground`; optional
   `ktrk_sky` [r, g, b] x 2 (the sky's top and horizon), `ktrk_hills` [r, g, b] x 3 (the backdrop's far, near, skyline) and
-  `ktrk_backdrop` (its shape: hills, docks, peaks); the oval's look where absent.
+  `ktrk_backdrop` (its shape: hills, docks, peaks); the oval's look where absent; `ktrk_clock` [start, extension] (the
+  race clock in seconds; absent or 0: the cart computes it from the racing line, M5 step 4).
 Blender is Z-up, the engine y-up: (x, y, z) -> (x, z, y), a reflection, so a face wound counter-clockwise seen from outside
 in Blender keeps its outward normal under the engine's (last - first) x (second - first). Every non-ground face is checked.
 """
@@ -176,7 +177,7 @@ def export(sc: Scene) -> Doc:
     doc = b.document(meta["name"], {"kind": "blender", "tool": "ktrk add-on 1"}, line, _checkpoints(ls, groups), _grid(sc, b, line))
     doc["palette"] = {m: list(v["rgb"]) for m, v in sorted(sc["materials"].items()) if m in doc["materials"] or m == meta["far_ground"]}
     doc["mood"] = {"name": meta["mood"], "sun": list(to_engine(meta["sun"]))}
-    for k in ("sky", "hills", "backdrop"):  # the optional look (kit.look): sky top + horizon, the strip's 3 colours, its shape
+    for k in ("sky", "hills", "backdrop", "clock"):  # the optional look (kit.look): sky top + horizon, the strip's 3 colours, its shape
         if k in meta:
             doc["mood"][k] = meta[k]
     doc["far_ground"] = meta["far_ground"]

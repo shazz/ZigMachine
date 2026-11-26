@@ -9,6 +9,7 @@
 //   g the vertex transform in f32   d decals on / off   t the next track (the oval, then the disk's *.KTR files and C:\RACER\'s: racer/library.zig)   p pause   o the benchmark OSD
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 //   y the cars' shadow: REAL (one ramp level darker, the default) / the arcade's checkerboard (HUD "/DITHER"; M5.md step 3)
+// M5 step 4 (racer/front.zig): boots on the TITLE; fire / Enter the select, Backspace back; a key above drops to the bench view
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
 // M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
@@ -39,6 +40,8 @@ const trk = @import("racer/trk.zig");
 const ts = @import("racer/trackset.zig");
 const library = @import("racer/library.zig");
 const xf = @import("racer/xform.zig");
+const front = @import("racer/front.zig");
+const frontdraw = @import("racer/frontdraw.zig");
 
 extern fn hostMicros() u32;
 // Draw distance (tiles). 8 by default (Matt, 24 Nov: it avoids the far-view cut; the oval holds 60 fps there on the board).
@@ -76,6 +79,8 @@ pub const Demo = struct {
     rep: report.Reporter = .{},
     wants_quit: bool = false,
     audio: audio.Audio = .{}, // M4: music + effects on the BARD queue's FM device (racer/audio.zig; z, h, j)
+    front: front.Front = .{}, // M5 step 4: the title, the track select, the results (racer/front.zig)
+    recs: [library.MAX]@import("racer/records.zig").Records = @splat(.{}), // the session's records, a track each
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
         self.* = .{};
@@ -101,6 +106,7 @@ pub const Demo = struct {
         zigos.blitAsync(true);
         self.lib.scan(); // last: its buffers take what the RAM window has left (library.RESERVE kept)
         self.lib.report();
+        front.boot(self);
     }
 
     pub fn cur(self: *Demo) *const trk.Track {
@@ -118,6 +124,7 @@ pub const Demo = struct {
 
     /// The arrows and the board's joystick (0 up, 1 down, 2 left, 3 right, 5 fire).
     pub fn input(self: *Demo, dir: u8) void {
+        if (front.input(self, dir)) return;
         self.drive.press(dir, true);
         self.game.press(dir, true);
     }
@@ -150,13 +157,7 @@ pub const Demo = struct {
     }
 
     pub fn setTrack(self: *Demo, w: usize) void {
-        self.which = ts.show(self, w, micros); // w, or the oval when the file is refused
-        self.script = 0;
-        self.f.seen_stamp = 0;
-        @memset(self.f.seen, 0);
-        for (self.f.cache.e) |*e| e.stamp = 0;
-        ts.look(self);
-        self.r = self.play_r;
+        ts.setTrack(self, w, micros);
     }
 
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
@@ -167,16 +168,14 @@ pub const Demo = struct {
         self.drive.update();
         self.game.update();
         audio.frame(self);
+        front.update(self);
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = dt;
         self.bench.frameStart();
-        const done = self.back;
-        zigos.lfbs[done].is_enabled = true;
-        zigos.lfbs[done ^ 1].is_enabled = false;
-        self.back = done ^ 1;
-        const fb = &zigos.lfbs[self.back];
+        const fb = present.flip(self, zigos);
+        if (front.menu(self)) return frontdraw.menuFrame(self, zigos, fb); // the select, the results: no 3D under them
         const t = self.cur();
         const racing = self.game.mode != .off;
         const pose = if (self.pose) |k| cam.fixedPose(t, k) else if (racing) self.game.pose() else if (self.drive.mode != .off) self.drive.pose() else cam.lapPose(t, self.script, cam.povAt(self.script));
@@ -195,7 +194,7 @@ pub const Demo = struct {
         const counts = self.p.fill(fb, &self.f);
         self.bench.lap(.fill);
         present.finish(self, zigos, fb, counts);
+        frontdraw.overlay(self, zigos, fb); // the title over the flyby (after the view's CRC)
     }
 };
 
-const std = @import("std");

@@ -23,9 +23,16 @@ pub const Map = struct {
     swap: bool = false, // the world's x runs along the band (the track is wider than long)
     min: [2]i32 = .{ 0, 0 },
     scale: i64 = 0, // Q16 pixels a world unit
+    w: u8 = W, // the box (the band's; the track select's preview is bigger: fit)
+    h: u8 = H,
 
     pub fn init(t: *const trk.Track) Map {
-        var m = Map{};
+        return fit(t, W, H);
+    }
+
+    /// The racing line fitted into a w x h box (both < 256).
+    pub fn fit(t: *const trk.Track, w: u8, h: u8) Map {
+        var m = Map{ .w = w, .h = h };
         var lo = [2]i32{ 0x7fff_ffff, 0x7fff_ffff };
         var hi = [2]i32{ -0x7fff_ffff, -0x7fff_ffff };
         for (t.line) |s| {
@@ -39,7 +46,7 @@ pub const Map = struct {
         m.swap = dx > dz;
         const long = @max(dx, dz);
         const short = @min(dx, dz);
-        m.scale = @min(@divTrunc(@as(i64, W - 3) << 32, long), @divTrunc(@as(i64, H - 3) << 32, short));
+        m.scale = @min(@divTrunc(@as(i64, w - 3) << 32, long), @divTrunc(@as(i64, h - 3) << 32, short));
         m.min = lo;
         m.n = @min(t.line.len, MAXPTS);
         for (t.line[0..m.n], 0..) |s, i| m.pts[i] = m.to(s.pos);
@@ -51,7 +58,7 @@ pub const Map = struct {
         const a: i64 = @as(i64, pos[0] - self.min[0]) * self.scale >> 32;
         const b: i64 = @as(i64, pos[2] - self.min[1]) * self.scale >> 32;
         const x, const y = if (self.swap) .{ a, b } else .{ b, a };
-        return .{ @intCast(@min(x + 1, W - 1)), @intCast(@min(y + 1, H - 1)) };
+        return .{ @intCast(@min(x + 1, self.w - 1)), @intCast(@min(y + 1, self.h - 1)) };
     }
 
     /// Draw the whole map: background, the line, then `cars` (AI cars first, the player's position last).

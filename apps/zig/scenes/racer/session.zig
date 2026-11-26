@@ -74,7 +74,7 @@ pub const Session = struct {
 
     pub fn tick(self: *Session, buttons: u8) void {
         switch (self.fsm.state) {
-            .grid, .results => {},
+            .grid, .results, .title, .select => {}, // the front end runs no race
             .countdown => {
                 self.fsm.tick();
                 if (self.fsm.ticks >= COUNTDOWN_TICKS) self.fsm.fire(.go) catch unreachable; // WHY: go is legal in countdown

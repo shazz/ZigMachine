@@ -4,7 +4,7 @@
 //   - The device is asked for (zg.caps .bard_fm) and opened at the first frame; it owns FM 5-6, PSG
 //     tone 3 and the noise (SFX_DEFAULT) and its two FM voices get their patches. Without it (an older
 //     system, a host with no queue) the music plays alone and stops by zg.stopSong.
-//   - The music: SHIPPED's placeholder tunes; with `-Dracer_music` the LOCAL tunes win (they use every
+//   - The music: SHIPPED's tunes (ours: M5 step 4's final tunes); with `-Dracer_music` the LOCAL tunes win (they use every
 //     channel, so the effects start OFF there: key h takes the channels, muting those parts).
 //   - Stamps: the cart's own sample clock, moved on by the real time between two frames (hostMicros), so
 //     the queue's anchor keeps every write ~LEAD (70 ms) ahead whatever the cart's frame rate; if the

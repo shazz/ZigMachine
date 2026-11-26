@@ -52,8 +52,8 @@ def extract(scene: Any) -> kit_export.Scene:  # WHY: bpy scene is untyped
 
 
 def _look(scene: Any) -> dict[str, Any]:  # WHY: bpy scene is untyped
-    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop), only the properties the scene sets."""
-    out: dict[str, Any] = {k: [int(c) for c in scene[f"ktrk_{k}"]] for k in ("sky", "hills") if f"ktrk_{k}" in scene}
+    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop, ktrk_clock), only what the scene sets."""
+    out: dict[str, Any] = {k: [int(c) for c in scene[f"ktrk_{k}"]] for k in ("sky", "hills", "clock") if f"ktrk_{k}" in scene}
     if "ktrk_backdrop" in scene:
         out["backdrop"] = str(scene["ktrk_backdrop"])
     return out

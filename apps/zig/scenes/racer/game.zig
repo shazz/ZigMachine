@@ -81,6 +81,13 @@ pub const Game = struct {
         self.logged = .grid; // a new mode starts a new log (a reset inside a mode logs the state change)
     }
 
+    /// Out of a race into the front end (front.zig): no race runs, the session (its FSM's state) stays.
+    pub fn toFront(self: *Game) void {
+        self.mode = .off;
+        self.warp = false;
+        self.auto = false;
+    }
+
     pub fn nextPov(self: *Game) void {
         self.from = self.pov;
         self.pov = pov.next(self.pov);

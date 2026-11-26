@@ -74,8 +74,17 @@ def look(doc: Doc) -> mood.Mood:
     if shape not in mood.BACKDROPS:
         raise trackc.ConvertError(f"mood backdrop {shape!r}: one of {', '.join(mood.BACKDROPS)}")
     sky, hills = _rgbs(doc, "sky", 2), _rgbs(doc, "hills", 3)
-    return mood.Mood(GROUND_RAMP, bake.level((0.0, 1.0, 0.0), sun(doc)), 0, mood.BACKDROPS.index(shape),
-                     (sky[0], sky[1]) if sky else base.sky, (hills[0], hills[1], hills[2]) if hills else base.hills)
+    clock = doc["mood"].get("clock", [0, 0])
+    if not (isinstance(clock, list) and len(clock) == 2 and all(isinstance(c, int) for c in clock)):
+        raise trackc.ConvertError(f"mood clock {clock!r}: want [start, extension] in seconds (0 = computed)")
+    m = mood.Mood(GROUND_RAMP, bake.level((0.0, 1.0, 0.0), sun(doc)), 0, mood.BACKDROPS.index(shape),
+                  (sky[0], sky[1]) if sky else base.sky, (hills[0], hills[1], hills[2]) if hills else base.hills,
+                  (clock[0], clock[1]))
+    try:
+        m.pack()  # its range checks (a clock over mood.MAX_CLOCK)
+    except ValueError as e:
+        raise trackc.ConvertError(str(e)) from e
+    return m
 
 
 def convert(doc: Doc) -> bytes:

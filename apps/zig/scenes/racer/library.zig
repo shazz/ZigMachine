@@ -12,6 +12,7 @@ const zg = @import("zigos");
 const gemdos = @import("kos_gemdos");
 const zx0 = @import("depackers").zx0;
 const data = @import("data.zig");
+const refusals = @import("refusals.zig");
 const trk = @import("trk.zig");
 
 pub const MAX = 16; // tracks listed, the oval included
@@ -32,6 +33,7 @@ pub const Entry = struct {
     stored: u32 = 0, // its bytes on the medium
     raw: u32 = 0, // its bytes once depacked (= stored when raw)
     bad: bool = false,
+    why: []const u8 = "", // the loader's reason when bad (an error name: the select screen shows it)
 
     pub fn label(self: *const Entry) []const u8 {
         return std.mem.sliceTo(&self.name, 0);
@@ -47,6 +49,7 @@ pub const Library = struct {
     buf: []align(4) u8 = &.{}, // the one loaded track's bytes
     stage: []u8 = &.{}, // a packed file's bytes before the depack
     blocks: u32 = 0, // disk blocks the last load read (the board estimate: docs M5.md)
+    rej: refusals.Refusals = .{}, // the files refused at the scan, by name and reason (the select screen lists them)
 
     /// The oval, then the disk's files, then C:'s; then the two buffers, sized to the largest file listed.
     pub fn scan(self: *Library) void {
@@ -86,8 +89,8 @@ pub const Library = struct {
 
     /// One listed file from its first bytes: a v3 header (its size must be the file's) or a ZX0 header.
     fn add(self: *Library, name: []const u8, src: Source, start: u32, stored: u32, head: []const u8) void {
-        const raw = rawLen(head, stored) orelse return refuse(name, "not a track (magic, version or size)");
-        if (raw > MAX_FILE) return refuse(name, "over the 1 MiB track buffer");
+        const raw = rawLen(head, stored) orelse return self.rej.add(name, .not_track);
+        if (raw > MAX_FILE) return self.rej.add(name, .too_big);
         var e = Entry{ .src = src, .start = start, .stored = stored, .raw = raw };
         const stem = name[0 .. std.mem.indexOfScalar(u8, name, '.') orelse name.len];
         @memcpy(e.name[0..@min(stem.len, 8)], stem[0..@min(stem.len, 8)]);
@@ -112,7 +115,7 @@ pub const Library = struct {
                 self.stage = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, (stage + 3) / 4))[0..stage];
                 return;
             }
-            refuse(self.list[big].label(), "no cart RAM left for it");
+            self.rej.add(self.list[big].label(), .no_ram);
             std.mem.copyForwards(Entry, self.list[big .. self.n - 1], self.list[big + 1 .. self.n]);
             self.n -= 1;
         }
@@ -160,10 +163,6 @@ pub fn rawLen(head: []const u8, stored: u32) ?u32 {
     if (std.mem.readInt(u32, head[4..8], .little) != trk.VERSION) return null;
     const total = std.mem.readInt(u32, head[12..16], .little);
     return if (total == stored) total else null;
-}
-
-fn refuse(name: []const u8, why: []const u8) void {
-    zg.Console.log("racer,track,refused,{s},{s}", .{ name, why });
 }
 
 fn hdPath(buf: *[32]u8, name: []const u8) []const u8 {

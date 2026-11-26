@@ -2273,3 +2273,29 @@ so "one step down" is an index operation, but it has to READ the plane. CHISEL's
 - **The AFFINE fill** pays a sync per visible car's shadow. On the board CPU = AFFINE pixel for pixel.
 - **Pins.** The lap v1 / lap v2 / crest view pins moved; the physics did not.
 - **Ramp bottoms.** On faces already at a ramp's bottom (some of the 32X courses' road), the real shadow does not show.
+
+## 2026-11-26 — Kestrel Racing's front end as race-FSM states, and a race clock per track
+
+**Status:** accepted
+**Context:** M5 step 4 needs a title, a track select and a results screen, and freds72's fixed clock (75 s + 10 s a
+checkpoint) times the pilot out on every 32X course. Twenty-odd gate lines assume the cart boots into the bare attract
+flyby, and the files already converted (the 32X imports take minutes a track) carry no clock.
+**Decision:**
+- The screens are states of the existing table-driven race FSM (title, select; events enter, pick, back), held in the
+  game's session; a track load carries the FSM. Any debug key on the title or the select first drops to the bare bench
+  view, so every earlier harness and board recipe runs as before (no pin moved).
+- The overlays draw into the page already filled, after the benchmark's view CRC; the select and the results skip the 3D
+  pipeline (the copper's sky gradient is their background), so they cost the same on any track. No new plane.
+- The clock: the mood block's two former padding bytes (start, extension in seconds; 0 = computed). Computed at load from
+  the racing line: P = (length + 0.15 x turning) / 10.5 s, start = max(75, 1.5 P), extension = max(10, 0.8 P / checkpoints),
+  freds72's own ratios with his numbers as floors, so the oval is unchanged.
+**Alternatives considered:**
+- A separate front-end state machine at the cart level: two FSMs whose handover would itself be an untested transition.
+- Booting into the title with the harnesses taught to leave it: twenty edits for nothing a debug key does not already do.
+- A clock from the lap length alone: DXBAY is shorter than the oval and its pilot lap is 15 % slower; turning explains it.
+- Baking clocks into the shipped files: the binaries, the disk and the kit tests would all move for a value computable at load.
+**Consequences:**
+- A screen added later is a table row plus a draw function; the all-pairs FSM test covers it.
+- The clock is an estimate: fitted on 11 tracks (DXHIGH: the pilot never laps it) to never be under the AI pilot's lap; a human slower than the AI on a
+  very twisty course may still time out (the Track Kit's `ktrk_clock` overrides it).
+- Moving the select's cursor loads the track under it (~0.1-0.2 s on the board for the biggest, estimate).
