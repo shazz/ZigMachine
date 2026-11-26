@@ -9,7 +9,6 @@ const zg = @import("zigos");
 const fx = @import("fx.zig");
 const audio = @import("audio.zig");
 const npc = @import("npc.zig");
-const palette = @import("palette.zig");
 const project = @import("project.zig");
 const poly = @import("poly.zig");
 const ts = @import("trackset.zig");
@@ -59,6 +58,6 @@ pub fn handle(self: anytype, cp: u32) void {
 /// SOFT (a gentle light). The far ground follows (trackset.groundLevel). Our tracks store no alternates: nothing changes there.
 fn nextShade(self: anytype) void {
     project.shade = (project.shade + 1) % @as(u8, project.SHADES.len);
-    for (0..2) |p| palette.install(&self.os.lfbs[p], self.cur(), ts.groundLevel(self.cur()));
+    ts.look(self);
     zg.Console.log("racer,shade,{s}", .{project.SHADES[project.shade]});
 }

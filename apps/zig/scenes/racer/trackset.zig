@@ -10,6 +10,8 @@
 // button streams are the oval's.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+const backdrop = @import("backdrop.zig");
+const palette = @import("palette.zig");
 const drive = @import("drive.zig");
 const game = @import("game.zig");
 const minimap = @import("minimap.zig");
@@ -18,6 +20,12 @@ const trk = @import("trk.zig");
 
 pub fn slotOf(w: usize) usize {
     return if (w == 0) 0 else 1;
+}
+
+/// The track on show's look on both pages: its palette and mood (far ground, sky rows, backdrop colours), its backdrop strip.
+pub fn look(d: anytype) void {
+    for (0..2) |p| palette.install(&d.os.lfbs[p], d.cur(), groundLevel(d.cur()));
+    backdrop.select(d.cur().mood.backdrop);
 }
 
 /// The light of the far ground (palette index 4): the mood's, unless the debug shading (key i) lights the faces again.

@@ -2,7 +2,7 @@
 
 > **Since M5 step 2 (25 Nov) the tracks are disk FILES, and `-Dracer_vr` is gone** (M5.md, "Tracks off the disk"). The cart is
 > the same for everyone; a LOCAL disk carries the VR tracks: `RACER_EXTRA="VR1.KTR=<vr_1.ktrk> VR2.KTR=... VR3.KTR=..."
-> tools/mkdisks.sh` adds them after the shelf's tracks (ZX0-packed like those), and `prototypes/cards/build_racer_vr.sh` does
+> tools/mkdisks.sh` adds them after the shelf's tracks (ZX0-packed like those), and `prototypes/cards/build_racer_vr_disk.sh` (new; the old `build_racer_vr.sh` is the `-Dracer_vr` recipe and fails on later revisions) does
 > it in its scratch worktree. **Nothing is committed and the shelf disk never holds them.** The importer now writes each
 > track's mood block (far ground at level 7, his unlit `rectfill`), so the cart no longer knows a VR track by its index. The
 > city is no longer dropped: only one track is in RAM at a time. `t` walks OVAL, CITY, SALT, NEON, GLACIER, VR1, VR2, VR3

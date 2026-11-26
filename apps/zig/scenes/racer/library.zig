@@ -118,6 +118,12 @@ pub const Library = struct {
         }
     }
 
+    /// The boot log: the list, the buffer and the RAM left (racer_tracks.mjs reads the free KB).
+    pub fn report(self: *const Library) void {
+        zg.Console.log("racer: {} tracks, buffer {} KB, cart RAM free {} KB", .{ self.n, self.buf.len / 1024, zg.mem.free() / 1024 });
+        for (self.list[0..self.n]) |*e| zg.Console.log("racer,track,{s},{s},{},{}", .{ e.label(), @tagName(e.src), e.stored, e.raw });
+    }
+
     /// Track `i` into the buffer (the built-in oval needs none) and parsed. The buffer's old track is gone either way.
     pub fn load(self: *Library, i: usize) Fail!trk.Track {
         const e = &self.list[i];
@@ -141,6 +147,11 @@ pub const Library = struct {
         return t;
     }
 };
+
+/// The built-in oval (a bad one is a build mistake: it stops the cart).
+pub fn builtin() trk.Track {
+    return trk.parse(data.oval) catch |e| @panic(@errorName(e));
+}
 
 /// The size a file's first bytes say it depacks to: a v3 track whose total is the file's size, or a ZX0 image's stated length.
 pub fn rawLen(head: []const u8, stored: u32) ?u32 {

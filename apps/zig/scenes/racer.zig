@@ -37,8 +37,6 @@ const sinks = @import("racer/sinks.zig");
 const trk = @import("racer/trk.zig");
 const ts = @import("racer/trackset.zig");
 const library = @import("racer/library.zig");
-const backdrop = @import("racer/backdrop.zig");
-const data = @import("racer/data.zig");
 const xf = @import("racer/xform.zig");
 
 extern fn hostMicros() u32;
@@ -83,7 +81,7 @@ pub const Demo = struct {
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
-        self.tracks[0] = trk.parse(data.oval) catch |e| @panic(@errorName(e));
+        self.tracks[0] = library.builtin();
         self.tracks[1] = self.tracks[0]; // the buffer's view: nothing loaded yet
         self.f = setup.frameFor(library.MAX_VERTS, library.MAX_FACES);
         self.caches = .{ setup.carCache(), setup.skidCache() };
@@ -95,15 +93,13 @@ pub const Demo = struct {
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
-            palette.install(fb, &self.tracks[0], ts.groundLevel(&self.tracks[0]));
             fb.is_enabled = p == 0;
         }
-        backdrop.select(self.tracks[0].mood.backdrop);
+        ts.look(self);
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);
         self.lib.scan(); // last: its buffers take what the RAM window has left (library.RESERVE kept)
-        zg.Console.log("racer: {} tracks, buffer {} KB, cart RAM free {} KB", .{ self.lib.n, self.lib.buf.len / 1024, zg.mem.free() / 1024 });
-        for (self.lib.list[0..self.lib.n]) |*e| zg.Console.log("racer,track,{s},{s},{},{}", .{ e.label(), @tagName(e.src), e.stored, e.raw });
+        self.lib.report();
     }
 
     pub fn cur(self: *Demo) *const trk.Track {
@@ -158,8 +154,7 @@ pub const Demo = struct {
         self.f.seen_stamp = 0;
         @memset(self.f.seen, 0);
         for (self.f.cache.e) |*e| e.stamp = 0;
-        for (0..2) |p| palette.install(&self.os.lfbs[p], self.cur(), ts.groundLevel(self.cur()));
-        backdrop.select(self.cur().mood.backdrop);
+        ts.look(self);
         self.r = self.play_r;
     }
 

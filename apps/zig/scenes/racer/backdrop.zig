@@ -38,9 +38,11 @@ const hills: [W * ROWS]u8 align(16) = blk: {
 
 // The strip on show: the hills (built at compile time, the M1 art) or a shape built here once when a track picks it
 // (M5 step 2: integer maths only, a few hundred thousand stores at a track change, never per frame).
-var strip: [W * ROWS]u8 align(16) = [_]u8{0} ** (W * ROWS); // zero (bss), filled by select() at init
+var strip: *[W * ROWS]u8 = undefined; // carved out of cart RAM by the first select() (init): no 64 KB of zeros in the image
 var shown: ?Shape = null;
-const TEX = zg.chisel_v2.Texture{ .pixels = &strip, .stride = W, .umask = W - 1, .vmask = ROWS - 1 };
+fn tex() zg.chisel_v2.Texture {
+    return .{ .pixels = strip, .stride = W, .umask = W - 1, .vmask = ROWS - 1 };
+}
 
 /// A triangle wave 0..amp..0 over `period` texels (periods divide W, so the strip wraps without a seam).
 fn tri(x: usize, period: usize, amp: usize) usize {
@@ -82,9 +84,10 @@ fn peaksColumn(x: usize) [H]u8 {
 /// Show `shape` (a track change; a no-op when it is already on show).
 pub fn select(shape: u8) void {
     const s: Shape = @enumFromInt(shape); // trk.parse refused any other value
+    if (shown == null) strip = @ptrCast(std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, W * ROWS / 4)).ptr);
     if (s == shown) return;
     shown = s;
-    if (s == .hills) return @memcpy(&strip, &hills);
+    if (s == .hills) return @memcpy(strip, &hills);
     for (0..W) |x| {
         const c = if (s == .docks) docksColumn(x) else peaksColumn(x);
         for (c, 0..) |v, r| strip[r * W + x] = v;
@@ -105,5 +108,5 @@ pub fn spans(out: *[H]zg.chisel_v2.Span, yaw: u32, hz: i32, y_min: i32) []const 
 }
 
 pub fn draw(fb: *zg.LogicalFB, list: []const zg.chisel_v2.Span) void {
-    zg.chisel_v2.affine(fb, TEX, list, .{ .key = 0 });
+    zg.chisel_v2.affine(fb, tex(), list, .{ .key = 0 });
 }
