@@ -52,10 +52,12 @@ def extract(scene: Any) -> kit_export.Scene:  # WHY: bpy scene is untyped
 
 
 def _look(scene: Any) -> dict[str, Any]:  # WHY: bpy scene is untyped
-    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop, ktrk_clock), only what the scene sets."""
+    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop, ktrk_clock, ktrk_draw_r), only what the scene sets."""
     out: dict[str, Any] = {k: [int(c) for c in scene[f"ktrk_{k}"]] for k in ("sky", "hills", "clock") if f"ktrk_{k}" in scene}
     if "ktrk_backdrop" in scene:
         out["backdrop"] = str(scene["ktrk_backdrop"])
+    if "ktrk_draw_r" in scene:
+        out["draw_r"] = int(scene["ktrk_draw_r"])
     return out
 
 
@@ -144,10 +146,11 @@ def _live(scene: Any, depsgraph: Any) -> None:  # WHY: bpy types are untyped
 
 
 def register() -> None:
-    from racer.blender import car  # the Car Kit half (M5 step 3): its export operator and meter
+    from racer.blender import car, moodpanel  # the Car Kit half (M5 step 3); the mood rows (M5 finish)
 
     for c in CLASSES:
         bpy.utils.register_class(c)
+    moodpanel.register()
     car.register()
     bpy.app.handlers.depsgraph_update_post.append(_live)
 
@@ -155,9 +158,10 @@ def register() -> None:
 def unregister() -> None:
     if _live in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(_live)
-    from racer.blender import car
+    from racer.blender import car, moodpanel
 
     car.unregister()
+    moodpanel.unregister()
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)
 

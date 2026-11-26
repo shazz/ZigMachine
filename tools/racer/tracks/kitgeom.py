@@ -62,6 +62,7 @@ class Road:
     shoulder_mat: str
     barrier: tuple[str, str]  # alternating every 3 segments
     checkpoints: int = 4
+    cam_near: tuple[int, int] = (0, 0)  # stations [a, b) whose segment runs under a roof: their L vertex joins CAM_NEAR
 
 
 def road(m: Mesh, st: list[Station], spec: Road, z: list[float], bank: list[float]) -> list[list[int]]:
@@ -74,6 +75,7 @@ def road(m: Mesh, st: list[Station], spec: Road, z: list[float], bank: list[floa
         every = n // spec.checkpoints
         cp = [f"CHECKPT_{(i // every) or spec.checkpoints}"] if i % every == 0 and i // every < spec.checkpoints else []
         edge = spec.half + spec.shoulder
+        cp += ["CAM_NEAR"] if spec.cam_near[0] <= i < spec.cam_near[1] else []
         rows.append([m.v(*at(edge), *g, "BORDER1"), m.v(*at(spec.half), *g, "TRACK_FACE", "TRACK_L", *start, *cp),
                      m.v(*at(-spec.half), *g, "TRACK_FACE", "TRACK_R"), m.v(*at(-edge), *g, "BORDER1"),
                      m.v(*at(edge, spec.wall_h)), m.v(*at(-edge, spec.wall_h))])
@@ -88,26 +90,49 @@ def road(m: Mesh, st: list[Station], spec: Road, z: list[float], bank: list[floa
     return rows
 
 
-def embank(m: Mesh, st: list[Station], spec: Road, z: list[float], bank: list[float], mat: str, slope: float = 2.0) -> None:
-    """Where the road is above the lake, a bank from the outside of each wall down to z = 0 (scenery, both sides)."""
+APRON_RUN = 4.0  # an apron's run per unit of rise (a 14-degree toe): half the bank's tilt, so its baked tone sits between the bank's and the floor's
+APRON_STEP = 2  # segments an apron face spans: half the faces (and PVS bytes); on an arc the two chords are parallel, so planar
+
+
+def embank(m: Mesh, st: list[Station], spec: Road, z: list[float], bank: list[float], mat: str, slope: float = 2.0,
+           apron: tuple[str, float] | None = None) -> None:
+    """Where the road is above the lake, a bank from the outside of each wall down to z = 0 (scenery, both sides).
+
+    `apron` (material, rise): the bank stops `rise` above the floor and a near-flat apron of the floor's material runs
+    from there out to z = 0, so the bank's foot meets the far ground in its own tone, not at a sharp line (M5 finish)."""
     edge = spec.half + spec.shoulder
     n = len(st)
+    rise = apron[1] if apron else 0.0
 
-    def foot(i: int, side: float) -> tuple[list[float], list[float]]:
+    def foot(i: int, side: float) -> tuple[list[float], list[float], list[float]]:
         x, y, lx, ly = st[i]
         h = z[i] + side * edge * bank[i]
+        a = min(rise, max(h, 0.0))
         top = [x + side * edge * lx, y + side * edge * ly, h]
-        out = side * (edge + slope * max(h, 0.0))
-        return top, [x + out * lx, y + out * ly, 0.0]
+        out = side * (edge + slope * max(h - a, 0.0))
+        far = out + side * APRON_RUN * a
+        return top, [x + out * lx, y + out * ly, a], [x + far * lx, y + far * ly, 0.0]
+
+    def face(quad: tuple[list[float], ...], side: float, mm: str) -> None:
+        pts = [p for k, p in enumerate(quad) if p != quad[k - 1]]  # an apron end at the floor: a triangle
+        if len(pts) >= 3:
+            ids = [m.v(*p, "PROP_FACE") for p in pts]
+            m.f(ids if side > 0 else ids[::-1], mm)
 
     for i in range(n):
         j = (i + 1) % n
         if max(z[i], z[j]) < 0.3:
             continue
         for side in (1.0, -1.0):
-            (ta, fa), (tb, fb) = foot(i, side), foot(j, side)
-            ids = [m.v(*p, "PROP_FACE") for p in (ta, fa, fb, tb)]
-            m.f(ids if side > 0 else ids[::-1], mat)
+            (ta, ka, _), (tb, kb, _) = foot(i, side), foot(j, side)
+            face((ta, ka, kb, tb), side, mat)
+    for i in range(0, n, APRON_STEP) if apron else ():  # the bank's foot to the floor, a face every APRON_STEP segments
+        j = (i + APRON_STEP) % n
+        if max(z[(i + k) % n] for k in range(APRON_STEP + 1)) < 0.3:
+            continue
+        for side in (1.0, -1.0):
+            (_, ka, fa), (_, kb, fb) = foot(i, side), foot(j, side)
+            face((ka, fa, fb, kb), side, apron[0])
 
 
 def decal(m: Mesh, st: list[Station], spec: Road, z: list[float], bank: list[float], i: int,

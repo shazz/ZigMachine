@@ -77,9 +77,12 @@ def look(doc: Doc) -> mood.Mood:
     clock = doc["mood"].get("clock", [0, 0])
     if not (isinstance(clock, list) and len(clock) == 2 and all(isinstance(c, int) for c in clock)):
         raise trackc.ConvertError(f"mood clock {clock!r}: want [start, extension] in seconds (0 = computed)")
+    draw_r = doc["mood"].get("draw_r", 0)
+    if not isinstance(draw_r, int):
+        raise trackc.ConvertError(f"mood draw_r {draw_r!r}: the draw distance cap in tiles (0 = none)")
     m = mood.Mood(GROUND_RAMP, bake.level((0.0, 1.0, 0.0), sun(doc)), 0, mood.BACKDROPS.index(shape),
                   (sky[0], sky[1]) if sky else base.sky, (hills[0], hills[1], hills[2]) if hills else base.hills,
-                  (clock[0], clock[1]))
+                  (clock[0], clock[1]), draw_r)
     try:
         m.pack()  # its range checks (a clock over mood.MAX_CLOCK)
     except ValueError as e:

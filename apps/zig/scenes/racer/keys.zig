@@ -16,6 +16,8 @@ const shadow = @import("shadow.zig");
 const front = @import("front.zig");
 const clock = @import("clock.zig");
 const seldraw = @import("seldraw.zig");
+const options = @import("options.zig");
+const press = @import("press.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
@@ -44,11 +46,8 @@ pub fn handle(self: anytype, cp: u32) void {
         's' => self.game.go(),
         'a' => self.game.toggleAuto(),
         'w' => self.game.toggleWarp(),
-        'i' => nextShade(self),
-        'y' => {
-            shadow.fake = !shadow.fake;
-            zg.Console.log("racer,shadow,{s}", .{if (shadow.fake) "DITHER" else "REAL"});
-        },
+        'i' => options.setShade(self, (project.shade + 1) % @as(u8, project.SHADES.len)), // the VR tracks' debug shading (M5_VR.md)
+        'y' => options.setShadow(!shadow.fake),
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);
@@ -62,16 +61,9 @@ pub fn handle(self: anytype, cp: u32) void {
         'J' => seldraw.break_refuse = true, // racer_front.mjs --break refuse: the scan's refusals not listed
         'U' => clock.break_flat = true, // ... --break clock: every computed clock freds72's 75 s + 10 s
         'V' => front.break_results = true, // ... --break fsm: fire on the results goes to the title
+        'R' => press.break_repeat = true, // ... --break repeat: a held key's repeats count as presses
+        'K' => @import("zone.zig").break_zone = true, // racer_zone.mjs --break zone: no camera zone anywhere
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }
-}
-
-
-/// Key i: the VR tracks' debug shading, FLAT (his stored colours, the default) / LIT (the converter's light, the old look) /
-/// SOFT (a gentle light). The far ground follows (trackset.groundLevel). Our tracks store no alternates: nothing changes there.
-fn nextShade(self: anytype) void {
-    project.shade = (project.shade + 1) % @as(u8, project.SHADES.len);
-    ts.look(self);
-    zg.Console.log("racer,shade,{s}", .{project.SHADES[project.shade]});
 }

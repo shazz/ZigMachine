@@ -125,7 +125,7 @@ pub const Drive = struct {
     /// The chase / cockpit camera behind the shown pose.
     pub fn pose(self: *const Drive) cam.Pose {
         const s = self.shown();
-        return pov.pose(s.pos, s.angle, pov.offsets(self.pov, self.from, self.pov_frames));
+        return pov.pose(s.pos, s.angle, pov.zoned(self.t, self.pov, pov.offsets(self.pov, self.from, self.pov_frames), self.car.track.u));
     }
 
     /// The HUD's name for the mode and POV.

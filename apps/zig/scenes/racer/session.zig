@@ -50,6 +50,7 @@ pub const Session = struct {
     lap_record: bool = false, // the last lap / the race beat the session's best
     race_record: bool = false,
     watch: Watch = .{},
+    laps: u32 = rules.LAPS, // the race's length (Game.setMode: the options screen's for a race, LAPS for the bench)
 
     pub fn init(t: *const trk.Track) !Session {
         return .{ .t = t, .race = try race.Race.init(t, N), .rules = try rules.Rules.init(t) };
@@ -58,8 +59,11 @@ pub const Session = struct {
     /// Back to the grid with fresh cars, clock and finish times; the records stay.
     pub fn reset(self: *Session) void {
         const keep = self.records;
+        const laps = self.laps;
         self.* = init(self.t) catch unreachable; // WHY: the same track parsed once at init: it cannot start failing now
         self.records = keep;
+        self.laps = laps;
+        self.rules.goal = laps;
     }
 
     pub fn start(self: *Session) fsm.Error!void {
@@ -74,7 +78,7 @@ pub const Session = struct {
 
     pub fn tick(self: *Session, buttons: u8) void {
         switch (self.fsm.state) {
-            .grid, .results, .title, .select => {}, // the front end runs no race
+            .grid, .results, .title, .select, .options => {}, // the front end runs no race
             .countdown => {
                 self.fsm.tick();
                 if (self.fsm.ticks >= COUNTDOWN_TICKS) self.fsm.fire(.go) catch unreachable; // WHY: go is legal in countdown
@@ -92,7 +96,7 @@ pub const Session = struct {
             .lap => self.lap_record = self.records.offerLap(self.rules.laps[self.rules.nlaps - 1]),
             .win => {
                 self.lap_record = self.records.offerLap(self.rules.laps[self.rules.nlaps - 1]);
-                self.race_record = self.records.offerRace(self.rules.total);
+                self.race_record = self.records.offerRace(self.rules.total, self.laps);
                 self.end(.win);
             },
             .timeout => self.end(.timeout),

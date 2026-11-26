@@ -62,15 +62,26 @@ fn test1(t: *const trk.Track, id: u16, p: V) ?Found {
     return .{ .face = id, .y = y };
 }
 
-/// find_face: the previous face first, then the ground faces of the tile, in the track's order.
+/// A ground face more than this above or below the car is another deck (M5 finish; the 32X DXHIGH's figure-8 decks are
+/// 1.1-1.2 units apart, a car moves well under 0.1 a tick on any slope).
+pub const DECK_Y: i32 = 1 << 15; // 0.5 unit
+pub var break_decks = false; // the native test's mutant: freds72's x/z-only pick
+
+/// find_face: the previous face first, then the ground faces of the tile, in the track's order. freds72's lookup takes
+/// the first face under the car in x/z; at a crossing (one road over another) that can be the other deck. Now the first
+/// face within DECK_Y of the car's height wins, and only if there is none the first face (freds72's) does. On a track
+/// with no ground over ground (every shipped one: front_test.zig sweeps them) the two are the same face.
 pub fn findFace(t: *const trk.Track, p: V, old: ?u16) ?Found {
     if (old) |o| if (test1(t, o, p)) |f| return f;
     const tile = tileOf(p) orelse return null;
+    var first: ?Found = null;
     for (t.tileFaces(tile)) |id| {
         if (t.faces[id].flags & FLAG_GROUND == 0 or id == old) continue;
-        if (test1(t, id, p)) |f| return f;
+        const f = test1(t, id, p) orelse continue;
+        if (break_decks or @abs(f.y -% p[1]) <= DECK_Y) return f;
+        if (first == null) first = f;
     }
-    return null;
+    return first;
 }
 
 /// The wall normal of border edge `k` of a face: (a - b) flattened, unit, turned a quarter.

@@ -64,15 +64,26 @@ pub fn lapTenths(t: *const trk.Track) u32 {
     return (lapLength(t) * 100 + TURN_X100 * turning(t)) / PACE_X10;
 }
 
+/// What the clock is computed from: the estimated lap, the checkpoints, the file's clock bytes (the track select keeps
+/// these for a track it has not loaded: preview.zig).
+pub const Parts = struct { tenths: u32 = 0, checkpoints: u32 = 1, file: [2]u8 = .{ 0, 0 } };
+
+pub fn parts(t: *const trk.Track) Parts {
+    return .{ .tenths = lapTenths(t), .checkpoints = @intCast(@max(t.checkpoints.len, 1)), .file = t.mood.clock };
+}
+
 pub fn of(t: *const trk.Track) Clock {
-    const p = if (break_flat) 0 else lapTenths(t);
-    const n: u32 = @intCast(@max(t.checkpoints.len, 1));
-    const start_s: u32 = if (t.mood.clock[0] != 0) t.mood.clock[0] else @max(BASE_START, ceilDiv(p * START_LAPS_X10, 100));
-    const ext_s: u32 = if (t.mood.clock[1] != 0) t.mood.clock[1] else @max(BASE_EXTEND, ceilDiv(p * EXT_LAPS_X10, 100 * n));
+    return fromParts(parts(t));
+}
+
+pub fn fromParts(q: Parts) Clock {
+    const p = if (break_flat) 0 else q.tenths;
+    const start_s: u32 = if (q.file[0] != 0) q.file[0] else @max(BASE_START, ceilDiv(p * START_LAPS_X10, 100));
+    const ext_s: u32 = if (q.file[1] != 0) q.file[1] else @max(BASE_EXTEND, ceilDiv(p * EXT_LAPS_X10, 100 * q.checkpoints));
     return .{
         .start = @as(u32, @min(start_s, MAX_START)) * HZ, // (@min with a constant narrows to u8)
         .extend = @as(u32, @min(ext_s, MAX_EXTEND)) * HZ,
-        .computed = t.mood.clock[0] == 0 or t.mood.clock[1] == 0,
+        .computed = q.file[0] == 0 or q.file[1] == 0,
     };
 }
 

@@ -7,14 +7,17 @@
 // at 75 s (M5 step 4: the track's own clock, clock.zig; the oval's is still 75 s + 10 s); each
 // checkpoint (the track's, in lap order) adds 10 s and shows "extend time" for
 // 5 s; passing the last checkpoint closes the lap (its time is kept, the best lap noted), and the
-// third lap is a win; the clock reaching 0 is a loss (it is judged first, as in the original).
+// last lap (the third, or the options screen's count) is a win; the clock reaching 0 is a loss (it is judged first, as in the original).
 // A checkpoint is passed when the player's track u is past `lap * segments + checkpoint`.
 // Times are ticks (30 Hz). Integer only. No ZigOS import.
 // --------------------------------------------------------------------------
 const clock = @import("clock.zig");
 const trk = @import("trk.zig");
 
-pub const LAPS = 3;
+pub const LAPS = 3; // the reference race's (every bench lap and pin); the options screen picks 1, 3 or 5 for a race
+pub const MAX_LAPS = 5;
+pub const LAP_CHOICES = [3]u32{ 1, 3, 5 };
+pub var race_laps: u32 = LAPS; // the options screen's, for the session (Game.setMode gives it to a race)
 pub const HZ = 30;
 pub const START_TICKS = 75 * HZ;
 pub const EXTEND_TICKS = 10 * HZ;
@@ -33,7 +36,8 @@ pub const Rules = struct {
     lap_t: u32 = 0,
     extend_t: i32 = 0,
     checkpoint: u32 = 0,
-    laps: [LAPS]u32 = [_]u32{0} ** LAPS,
+    goal: u32 = LAPS, // the laps this race is run over (Session.laps; M5 finish: the options screen)
+    laps: [MAX_LAPS]u32 = [_]u32{0} ** MAX_LAPS,
     nlaps: u32 = 0,
     best_t: u32 = NO_BEST,
     best_i: u32 = 0, // 1-based index of the best lap, 0 before the first
@@ -69,13 +73,13 @@ pub const Rules = struct {
         }
         self.checkpoint = 0;
         self.lap_t = 0;
-        return if (self.nlaps == LAPS) .win else .lap;
+        return if (self.nlaps == self.goal) .win else .lap;
     }
 
     /// The u past which the player has finished all the laps (the last checkpoint of the last lap).
     pub fn finishU(self: *const Rules) i32 {
         const last: i32 = @intCast(self.checkpoints[self.checkpoints.len - 1]);
-        return ((LAPS - 1) * self.segments + last) << 16;
+        return ((@as(i32, @intCast(self.goal)) - 1) * self.segments + last) << 16;
     }
 
     /// Seconds left on the clock, rounded up (the HUD's number).
@@ -83,3 +87,12 @@ pub const Rules = struct {
         return @divFloor(self.remaining + HZ - 1, HZ);
     }
 };
+
+/// The options screen's next lap count of LAP_CHOICES after (step 1) or before (-1) `laps` (an unknown count: from 3).
+pub fn nextLaps(laps: u32, step: i32) u32 {
+    const n: i32 = LAP_CHOICES.len;
+    const at: i32 = for (LAP_CHOICES, 0..) |c, i| {
+        if (c == laps) break @intCast(i);
+    } else 1;
+    return LAP_CHOICES[@intCast(@mod(at + step, n))];
+}

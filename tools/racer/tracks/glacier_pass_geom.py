@@ -17,11 +17,11 @@ POINTS = [(-80, -92), (0, -94), (60, -92), (84, -84), (91, -72), (84, -58), (60,
           (50, 98), (0, 100), (-50, 98), (-84, 86), (-104, 56), (-108, 0), (-107, -50), (-102, -78)]
 N = 236
 SPEC = Road(half=5.0, shoulder=2.0, wall_h=0.6, asphalt=("asphalt_a", "asphalt_b"), shoulder_mat="verge",
-            barrier=("barrier_a", "barrier_b"))
+            barrier=("barrier_a", "barrier_b"), cam_near=(172, 182))  # the rock tunnel's segments: the far camera goes near
 PALETTE = {
     "snow": (214, 220, 230), "verge": (176, 182, 192), "asphalt_a": (96, 98, 106), "asphalt_b": (82, 84, 92),
     "barrier_a": (178, 52, 48), "barrier_b": (206, 208, 214), "paint": (200, 202, 206), "paint_start": (206, 176, 64),
-    "kerb_a": (178, 52, 48), "kerb_b": (206, 208, 214), "bank": (196, 202, 214), "rock": (104, 106, 114),
+    "kerb_a": (178, 52, 48), "kerb_b": (206, 208, 214), "rock": (104, 106, 114),
     "rock_top": (186, 192, 204), "pine": (40, 70, 58), "pine_dark": (30, 54, 46), "tunnel": (84, 84, 92),
 }
 DUAL = {"barrier_a", "barrier_b"}
@@ -32,7 +32,7 @@ HILLS = [132, 144, 166, 92, 102, 120, 236, 240, 246]  # far range, near range, s
 HEIGHT = [(0, 0.0), (50, 0.0), (80, 3.0), (95, 3.0), (120, 7.0), (156, 7.0), (162, 10.0), (168, 7.0),
           (198, 7.0), (228, 0.0), (236, 0.0)]  # the climbs on the straights: a slope round a bend twists the quads
 BOWL, BANK = (118, 154), -0.10  # the banked bowl: the outside (right) of the left turn raised
-TUNNEL = (172, 182)
+TUNNEL = SPEC.cam_near  # the stations the rock tunnel roofs over
 
 
 def st() -> list[Station]:
@@ -54,7 +54,7 @@ def heights() -> tuple[list[float], list[float]]:
 def track(m: Mesh, s: list[Station]) -> None:
     z, bank = heights()
     road(m, s, SPEC, z, bank)
-    embank(m, s, SPEC, z, bank, "bank", slope=1.5)
+    embank(m, s, SPEC, z, bank, "snow", slope=1.5, apron=("snow", 0.4))  # snow banks + a toe: no seam at the valley floor
 
 
 def decals(m: Mesh, s: list[Station]) -> None:

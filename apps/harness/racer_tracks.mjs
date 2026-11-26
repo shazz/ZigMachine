@@ -24,14 +24,16 @@ const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : nul
 const TRACK = argv.includes("--track") ? argv[argv.indexOf("--track") + 1] : "SALT";
 const T = {
     SALT: { taps: 2, blob: "salt", heavy: "salt_flats",
-        pins: ["6c63abb48e21acf9", "b0b99ba7221639b9", "ba237358eac43561", "179d9911b57f1a84", "f0906add95c192aa", "5ac291cefd345ccc", "3e53c193f4bbf931", "5fc1aa0bcc0bf96f"],
-        lap: "c8e666a7 e001688f c4f59708 96ac61f8 68292081 bc177071 8192ea42 577507b6 483815ac d03bc05d a22be921 1a0efa2d" },
+        // M5 finish: re-pinned for Salt Flats' own noon sky and peaks backdrop (its faces did not change)
+        pins: ["857f9dc956282586", "86f5b3f55f4341d0", "4d45cb7a00b52097", "9b11c0bd9f975226", "650c9ac4b3dbb9d7", "0bfa26f4df1f0d5d", "7546f1170ff9ccbe", "74941d9bf24c074a"],
+        lap: "4beb6522 2e091990 95dcf954 7224d3f1 6cfd58b7 f2957eca 8ec88c66 eccf331e af67c2bb 6138680d 74fdc3ea b3eedf24" },
     NEON: { taps: 3, blob: "neon", heavy: "neon_docks",
         pins: ["f5b2843e157bae0c", "e1f2e7d5cc9ded64", "4e6cbf09d3175def", "2c9ad79430a5347c", "c9eda8386708d4dc", "98d8893e573e9c9b", "5a387c19a1025c22", "d70c82de3fbb6453"],
         lap: "f68eba4b d04c85c3 9a4279c8 3387cb2c 77a459af 42ddf8e9 6e3d167d e32242eb 67f83142 a331d770 5f086e22 9ca23ac9" },
     GLACIER: { taps: 4, blob: "glacier", heavy: "glacier_pass",
-        pins: ["4a16834e9a03e6cf", "1d5f086973251d32", "4cd19bd3136198e7", "cbf3e0f5d59eea80", "4ce6fb1e37022861", "54d364c330f3c24a", "29e0f51fc4d2493a", "c482e2228c48b950"],
-        lap: "6a6c2f77 bb7d585d 86e10e5b 0e34aad9 63e6e748 66816637 f36f7013 8b03e3af 4660e145 edd424c1 e1fa39f6 e40e7d8d" },
+        // M5 finish: re-pinned for the snow banks' toe (the seam at the valley floor); its tunnel's zone is in the cockpit third
+        pins: ["5cf940239a50f36a", "12bc58aa9778e2f1", "c477ca483985dab1", "81bb06680d0fba6a", "98a8fdb4608d4226", "8f23c0029ce0893e", "d2cf52a857ea8d7d", "60c8758a297f5db8"],
+        lap: "2ea9bcde 436b3aea 75e5573e 23dcde1d 00ac7446 ca5da7df a4b923d8 f89c332b b9ba39cb 97a74682 6dedea32 0779f691" },
 }[TRACK];
 if (!T) { console.error(`racer_tracks: unknown --track ${TRACK}`); process.exit(1); }
 const TAG = `racer_tracks ${TRACK}`;

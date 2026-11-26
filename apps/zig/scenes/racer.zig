@@ -10,6 +10,7 @@
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 //   y the cars' shadow: REAL (one ramp level darker, the default) / the arcade's checkerboard (HUD "/DITHER"; M5.md step 3)
 // M5 step 4 (racer/front.zig): boots on the TITLE; fire / Enter the select, Backspace back; a key above drops to the bench view
+// M5 finish: right on the title / select = the OPTIONS (laps, shadow, shading, R, music: racer/options.zig); Enter, Backspace, fire once a press
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
 // M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
@@ -21,11 +22,8 @@
 const zg = @import("zigos");
 const draw = @import("racer/draw.zig");
 const bench = @import("racer/bench.zig");
-const cam = @import("racer/cam.zig");
-const clip = @import("racer/clip.zig");
 const drive = @import("racer/drive.zig");
 const frame = @import("racer/frame.zig");
-const fx = @import("racer/fx.zig");
 const game = @import("racer/game.zig");
 const keys = @import("racer/keys.zig");
 const audio = @import("racer/audio.zig");
@@ -41,7 +39,7 @@ const ts = @import("racer/trackset.zig");
 const library = @import("racer/library.zig");
 const xf = @import("racer/xform.zig");
 const front = @import("racer/front.zig");
-const frontdraw = @import("racer/frontdraw.zig");
+const view = @import("racer/view.zig");
 
 extern fn hostMicros() u32;
 // Draw distance (tiles). 8 by default (Matt, 24 Nov: it avoids the far-view cut; the oval holds 60 fps there on the board).
@@ -53,6 +51,16 @@ var sky_tbl: [2][1]zg.copper.Table = undefined;
 
 fn micros() u32 {
     return hostMicros();
+}
+
+// keyUp: a key's release (M5 finish: the front end takes fresh presses only, racer/press.zig). demo_main forwards none,
+// so the cart exports its own (joust's pattern); the browser and glass call it when a cart has it.
+var g_demo: ?*Demo = null;
+comptime {
+    if (@import("../cart.zig").Cart == Demo) @export(&keyUpExport, .{ .name = "keyUp" });
+}
+fn keyUpExport(cp: u32) callconv(.c) void {
+    if (g_demo) |d| front.keyUp(d, cp);
 }
 pub const Demo = struct {
     os: *zg.ZigOS = undefined,
@@ -84,6 +92,7 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
         self.* = .{};
+        g_demo = self;
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
@@ -104,7 +113,7 @@ pub const Demo = struct {
         ts.look(self);
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);
-        self.lib.scan(); // last: its buffers take what the RAM window has left (library.RESERVE kept)
+        self.lib.scan(micros); // last: its buffers take what the RAM window has left (library.RESERVE kept)
         self.lib.report();
         front.boot(self);
     }
@@ -130,6 +139,7 @@ pub const Demo = struct {
     }
 
     pub fn inputRelease(self: *Demo, dir: u8) void {
+        front.release(self, dir);
         self.drive.press(dir, false);
         self.game.press(dir, false);
     }
@@ -140,7 +150,7 @@ pub const Demo = struct {
         self.pose = null;
         self.game.setMode(.off);
         self.drive.setMode(m);
-        self.r = if (m == .bench) BENCH_R else self.play_r;
+        self.r = if (m == .bench) BENCH_R else ts.playR(self);
         self.rep = .{ .crc_on = self.rep.crc_on };
         self.bench.resetLap();
     }
@@ -151,7 +161,7 @@ pub const Demo = struct {
         self.pose = null;
         self.drive.setMode(.off);
         self.game.setMode(m);
-        self.r = if (m == .bench) BENCH_R else self.play_r;
+        self.r = if (m == .bench) BENCH_R else ts.playR(self);
         self.rep = .{ .crc_on = self.rep.crc_on };
         self.bench.resetLap();
     }
@@ -173,28 +183,6 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = dt;
-        self.bench.frameStart();
-        const fb = present.flip(self, zigos);
-        if (front.menu(self)) return frontdraw.menuFrame(self, zigos, fb); // the select, the results: no 3D under them
-        const t = self.cur();
-        const racing = self.game.mode != .off;
-        const pose = if (self.pose) |k| cam.fixedPose(t, k) else if (racing) self.game.pose() else if (self.drive.mode != .off) self.drive.pose() else cam.lapPose(t, self.script, cam.povAt(self.script));
-        clip.near = if (self.pose != null) clip.NEAR else if (racing) self.game.near() else self.drive.near();
-        var v = cam.view(pose);
-        if (fx.use_f32) cam.floatView(&v);
-        self.p.sky(fb, &v, pose.yaw);
-        self.bench.lap(.sky);
-        self.f.visibility(t, &v, self.r);
-        self.bench.lap(.vis);
-        self.f.collect(t, &v, self.decals);
-        present.addCars(self, &v);
-        self.bench.lap(.collect);
-        self.f.sort();
-        self.bench.lap(.sort);
-        const counts = self.p.fill(fb, &self.f);
-        self.bench.lap(.fill);
-        present.finish(self, zigos, fb, counts);
-        frontdraw.overlay(self, zigos, fb); // the title over the flyby (after the view's CRC)
+        view.render(self, zigos);
     }
 };
-

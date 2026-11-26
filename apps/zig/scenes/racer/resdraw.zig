@@ -33,7 +33,7 @@ pub fn draw(d: anytype, os: *zg.ZigOS, fb: *zg.LogicalFB, p: menu.Px) void {
     fd.text(os, fb, std.fmt.bufPrint(&b, "BEST LAP {s}  LAP {}", .{ best, r.best_i }) catch "", 24, 132, palette.INK);
     const rec = &s.records;
     const lap = if (rec.best_lap == 0) "-:--.-" else racehud.timeStr(&t1, rec.best_lap);
-    const race = if (rec.best_race == 0) "-:--.-" else racehud.timeStr(&t2, rec.best_race);
+    const race = if (rec.bestRace(s.laps) == 0) "-:--.-" else racehud.timeStr(&t2, rec.bestRace(s.laps));
     fd.text(os, fb, std.fmt.bufPrint(&b, "RECORDS LAP {s} RACE {s}", .{ lap, race }) catch "", 24, 144, palette.INK);
     if (s.lap_record or s.race_record) fd.text(os, fb, "NEW RECORD", 24, 156, menu.HILITE);
     fd.text(os, fb, FOOT, 160 - FOOT.len * 4, 170, palette.INK);

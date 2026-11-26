@@ -19,4 +19,7 @@ test {
     _ = @import("scenes/racer/carfile_test.zig");
     _ = @import("scenes/racer/clock_test.zig");
     _ = @import("scenes/racer/menu_test.zig");
+    _ = @import("scenes/racer/front_test.zig");
+    _ = @import("scenes/racer/ground_test.zig");
+    _ = @import("scenes/racer/zone_test.zig");
 }

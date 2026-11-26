@@ -38,7 +38,8 @@ pub const Mood = extern struct {
     sky: [2][4]u8 = .{ .{ 28, 60, 150, 0 }, .{ 170, 205, 235, 0 } }, // top, horizon
     hills: [3][4]u8 = .{ .{ 110, 130, 170, 0 }, .{ 70, 100, 90, 0 }, .{ 60, 60, 90, 0 } }, // palette 12, 13, 14
     clock: [2]u8 = .{ 0, 0 }, // the race clock: start, extension a checkpoint (s); 0 = computed (clock.zig, M5 step 4)
-    pad: [6]u8 = .{0} ** 6,
+    draw_r: u8 = 0, // the track's draw distance cap, tiles 3..8; 0 = none (M5 finish: trackset.playR)
+    pad: [5]u8 = .{0} ** 5,
 };
 
 pub const FLAG_DUAL: u8 = 1;
@@ -58,7 +59,8 @@ pub const Face = extern struct {
     alt: u32, // 0, or (a local VR import) the debug key's other shades: byte 0 lit by the normal, byte 1 gently lit (project.shade)
 };
 
-pub const Seg = extern struct { pos: [3]i32, yaw: u16, segment: u16 }; // segment: the racing-line index (a start-grid pose; 0 on the line)
+pub const Seg = extern struct { pos: [3]i32, yaw: u16, segment: u16 }; // segment: the racing-line index (a start-grid pose); on the line, flags
+pub const LINE_ROOF: u16 = 1; // a line entry's flag: a roof over the segment (zone.zig: the far camera goes near; M5 finish)
 pub const Vert = [3]i16; // 1/128 unit
 
 pub const Track = struct {
@@ -141,6 +143,7 @@ fn mood(b: []align(4) const u8, at: u32, total: u32) Error!Mood {
     if (at + MOOD_SIZE != total) return error.BadMood; // the file's last block
     if (m.ground_ramp >= word(b, 9) or m.ground_level > 7 or m.flags & ~BENCH_ONLY != 0 or m.backdrop >= BACKDROPS) return error.BadMood;
     if (m.clock[0] > MAX_CLOCK[0] or m.clock[1] > MAX_CLOCK[1] or !std.mem.allEqual(u8, &m.pad, 0)) return error.BadMood;
+    if (m.draw_r != 0 and (m.draw_r < 3 or m.draw_r > MAX_RBAKE)) return error.BadMood;
     return m;
 }
 
@@ -155,6 +158,7 @@ fn check(t: *const Track) Error!void {
     for (t.tile_faces) |f| if (f >= t.faces.len) return error.BadBlock;
     for (t.tile_first[1..], t.tile_first[0..TILES]) |hi, lo| if (hi < lo) return error.BadBlock;
     if (t.line.len < 3) return error.BadBlock;
+    for (t.line) |s| if (s.segment & ~LINE_ROOF != 0) return error.BadBlock; // a flag this cart does not know
     for (t.pvs_index) |at| if (at != NOT_BAKED and (at >= t.pvs.len or t.pvs[at] > t.pvs.len - at - 1)) return error.BadBlock;
     for (t.lr) |s| if (s[0] >= t.verts.len or s[1] >= t.verts.len) return error.BadBlock;
     for (t.checkpoints, 0..) |c, i| if (c >= t.line.len or (i > 0 and c <= t.checkpoints[i - 1])) return error.BadBlock;

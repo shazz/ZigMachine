@@ -14,12 +14,18 @@ const zx0 = @import("depackers").zx0;
 const data = @import("data.zig");
 const refusals = @import("refusals.zig");
 const trk = @import("trk.zig");
+const Preview = @import("preview.zig").Preview;
+// The select's previews: a module variable, not a field, so no `self.* = .{}` copies a 9 KB default blob (the struct-default trap).
+var previews: [MAX]Preview = undefined;
 
 pub const MAX = 16; // tracks listed, the oval included
 pub const MAX_FILE: u32 = 1 << 20; // a track's bytes once depacked (the stress city: 755,720)
 pub const MAX_VERTS = 25600; // the frame's vertex cache (the stress city: 25,009)
 pub const MAX_FACES = 10240; // ... and its face stamps (the stress city: 9,904)
-pub const HD_DIR = "C:\\RACER\\";
+const hdfile = @import("hdfile.zig");
+pub const HD_DIR = hdfile.HD_DIR;
+pub const hdRead = hdfile.hdRead;
+const hdPath = hdfile.hdPath;
 const RESERVE: usize = 64 * 1024; // cart RAM left for everything allocated after the library
 const BLOCK = 512;
 
@@ -53,7 +59,7 @@ pub const Library = struct {
     cars: @import("cars.zig").Cars = .{}, // the car files (M5): their buffers are carved before the track buffer's
 
     /// The oval, then the disk's files, then C:'s; the car buffer; then the two track buffers, sized to the largest file listed.
-    pub fn scan(self: *Library) void {
+    pub fn scan(self: *Library, now: *const fn () u32) void {
         self.* = .{};
         @memcpy(self.list[0].name[0..4], "OVAL");
         self.list[0].raw = @intCast(data.oval.len);
@@ -62,6 +68,30 @@ pub const Library = struct {
         self.cars.init();
         self.size();
         self.cars.share(self.stage); // a car file stages in the track stage (a track is loaded before its cars)
+        self.previewAll(now);
+    }
+
+    /// What the select shows of entry `i` (previewAll's).
+    pub fn preview(self: *const Library, i: usize) *const Preview {
+        _ = self;
+        return &previews[i];
+    }
+
+    /// Every listed track loaded once, for what the select shows (preview.zig); a file the loader refuses is marked bad here.
+    fn previewAll(self: *Library, now: *const fn () u32) void {
+        const t0 = now();
+        for (0..self.n) |i| {
+            const e = &self.list[i];
+            previews[i] = .{};
+            const t = self.load(i) catch |err| {
+                e.bad = true;
+                e.why = @errorName(err);
+                zg.Console.log("racer,track,refused,{s},{s}", .{ e.label(), e.why });
+                continue;
+            };
+            previews[i] = Preview.of(&t);
+        }
+        zg.Console.log("racer,scan,{},{}", .{ self.n, now() -% t0 }); // the boot's cost of the previews (us)
     }
 
     fn scanDisk(self: *Library, lay: zg.disk.Layout) void {
@@ -166,24 +196,4 @@ pub fn rawLen(head: []const u8, stored: u32) ?u32 {
     if (std.mem.readInt(u32, head[4..8], .little) != trk.VERSION) return null;
     const total = std.mem.readInt(u32, head[12..16], .little);
     return if (total == stored) total else null;
-}
-
-fn hdPath(buf: *[32]u8, name: []const u8) []const u8 {
-    return std.fmt.bufPrint(buf, HD_DIR ++ "{s}", .{name}) catch buf[0..0];
-}
-
-/// Up to dst.len bytes of a C: file: the count read (GEMDOS's negative code is an error).
-pub fn hdRead(path: []const u8, dst: []u8) error{ReadFailed}!usize {
-    const dos = gemdos.dos();
-    const h = dos.Fopen(path, 0);
-    if (h < 0) return error.ReadFailed;
-    defer _ = dos.Fclose(h);
-    var got: usize = 0;
-    while (got < dst.len) {
-        const r = dos.Fread(h, @intCast(@min(dst.len - got, 64 * 1024)), dst.ptr + got);
-        if (r < 0) return error.ReadFailed;
-        if (r == 0) break;
-        got += @intCast(r);
-    }
-    return got;
 }
