@@ -25,7 +25,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from racer import (  # noqa: E402
-    budget, ktrk, limits, mood, trackc, vr32x_cells, vr32x_colours, vr32x_geom, vr32x_line, vr32x_rom, vr32x_walk, vr_colours, vr_import,
+    budget, ktrk, limits, mood, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_find, vr32x_geom, vr32x_line,
+    vr32x_rom, vr32x_walk, vr_colours, vr_import,
 )
 
 WALK_SEEDS = 6  # seeds the walk starts from, each way (the shortest laps use them all)
@@ -75,21 +76,29 @@ def line(m: vr32x_geom.Mesh, bins: vr32x_geom.Bins, info: dict[str, object]) -> 
     return seg
 
 
-def build(rom: bytes, k: int) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
+def build(rom: bytes, k: int, dec: vr32x_decoded.Decoded | None) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
     pal = vr32x_rom.palette(rom, k)
     m = vr32x_geom.build(vr32x_rom.tiles(rom, k), pal)
     bins = vr32x_geom.Bins(m)
     info: dict[str, object] = dict(m.stats)
     info["decals"] = vr32x_geom.decals(m, bins)
-    info["borders"] = vr32x_geom.borders(m, bins)
-    seg = line(m, bins, info)
+    if dec is not None:
+        seg, cps, grid = vr32x_decoded.apply(m, bins, info, dec)
+        info.update(vr32x_decoded.check(bins, dec, grid))
+        info["line"] = (f"DECODED: {len(seg)} course points, lap {info['lap']:.0f} units, "
+                        f"{'clockwise' if info['clockwise'] else 'anticlockwise'}, {info['pit']} pit-lane points; "
+                        f"kinds {info['kinds']}, path points off our asphalt {info['path_off_asphalt']}")
+    else:
+        info["borders"] = vr32x_geom.borders(m, bins)
+        seg = line(m, bins, info)
+        cps, grid = [len(seg) // 3, 2 * len(seg) // 3, len(seg) - 1], vr_import.grid(m.verts, seg)
     faces = [_face(f) for f in m.faces if f.parent < 0]
     vs = m.verts
     doc = {"format": "ktrk-json", "version": 1, "name": f"vr32x_{vr32x_rom.TRACKS[k]}", "tile_size": ktrk.TILE,
            "grid": [32, 32], "vertex_scale": ktrk.SCALE, "vertices": vs,
            "materials": sorted({f["mat"] for f in faces} | {i["mat"] for f in faces for i in f.get("inner", [])}),
-           "faces": faces, "racing_line": seg, "checkpoints": [len(seg) // 3, 2 * len(seg) // 3, len(seg) - 1],
-           "start_grid": vr_import.grid(vs, seg), "generator": {"kind": "vr32x_local"}}
+           "faces": faces, "racing_line": seg, "checkpoints": cps,
+           "start_grid": grid, "generator": {"kind": "vr32x_local", "course": "decoded" if dec else "synthesised"}}
     return doc, info, m, pal
 
 
@@ -107,14 +116,15 @@ def clockwise(doc: ktrk.Doc) -> ktrk.Doc:
 def report(k: int, doc: ktrk.Doc, info: dict[str, object], blob: bytes, cols: vr32x_colours.Cols, pal: list[RGB],
            area: dict[int, float]) -> list[str]:
     m, (at, rgb) = budget.meter(doc), cols
+    how = "DECODED" if doc["generator"]["course"] == "decoded" else "SYNTHESISED"
     errs, total = vr32x_colours.errors(pal, at, rgb), sum(area.values()) or 1.0
     shaded = sorted((c for c, (_, lv) in at.items() if lv != vr_colours.FLAT), key=lambda c: -area[c])
     fit = ("fits" if len(blob) <= BUFFER else f"is {len(blob) - BUFFER} bytes over") + f" the {BUFFER // 1024} KB buffer"
     fit += " the city sizes, " + ("under" if len(blob) <= MAX_FILE else "OVER") + " library.MAX_FILE (1 MiB)"
     return [f"vr32x_{k + 1} {vr32x_rom.TRACKS[k]}: {m.vertices} vertices ({len(doc['racing_line']) * 2} of them the line's), "
             f"{len(doc['faces'])} faces + {m.faces - len(doc['faces'])} decals = {m.faces} drawn, busiest tile {m.busiest_tile} "
-            f"at {m.busiest_at}, {len(ktrk.tile_faces(doc))} tiles used, {len(doc['racing_line'])} segments (SYNTHESISED), "
-            f"checkpoints {doc['checkpoints']}, grid synthesised on segments 0-4",
+            f"at {m.busiest_at}, {len(ktrk.tile_faces(doc))} tiles used, {len(doc['racing_line'])} segments ({how}), "
+            f"checkpoints {doc['checkpoints']}, grid ({how}) on segments {sorted({g['segment'] for g in doc['start_grid']})}",
             f"  geometry: {info['split_quads']} non-flat/concave quads split, {info['dropped_degenerate']} degenerate dropped, "
             f"{info['decals']} decals attached, {info['borders']} border edges; line: {info['line']}",
             f"  colours: {len(at)} palette entries -> {len({r for r, _ in at.values()})} ramps; area-weighted RGB error "
@@ -125,9 +135,9 @@ def report(k: int, doc: ktrk.Doc, info: dict[str, object], blob: bytes, cols: vr
             + ("; ".join(p for p in budget.problems(doc) if "colour ramps" not in p) or "within every limit")]
 
 
-def run(rom: bytes, k: int, out: Path, allow_soft: bool) -> list[str]:
-    doc, info, m, pal = build(rom, k)
-    doc = clockwise(doc)
+def run(rom: bytes, k: int, out: Path, allow_soft: bool, dec: vr32x_decoded.Decoded | None) -> list[str]:
+    doc, info, m, pal = build(rom, k, dec)
+    doc = clockwise(doc) if dec is None else doc  # decoded: the 32X's own direction
     probs = [p for p in budget.problems(doc) if "colour ramps" not in p]  # the entries are merged onto 23 ramps below
     if any(p.startswith("HARD") for p in probs) or (probs and not allow_soft):
         raise trackc.ConvertError("; ".join(probs) + ("" if allow_soft else " (--allow-soft converts past SOFT limits)"))
@@ -148,14 +158,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tracks", default="1,2,3,4,5",
                     help="1-based: 1 Big Forest, 2 Bay Bridge, 3 Acropolis, 4 Highland, 5 Sand Park")
     ap.add_argument("--allow-soft", action="store_true", help="convert a track over a SOFT budget limit (still reported)")
+    ap.add_argument("--synth", action="store_true", help="synthesise the line, checkpoints, grid and walls from the geometry "
+                    "(the old way) instead of decoding the 68000's course tables")
     args = ap.parse_args(argv)
     rom, out = vr32x_rom.load(Path(args.rom)), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    decs = None if args.synth else vr32x_find.tracks(rom, len(vr32x_rom.TRACKS))  # raises if a table is not found
     lines: list[str] = []
     for k in (int(t) - 1 for t in args.tracks.split(",")):
         try:
-            got = run(rom, k, out, args.allow_soft)
-        except (trackc.ConvertError, vr32x_line.LineError, vr32x_rom.RomError) as e:
+            got = run(rom, k, out, args.allow_soft, decs[k] if decs else None)
+        except (trackc.ConvertError, vr32x_line.LineError, vr32x_rom.RomError, vr32x_course.CourseError,
+                vr32x_decoded.DecodeError) as e:
             got = [f"vr32x_{k + 1} {vr32x_rom.TRACKS[k]}: NOT CONVERTED: {e}"]
         lines += got
         print("\n".join(got), flush=True)
