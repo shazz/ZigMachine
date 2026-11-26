@@ -45,9 +45,7 @@ from aurora_stars import bake_stars  # noqa: E402
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 ASSETS = ROOT / "apps/zig/assets/screens"
-FONT = ROOT / "prototypes/boot_screen/font_christmas_shine/dl/extracted/ChristmasShineFONT.otf"  # local only, never committed
-if not FONT.exists():  # a worktree has no prototypes/: the main checkout's copy
-    FONT = Path("/home/matt/projects/ZigMachine/prototypes/boot_screen/font_christmas_shine/dl/extracted/ChristmasShineFONT.otf")
+FONT = ROOT / "prototypes/boot_screen/font_christmas_shine/dl/extracted/ChristmasShineFONT.otf"  # local only, never committed (--font)
 VARIANTS = {"main": dict(hold=pk.HYST, step=2), "b": dict(hold=pk.HYST, step=2), "c": dict(hold=0, step=2), "d": dict(hold=0, step=1),
             "e": dict(hold=0, step=1, halo=True),
             # F, G: the lab's Edge sharpness 0.045 draws the curtains' bases as hard steps (in the float render itself,
@@ -188,8 +186,10 @@ def main(argv=None):
     ap.add_argument("--out", default=None)
     ap.add_argument("--zx0pack", default=str(ROOT / "zig-out/bin/zx0pack"))
     ap.add_argument("--frames", type=int, default=None, help="aurora frames to render (default: all)")
+    ap.add_argument("--font", default=str(FONT), help="F / G: the wordmark's font (local only; a worktree passes the main checkout's)")
     ap.add_argument("--cache", default=None, help="a .npz of the rendered light: reused if present, else written")
     a = ap.parse_args(argv)
+    globals()["FONT"] = Path(a.font)
     out = a.out or str(ASSETS / ("aurora_boot" if a.variant == "main" else f"aurora_boot_{a.variant}"))
     ref = bake(a.settings, a.photo, out, a.zx0pack, a.frames, a.variant, a.sound, a.cache)
     print(json.dumps(dict(sizes=ref["sizes"], stats=ref["stats"]), indent=1))

@@ -26,9 +26,10 @@ at run time.
 | 1, 8-bit, on top | stars and their flight, the falcon's wire, the name | `stars.zx0` (one record per 30 fps frame) |
 | sound | "Northern Lights soft", CC0, signed 8-bit mono 22,050 Hz, `zg.samplePlay` at frame 0 | `boot.raw` |
 
-The TC plane has no colour key, so the stars live on a normal 8-bit plane over it. Plane 1's alpha is binary: a
-star at the lab's alpha a is an opaque palette ramp entry (`look.zig`); the wire and the name are one entry each,
-recoloured by their level. The final fade is TC_FADE on plane 0 and the machine's own fade rule applied to
+The TC plane has no colour key, so the stars live on a normal 8-bit plane over it. A star at the lab's alpha a is
+an opaque palette ramp entry (`look.zig`); the wire and the name are one entry each at their full colour, faded in
+by the entry's ALPHA (the mixer blends a partial palette alpha: the board's RTL mixer reproduces Chrome's canvas
+blend byte for byte, docs/hardware/FPGA_STEPS.md); F / G's baked name is 128 entries of coverage alpha. The final fade is TC_FADE on plane 0 and the machine's own fade rule applied to
 plane 1's entries, so both reach black together.
 
 ### The aurora (plane 0)
@@ -159,14 +160,19 @@ Matt on the board (E, ~5 s in, `prototypes/boot_screen/board_shots/SHOT0111.PNG`
 curtain, stair-step blocks along the curtain base, faint banding. Measured against the lab's FLOAT picture
 (`prototypes/aurora_f_re/measure.py`, every 5th frame, the band's rows; dE = CIE76 on the displayed sRGB):
 
-1. **The stair steps and the lavender base are in the float render itself**, not in any quantiser: the lab's
+1. **The stair steps and the lavender base are in the baker's float render itself** (not compared against
+   `aurora_lab.html` directly), not in any quantiser: the lab's
    Edge sharpness (0.045) cuts each of the three curtains off in a few pixels, at a different screen height per
    curtain, and the emission ramp is violet at the base. Neither supersampling the march (4 / 8 / 16 offsets)
    nor 2x2 / 4x4 pixel supersampling changes it. F and G therefore bake **Edge sharpness 0.15** (a soft base, no
-   cliff; `VARIANTS` in `aurora_bake.py`): the steps and the violet base line go. The lab slider is the knob if
-   Matt wants some of the violet back (0.1 keeps a little, with softer steps).
-2. **The shared 256-entry palette adds speckle**: E sits at dE mean 2.75 / p99 8.5 / max 19 where plain 565
-   rounding of the same picture reaches 1.9 / 4.1 / 5.6. One palette for ~2,300 colours of the whole film.
+   cliff; `VARIANTS` in `aurora_bake.py`): the steps and the violet base line go. **This is a look change to Matt's
+   tuned setting**, so the E vs F / G table below mixes storage with edge. The lab slider is the knob if Matt wants
+   the violet back (0.1 keeps a little, with softer steps); G at 0.045 is a one-minute re-bake from the cache.
+2. **The shared 256-entry palette adds speckle**: on the SAME light (edge 0.045, against the rounded sky) E sits at
+   dE mean 1.63 / p99 7.4 where per-row palettes reach 1.29 / 4.3 and plain 565 rounding 1.23 (p99 ~4). One
+   palette for ~2,300 colours of the whole film scatters lavender speckle up into the teal (the patches Matt saw);
+   plain rounding keeps the violet only at the base, cleanly (`prototypes/aurora_f_re/cmp_j120_100_50_200_150.png`:
+   float | rounded | E | ramp).
 3. **A per-row hue RAMP is worse than E** (tried first: per row, the principal colour direction of the light,
    8-bit intensity along it, conditional mean colour per step; dE mean 2.2, worst 5 levels on G, and it loses
    the lavender): a row mixes curtains at different heights and the bloom halo, one hue line is too few
@@ -197,12 +203,16 @@ star records and the buffer. 16-bit deltas cost twice E's unpack bytes.
 Cost through the aurora window (`apps/harness/frame_cost.mjs --warmup 150 --frames 120`, estimate, cart + FRESCO):
 E 3.40 Mc (p95 4.08, ~29.5 fps), F 3.87 Mc (p95 4.81, ~25.8 fps), G 4.22 Mc (p95 5.08, ~23.7 fps); G's top
 region is the ZX0 unpack (0.85 Mc). All three are over the board's 60 fps band (1.75-2.1 Mc) while the aurora
-plays, as E already was; the OSD decides. Disks: E 1.50 MB, F 1.83 MB, G 2.19 MB.
+plays, as E already was; the OSD decides. The timeline counts frames, so below 60 fps the picture outlasts the
+8.5 s sample (E already does). Disks: E 1.50 MB, F 1.83 MB, G 2.19 MB. If a cart's `load()` is refused RAM, it
+shows black, restarts the sample every frame and never asks to leave (the harness catches it: G's first build did
+this before its sky copy went).
 
 Both F and G draw the **name as a baked image**: "Kestrel" in Matt's script font (Christmas Shine by Fandi, free
 for commercial use; `prototypes/boot_screen/font_christmas_shine/SOURCE.txt`; the .otf stays local, only the
-image ships), drawn 4x and box-filtered to real coverage (`tools/boot/aurora_word.py`, `word.bin`), about 2/3 of
-the falcon's wingspan, centred under it. On the star plane its pixels are entries 128..255 = the ink at alpha
+image ships), drawn 4x and box-filtered to real coverage (`tools/boot/aurora_word.py`, `word.bin`), 0.65 of the
+falcon's wingspan (136 x 52 px: the script's loops make it tall, a full wingspan would leave the screen), centred
+under it. On the star plane its pixels are entries 128..255 = the ink at alpha
 coverage x name level, so FRESCO blends it over the true-colour sky anti-aliased, no dithering, no 1-bit edge;
 it fades in on the name's beat and follows the end fade. A..E keep the bitmap capitals (`WORDMARK` in the meta).
 
