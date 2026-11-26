@@ -165,23 +165,96 @@ through the same code. `python3 -I tools/racer/vr32x_import.py --allow-soft` (de
 |---|---|
 | `tools/racer/vr32x_rom.py` | the decoder. Per course a 32 x 32 map of tile-model pointers (SH-2 ROM addresses, a 4 KB block found by its shape); a tile model is its vertices (s16 x, y up, z; 2048 to a tile) and polygons in STRIPS (flags bit 0 triangle / quad; a high byte of 2, 4 or 6 reuses edge last / 2 / 1 of the previous polygon); the colour word's high byte is a palette index into the course's 256-entry 32X palette (5-bit RGB), found as a run of five pointers 512 bytes apart. freds72's `32x_dumper.py` only probed the layout; the 68000's tile lookup is described by the sega-vr-disasm project |
 | `tools/racer/vr32x_geom.py` | one welded mesh (1/256 of a model unit = our unit, as his Genesis export), kinds (up-facing = ground, neutral grey = asphalt incl. kerbs to ny 0.3, the rest props; flags bit 6 = dual-sided, a guess from the Genesis layout), decals (a ground face lying in a larger one becomes its `inner`), borders (a ground edge past which no ground continues at the same height) |
-| `tools/racer/vr32x_line.py`, `vr32x_walk.py`, `vr32x_cells.py` | the racing line, SYNTHESISED (the 32X keeps its AI path and collision pages in tables not decoded here): candidates are the shortest lap through a cut across the road at seeds spread over the asphalt (a 0.25-unit cell graph of the asphalt, heights kept apart so an overpass does not join the road below) and a walk that follows the road (it takes a lollipop the shortest lap skips: Acropolis' hook); the longest that does not double back wins, smoothed, resampled every ~3.5 units, edges as new vertices |
+| `tools/racer/vr32x_line.py`, `vr32x_walk.py`, `vr32x_cells.py` | the SYNTHESISED racing line, now the fallback behind `--synth` (the 32X's own course tables are decoded since 26 Nov: see below): candidates are the shortest lap through a cut across the road at seeds spread over the asphalt (a 0.25-unit cell graph of the asphalt, heights kept apart so an overpass does not join the road below) and a walk that follows the road (it takes a lollipop the shortest lap skips: Acropolis' hook); the longest that does not double back wins, smoothed, resampled every ~3.5 units, edges as new vertices |
+| `tools/racer/vr32x_tables.py`, `vr32x_find.py`, `vr32x_surface.py` | the 68000's course tables (26 Nov, the default): the course table (path, course-index map, respawn pairs, AI lines), the surface map (per course a map of polygon lists, plus the upper deck of a crossing) and the start grid, each FOUND by its shape and accepted only when it agrees with the others (no offsets in the code) |
+| `tools/racer/vr32x_course.py`, `vr32x_kinds.py`, `vr32x_decoded.py` | what we build from them: the racing line on the 32X's own points, the checkpoints from its timing gates, the grid from its poses, each ground face's kind from the surface under it (walls = the edge of the drivable union), and a fail-loud check that the decode and our mesh agree |
 | `tools/racer/vr32x_colours.py` | colours: each face its palette entry, solid and unlit (no dither); the entries (74-99 a course) go on the 23 free ramps: the road and the far ground first, then greedily the entry worst served, weighted by area, the rest on the nearest ramp shade (`vr32x_report.txt` gives the error: ~4-5 RGB area-weighted, a few rare entries 50-180 off) |
-| `tools/racer/vr32x_import.py` | the pipeline and the report: checkpoints (3, a third of the lap apart), the grid (vr_import's, synthesised on segments 0-4), clockwise like freds72's three (the Deluxe-only courses' sense is NOT known), the budget check (SOFT overruns refused unless `--allow-soft`), trackc v3 + a mood block (far ground at level 7) |
+| `tools/racer/vr32x_import.py` | the pipeline and the report: decoded mode by default (the course tables below; a table not found is an error, never a silent fallback), `--synth` for the old synthesis (checkpoints a third of the lap apart, vr_import's grid on segments 0-4, forced clockwise), the budget check (SOFT overruns refused unless `--allow-soft`), trackc v3 + a mood block (far ground at level 7) |
 | `tools/tests/test_racer_vr32x.py` | synthetic models (strip edges, bad ids, no table) and a synthetic ring for the lap; no Sega data, runs in the gate |
+| `tools/tests/test_racer_vr32x_course.py` | a synthetic cartridge in the decoded layout (a ring course, one road polygon per point, a grid): the tables found by shape, the bank, a missing table refused, the edge and gate bits, the layer switch, checkpoints and a missing gate refused, face kinds; no Sega data |
 
 **What decoded, what did not.** All five courses' tile maps and every model parse with every vertex id in range, the models
 contiguous; the strip rule gives convex, edge-sharing polygons for 85-99 % of the continuations (the rest are folds of the
 terrain). Laps (the delivered, smoothed line): Big Forest 438 units (freds72's Genesis track: 437), Bay Bridge 432 (422),
 Acropolis 547 (556, the hook included): within 0.2-2.4 % of his, so the geometry is the same circuit at the same scale and
 orientation (Big Forest overlays his VR1 without a mirror; his VR2 has the shape of map 2, Acropolis, and his VR3 of map 1,
-Bay Bridge). Highland (a figure-8, the crossing is a bridge) 433, Sand Park (the longest, as reviews say) 661. **Synthesised,
-not decoded:** the racing line, checkpoints, start grid and its place (where the winning seed was), the driving direction of
-Highland and Sand Park (Sand Park forced clockwise like the arcade three; Highland is a figure-8, so that rule decides
-nothing), the borders (the 32X's collision is in tables, not polygons), the face
-kinds. **Unknown and unused:** the model header's second word, the colour word's low byte, flags bits 1-6 (bit 6 used as dual).
+Bay Bridge). Highland (a figure-8, the crossing is a bridge) 433, Sand Park (the longest, as reviews say) 661. **Synthesised in the first import (25 Nov), decoded since 26 Nov (below):** the racing line, checkpoints, start grid and its
+place, the driving direction, the borders and the face kinds. **Unknown and unused:** the model header's second word, the colour word's low byte, flags bits 1-6 (bit 6 used as dual).
 The maps are in the 68000's track order; the two Deluxe courses are Highland and Sand Park (a desert course, the
 longest: map 4 is sand-coloured and the longest lap).
+
+**The course data, decoded (26 Nov, branch feat/racer-32x-data).** Read from the 68000 code with rg-dis (Reservoir Gods'
+disassembler, the 68000 window of the dump as a raw image) and the sega-vr-disasm project's labels as an index (its notes were
+wrong in places: the course and the car class are swapped in its names, the "palette" copy is the settings block). What the
+68000 does, and what we take:
+
+- **Course index and direction.** A car's course index comes from the surface polygon under it (each polygon names a path
+  point; a byte map turns the point into the index). The lap check counts a lap when the index drops by more than 100, so the
+  driving direction is increasing index and the start/finish line is where index 0's region starts. Our racing line keeps the
+  32X's points one to one (a segment per course index, boundaries at the midpoints between points, rotated by one so the line
+  is the start of the last segment: the race rules' gates then fall exactly on the 32X's). The pit lane's extra points (mapped
+  back onto the main indices) are not part of the line.
+- **Checkpoints.** The surface byte's top two bits are a timing gate (1 at index 0, 2 and 3 the split points, read by the
+  split-time display); our checkpoints are gates 2 and 3, then the line.
+- **The grid.** 16 poses per course and car class (x, height, z, heading), the player first and AT THE BACK; we keep the player
+  and the 7 cars just ahead. The height word is copied between courses and every heading is straight ahead, so height comes
+  from our ground and yaw from the line. A car behind the line starts at segment 0 and the track position walks it back on the
+  first tick (its u starts below 0, the first lap is a whole one, as on the 32X).
+- **Walls and surfaces.** The 32X stores no walls: a 512-unit cell holds convex polygons (four half-plane edges, a height
+  plane, a class, flags), a probe in no polygon is solid, so a wall is the edge of the polygons' union. Classes: road (and
+  kerb, pits), three off-road classes (each slows the car), solid. One course has a second map, the upper deck of its
+  crossing, selected by a flag of the polygon the car is on. We kind each ground face by sampling the surface under it
+  (road -> track, off-road -> ground, solid / none / a face not on the surface's plane, e.g. a rock or a deck over the road ->
+  not drivable), and the existing border rule then puts the walls where the drivable union ends.
+- **Units.** The 68000's x / z are half a model unit (128 to one of ours); its plane heights are 2048 to one of ours. Checked:
+  every path point lands on a polygon of its own course index (both layers walked), every path point and grid car lies on our
+  asphalt.
+
+Checks (node, local disk, the pilot flying the player through a 3-lap race, `prototypes/cards/racer_32x_race.mjs`): laps within
+0.5 % of freds72's for the three shared tracks (the synthesised ones were 2-5 % long), the grid on each course's real start
+line (on Big Forest the race's grid stands well past the line, as in the 32X's
+race table; another, fixed grid list loaded by a different routine has it just behind the line: that mode was not identified), no car stuck on a wall or off the road on four
+courses (the synthesis had cars stuck for most of the race on three); **Highland** still loses a car or two at the crossing (stuck at its
+segment with short wall contacts, not traced further); the likely cause is that our `find_face` is x/z only (freds72's tracks
+have no overpass), so a car under the deck can be handed the deck's face, but that is NOT confirmed. The pilot times out on every course: freds72's clock (75 s + 10 s a checkpoint, 3 checkpoints
+here) is too short for these laps; the 32X's own time extends are not decoded. The clock is also the evidence that the
+gates fire: each course timed out after 75 s plus 10 s for every gate passed (3 to 8 gates).
+
+Board (26 Nov, card `m5s3x2`, shelf "RACER M5 CAR 32X+", local only): each course's grid on its painted start line (player at
+the back; shots in prototypes/racer_re/vr_local/board_m5/32xdata/), grid fps DXFOREST 27, DXBAY 32, DXACRO 26, DXHIGH 27,
+DXSAND 36, DXFOREST mid-race on the pilot 28 (step 3's synthesised DXFOREST / DXBAY grid: 25 / 33).
+
+**Physics and AI against the 32X (26 Nov; a reading of the 68000 code, nothing changed in the cart).** Our physics is freds72's
+Lua bit for bit (M2.md) and stays so; this is what a "32X feel" would mean, as OUR OWN tuning measured against it:
+
+- **Rate and scale.** The 68000 runs one physics step per rendered frame (its loop waits for the SH-2's "frame done"; the
+  disasm project measures ~20 fps), our tick is a fixed 30 Hz. Its speedometer is a fixed multiple of its speed word, and a frame
+  moves the car by a sixteenth of that word in world units, so at its nominal 20 fps its km/h maps onto our world within a few % of
+  freds72's own `* 900` (the world scales were already the same, see Speed feel in M2.md). Its car really drives slower
+  than the speedometer when the frame rate drops; ours does not.
+- **Longitudinal.** The 32X has an engine model: a torque curve over rpm, a 7-speed box (automatic or manual) with shift
+  points, a speed-dependent drag curve per car class, throttle and brake that ramp in, a wheelspin grip limit, and three
+  car classes. A full-throttle reading of it (local script) gives about our top speed for the Formula class but a slower
+  pull in the upper gears (we reach the top end noticeably sooner). Off-road it adds drag growing with the square of speed
+  (halved with one or two wheels off), where ours caps the engine at 2/3 of its top speed.
+- **Walls.** The 32X probes four car corners against the surface map; a corner in no polygon is a wall hit: the step is
+  rolled back to the last free quarter-step (no push-out), the car is turned onto the course heading stored in the polygon,
+  and a hard hit at speed is a crash that respawns the car on the path. Ours pushes the car out of the wall edge and scales
+  the velocity by the contact (freds72's `face_collide`).
+- **AI.** The 32X's AI cars are kinematic: each follows one of four authored lines per course (a point per course index with a
+  speed cue: negative before the corners), aims two points ahead, turns by a fraction of the heading error that grows as
+  the point nears, and moves at a target speed = its base speed + a per-group cornering factor x the cue. They do not run
+  the player's tyre model. Ours (freds72's) run the full car physics with a PID on the racing line. Rubber-banding was
+  not confirmed in the code read.
+
+**How we would match it (a proposal, nothing built).** (1) Speed feel: fit our own torque / drag CURVES (a few control
+points, our numbers, not the 32X's tables) so the 0-100 / 0-200 / top-speed times and the off-road loss land near the 32X's
+measured behaviour, behind a per-car-class parameter block in the track or car file. (2) AI: optional authored speed cues
+per segment (our Track Kit could bake them from a fast lap) feeding the existing PID's target speed. (3) Walls: keep the
+push-out (it is the Lua's). Cost: every such change breaks the bit-for-bit Lua oracle (the M2/M3 pins), so it needs either
+the same change made in the Lua harness (the oracle follows us) or a new oracle = our Zig model re-pinned, plus new race /
+lap pins; a few days. Copying the 32X's torque, drag, gear or AI tables verbatim would put Sega data in the shipped cart:
+not allowed; fitted curves of our own are.
 
 **Budgets.** Every course is over the SOFT budget (a local benchmark, so `--allow-soft`): ~5,100-6,500 faces drawn with their
 decals (soft 3,000), a busiest tile of 119-165 faces (soft 64), up to ~9,200 vertices (soft 8,192: three courses). The HARD limits
