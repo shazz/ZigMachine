@@ -6,7 +6,7 @@
 //     seconds) when the converter wrote them (the Track Kit's `ktrk_clock`);
 //   - else (0, every file converted before this step) computed at load from the racing line: a lap's
 //     estimated time P = (length + 0.15 x total turning in degrees) / 10.5 seconds (fitted to the AI
-//     pilot's lap on 12 tracks: never under it, M5.md step 4), then
+//     pilot's lap on 11 tracks: never under it, M5.md step 4), then
 //       start = max(75, ceil(1.5 x P)),  extension = max(10, ceil(0.8 x P / checkpoints)),
 //     freds72's own ratios (75 s and 4 x 10 s against the oval's 47 s pilot lap: 1.6 and 0.85). The
 //     floors are his numbers, so the oval (P = 47.9 s) keeps exactly 75 s + 10 s.

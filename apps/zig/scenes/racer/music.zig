@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
-// RACER: the music (R82 M3 local tunes, M4 placeholders). Which song suits the moment the cart is in,
+// RACER: the music (R82 M3 local tunes, M4 placeholders, M5 step 4 final tunes). Which song suits the moment the cart is in,
 // as a pure function of the race's state, and the player that asks for a change only when the wished
-// FILE changes. Two song tables: SHIPPED, the three placeholder tunes (tools/racer/make_tunes.py, ours,
+// FILE changes. Two song tables: SHIPPED, the three tunes of ours (tools/racer/make_tunes.py, ours,
 // committed: kr_*.vgm), and SONGS, the LOCAL test tunes asked for only with `-Dracer_music` (the
 // owner's own, gitignored: site/music/racer_*.vgz, fpga/tools/song_pack.py LOCAL_SONGS, never
 // committed); with the option the local table wins (audio.zig). A song request is a LOAD that
@@ -15,7 +15,7 @@ const rules = @import("rules.zig");
 
 pub const Cue = enum { silent, title, start, loop, win, result };
 pub const SONGS = [_][]const u8{ "", "racer_title.vgz", "racer_start.vgz", "racer_loop.vgz", "racer_win.vgz", "racer_result.vgz" };
-/// The shipped placeholders: one race tune for the start and the loop, one for both endings.
+/// The shipped tunes: one race tune for the start and the loop, one for both endings.
 pub const SHIPPED = [_][]const u8{ "", "kr_title.vgm", "kr_race.vgm", "kr_race.vgm", "kr_results.vgm", "kr_results.vgm" };
 pub const Table = [SONGS.len][]const u8;
 /// The start tune runs 12.9 s, from the countdown's first tick: the race (30 Hz ticks) hands over to the looping tune after this.

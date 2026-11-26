@@ -47,6 +47,14 @@ class ExportTest(unittest.TestCase):
                          (0, {"asphalt": [100, 100, 100]}, [0.0, 1.0, 0.0]))
         self.assertTrue(all(ktrk.normal(ktrk.pts(doc, f["v"]))[1] > 0.99 for f in doc["faces"]))
 
+    def test_a_scene_clock_reaches_the_mood_block_and_its_absence_leaves_it_to_the_cart(self) -> None:
+        sc = ring()
+        self.assertNotIn("clock", kit_export.export(sc)["mood"])  # absent: the cart computes it (clock.zig)
+        sc["scene"]["clock"] = [120, 18]  # ktrk_clock, as the add-on's _look reads it
+        doc = kit_export.export(sc)
+        self.assertEqual(doc["mood"]["clock"], [120, 18])
+        self.assertEqual(kit.look(doc).clock, (120, 18))
+
     def test_a_prop_wound_inside_out_is_refused(self) -> None:
         sc = ring()
         ob = sc["objects"][0]

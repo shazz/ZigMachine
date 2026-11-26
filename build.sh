@@ -516,7 +516,7 @@ gate bard_fm node apps/harness/fm_sfx_check.mjs --break latch   # ...and the car
 gate bard_fm node apps/harness/fm_sfx_check.mjs --break own   # ...and every channel owned (native C: no refusal) fails them
 gate bard_fm node apps/harness/fm_sfx_check.mjs --break late   # ...and the player's writes staged 300 samples late fails the player check
 gate bard_fm node apps/harness/fm_sfx_check.mjs --break order   # ...and same-stamp A6/A2 pairs swapped fails it
-gate bard_fm python3 tools/racer/make_tunes.py --check site/music   # Kestrel Racing's three placeholder tunes (kr_*.vgm, ours) = what tools/racer/make_tunes.py writes
+gate bard_fm python3 tools/racer/make_tunes.py --check site/music   # Kestrel Racing's three tunes (M5 step 4, scores in tools/racer/tunes_score.py) (kr_*.vgm, ours) = what tools/racer/make_tunes.py writes
 gate copro node apps/harness/copro_check.mjs   # COPRO (cart 130): BARD jobs (zg.bard.job, table 1.24) through the loader's own hostBardJob / bardJobFrame: each page (ZX0 depack, 3D morph, particles, CRC-32) draws the same pixels with its jobs on ZIGGY and served by the page after the frame; every posted job answered by the page, no fallback; nothing kicked on ZIGGY; the first slide is dragon.raw index for index; the CRC map is zlib's crc32 chunk for chunk
 gate copro node apps/harness/copro_check.mjs --break answer   # ...and a server whose answer differs from ZIGGY's (one output word spoiled) fails every page's A/B
 gate copro node apps/harness/copro_check.mjs --break stale   # ...and a page that says done without serving makes the cart fall back to ZIGGY: every "served" check fails

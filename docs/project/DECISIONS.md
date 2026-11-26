@@ -2296,6 +2296,6 @@ flyby, and the files already converted (the 32X imports take minutes a track) ca
 - Baking clocks into the shipped files: the binaries, the disk and the kit tests would all move for a value computable at load.
 **Consequences:**
 - A screen added later is a table row plus a draw function; the all-pairs FSM test covers it.
-- The clock is an estimate: fitted on 12 tracks to never be under the AI pilot's lap; a human slower than the AI on a
+- The clock is an estimate: fitted on 11 tracks (DXHIGH: the pilot never laps it) to never be under the AI pilot's lap; a human slower than the AI on a
   very twisty course may still time out (the Track Kit's `ktrk_clock` overrides it).
 - Moving the select's cursor loads the track under it (~0.1-0.2 s on the board for the biggest, estimate).
