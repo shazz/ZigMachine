@@ -30,7 +30,6 @@ pub const CpuSink = struct {
     stride: usize = 0,
     spans: u32 = 0,
     pixels: u32 = 0,
-    shadow_px: u32 = 0,
 
     pub fn begin(self: *CpuSink, fb: *zg.LogicalFB) void {
         self.* = .{ .base = @intFromPtr(fb.fb), .stride = fb.stride };
@@ -46,7 +45,6 @@ pub const CpuSink = struct {
     /// A shadow span: the pixels already in the plane darkened in place (shadow.zig).
     pub fn shade(self: *CpuSink, y: i32, x0: i32, x1: i32) void {
         shadow.span(self.base + @as(usize, @intCast(y)) * self.stride, y, x0, x1);
-        self.shadow_px += @intCast(x1 - x0);
     }
 
     pub fn flush(_: *CpuSink) void {}
@@ -62,7 +60,6 @@ pub const AffineSink = struct {
     ops: u32 = 0,
     spans: u32 = 0,
     pixels: u32 = 0,
-    shadow_px: u32 = 0,
     synced: bool = false, // no op fired since the last sync: a car's next shadow spans need none
 
     pub fn begin(self: *AffineSink, fb: *zg.LogicalFB) void {
@@ -70,7 +67,6 @@ pub const AffineSink = struct {
         self.ops = 0;
         self.spans = 0;
         self.pixels = 0;
-        self.shadow_px = 0;
         self.synced = false;
         self.cur = self.buf[self.half * CHUNK ..].ptr;
         self.end = self.cur + CHUNK;
@@ -94,7 +90,6 @@ pub const AffineSink = struct {
             self.synced = true;
         }
         shadow.span(@intFromPtr(self.fb.fb) + @as(usize, @intCast(y)) * self.fb.stride, y, x0, x1);
-        self.shadow_px += @intCast(x1 - x0);
     }
 
     /// Fire what this half holds as one op and go on in the other half.
