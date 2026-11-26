@@ -40,10 +40,10 @@ pub fn top(buf: []u8, g: *const game.Game) []const u8 {
     const out = switch (s.fsm.state) {
         .grid => std.fmt.bufPrint(buf, "GRID  FIRE OR S TO START", .{}),
         .countdown => std.fmt.bufPrint(buf, "GET READY  {}", .{3 - s.fsm.ticks * 3 / session.COUNTDOWN_TICKS}),
-        .race => std.fmt.bufPrint(buf, "L{}/{} {s} B {s} {}{s}", .{ r.nlaps + 1, rules.LAPS, timeStr(&t0, r.lap_t), best, place, suffix(place) }),
+        .race => std.fmt.bufPrint(buf, "L{}/{} {s} B {s} {}{s}", .{ r.nlaps + 1, r.goal, timeStr(&t0, r.lap_t), best, place, suffix(place) }),
         .finish => std.fmt.bufPrint(buf, "{s}  {}{s}", .{ if (s.outcome == .win) "FINISH" else "TIME OVER", place, suffix(place) }),
         .results => std.fmt.bufPrint(buf, "RESULTS {}{s} {s}{s}", .{ place, suffix(place), total, if (s.race_record) " RECORD" else "" }),
-        .title, .select => std.fmt.bufPrint(buf, "", .{}), // the front end draws its own screen (front.zig)
+        .title, .select, .options => std.fmt.bufPrint(buf, "", .{}), // the front end draws its own screen (front.zig)
     };
     return out catch "";
 }
@@ -53,12 +53,12 @@ pub fn bottom(buf: []u8, g: *const game.Game) []const u8 {
     const r = &s.rules;
     const kmh = @as(u32, @intCast(@max(fixMul(vec.len(s.race.cars[0].vel), 900), 0)));
     const out = switch (s.fsm.state) {
-        .grid => std.fmt.bufPrint(buf, "8 CARS  {} LAPS  CLOCK {}S +{}S A GATE", .{ rules.LAPS, r.start_ticks / rules.HZ, r.extend_ticks / rules.HZ }),
+        .grid => std.fmt.bufPrint(buf, "8 CARS  {} LAPS  CLOCK {}S +{}S A GATE", .{ r.goal, r.start_ticks / rules.HZ, r.extend_ticks / rules.HZ }),
         .countdown => std.fmt.bufPrint(buf, "ARROWS STEER  UP GAS  DOWN BRAKE", .{}),
         .race => std.fmt.bufPrint(buf, "{} KMH  TIME {}  GATE {}/{}{s}", .{ kmh, r.seconds(), r.checkpoint, r.checkpoints.len, if (r.extend_t > 0 and @mod(r.extend_t, 30) < 15) "  EXTEND TIME" else "" }),
         .finish => std.fmt.bufPrint(buf, "THE FIELD FINISHES  {}/{}", .{ done(s), s.race.n }),
         .results => std.fmt.bufPrint(buf, "ENTER OR R: AGAIN", .{}),
-        .title, .select => std.fmt.bufPrint(buf, "", .{}),
+        .title, .select, .options => std.fmt.bufPrint(buf, "", .{}),
     };
     return out catch "";
 }

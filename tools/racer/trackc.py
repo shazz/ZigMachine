@@ -4,7 +4,7 @@
 
 Little-endian, 4-aligned. A 128-byte header of 32 u32 words, then blocks (offsets in the header):
 palette (RGB x ramps), vertices (i16 x3, 1/128 unit), faces + inner faces (32 B records), tile face lists,
-ray directions, the baked PVS (pvs_bake.py), the racing line (centre Q16 x3, yaw turns Q16), the start
+ray directions, the baked PVS (pvs_bake.py), the racing line (centre Q16 x3, yaw turns Q16, flags u16: LINE_ROOF), the start
 grid, the checkpoints, and (a track with a mood: tools/racer/mood.py, header word 25 its offset) the mood block. The CRC-32
 covers everything after the header. The cart refuses a bad magic, version or CRC.
 Face record: v[4] u16 | flags u8 | nv u8 | colour u8 | inner_n u8 | n[3] i16 (Q14) | pad u16 |
@@ -31,6 +31,7 @@ from racer import ktrk, ktrk_check, mood, pvs_bake  # noqa: E402
 from racer.ktrk import Doc  # noqa: E402
 
 MAGIC, VERSION, HEADER = 0x4B52544B, 3, 128
+LINE_ROOF = 1  # a racing-line entry's last u16 (0 before the M5 finish): a roof over the segment (zone.zig, ref_cam.py)
 LIGHT = (0.4, 0.8, 0.45)
 MATERIALS = {  # name -> (ramp, full-light RGB): our own palette, 15 of the 30 ramps used so far
     "asphalt": (0, (96, 98, 104)), "grass": (1, (70, 150, 60)), "kerb_a": (2, (220, 40, 40)),
@@ -112,7 +113,7 @@ def _line(doc: Doc) -> tuple[bytes, list[tuple[int, int]]]:
     for i, c in enumerate(cs):
         nx = cs[(i + 1) % len(cs)]
         yaw = int(round((math.atan2(nx[0] - c[0], nx[2] - c[2]) / (2 * math.pi)) % 1.0 * 65536)) & 0xFFFF
-        out += struct.pack("<3iHH", *c, yaw, 0)
+        out += struct.pack("<3iHH", *c, yaw, LINE_ROOF if doc["racing_line"][i].get("roof") else 0)
         tiles.append((int(c[0] // 65536 // ktrk.TILE) + 16, int(c[2] // 65536 // ktrk.TILE) + 16))
     return out, tiles
 

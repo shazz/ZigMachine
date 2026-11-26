@@ -17,12 +17,10 @@ if __package__ in (None, ""):
 
 from racer import mood, ref_fx as fx  # noqa: E402
 from racer.ref_fx import mulsh16  # noqa: E402
+from racer.ref_cam import LAP, lap_pose, pov_at  # noqa: E402  (the flyby camera; walk.py and the tests use rr.*)
 from racer.ref_sky import backdrop  # noqa: E402
 
 Y0, Y1, CX16, CY16, F4 = 12, 188, 160 * 16, 100 * 16, 160 * 16
-BACK, HEIGHT = (6 << 16, 3 << 16, 0), ((5 << 16) // 2, (3 << 16) // 2, (3 << 16) // 4)
-PITCH = (0x06000000, 0x04000000, 0x01000000)
-LAP = 720
 SKY, GROUND = 1, 4
 
 
@@ -47,24 +45,6 @@ class Track:
             raise ValueError("camera tile not baked: the reference has no DDA fallback")
         n = struct.unpack_from("<H", self.blob, self.pvs_at + 2 * off)[0]
         return list(struct.unpack_from(f"<{n}H", self.blob, self.pvs_at + 2 * off + 2))
-
-
-def lap_pose(t: Track, frame: int, pov: int) -> tuple[list[int], int, int]:
-    f = frame % LAP
-    s = (f * len(t.line) << 16) // LAP
-    i, fr = s >> 16, s & 0xFFFF
-    a, b = t.line[i], t.line[(i + 1) % len(t.line)]
-    dy = ((b[3] - a[3] + 0x8000) & 0xFFFF) - 0x8000
-    yaw = ((a[3] + ((dy * fr) >> 16)) & 0xFFFF) << 16
-    pos = [a[k] + mulsh16(b[k] - a[k], fr) for k in range(3)]
-    pos[0] -= mulsh16(BACK[pov], fx.sin(yaw))
-    pos[2] -= mulsh16(BACK[pov], fx.cos(yaw))
-    pos[1] += HEIGHT[pov]
-    return pos, yaw, PITCH[pov]
-
-
-def pov_at(frame: int) -> int:  # cam.povAt: far, near, cockpit by thirds of the lap
-    return min((frame % LAP) // (LAP // 3), 2)
 
 
 def view(pos: list[int], yaw: int, pitch: int) -> dict:

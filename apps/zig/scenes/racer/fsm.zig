@@ -5,27 +5,30 @@
 // results (the standings), and back to the grid. M5 step 4 adds the front end: title (the attract
 // flyby under the logo) and select (the track list), and the edges in and out of a race:
 // title -enter-> select -pick-> grid; results -enter-> select (another track); results -back->
-// title; select -back-> title; grid -back-> select. An event that is not in the table is refused
-// and the state does not change. `restart` is legal from every race state but the grid (it is the
-// abort key, and the results' "again"). The new states and events are appended, so the old ones
+// title; select -back-> title; grid -back-> select. The M5 finish adds the options screen, reached
+// from the title or the select (-options->) and left for either: options -back-> title, options
+// -enter-> select (front.zig fires the one it came from). An event that is not in the table is
+// refused and the state does not change. `restart` is legal from every race state but the grid (it
+// is the abort key, and the results' "again"). New states and events are appended, so the old ones
 // keep their numbers. No ZigOS import.
 // --------------------------------------------------------------------------
-pub const State = enum(u8) { grid, countdown, race, finish, results, title, select };
-pub const Event = enum(u8) { start, go, finish, done, restart, enter, pick, back };
-pub const NSTATE = 7;
-pub const NEVENT = 8;
+pub const State = enum(u8) { grid, countdown, race, finish, results, title, select, options };
+pub const Event = enum(u8) { start, go, finish, done, restart, enter, pick, back, options };
+pub const NSTATE = 8;
+pub const NEVENT = 9;
 pub const Error = error{IllegalTransition};
 
 /// TABLE[state][event]: the next state, or null when the event is illegal in that state.
 pub const TABLE = [NSTATE][NEVENT]?State{
-    //   start       go     finish   done      restart enter    pick   back
-    .{ .countdown, null, null, null, null, null, null, .select }, // grid
-    .{ null, .race, null, null, .grid, null, null, null }, // countdown
-    .{ null, null, .finish, null, .grid, null, null, null }, // race
-    .{ null, null, null, .results, .grid, null, null, null }, // finish
-    .{ null, null, null, null, .grid, .select, null, .title }, // results
-    .{ null, null, null, null, null, .select, null, null }, // title
-    .{ null, null, null, null, null, null, .grid, .title }, // select
+    //   start       go     finish   done      restart enter    pick   back    options
+    .{ .countdown, null, null, null, null, null, null, .select, null }, // grid
+    .{ null, .race, null, null, .grid, null, null, null, null }, // countdown
+    .{ null, null, .finish, null, .grid, null, null, null, null }, // race
+    .{ null, null, null, .results, .grid, null, null, null, null }, // finish
+    .{ null, null, null, null, .grid, .select, null, .title, null }, // results
+    .{ null, null, null, null, null, .select, null, null, .options }, // title
+    .{ null, null, null, null, null, null, .grid, .title, .options }, // select
+    .{ null, null, null, null, null, .select, null, .title, null }, // options
 };
 
 pub const Fsm = struct {
@@ -49,7 +52,7 @@ pub const Fsm = struct {
 
     /// The front end's states: no race runs in them.
     pub fn front(self: *const Fsm) bool {
-        return self.state == .title or self.state == .select;
+        return self.state == .title or self.state == .select or self.state == .options;
     }
 
     pub fn name(s: State) []const u8 {

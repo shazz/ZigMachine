@@ -5,7 +5,8 @@
 // or S); `bench` (lap v2: the reference benchmark; the recorded autopilot drives, the race starts by
 // itself after 1 s on the grid, a round is 2,880 frames, then the grid again). Key A / `auto`
 // drives the player from the recorded stream in `race` mode too (the headless race). `warp` runs 16
-// ticks a frame (the headless harness' 3 laps in a few hundred frames). No ZigOS import.
+// ticks a frame (the headless harness' 3 laps in a few hundred frames). A race runs rules.race_laps (the options
+// screen), the bench the reference's LAPS. No ZigOS import.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const cam = @import("cam.zig");
@@ -77,6 +78,7 @@ pub const Game = struct {
         self.mode = m;
         self.warp = false;
         self.auto = m == .bench;
+        self.s.laps = if (m == .race) @import("rules.zig").race_laps else @import("rules.zig").LAPS;
         self.reset();
         self.logged = .grid; // a new mode starts a new log (a reset inside a mode logs the state change)
     }
@@ -109,11 +111,7 @@ pub const Game = struct {
 
     /// The start key: grid -> countdown. Refused anywhere else, and in the benchmark (which starts itself: input must not move its CRCs).
     pub fn go(self: *Game) void {
-        if (self.mode != .bench) self.startRace();
-    }
-
-    fn startRace(self: *Game) void {
-        self.s.start() catch {}; // WHY: only the grid may start; in any other state the key does nothing
+        if (self.mode != .bench) self.s.start() catch {}; // WHY: only the grid may start; in any other state the key does nothing
     }
 
     /// Keys `a` and `w`: the recorded driver and warp, both fixed in the benchmark.
@@ -151,7 +149,7 @@ pub const Game = struct {
     fn benchClock(self: *Game) void {
         const f = self.frames % ROUND_FRAMES;
         if (f == 0 and self.frames != 0) self.reset();
-        if (f == GRID_FRAMES) self.startRace();
+        if (f == GRID_FRAMES) self.s.start() catch {}; // WHY: as go()
     }
 
     fn tick(self: *Game) void {
@@ -176,7 +174,7 @@ pub const Game = struct {
 
     pub fn pose(self: *const Game) cam.Pose {
         const s = self.shown(0);
-        return pov.pose(s.pos, s.angle, pov.offsets(self.pov, self.from, self.pov_frames));
+        return pov.pose(s.pos, s.angle, pov.zoned(self.t, self.pov, pov.offsets(self.pov, self.from, self.pov_frames), self.s.race.cars[0].track.u));
     }
 
     pub fn near(self: *const Game) i32 {

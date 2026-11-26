@@ -1,7 +1,8 @@
 // Headless RACER's track library (R82 Kestrel Racing M5 step 2, apps/zig/scenes/racer/library.zig, docs/ports/kestrel_racing/M5.md):
 //   1. no disk: the built-in oval only (t stays on it, nothing loads, no trap);
 //   2. the shelf disk: OVAL CITY SALT NEON GLACIER listed, in the disk's order (tools/mkdisks.sh);
-//   3. a corrupted SALT.KTR (one byte of its packed bytes flipped): refused by name, skipped from then on, the others still load;
+//   3. a corrupted SALT.KTR (one byte of its packed bytes flipped): refused by name at the scan (M5 finish), never offered to t,
+//      the others still load;
 //   4. a user's track on C: (a FAT image built here: \HD\RACER\MYTRACK.KTR, Salt Flats' RAW binary, through KOS GEMDOS and
 //      env.kosDriveRead as the page serves it): listed after the disk's, loaded and flown; a file that is not a track
 //      (\HD\RACER\NOTES.KTR) is refused at the scan.
@@ -43,8 +44,9 @@ const e = fatEntry(img, "SALT.KTR");
 img[e.start + (e.len >> 1)] ^= 0xa5; // a byte in the middle of the packed track
 const bad = await run(diskHook(img), ["t", "t", "t", "t", "l"], 40);
 const refused = bad.log.find((l) => l.startsWith("racer,track,refused,SALT"));
-// t: CITY, SALT refused (back on the oval), CITY, then NEON: the bad file is skipped from then on
-if (!refused || bad.loads.join(" ") !== "CITY CITY NEON" || bad.track !== "NEON") fail(`a corrupted SALT.KTR: ${refused}; loads ${bad.loads}; on ${bad.track}`);
+// refused at the library's scan (M5 finish: every file is loaded once there for the select's preview), so t never offers it:
+// CITY, NEON, GLACIER, then the oval again (built in: no load)
+if (!refused || bad.loads.join(" ") !== "CITY NEON GLACIER" || bad.track !== "OVAL") fail(`a corrupted SALT.KTR: ${refused}; loads ${bad.loads}; on ${bad.track}`);
 const cimg = new Uint8Array(execFileSync("python3", ["-I", "-c", CIMG], { maxBuffer: 8 << 20 }));
 const hd = await run((env) => { diskHook()(env); env.kosDriveRead = makeCDrive(env.memory, cimg); }, ["t", "t", "t", "t", "t", "l"], 40);
 const notes = hd.log.find((l) => l.startsWith("racer,track,refused,NOTES"));

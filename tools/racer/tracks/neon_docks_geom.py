@@ -16,7 +16,7 @@ POINTS = [(-84, -72), (-20, -80), (48, -76), (86, -64), (96, -36), (88, -6), (96
           (-34, 78), (-78, 70), (-94, 36), (-96, -36)]
 N = 148
 SPEC = Road(half=5.5, shoulder=2.0, wall_h=0.7, asphalt=("asphalt_a", "asphalt_b"), shoulder_mat="quay",
-            barrier=("barrier_a", "barrier_b"))
+            barrier=("barrier_a", "barrier_b"), cam_near=(86, 98))  # the warehouse's segments: the far camera goes near
 PALETTE = {
     "ground": (46, 48, 56), "quay": (66, 68, 74), "asphalt_a": (58, 60, 68), "asphalt_b": (48, 50, 58),
     "barrier_a": (196, 160, 40), "barrier_b": (54, 54, 60), "paint": (176, 176, 168), "paint_start": (200, 170, 60),
@@ -30,7 +30,7 @@ BOXES = ("box_red", "box_blue", "box_green", "box_orange", "box_grey", "box_teal
 SUN = (0.5, -0.3, 1.0)  # the yard's floodlights, high: flat faces show their colour, walls a level or three darker
 SKY = [6, 8, 22, 46, 34, 78]  # night: ink blue to a purple sodium glow on the horizon
 HILLS = [30, 30, 54, 20, 22, 36, 236, 90, 180]  # far stacks, near cranes, neon lamps
-SHED = (86, 98)  # the stations the warehouse roofs over (the top straight)
+SHED = SPEC.cam_near  # the stations the warehouse roofs over (the top straight)
 
 
 def st() -> list[Station]:

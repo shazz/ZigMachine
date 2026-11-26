@@ -9,6 +9,7 @@
 // --------------------------------------------------------------------------
 const fx = @import("fx.zig");
 const trk = @import("trk.zig");
+const zone = @import("zone.zig");
 
 pub const Pose = struct { pos: [3]i32, yaw: u32, pitch: u32 };
 pub const Pov = enum(u2) { far, near, cockpit };
@@ -78,10 +79,12 @@ pub fn lapPose(t: *const trk.Track, frame: u32, pov: Pov) Pose {
     var pos: [3]i32 = undefined;
     for (&pos, a.pos, b.pos) |*o, pa, pb| o.* = pa + fx.mulsh16(pb - pa, fr);
     const k = @intFromEnum(pov);
-    pos[0] -= fx.mulsh16(BACK[k], fx.sin(yaw));
-    pos[2] -= fx.mulsh16(BACK[k], fx.cos(yaw));
-    pos[1] += HEIGHT[k];
-    return .{ .pos = pos, .yaw = yaw, .pitch = PITCH[k] };
+    var o = [3]i32{ BACK[k], HEIGHT[k], @bitCast(PITCH[k]) };
+    if (pov == .far) o = zone.blend(o, .{ BACK[1], HEIGHT[1], @bitCast(PITCH[1]) }, zone.weight(t, s)); // under a roof: the near camera (zone.zig)
+    pos[0] -= fx.mulsh16(o[0], fx.sin(yaw));
+    pos[2] -= fx.mulsh16(o[0], fx.cos(yaw));
+    pos[1] += o[1];
+    return .{ .pos = pos, .yaw = yaw, .pitch = @bitCast(o[2]) };
 }
 
 pub fn povAt(frame: u32) Pov {

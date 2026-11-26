@@ -2,7 +2,7 @@
 // RACER: the front end's screens on the plane (M5 step 4), drawn after the frame's HUD and its
 // benchmark report (so no view CRC ever sees them):
 //   - the title over the attract flyby (title.zig's logo, the prompt, the credit);
-//   - the track select and the results (seldraw.zig, resdraw.zig) on a MENU frame: no 3D pipeline
+//   - the track select, the options and the results (seldraw.zig, optdraw.zig, resdraw.zig) on a MENU frame: no 3D pipeline
 //     under them, the view rows filled with the sky's palette entry (the copper's per-line gradient of
 //     the track on show: a gradient background for one @memset a row), so they run 60 fps on any track.
 // Text is the plane's own printText on the panels' colour. Works on any Demo (front.zig's fields).
@@ -45,6 +45,7 @@ pub fn overlay(d: anytype, os: *zg.ZigOS, fb: *zg.LogicalFB) void {
         .title => drawTitle(d, os, fb, p),
         .select => seldraw.draw(d, os, fb, p),
         .results => resdraw.draw(d, os, fb, p),
+        .options => @import("optdraw.zig").draw(d, os, fb, p),
         else => {},
     }
 }

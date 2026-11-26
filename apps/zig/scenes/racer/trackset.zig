@@ -28,6 +28,13 @@ pub fn look(d: anytype) void {
     backdrop.select(d.cur().mood.backdrop);
 }
 
+/// The draw distance in force for the player (drive, race, the flyby): the player's, capped by the track's mood (a track
+/// too heavy at R 8 on the board, M5 finish). The bench laps pin their own.
+pub fn playR(d: anytype) u32 {
+    const cap = d.cur().mood.draw_r;
+    return if (cap != 0) @min(d.play_r, cap) else d.play_r;
+}
+
 /// The light of the far ground (palette index 4): the mood's, unless the debug shading (key i) lights the faces again.
 pub fn groundLevel(t: *const trk.Track) u32 {
     return if (project.shade != 0) 4 else t.mood.ground_level;
@@ -59,7 +66,7 @@ pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
     for (d.f.cache.e) |*e| e.stamp = 0;
     cars(d);
     look(d);
-    d.r = d.play_r;
+    d.r = playR(d);
 }
 
 /// The cars for the track on show: its `<TRACK>.KCR`, the disk's `CAR.KCR`, or the built-in GT (cars.zig; the palette follows).

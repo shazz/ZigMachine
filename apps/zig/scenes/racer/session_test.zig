@@ -30,7 +30,7 @@ test "the FSM: every legal transition in the table is taken, every other event i
             }
         }
     }
-    try std.testing.expectEqual(@as(usize, 14), legal); // 4 forward + 4 restarts + the front end's 6 (M5 step 4)
+    try std.testing.expectEqual(@as(usize, 18), legal); // 4 forward + 4 restarts + the front end's 6 (M5 step 4) + the options' 4 (M5 finish)
 }
 
 test "the FSM walks grid -> countdown -> race -> finish -> results -> grid" {
@@ -86,7 +86,7 @@ test "records: a better time is taken, an equal or worse or zero one is not" {
     try std.testing.expect(!r.offerLap(900) and !r.offerLap(1000) and !r.offerLap(0));
     try std.testing.expect(r.offerLap(899));
     try std.testing.expectEqual(@as(u32, 899), r.best_lap);
-    try std.testing.expect(r.offerRace(4000) and !r.offerRace(4000));
+    try std.testing.expect(r.offerRace(4000, 3) and !r.offerRace(4000, 3) and r.offerRace(4500, 5) and r.bestRace(3) == 4000);
 }
 
 test "a session: the grid waits, the countdown holds every car for 90 ticks, then the race runs" {
@@ -137,7 +137,7 @@ test "a 3-lap race at the fixed input: every car finishes, none leaves the aspha
     try std.testing.expectEqual(@as(u32, RESULT_HASH), s.resultHash());
     try std.testing.expect(s.race_record);
     try std.testing.expectEqual(s.rules.best_t, s.records.best_lap);
-    try std.testing.expectEqual(s.rules.total, s.records.best_race);
+    try std.testing.expectEqual(s.rules.total, s.records.bestRace(3));
 }
 
 const RESULT_HASH: u32 = 0xef4ce056; // CRC-32 of the final order and the eight finish ticks

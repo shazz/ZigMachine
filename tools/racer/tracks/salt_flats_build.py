@@ -16,7 +16,7 @@ import bpy
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import racer.blender as kit  # noqa: E402
-from salt_flats_geom import DUAL, PALETTE, Mesh, decals, props, road, stations  # noqa: E402
+from salt_flats_geom import DUAL, HILLS, PALETTE, SKY, Mesh, decals, props, road, stations  # noqa: E402
 
 def material(name: str, rgb: tuple[int, int, int]) -> bpy.types.Material:
     mat = bpy.data.materials.new(name)
@@ -59,6 +59,7 @@ def build() -> None:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     sc["ktrk_name"], sc["ktrk_mood"], sc["ktrk_sun"], sc["ktrk_far_ground"] = "salt_flats", "noon", (0.3, -0.4, 1.0), "salt"
+    sc["ktrk_sky"], sc["ktrk_hills"], sc["ktrk_backdrop"] = SKY, HILLS, "peaks"  # its own noon (M5 finish: was the oval's)
     mats = {n: material(n, c) for n, c in PALETTE.items()}
     st = stations()
     m = Mesh()

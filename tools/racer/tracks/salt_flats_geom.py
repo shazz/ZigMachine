@@ -17,6 +17,8 @@ PALETTE = {
     "tower": (150, 140, 122), "pylon": (206, 112, 44), "mesa": (150, 112, 82), "mesa_top": (164, 126, 92),
 }
 DUAL = {"barrier_a", "barrier_b"}
+SKY = [34, 92, 186, 228, 216, 192]  # noon: a deep desert blue overhead to a warm, hazy horizon (M5 finish)
+HILLS = [156, 140, 152, 176, 140, 104, 214, 196, 168]  # the "peaks" strip: a far violet range, a near tan one, sunlit tops
 
 
 def curve(t: float) -> tuple[float, float]:

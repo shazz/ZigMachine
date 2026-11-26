@@ -7,6 +7,8 @@
 const cam = @import("cam.zig");
 const clip = @import("clip.zig");
 const fx = @import("fx.zig");
+const trk = @import("trk.zig");
+const zone = @import("zone.zig");
 
 pub const FRAMES = 60;
 
@@ -39,6 +41,12 @@ pub fn offsets(pov: cam.Pov, from: cam.Pov, frames: u32) [3]i32 {
     var o: [3]i32 = undefined;
     for (&o, fr, to) |*r, a, b| r.* = a + fx.mulsh16(b - a, k);
     return o;
+}
+
+/// Under a roof (zone.zig, M5 finish) the far chase camera blends to the near one; `u` is the car's track position.
+pub fn zoned(t: *const trk.Track, p: cam.Pov, o: [3]i32, u: i32) [3]i32 {
+    if (p != .far) return o;
+    return zone.blend(o, params(.near), zone.weight(t, zone.ofU(t, u)));
 }
 
 /// The camera behind the car at `pos`, heading `angle` (turns, Q16).
