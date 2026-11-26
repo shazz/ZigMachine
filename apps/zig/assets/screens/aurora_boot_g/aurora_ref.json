@@ -2,6 +2,12 @@
  "aurora_frames": 151,
  "fade_in_frames": 48,
  "height": 200,
+ "overlay_md5": {
+  "100": "4c034c34be3c74f1972d14dc44b6044b",
+  "330": "3249f83e8083cea5ac1cb38041370a24",
+  "400": "e450204500301f738aad2a81dc27477e",
+  "480": "d8c35cbf1635ac634a9cfe9c386838f8"
+ },
  "pcm_md5": "4556c6185bfe8ed3e0f7569de3779c65",
  "planes_md5": {
   "0": "641dd7de1a1258ea8398d46af502d140",
@@ -11,10 +17,10 @@
   "75": "a6cfa63f670c8c7fc75ab0891ded9c84"
  },
  "sizes": {
-  "aurora": 1992276,
+  "aurora": 1758059,
   "sky": 28786,
   "sound": 186690,
-  "stars": 35115
+  "stars": 213421
  },
  "sky_md5": "641dd7de1a1258ea8398d46af502d140",
  "stars_xy": {
@@ -4326,8 +4332,13 @@
    0.25
   ],
   "mode": "direct",
+  "split_rows": [
+   1,
+   114
+  ],
   "stars": 214,
   "variant": "g"
  },
- "width": 320
+ "width": 320,
+ "word_px": 678
 }

@@ -7,12 +7,13 @@ F (`rowpal`): a 256-entry palette PER ROW of the band. The aurora's colour follo
   A straight per-row hue RAMP (8-bit intensity along one direction) was measured first and is WORSE than E: a
   row mixes curtains at different heights and the bloom halo, so one hue line per row is too few dimensions.
 G (`direct`): no palette at all. The final picture (sky + aurora in float, the lab's compositing) rounded to
-  RGB565 once, stored as the 16-bit per-pixel difference from the previous frame (wrapping), ZX0 in TWO
-  containers a frame (the band's top and bottom halves, offsets 2n + 1); the cart adds it to the plane. The quantiser floor: what any 565 display of the lab can show without dithering.
+  RGB565 once, stored as the 16-bit per-pixel difference from the previous frame (wrapping), in TWO containers a
+  frame (change mask + nibble codes, aurora_mask.py; offsets 2n + 1); the cart adds it to the plane. The quantiser floor: what any 565 display of the lab can show without dithering.
 Neither dithers.
 """
 import numpy as np
 
+import aurora_mask as mk
 import aurora_pack as pk
 import aurora_palette as pm
 
@@ -94,19 +95,31 @@ def build_rowpal(light, base_q, zx0pack, work):
                 planes=planes, sky=sky, mode=1, stats=dict(headroom_fixes=fixes, err_mean=err[0].round(3).tolist(), err_max=err[1].round(2).tolist()))
 
 
-def build_direct(light, base_f, base_q, zx0pack, work):
-    """Variant G: the final 565 picture per frame, 16-bit wrapping deltas, every row of the band."""
+def build_direct(light, base_f, base_q):
+    """Variant G: the final 565 picture per frame, 16-bit wrapping deltas, every row of the band, as change masks +
+    nibble codes (aurora_mask.py: no ZX0, the board's cost is per changed pixel), two containers a frame."""
     final = direct_frames(light, base_f)
     sky = words(base_q)
     fw = words(final)
     r0, r1 = lit_rows(fw != sky[None])
     d = direct_deltas(fw[:, r0:r1], sky[r0:r1])
-    mid = (r1 - r0) // 2  # the cart's timeline.splitRow: each half its own container, unpacked on its own 60 Hz frame
-    halves = [h for i in range(len(d)) for h in (d[i, :mid], d[i, mid:])]  # (a half-size buffer: G's RAM is tight)
-    parts = [pk.zx0(h.astype("<u2").tobytes(), zx0pack, work) for h in halves]
-    offs = np.cumsum([0] + [len(x) for x in parts]).astype("<u4").tobytes()
+    table = mk.delta_table(d, d != 0)
+    blob, offs, splits = mk.encode(d, table)
     if (fw[-1] != sky).any():
         raise pk.PackError("the last frame is not the sky: the aurora must end on the clean picture")
+    check_round_trip(blob, offs, table, sky[r0:r1], fw[:, r0:r1])
     e = np.abs(final - (base_f[None] + light)).reshape(-1, 3)
-    return dict(n=len(fw), r0=r0, rows=r1 - r0, blob=b"".join(parts), offs=offs, files={}, planes={j: fw[j] for j in probe_frames(len(fw))},
-                sky=sky, mode=2, stats=dict(err_mean=e.mean(0).round(3).tolist(), err_max=e.max(0).round(2).tolist()))
+    return dict(n=len(fw), r0=r0, rows=r1 - r0, blob=blob, offs=offs, files={}, planes={j: fw[j] for j in probe_frames(len(fw))},
+                sky=sky, mode=2, deltas=table, stats=dict(err_mean=e.mean(0).round(3).tolist(), err_max=e.max(0).round(2).tolist(),
+                                                           split_rows=[min(splits), max(splits)]))
+
+
+def check_round_trip(blob, offs, table, sky_band, frames_band):
+    """Every frame decodes (the cart's loop, in Python) to the exact picture: the probes pin only 5 of them."""
+    o = np.frombuffer(offs, "<u4")
+    plane = sky_band.copy()
+    for t in range(len(frames_band)):
+        for k in (2 * t, 2 * t + 1):
+            mk.apply(plane, blob[o[k]:o[k + 1]], table, len(sky_band))
+        if not np.array_equal(plane, frames_band[t]):
+            raise pk.PackError(f"aurora frame {t} does not decode to its picture")

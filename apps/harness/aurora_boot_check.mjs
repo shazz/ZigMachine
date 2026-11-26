@@ -6,7 +6,8 @@
 //   aurora    each probed aurora frame j, once fully shown (its second 60 Hz frame): the plane = the reference's
 //             base + palette[index] add, byte for byte (the cart's ZX0 + delta + add loop equals numpy's)
 //   gone      the aurora's last frame restores the sky exactly
-//   stars     at the probed records every baked star pixel is lit on plane 1 (8-bit, over the TC plane)
+//   stars     at the probed records every baked star pixel is lit on plane 1 (8-bit, over the TC plane); G, whose
+//             plane is baked per 60 Hz frame: plane 1 at the baker's probe frames is its plane, byte for byte
 //   flight    plane 1 changes every frame while the stars fly; the wire (palette entry 16) is absent before the
 //             falcon forms and present at the hold; the name (entry 17) only from its beat
 //   fade      TC_FADE starts at 31 (black) and falls to 0 over the fade-in (the sky fades in), stays 0, and is 31 at the last record; the composed picture is black from then on
@@ -138,6 +139,8 @@ function checks({ shots, replay }) {
         const miss = xy.filter(([x, y]) => x >= 0 && x < 320 && y >= 0 && y < 200 && s[y * 320 + x] === 0).length;
         need(miss === 0, `stars: record ${rec}: ${miss} baked star pixels are not lit on plane 1`);
     }
+    // G bakes its star plane per 60 Hz frame (tools/boot/aurora_overlay.py): the plane at its probes is the baker's, byte for byte.
+    for (const [f, want] of Object.entries(ref.overlay_md5 ?? {})) need(at(shots, +f).stmd5 === want, `overlay: plane 1 at frame ${f} is not the baked one`);
     const t0 = Math.round(1.7 * 60) + 2, t1 = Math.round(5.1 * 60);
     let moved = 0;
     for (let k = t0 + 1; k < t1; k++) moved += at(shots, k).stmd5 !== at(shots, k - 1).stmd5;
@@ -145,7 +148,7 @@ function checks({ shots, replay }) {
     need(count(at(shots, 100).st, 16) === 0, "wire: lines drawn before the falcon forms");
     need(count(at(shots, 400).st, 16) > 150, `wire: only ${count(at(shots, 400).st, 16)} line pixels at the hold`);
     const img = (a) => { let n = 0; for (const v of a) n += v >= 128; return n; }; // F / G: the baked name, entries 128..255
-    if (meta.WORDMARK === 2) need(shots.every((s) => count(s.st, 17) === 0) && img(at(shots, 200).st) === 0 && img(at(shots, 400).st) > 800, `word: the baked name is not drawn only from its beat (${img(at(shots, 400).st)} pixels at the hold)`);
+    if (meta.WORDMARK === 2) need(shots.every((s) => count(s.st, 17) === 0) && img(at(shots, 200).st) === 0 && img(at(shots, 400).st) > 0.8 * (ref.word_px ?? 1000), `word: the baked name is not drawn only from its beat (${img(at(shots, 400).st)} pixels at the hold)`);
     else if (meta.WORDMARK === 0) need(shots.every((s) => count(s.st, 17) === 0), "word: the name is drawn in a set without a wordmark (WORDMARK 0)");
     else need(count(at(shots, 200).st, 17) === 0 && count(at(shots, 400).st, 17) > 500, "word: the name is not lit only from its beat");
     // The sky fades in from black (ref.fade_in_frames 60 Hz frames; a set baked before the fade-in has none), is 0 until the end fade.

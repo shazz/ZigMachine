@@ -8,7 +8,7 @@
 // Only pixels whose delta is not zero are touched: a 32-bit word of four deltas that is 0 costs one
 // load and a compare. Each stored row shows on `step` screen rows. The palette is one table shared by every
 // row (`pal_stride` 0, A..E) or one 256-entry table per stored row (`pal_stride` 256, F).
-// `Direct` (G) has no palette: the deltas are 16-bit pixel differences added to the plane (wrapping).
+// G has no palette (masked.zig).
 // No ZigOS import: it tests natively.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -65,31 +65,6 @@ pub const Layer = struct {
     }
 };
 
-/// Variant G: 16-bit per-pixel deltas (the final 565 picture's change), every row, no palette, no state.
-pub const Direct = struct {
-    plane: [*]u16,
-    stride: u32,
-    y0: u32,
-    rows: u32,
-
-    /// Add deltas to rows [from, to): `delta` holds those rows only, (to - from) x W u16 (LE), 4-aligned.
-    pub fn apply(self: *Direct, delta: []align(4) const u8, from: u32, to: u32) void {
-        const words: [*]const u32 = @ptrCast(delta.ptr);
-        var row = from;
-        while (row < to) : (row += 1) {
-            const line = self.plane + (self.y0 + row) * self.stride;
-            const base = (row - from) * W / 2;
-            var x: u32 = 0;
-            while (x < W) : (x += 2) {
-                const w = words[base + x / 2];
-                if (w == 0) continue;
-                line[x] +%= @truncate(w);
-                line[x + 1] +%= @truncate(w >> 16);
-            }
-        }
-    }
-};
-
 test "a delta lights the pixel on every row it covers, and only that pixel" {
     var sky = [_]u16{0x0001} ** (W * 4);
     var plane = [_]u16{0x0001} ** (W * 4);
@@ -139,20 +114,4 @@ test "a per-row palette reads the row's own table" {
     l.apply(&delta, 0, 2);
     try std.testing.expectEqual(@as(u16, 0x0001), plane[0]);
     try std.testing.expectEqual(@as(u16, 0x0800), plane[W]);
-}
-
-test "direct deltas add 16-bit, wrap, skip zero words, and a later half reads its own buffer" {
-    var plane = [_]u16{0x1000} ** (W * 3);
-    var delta: [W * 2]u8 align(4) = [_]u8{0} ** (W * 2);
-    std.mem.writeInt(u16, delta[2..4], 0x0021, .little); // pixel 1 of stored row 0 = screen row 1
-    var d = Direct{ .plane = &plane, .stride = W, .y0 = 1, .rows = 2 };
-    d.apply(&delta, 0, 1);
-    try std.testing.expectEqual(@as(u16, 0x1021), plane[W + 1]);
-    try std.testing.expectEqual(@as(u16, 0x1000), plane[W]);
-    std.mem.writeInt(u16, delta[2..4], 0x10000 - 0x0021, .little); // minus: back to the sky
-    d.apply(&delta, 0, 1);
-    try std.testing.expectEqual(@as(u16, 0x1000), plane[W + 1]);
-    std.mem.writeInt(u16, delta[0..2], 0x0001, .little);
-    d.apply(&delta, 1, 2); // stored row 1 (screen row 2) from the start of the buffer
-    try std.testing.expectEqual(@as(u16, 0x1001), plane[2 * W]);
 }

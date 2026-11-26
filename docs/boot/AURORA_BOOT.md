@@ -195,7 +195,7 @@ headroom proof (0 fixes: the add stays a plain 16-bit add, equal to a saturating
 is byte-aligned; a misaligned u16 load traps on the board). No halo lock: per-row palettes already follow the
 halo's hue, the lock only moved it.
 
-**G** (`build_direct`, `blend.Direct`): two ZX0 containers a frame (the band's top half on the even 60 Hz
+**G** (`build_direct`; superseded on 26 Nov by the change masks below): two ZX0 containers a frame (the band's top half on the even 60 Hz
 frame, the bottom on the odd), so the delta buffer is half a frame (53 KB), and no sky copy (the sky is unpacked
 straight into the plane, again on a replay): its RAM window is the tight one, ~40 KB spare after its 372 KB of
 star records and the buffer. 16-bit deltas cost twice E's unpack bytes.
@@ -223,6 +223,49 @@ FRESCO blends a partial palette alpha, so `look.wire` / `look.ink` now keep thei
 darker. Crop (E, cart frames 312 / 318, before | before | after | after):
 `prototypes/boot_screen/aurora_compare/wire_fadein_before_after.png`. Cart 161 on main has the same code and
 gets the fix when this branch lands.
+
+## G at 60 fps (26 Nov)
+
+Matt picked **G** ("visually the best, no comparison"); on the board it ran ~20 fps while the aurora played, so the
+frame-counted timeline outlasted the 8.5 s sound. Board measures (`glass ctl stats`, `cart_c` = the cart's cycles a
+frame, `seq_c` the rest of the 1.667 Mc frame; the frame is late when `cart_c` passes ~1.05 Mc):
+
+| | before (G, 25 Nov) | after (G, 26 Nov) |
+|---|---|---|
+| board fps in the aurora | 17.7-23.2 | **59.8-60.9, 0 missed** |
+| whole run | longer than the sound | 514 frames in 8.5 s, 0 missed, ends with the sound |
+| board `cart_c` in the aurora | 3.8-5.1 Mc | 0.23-0.25 Mc |
+| estimate (`frame_cost.mjs`, warmup 150 / 120 frames) | cart 2.92 Mc (ZX0 2.5: bit reader 0.85, match copy 0.66, gamma 0.45, block loop 0.42; delta add 0.33; stars + wire + clear < 0.1) | cart 0.27 Mc |
+| aurora data | 1,992 KB (ZX0 of 16-bit deltas) | 1,758 KB (change masks + nibble codes) |
+| star plane data | 35 KB ZX0, 372 KB of records expanded at init | 213 KB raw, nothing expanded |
+| cart RAM window free (static, `check_fits`) | 465 KB, ~40 KB at run time | 514 KB, no run-time buffers (no 53 KB delta buffer, no records) |
+
+What changed (the look of the aurora is bit-identical: the harness's probe planes and the baker's round trip of all
+151 frames are the same pictures):
+
+1. **No entropy coder for the aurora** (`tools/boot/aurora_mask.py`, `masked.zig`). ZX0's bit-by-bit reader was ~85 %
+   of the frame. Only 18 % of the band's pixels change a frame and only 97 distinct 16-bit deltas exist (98.6 % within
+   2 levels a channel), so a container is a change MASK (a bit a pixel, zero bytes run-length coded) plus one NIBBLE a
+   changed pixel (the 15 most frequent deltas, 93 %; 15 = escape + a byte). The cart walks each non-zero mask byte one
+   set bit at a time (a 256-entry highest-bit table, no clz on rv32im), byte loads only, the stream's end checked once
+   per mask byte (the baker pads 12 zero bytes), the delta table padded to 256 so no index check. Each frame's split
+   between its two 60 Hz frames is chosen where both halves carry about as many changed pixels (the fade-in and
+   fade-out frames are the peak: ~24K changed pixels a frame). Spans (skip/len) cost more (9.5 KB a frame for the run
+   headers alone); ZX0 over spans was 1.54 MB but still bit-decoded.
+2. **The star plane is baked to the pixel** (`tools/boot/aurora_overlay.py`, `overlay.zig`; Matt: "precalculate the bird").
+   The baker runs the cart's own integer drawing (seek, the odd-frame midpoint, the DDA wire, the name) for every
+   60 Hz frame and stores only the bytes that change (u16 count, then offset u16 + entry u8): mean 140 writes a frame,
+   966 at the name's frame, 71,465 over the film. The cart writes them: no clear, no lines, no seek. The wire and name
+   keep their palette entries, so their alpha fade is unchanged; their levels come from a baked `SCALARS` table.
+3. **Stars are one pixel** (Matt): the glint cross is not baked.
+4. **The name is smaller**: 0.42 of the wingspan (89 x 35 px, was 0.65, 136 x 52), at (116, 154). Board crop, 3x:
+   `prototypes/boot_screen/board_shots/g2/wordmark_0.42_board_x3.png`; old size beside it (a mock: the old image pasted
+   over the same shot) `wordmark_0.65_vs_0.42_x3.png`.
+
+FRESCO is unchanged (two planes): on the board the second plane did not need to go. Timeline: still frame-counted, and
+at 60 fps it ends with the sound, so no time-driven fallback. Board shots of this build:
+`prototypes/boot_screen/board_shots/g2/SHOT0140..0143.PNG` (sky + stars, the aurora, the flight, falcon + name).
+Variants A..F are unchanged (they still draw their records; F still ZX0).
 
 Star detector (all variants): stars are found only between `bandTop` and `bandBot` percent of the height (the lab's
 two sliders, defaults 0 and 70), because the green airglow near the treeline produced false stars; and a star is
@@ -265,11 +308,13 @@ zig build                      # installs zig-out/bin/zx0pack
 uv run --with numpy --with pillow python tools/boot/aurora_bake.py     # ~8 min, rewrites apps/zig/assets/screens/aurora_boot/
 ./build.sh --only aurora_boot  # the harness reads the new aurora_ref.json: nothing is pinned by hand
 # F / G render with edge 0.15, so they share their own light cache (~3 min to render, F's palettes ~2 min):
-uv run --with numpy --with pillow python tools/boot/aurora_bake.py --variant g --cache prototypes/boot_screen/aurora_f/light_edge015.npz
+uv run --with numpy --with pillow python tools/boot/aurora_bake.py --variant g --cache prototypes/boot_screen/aurora_f/light_edge015.npz  # seconds
 uv run --with numpy --with pillow python tools/boot/aurora_bake.py --variant f --cache prototypes/boot_screen/aurora_f/light_edge015.npz
 ```
 F / G need the wordmark font locally (`aurora_bake.FONT`); a missing font is an error, never a silent blank.
-`--frames N` renders only N aurora frames (the tests use 2). Python tests: `tools/tests/test_aurora_bake.py`.
+`--frames N` renders only N aurora frames (the tests use 2). Python tests: `tools/tests/test_aurora_bake.py`,
+`test_aurora_fg.py`, `test_aurora_g.py` (G's masks and baked star plane). G's bake also decodes all 151 frames back
+(the cart's loop in Python) and refuses a mismatch.
 
 ## Harness
 
