@@ -33,7 +33,7 @@ const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const INK = 3, LOGO = [5, 6, 7], PANEL = 9, HILITE = 10, ALERT = 11; // palette.zig / menu.zig
-const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "fe183b3700e0" }; // select: M5 finish (its footer names RIGHT OPTS); options: M6 (the HAZE row, a taller box)
+const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "d5ce3046faf9" }; // select: M5 finish (its footer names RIGHT OPTS); options: R82 32X feel (PHYSICS + CAR CLASS rows, 14 px apart)
 const FONT = new Uint8Array(await readFile("libs/zig/assets/fonts/system_font_atari_1bit.raw"));
 const errors = [];
 const fail = (m) => errors.push(m);
