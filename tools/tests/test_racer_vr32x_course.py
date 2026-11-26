@@ -8,7 +8,7 @@ import math
 import struct
 import unittest
 
-from racer import vr32x_course, vr32x_find, vr32x_kinds, vr32x_tables
+from racer import vr32x_course, vr32x_decoded, vr32x_find, vr32x_geom, vr32x_kinds, vr32x_tables
 from racer import vr32x_surface as surf
 
 N = 64
@@ -33,12 +33,40 @@ def _cell_of(x: int, z: int) -> int:
 
 
 def _surface_blob(path: list[tuple[int, int]], gates: dict[int, int]) -> tuple[bytes, bytes]:
-    """(map, base): every path point's cell holds one road polygon covering it, the rest are empty."""
+    """(map, base): every path point's cell (and the cells between) holds one road polygon covering it, the rest are empty."""
     base, offs = bytearray(struct.pack(">h", -1)), [0] * (surf.GRID * surf.GRID)
-    for i, (x, z) in enumerate(path):
+    mids = [((x + path[(i + 1) % N][0]) // 2, (z + path[(i + 1) % N][1]) // 2, (i + 1) % N) for i, (x, z) in enumerate(path)]
+    for x, z, i in [(x, z, i) for i, (x, z) in enumerate(path)] + mids:  # the points' cells, then the road between them
+        if offs[_cell_of(x, z)]:
+            continue
         offs[_cell_of(x, z)] = len(base) // 2
         base += struct.pack(">h", 0) + _record(FULL, 1 | gates.get(i, 0) << 6, i, plane=(0, 0, 2048 * 2))
     return struct.pack(f">{len(offs)}H", *offs), bytes(base)
+
+
+def _map(cells: dict[int, list[tuple[int, int]]]) -> tuple[bytes, bytes]:
+    """(map, base) with one full-cell road polygon (point, flags) per listed cell index."""
+    base, offs = bytearray(struct.pack(">h", -1)), [0] * (surf.GRID * surf.GRID)
+    for i, polys in cells.items():
+        offs[i] = len(base) // 2
+        base += struct.pack(">h", len(polys) - 1) + b"".join(_record(FULL, 1, pt, flags=fl) for pt, fl in polys)
+    return struct.pack(f">{len(offs)}H", *offs), bytes(base)
+
+
+def _two_maps(main: dict[int, list[tuple[int, int]]], upper: dict[int, list[tuple[int, int]]]) -> bytes:
+    data = bytearray(2 * BANK1)
+    for (m, b), at in ((_map(main), 0x10000), (_map(upper), 0x30000)):
+        data[BANK1 + at:BANK1 + at + len(m)] = m
+        data[BANK1 + at + 0x10000:BANK1 + at + 0x10000 + len(b)] = b
+    return bytes(data)
+
+
+def _mesh(kind: str) -> tuple[vr32x_geom.Mesh, vr32x_geom.Bins]:
+    """One flat face of `kind` at height 1 under the whole synthetic ring."""
+    m = vr32x_geom.Mesh()
+    ids = [m.vert((x * 256, 256, z * 256)) for x, z in ((-90, -90), (-90, 90), (90, 90), (90, -90))]
+    m.faces.append(vr32x_geom.Face(ids, 1, kind=kind))
+    return m, vr32x_geom.Bins(m)
 
 
 def cartridge(gates: dict[int, int] | None = None) -> bytes:
@@ -89,10 +117,12 @@ class Surface(unittest.TestCase):
         self.assertEqual((p.cls, p.gate, p.point), (3, 2, 7))
 
     def test_a_car_on_a_flagged_polygon_looks_up_in_the_upper_deck_next(self) -> None:
-        rom = cartridge()
-        main = surf.SurfaceMap(rom, vr32x_tables.Rom(rom).at, 0x910000, 0x920000)
-        lay = surf.Layered(main, main)
-        self.assertEqual([p.point for p in lay.walk(_path()[:3]) if p], [0, 1, 2])
+        a, b = (-16384 + 100, -16384 + 100), (-16384 + 600, -16384 + 100)  # two neighbouring cells
+        rom = _two_maps({0: [(0, 1)], 1: [(9, 0)]}, {1: [(5, 1)]})  # main: cell a flagged, cell b point 9; upper: cell b point 5
+        at = vr32x_tables.Rom(rom).at
+        lay = surf.Layered(surf.SurfaceMap(rom, at, 0x910000, 0x920000), surf.SurfaceMap(rom, at, 0x930000, 0x940000))
+        self.assertEqual([p.point for p in lay.walk([a, b]) if p], [0, 5])
+        self.assertEqual([p.point for p in lay.walk([b]) if p], [9])  # without the switch, the main map
 
 
 class Course(unittest.TestCase):
@@ -116,6 +146,35 @@ class Course(unittest.TestCase):
         square = [(x - 0.5, 1.0, z - 0.5), (x + 0.5, 1.0, z - 0.5), (x + 0.5, 1.0, z + 0.5), (x - 0.5, 1.0, z + 0.5)]
         self.assertEqual(vr32x_kinds.vote(lay, square)[0], "track")
         self.assertEqual(vr32x_kinds.vote(lay, [(0.0, 0, 0.0), (1.0, 0, 0.0), (0.0, 0, 1.0)])[0], "prop")
+
+
+class Grid(unittest.TestCase):
+    def test_the_player_and_the_seven_cars_ahead_start_on_segment_0_when_behind_the_line(self) -> None:
+        dec = vr32x_find.tracks(cartridge(), 1)[0]
+        _, bins = _mesh("track")
+        grid = vr32x_course.grid(bins, dec[0], dec[1], dec[2])
+        self.assertEqual(len(grid), 8)
+        self.assertEqual({g["segment"] for g in grid}, {0})  # region 0 is the last segment: walked back on the first tick
+        self.assertEqual(grid[0]["pos"][0::2], [8800, 20])  # the player: pose 0
+        self.assertEqual(grid[1]["pos"][0::2], [8900, 470])  # then pose 15, the car just ahead of him
+
+    def test_a_grid_car_off_our_asphalt_fails_the_check(self) -> None:
+        dec = vr32x_find.tracks(cartridge(), 1)[0]
+        _, track = _mesh("track")
+        grid = vr32x_course.grid(track, dec[0], dec[1], dec[2])
+        _, grass = _mesh("ground")
+        with self.assertRaises(vr32x_decoded.DecodeError):
+            vr32x_decoded.check(grass, dec, grid)
+
+    def test_the_line_has_a_segment_per_course_point_with_the_left_edge_on_the_left(self) -> None:
+        c, lay, _ = vr32x_find.tracks(cartridge(), 1)[0]
+        m, bins = _mesh("track")
+        seg = vr32x_course.line(m, bins, c, lay)
+        self.assertEqual(len(seg), N)
+        lx, _, lz = m.verts[seg[0]["l"]]
+        rx, _, rz = m.verts[seg[0]["r"]]
+        (ax, az), (bx, bz) = c.path[0], c.path[1]
+        self.assertGreater((bx - ax) * (lz - rz) - (bz - az) * (lx - rx), 0)  # left of the heading, as vr32x_line's stations
 
 
 if __name__ == "__main__":

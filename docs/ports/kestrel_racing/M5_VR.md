@@ -212,11 +212,17 @@ wrong in places: the course and the car class are swapped in its names, the "pal
 
 Checks (node, local disk, the pilot flying the player through a 3-lap race, `prototypes/cards/racer_32x_race.mjs`): laps within
 0.5 % of freds72's for the three shared tracks (the synthesised ones were 2-5 % long), the grid on each course's real start
-line (on Big Forest the grid stands well past the line, as on the 32X), no car stuck on a wall or off the road on four
-courses (the synthesis had cars stuck for most of the race on three); **Highland's crossing** still traps a car or two: our
-`find_face` is x/z only (freds72's tracks have no overpass), so a car crossing under the deck can be snapped onto it. That is an
-engine limit, not the data's. The pilot times out on every course: freds72's clock (75 s + 10 s a checkpoint, 3 checkpoints
-here) is too short for these laps; the 32X's own time extends are not decoded.
+line (on Big Forest the race's grid stands well past the line, as in the 32X's
+race table; another, fixed grid list loaded by a different routine has it just behind the line: that mode was not identified), no car stuck on a wall or off the road on four
+courses (the synthesis had cars stuck for most of the race on three); **Highland** still loses a car or two at the crossing (stuck at its
+segment with short wall contacts, not traced further); the likely cause is that our `find_face` is x/z only (freds72's tracks
+have no overpass), so a car under the deck can be handed the deck's face, but that is NOT confirmed. The pilot times out on every course: freds72's clock (75 s + 10 s a checkpoint, 3 checkpoints
+here) is too short for these laps; the 32X's own time extends are not decoded. The clock is also the evidence that the
+gates fire: each course timed out after 75 s plus 10 s for every gate passed (3 to 8 gates).
+
+Board (26 Nov, card `m5s3x2`, shelf "RACER M5 CAR 32X+", local only): each course's grid on its painted start line (player at
+the back; shots in prototypes/racer_re/vr_local/board_m5/32xdata/), grid fps DXFOREST 27, DXBAY 32, DXACRO 26, DXHIGH 27,
+DXSAND 36, DXFOREST mid-race on the pilot 28 (step 3's synthesised DXFOREST / DXBAY grid: 25 / 33).
 
 **Physics and AI against the 32X (26 Nov; a reading of the 68000 code, nothing changed in the cart).** Our physics is freds72's
 Lua bit for bit (M2.md) and stays so; this is what a "32X feel" would mean, as OUR OWN tuning measured against it:
