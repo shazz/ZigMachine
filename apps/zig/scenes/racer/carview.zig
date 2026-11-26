@@ -21,27 +21,27 @@ const types = @import("types.zig");
 const xf = @import("xform.zig");
 
 pub const Snap = struct { pos: [3]i32, angle: i32 };
-/// The view depth (Q16) past which a car is drawn with the far model: 6 units, where the car is ~13 pixels long.
+/// The view depth (Q16) past which a car is drawn with the far model: 6 units, where the GT (drawn x2 since M5 step 5) is
+/// ~26 pixels long (it was ~13; the switch was kept at 6 units: docs M5.md step 5).
 pub const LOD1_Z: i32 = 6 << 16;
-const MID_Y = 9; // Q7: the car's middle, whose depth keys all its faces
 
-/// Draw one car of track `t` in livery `liv` (carmodel.LIVERY: 0 is the player's).
-pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const trk.Track, s: Snap, ground: ?u16, liv: carmodel.Livery) void {
+/// Draw one car of track `t`: model `m` (carmodel.of(k)) in livery `liv` (carmodel.LIVERY: 0 is the player's).
+pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const trk.Track, s: Snap, ground: ?u16, m: *const carmodel.Model, liv: carmodel.Livery) void {
     const mv = modelView(v, s);
-    const z = mv.t[2] + fx.mulsh16(mv.r[2][1], MID_Y);
+    const z = mv.t[2] + fx.mulsh16(mv.r[2][1], m.mid_y);
     const under: ?u16 = if (ground) |g| fr.faceKey(g) else null;
-    const floor: ?u16 = if (nearCorner(fr, t, &mv, s, ground)) |k| @max(k, under orelse 0) else under;
+    const floor: ?u16 = if (nearCorner(fr, t, m, &mv, s, ground)) |k| @max(k, under orelse 0) else under;
     const key = @max(project.depthKey(z), floor orelse 0);
     cache.next();
-    const sh = &carmodel.range(.shadow)[0];
-    _ = project.build(fr, cache, &carmodel.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
+    const sh = &m.range(.shadow)[0];
+    _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
     const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
-    if (z > LOD1_Z) return part(fr, cache, &mv, .lod1, k);
-    part(fr, cache, &mv, .wheels, k);
-    part(fr, cache, &mv, .hull, k);
-    const behind = mv.eye7[2] < carmodel.WING_Z;
-    part(fr, cache, &mv, if (behind) .cabin else .wing, k);
-    part(fr, cache, &mv, if (behind) .wing else .cabin, k);
+    if (z > LOD1_Z) return part(fr, cache, m, &mv, .lod1, k);
+    part(fr, cache, m, &mv, .wheels, k);
+    part(fr, cache, m, &mv, .hull, k);
+    const behind = mv.eye7[2] < m.wing_z;
+    part(fr, cache, m, &mv, if (behind) .cabin else .wing, k);
+    part(fr, cache, m, &mv, if (behind) .wing else .cabin, k);
 }
 
 const Look = struct { key: u16, body: u8, stripe: u8 };
@@ -49,12 +49,12 @@ const Look = struct { key: u16, body: u8, stripe: u8 };
 /// The key of the ground face under the shadow's corner nearest the eye. The shadow lies flat on the road, so a road quad
 /// nearer than the car's own (the one behind it, seen from the chase POV) would paint over it: the shadow and the car take
 /// that quad's key when it is the higher. One face lookup a car, the car's own face tried first (ground.findFace).
-fn nearCorner(fr: *const frame.Frame, t: *const trk.Track, mv: *const cam.View, s: Snap, ground: ?u16) ?u16 {
-    const sh = &carmodel.range(.shadow)[0];
-    var best: trk.Vert = carmodel.verts[sh.v[0]];
+fn nearCorner(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, mv: *const cam.View, s: Snap, ground: ?u16) ?u16 {
+    const sh = &m.range(.shadow)[0];
+    var best: trk.Vert = m.verts[sh.v[0]];
     var bd: i64 = std.math.maxInt(i64);
     for (sh.v) |id| {
-        const p = carmodel.verts[id];
+        const p = m.verts[id];
         const dx: i64 = p[0] - mv.eye7[0];
         const dz: i64 = p[2] - mv.eye7[2];
         if (dx * dx + dz * dz < bd) {
@@ -71,11 +71,11 @@ fn nearCorner(fr: *const frame.Frame, t: *const trk.Track, mv: *const cam.View, 
     return fr.faceKey(f.face);
 }
 
-fn part(fr: *frame.Frame, cache: *xf.Cache, mv: *const cam.View, p: carmodel.Part, k: Look) void {
-    for (carmodel.range(p)) |*f| {
+fn part(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, p: carmodel.Part, k: Look) void {
+    for (m.range(p)) |*f| {
         if (types.facing(f, mv) <= f.cp) continue;
         const dc: u8 = if (f.flags & carmodel.FLAG_BODY != 0) k.body else if (f.flags & carmodel.FLAG_STRIPE != 0) k.stripe else 0;
-        _ = project.build(fr, cache, &carmodel.verts, mv, f, .{ .fixed = k.key, .dc = dc });
+        _ = project.build(fr, cache, m.verts, mv, f, .{ .fixed = k.key, .dc = dc });
     }
 }
 

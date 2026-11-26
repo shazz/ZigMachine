@@ -29,12 +29,12 @@ def refusals(doc: ktrk.Doc) -> list[str]:
 
 class GtCarTest(unittest.TestCase):
     def test_committed_binary_is_what_carc_writes_from_the_committed_export(self) -> None:
-        self.assertEqual(BLOB.read_bytes(), carc.convert(gt()))
+        self.assertEqual(BLOB.read_bytes(), carc.convert(gt(), scale=carc.GT_SCALE))
 
     def test_carc_main_writes_the_binary_and_refuses_a_broken_car_with_exit_1(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out, bad = Path(tmp) / "gt.kcar", Path(tmp) / "bad.json"
-            self.assertEqual(carc.main([str(JSON), "-o", str(out)]), 0)
+            self.assertEqual(carc.main([str(JSON), "-o", str(out), "--scale", str(carc.GT_SCALE)]), 0)
             self.assertEqual(out.read_bytes(), BLOB.read_bytes())
             doc = gt()
             doc["parts"]["hull"] = []
@@ -62,7 +62,7 @@ class GtCarTest(unittest.TestCase):
         self.assertEqual(w[:2], (carc.MAGIC, carc.VERSION))
         sizes = [len(gt()["parts"][p]) for p in kcar_export.PARTS]
         self.assertEqual(list(w[4:10]), [sum(sizes[: i + 1]) for i in range(6)])
-        self.assertEqual(w[10], max(gt()["vertices"][i][2] for f in gt()["parts"]["wing"] for i in f["v"]))
+        self.assertEqual(w[10], carc.GT_SCALE * max(gt()["vertices"][i][2] for f in gt()["parts"]["wing"] for i in f["v"]))
         import zlib
 
         self.assertEqual(w[11], zlib.crc32(b[64:]))
@@ -177,10 +177,22 @@ class RefusalTest(unittest.TestCase):
         d, ids = vert(gt(), (-40, 5, 0), (-30, 5, 0), (-30, 5, 8))
         self.assertRefused(face(d, "wing", ids), "envelope", kind="SOFT")
 
-    def test_more_vertices_than_a_u16_id_holds_is_refused(self) -> None:
+    def test_more_vertices_than_the_cars_vertex_cache_holds_is_refused(self) -> None:
         doc = gt()
         doc["vertices"] += [[0, 0, 0]] * (limits.CAR_MAX_VERTICES + 1 - len(doc["vertices"]))
-        self.assertRefused(doc, "vertices 65536 > 65535")
+        self.assertRefused(doc, "vertices 257 > 256")
+
+    def test_more_faces_than_a_car_file_holds_is_refused(self) -> None:
+        doc = gt()
+        doc["parts"]["hull"] += [doc["parts"]["hull"][0]] * (limits.CAR_MAX_FACES + 1 - sum(map(len, doc["parts"].values())))
+        self.assertRefused(doc, "faces 257 > 256")
+
+    def test_a_fixed_colour_off_the_car_ramps_is_refused(self) -> None:
+        doc = gt()
+        doc["parts"]["hull"][0] = {**doc["parts"]["hull"][0], "mat": "fixed", "ramp": 11, "level": 3}
+        self.assertRefused(doc, "fixed colour")
+        doc["parts"]["hull"][0]["ramp"], doc["parts"]["hull"][0]["level"] = 18, 8
+        self.assertRefused(doc, "fixed colour")
 
     def test_the_exporter_refuses_a_face_wound_inside_out(self) -> None:
         ob = {"name": "car_hull", "verts": [[0, 0, 0.1], [0.1, 0, 0.1], [0.1, 0.1, 0.1]],

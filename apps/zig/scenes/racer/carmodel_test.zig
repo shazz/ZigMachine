@@ -44,7 +44,7 @@ fn drawAt(f: anytype, t: *const trk.Track, back: i32, liv: carmodel.Livery) !usi
     const s = carview.Snap{ .pos = .{ 0, 0, 0 }, .angle = 0 };
     const v = cam.view(.{ .pos = .{ 0, 1 << 16, -back }, .yaw = 0, .pitch = 0 }); // behind the car, above it
     const b = f.stats.polys;
-    carview.draw(f, &cache, &v, t, s, null, liv);
+    carview.draw(f, &cache, &v, t, s, null, &carmodel.gt, liv);
     return b;
 }
 

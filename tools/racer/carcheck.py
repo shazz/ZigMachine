@@ -10,7 +10,8 @@ from racer import limits
 from racer.kcar_export import PARTS, area2
 from racer.ktrk import Doc, Vec, cross, dot, sub, unit
 
-MATERIALS = ("body", "stripe", "dark", "glass", "rim", "head", "tail", "shadow")
+MATERIALS = ("body", "stripe", "dark", "glass", "rim", "head", "tail", "shadow", "fixed")
+FIXED_RAMPS = range(12, 19)  # a `fixed` face's own ramp: the car ramps (a set's palette recolours them)
 REQUIRED = ("hull", "shadow", "lod1")
 LOD0 = ("wheels", "hull", "cabin", "wing")
 PLANAR_EPS = 0.5  # Q7: how far the 4th vertex of a quad may sit off the plane of the first three
@@ -31,7 +32,8 @@ def rows(doc: Doc) -> list[tuple[str, int, int, bool]]:
     nf, nv = lod0(doc)
     return [("near faces", nf, limits.CAR_FACES, False), ("near vertices", nv, limits.CAR_VERTICES, False),
             ("far faces", len(doc["parts"].get("lod1", [])), limits.CAR_LOD1_FACES, False),
-            ("vertices", len(doc["vertices"]), limits.CAR_MAX_VERTICES, True)]
+            ("vertices", len(doc["vertices"]), limits.CAR_MAX_VERTICES, True),
+            ("faces", sum(len(fs) for fs in doc["parts"].values()), limits.CAR_MAX_FACES, True)]
 
 
 def _convex(p: list[Vec], n: Vec) -> bool:
@@ -43,6 +45,8 @@ def _face(doc: Doc, where: str, f: Doc) -> list[str]:
     ids = f["v"]
     if f["mat"] not in MATERIALS:
         return [f"HARD limit: {where}: material {f['mat']!r} is not a car material ({', '.join(MATERIALS)})"]
+    if f["mat"] == "fixed" and (f.get("ramp") not in FIXED_RAMPS or f.get("level") not in range(8)):
+        return [f"HARD limit: {where}: a fixed colour needs a ramp 12..18 and a level 0..7"]
     if not 3 <= len(ids) <= 4:
         return [f"HARD limit: {where} has {len(ids)} vertices (a face record holds 3 or 4)"]
     if any(not 0 <= i < len(doc["vertices"]) for i in ids):

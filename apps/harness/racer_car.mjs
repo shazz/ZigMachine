@@ -19,7 +19,7 @@ if (BREAK !== null && !["two", "dither"].includes(BREAK)) { console.error(`racer
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100, DITHER = 0;
-const MIN_UNDER = 60; // the grid at R 5, far POV: the 8 cars are 3-16 px wide (freds72's scale), their shadows a fringe left and behind
+const MIN_UNDER = 60; // the grid at R 5, far POV: the 8 cars (2x freds72's scale since the M5 car scale: 567 px at the grid), their shadows a fringe left and behind
 const darken = (p) => (p >= 16 && (p - 16) % 8 !== 0 ? p - 1 : p);
 const errors = [];
 const fail = (m) => errors.push(m);

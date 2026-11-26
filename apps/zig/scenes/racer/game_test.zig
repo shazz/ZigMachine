@@ -73,7 +73,7 @@ test "the start grid: all 8 cars are in view from the player's chase camera, the
     g.setMode(.race);
     var f = try testutil.newFrame(&t);
     defer testutil.freeFrame(&f);
-    var cache = try testutil.newCache(carmodel.NV);
+    var cache = try testutil.newCache(@import("carfile.zig").MAX_VERTS);
     defer std.testing.allocator.free(cache.e);
     const v = cam.view(g.pose());
     f.visibility(&t, &v, 5);
@@ -100,7 +100,7 @@ test "painter's order: a car past the crest is drawn BEFORE the crest's road (hi
     crest.setup(&g);
     var f = try testutil.newFrame(&t);
     defer testutil.freeFrame(&f);
-    var cache = try testutil.newCache(carmodel.NV);
+    var cache = try testutil.newCache(@import("carfile.zig").MAX_VERTS);
     defer std.testing.allocator.free(cache.e);
     const v = cam.view(g.pose());
     f.visibility(&t, &v, 8);
@@ -112,7 +112,7 @@ test "painter's order: a car past the crest is drawn BEFORE the crest's road (hi
     for ([_]usize{ 1, 2 }) |k| {
         const b = f.stats.polys;
         const c = &g.s.race.cars[k];
-        @import("carview.zig").draw(&f, &cache, &v, &t, g.shown(k), c.old, carmodel.LIVERY[k]);
+        @import("carview.zig").draw(&f, &cache, &v, &t, g.shown(k), c.old, carmodel.of(k), carmodel.LIVERY[k]);
         try std.testing.expect(f.stats.polys > b);
         for (f.key[b..f.stats.polys]) |key| {
             if (k == 1) near_min = @min(near_min, key) else far_max = @max(far_max, key);
@@ -133,16 +133,16 @@ test "car vs car: the nearer car's polygons are drawn after the farther one's, w
     g.prev = g.cur;
     var f = try testutil.newFrame(&t);
     defer testutil.freeFrame(&f);
-    var cache = try testutil.newCache(carmodel.NV);
+    var cache = try testutil.newCache(@import("carfile.zig").MAX_VERTS);
     defer std.testing.allocator.free(cache.e);
     const v = cam.view(g.pose());
     f.visibility(&t, &v, 5);
     f.collect(&t, &v, true);
     const carview = @import("carview.zig");
     const b0 = f.stats.polys;
-    carview.draw(&f, &cache, &v, &t, g.shown(2), g.s.race.cars[2].old, carmodel.LIVERY[2]); // the NEAR car first
+    carview.draw(&f, &cache, &v, &t, g.shown(2), g.s.race.cars[2].old, carmodel.of(2), carmodel.LIVERY[2]); // the NEAR car first
     const b1 = f.stats.polys;
-    carview.draw(&f, &cache, &v, &t, g.shown(1), g.s.race.cars[1].old, carmodel.LIVERY[1]); // then the far one
+    carview.draw(&f, &cache, &v, &t, g.shown(1), g.s.race.cars[1].old, carmodel.of(1), carmodel.LIVERY[1]); // then the far one
     const b2 = f.stats.polys;
     f.sort();
     var rank = try std.testing.allocator.alloc(u32, b2);

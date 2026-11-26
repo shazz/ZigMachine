@@ -13,7 +13,7 @@ from typing import Final
 MAX_VERTICES: Final = 65535
 MAX_FACE_IDS: Final = 65535
 MAX_SEGMENTS: Final = 256
-FREE_RAMPS: Final = tuple(range(0, 12)) + tuple(range(19, 30))
+FREE_RAMPS: Final = tuple(range(12)) + tuple(range(19, 30))
 CAR_RAMPS: Final = {"car_body": (12, (205, 35, 35)), "car_dark": (13, (45, 45, 55)), "car_glass": (14, (110, 150, 190))}
 GRID_SLOTS: Final = 8
 
@@ -25,9 +25,11 @@ TRACK_VERTICES: Final = 8192
 FRAME_MC: Final = 1.55  # the priced frame at the bench R (PORT_PLAN 3.4): under ~1.67 Mc = 60 Hz with a margin
 BENCH_R: Final = 5
 
-# The car (carc.py, R82 M5 step 3). HARD: the face record holds 3-4 vertices and u16 vertex ids; the cart draws exactly one
-# shadow quad on the ground (carview.zig). SOFT: our budget, priced with frame_cost at the race grid (docs M5.md step 3).
-CAR_MAX_VERTICES: Final = 65535
+# The car (carc.py, R82 M5 step 3). HARD: the face record holds 3-4 vertices; the cart draws exactly one shadow quad on the
+# ground (carview.zig); since car files (M5) a model's vertices fit the car's vertex cache and its faces carfile.MAX_FACES.
+# SOFT: our budget, priced with frame_cost at the race grid (docs M5.md step 3).
+CAR_MAX_VERTICES: Final = 256
+CAR_MAX_FACES: Final = 256
 CAR_FACES: Final = 64  # the near model (LOD0: wheels + hull + cabin + wing)
 CAR_VERTICES: Final = 128
 CAR_LOD1_FACES: Final = 12  # the far model (a few pixels)

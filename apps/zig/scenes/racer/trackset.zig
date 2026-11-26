@@ -57,8 +57,14 @@ pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
     d.f.seen_stamp = 0;
     @memset(d.f.seen, 0);
     for (d.f.cache.e) |*e| e.stamp = 0;
+    cars(d);
     look(d);
     d.r = d.play_r;
+}
+
+/// The cars for the track on show: its `<TRACK>.KCR`, the disk's `CAR.KCR`, or the built-in GT (cars.zig; the palette follows).
+pub fn cars(d: anytype) void {
+    d.lib.cars.forTrack(d.lib.list[d.which].label(), &d.lib.rej);
 }
 
 /// The next library entry after `w` that is not marked bad (the oval at the end of the list).

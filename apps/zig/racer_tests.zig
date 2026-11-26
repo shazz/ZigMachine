@@ -16,6 +16,7 @@ test {
     _ = @import("scenes/racer/sfx_test.zig");
     _ = @import("scenes/racer/shadow_test.zig");
     _ = @import("scenes/racer/carmodel_test.zig");
+    _ = @import("scenes/racer/carfile_test.zig");
     _ = @import("scenes/racer/clock_test.zig");
     _ = @import("scenes/racer/menu_test.zig");
 }

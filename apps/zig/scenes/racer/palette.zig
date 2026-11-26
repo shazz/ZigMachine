@@ -42,6 +42,11 @@ pub fn install(fb: *zg.LogicalFB, t: *const trk.Track, ground_level: u32) void {
     for (LIVERY_RGB, 0..) |rgb, k| {
         for (0..8) |l| put(fb, 16 + (carmodel.RAMP_LIVERY + k) * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
     }
+    if (carmodel.active.palette) |pal| { // a car file's own colours on the car ramps 12..18 (cars.zig)
+        for (pal, 12..) |rgb, k| {
+            for (0..8) |l| put(fb, 16 + k * 8 + l, lit(rgb[0], l), lit(rgb[1], l), lit(rgb[2], l));
+        }
+    }
     const g = t.palette[t.mood.ground_ramp];
     put(fb, GROUND, lit(g[0], ground_level), lit(g[1], ground_level), lit(g[2], ground_level));
     skyFill(zg.copper.visible(fb, 0), &t.mood);

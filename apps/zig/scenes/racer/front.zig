@@ -64,6 +64,8 @@ pub fn menu(d: anytype) bool {
 
 /// The cart's first screen.
 pub fn boot(d: anytype) void {
+    @import("trackset.zig").cars(d); // the oval's cars (a CAR.KCR on the disk), then its look again: a car file's ramps
+    @import("trackset.zig").look(d);
     d.game.s.fsm = .{ .state = .title };
 }
 
