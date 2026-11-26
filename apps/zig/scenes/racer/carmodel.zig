@@ -11,6 +11,7 @@
 // project.Key.dc's palette-index shift from ramp 12. No ZigOS import.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const carfile = @import("carfile.zig");
 const trk = @import("trk.zig");
 
 const RAW = @embedFile("../../assets/screens/racer/gt.kcar");
@@ -57,19 +58,9 @@ const NVERT = word(2);
 const NFACE = word(3);
 const VBYTES = (NVERT * 6 + 3) / 4 * 4;
 
-/// The face range of each part: [END[p - 1], END[p]).
-pub const Part = enum(u3) { wheels, hull, cabin, wing, shadow, lod1 };
-pub const END: [6]u16 = blk: {
-    var e: [6]u16 = undefined;
-    for (&e, 0..) |*x, i| x.* = @intCast(word(4 + i));
-    break :blk e;
-};
-pub fn range(p: Part) []const trk.Face {
-    const i = @intFromEnum(p);
-    return faces[if (i == 0) 0 else END[i - 1]..END[i]];
-}
-/// The wing's front edge (Q7 forward): an eye behind it sees the wing over the cabin, an eye in front the cabin over the wing.
-pub const WING_Z: i32 = @bitCast(word(10));
+pub const Part = carfile.Part;
+pub const Model = carfile.Model;
+pub const Set = carfile.Set;
 
 pub const NV = NVERT;
 pub const NF = NFACE;
@@ -79,14 +70,40 @@ const BUILT = blk: {
     if (word(0) != MAGIC or word(1) != 1 or word(9) != NFACE) @compileError("gt.kcar: not a v1 KCAR (run tools/racer/carc.py)");
     if (std.hash.crc.Crc32IsoHdlc.hash(RAW[64..]) != word(11)) @compileError("gt.kcar: bad CRC");
     if (RAW.len != 64 + VBYTES + NFACE * 32) @compileError("gt.kcar: wrong size");
+    if (NVERT > carfile.MAX_VERTS or NFACE > carfile.MAX_FACES) @compileError("gt.kcar: over a car file's limits");
     var vs: [NVERT]trk.Vert = undefined;
     for (&vs, 0..) |*v, i| {
         for (0..3) |k| v[k] = std.mem.readInt(i16, RAW[64 + i * 6 + k * 2 ..][0..2], .little);
     }
     var fs: [NFACE]trk.Face = undefined;
     for (&fs, 0..) |*f, i| f.* = std.mem.bytesToValue(trk.Face, RAW[64 + VBYTES + i * 32 ..][0..32]);
-    break :blk .{ .verts = vs, .faces = fs };
+    var e: [6]u16 = undefined;
+    for (&e, 0..) |*x, i| x.* = @intCast(word(4 + i));
+    var top: i32 = 0;
+    for (fs[e[0]..e[1]]) |f| for (f.v[0..f.nv]) |id| {
+        top = @max(top, vs[id][1]);
+    };
+    break :blk .{ .verts = vs, .faces = fs, .end = e, .mid_y = @divTrunc(top, 2) };
 };
 
 pub const verts: [NV]trk.Vert = BUILT.verts;
 pub const faces: [NF]trk.Face = BUILT.faces;
+pub const END: [6]u16 = BUILT.end;
+/// The wing's front edge (Q7 forward): an eye behind it sees the wing over the cabin, an eye in front the cabin over the wing.
+pub const WING_Z: i32 = @bitCast(word(10));
+
+/// The built-in GT (the fallback when no car file is on the disk, and the gate's car).
+pub const gt = Model{ .verts = &verts, .faces = &faces, .end = END, .wing_z = WING_Z, .mid_y = BUILT.mid_y };
+pub const builtin = Set{ .models = .{gt} ++ .{undefined} ** (carfile.MAX_MODELS - 1), .n = 1 };
+
+/// The cars on show: the built-in GT, or a car file's set (cars.zig loads it; its slices point into the car buffer).
+pub var active: Set = builtin;
+
+pub fn range(p: Part) []const trk.Face {
+    return gt.range(p);
+}
+
+/// Car k's model in the active set (0: the player's).
+pub fn of(k: usize) *const Model {
+    return active.of(k);
+}

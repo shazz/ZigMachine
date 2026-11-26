@@ -24,7 +24,8 @@ if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const LAP_FRAMES = 720, SKID = 120, CAR = [16 + 12 * 8, 16 + 14 * 8 + 8];
 // the lap v1 CRC32 list (every 60 frames; oval, R = 5, CPU fill, mulsh, the far POV): the benchmark's proof of sameness
-const LAP_PIN = "1df5345a d7170f75 861c37e9 0892ca8e 54970c8a edab8aec b280b099 f03c4b19 e1394b3f 321962b0 086a0070 88805e7a";
+// M5 car scale (the GT drawn 2x, the far POV shows it every frame): re-pinned; the physics line is unchanged
+const LAP_PIN = "6272c7a6 17fcaa35 fd13524e bd4cbd3f 88a11c20 bf280aed 1c3215d6 a2bfcb18 98a7742e 609ae2b1 5ae98071 e37b3c47";
 const errors = [];
 const fail = (m) => errors.push(m);
 

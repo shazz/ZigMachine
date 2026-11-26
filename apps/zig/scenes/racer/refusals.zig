@@ -13,6 +13,7 @@ pub const Why = enum {
     not_track,
     too_big,
     no_ram,
+    bad_car, // a car file (cars.zig) the parser refused: the built-in GT is drawn
 
     /// The console's reason (step 2's words: racer_library.mjs and the board logs read them).
     pub fn long(self: Why) []const u8 {
@@ -20,6 +21,7 @@ pub const Why = enum {
             .not_track => "not a track (magic, version or size)",
             .too_big => "over the 1 MiB track buffer",
             .no_ram => "no cart RAM left for it",
+            .bad_car => "not a car (carfile.parse refused it): the built-in GT is drawn",
         };
     }
 
@@ -29,6 +31,7 @@ pub const Why = enum {
             .not_track => "INVALID",
             .too_big => "TOO BIG",
             .no_ram => "NO RAM",
+            .bad_car => "BAD CAR",
         };
     }
 };
@@ -47,12 +50,13 @@ pub const Refusals = struct {
     n: usize = 0,
 
     pub fn add(self: *Refusals, name: []const u8, why: Why) void {
-        zg.Console.log("racer,track,refused,{s},{s}", .{ name, why.long() });
-        if (self.n == MAX) return;
+        if (why != .bad_car) zg.Console.log("racer,track,refused,{s},{s}", .{ name, why.long() });
         var r = Refusal{ .why = why };
         const stem = name[0 .. std.mem.indexOfScalar(u8, name, '.') orelse name.len]; // the list shows 8.3 stems
         const k = @min(stem.len, r.name.len);
         @memcpy(r.name[0..k], stem[0..k]);
+        for (self.list[0..self.n]) |*o| if (o.why == why and std.mem.eql(u8, &o.name, &r.name)) return; // a car file is looked for at every track
+        if (self.n == MAX) return;
         self.list[self.n] = r;
         self.n += 1;
     }

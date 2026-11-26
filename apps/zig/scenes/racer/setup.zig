@@ -32,7 +32,7 @@ pub fn frameFor(nv: usize, nf: usize) frame.Frame {
 }
 
 pub fn carCache() xf.Cache {
-    return cache(carmodel.NV);
+    return cache(@import("carfile.zig").MAX_VERTS); // any car file's model
 }
 
 pub fn skidCache() xf.Cache {

@@ -50,15 +50,18 @@ pub const Library = struct {
     stage: []u8 = &.{}, // a packed file's bytes before the depack
     blocks: u32 = 0, // disk blocks the last load read (the board estimate: docs M5.md)
     rej: refusals.Refusals = .{}, // the files refused at the scan, by name and reason (the select screen lists them)
+    cars: @import("cars.zig").Cars = .{}, // the car files (M5): their buffers are carved before the track buffer's
 
-    /// The oval, then the disk's files, then C:'s; then the two buffers, sized to the largest file listed.
+    /// The oval, then the disk's files, then C:'s; the car buffer; then the two track buffers, sized to the largest file listed.
     pub fn scan(self: *Library) void {
         self.* = .{};
         @memcpy(self.list[0].name[0..4], "OVAL");
         self.list[0].raw = @intCast(data.oval.len);
         if (zg.disk.mount()) |lay| self.scanDisk(lay);
         self.scanHd();
+        self.cars.init();
         self.size();
+        self.cars.share(self.stage); // a car file stages in the track stage (a track is loaded before its cars)
     }
 
     fn scanDisk(self: *Library, lay: zg.disk.Layout) void {
@@ -106,7 +109,7 @@ pub const Library = struct {
             var big: usize = 1;
             for (self.list[1..self.n], 1..) |e, i| {
                 raw = @max(raw, e.raw);
-                if (e.packed_()) stage = @max(stage, e.stored);
+                if (e.packed_()) stage = @max(stage, e.stored, @import("carfile.zig").MAX_FILE); // the car files' too
                 if (e.raw > self.list[big].raw) big = i;
             }
             const need = std.mem.alignForward(usize, raw, 4) + std.mem.alignForward(usize, stage, 4);
@@ -170,7 +173,7 @@ fn hdPath(buf: *[32]u8, name: []const u8) []const u8 {
 }
 
 /// Up to dst.len bytes of a C: file: the count read (GEMDOS's negative code is an error).
-fn hdRead(path: []const u8, dst: []u8) error{ReadFailed}!usize {
+pub fn hdRead(path: []const u8, dst: []u8) error{ReadFailed}!usize {
     const dos = gemdos.dos();
     const h = dos.Fopen(path, 0);
     if (h < 0) return error.ReadFailed;

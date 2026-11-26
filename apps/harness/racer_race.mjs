@@ -24,10 +24,10 @@ if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const ROUND = 2880, LIVERY = [16 + 15 * 8, 16 + 19 * 8], BODY = [16 + 12 * 8, 16 + 13 * 8];
 const PINS = {
-    lap: "74c902aaa233",
+    lap: "c8250aadab24", // M5 car scale (the GT drawn 2x): re-pinned, the view only (result / HUD pins unchanged)
     result: "ef4ce056",
     hud: { grid: "4797fa32a488", countdown: "30976b49f7a9", race: "41c20dc562b7", finish: "2a2a37d0c99c", results: "bb3a878d5568" },
-    crest: "998d22bd4f1c",
+    crest: "2fc426df2093", // M5 car scale: the two cars at the crest drawn 2x
 };
 const errors = [];
 const fail = (m) => errors.push(m);
