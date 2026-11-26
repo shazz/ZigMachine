@@ -1,4 +1,4 @@
-"""Variant G's two playback streams: the aurora's change masks (tools/boot/aurora_mask.py) and the star plane baked
+"""The boot screen's two playback streams: the aurora's change masks (tools/boot/aurora_mask.py) and the star plane baked
 per 60 Hz frame (aurora_overlay.py). The cart's loops (masked.zig, overlay.zig) mirror the Python decoders here.
 
 The gate runs it with test_aurora_bake: `uv run --with numpy --with pillow python -m unittest tools.tests.test_aurora_g`.
@@ -14,7 +14,7 @@ except ImportError as e:
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "boot"))
-import aurora_fg as fg  # noqa: E402
+import aurora_direct as fg  # noqa: E402
 import aurora_mask as mk  # noqa: E402
 import aurora_overlay as ov  # noqa: E402
 import aurora_pack as pack  # noqa: E402

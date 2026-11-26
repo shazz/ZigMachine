@@ -148,13 +148,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "SB SPIKE", .tag = "sb_spike" }, // unknown — PSP: The Black Lotus's Suicide Barbie (2007, MIT): the mix3 scene, the port's feasibility spike (textured triangles a frame)
     .{ .name = "BAD APPLE!!", .tag = "badapple" }, // zigmachine — R89: a 1-bit film as row-transition span edits, ZX0 blocks off the disk (the shelf disk holds our synthetic test film; the real film + song are a local build)
     .{ .name = "RACER", .tag = "racer" }, // zigmachine — Kestrel Racing M1 (R82): an original flat-shaded racer renderer spike on freds72's MIT engine (PICO-8), benchmark lap v0
-    .{ .name = "AURORA BOOT", .tag = "aurora_boot" }, // zigmachine — the new KESTREL boot screen (R89 spike): night sky, baked aurora, stars flying into a wireframe falcon, CC0 pad
-    .{ .name = "AURORA B", .tag = "aurora_boot_b" }, // zigmachine — aurora boot variant B (smooth light, 2-level hold, every other row)
-    .{ .name = "AURORA C", .tag = "aurora_boot_c" }, // zigmachine — aurora boot variant C (no hold)
-    .{ .name = "AURORA D", .tag = "aurora_boot_d" }, // zigmachine — aurora boot variant D (no hold, every row)
-    .{ .name = "AURORA E", .tag = "aurora_boot_e" }, // zigmachine — aurora boot variant E (D + hue-locked halo)
-    .{ .name = "AURORA F", .tag = "aurora_boot_f" }, // zigmachine — aurora boot variant F (a palette per row, soft curtain base, no name)
-    .{ .name = "AURORA G", .tag = "aurora_boot_g" }, // zigmachine — aurora boot variant G (the final 565 picture as 16-bit deltas, no palette)
+    .{ .name = "AURORA BOOT", .tag = "aurora_boot" }, // zigmachine — the KESTREL boot screen glass plays at power-on (R89): night sky, baked aurora, stars flying into a wireframe falcon, CC0 pad
     // C program ports (apps/ports): prebuilt carts like the c-*/rust-* ones, not in build.zig.
     .{ .name = "PT2-CLONE (C)", .tag = "pt2" }, // pc — 8bitbubsy's ProTracker 2.3D clone (BSD-3), apps/ports/pt2
     .{ .name = "GRAFX2 (C)", .tag = "grafx2" }, // pc — the GrafX2 team's bitmap paint program (GPLv2), apps/ports/grafx2

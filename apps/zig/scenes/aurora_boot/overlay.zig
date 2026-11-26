@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// AURORA BOOT, variant G: the star plane played back pixel for pixel (tools/boot/aurora_overlay.py).
+// AURORA BOOT: the star plane played back pixel for pixel (tools/boot/aurora_overlay.py).
 //
 // The baker drew every 60 Hz frame of the star plane (the stars as one dot each, the falcon's wire, the name) with
 // the cart's own integer drawing and kept, per frame, only the bytes that change: u16 LE count, then count x

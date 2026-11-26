@@ -1,11 +1,11 @@
 // --------------------------------------------------------------------------
-// AURORA BOOT, variant G: the aurora's change masks added to the true-colour plane (tools/boot/aurora_mask.py).
+// AURORA BOOT: the aurora's change masks added to the true-colour plane (tools/boot/aurora_mask.py).
 //
 // A container covers rows [row0, row0 + rows) of the band: row0 u8, rows u8, mask_len u16 LE, the mask (a bit a
 // pixel, MSB = leftmost; 0x00 n = n zero bytes), then a nibble a changed pixel, low nibble first (0..14 =
 // deltas[code], 15 = escape: the next two nibbles, low then high, are the index), a zero pad. Each changed pixel gets a
 // 16-bit wrapping add; nothing else is touched, and there is no entropy decoder: the cost is a few cycles per
-// changed pixel (ZX0 was ~85 % of G's frame on the board). The codes end in a 12-byte zero pad (the baker's). Byte loads only (embedded data is not
+// changed pixel (ZX0 was ~85 % of the frame on the board). The codes end in a 12-byte zero pad (the baker's). Byte loads only (embedded data is not
 // aligned; a misaligned wide load traps on the board). A malformed container stops at the first bad byte and
 // answers false. No ZigOS import: it tests natively.
 // --------------------------------------------------------------------------

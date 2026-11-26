@@ -1,11 +1,10 @@
-"""Variant G's star plane, baked to the pixel: per 60 Hz frame, the plane-1 bytes that change (overlay.bin).
+"""The star plane, baked to the pixel: per 60 Hz frame, the plane-1 bytes that change (overlay.bin).
 
-The other variants ship the 30 fps star records and the cart draws them every frame (seek, midpoint on the odd
-frame, clear, a DDA line per falcon edge, a cross per bright star, the name). G draws NOTHING: the baker runs that
-same drawing here, integer for integer (the cart's plot.zig and stars.zig), for every 60 Hz frame, and keeps only
+The cart draws NOTHING on the star plane: the baker runs the drawing here, integer for integer (seek the 30 fps
+records, the midpoint on the odd frame, a DDA line per falcon edge, the name), for every 60 Hz frame, and keeps only
 the pixels that differ from the frame before. The cart writes them (overlay.zig): "only modify what needs to be
 modified". Stars are one pixel each (Matt, 26 Nov: no glint cross). The wire and the name keep their palette
-entries (LINE, 128..255): their fade is still the entry's alpha, rewritten by the cart.
+entries (LINE, 128..255): their fade is still the entry's alpha, rewritten by the cart (colours.zig).
 
 overlay.bin: for each 60 Hz frame 0..last, u16 LE count, then count x (u16 LE offset into the 320 x 200 plane, u8 entry).
 """
@@ -107,6 +106,5 @@ def scalars(rec, n, nv):
 def meta_source(sc, deltas):
     rows = ", ".join(f".{{ {a}, {b}, {c} }}" for a, b, c in sc.tolist())
     tab = ", ".join(str(int(v)) for v in list(deltas) + [0] * (256 - len(deltas)))  # 256: any escape byte is in range
-    return (f"pub const OVERLAY: u32 = 1; // the star plane is baked per 60 Hz frame (overlay.bin, aurora_overlay.py)\n"
-            f"pub const SCALARS = [_][3]u8{{ {rows} }}; // per record: wire level, name level, fade\n"
+    return (f"pub const SCALARS = [_][3]u8{{ {rows} }}; // per record: wire level, name level, fade\n"
             f"pub const DELTAS = [256]u16{{ {tab} }}; // the aurora's codes (aurora_mask.py), most frequent first\n")

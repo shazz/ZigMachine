@@ -152,10 +152,10 @@ for w in "$OUT"/demo-*.wasm; do
                         --file "KESTREL.VGZ=site/music/kestrel_fm.vgz" ;;
         # NOTEPAD is a GEM program as ST Replay and SysInfo are: a DATA disk, GEM opens it, BOOT.WSM
         # is double-clicked, ^Q goes back to the desktop (request 4). Its files are on C: (KOS GEMDOS).
-        # AURORA F / G: the cart is mostly ZX0 data already (packing saves ~10 %) and the packed copy would not
+        # AURORA BOOT: the cart is mostly baked data (packing saves little) and the packed copy would not
         # fit the ROM's free RAM, where the loader unpacks it (disk_check): the disk carries the wasm UNPACKED,
         # which sealed-loader.js's unpackCart passes straight through.
-        aurora_boot_f|aurora_boot_g)
+        aurora_boot)
                    repack "$OUT/demo-$tag.zmd" "$w" --title "$tag" --author "$AUTHOR" ;;
         notepad)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
         # GEMTEST too (docs/os/GEMTEST.md): a data disk, BOOT.WSM shows every GEM 5 component.

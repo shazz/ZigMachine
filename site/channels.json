@@ -20,38 +20,8 @@
   "type": "zigmachine"
  },
  {
-  "tag": "aurora_boot_b",
-  "title": "AURORA B",
-  "type": "zigmachine"
- },
- {
   "tag": "aurora_boot",
   "title": "AURORA BOOT",
-  "type": "zigmachine"
- },
- {
-  "tag": "aurora_boot_c",
-  "title": "AURORA C",
-  "type": "zigmachine"
- },
- {
-  "tag": "aurora_boot_d",
-  "title": "AURORA D",
-  "type": "zigmachine"
- },
- {
-  "tag": "aurora_boot_e",
-  "title": "AURORA E",
-  "type": "zigmachine"
- },
- {
-  "tag": "aurora_boot_f",
-  "title": "AURORA F",
-  "type": "zigmachine"
- },
- {
-  "tag": "aurora_boot_g",
-  "title": "AURORA G",
   "type": "zigmachine"
  },
  {
