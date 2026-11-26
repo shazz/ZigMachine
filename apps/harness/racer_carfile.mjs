@@ -6,7 +6,8 @@
 //      the car ramps 12..18 take the file's colours, and the race grid draws the AI cars with the second model (more pixels
 //      of the AI's ramps than with the built-in GT);
 //   3. \HD\RACER\SALT.KCR corrupted (a body byte flipped: the CRC): refused by name on SALT ("racer,car,refused,SALT.KCR,BadCrc"),
-//      no trap, CAR.KCR drawn instead; a truncated CAR.KCR alone is refused too and the built-in GT drawn.
+//      no trap, CAR.KCR drawn instead; a truncated CAR.KCR alone is refused too and the built-in GT drawn;
+//   4. a 40 KB raw CAR.KCR (over the 32 KB car buffer): refused TooBig, and the grid frame is the no-file frame byte for byte.
 //   node apps/harness/racer_carfile.mjs [--break crc]   (--break crc: the 'corrupted' file left whole: check 3 must catch it)
 import { execFileSync } from "node:child_process";
 import { diskHook } from "./racer_disk.mjs";
@@ -32,6 +33,8 @@ img = Image("SD CARD", 2048); hd = sd_layout.HD
 img.mkdir(hd); img.mkdir(hd + "/RACER")
 if "${mode}" == "short":
     img.write(hd + "/RACER/CAR.KCR", s[:len(s) - 40])
+elif "${mode}" == "big":
+    img.write(hd + "/RACER/CAR.KCR", bytes(range(256)) * 160)  # 40 KB, not a car, raw: over the 32 KB car buffer
 else:
     img.write(hd + "/RACER/CAR.KCR", s)
     bad = bytearray(s); bad[len(s) // 2] ^= ${BREAK === "crc" ? 0 : 0x5a}
@@ -76,5 +79,9 @@ if (BREAK) {
     console.log(`racer_carfile PASS (--break ${BREAK} caught: ${errors[0]})`);
     process.exit(0);
 }
+const big = await run(cimg("big"), []);
+if (!big.cars.some((l) => l.startsWith("racer,car,refused,CAR.KCR,TooBig")) || big.cars.at(-1) !== "racer,car,GT,1,0")
+    fail(`a 40 KB CAR.KCR: ${big.cars.join(" | ")}`);
+if (big.px.some((p, i) => p !== gt.px[i])) fail("a 40 KB CAR.KCR: the grid frame differs from the no-file frame (memory past the car buffer?)");
 if (errors.length) { for (const m of errors) console.error(`racer_carfile: ${m}`); process.exit(1); }
-console.log(`racer_carfile: PASS (no file = the GT; CAR.KCR's set loaded, its ramps installed (ramp 12 top ${top12.toString(16)}, the file's ${want12.toString(16)}), AI pixels ${aiGt} -> ${aiSet}; ${refused}; a truncated CAR.KCR refused, the GT drawn)`);
+console.log(`racer_carfile: PASS (no file = the GT; CAR.KCR's set loaded, its ramps installed (ramp 12 top ${top12.toString(16)}, the file's ${want12.toString(16)}), AI pixels ${aiGt} -> ${aiSet}; ${refused}; a truncated CAR.KCR refused, the GT drawn; a 40 KB one refused TooBig, the frame untouched)`);

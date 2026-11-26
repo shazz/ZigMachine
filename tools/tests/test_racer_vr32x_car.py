@@ -27,7 +27,7 @@ def encode(verts: list[tuple[int, int, int]], polys: list[tuple[list[int], int]]
     for k, (ids, col) in enumerate(polys):
         fl = (0 if len(ids) == 4 else 1) | (0x20 if k == extra else 0)
         out += struct.pack(">2H", fl, col << 8) + b"".join(struct.pack(">H", 16 * i) for i in ids)
-        out += b"\x00\x00\x3e\x92\x0d\x72" if k == extra else b""
+        out += b"\x11\x22\x33\x44\x55\x66" if k == extra else b""
     return out + struct.pack(">H", 0x0C00) + (b"\x00" if len(out) % 2 else b"")
 
 

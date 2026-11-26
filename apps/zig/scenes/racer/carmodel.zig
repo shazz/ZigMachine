@@ -42,7 +42,8 @@ pub fn shiftTo(ramp: u8) u8 {
     return (ramp -% RAMP_BODY) *% 8;
 }
 
-/// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start (the GT's tyres sit on them).
+/// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start. The PHYSICS' points (freds72's
+/// car): since the GT is drawn x2 (M5 step 5) its tyres sit outside them.
 pub const WHEELS = [4][3]i32{
     .{ -9830, 0, 13107 }, // left front
     .{ 9830, 0, 13107 }, // right front

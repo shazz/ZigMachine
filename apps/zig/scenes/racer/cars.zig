@@ -68,6 +68,7 @@ pub const Cars = struct {
             if ((zx0.depack(src, self.buf[0..raw]) orelse 0) != raw) return error.BadPack;
             return raw;
         }
+        if (stored > self.buf.len) return error.TooBig; // a raw file: the stage is the track's, far bigger than the car buffer
         @memcpy(self.buf[0..stored], src);
         return stored;
     }
@@ -75,7 +76,7 @@ pub const Cars = struct {
     fn readDisk(self: *Cars, name: []const u8) Fail!?usize {
         const lay = zg.disk.mount() orelse return null;
         const e = zg.disk.find(lay, name) orelse return null;
-        if (e.len > self.stage.len) return error.TooBig;
+        if (e.len > self.stage.len or e.len > carfile.MAX_FILE) return error.TooBig;
         if (zg.disk.read(e, self.stage[0..e.len]) != e.len) return error.ReadFailed;
         return e.len;
     }
@@ -83,8 +84,9 @@ pub const Cars = struct {
     fn readHd(self: *Cars, name: []const u8) Fail!?usize {
         var path: [32]u8 = undefined;
         const p = std.fmt.bufPrint(&path, library.HD_DIR ++ "{s}", .{name}) catch return null;
-        const got = library.hdRead(p, self.stage) catch return null; // no such file
-        if (got == self.stage.len) return error.TooBig; // (a file of exactly the buffer's size is refused too)
+        const cap = @min(self.stage.len, carfile.MAX_FILE + 1); // one byte more than a car file may be: a longer one is TooBig
+        const got = library.hdRead(p, self.stage[0..cap]) catch return null; // no such file
+        if (got == cap) return error.TooBig;
         return if (got == 0) null else got;
     }
 };

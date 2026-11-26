@@ -133,7 +133,7 @@ fn check(m: *Model) Error!void {
     const sh = m.range(.shadow);
     if (sh.len != 1 or sh[0].nv != 4 or sh[0].flags & FLAG_SHADOW == 0) return error.BadParts;
     for (m.faces, 0..) |f, i| {
-        if (f.nv < 3 or f.nv > 4) return error.BadFace;
+        if (f.nv < 3 or f.nv > 4 or f.alt != 0 or f.inner_n != 0) return error.BadFace; // no debug shades, no decals on a car
         for (f.v) |id| if (id >= m.verts.len) return error.BadFace; // the padding ids too: all four are read
         if ((f.flags & FLAG_SHADOW != 0) != (i == m.end[@intFromEnum(Part.shadow)] - 1)) return error.BadParts;
     }

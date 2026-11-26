@@ -21,7 +21,8 @@ const types = @import("types.zig");
 const xf = @import("xform.zig");
 
 pub const Snap = struct { pos: [3]i32, angle: i32 };
-/// The view depth (Q16) past which a car is drawn with the far model: 6 units, where the car is ~13 pixels long.
+/// The view depth (Q16) past which a car is drawn with the far model: 6 units, where the GT (drawn x2 since M5 step 5) is
+/// ~26 pixels long (it was ~13; the switch was kept at 6 units: docs M5.md step 5).
 pub const LOD1_Z: i32 = 6 << 16;
 
 /// Draw one car of track `t`: model `m` (carmodel.of(k)) in livery `liv` (carmodel.LIVERY: 0 is the player's).

@@ -2,9 +2,8 @@
 the winding the engine culls by, the axles at the wheels, a static painter's order. No data: rules only.
 
 - **Units.** UNIT model units are one Q7 step (1/128 of our unit = one 68000 world unit). INFERRED, not read from the SH-2's
-  transform: at 32 the class cars are 0.37-0.54 units wide and 1.0-1.15 long, which fits the 32X's start grid (rows 160-224
-  world units apart, columns 144) and the road (~350-460 wide) as a real car fits its own; at 64 a car would be a quarter of
-  its grid column. docs/ports/kestrel_racing/M5.md (car scale) has the measurements.
+  transform: at 32 the class cars are about half a unit wide and a unit long, which fits the 32X's start grid and its roads
+  as a real car fits its own; at 64 a car would be a quarter of its grid column. docs/ports/kestrel_racing/M5.md (car scale) has the measurements.
 - **Axes.** The 32X car is x across, y up, z forward (its nose at +z): ours. The winding is checked, not assumed: if most
   faces' normals point INTO the model, every face is turned over (a mirrored x would do that).
 - **Faces.** A quad that rounding to Q7 leaves non-planar or non-convex becomes two triangles; a face with no area left is
