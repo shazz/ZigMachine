@@ -208,7 +208,9 @@ async function optionsScreen(B, race3) {
     for (const want of ["racer,option,laps,5", "racer,shadow,DITHER", "racer,shade,LIT", "racer,option,distance,7", "racer,option,music,OFF", "racer,hazeopt,OFF"])
         if (!logged(B, want)) fail(`options: no ${want} line`);
     if (!onScreen(px, " SHADOW        < CHECKERBOARD >", INK) || !onScreen(px, " MUSIC         < OFF >", INK)) fail("options: the changed values are not on screen");
-    B.tap(1); B.tap(5); // BACK: the select (it came from there)
+    B.tap(1); B.tap(5); B.tap(5); // R82 32X feel: PHYSICS to CLASSIC and back to ARCADE (each logged)
+    if (!logged(B, "racer,physics,CLASSIC") || !logged(B, "racer,physics,ARCADE")) fail("options: the PHYSICS row did not switch the model both ways");
+    B.tap(1); B.tap(1); B.tap(5); // past CAR CLASS to BACK: the select (it came from there)
     if (B.fronts().slice(-2).join(" ") !== "options select") return fail(`BACK on the options: ${B.fronts().slice(-2)}, want the select`);
     if (!onScreen(B.view(), "LAP 684 M  5 LAPS", INK)) fail("select after the options: SALT's laps do not say 5");
     B.press("\b"); // the title

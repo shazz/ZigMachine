@@ -1,6 +1,5 @@
-// RACER: the ARCADE physics (R82 32X feel, FEEL.md): the engine against its Python twin (tools/racer/feel.py's pins in
-// feel_params.zig), the pedals, the off-road drag, the walls, a race of 8 arcade cars, and the CLASSIC path untouched.
-// `zig test apps/zig/racer_tests.zig`.
+// RACER: the ARCADE physics (R82 32X feel, FEEL.md): the engine against its Python twin (feel_params.zig's pins), the
+// pedals, the off-road drag, the walls, arcade races, the CLASSIC path untouched. `zig test apps/zig/racer_tests.zig`.
 const std = @import("std");
 const arcade = @import("arcade.zig");
 const arcar = @import("arcadecar.zig");
@@ -42,6 +41,16 @@ test "every class's straight line and coast-down = the Python twin's pins (ticks
         try std.testing.expectEqual(p.down, std.hash.crc.Crc32IsoHdlc.hash(std.mem.sliceAsBytes(&down)));
         try std.testing.expect(up[up.len - 1] <= b.top and up[up.len - 1] > b.top - (b.top >> 5)); // the top, never past it
     }
+}
+
+test "--break feel: the drag doubled misses the twin's pins and lowers the top" {
+    arcade.break_feel = true;
+    defer arcade.break_feel = false;
+    var up: [params.PIN_TICKS]i32 = undefined;
+    const b = &params.CLASSES[0];
+    run(b, &up, 0, true, arcade.OFF_NONE);
+    try std.testing.expect(std.hash.crc.Crc32IsoHdlc.hash(std.mem.sliceAsBytes(&up)) != params.PINS[0].up);
+    try std.testing.expect(up[up.len - 1] < b.top - (b.top >> 5));
 }
 
 test "off the road: three or four wheels off settle slower than one or two, both under the top; never below 0" {

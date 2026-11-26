@@ -63,3 +63,18 @@ test "a FAKE span is the checkerboard: (x + y) even is DITHER, odd is untouched,
         }
     };
 }
+
+test "the shadow headroom (R82): on, a face's headroom colour (alt byte 2) is drawn and the shadow then darkens it; off, or none stored, the colour" {
+    const project = @import("project.zig");
+    const trk = @import("trk.zig");
+    var f = std.mem.zeroes(trk.Face);
+    f.colour = 16 + 3 * 8; // a ramp's bottom: no darker level for the shadow
+    f.alt = (16 + 3 * 8 + 1) << 16; // the import's headroom: one level up
+    try std.testing.expectEqual(f.colour, project.colourOf(&f));
+    project.headroom = true;
+    defer project.headroom = false;
+    try std.testing.expectEqual(@as(u8, 16 + 3 * 8 + 1), project.colourOf(&f));
+    try std.testing.expectEqual(f.colour, shadow.darken(project.colourOf(&f))); // the shadow shows now
+    f.alt = 0;
+    try std.testing.expectEqual(f.colour, project.colourOf(&f)); // a face with none keeps its colour
+}

@@ -25,8 +25,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from racer import (  # noqa: E402
-    budget, ktrk, limits, mood, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_find, vr32x_geom, vr32x_line,
-    vr32x_feel, vr32x_rom, vr32x_walk, vr_colours, vr_import,
+    budget, ktrk, limits, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_feel, vr32x_find, vr32x_geom,
+    vr32x_line, vr32x_rom, vr32x_walk, vr_colours, vr_import,
 )
 
 WALK_SEEDS = 6  # seeds the walk starts from, each way (the shortest laps use them all)

@@ -69,6 +69,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'U' => clock.break_flat = true, // ... --break clock: every computed clock freds72's 75 s + 10 s
         'V' => front.break_results = true, // ... --break fsm: fire on the results goes to the title
         'R' => press.break_repeat = true, // ... --break repeat: a held key's repeats count as presses
+        'I' => arcade.break_feel = true, // racer_feel.mjs --break feel: the arcade's drag doubled
         'K' => @import("zone.zig").break_zone = true, // racer_zone.mjs --break zone: no camera zone anywhere
         'N' => options.breakHaze(self, &haze.break_absent), // racer_haze.mjs --break absent: the haze built, never applied
         'P' => options.breakHaze(self, &haze.break_near), // ... --break near: every band one nearer (near faces hazed)

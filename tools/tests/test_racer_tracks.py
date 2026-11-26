@@ -4,6 +4,7 @@ mood block every track file carries (tools/racer/mood.py; the cart reads it in a
 from __future__ import annotations
 
 import json
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -93,7 +94,8 @@ class MoodTest(unittest.TestCase):
         d["mood"]["clock"] = [120, 18]
         m = kit.look(d)
         self.assertEqual(m.pack()[24:26], bytes([120, 18]))
-        self.assertEqual(m.pack()[26:], bytes(6))
+        self.assertEqual(m.pack()[26:32], bytes(6))  # the scale tail (R82 32X feel) follows: the Kit default
+        self.assertEqual(m.pack()[32:], struct.pack("<2H", kit.KIT_WORLD, kit.KIT_CAR))
         for blob in ("salt", "neon", "glacier", "city"):
             with self.subTest(blob):
                 self.assertEqual(mood.unpack((ASSETS / f"{blob}.ktrk").read_bytes()).clock, (0, 0))  # computed (clock.zig)

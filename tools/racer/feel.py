@@ -19,6 +19,7 @@ wheels off the asphalt) or 1 (three or four). Accelerations are Q24 a tick, roun
 from __future__ import annotations
 
 import argparse
+import itertools
 import sys
 import zlib
 from dataclasses import dataclass
@@ -76,7 +77,7 @@ class Curve:
     def of(pts: tuple[tuple[int, float], ...]) -> Curve:
         s = tuple(q16(k) for k, _ in pts)
         a = tuple(q24(v) for _, v in pts)
-        if any(b <= x for x, b in zip(s, s[1:], strict=False)):
+        if any(b <= x for x, b in itertools.pairwise(s)):
             raise ValueError("curve speeds must rise")
         m = tuple(((a[i + 1] - a[i]) << 16) // (s[i + 1] - s[i]) for i in range(len(s) - 1))
         return Curve(s, a, m)
@@ -144,12 +145,15 @@ def ticks_to(trace: list[int], kmh: int) -> int:
 PIN_TICKS: Final = 600
 
 
+def _crc(t: list[int]) -> int:
+    return zlib.crc32(b"".join(v.to_bytes(4, "little", signed=True) for v in t))
+
+
 def pins(b: Block) -> tuple[int, int, int, int]:
     """The native test's pins: ticks to 100 and 200 km/h, the full-throttle run's CRC, the coast-down's CRC."""
     up = run(b, PIN_TICKS)
     down = run(b, PIN_TICKS, b.top, held=False)
-    crc = lambda t: zlib.crc32(b"".join(v.to_bytes(4, "little", signed=True) for v in t))  # noqa: E731
-    return ticks_to(up, 100), ticks_to(up, 200), crc(up), crc(down)
+    return ticks_to(up, 100), ticks_to(up, 200), _crc(up), _crc(down)
 
 
 def _curve(c: Curve) -> str:

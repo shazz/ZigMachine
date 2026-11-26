@@ -15,6 +15,8 @@ pub const Model = enum(u8) { classic, arcade };
 pub const NAMES = [_][]const u8{ "CLASSIC", "ARCADE" };
 /// The PHYSICS option (RAM only, as every option): ARCADE by default.
 pub var model: Model = .arcade;
+/// The harness' --break feel (key I): the drag doubled, which every arcade race's result shows.
+pub var break_feel: bool = false;
 /// The CAR CLASS option: an index into params.CLASSES (FORMULA by default).
 pub var class: u8 = 0;
 
@@ -50,7 +52,7 @@ fn drag(b: *const params.Block, v: i32) i32 {
 pub fn speed(b: *const params.Block, s: i32, thr: i32, brake: i32, off: u2) i32 {
     const d = drag(b, s);
     const tract = (if (s < b.top) net(b, s) else 0) + d;
-    var a: i64 = ((@as(i64, tract) * thr) >> 8) - d - ((@as(i64, b.brake) * brake) >> 8);
+    var a: i64 = ((@as(i64, tract) * thr) >> 8) - (d << @intFromBool(break_feel)) - ((@as(i64, b.brake) * brake) >> 8);
     if (off != OFF_NONE) {
         const sq = (@as(i64, s) * s) >> 16;
         a -= ((sq * b.k_off) >> 16) >> @intFromBool(off == OFF_HALF);

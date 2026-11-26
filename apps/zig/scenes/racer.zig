@@ -16,6 +16,8 @@
 // M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
 // M3 (oval only): e the race (8 cars, 3 laps; fire or s starts the countdown, r / Enter aborts or goes again)
 //   x bench lap v2 (the reference benchmark)   a the recorded driver   w warp (16 ticks a frame)   k the crest test pose
+// R82 32X feel (FEEL.md): T physics ARCADE / CLASSIC   M car class   L the AI pilot in the option's physics   9 the shadow headroom
+//   I --break feel   Backspace leaves a running bench lap for the select
 // One plane in two pages (the shown one is enabled), the sky a per-line palette entry on the copper, the
 // backdrop one AFFINE op. No float. Benchmark lines go to the console: racer/bench.zig, racer/drive.zig.
 // --------------------------------------------------------------------------

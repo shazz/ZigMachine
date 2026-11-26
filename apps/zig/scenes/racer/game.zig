@@ -154,9 +154,7 @@ pub const Game = struct {
         if (f == GRID_FRAMES) self.s.start() catch {}; // WHY: as go()
     }
 
-    /// The physics a tick runs (R82 32X feel): the reference's drivers (the bench, the recorded stream or the AI pilot
-    /// under `a`) are CLASSIC by construction, so their pins hold; a race the player drives, or the arcade pilot (key L),
-    /// runs the PHYSICS option.
+    /// A tick's physics (R82 32X feel): the reference's drivers (bench, `a`) CLASSIC, so their pins hold; else the option.
     pub fn physics(self: *const Game) arcade.Model {
         return if (self.mode == .race and !self.auto) arcade.model else .classic;
     }

@@ -13,6 +13,7 @@ integer twin (net never rising with speed, drag never falling) (feel.run), minim
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import sys
 from dataclasses import replace
@@ -32,7 +33,7 @@ STEPS: Final = (4.0, 1.0, 0.25)
 def _times(t: Target, key: str) -> dict[int, float]:
     raw = t[key]
     if not isinstance(raw, dict):
-        raise ValueError(f"targets: '{key}' must be an object")
+        raise TypeError(f"targets: '{key}' must be an object")
     return {int(k): float(v) for k, v in raw.items() if float(v) > 0}
 
 
@@ -72,7 +73,7 @@ def _nudge(k: feel.Klass, field: str, i: int, d: float) -> feel.Klass:
 def _falling(k: feel.Klass) -> bool:
     """Our curves stay physical: the net acceleration never rises with speed, the drag never falls."""
     net, drag = [v for _, v in k.net], [v for _, v in k.drag]
-    return all(a >= b for a, b in zip(net, net[1:], strict=False)) and all(a <= b for a, b in zip(drag, drag[1:], strict=False))
+    return all(a >= b for a, b in itertools.pairwise(net)) and all(a <= b for a, b in itertools.pairwise(drag))
 
 
 def _descend(k: feel.Klass, t: Target, field: str, idx: range, prefix: str) -> feel.Klass:
