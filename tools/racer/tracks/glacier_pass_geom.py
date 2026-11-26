@@ -28,6 +28,7 @@ DUAL = {"barrier_a", "barrier_b"}
 SUN = (-0.3, 0.4, 1.0)  # overcast: a high, soft light; a face turned away loses at most three levels
 SKY = [118, 128, 146, 202, 208, 216]  # a grey ceiling to a pale horizon
 HILLS = [132, 144, 166, 92, 102, 120, 236, 240, 246]  # far range, near range, snow on the far tops
+HAZE = ([202, 208, 216], 96, 150)  # M6: the horizon haze (colour = the sky's horizon, start x/256 of R, strength x/255)
 # (station, height) keys of the climb: a cosine ease between them; the crest is the bump on the top straight; the hairpins are level
 HEIGHT = [(0, 0.0), (50, 0.0), (80, 3.0), (95, 3.0), (120, 7.0), (156, 7.0), (162, 10.0), (168, 7.0),
           (198, 7.0), (228, 0.0), (236, 0.0)]  # the climbs on the straights: a slope round a bend twists the quads

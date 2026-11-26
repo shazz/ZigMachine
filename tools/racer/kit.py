@@ -80,9 +80,10 @@ def look(doc: Doc) -> mood.Mood:
     draw_r = doc["mood"].get("draw_r", 0)
     if not isinstance(draw_r, int):
         raise trackc.ConvertError(f"mood draw_r {draw_r!r}: the draw distance cap in tiles (0 = none)")
+    haze = _haze(doc)
     m = mood.Mood(GROUND_RAMP, bake.level((0.0, 1.0, 0.0), sun(doc)), 0, mood.BACKDROPS.index(shape),
                   (sky[0], sky[1]) if sky else base.sky, (hills[0], hills[1], hills[2]) if hills else base.hills,
-                  (clock[0], clock[1]), draw_r)
+                  (clock[0], clock[1]), draw_r, *haze)
     try:
         m.pack()  # its range checks (a clock over mood.MAX_CLOCK)
     except ValueError as e:
@@ -90,9 +91,25 @@ def look(doc: Doc) -> mood.Mood:
     return m
 
 
+def _haze(doc: Doc) -> tuple[tuple[int, int, int], int, int]:
+    """M6: the horizon haze (mood `haze` [r, g, b], `haze_start` x/256 of R, `haze_strength` x/255); none where unset."""
+    strength = doc["mood"].get("haze_strength", 0)
+    if strength == 0:
+        return (0, 0, 0), 0, 0  # the panel's default: no haze
+    rgb, start = _rgb("haze", doc["mood"].get("haze")), doc["mood"].get("haze_start", 0)
+    if not (isinstance(start, int) and isinstance(strength, int) and 0 <= start <= 255 and 1 <= strength <= 255):
+        raise trackc.ConvertError(f"mood haze start {start!r} / strength {strength!r}: ints 0..255 / 1..255")
+    return rgb, start, strength
+
+
 def convert(doc: Doc) -> bytes:
     errs = budget.problems(doc)
     if errs:
         raise trackc.ConvertError("; ".join(errs[:5]))
     at, mats = ramps(doc)
-    return trackc.convert(doc, mats, shade=bake.shader(at, sun(doc)), look=look(doc))
+    m = look(doc)
+    blob = trackc.convert(doc, mats, shade=bake.shader(at, sun(doc)), look=m)
+    n, room = mood.haze_room(blob)
+    if m.haze_strength and n > room:
+        raise trackc.ConvertError(f"mood haze: {n} face colours, the palette has {room} spare entries (the cart's haze pool)")
+    return blob

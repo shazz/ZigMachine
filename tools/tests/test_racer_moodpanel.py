@@ -33,7 +33,8 @@ print("MOODPANEL OK")
 class MoodPropsTest(unittest.TestCase):
     def test_every_scene_property_the_export_reads_has_a_row(self) -> None:
         self.assertEqual({p.key for p in mood_props.PROPS},
-                         {"name", "mood", "sun", "far_ground", "sky", "hills", "backdrop", "clock", "draw_r"})
+                         {"name", "mood", "sun", "far_ground", "sky", "hills", "backdrop", "clock", "draw_r",
+                          "haze", "haze_start", "haze_strength"})
 
     def test_defaults_are_the_ovals_look_and_pass_their_own_checks(self) -> None:
         by = {p.key: p for p in mood_props.PROPS}
@@ -44,7 +45,8 @@ class MoodPropsTest(unittest.TestCase):
 
     def test_missing_lists_only_the_unset_properties(self) -> None:
         got = [p.key for p in mood_props.missing({"ktrk_name", "ktrk_sky", "other"})]
-        self.assertEqual(got, ["mood", "sun", "far_ground", "hills", "backdrop", "clock", "draw_r"])
+        self.assertEqual(got, ["mood", "sun", "far_ground", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start",
+                               "haze_strength"])
 
     def test_a_value_the_converter_refuses_is_named(self) -> None:
         by = {p.key: p for p in mood_props.PROPS}
@@ -58,11 +60,12 @@ class MoodPropsTest(unittest.TestCase):
 
     def test_the_defaults_convert_to_the_same_mood_as_absent_properties(self) -> None:
         doc = json.loads((ROOT / "tools/racer/tracks/salt_flats.ktrk.json").read_text())
-        for k in ("sky", "hills", "backdrop", "clock", "draw_r"):
+        keys = ("sky", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start", "haze_strength")
+        for k in keys:
             doc["mood"].pop(k, None)
         bare = kit.look(doc)
         by = {p.key: p for p in mood_props.PROPS}
-        for k in ("sky", "hills", "backdrop", "clock", "draw_r"):
+        for k in keys:
             doc["mood"][k] = by[k].default
         self.assertEqual(kit.look(doc), bare)
         self.assertEqual(by["sun"].default, (0.0, 0.0, 1.0))  # the add-on's extract() when ktrk_sun is absent
@@ -81,6 +84,37 @@ class MoodPropsTest(unittest.TestCase):
         doc["mood"]["draw_r"] = 6
         self.assertEqual(kit.look(doc).draw_r, 6)
         doc["mood"]["draw_r"] = 12
+        with self.assertRaises(trackc.ConvertError):
+            kit.look(doc)
+
+    def test_haze_packs_into_bytes_27_31_reads_back_and_a_colour_without_a_strength_is_refused(self) -> None:
+        m = mood.Mood(haze=(200, 210, 220), haze_start=96, haze_strength=170)
+        self.assertEqual(m.pack()[27:32], bytes([200, 210, 220, 96, 170]))
+        blob = bytearray(200)
+        blob[4 * mood.WORD:4 * mood.WORD + 4] = (128).to_bytes(4, "little")
+        blob[128:160] = m.pack()
+        self.assertEqual(mood.unpack(bytes(blob)), m)
+        self.assertEqual(mood.Mood().pack()[27:32], bytes(5))  # no haze: the M5 block, byte for byte
+        for bad in (mood.Mood(haze=(1, 0, 0)), mood.Mood(haze_start=4), mood.Mood(haze=(1, 2, 3), haze_strength=256)):
+            with self.assertRaises(ValueError):
+                bad.pack()
+        by = {p.key: p for p in mood_props.PROPS}
+        self.assertIn("0..255", mood_props.problem(by["haze_strength"], 300))
+        self.assertIn("3 numbers", mood_props.problem(by["haze"], [1, 2]))
+
+    def test_the_kit_reads_the_haze_and_refuses_one_that_does_not_fit_the_palette(self) -> None:
+        doc = json.loads((ROOT / "tools/racer/tracks/glacier_pass.ktrk.json").read_text())
+        self.assertEqual(kit.look(doc).haze_strength, 150)
+        blob = kit.convert(doc)
+        n, room = mood.haze_room(blob)
+        self.assertLessEqual(n, room)
+        neon = json.loads((ROOT / "tools/racer/tracks/neon_docks.ktrk.json").read_text())
+        neon["mood"].update({"haze": [46, 34, 78], "haze_start": 128, "haze_strength": 160})
+        with self.assertRaisesRegex(trackc.ConvertError, "spare entries"):
+            kit.convert(neon)  # 29 ramps: 8 spare entries for 48 face colours
+        doc["mood"]["haze_strength"] = 0
+        self.assertEqual(kit.look(doc).haze, (0, 0, 0))  # strength 0 = none, whatever the other rows say
+        doc["mood"]["haze_strength"] = 300
         with self.assertRaises(trackc.ConvertError):
             kit.look(doc)
 

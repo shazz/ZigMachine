@@ -5,7 +5,7 @@
 // A bad magic, version, CRC or block bound is refused with a name, never defaulted. Since M5 step 2 a track
 // can be a FILE (a disk's, a user's): every count and offset in the header is untrusted input, bounded here
 // before the cart follows it (overflow-safe block maths, the palette's 30 ramps, seg.MAXSEG, the 8 grid
-// slots, every PVS list inside its block, the mood block: tools/racer/mood.py).
+// slots, every PVS list inside its block, the mood block: tools/racer/mood.py; M6 its haze, bytes 27-31).
 // No ZigOS import: trk_test.zig runs it natively.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -39,7 +39,9 @@ pub const Mood = extern struct {
     hills: [3][4]u8 = .{ .{ 110, 130, 170, 0 }, .{ 70, 100, 90, 0 }, .{ 60, 60, 90, 0 } }, // palette 12, 13, 14
     clock: [2]u8 = .{ 0, 0 }, // the race clock: start, extension a checkpoint (s); 0 = computed (clock.zig, M5 step 4)
     draw_r: u8 = 0, // the track's draw distance cap, tiles 3..8; 0 = none (M5 finish: trackset.playR)
-    pad: [5]u8 = .{0} ** 5,
+    haze: [3]u8 = .{ 0, 0, 0 }, // the horizon haze's colour (M6, haze.zig)
+    haze_start: u8 = 0, // where it starts, x/256 of the draw distance
+    haze_strength: u8 = 0, // its blend at the draw distance, x/255; 0 = no haze (then the colour and start are 0 too)
 };
 
 pub const FLAG_DUAL: u8 = 1;
@@ -142,7 +144,8 @@ fn mood(b: []align(4) const u8, at: u32, total: u32) Error!Mood {
     const m = (try block(Mood, b, at, 1, total))[0];
     if (at + MOOD_SIZE != total) return error.BadMood; // the file's last block
     if (m.ground_ramp >= word(b, 9) or m.ground_level > 7 or m.flags & ~BENCH_ONLY != 0 or m.backdrop >= BACKDROPS) return error.BadMood;
-    if (m.clock[0] > MAX_CLOCK[0] or m.clock[1] > MAX_CLOCK[1] or !std.mem.allEqual(u8, &m.pad, 0)) return error.BadMood;
+    if (m.clock[0] > MAX_CLOCK[0] or m.clock[1] > MAX_CLOCK[1]) return error.BadMood;
+    if (m.haze_strength == 0 and (m.haze_start != 0 or !std.mem.allEqual(u8, &m.haze, 0))) return error.BadMood; // M6: 0 = none
     if (m.draw_r != 0 and (m.draw_r < 3 or m.draw_r > MAX_RBAKE)) return error.BadMood;
     return m;
 }

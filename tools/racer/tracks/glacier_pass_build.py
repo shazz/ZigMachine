@@ -23,7 +23,7 @@ def build() -> None:
     g.tunnel(meshes["tunnel"], s)
     g.scenery(meshes["scenery"], s)
     props = {"name": "glacier_pass", "mood": "overcast", "sun": g.SUN, "far_ground": "snow", "sky": g.SKY,
-             "hills": g.HILLS, "backdrop": "peaks"}
+             "hills": g.HILLS, "backdrop": "peaks", "haze": g.HAZE[0], "haze_start": g.HAZE[1], "haze_strength": g.HAZE[2]}
     kit_scene.scene(props, g.PALETTE, g.DUAL, meshes)
     kit_scene.grid(s, g.heights()[0])
 

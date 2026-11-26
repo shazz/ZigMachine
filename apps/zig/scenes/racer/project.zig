@@ -14,6 +14,7 @@ const cam = @import("cam.zig");
 const clip = @import("clip.zig");
 const frame = @import("frame.zig");
 const fx = @import("fx.zig");
+const haze = @import("haze.zig");
 const trk = @import("trk.zig");
 const types = @import("types.zig");
 const xf = @import("xform.zig");
@@ -61,10 +62,15 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
         return null;
     }
     if (types.offScreen(&rec)) return null;
-    rec.c = colourOf(f) +% k.dc;
-    if (k.shadow) rec.n |= types.SHADOW;
     const mean = if (nv == 4) zsum >> 2 else fx.mulsh16(zsum, 21845);
-    return push(fr, rec, k.fixed orelse depthKey(mean));
+    const key = k.fixed orelse depthKey(mean);
+    rec.c = colourOf(f) +% k.dc;
+    if (haze.active) { // M6: the band's colour; a shadow in a band is washed out (haze.zig)
+        if (k.shadow and haze.band(key) != 0) return null;
+        rec.c = haze.colour(key, rec.c);
+    }
+    if (k.shadow) rec.n |= types.SHADOW;
+    return push(fr, rec, key);
 }
 
 /// The depth bucket of a view depth z (Q16): 1/8 unit buckets, far (0) to near (BUCKETS - 1).

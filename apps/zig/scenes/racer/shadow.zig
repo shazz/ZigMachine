@@ -15,12 +15,13 @@
 // No ZigOS import: shadow_test.zig checks all 256 indices and both modes against byte-wise rules.
 // --------------------------------------------------------------------------
 pub const DITHER: u8 = 0;
+pub var keep_from: u32 = 256; // M6: entries from here are the haze's pool (haze.zig), not ramps: left alone (a multiple of 8)
 pub var fake: bool = false; // key y
 pub var break_two: bool = false; // the harness' --break two (key S): two levels down (still clamped at the ramp's bottom)
 
-/// One level down, as the plane's index: the ramp's bottom and the first 16 entries stay.
+/// One level down, as the plane's index: the ramp's bottom, the first 16 entries and the haze's pool stay.
 pub fn darken(b: u8) u8 {
-    return if (b >= 16 and b & 7 != 0) b - 1 else b;
+    return if (b >= 16 and b & 7 != 0 and b < keep_from) b - 1 else b;
 }
 
 const LO: u32 = 0x7F7F7F7F;
@@ -28,9 +29,21 @@ const TOP: u32 = 0x80808080;
 
 /// darken() on the four bytes of a word at once (no byte borrows: a byte only drops where its level is >= 1).
 pub fn darkenWord(w: u32) u32 {
+    return darkenW(true, w, poolTop());
+}
+
+/// Each byte's (keep_from / 2 - 1) with its top bit set: darkenW's "index < keep_from" test (M6, the haze's pool).
+fn poolTop() u32 {
+    return ((keep_from >> 1) - 1) * 0x01010101 | TOP;
+}
+
+/// `pool` false: no haze pool (keep_from 256), the M5 word path exactly, at M5's cost.
+inline fn darkenW(comptime pool: bool, w: u32, top: u32) u32 {
     const level = ((w & 0x07070707) + LO) & TOP; // bit 7 of a byte: level != 0 (level <= 7, so no carry out of the byte)
     const ramp = (((w >> 4) & 0x0F0F0F0F) + LO) & TOP; // ...: index >= 16
-    return w - ((level & ramp) >> 7);
+    if (!pool) return w - ((level & ramp) >> 7);
+    const below = (top -% ((w >> 1) & LO)) & TOP; // ...: index < keep_from (no borrows: 0x80 + y - x > 0)
+    return w - ((level & ramp & below) >> 7);
 }
 
 fn realByte(p: *u8) void {
@@ -38,9 +51,15 @@ fn realByte(p: *u8) void {
     if (break_two) p.* = darken(p.*);
 }
 
-fn realWord(p: *u32) void {
-    p.* = darkenWord(p.*);
-    if (break_two) p.* = darkenWord(p.*);
+fn realWords(comptime pool: bool, from: usize, to: usize) usize {
+    const top = poolTop();
+    var a = from;
+    while (a + 4 <= to) : (a += 4) {
+        const p: *u32 = @ptrFromInt(a);
+        p.* = darkenW(pool, p.*, top);
+        if (break_two) p.* = darkenW(pool, p.*, top);
+    }
+    return a;
 }
 
 /// Shade the pixels [x0, x1) of the row at `row` (the plane's address of pixel 0 of row y).
@@ -60,7 +79,7 @@ pub fn span(row: usize, y: i32, x0: i32, x1: i32) void {
         return;
     }
     while (a < e and a & 3 != 0) : (a += 1) realByte(@ptrFromInt(a));
-    while (a + 4 <= e) : (a += 4) realWord(@ptrFromInt(a));
+    a = if (keep_from < 256) realWords(true, a, e) else realWords(false, a, e);
     while (a < e) : (a += 1) realByte(@ptrFromInt(a));
 }
 
