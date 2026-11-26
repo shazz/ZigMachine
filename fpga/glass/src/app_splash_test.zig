@@ -101,7 +101,7 @@ test "first boot: the splash runs as a plain cart, then KOS powers on when it as
     try std.testing.expectEqual(@as(?u32, null), rig.kos(&r.words)); // no KOS boot words: no POST yet
     a.tick();
     try std.testing.expect(a.splash.disk != null); // still playing
-    now += 4833; // frame 290 at 60 Hz
+    now += 8467; // frame 508 at 60 Hz (AURORA BOOT asks to leave on its black last frame)
     r.glass.request = mc.REQ_BACK; // the cart is black and asks to leave (demo_main -1)
     a.tick();
     try onDesktop(r, a);
@@ -239,7 +239,7 @@ test "no OSD while the splash loads and plays, not even the F11 overlay; the OSD
     @import("app_stats.zig").toast(a, "hello");
     a.tick();
     try std.testing.expectEqual(@as(u32, 0), r.glass.ctrl & OSD_BITS);
-    now += 4833;
+    now += 8467;
     r.glass.request = mc.REQ_BACK;
     a.tick();
     try onDesktop(r, a);

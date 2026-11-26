@@ -72,6 +72,8 @@ SHELF = (
     "tri_test",
     # The Hatari benchmark suite (apps/c/bench): CoreMark, Dhrystone, Whetstone, LINPACK (double, f32), RAM.
     "c-bench",
+    # The boot screen glass plays at power-on (glass/src/app_splash.zig DISK, docs/boot/AURORA_BOOT.md).
+    "aurora_boot",
 )  # fmt: skip
 OS_CART = "gem"  # KOS's desktop: what the browser boots for a data disk or an empty drive
 DESKTOP_FILE = "kos/desktop.rv32"  # glass/src/app_drive.zig DESKTOP

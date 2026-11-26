@@ -4,12 +4,13 @@
 // (apps/zig/assets/screens/aurora_boot/aurora_ref.json):
 //   sky       frame 10: the true-colour plane is the reference sky, byte for byte
 //   aurora    each probed aurora frame j, once fully shown (its second 60 Hz frame): the plane = the reference's
-//             base + palette[index] add, byte for byte (the cart's ZX0 + delta + add loop equals numpy's)
+//             final 565 picture, byte for byte (the cart's change-mask + nibble-code add equals the baker's)
 //   gone      the aurora's last frame restores the sky exactly
-//   stars     at the probed records every baked star pixel is lit on plane 1 (8-bit, over the TC plane)
+//   stars     at the probed records every baked star pixel is lit on plane 1 (8-bit, over the TC plane); the plane
+//             is baked per 60 Hz frame: plane 1 at the baker's probe frames is its plane, byte for byte
 //   flight    plane 1 changes every frame while the stars fly; the wire (palette entry 16) is absent before the
-//             falcon forms and present at the hold; the name (entry 17) only from its beat
-//   fade      TC_FADE is 0 until the end and 31 at the last record; the composed picture is black from then on
+//             falcon forms and present at the hold; the baked name (entries 128..255) only from its beat
+//   fade      TC_FADE starts at 31 (black) and falls to 0 over the fade-in (the sky fades in), stays 0, and is 31 at the last record; the composed picture is black from then on
 //   end       the cart asks to leave (pollCartRequest -1) from the last frame, never before
 //   sound     ONE sample op (zg.samplePlay) at frame 0: signed 8-bit at the baked rate, the bytes the baker wrote
 //             (md5), not looped, never stopped: it lasts as long as the picture (a frame of slack)
@@ -136,16 +137,29 @@ function checks({ shots, replay }) {
         const miss = xy.filter(([x, y]) => x >= 0 && x < 320 && y >= 0 && y < 200 && s[y * 320 + x] === 0).length;
         need(miss === 0, `stars: record ${rec}: ${miss} baked star pixels are not lit on plane 1`);
     }
+    // The star plane is baked per 60 Hz frame (tools/boot/aurora_overlay.py): the plane at its probes is the baker's, byte for byte.
+    need(Object.keys(ref.overlay_md5 ?? {}).length > 0, "overlay: the reference pins no plane-1 frame");
+    for (const [f, want] of Object.entries(ref.overlay_md5 ?? {})) need(at(shots, +f).stmd5 === want, `overlay: plane 1 at frame ${f} is not the baked one`);
     const t0 = Math.round(1.7 * 60) + 2, t1 = Math.round(5.1 * 60);
     let moved = 0;
     for (let k = t0 + 1; k < t1; k++) moved += at(shots, k).stmd5 !== at(shots, k - 1).stmd5;
     need(moved >= (t1 - t0) * 0.9, `flight: plane 1 changed on ${moved} of ${t1 - t0} frames`);
     need(count(at(shots, 100).st, 16) === 0, "wire: lines drawn before the falcon forms");
     need(count(at(shots, 400).st, 16) > 150, `wire: only ${count(at(shots, 400).st, 16)} line pixels at the hold`);
-    need(count(at(shots, 200).st, 17) === 0 && count(at(shots, 400).st, 17) > 500, "word: the name is not lit only from its beat");
-    for (let k = 0; k < LAST; k++) { need(at(shots, k).fade === 0 || k > LAST - 40, `fade: TC_FADE ${at(shots, k).fade} at frame ${k}`); if (bad.length > 20) break; }
+    const img = (a) => { let n = 0; for (const v of a) n += v >= 128; return n; }; // the baked name, entries 128..255
+    need(shots.every((s) => count(s.st, 17) === 0) && img(at(shots, 200).st) === 0 && img(at(shots, 400).st) > 0.8 * ref.word_px, `word: the baked name is not drawn only from its beat (${img(at(shots, 400).st)} pixels at the hold)`);
+    // The sky fades in from black (ref.fade_in_frames 60 Hz frames), is 0 until the end fade.
+    const fin = ref.fade_in_frames;
+    need(fin > 0, "fade-in: the reference has no fade-in");
+    {
+        need(at(shots, 0).fade >= 30, `fade-in: TC_FADE ${at(shots, 0).fade} at frame 0 (31 = black expected)`);
+        need(at(shots, Math.floor(fin / 2)).fade > 5 && at(shots, Math.floor(fin / 2)).fade < 26, `fade-in: TC_FADE ${at(shots, Math.floor(fin / 2)).fade} halfway (a ramp expected)`);
+        for (let k = 1; k < fin; k++) need(at(shots, k).fade <= at(shots, k - 1).fade, `fade-in: TC_FADE rises at frame ${k}`);
+    }
+    for (let k = fin + 1; k < LAST - 40; k++) { need(at(shots, k).fade === 0, `fade: TC_FADE ${at(shots, k).fade} at frame ${k} (0 from the end of the fade-in)`); if (bad.length > 20) break; }
     need(at(shots, LAST).fade === 31, `fade: ${at(shots, LAST).fade} at the last frame (31 expected)`);
-    need(at(shots, 30).lit > 20000 && at(shots, 400).lit > 20000, "picture: the sky is not lit");
+    need(at(shots, 90).lit > 20000 && at(shots, 400).lit > 20000, "picture: the sky is not lit");
+    need(at(shots, 0).lit < 2000, `fade-in: ${at(shots, 0).lit} lit pixels at frame 0 (black expected)`);
     for (let k = LAST; k < FRAMES; k++) need(at(shots, k).lit === 0, `black end: frame ${k} is not black`);
     const asked = shots.findIndex((s) => s.req === -1);
     need(asked === LAST && shots.slice(asked).every((s) => s.req === -1), `end: asks to leave from frame ${asked} (${LAST} expected, then every frame)`);

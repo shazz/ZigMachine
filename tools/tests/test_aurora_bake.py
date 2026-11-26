@@ -1,4 +1,4 @@
-"""The Aurora boot baker (tools/boot/): settings, photo, palette, packing, falcon, sound and a tiny end-to-end bake.
+"""The Aurora boot baker (tools/boot/): settings, photo, packing, falcon, sound and a tiny end-to-end bake.
 
 Needs numpy + pillow: the gate runs it as `uv run --with numpy --with pillow python -m unittest tools.tests.test_aurora_bake`.
 Plain `unittest discover` (system python, no numpy) skips the module loudly instead of failing.
@@ -21,7 +21,6 @@ import aurora_bake as bake  # noqa: E402
 import aurora_common as common  # noqa: E402
 import aurora_falcon as falcon  # noqa: E402
 import aurora_pack as pack  # noqa: E402
-import aurora_palette as palette  # noqa: E402
 import aurora_photo as photo  # noqa: E402
 import aurora_sound as sound  # noqa: E402
 
@@ -29,6 +28,7 @@ SETTINGS = ROOT / "tools/boot/aurora_settings.json"
 PHOTO = ROOT / "apps/zig/assets/screens/aurora_boot/stars2.jpg"
 WAV = ROOT / "apps/zig/assets/screens/aurora_boot/boot_northern_lights_8s5.wav"
 ZX0PACK = ROOT / "zig-out/bin/zx0pack"
+FONT = bake.FONT  # local only (never committed): without it the end-to-end bake is skipped
 
 
 class SettingsTest(unittest.TestCase):
@@ -70,66 +70,44 @@ class PhotoTest(unittest.TestCase):
         rgb = photo.resize_cover(PHOTO)
         stars, cleaned = photo.extract(rgb, 0.10)
         self.assertEqual(rgb.shape, (200, 320, 3))
-        self.assertEqual(len(stars), 237)  # the lab's JSON says 254 with the browser's resampler
+        self.assertEqual(len(stars), 214)  # 237 over the whole height; the lab's JSON says 254 with the browser's resampler
         x, y, _, _ = stars[0]
-        self.assertTrue((cleaned[y - 1:y + 2, x - 1:x + 2] == cleaned[y, x]).all())
+        self.assertGreater(int(rgb[y, x].max()), int(cleaned[y, x].max()))  # the star's own pixel is no longer the peak
         self.assertGreater(len(stars), len(photo.extract(cleaned, 0.10)[0]))
 
 
-class PaletteTest(unittest.TestCase):
-    def test_few_colours_are_kept_exactly_and_zero_stays_zero(self):
-        keys = np.array([0, 1, 33, 1, 33, 2049, 0], dtype=np.uint16)
-        uniq, counts = palette.histogram(keys)
-        pal = palette.build(uniq, counts, 256)
-        idx = palette.quantise(keys, uniq, pal)
-        self.assertTrue((pal[idx] == palette.unpack(keys)).all())
-        self.assertEqual(tuple(pal[0]), (0, 0, 0))
-        self.assertEqual(idx[0], 0)
+class StarBandTest(unittest.TestCase):
+    def _sky(self):
+        yy, xx = np.mgrid[0:200, 0:320]
+        base = (20 + yy * 0.8 + xx * 0.4)[..., None] * np.array([1.0, 1.2, 1.0])
+        img = np.clip(base, 0, 255)
+        for x, y in ((50, 30), (100, 120), (60, 150)):
+            img[y, x] = 250
+        return img.astype(np.uint8)
 
-    def test_palette_never_exceeds_256_and_error_is_a_few_levels(self):
-        rng = np.random.default_rng(3)
-        keys = (rng.integers(0, 24, 5000) | (rng.integers(0, 48, 5000) << 5) | (rng.integers(0, 24, 5000) << 11)).astype(np.uint16)
-        uniq, counts = palette.histogram(keys)
-        pal = palette.build(uniq, counts, 256)
-        self.assertLessEqual(len(pal), 256)
-        _, worst = palette.error(uniq, counts, pal, palette._nearest(palette.unpack(uniq).astype(float), pal.astype(float)))
-        self.assertLessEqual(worst.max(), 6)
+    def test_no_star_is_found_below_the_band(self):
+        stars, _ = photo.extract(self._sky(), 0.10, band=(0.0, 70.0))
+        self.assertEqual(sorted((x, y) for x, y, _, _ in stars), [(50, 30), (100, 120)])  # row 150 is 75 %
+        self.assertTrue(all(y < 140 for _, y, _, _ in stars))
+        low, _ = photo.extract(self._sky(), 0.10, band=(0.0, 100.0))
+        self.assertIn((60, 150), [(x, y) for x, y, _, _ in low])  # it IS a detectable star: only the band excluded it
 
-    def test_bad_sizes_and_empty_input_are_refused(self):
-        uniq, counts = palette.histogram(np.array([5, 9], dtype=np.uint16))
-        with self.assertRaises(palette.PaletteError):
-            palette.build(uniq, counts, 300)
-        with self.assertRaises(palette.PaletteError):
-            palette.build(*palette.histogram(np.zeros(4, dtype=np.uint16)), size=16)
+    def test_a_band_that_starts_lower_skips_the_top(self):
+        stars, _ = photo.extract(self._sky(), 0.10, band=(30.0, 100.0))
+        self.assertEqual(sorted((x, y) for x, y, _, _ in stars), [(60, 150), (100, 120)])
+
+    def test_painting_a_star_out_of_a_gradient_leaves_no_flat_block_and_no_star(self):
+        img = self._sky()
+        _, cleaned = photo.extract(img, 0.10)
+        block = cleaned[29:32, 49:52, 1].astype(int)
+        self.assertGreater(len(set(block.ravel().tolist())), 3)  # a gradient, not one flat value
+        ref = np.asarray(self._sky(), dtype=int)
+        ref[30, 50] = ref[30, 49]
+        self.assertLessEqual(np.abs(cleaned[29:32, 49:52].astype(int) - ref[29:32, 49:52]).max(), 4)
+        self.assertLess(int(cleaned[30, 50, 1]), 100)  # the 250 spike is gone
 
 
 class PackTest(unittest.TestCase):
-    def setUp(self):
-        self.pal = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2], [10, 20, 10]], dtype=np.int16)
-
-    def test_hysteresis_error_is_bounded_and_the_last_frame_exact(self):
-        idx = np.array([[[1]], [[2]], [[3]], [[0]]], dtype=np.uint8)
-        held = pack.hysteresis(idx, self.pal, 2)
-        err = np.abs(self.pal[held] - self.pal[idx]).max()
-        self.assertLessEqual(err, 2)
-        self.assertEqual(int(held[-1, 0, 0]), 0)
-
-    def test_deltas_round_trip_mod_256(self):
-        idx = np.array([[[0, 200]], [[255, 3]], [[1, 0]]], dtype=np.uint8)
-        self.assertTrue((pack.undelta(pack.deltas(idx)) == idx).all())
-
-    def test_entries_that_would_overflow_are_replaced_by_one_that_fits(self):
-        idx = np.array([[[3, 3]]], dtype=np.uint8)  # entry 3 adds (10, 20, 10)
-        room = np.array([[[31, 63, 31], [5, 5, 5]]])
-        n = pack.fit_headroom(idx, self.pal, room)
-        self.assertEqual(n, 1)
-        self.assertTrue((self.pal[idx] <= room[None]).all())
-        self.assertEqual(int(idx[0, 0, 0]), 3)
-
-    def test_band_of_an_empty_aurora_is_refused(self):
-        with self.assertRaises(pack.PackError):
-            pack.band_rows(np.zeros((2, 8, 8), dtype=np.uint16))
-
     def test_missing_packer_is_a_clear_error(self):
         with tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(pack.PackError, "zx0pack not found"):
             pack.zx0(b"abc", "/nonexistent/zx0pack", d)
@@ -173,7 +151,13 @@ class SoundTest(unittest.TestCase):
                 sound.read_wav(p)
 
 
-@unittest.skipUnless(ZX0PACK.exists(), f"{ZX0PACK} not built (zig build installs it): the end-to-end bake is skipped")
+class FontTest(unittest.TestCase):
+    def test_a_missing_font_is_refused_before_any_rendering(self):
+        with tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(bake.WordError, "font not found"):
+            bake.bake(SETTINGS, PHOTO, d, ZX0PACK, frames=2, sound=WAV, font=Path(d, "none.otf"))
+
+
+@unittest.skipUnless(ZX0PACK.exists() and FONT.exists(), f"{ZX0PACK} (zig build) or the local font {FONT}: the end-to-end bake is skipped")
 class BakeTest(unittest.TestCase):
     def test_two_frame_bake_is_deterministic_and_complete(self):
         outs = []
@@ -182,9 +166,13 @@ class BakeTest(unittest.TestCase):
             bake.bake(SETTINGS, PHOTO, d, ZX0PACK, frames=2, sound=WAV)
             outs.append({f.name: f.read_bytes() for f in Path(d).iterdir()})
         self.assertEqual(outs[0], outs[1])
-        self.assertEqual(sorted(outs[0]), ["aurora.idx", "aurora.zx0", "aurora_meta.zig", "aurora_ref.json", "boot.raw", "sky.zx0", "stars.zx0"])
-        self.assertIn(b"pub const N_STARS: u32 = 237;", outs[0]["aurora_meta.zig"])
-        self.assertEqual(len(outs[0]["boot.raw"]), json.loads(outs[0]["aurora_ref.json"])["sizes"]["sound"])
+        self.assertEqual(sorted(outs[0]), ["aurora.idx", "aurora.msk", "aurora_meta.zig", "aurora_ref.json", "boot.raw", "overlay.bin",
+                                           "sky.zx0", "word.bin"])
+        self.assertIn(b"pub const N_STARS: u32 = 214;", outs[0]["aurora_meta.zig"])
+        self.assertIn(b"pub const AURORA_FRAMES: u32 = 3;", outs[0]["aurora_meta.zig"])
+        ref = json.loads(outs[0]["aurora_ref.json"])
+        self.assertEqual(len(outs[0]["boot.raw"]), ref["sizes"]["sound"])
+        self.assertEqual(sorted(ref["overlay_md5"]), sorted(str(f) for f in bake.aset.OVERLAY_PROBES))
 
 
 if __name__ == "__main__":

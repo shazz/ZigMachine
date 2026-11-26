@@ -53,21 +53,27 @@ def aces(x):
     return np.clip((x * (F(2.51) * x + F(.03))) / (x * (F(2.43) * x + F(.59)) + F(.14)), 0, 1)
 
 
-def picture(scene, p):
-    """FS_OUT: scene (already x.25) + glow, ACES, gamma, quantised to RGB565 integer levels (H, W, 3)."""
+def picture_f(scene, p):
+    """FS_OUT before the quantiser: scene (already x.25) + glow, ACES, gamma, in float 565 levels (H, W, 3)."""
     c = scene * 4 + upsample(blur(scene)) * 4 * F(p["bloom"])
-    c = np.power(aces(c * F(p["exposure"])), F(1 / 2.2))
-    return np.floor(c * LEVELS + F(.5)).astype(np.int16)
+    return np.power(aces(c * F(p["exposure"])), F(1 / 2.2)) * LEVELS
+
+
+def picture(scene, p):
+    """FS_OUT: the lab's picture quantised to RGB565 integer levels (H, W, 3), no dither."""
+    return np.floor(picture_f(scene, p) + F(.5)).astype(np.int16)
 
 
 def diff_levels(base_scene, acc, env, p):
-    """RGB565 level difference (with aurora - without), >= 0 per channel since ACES is monotone."""
+    """(base 565 levels, the aurora's light in FLOAT 565 levels): with - without, >= 0 per channel (ACES is monotone)."""
     lit = base_scene + acc * F(p["gain"] * env * .045 * .25)
-    base_q = picture(base_scene, p)
-    d = picture(lit, p) - base_q
-    if d.min() < 0:
+    base_f = picture_f(base_scene, p)
+    # The aurora's own light in float levels, THEN rounded: rounding (with) - (without) separately would let the
+    # photo's grain decide where each channel steps, which reads as per-pixel speckle; this gives clean contours.
+    d = picture_f(lit, p) - base_f
+    if d.min() < -1e-4:
         raise ValueError("aurora made a channel darker: the add-in-565 playback would be wrong")
-    return base_q, d.astype(np.uint8)
+    return np.floor(base_f + F(.5)).astype(np.int16), np.maximum(d, 0).astype(F)
 
 
 def key565(d):

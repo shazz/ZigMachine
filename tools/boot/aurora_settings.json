@@ -39,5 +39,8 @@
  "swirl": 0.55,
  "wingHz": 0.1,
  "wingAmp": 0.42,
- "sky": "stars2.jpg: royalty-free photo from PickPik (see apps/zig/assets/screens/aurora_boot/SOURCE_stars2.txt)"
+ "sky": "stars2.jpg: royalty-free photo from PickPik (see apps/zig/assets/screens/aurora_boot/SOURCE_stars2.txt)",
+ "bandTop": 0,
+ "bandBot": 70,
+ "fadeInSky": 0.8
 }
