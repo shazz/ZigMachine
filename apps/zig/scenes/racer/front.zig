@@ -8,7 +8,7 @@
 //   select   up / down: the cursor (loading that track; a file the loader refuses is marked bad and
 //            named with its reason); fire / Enter: the race on it (refused, with a message, for a bad
 //            file or a benchmark-only track); Backspace: the title.
-//   grid     (a race picked here) Backspace: back to the select.
+//   grid     (a race's) Backspace: back to the select; so does Backspace in the bare benchmark view.
 //   results  fire: the select; Backspace: the title; Enter / r: again (keys.zig, as in M3).
 // Any other key on the title or the select (a digit, t, A-H, e, x, ...) leaves the front end for the
 // bare benchmark view first, then does what it always did: every M1-M5 harness and board recipe
@@ -89,8 +89,9 @@ pub fn update(d: anytype) void {
 /// A key on a front-end screen; true: taken.
 pub fn key(d: anytype, cp: u32) bool {
     const st = screen(d) orelse {
-        if (cp == 8 and d.game.mode == .race and d.game.s.fsm.state == .grid) return toSelect(d, .back);
-        return false;
+        if (cp != 8 or d.drive.mode != .off or d.game.s.fsm.state != .grid or d.game.mode == .bench) return false;
+        d.pose = null; // a race's grid, or the bench view (its idle session sits on the grid): back to the select
+        return toSelect(d, .back);
     };
     switch (cp) {
         13 => return switch (st) {

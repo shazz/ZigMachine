@@ -7,7 +7,7 @@
 //   3. SALT: its outline, its lap length and its own race clock (computed from its line: CLOCK 107S +15S) on screen,
 //      the screen pinned; fire races it: grid, then (recorded pilot, warp) countdown ... results;
 //   4. the RESULTS screen: RESULTS SALT, the player's row, pinned; fire: the select again, with SALT's best lap now set;
-//      Backspace: the title; from a grid, Backspace: the select;
+//      Backspace: the title; from a grid or the bare benchmark view, Backspace: the select;
 //   5. --break refuse (key J: the scan's refusals not listed), clock (key U: every computed clock back to 75 s + 10 s),
 //      fsm (key V: the results' fire goes to the title): each must be caught.
 //   node apps/harness/racer_front.mjs [<shot dir>] [--break refuse|clock|fsm] [--print-pins]
@@ -147,6 +147,8 @@ async function race(B) {
     if (B.fronts().slice(-2).join(" ") !== "off select") fail(`Backspace on a grid: ${B.fronts().slice(-3)}, want the select`);
     key(B.S, "t"); B.run(2);
     if (B.fronts().at(-1) !== "off") fail("a debug key (t) on the select did not leave the front end");
+    key(B.S, "\b"); B.run(2);
+    if (B.fronts().at(-1) !== "select") fail(`Backspace in the bench view: ${B.fronts().at(-1)}, want the select`);
 }
 
 const B = await boot();

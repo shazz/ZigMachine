@@ -62,23 +62,14 @@ fn info(d: anytype, os: *zg.ZigOS, fb: *zg.LogicalFB, p: menu.Px) void {
     const e = &d.lib.list[f.cursor];
     var y: i32 = MAP[1] + MAP[3] + 6;
     const x = INFO[0] + 4;
-    if (e.bad or f.cursor != d.which) {
-        fd.text(os, fb, e.label(), x, y, menu.ALERT);
-        fd.text(os, fb, "REFUSED:", x, y + ROW + 2, menu.ALERT);
-        fd.text(os, fb, e.why, x, y + 2 * ROW + 2, menu.ALERT);
-        return;
-    }
+    if (e.bad or f.cursor != d.which) return refused(os, fb, e, x, y);
     outline(d, p);
     const t = d.cur();
     var b: [4][24]u8 = undefined;
     var nb: [24]u8 = undefined;
     fd.text(os, fb, std.ascii.upperString(&nb, std.mem.sliceTo(&t.name, 0)), x, y, menu.HILITE);
     y += ROW + 2;
-    if (t.mood.flags & trk.BENCH_ONLY != 0) {
-        fd.text(os, fb, "BENCH ONLY:", x, y, menu.ALERT);
-        fd.text(os, fb, "NO RACE HERE", x, y + ROW, menu.ALERT);
-        return;
-    }
+    if (t.mood.flags & trk.BENCH_ONLY != 0) return benchOnly(os, fb, x, y);
     const c = f.clk;
     const lines = [_][]const u8{
         std.fmt.bufPrint(&b[0], "LAP {} M  {} LAPS", .{ f.lap_m, rules.LAPS }) catch "",
@@ -91,6 +82,17 @@ fn info(d: anytype, os: *zg.ZigOS, fb: *zg.LogicalFB, p: menu.Px) void {
         y += ROW;
     }
     if (f.msg.len != 0) fd.text(os, fb, f.msg, x, y + 2, menu.ALERT);
+}
+
+fn refused(os: *zg.ZigOS, fb: *zg.LogicalFB, e: anytype, x: i32, y: i32) void {
+    fd.text(os, fb, e.label(), x, y, menu.ALERT);
+    fd.text(os, fb, "REFUSED:", x, y + ROW + 2, menu.ALERT);
+    fd.text(os, fb, e.why, x, y + 2 * ROW + 2, menu.ALERT);
+}
+
+fn benchOnly(os: *zg.ZigOS, fb: *zg.LogicalFB, x: i32, y: i32) void {
+    fd.text(os, fb, "BENCH ONLY:", x, y, menu.ALERT);
+    fd.text(os, fb, "NO RACE HERE", x, y + ROW, menu.ALERT);
 }
 
 fn record(buf: []u8, head: []const u8, t: u32) []const u8 {
