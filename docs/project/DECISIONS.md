@@ -2352,3 +2352,27 @@ a haze ramp per (ramp, band) (8 x 15 x 4 entries: no room).
 **Consequences:** a LUT load a polygon, ~0.02-0.04 Mc a frame; haze off is byte-identical to M5 (gated). A track with a
 full palette (Neon Docks' 29 ramps, the 32X courses) has no room: the converter refuses a haze there and the cart shows
 NO ROOM. Faces change band whole (flat-shaded faces), so a long face can step at a band edge.
+
+## 2026-11-27 — Kestrel Racing has two physics: CLASSIC (freds72's, the Lua's) and ARCADE (ours, the 32X feel, the default)
+
+**Status:** accepted (R82, docs/ports/kestrel_racing/FEEL.md)
+**Context:** Matt (27 Nov) wants the 32X's driving feel and real speed ("scale up the cars, and give speed"). Our physics
+is freds72's Lua bit for bit (M2/M3), and every physics, race and result pin is proven against that oracle under z8lua;
+any retuning breaks the oracle. The 32X's own tables cannot go into the cart (Sega data). freds72's speedometer makes a
+unit 8.33 m; our Track Kit roads are authored at about a metre a unit, the 32X's at about 4 m.
+**Decision:** keep freds72's physics as CLASSIC, untouched, and add ARCADE beside it, chosen per race (the PHYSICS option,
+default ARCADE). ARCADE keeps freds72's steering, tyres, yaw and contacts, and replaces the forward speed with our engine
+curves (a few control points per class, fitted on an integer Python twin to times measured from the 32X and kept
+locally), its walls with the 32X's behaviour in our code (roll back to the last free quarter step, turn onto the surface
+heading, crash and respawn when hard), and adds a per-track world scale (positions move vel x world in sub-steps; the
+velocity stays in freds72's units, so km/h and handling are his) and car scale, in an optional 4-byte tail of the mood
+block (absent = 1). The AI holds per-segment speed cues baked by the Track Kit into the line flags' high byte (0 = none).
+The reference's drivers (the bench laps, the recorded stream, the pilot under `a`) always run CLASSIC.
+**Alternatives considered:** retune freds72's model in place and move the Lua oracle with it (every M2/M3 pin moves and
+the oracle stops being freds72's); copy the 32X's torque/drag/gear/AI tables (Sega data in the cart); regenerate our tracks
+at the 32X's scale instead of a scale field (the lead's call; not needed to ship the feel); a Python twin of the whole
+arcade race (a second copy of freds72's lateral model, which the CLASSIC pins already prove: the Zig model is the race's
+oracle, the twin covers the part we fitted).
+**Consequences:** every CLASSIC pin is unmoved and proven; ARCADE has its own (the twin's per-class pins, an oval race CRC,
+a Salt Flats race result). Our Kit tracks at 2 m a unit are a compromise (roads twice real, laps about real); a real-width
+road needs regenerated geometry. Old track files load unchanged (no tail, no cues: freds72's brake rule for the AI).

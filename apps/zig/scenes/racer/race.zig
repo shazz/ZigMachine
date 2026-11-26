@@ -12,6 +12,8 @@
 const std = @import("std");
 const car = @import("car.zig");
 const contacts = @import("contacts.zig");
+const arcade = @import("arcade.zig");
+const fix = @import("fix.zig");
 const npc = @import("npc.zig");
 const seg = @import("seg.zig");
 const trk = @import("trk.zig");
@@ -47,6 +49,17 @@ pub const Race = struct {
             c.npc = k > 0;
         }
         return r;
+    }
+
+    /// Every car's physics (R82 32X feel): CLASSIC (freds72's, the default) or ARCADE at the track's world and car scales.
+    pub fn setModel(self: *Race, m: arcade.Model) void {
+        const world: i32 = @as(i32, self.t.scale.world) << 8;
+        const size: i32 = @as(i32, self.t.scale.car) << 8;
+        for (self.cars[0..self.n]) |*c| {
+            c.model = m;
+            c.world = if (m == .arcade) world else fix.ONE;
+            c.size = if (m == .arcade) size else fix.ONE;
+        }
     }
 
     /// One 30 Hz tick of every car; `buttons` are the player's.

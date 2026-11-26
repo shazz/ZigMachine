@@ -49,6 +49,13 @@ pub fn zoned(t: *const trk.Track, p: cam.Pov, o: [3]i32, u: i32) [3]i32 {
     return zone.blend(o, params(.near), zone.weight(t, zone.ofU(t, u)));
 }
 
+/// The offsets for a car drawn `size` times its model (R82 32X feel): back and height grow with it, the pitch stays, so
+/// the car fills the screen as it does at size 1 while the road around it reads `size` times narrower.
+pub fn sized(o: [3]i32, size: i32) [3]i32 {
+    if (size == 0x10000) return o;
+    return .{ fx.mulsh16(o[0], size), fx.mulsh16(o[1], size), o[2] };
+}
+
 /// The camera behind the car at `pos`, heading `angle` (turns, Q16).
 pub fn pose(pos: [3]i32, angle: i32, o: [3]i32) cam.Pose {
     const yaw: u32 = @as(u32, @as(u16, @truncate(@as(u32, @bitCast(angle))))) << 16;

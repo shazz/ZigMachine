@@ -9,6 +9,10 @@ file's last, 32 bytes, inside the CRC:
     26 draw distance cap (tiles 3..8; 0 = the player's, R 8)                   M5 finish: a track too heavy at R 8 on the board
     27 haze RGB (3) | 30 haze start (x/256 of R) | 31 haze strength (x/255)      M6 (haze.zig); strength 0 = none, then 27..30 zero
 
+    32 world scale u16 Q8 | 34 car scale u16 Q8                                R82 32X feel, OPTIONAL (a 36-byte block): the
+                                                                               ARCADE physics moves a car vel x world (256 = freds72's
+                                                                               world) and sizes it x car; absent = 256, 256
+
 flags bit 0 BENCH_ONLY: no racing line worth driving (the stress city): drive and race modes go back to the oval.
 backdrop: the panorama strip's shape (apps/zig/scenes/racer/backdrop.zig, tools/racer/ref_sky.py): 0 hills, 1 docks, 2 peaks.
 The cart refuses a block with a ramp past the palette, a level over 7, unknown flags, an unknown backdrop, a clock over
@@ -23,6 +27,8 @@ from typing import Final
 
 RGB = tuple[int, int, int]
 SIZE: Final = 32
+SCALED: Final = 36  # with the optional world / car scales
+SCALE_ONE, SCALE_MIN, SCALE_MAX = 256, 64, 4096  # Q8: 1, 1/4, 16 (apps/zig/scenes/racer/trk.zig)
 WORD: Final = 25
 BENCH_ONLY: Final = 1
 BACKDROPS: Final = ("hills", "docks", "peaks")
@@ -43,8 +49,20 @@ class Mood:
     haze: RGB = (0, 0, 0)  # M6: the horizon haze's colour (apps/zig/scenes/racer/haze.zig)
     haze_start: int = 0  # where it starts, x/256 of the draw distance
     haze_strength: int = 0  # its blend at the draw distance, x/255; 0 = no haze
+    world: int = SCALE_ONE  # R82 32X feel: the arcade's displacement scale, Q8 (FEEL.md)
+    car: int = SCALE_ONE  # ... and its car size, Q8
 
     def pack(self) -> bytes:
+        return self._base() + self._scale()
+
+    def _scale(self) -> bytes:
+        if not (SCALE_MIN <= self.world <= SCALE_MAX and SCALE_MIN <= self.car <= SCALE_MAX):
+            raise ValueError(f"mood world {self.world} / car {self.car}: Q8 {SCALE_MIN}..{SCALE_MAX}")
+        if (self.world, self.car) == (SCALE_ONE, SCALE_ONE):
+            return b""  # the 32-byte block every earlier file has
+        return struct.pack("<2H", self.world, self.car)
+
+    def _base(self) -> bytes:
         if not (0 <= self.ground_level <= 7 and self.backdrop < len(BACKDROPS) and self.flags & ~BENCH_ONLY == 0):
             raise ValueError(f"mood {self}: level 0..7, backdrop < {len(BACKDROPS)}, flags {BENCH_ONLY} only")
         if not all(0 <= c <= m for c, m in zip(self.clock, MAX_CLOCK, strict=True)):
@@ -66,9 +84,11 @@ def unpack(blob: bytes) -> Mood:
     at = struct.unpack_from("<I", blob, 4 * WORD)[0]
     if at == 0:
         return Mood()
-    b = blob[at:at + SIZE]
+    b = blob[at:]
     rgb = [(b[4 + 4 * k], b[5 + 4 * k], b[6 + 4 * k]) for k in range(5)]
-    return Mood(b[0], b[1], b[2], b[3], (rgb[0], rgb[1]), (rgb[2], rgb[3], rgb[4]), (b[24], b[25]), b[26], (b[27], b[28], b[29]), b[30], b[31])
+    world, car = struct.unpack_from("<2H", b, SIZE) if len(b) == SCALED else (SCALE_ONE, SCALE_ONE)
+    return Mood(b[0], b[1], b[2], b[3], (rgb[0], rgb[1]), (rgb[2], rgb[3], rgb[4]), (b[24], b[25]), b[26], (b[27], b[28], b[29]), b[30], b[31],
+                world, car)
 
 
 CAR_RAMPS: Final = range(12, 19)  # the cars' ramps (carmodel.zig: body, dark, glass, the 4 liveries): never hazed entries

@@ -13,7 +13,9 @@ are pinned as trackc writes them).
 
 from __future__ import annotations
 
-from racer import bake, budget, ktrk, limits, mood, trackc
+from typing import Final
+
+from racer import bake, budget, cues, ktrk, limits, mood, trackc
 from racer.ktrk import Doc
 
 GROUND_RAMP = 1  # trackset.zig: the far ground is ramp 1 on every track
@@ -83,12 +85,27 @@ def look(doc: Doc) -> mood.Mood:
     haze = _haze(doc)
     m = mood.Mood(GROUND_RAMP, bake.level((0.0, 1.0, 0.0), sun(doc)), 0, mood.BACKDROPS.index(shape),
                   (sky[0], sky[1]) if sky else base.sky, (hills[0], hills[1], hills[2]) if hills else base.hills,
-                  (clock[0], clock[1]), draw_r, *haze)
+                  (clock[0], clock[1]), draw_r, *haze, *_scale(doc))
     try:
         m.pack()  # its range checks (a clock over mood.MAX_CLOCK)
     except ValueError as e:
         raise trackc.ConvertError(str(e)) from e
     return m
+
+
+# R82 32X feel (FEEL.md): a Track Kit track is authored at about a metre a unit (its roads 10-12 units), far smaller than
+# freds72's world (his speedometer makes a unit ~8.3 m). Its ARCADE scales: the ground moves KIT_WORLD x freds72's at the
+# same km/h (2 m a unit: roads 20-24 m, laps 1.3-2 km) and the car is drawn KIT_CAR x the GT (4.5 m long at 2 m a unit).
+KIT_WORLD: Final = 1067  # Q8: 8.33 / 2
+KIT_CAR: Final = 640  # Q8: 2.25 units / the GT's 0.9
+
+
+def _scale(doc: Doc) -> tuple[int, int]:
+    """The arcade world and car scales (mood `world`, `car`, Q8), the Kit's by default."""
+    w, c = doc["mood"].get("world", KIT_WORLD), doc["mood"].get("car", KIT_CAR)
+    if not all(isinstance(x, int) and mood.SCALE_MIN <= x <= mood.SCALE_MAX for x in (w, c)):
+        raise trackc.ConvertError(f"mood world {w!r} / car {c!r}: Q8 ints {mood.SCALE_MIN}..{mood.SCALE_MAX}")
+    return w, c
 
 
 def _haze(doc: Doc) -> tuple[tuple[int, int, int], int, int]:
@@ -108,6 +125,8 @@ def convert(doc: Doc) -> bytes:
         raise trackc.ConvertError("; ".join(errs[:5]))
     at, mats = ramps(doc)
     m = look(doc)
+    doc = {**doc, "racing_line": [dict(s) for s in doc["racing_line"]]}  # the cues go on a copy
+    cues.apply(doc, m.world)
     blob = trackc.convert(doc, mats, shade=bake.shader(at, sun(doc)), look=m)
     n, room = mood.haze_room(blob)
     if m.haze_strength and n > room:

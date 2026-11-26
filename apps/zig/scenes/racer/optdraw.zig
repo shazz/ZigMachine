@@ -10,8 +10,8 @@ const menu = @import("menu.zig");
 const options = @import("options.zig");
 const palette = @import("palette.zig");
 
-pub const BOX = [4]i32{ 24, 36, 272, 132 }; // x, y, w, h (M6: 7 rows)
-pub const ROW = 16;
+pub const BOX = [4]i32{ 24, 36, 272, 138 }; // x, y, w, h (R82 32X feel: 9 rows, 14 apart)
+pub const ROW = 14;
 pub const FOOT = "UP/DN ROW  LEFT/RIGHT SET  BKSP BACK";
 
 pub fn draw(d: anytype, os: *zg.ZigOS, fb: *zg.LogicalFB, p: menu.Px) void {

@@ -47,7 +47,7 @@ class ZoneTest(unittest.TestCase):
         for name, roofs in want.items():
             t = rr.Track((ASSETS / name).read_bytes())
             self.assertEqual({i for i, s in enumerate(t.line) if s[4] & ref_cam.ROOF}, roofs, name)
-            self.assertTrue(all(s[4] & ~ref_cam.ROOF == 0 for s in t.line), name)
+            self.assertTrue(all(s[4] & ~ref_cam.ROOF & 0xFF == 0 for s in t.line), name)  # the high byte: the AI cue (R82 32X feel)
 
     def test_converter_writes_the_roof_flag_from_the_document(self) -> None:
         self.assertEqual(trackc.LINE_ROOF, ref_cam.ROOF)
