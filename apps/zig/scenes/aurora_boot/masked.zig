@@ -45,7 +45,7 @@ pub const Masked = struct {
         var at: u32 = 0; // mask byte = 8 pixels
         var i: u32 = 0;
         while (i < mlen) {
-            var b: u8 = mask[i];
+            const b: u8 = mask[i];
             i += 1;
             if (b == 0) {
                 if (i >= mlen) return false;
@@ -54,21 +54,28 @@ pub const Masked = struct {
                 continue;
             }
             if (at >= total or n + PAD_NIBBLES > nmax) return false; // checked once per 8 pixels
-            const p = px + at * 8;
-            while (b != 0) {
-                const k = HIGH[b];
-                b ^= @as(u8, 0x80) >> @intCast(k);
-                var v: u32 = nibble(codes, n);
-                n += 1;
-                if (v == ESC) {
-                    v = nibble(codes, n) | nibble(codes, n + 1) << 4;
-                    n += 2;
-                }
-                p[k] +%= self.deltas[v];
-            }
+            n = self.addByte(px + at * 8, b, codes, n);
             at += 1;
         }
         return at == total;
+    }
+
+    /// The 8 pixels at `p`: one delta per set bit of `b`, highest bit = leftmost; returns the nibble cursor.
+    inline fn addByte(self: *const Masked, p: [*]u16, mask_byte: u8, codes: []const u8, n0: u32) u32 {
+        var b = mask_byte;
+        var n = n0;
+        while (b != 0) {
+            const k = HIGH[b];
+            b ^= @as(u8, 0x80) >> @intCast(k);
+            var v: u32 = nibble(codes, n);
+            n += 1;
+            if (v == ESC) {
+                v = nibble(codes, n) | nibble(codes, n + 1) << 4;
+                n += 2;
+            }
+            p[k] +%= self.deltas[v];
+        }
+        return n;
     }
 };
 

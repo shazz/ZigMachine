@@ -211,7 +211,7 @@ this before its sky copy went).
 Both F and G draw the **name as a baked image**: "Kestrel" in Matt's script font (Christmas Shine by Fandi, free
 for commercial use; `prototypes/boot_screen/font_christmas_shine/SOURCE.txt`; the .otf stays local, only the
 image ships), drawn 4x and box-filtered to real coverage (`tools/boot/aurora_word.py`, `word.bin`), 0.65 of the
-falcon's wingspan (136 x 52 px: the script's loops make it tall, a full wingspan would leave the screen), centred
+falcon's wingspan for F (136 x 52 px; G 0.42 since 26 Nov, 89 x 35: the script's loops make it tall, a full wingspan would leave the screen), centred
 under it. On the star plane its pixels are entries 128..255 = the ink at alpha
 coverage x name level, so FRESCO blends it over the true-colour sky anti-aliased, no dithering, no 1-bit edge;
 it fades in on the name's beat and follows the end fade. A..E keep the bitmap capitals (`WORDMARK` in the meta).
@@ -233,9 +233,9 @@ frame, `seq_c` the rest of the 1.667 Mc frame; the frame is late when `cart_c` p
 | | before (G, 25 Nov) | after (G, 26 Nov) |
 |---|---|---|
 | board fps in the aurora | 17.7-23.2 | **59.8-60.9, 0 missed** |
-| whole run | longer than the sound | 514 frames in 8.5 s, 0 missed, ends with the sound |
+| whole run | longer than the sound | 514-515 frames in 8.5 s, 0 missed (3 runs), ends with the sound |
 | board `cart_c` in the aurora | 3.8-5.1 Mc | 0.23-0.25 Mc |
-| estimate (`frame_cost.mjs`, warmup 150 / 120 frames) | cart 2.92 Mc (ZX0 2.5: bit reader 0.85, match copy 0.66, gamma 0.45, block loop 0.42; delta add 0.33; stars + wire + clear < 0.1) | cart 0.27 Mc |
+| estimate (`frame_cost.mjs`, warmup 150 / 120 frames) | cart 2.92 Mc (ZX0 2.5: bit reader 0.85, match copy 0.66, gamma 0.45, block loop 0.42; delta add 0.33; stars + wire + clear < 0.1) | cart 0.29 Mc, total 1.58 (p95 1.62); flight + name window (warmup 290 / 80): cart 0.4, total 1.7 (p95 1.93). The estimator still bills FRESCO 1.3 Mc for the two planes and so sits at the edge of its band: the board (0 missed, 3 whole runs) is the evidence |
 | aurora data | 1,992 KB (ZX0 of 16-bit deltas) | 1,758 KB (change masks + nibble codes) |
 | star plane data | 35 KB ZX0, 372 KB of records expanded at init | 213 KB raw, nothing expanded |
 | cart RAM window free (static, `check_fits`) | 465 KB, ~40 KB at run time | 514 KB, no run-time buffers (no 53 KB delta buffer, no records) |
@@ -259,8 +259,8 @@ What changed (the look of the aurora is bit-identical: the harness's probe plane
    keep their palette entries, so their alpha fade is unchanged; their levels come from a baked `SCALARS` table.
 3. **Stars are one pixel** (Matt): the glint cross is not baked.
 4. **The name is smaller**: 0.42 of the wingspan (89 x 35 px, was 0.65, 136 x 52), at (116, 154). Board crop, 3x:
-   `prototypes/boot_screen/board_shots/g2/wordmark_0.42_board_x3.png`; old size beside it (a mock: the old image pasted
-   over the same shot) `wordmark_0.65_vs_0.42_x3.png`.
+   `prototypes/boot_screen/board_shots/g2/wordmark_0.42_board_x3.png`; the old G at its hold beside the new one (both
+   board shots; the old wire also shows the glint crosses) `wordmark_old0.65_vs_new0.42_board_x3.png`.
 
 FRESCO is unchanged (two planes): on the board the second plane did not need to go. Timeline: still frame-counted, and
 at 60 fps it ends with the sound, so no time-driven fallback. Board shots of this build:
@@ -326,7 +326,7 @@ the exact bytes and timing handed to it are checked.
 
 ## Board to-do
 
-fps (OSD) through the aurora window and the flight; the look vs the lab on the real screen (the 565 + palette-less
+G: 60 fps measured (above); A..F stay below it. The look vs the lab on the real screen (the 565 + palette-less
 aurora, the half-row edge); the 654 KB cart's load time from the card; the sample on the board (level, the 8-bit
 hiss under a quiet pad, start in step with the picture); the wiring into glass's boot; the PEREGRINE stoop.
 

@@ -63,10 +63,10 @@ pub const Demo = struct {
         return if (BAKED) self.loadBaked(tc) else self.loadRecords(tc);
     }
 
-    /// G: no star records and no delta buffer: the masks are read where they are embedded, the sky unpacked
-    /// straight into the plane (again on a replay).
+    /// G: no records, no delta buffer (the masks are read in place); the sky unpacked into the plane (again on a replay).
     fn loadBaked(self: *Demo, tc: zg.tc.Fb) bool {
         if (tc.stride != blend.W or !skyToPlane(tc.pixels)) return false;
+        @memset(self.os.lfbs[1].fb[0..PLANE], 0); // the baked lists start from an empty plane
         self.masked = .{ .plane = tc.pixels, .y0 = meta.BAND_Y0, .rows = meta.BAND_ROWS, .deltas = &meta.DELTAS };
         self.overlay = .{ .data = art.overlay };
         return true;

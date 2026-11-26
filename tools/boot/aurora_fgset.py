@@ -59,32 +59,44 @@ def bake_set(p, v, variant, stars, frames3, out, zx0pack, sound, bake):
         a = bake_fg(p, v, cleaned, base_q, light, zx0pack, work)
         rec, nv, stars_zx, pcm, rate = bake["stars_and_sound"](p, stars, sound, zx0pack, work)
         sky = bake["sky_blob"](base_q, zx0pack, work)
-    aurora = "aurora.msk" if v["mode"] == "direct" else "aurora.zx0"  # G's containers are change masks, not ZX0
-    files = {aurora: a["blob"], "aurora.idx": a["offs"], "sky.zx0": sky} | a["files"]
     word_blob = word_file(rec, nv, len(stars), p, bake["font"], v["word_scale"])
-    files["word.bin"] = word_blob
-    extra, overlay_md5 = fg_extra(a, v), {}
-    if v["mode"] == "direct":
-        more, ov_extra, overlay_md5 = overlay_files(rec, nv, len(stars), word_blob, a)
-        files |= more
-        extra += ov_extra
-        for stale in ("stars.zx0", "aurora.zx0"):  # G ships the baked plane and the masks instead
-            (Path(out) / stale).unlink(missing_ok=True)
-    else:
-        files["stars.zx0"] = stars_zx
+    files, extra, overlay_md5 = set_files(a, v, (rec, nv, len(stars)), (sky, stars_zx, word_blob), out)
     sizes = dict(aurora=len(a["blob"]) + len(a["offs"]) + sum(len(b) for b in a["files"].values()), sky=len(sky),
                  stars=len(files.get("overlay.bin", stars_zx)), sound=len(pcm))
     meta = dict(n_stars=len(stars), nv=nv, rec=rec.shape[1], star_frames=len(rec), aurora_frames=a["n"], band_y0=a["r0"], band_rows=a["rows"],
                 edges=EDGES, palette=[0] * 256, sample_rate=rate, sample_len=len(pcm), aurora_at=int(round(beats(p).a0 * FPS)), sizes=sizes,
                 row_step=1, extra=extra)
-    probes = dict(stars=sorted({0, 40, 100, 160, 200} & set(range(len(rec)))))
-    ref = em.reference_planes(a["planes"], a["sky"], rec, meta, probes)
-    ref["stats"] = a["stats"] | dict(stars=len(stars), band=[a["r0"], a["r0"] + a["rows"]], variant=variant, mode=v["mode"], edge=p["edge"])
-    ref["pcm_md5"] = em.md5(pcm)
-    ref["fade_in_frames"] = int(round(p["fadeInSky"] * 60))
-    ref["word_px"] = int(np.count_nonzero(np.frombuffer(word_blob[8:], np.uint8)))
-    if overlay_md5:
-        ref["overlay_md5"] = overlay_md5
+    ref = set_reference(a, rec, meta, pcm, dict(p=p, v=v, variant=variant, word=word_blob, overlay_md5=overlay_md5))
     em.write_assets(out, files, meta)
     (Path(out) / "aurora_ref.json").write_text(json.dumps(ref, indent=1, sort_keys=True))
+    return ref
+
+
+def set_files(a, v, star_set, blobs, out):
+    """(files, extra meta, overlay md5s): F ships the star records, G the baked plane and the masks."""
+    rec, nv, n_stars = star_set
+    sky, stars_zx, word_blob = blobs
+    aurora = "aurora.msk" if v["mode"] == "direct" else "aurora.zx0"  # G's containers are change masks, not ZX0
+    files = {aurora: a["blob"], "aurora.idx": a["offs"], "sky.zx0": sky, "word.bin": word_blob} | a["files"]
+    extra, overlay_md5 = fg_extra(a, v), {}
+    if v["mode"] != "direct":
+        files["stars.zx0"] = stars_zx
+        return files, extra, overlay_md5
+    more, ov_extra, overlay_md5 = overlay_files(rec, nv, n_stars, word_blob, a)
+    for stale in ("stars.zx0", "aurora.zx0"):  # G ships the baked plane and the masks instead
+        (Path(out) / stale).unlink(missing_ok=True)
+    return files | more, extra + ov_extra, overlay_md5
+
+
+def set_reference(a, rec, meta, pcm, k):
+    """The harness's reference: the probed planes, the star pixels, the sound, the name's size, G's plane-1 md5s."""
+    probes = dict(stars=sorted({0, 40, 100, 160, 200} & set(range(len(rec)))))
+    ref = em.reference_planes(a["planes"], a["sky"], rec, meta, probes)
+    ref["stats"] = a["stats"] | dict(stars=meta["n_stars"], band=[a["r0"], a["r0"] + a["rows"]], variant=k["variant"], mode=k["v"]["mode"],
+                                     edge=k["p"]["edge"])
+    ref["pcm_md5"] = em.md5(pcm)
+    ref["fade_in_frames"] = int(round(k["p"]["fadeInSky"] * 60))
+    ref["word_px"] = int(np.count_nonzero(np.frombuffer(k["word"][8:], np.uint8)))
+    if k["overlay_md5"]:
+        ref["overlay_md5"] = k["overlay_md5"]
     return ref
