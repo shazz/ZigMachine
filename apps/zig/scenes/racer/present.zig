@@ -23,14 +23,16 @@ const racehud = @import("racehud.zig");
 const session = @import("session.zig");
 const standings = @import("standings.zig");
 
-const TRACKS = @import("trackset.zig").NAMES;
+fn trackName(d: anytype) []const u8 {
+    return d.lib.list[d.which].label();
+}
 
 pub fn mulName() []const u8 {
     return if (fx.use_f32) "F32" else if (fx.use_zmx) "MULSH" else "PLAIN";
 }
 
 pub fn knobs(d: anytype) bench.Knobs {
-    return .{ .track = TRACKS[d.which], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName() };
+    return .{ .track = trackName(d), .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName() };
 }
 
 fn povName(d: anytype) []const u8 {
@@ -57,7 +59,7 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     var b1: [48]u8 = undefined;
     const racing = d.game.mode != .off and d.pose == null;
     d.hud.draw(zigos, fb, d.back, .{
-        .track = TRACKS[d.which], .shade = project.TAGS[project.shade], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
+        .track = trackName(d), .shade = project.TAGS[project.shade], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
         .pov = povName(d), .polys = c.polys, .spans = c.spans, .osd = d.osd,
         .uncapped = d.uncapped, .avg_us = d.bench.avg_us, .fps10 = d.bench.fps10, .stage_us = d.bench.stage_us,
         .line0 = if (racing) racehud.top(&b0, &d.game) else null,

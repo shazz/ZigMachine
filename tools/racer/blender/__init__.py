@@ -48,7 +48,15 @@ def extract(scene: Any) -> kit_export.Scene:  # WHY: bpy scene is untyped
     return {"objects": [_mesh(o) for o in obs if o.type == "MESH"], "materials": mats, "grid": grid,
             "scene": {"name": str(scene.get("ktrk_name", scene.name)), "mood": str(scene.get("ktrk_mood", "noon")),
                       "sun": [float(c) for c in scene.get("ktrk_sun", (0.0, 0.0, 1.0))],
-                      "far_ground": str(scene.get("ktrk_far_ground", ""))}}
+                      "far_ground": str(scene.get("ktrk_far_ground", "")), **_look(scene)}}
+
+
+def _look(scene: Any) -> dict[str, Any]:  # WHY: bpy scene is untyped
+    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop), only the properties the scene sets."""
+    out: dict[str, Any] = {k: [int(c) for c in scene[f"ktrk_{k}"]] for k in ("sky", "hills") if f"ktrk_{k}" in scene}
+    if "ktrk_backdrop" in scene:
+        out["backdrop"] = str(scene["ktrk_backdrop"])
+    return out
 
 
 def export_to(path: str, scene: Any = None) -> ktrk.Doc:  # WHY: bpy scene is untyped

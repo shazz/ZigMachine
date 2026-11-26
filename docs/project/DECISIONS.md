@@ -2204,3 +2204,33 @@ effects (twice the BARD load).
 (the racer's held engine note is ~1,800 operators a frame: ~61 % estimated with music, ~69 % on the busiest frames).
 snd.bin grows ~9.6 KB (43 KB left). The PSG noise's phase is not linear (the engine stops its counters while every
 PSG channel is off), so tune + effects differ from the sum of the two only there. A board needs the new system image.
+
+## 2026-11-25 — Kestrel Racing's tracks are files: one buffer, a mood block, no -Dracer_vr
+
+**Status:** accepted
+**Context:** The racer embedded every track in the cart image. With the oval, the stress city and Salt Flats the 2 MiB RAM
+window had 172 KB left, and each new track is 0.4-0.7 MB. Two more original tracks would not fit, and the local Virtua Racing
+cart (-Dracer_vr) already had to drop the city. Matt also wants people to add their own tracks ("even better so people will
+use their own tracks"). The cart also knew each track's look by its index: the city's far ground, Salt Flats' far-ground level
+and the VR tracks' unlit ground. A user's track has no index.
+**Decision:** a track is a FILE, `NAME.KTR` (the converter's v3 binary, raw or ZX0-packed), on the cart's own `.zmd` disk
+(`zg.disk`'s FAT, packed by tools/mkdisks.sh) or in `C:\RACER\` (KOS GEMDOS read-only through the existing ABI). Only the
+oval stays built in, as the fallback and because the recorded button streams are its. The library scans first blocks at init;
+the chosen track is read into ONE buffer sized to the largest file listed, then depacked and parsed. `trk.parse` treats the
+header (outside the CRC) as untrusted: u64 block bounds, ramp, segment, grid and R_BAKE caps, PVS lists in range. A bad file
+is refused by name, never trapped on. What the cart knew by index is now a 32-byte **mood block**, the file's last block
+(header word 25 its offset, 0 = none: tools/racer/mood.py). It holds the far ground's ramp and level, a bench-only flag, the
+sky gradient, and the backdrop's colours and shape. The `-Dracer_vr` build option is removed: the VR tracks are local disk
+files (`RACER_EXTRA` in mkdisks), so every cart is the same build.
+**Alternatives considered:**
+- Keep the blobs embedded and drop tracks per build (the VR cart's way): no room, and no user tracks.
+- Raw files only: simpler, but the shelf disk would grow by ~2.3 MB (the disk is committed with every cart change), and a load
+  reads ~3.5x more blocks.
+- A version-4 format with the look in the header: it would change the oval's bytes and every local VR file. The one spare
+  header word pointing to an optional appended block keeps the oval byte-identical and the city and Salt Flats' bodies unchanged.
+- An index file listing the tracks: one more thing to keep in step. The FAT and C:'s directory are the index.
+**Consequences:** the cart's wasm goes from 1.62 to 0.64 MB, and 158 KB of cart RAM stays free with a 738 KB track buffer and
+a 238 KB stage buffer. Adding a track is adding a file, and the shelf disk is 823 KB. A track change costs a load (node:
+6-15 ms; board estimate ~0.1-0.2 s: the depack and the CRC). The frame's vertex cache and face stamps are sized to fixed caps
+(25,600 / 10,240: the city's size), so a larger track is refused rather than overrunning them. The harnesses mount the disk
+(apps/harness/racer_disk.mjs); without it the cart shows the oval only.

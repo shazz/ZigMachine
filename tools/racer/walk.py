@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("track")
     ap.add_argument("--r", type=int, default=limits.BENCH_R)
     ap.add_argument("--top", type=int, default=5)
-    ap.add_argument("--write", help="write the heaviest frames as JSON (the racer_salt harness and the tests read it)")
+    ap.add_argument("--write", help="write the heaviest frames as JSON (the racer_tracks harness and the tests read it)")
     a = ap.parse_args(argv)
     poses = walk(rr.Track(Path(a.track).read_bytes()), a.r)
     print(f"| frame | POV | verts | faces | polys | spans | pixels | est. Mc |  (R = {a.r}, {len(poses)} poses)\n|---|---|---|---|---|---|---|---|")

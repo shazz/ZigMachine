@@ -6,7 +6,7 @@
 // transformed, clipped, bucket-sorted far to near and filled flat. docs/ports/kestrel_racing/.
 //
 //   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
-//   g the vertex transform in f32   d decals on / off   t oval / stress city / Salt Flats (M5)   p pause   o the benchmark OSD
+//   g the vertex transform in f32   d decals on / off   t the next track (the oval, then the disk's *.KTR files and C:\RACER\'s: racer/library.zig)   p pause   o the benchmark OSD
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
@@ -36,6 +36,7 @@ const setup = @import("racer/setup.zig");
 const sinks = @import("racer/sinks.zig");
 const trk = @import("racer/trk.zig");
 const ts = @import("racer/trackset.zig");
+const library = @import("racer/library.zig");
 const xf = @import("racer/xform.zig");
 
 extern fn hostMicros() u32;
@@ -51,7 +52,8 @@ fn micros() u32 {
 }
 pub const Demo = struct {
     os: *zg.ZigOS = undefined,
-    tracks: [ts.NT]trk.Track = undefined,
+    tracks: [2]trk.Track = undefined, // the built-in oval, the library buffer's track (trackset.zig)
+    lib: library.Library = .{},
     which: usize = 0,
     f: frame.Frame = undefined,
     drive: drive.Drive = undefined,
@@ -79,8 +81,9 @@ pub const Demo = struct {
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
-        const most = ts.parseAll(&self.tracks);
-        self.f = setup.frameFor(most[0], most[1]);
+        self.tracks[0] = library.builtin();
+        self.tracks[1] = self.tracks[0]; // the buffer's view: nothing loaded yet
+        self.f = setup.frameFor(library.MAX_VERTS, library.MAX_FACES);
         self.caches = .{ setup.carCache(), setup.skidCache() };
         self.drive = drive.Drive.init(&self.tracks[0]);
         self.drive.now = micros;
@@ -89,14 +92,18 @@ pub const Demo = struct {
         self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK) } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
-            palette.install(fb, &self.tracks[0], ts.groundRamp(0), ts.groundLevel(0));
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
-            palette.skyFill(zg.copper.visible(fb, 0));
             fb.is_enabled = p == 0;
         }
+        ts.look(self);
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);
-        zg.Console.log("racer: oval {} faces, {s} {} faces, cart RAM free {} KB", .{ self.tracks[0].faces.len, ts.NAMES[1], self.tracks[1].faces.len, zg.mem.free() / 1024 });
+        self.lib.scan(); // last: its buffers take what the RAM window has left (library.RESERVE kept)
+        self.lib.report();
+    }
+
+    pub fn cur(self: *Demo) *const trk.Track {
+        return &self.tracks[ts.slotOf(self.which)];
     }
 
     pub fn ownsKeyboard(self: *Demo) u32 {
@@ -119,9 +126,9 @@ pub const Demo = struct {
         self.game.press(dir, false);
     }
 
-    /// Driving needs a racing line: the oval (lap v1's stream is its) or a local VR track, never the city.
+    /// Driving needs a racing line: any track but a benchmark-only one (the city); lap v1 (its stream) the oval.
     pub fn setDrive(self: *Demo, m: drive.Mode) void {
-        if (m != .off and ts.needsOval(self.which, m == .bench) and self.which != 0) self.setTrack(0);
+        if (m != .off and ts.needsOval(self.cur(), self.which, m == .bench) and self.which != 0) self.setTrack(0);
         self.pose = null;
         self.game.setMode(.off);
         self.drive.setMode(m);
@@ -132,7 +139,7 @@ pub const Demo = struct {
 
     /// The race (M3), likewise; it replaces driving.
     pub fn setGame(self: *Demo, m: game.Mode) void {
-        if (m != .off and ts.needsOval(self.which, false) and self.which != 0) self.setTrack(0);
+        if (m != .off and ts.needsOval(self.cur(), self.which, false) and self.which != 0) self.setTrack(0);
         self.pose = null;
         self.drive.setMode(.off);
         self.game.setMode(m);
@@ -142,13 +149,12 @@ pub const Demo = struct {
     }
 
     pub fn setTrack(self: *Demo, w: usize) void {
-        self.which = w;
+        self.which = ts.show(self, w, micros); // w, or the oval when the file is refused
         self.script = 0;
         self.f.seen_stamp = 0;
         @memset(self.f.seen, 0);
         for (self.f.cache.e) |*e| e.stamp = 0;
-        for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], ts.groundRamp(w), ts.groundLevel(w));
-        ts.bind(self, w, micros);
+        ts.look(self);
         self.r = self.play_r;
     }
 
@@ -170,7 +176,7 @@ pub const Demo = struct {
         zigos.lfbs[done ^ 1].is_enabled = false;
         self.back = done ^ 1;
         const fb = &zigos.lfbs[self.back];
-        const t = &self.tracks[self.which];
+        const t = self.cur();
         const racing = self.game.mode != .off;
         const pose = if (self.pose) |k| cam.fixedPose(t, k) else if (racing) self.game.pose() else if (self.drive.mode != .off) self.drive.pose() else cam.lapPose(t, self.script, cam.povAt(self.script));
         clip.near = if (self.pose != null) clip.NEAR else if (racing) self.game.near() else self.drive.near();

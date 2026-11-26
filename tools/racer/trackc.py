@@ -5,7 +5,8 @@
 Little-endian, 4-aligned. A 128-byte header of 32 u32 words, then blocks (offsets in the header):
 palette (RGB x ramps), vertices (i16 x3, 1/128 unit), faces + inner faces (32 B records), tile face lists,
 ray directions, the baked PVS (pvs_bake.py), the racing line (centre Q16 x3, yaw turns Q16), the start
-grid. The CRC-32 covers everything after the header. The cart refuses a bad magic, version or CRC.
+grid, the checkpoints, and (a track with a mood: tools/racer/mood.py, header word 25 its offset) the mood block. The CRC-32
+covers everything after the header. The cart refuses a bad magic, version or CRC.
 Face record: v[4] u16 | flags u8 | nv u8 | colour u8 | inner_n u8 | n[3] i16 (Q14) | pad u16 |
 cp i32 (n . v0, Q21) | inner_first u32 | alt u32 (0; a local VR import: the debug key's alternate shades).
 (Version 2: the u16 after n is the BORDER MASK, bit k = edge k (vertex k to k+1) is a wall edge for the physics, ascending as the document lists them; a last block, one
@@ -26,7 +27,7 @@ from typing import Callable
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from racer import ktrk, ktrk_check, pvs_bake  # noqa: E402
+from racer import ktrk, ktrk_check, mood, pvs_bake  # noqa: E402
 from racer.ktrk import Doc  # noqa: E402
 
 MAGIC, VERSION, HEADER = 0x4B52544B, 3, 128
@@ -127,9 +128,11 @@ def _camera_tiles(line_tiles: list[tuple[int, int]]) -> list[int]:
     return sorted(out)
 
 
-def convert(doc: Doc, mats: dict | None = None, validate: bool = True, shade: Shade | None = None) -> bytes:
+def convert(doc: Doc, mats: dict | None = None, validate: bool = True, shade: Shade | None = None,
+            look: mood.Mood | None = None) -> bytes:
     """`mats` (name -> (ramp, rgb)) replaces the committed tracks' palette; `validate=False` and `shade` (material, normal ->
-    the face's palette index and the record's last word) are the local VR import's (tools/racer/vr_colours.py)."""
+    the face's palette index and the record's last word) are the local VR import's (tools/racer/vr_colours.py); `look` adds
+    the mood block (tools/racer/mood.py: a track loaded from a file says how its far ground, sky and backdrop look)."""
     mats = mats or MATERIALS
     shade = shade or (lambda mat, n: (colour(mat, n, mats), 0))
     errs = ktrk_check.validate(doc) if validate else []
@@ -148,13 +151,19 @@ def convert(doc: Doc, mats: dict | None = None, validate: bool = True, shade: Sh
     cps = struct.pack(f"<{len(doc['checkpoints'])}I", *doc["checkpoints"])
     blocks = [pal, verts, faces, inner, tfirst, tlists, rays, struct.pack(f"<{len(index)}I", *index),
               _pad(struct.pack(f"<{len(lists)}H", *lists)), line, grid, lr, cps]
+    if look is not None:
+        if look.ground_ramp >= len(mats):
+            raise ConvertError(f"mood ground ramp {look.ground_ramp} is past the palette's {len(mats)} ramps")
+        blocks.append(look.pack())
     offs, at = [], HEADER
-    for b in blocks:
+    for b in blocks[:13]:
         offs.append(at)
         at += len(b)
+    words_mood = [at] if look is not None else []
+    at += sum(len(b) for b in blocks[13:])
     name = doc["name"].encode()[:24].ljust(24, b"\0")
     words = [MAGIC, VERSION, 0, at, len(doc["vertices"]), len(doc["faces"]), sum(len(f.get("inner", [])) for f in doc["faces"]),
-             len(doc["racing_line"]), len(doc["start_grid"]), len(mats), pvs_bake.R_BAKE, len(doc["checkpoints"])] + offs
+             len(doc["racing_line"]), len(doc["start_grid"]), len(mats), pvs_bake.R_BAKE, len(doc["checkpoints"])] + offs + words_mood
     head = struct.pack(f"<{len(words)}I", *words) + b"\0" * (HEADER - 24 - 4 * len(words)) + name
     body = b"".join(blocks)
     crc = zlib.crc32(body)
@@ -171,6 +180,9 @@ def main(argv: list[str] | None = None) -> int:
         if "palette" in doc:  # an authored Track Kit track (M5): its palette, baked colours and the budget check
             from racer import kit
             blob = kit.convert(doc)
+        elif doc.get("generator", {}).get("kind") == "stress_city":
+            from racer import gen_city
+            blob = convert(doc, look=gen_city.MOOD)
         else:
             blob = convert(doc)
     except (ConvertError, ValueError) as e:
