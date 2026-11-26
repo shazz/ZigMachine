@@ -120,13 +120,18 @@ bills FRESCO 1.3 Mc for the two planes and so sits at the edge of its band: the 
 glass's boot splash (`fpga/glass/src/app_splash.zig`, docs/hardware/FPGA_GLASS.md "Boot splash") plays
 `demo-aurora_boot.zmd` (anywhere on the shelf; the card has it at `CARTS/tests/`, `fpga/tools/glass_shelf.py` SHELF
 lists it) on the first glass since power-on, then powers KOS on. It ends when the cart asks to leave at 8.47 s (a
-request before `MIN_MS` 8 s is held), on a key or pad button (swallowed), a trap, or `CAP_MS` 12 s. The sample plays
-on BARD with the picture. Measured at a real power-on: see the R89 row in docs/project/ROADMAP_DONE.md and the shots
-in `prototypes/boot_screen/board_shots/boot/` (local).
+request before `MIN_MS` 8 s is held), on a key or pad button (swallowed), a trap, or `CAP_MS` 12 s. The sample is
+the cart's own `samplePlay`, which the board's firmware hands to BARD.
 
-Ways back: `splash=0` in `KESTREL/glass.cfg` (no boot screen at all); the previous glass is kept on the card as
-`KESTREL/glass.pre-aurora` (it plays WINDHOVER): copy it over `KESTREL/glass` and reboot; or delete `KESTREL/glass`
-and the rootfs glass runs (its splash is WINDHOVER until the rootfs is rebuilt).
+On the card (26 Nov): `KESTREL/glass` is this glass (md5 9ae1738a, built at b61a9538), the previous one kept as
+`KESTREL/glass.pre-aurora` (md5 07b28ee6, WINDHOVER's splash); `CARTS/tests/demo-aurora_boot.zmd` is this cart's fat
+disk (md5 dd3ac0b9, a lean cart for the card's `system.rv32`). Loaded with `glass ctl load` it ran 60.1-60.8 fps, 0
+missed, `cart_c` 0.24-0.29 Mc, loaded in 2,349 ms, and asked to leave. **Not yet verified: a real power-on** (the
+board did not come back on the network after `glass ctl reboot`, 26 Nov; it needs a power cycle), and the sound by
+ear.
+
+Ways back: `splash=0` in `KESTREL/glass.cfg` (no boot screen at all), or, on a PC, copy `KESTREL/glass.pre-aurora`
+over `KESTREL/glass`.
 
 ## History: the variants (24-26 Nov)
 

@@ -1055,7 +1055,7 @@ missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load ove
 at once held to `MIN_MS`, no OSD bit written from the decision to the end, the overlay back after,
 a skip that opens nothing);
 `apps/harness/aurora_boot_check.mjs` checks the cart asks to leave at 508 and never before
-(`--break stays`). The way back: `splash=0`, or the previous glass kept on the card as
+(`--break stays`). The way back: `splash=0`, or (on a PC) the previous glass kept on the card as
 `KESTREL/glass.pre-aurora` (WINDHOVER's splash) copied over `KESTREL/glass`.
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
