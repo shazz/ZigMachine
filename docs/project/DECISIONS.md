@@ -2299,3 +2299,55 @@ flyby, and the files already converted (the 32X imports take minutes a track) ca
 - The clock is an estimate: fitted on 11 tracks (DXHIGH: the pilot never laps it) to never be under the AI pilot's lap; a human slower than the AI on a
   very twisty course may still time out (the Track Kit's `ktrk_clock` overrides it).
 - Moving the select's cursor loads the track under it (~0.1-0.2 s on the board for the biggest, estimate).
+
+## 2026-11-27 — Kestrel Racing's render and tick: a span emitter with two fills (AFFINE by default), one plane in two pages, a 30 Hz physics tick
+
+**Status:** accepted (recorded at M6, R82; the choices date from M1-M2 and the board numbers of 24-26 Nov)
+**Context:** PORT_PLAN left three structural choices open until the board could measure them. (1) The fill path: CHISEL
+TRIANGLE costs 4.6-6.1 clocks a pixel, which leaves CPU word stores and CHISEL AFFINE span records used as a flat fill.
+Neither had a board number. (2) Planes: a sky plane, a HUD plane and a backdrop plane are the obvious layout, and
+each enabled plane costs ~0.59 Mc of compositing on KESTREL (+0.11 Mc a frame), a third of a 60 Hz frame. (3) The tick:
+freds72's Lua runs `_update` at 30 Hz with every physics constant per tick, and the port's bar is "the Lua bit for bit".
+**Decision:**
+- **One span emitter, two sinks, AFFINE the default.** `poly.Emitter` (Q4 sub-pixel edges, each edge walked from its
+  upper end) feeds the CPU sink (aligned word stores) or the AFFINE sink (24-byte records, a 256-index flat texture,
+  a half ring of 2,048 spans per CHISEL op). Key `f` switches them; CPU = AFFINE byte for byte is a gate check.
+  Board, M1: equal on the oval (60 fps to R 8 both ways), the dense city's cart cycles -43 % at R 4 on AFFINE. The car
+  shadow (a read-modify-write) stays on the CPU on both paths, after a `blitSync`.
+- **One plane, two pages.** The page drawn is disabled, the shown one enabled. The sky is palette entry 1 rewritten
+  per line by `zg.copper` (a real raster), the backdrop one keyed AFFINE op into the same plane, the HUD two text
+  lines in the plane's bands, redrawn only when a line's text changed for that page, the minimap a few hundred stores.
+  The haze (M6) is palette entries too.
+- **A 30 Hz tick, 60 Hz frames.** Physics, AI, contacts and the race FSM tick every second frame by frame count
+  (never the clock); the frames between interpolate the car poses and the camera. Every constant stays the Lua's,
+  so the reference runs unchanged and the CRCs compare tick for tick.
+**Alternatives considered:**
+- CPU fill only: simpler, and equal on light tracks, but 43 % more cart cycles on dense ones; CHISEL TRIANGLE: 5x the
+  per-pixel cost of a span.
+- A HUD plane ("split-plane HUD"): no redraw logic at all, but +0.59 Mc compositing and +0.11 Mc a frame for 24 rows of
+  text that change about once a second; the band redraw costs ~0.01 Mc. A sky plane: the copper does it for free.
+- A 60 Hz tick with halved constants: smoother input, but every constant and the PICO-8 16.16 rounding change, so the
+  Lua is no longer a bit-exact reference.
+**Consequences:** the 3D view is 320 x 176 (12-row bands above and below). The pose shown is up to one tick (33 ms)
+behind the input. Every board number and CRC list of M1-M6 is comparable across the fill paths and the multiply
+twins (`m` mulsh / plain, `g` f32), which are the cart's A/B keys (docs/ports/kestrel_racing/M6.md).
+
+## 2026-11-27 — Kestrel Racing's horizon haze is palette bands by depth, in the palette's spare entries
+
+**Status:** accepted (M6)
+**Context:** PORT_PLAN's M6 haze. Matt rules out dithering, and per-pixel blending is float or per-pixel integer
+maths in the fill. The palette is 16 fixed entries + 30 ramps of 8 (the track's, the cars' 7), and the plan's first
+idea, a linepal of the far ramps on the rows near the horizon, hazes a near wall or car that crosses those rows.
+**Decision:** the depth key (1/8 unit buckets) selects one of 4 bands by a table rebuilt when R changes (start
+x/256 of R's distance, full strength at R). A polygon's colour goes through its band's 256-entry LUT into the POOL,
+the entries past the track's and the cars' ramps (16 + 8 x max(ramps, 19) .. 255). Band 1 is each track colour's exact
+blend; later bands reuse an earlier entry within a small distance or the nearest when the pool is spent (the far
+colours converge on the haze); car colours never take an entry. The far ground and the backdrop are blended at full
+strength. Parameters in the mood block's last 5 bytes (zero in every M5 file: no haze). A shadow in a band is not drawn,
+and the shadow never darkens a pool entry (they are not ramps).
+**Alternatives considered:** the plan's horizon linepal (screen rows, not depth: near objects on those rows haze);
+per-depth light offsets inside a ramp (no extra entries, but a ramp only gets darker or brighter, never toward a hue);
+a haze ramp per (ramp, band) (8 x 15 x 4 entries: no room).
+**Consequences:** a LUT load a polygon, ~0.02-0.04 Mc a frame; haze off is byte-identical to M5 (gated). A track with a
+full palette (Neon Docks' 29 ramps, the 32X courses) has no room: the converter refuses a haze there and the cart shows
+NO ROOM. Faces change band whole (flat-shaded faces), so a long face can step at a band edge.
