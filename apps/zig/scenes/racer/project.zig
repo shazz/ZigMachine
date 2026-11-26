@@ -32,8 +32,13 @@ fn colourOf(f: *const trk.Face) u8 {
     return @truncate(f.alt >> @intCast(8 * (shade - 1)));
 }
 
-/// Project face `f` (vertex ids into `verts`) into `fr`. Returns the key kept, or null when nothing is left to draw.
-pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *const cam.View, f: *const trk.Face, k: Key) ?u16 {
+/// "Nothing kept": build's and push's result when a face is culled. A u32 sentinel, not a ?u16 (M6: a ?u16 result is a
+/// 4-byte value at align 2 written through the caller's stack slot, an i32 store that trapped misaligned on ZIGGY ~70 %
+/// of the calls: perf_audit).
+pub const NONE: u32 = 0xFFFF_FFFF;
+
+/// Project face `f` (vertex ids into `verts`) into `fr`. Returns the key kept, or NONE when nothing is left to draw.
+pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *const cam.View, f: *const trk.Face, k: Key) u32 {
     const nv = f.nv;
     var es: [4]*xf.Entry = undefined;
     var all: u8 = 0xFF;
@@ -47,10 +52,10 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
     }
     if (all != 0) {
         fr.stats.rejected += 1;
-        return null;
+        return NONE;
     }
     var rec: frame.Rec = undefined;
-    if (clip.break_drop and any_guard != 0) return null;
+    if (clip.break_drop and any_guard != 0) return NONE;
     if (any_guard == 0) {
         rec.n = nv;
         for (0..nv) |i| {
@@ -59,14 +64,14 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
         }
     } else if (!clipped(fr, &rec, es[0..nv], any_guard)) {
         fr.stats.rejected += 1;
-        return null;
+        return NONE;
     }
-    if (types.offScreen(&rec)) return null;
+    if (types.offScreen(&rec)) return NONE;
     const mean = if (nv == 4) zsum >> 2 else fx.mulsh16(zsum, 21845);
     const key = k.fixed orelse depthKey(mean);
     rec.c = colourOf(f) +% k.dc;
     if (haze.active) { // M6: the band's colour; a shadow in a band is washed out (haze.zig)
-        if (k.shadow and haze.band(key) != 0) return null;
+        if (k.shadow and haze.band(key) != 0) return NONE;
         rec.c = haze.colour(key, rec.c);
     }
     if (k.shadow) rec.n |= types.SHADOW;
@@ -97,11 +102,11 @@ fn clipped(fr: *frame.Frame, rec: *frame.Rec, es: []*xf.Entry, mask: u8) bool {
 }
 
 /// Keep a polygon with its key. `frame.collect` zeroes the counts, so extras go in after it and before `sort`.
-pub fn push(fr: *frame.Frame, rec: frame.Rec, key: u16) ?u16 {
+pub fn push(fr: *frame.Frame, rec: frame.Rec, key: u16) u32 {
     const i = fr.stats.polys;
     if (i == fr.kept.len) {
         fr.stats.dropped += 1;
-        return null;
+        return NONE;
     }
     fr.kept[i] = rec;
     fr.key[i] = key;

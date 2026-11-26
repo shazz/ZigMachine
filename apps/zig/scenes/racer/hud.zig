@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // RACER: two text lines in the viewport's bands (top rows 1..8, bottom rows 191..198), no plane
 // of their own. Each page of the flip remembers what it shows and a line is redrawn only when its
-// text changed for that page. The bench band (key O) is the OSD of PORT_PLAN 2.5: stage
+// text changed for that page (M6: only its changed character cells). The bench band (key O) is the OSD of PORT_PLAN 2.5: stage
 // microseconds, the counts, fps, and the cart-only rate (1e6 / avg_us: the frame rate if only the cart's own work counted: it
 // leaves out FRESCO's ~0.7 Mc, which the board frame waits for; a cart cannot skip the VBL wait today).
 // --------------------------------------------------------------------------
@@ -47,9 +47,9 @@ pub const Hud = struct {
         pad(&l[1], if (i.osd) (if (i.uncapped) bufUncapped(&b1, i) else bufStages(&b1, i)) else i.line1 orelse HELP);
         const ys = [2]i16{ 2, 191 };
         for (0..2) |k| {
-            if (std.mem.eql(u8, &l[k], &self.shown[plane][k])) continue;
+            const d = changed(&l[k], &self.shown[plane][k]) orelse continue;
             self.shown[plane][k] = l[k];
-            os.printText(fb, &l[k], 0, ys[k], self.ink, self.paper);
+            os.printText(fb, l[k][d[0]..d[1]], @intCast(d[0] * 8), ys[k], self.ink, self.paper); // M6: the changed cells only
         }
     }
 };
@@ -62,6 +62,17 @@ fn bufStages(b: []u8, i: Info) []const u8 {
 fn bufUncapped(b: []u8, i: Info) []const u8 {
     const eq: u32 = if (i.avg_us == 0) 0 else 1_000_000 / i.avg_us;
     return std.fmt.bufPrint(b, "CART-ONLY {} FPS  ({}US A FRAME)", .{ eq, i.avg_us }) catch "";
+}
+
+/// The columns [first, last) where `now` differs from what the page shows, or null (the 8 x 8 font's cells: printing a
+/// line's changed middle gives the same pixels as printing all of it; perf_audit found the whole line rewritten a frame).
+pub fn changed(now: *const Line, was: *const Line) ?[2]usize {
+    var a: usize = 0;
+    while (a < COLS and now[a] == was[a]) a += 1;
+    if (a == COLS) return null;
+    var b: usize = COLS;
+    while (now[b - 1] == was[b - 1]) b -= 1;
+    return .{ a, b };
 }
 
 fn pad(dst: *Line, text: []const u8) void {
