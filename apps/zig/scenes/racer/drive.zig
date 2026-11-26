@@ -141,7 +141,7 @@ pub const Drive = struct {
 
     /// Push the car's polygons (not in the cockpit) after collect and before sort.
     pub fn drawCar(self: *const Drive, fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View) void {
-        if (self.pov != .cockpit) carview.draw(fr, cache, v, self.shown(), self.car.old, 0);
+        if (self.pov != .cockpit) carview.draw(fr, cache, v, self.t, self.shown(), self.car.old, carmodel.LIVERY[0]);
     }
 
     /// One line a host can compare with the reference: raw 16.16 state after `ticks` ticks.

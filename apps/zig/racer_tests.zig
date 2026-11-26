@@ -14,4 +14,6 @@ test {
     _ = @import("scenes/racer/game_test.zig");
     _ = @import("scenes/racer/music_test.zig");
     _ = @import("scenes/racer/sfx_test.zig");
+    _ = @import("scenes/racer/shadow_test.zig");
+    _ = @import("scenes/racer/carmodel_test.zig");
 }

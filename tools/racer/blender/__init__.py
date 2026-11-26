@@ -138,17 +138,26 @@ CLASSES = (KTRK_OT_export, KTRK_OT_meter, KTRK_PT_budget)
 def _live(scene: Any, depsgraph: Any) -> None:  # WHY: bpy types are untyped
     """The live meter: recount after every edit the depsgraph sees (an export of ~2 K vertices is a few ms)."""
     refresh(scene)
+    from racer.blender import car
+
+    car.refresh(scene)
 
 
 def register() -> None:
+    from racer.blender import car  # the Car Kit half (M5 step 3): its export operator and meter
+
     for c in CLASSES:
         bpy.utils.register_class(c)
+    car.register()
     bpy.app.handlers.depsgraph_update_post.append(_live)
 
 
 def unregister() -> None:
     if _live in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(_live)
+    from racer.blender import car
+
+    car.unregister()
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)
 

@@ -12,6 +12,7 @@ const npc = @import("npc.zig");
 const project = @import("project.zig");
 const poly = @import("poly.zig");
 const ts = @import("trackset.zig");
+const shadow = @import("shadow.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     switch (cp) {
@@ -40,6 +41,10 @@ pub fn handle(self: anytype, cp: u32) void {
         'a' => self.game.toggleAuto(),
         'w' => self.game.toggleWarp(),
         'i' => nextShade(self),
+        'y' => {
+            shadow.fake = !shadow.fake;
+            zg.Console.log("racer,shadow,{s}", .{if (shadow.fake) "DITHER" else "REAL"});
+        },
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);
@@ -48,6 +53,8 @@ pub fn handle(self: anytype, cp: u32) void {
         'W' => npc.break_pid = !npc.break_pid, // ... and --break pid (racer_race.mjs)
         'X' => poly.break_edge = !poly.break_edge, // the harness' --break switches (see racer_headless.mjs)
         'Y' => clip.break_drop = !clip.break_drop,
+        'S' => shadow.break_two = !shadow.break_two, // racer_car.mjs --break two: the shadow two levels down
+        'Q' => shadow.fake = true, // ... and --break dither: the checkerboard as if it were the default
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

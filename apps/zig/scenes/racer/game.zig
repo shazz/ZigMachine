@@ -182,7 +182,7 @@ pub const Game = struct {
             if (k == 0 and self.pov == .cockpit) continue;
             const s = self.shown(k);
             if (!carview.inRange(v, s.pos, tiles + 1)) continue;
-            carview.draw(fr, cache, v, s, c.old, if (k == 0) 0 else carmodel.liveryShift(k - 1));
+            carview.draw(fr, cache, v, self.t, s, c.old, carmodel.LIVERY[k]);
         }
     }
 };

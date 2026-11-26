@@ -18,7 +18,7 @@ const trk = @import("trk.zig");
 const types = @import("types.zig");
 const xf = @import("xform.zig");
 
-pub const Key = struct { fixed: ?u16 = null, floor: u16 = 0, dc: u8 = 0 }; // dc: added to the face's palette index (a car's livery)
+pub const Key = struct { fixed: ?u16 = null, floor: u16 = 0, dc: u8 = 0, shadow: bool = false }; // dc: added to the face's palette index (a car's livery); shadow: the polygon darkens what is under it (shadow.zig)
 
 /// The debug shading (key i): 0 the face's stored colour, 1 / 2 the alternates a VR import stores in `alt` (lit by the
 /// normal as the converter lights the oval; gently lit). A face with no alternates (every committed track, the cars) keeps its colour.
@@ -62,9 +62,14 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
     }
     if (types.offScreen(&rec)) return null;
     rec.c = colourOf(f) +% k.dc;
+    if (k.shadow) rec.n |= types.SHADOW;
     const mean = if (nv == 4) zsum >> 2 else fx.mulsh16(zsum, 21845);
-    const own: u16 = @intCast(frame.BUCKETS - 1 - @min(@max(mean >> 13, 0), frame.BUCKETS - 1));
-    return push(fr, rec, k.fixed orelse @max(own, k.floor));
+    return push(fr, rec, k.fixed orelse @max(depthKey(mean), k.floor));
+}
+
+/// The depth bucket of a view depth z (Q16): 1/8 unit buckets, far (0) to near (BUCKETS - 1).
+pub fn depthKey(z: i32) u16 {
+    return @intCast(frame.BUCKETS - 1 - @min(@max(z >> 13, 0), frame.BUCKETS - 1));
 }
 
 fn clipped(fr: *frame.Frame, rec: *frame.Rec, es: []*xf.Entry, mask: u8) bool {

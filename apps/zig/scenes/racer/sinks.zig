@@ -11,6 +11,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const row = @import("../stniccc/span.zig").row;
+const shadow = @import("shadow.zig");
 
 pub const Span = zg.chisel_v2.Span;
 pub const CHUNK = 2048; // spans a half: 48 KB
@@ -29,6 +30,7 @@ pub const CpuSink = struct {
     stride: usize = 0,
     spans: u32 = 0,
     pixels: u32 = 0,
+    shadow_px: u32 = 0,
 
     pub fn begin(self: *CpuSink, fb: *zg.LogicalFB) void {
         self.* = .{ .base = @intFromPtr(fb.fb), .stride = fb.stride };
@@ -41,6 +43,12 @@ pub const CpuSink = struct {
         self.pixels += @intCast(x1 - x0);
     }
 
+    /// A shadow span: the pixels already in the plane darkened in place (shadow.zig).
+    pub fn shade(self: *CpuSink, y: i32, x0: i32, x1: i32) void {
+        shadow.span(self.base + @as(usize, @intCast(y)) * self.stride, y, x0, x1);
+        self.shadow_px += @intCast(x1 - x0);
+    }
+
     pub fn flush(_: *CpuSink) void {}
 };
 
@@ -50,15 +58,20 @@ pub const AffineSink = struct {
     half: usize = 0,
     cur: [*]Span = undefined,
     end: [*]Span = undefined,
+    os: ?*zg.ZigOS = null, // blitSync before a shadow span (the plane must hold every earlier op's pixels)
     ops: u32 = 0,
     spans: u32 = 0,
     pixels: u32 = 0,
+    shadow_px: u32 = 0,
+    synced: bool = false, // no op fired since the last sync: a car's next shadow spans need none
 
     pub fn begin(self: *AffineSink, fb: *zg.LogicalFB) void {
         self.fb = fb;
         self.ops = 0;
         self.spans = 0;
         self.pixels = 0;
+        self.shadow_px = 0;
+        self.synced = false;
         self.cur = self.buf[self.half * CHUNK ..].ptr;
         self.end = self.cur + CHUNK;
     }
@@ -69,6 +82,19 @@ pub const AffineSink = struct {
         self.cur += 1;
         self.pixels +%= @intCast(x1 - x0);
         s.* = .{ @as(u32, @bitCast(x0)) | @as(u32, @bitCast(x1)) << 16, @bitCast(y), @as(u32, c) << 16, 0, 0, 0 };
+        self.synced = false;
+    }
+
+    /// A shadow span reads the plane: fire what is queued, wait for CHISEL (once per run of shadow spans), then the CPU
+    /// darkens it in place like the CPU path. ~800 cycles of op + the stall a car on the board (docs M5.md step 3).
+    pub fn shade(self: *AffineSink, y: i32, x0: i32, x1: i32) void {
+        if (!self.synced) {
+            self.flush();
+            if (self.os) |os| os.blitSync();
+            self.synced = true;
+        }
+        shadow.span(@intFromPtr(self.fb.fb) + @as(usize, @intCast(y)) * self.fb.stride, y, x0, x1);
+        self.shadow_px += @intCast(x1 - x0);
     }
 
     /// Fire what this half holds as one op and go on in the other half.

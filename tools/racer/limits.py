@@ -24,3 +24,12 @@ TRACK_FACES: Final = 3000
 TRACK_VERTICES: Final = 8192
 FRAME_MC: Final = 1.55  # the priced frame at the bench R (PORT_PLAN 3.4): under ~1.67 Mc = 60 Hz with a margin
 BENCH_R: Final = 5
+
+# The car (carc.py, R82 M5 step 3). HARD: the face record holds 3-4 vertices and u16 vertex ids; the cart draws exactly one
+# shadow quad on the ground (carview.zig). SOFT: our budget, priced with frame_cost at the race grid (docs M5.md step 3).
+CAR_MAX_VERTICES: Final = 65535
+CAR_FACES: Final = 64  # the near model (LOD0: wheels + hull + cabin + wing)
+CAR_VERTICES: Final = 128
+CAR_LOD1_FACES: Final = 12  # the far model (a few pixels)
+CAR_ENVELOPE: Final = ((-24, 24), (0, 32), (-40, 40))  # Q7, car space (x right, y up, z forward): the placeholder's + a margin
+CAR_SHADOW_Y: Final = (0, 2)  # Q7 above the ground
