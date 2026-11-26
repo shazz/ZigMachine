@@ -78,3 +78,15 @@ test "the shadow headroom (R82): on, a face's headroom colour (alt byte 2) is dr
     f.alt = 0;
     try std.testing.expectEqual(f.colour, project.colourOf(&f)); // a face with none keeps its colour
 }
+
+test "the OSD's state line (R82): every option in 40 columns, the defaults and a changed set" {
+    const osd = @import("osdline.zig");
+    var b: [48]u8 = undefined;
+    const a = osd.line(&b, .{ .cpu = true, .r = 8, .pov = "far", .music = true });
+    try std.testing.expectEqualStrings("CPU MS FL RL H1 R8 ARCF far M1 L3", a);
+    @import("project.zig").headroom = true;
+    defer @import("project.zig").headroom = false;
+    const c = osd.line(&b, .{ .cpu = false, .r = 3, .pov = "cockpit", .music = false });
+    try std.testing.expectEqualStrings("AFF MS FL HR H1 R3 ARCF coc M0 L3", c);
+    try std.testing.expect(c.len <= 40);
+}

@@ -83,12 +83,15 @@ per-track, in the mood block's optional tail (`tools/racer/mood.py`: a 36-byte b
 
 **The flyby check (Matt: "the flyby speed looks more accurate as the car's potential top speed").** The flyby covers a lap
 in 720 frames (12 s), so its ground speed is lap / 12. The arcade top lands at 0.44-0.88 of it in world units; on screen
-(ground flow at the bottom row, far chase POV, F = 160) the arcade car at its top gives 1,440 px/s on our tracks and
-1,520-2,010 on the 32X courses, against the flyby's 1,330-3,130 px/s and CLASSIC's 864: in the flyby's range, ~2x CLASSIC.
+(ground flow at the bottom row, F = 160, one formula for every row here: row = 100 + 160 tan(atan(h/d) - pitch),
+differentiated at row 200; M2.md's 723 px/s for CLASSIC's far chase used another bottom-row geometry, so compare the
+ratios) the arcade car at its top gives 1,440 px/s on our tracks and 1,520-2,010 on the 32X courses, against the flyby's
+1,330-3,130 px/s and CLASSIC's 864 by the same formula: in the flyby's range, 1.7-2.3x CLASSIC.
 
 **Our Track Kit tracks** are the compromise: at a real metre a unit (their roads' width) the car would be 5x bigger and a
 lap would last 7 s at the top (684 m); the Kit's default (`kit.py KIT_WORLD / KIT_CAR`, a `world` / `car` the export can set)
-is 2 m a unit: roads 20-24 m (wide), laps 1.3-2 km, the car 4.5 m long. Regenerating the Kit tracks with roads a third as
+is 2 m a unit: roads 20-24 m (wide), laps 1.3-2 km, the car 4.5 m long (a hand-edited `.ktrk.json` mood can set
+`world` / `car`; the Blender add-on has no property for them yet). Regenerating the Kit tracks with roads a third as
 wide (or laps three times as long) would give both real widths and real laps; not done (the lead's call).
 
 ## Walls and off-road (our code for the 32X's behaviour, `wall.zig`)
@@ -111,8 +114,11 @@ to every slower one ahead; the world scale shrinks the radius in the physics' un
 holds 250/256 of the next segment's cue: throttle under it, brake over it by 1/16. With no cue (the oval) it keeps
 freds72's rule (brake while steering hard) on our brake pedal. The 32X import fills the cues locally from its first AI
 line (255 + its cue x 0.6, our gain; the per-group factor is not decoded), never above our geometric bake.
-Headless (the AI flying all 8 cars, 100 s): Salt Flats 6 laps, Neon Docks 5, Glacier Pass 3, no crash, at most 14 wall
-touches a car; the 32X courses 1.8-3 laps with 30-80 touches and up to 4 crashes; DXHIGH loses a car at its crossing.
+Headless during development (a native probe, not kept; the AI flying all 8 cars for 100 s, before the final refit of
+the classes): Salt Flats 6 laps, Neon Docks 5, Glacier Pass 3, no crash, at most 14 wall touches a car; the 32X courses
+1.8-3 laps with 30-80 touches and up to 4 crashes; DXHIGH loses a car at its crossing. What is gated: the oval race pin and
+the Salt Flats races (arcade_test.zig: 3 laps in 100 s, no crash; racer_feel.mjs: every car finishes, none off or on a
+wall for 2 s).
 
 ## Choosing the model
 
@@ -128,15 +134,25 @@ On DXFOREST much of the road is at its ramp's bottom, where the one-darker shado
 --shadow-headroom` stores, beside each face's colour, the same colour kept one level off the bottom (level 0 -> 1) in the
 face record's spare alternate byte (`alt` byte 2); the cart draws it when the toggle is on (`project.headroom`): key 9, or
 the SHADOW row's third value REAL HEADROOM (offered only on a track that has it). The palette is untouched; the cost is a
-byte test per polygon. FLAT shading only (LIT / SOFT keep their own levels). Default off.
+byte test per polygon. FLAT shading only (LIT / SOFT keep their own levels). Default off. Visible effect: the faces that
+were at level 0 are drawn one level brighter (36 % -> 45 % of their ramp's colour), the price of the shadow showing.
+
+## Known gaps
+
+The oval has no scale tail (ARCADE there changes the acceleration, walls and AI, not the speed); the 32X courses keep
+car scale 1 and the cameras were not compared with a 32X view; the arcade tick's cost is not measured (the cost harnesses
+price the CLASSIC bench: the sub-steps and 4 wheel-corner lookups a car a tick are the new work); skidmarks use the
+unscaled wheel points under a scaled car; car-vs-car pushes are freds72's at size > 1; the race clocks and records were
+fitted on CLASSIC laps; the AI cars share one skill; CAR CLASS is not tied to the car file; Escape does not leave a bench
+lap (Backspace does).
 
 ## Also in this branch
 
 - Backspace leaves a running bench lap (x or b) for the select; without it the bench's CRCs are untouched.
-- The OSD (key o) puts every option's state on its top line: `CPU MS FL RL H1 R8 ARCF FAR M1 L3` (fill, multiply, shading,
+- The OSD (key o) puts every option's state on its top line: `CPU MS FL RL H1 R8 ARCF far M1 L3` (fill, multiply, shading,
   shadow RL / HR / CK, haze, R, physics + class initial, POV, music, laps).
-- AFFINE vs CPU fill (Matt's board run, DXFOREST x bench 27-31 fps either way; ours, M6 32X card: races 48-57 fps with
-  no fill difference beyond noise): CPU stays the default, the fill is not the bottleneck on the 32X courses.
+- AFFINE vs CPU fill (Matt's board run, DXFOREST x bench 27-31 fps either way): CPU stays the default, the fill is not
+  the bottleneck on the 32X courses.
 - The 32X car files (143-188 faces a model): no fixed per-frame buffer can overflow (a car's vertex cache is the file's
   bound, 256; 8 such cars + a 32X track at R 8 is ~2,700 polygons of MAXP 6,144, and past it polygons are dropped and
   counted, never written past the end). The M6 32X black screen is not explained by them.
