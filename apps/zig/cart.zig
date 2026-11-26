@@ -148,6 +148,7 @@ const scene = switch (opts.index) {
     161, 162, 163, 164, 165, 167, 168 => @import("scenes/aurora_boot.zig"), // 162-165, 167-168 = aurora_boot_b..g (166 = BAD APPLE, another branch): the same scene on another baked aurora (each cart module imports its own aurora_art)
     // // AURORA BOOT (R89 spike): night sky, aurora, stars flying into a wireframe falcon; baked offline (docs/boot/AURORA_BOOT.md)
     160 => @import("scenes/racer.zig"), // RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer on freds72's engine, benchmark lap v0
+    166 => @import("scenes/badapple.zig"), // BAD APPLE!! (R89): a 1-bit film as row-transition edits, ZX0 blocks streamed off the disk; the shelf carries our synthetic test film, the real one is local-only
     else => @compileError("bad cart index"),
 };
 

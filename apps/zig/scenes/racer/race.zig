@@ -31,6 +31,8 @@ pub const Race = struct {
     lens: seg.Lens,
     n: usize, // cars in the race (the player + AI cars): all 8, or fewer in the reference's short runs
     contacts: u32 = 0, // the original's hit sound: car-vs-car pushes on the player
+    pilot: bool = false, // the player is flown by the AI's controller (a local VR track's benchmark: no recorded stream fits it)
+    ppid: npc.Pid = .{},
     parked: u8 = 0, // a test hook: bit k set = AI car k+1 is never steered (the reference's `ram` run)
     ticks: u32 = 0,
     now: *const fn () u32 = zeroClock, // the host's microsecond clock on the board (0 headless): times the AI half of a tick
@@ -50,7 +52,10 @@ pub const Race = struct {
     /// One 30 Hz tick of every car; `buttons` are the player's.
     pub fn tick(self: *Race, buttons: u8) void {
         const p = &self.cars[0];
-        p.control(buttons);
+        if (self.pilot) {
+            p.npc = true;
+            npc.control(p, &self.ppid, &self.lens);
+        } else p.control(buttons);
         self.contacts += contacts.update(p, self.cars[1..self.n]);
         p.prepare();
         p.integrate();

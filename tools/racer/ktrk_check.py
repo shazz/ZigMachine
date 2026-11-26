@@ -52,7 +52,7 @@ def _check_inner(doc: Doc, fi: int, face: Doc) -> list[str]:
         ip = ktrk.pts(doc, inner["v"])
         if any(abs(v[1] - ktrk.plane_y(p, v[0], v[2])) > ktrk.PLANAR_EPS for v in ip):
             out.append(f"face {fi} inner {k}: not coplanar with its parent")
-        if not all(ktrk.interior(p, v, 0.05) for v in ip):
+        if not all(ktrk.interior(p, v, 0.05) or ktrk.inside_by(p, v, ktrk.DECAL_TOL) for v in ip):
             out.append(f"face {fi} inner {k}: outside its parent's edges")
     return out
 

@@ -124,7 +124,7 @@ pub const Skid = struct {
             for (m.c, 0..) |p, j| self.verts[i * 4 + j] = .{ @intCast(p[0] >> 9), @intCast(p[1] >> 9), @intCast(p[2] >> 9) };
             const base: u16 = @intCast(i * 4);
             const f = trk.Face{ .v = .{ base, base + 1, base + 2, base + 3 }, .flags = trk.FLAG_DUAL, .nv = 4, .colour = carmodel.SKID_COLOUR,
-                .inner_n = 0, .n = .{ 0, 0, 0 }, .borders = 0, .cp = 0, .inner_first = 0, ._p1 = 0 };
+                .inner_n = 0, .n = .{ 0, 0, 0 }, .borders = 0, .cp = 0, .inner_first = 0, .alt = 0 };
             _ = project.build(fr, cache, &self.verts, v, &f, .{ .fixed = key });
         }
     }

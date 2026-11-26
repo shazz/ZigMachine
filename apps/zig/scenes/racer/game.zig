@@ -42,6 +42,7 @@ pub const Game = struct {
     pov_frames: u32 = pov.FRAMES,
     held: u8 = 0,
     auto: bool = false, // the player follows the recorded stream
+    pilot: bool = false, // ... or, on a local VR track (no stream), the AI's controller flies the player
     warp: bool = false,
     frames: u32 = 0,
     prev: [N]Snap = undefined,
@@ -78,6 +79,13 @@ pub const Game = struct {
         self.auto = m == .bench;
         self.reset();
         self.logged = .grid; // a new mode starts a new log (a reset inside a mode logs the state change)
+    }
+
+    /// Out of a race into the front end (front.zig): no race runs, the session (its FSM's state) stays.
+    pub fn toFront(self: *Game) void {
+        self.mode = .off;
+        self.warp = false;
+        self.auto = false;
     }
 
     pub fn nextPov(self: *Game) void {
@@ -148,6 +156,7 @@ pub const Game = struct {
 
     fn tick(self: *Game) void {
         self.prev = self.cur;
+        self.s.race.pilot = self.pilot and self.auto;
         self.s.tick(self.buttons());
         self.snap();
         const st = self.s.fsm.state;
@@ -180,7 +189,7 @@ pub const Game = struct {
             if (k == 0 and self.pov == .cockpit) continue;
             const s = self.shown(k);
             if (!carview.inRange(v, s.pos, tiles + 1)) continue;
-            carview.draw(fr, cache, v, s, c.old, if (k == 0) 0 else carmodel.liveryShift(k - 1));
+            carview.draw(fr, cache, v, self.t, s, c.old, carmodel.LIVERY[k]);
         }
     }
 };

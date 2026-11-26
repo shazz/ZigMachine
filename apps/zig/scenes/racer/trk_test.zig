@@ -107,3 +107,64 @@ test "the lap script is a pure function of the frame: wraps, repeats, stays on t
         try std.testing.expect(v.horizon >= 0 and v.horizon <= 200);
     }
 }
+
+fn setWord(b: []u8, i: usize, v: u32) void {
+    std.mem.writeInt(u32, b[i * 4 ..][0..4], v, .little);
+}
+
+fn refix(b: []u8) void {
+    setWord(b, 2, std.hash.crc.Crc32IsoHdlc.hash(b[trk.HEADER..]));
+}
+
+/// Each (header word, value) on a copy of `src`: parse must refuse it with an error (the header is outside the CRC: a file is untrusted).
+fn expectRefused(src: []align(4) const u8, word_i: usize, v: u32) !void {
+    const b = try copy(src);
+    defer std.testing.allocator.free(b);
+    setWord(b, word_i, v);
+    if (trk.parse(b)) |_| return error.TestUnexpectedResult else |_| {}
+}
+
+test "a hostile header is refused, never followed: wrapping counts and offsets, too many ramps, segments or grid slots" {
+    const big: u32 = 0xFFFF_FFF0;
+    for ([_]usize{ 4, 5, 6, 7, 8, 9, 11 }) |w| try expectRefused(data.oval, w, big); // counts: u64 bounds, no wrap
+    for (12..25) |w| try expectRefused(data.oval, w, big); // offsets
+    try expectRefused(data.oval, 9, trk.MAX_RAMPS + 1); // past the 256-entry palette
+    try expectRefused(data.oval, 8, 0); // no grid
+    try expectRefused(data.oval, 8, trk.MAX_GRID + 1);
+    try expectRefused(data.oval, 10, trk.MAX_RBAKE + 1);
+    try expectRefused(data.oval, trk.MOOD_WORD, 4096); // a mood block where none is
+}
+
+test "a PVS list running past its block is refused" {
+    const b = try copy(data.oval);
+    defer std.testing.allocator.free(b);
+    const t = try trk.parse(data.oval);
+    const at = for (t.pvs_index) |a| (if (a != trk.NOT_BAKED) break a) else unreachable;
+    const p = std.mem.readInt(u32, b[20 * 4 ..][0..4], .little) + at * 2;
+    std.mem.writeInt(u16, b[p..][0..2], 0xFFFF, .little);
+    refix(b);
+    try std.testing.expectError(error.BadBlock, trk.parse(b));
+}
+
+test "the mood block: Salt Flats' is read (salt far ground at level 7), the oval has none (its defaults), a bad one is refused" {
+    const s = try trk.parse(data.salt);
+    try std.testing.expectEqual(@as(u8, 7), s.mood.ground_level);
+    try std.testing.expectEqual(@as(u8, 1), s.mood.ground_ramp);
+    const c = try trk.parse(data.city);
+    try std.testing.expectEqual(@as(u8, 8), c.mood.ground_ramp);
+    try std.testing.expectEqual(trk.BENCH_ONLY, c.mood.flags);
+    const o = try trk.parse(data.oval);
+    try std.testing.expectEqual(trk.Mood{}, o.mood);
+    const b = try copy(data.salt);
+    defer std.testing.allocator.free(b);
+    const m = std.mem.readInt(u32, b[trk.MOOD_WORD * 4 ..][0..4], .little);
+    for ([_][2]u8{ .{ 0, 30 }, .{ 1, 8 }, .{ 2, 2 }, .{ 3, trk.BACKDROPS }, .{ 24, trk.MAX_CLOCK[0] + 1 }, .{ 25, trk.MAX_CLOCK[1] + 1 }, .{ 26, 1 }, .{ 31, 1 } }) |bad| {
+        const keep = b[m + bad[0]];
+        b[m + bad[0]] = bad[1];
+        refix(b);
+        try std.testing.expectError(error.BadMood, trk.parse(b));
+        b[m + bad[0]] = keep;
+    }
+    refix(b);
+    _ = try trk.parse(b);
+}

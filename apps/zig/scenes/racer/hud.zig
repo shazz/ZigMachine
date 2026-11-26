@@ -14,6 +14,8 @@ pub const HELP = "3-8 R  F FILL  M MUL  G F32  D DECAL  O OSD";
 
 pub const Info = struct {
     track: []const u8,
+    shade: []const u8 = "", // the debug shading's tag (key i), empty by default
+    shadow: []const u8 = "", // the shadow's tag (key y): "/DITHER" for the checkerboard, empty for the default real shadow
     r: u32,
     cpu: bool,
     mul: []const u8,
@@ -38,8 +40,8 @@ pub const Hud = struct {
     pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, plane: usize, i: Info) void {
         var l: [2]Line align(4) = undefined;
         var b0: [64]u8 = undefined;
-        pad(&l[0], i.line0 orelse std.fmt.bufPrint(&b0, "{s} R{} {s} {s}{s} {s} P{} S{}", .{
-            i.track, i.r, if (i.cpu) "CPU" else "AFFINE", i.mul, if (i.decals) "" else " NODECAL", i.pov, i.polys, i.spans,
+        pad(&l[0], i.line0 orelse std.fmt.bufPrint(&b0, "{s}{s}{s} R{} {s} {s}{s} {s} P{} S{}", .{
+            i.track, i.shade, i.shadow, i.r, if (i.cpu) "CPU" else "AFFINE", i.mul, if (i.decals) "" else " NODECAL", i.pov, i.polys, i.spans,
         }) catch "");
         var b1: [96]u8 = undefined;
         pad(&l[1], if (i.osd) (if (i.uncapped) bufUncapped(&b1, i) else bufStages(&b1, i)) else i.line1 orelse HELP);

@@ -35,6 +35,8 @@ site/music/local.vgm
 site/music/sonic1_*.vgm
 # RACER's local test tunes (-Dracer_music, apps/zig/scenes/racer/music.zig): Virtua Racing rips, never committed.
 site/music/racer_*.vgz
+# BAD APPLE's local song (-Dbadapple_music, apps/zig/scenes/badapple.zig): an XM of unknown licence, never committed.
+apps/zig/assets/screens/badapple/local.*
 # SID TEST's HVSC tunes (keys 1-4): PSIDs from the High Voltage SID Collection, the owner's card only.
 site/music/cybernoid_ii.sid
 site/music/wizball.sid
@@ -51,3 +53,6 @@ apps/ports/*/*/build/
 site/carts/.sdk/
 site/carts/demo-hello.wasm
 site/carts/demo-hello.zmd
+
+# LOCAL ONLY (never commit): the real Virtua Racing tracks for benchmarking (tools/racer/vr_import.py, -Dracer_vr=true)
+apps/zig/assets/screens/racer_vr/

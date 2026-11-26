@@ -44,6 +44,9 @@ pub fn build(b: *std.Build) void {
     // RACER's LOCAL test tunes (apps/zig/scenes/racer/music.zig): Matt's own Virtua Racing VGM rips, never committed. Off by
     // default: the cart then holds no song name and asks for no song (docs/ports/kestrel_racing/M3.md).
     const racer_music = b.option(bool, "racer_music", "RACER: ask for the local racer_*.vgz tunes (site/music/, gitignored; never ship that cart).") orelse false;
+    // BAD APPLE's LOCAL song (apps/zig/scenes/badapple.zig): an XM of unknown licence, git-ignored as
+    // apps/zig/assets/screens/badapple/local.xm, never committed. Off by default: the cart is silent.
+    const badapple_music = b.option(bool, "badapple_music", "BAD APPLE: embed the local song (apps/zig/assets/screens/badapple/local.xm, gitignored; never ship that cart).") orelse false;
     const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
 
     if (!build_wasm) return;
@@ -690,19 +693,20 @@ pub fn build(b: *std.Build) void {
         "", // 159: reserved (the Rift part agents' local carts, other branches)
         "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
         "demo-aurora_boot", // 161 — AURORA BOOT (R89 spike): the new KESTREL boot screen: a night photo, a baked aurora added on the true-colour plane, every star flying into a wireframe falcon, a CC0 pad; all computed offline (tools/boot/aurora_bake.py, docs/boot/AURORA_BOOT.md)
-        "demo-aurora_boot_b", // 162 — AURORA BOOT variant B: smooth light (no ray-march jitter) quantised on its float value, 2-level temporal hold, every other row
-        "demo-aurora_boot_c", // 163 — AURORA BOOT variant C: as B, no temporal hold
-        "demo-aurora_boot_d", // 164 — AURORA BOOT variant D: as C, every row
-        "demo-aurora_boot_e", // 165 — AURORA BOOT variant E: as D, the faint halo's hue locked (tools/boot/aurora_halo.py)
-        "", // 166: reserved (BAD APPLE, feat/badapple)
-        "demo-aurora_boot_f", // 167 — AURORA BOOT variant F: a 256-entry palette PER ROW, every row, the soft curtain base, no wordmark (tools/boot/aurora_fg.py)
-        "demo-aurora_boot_g", // 168 — AURORA BOOT variant G: no palette, the final RGB565 picture as 16-bit deltas, the soft curtain base, no wordmark
+        "", // 162: retired (aurora boot variant B, compared on the board 25 Nov, dropped when G became the boot, docs/boot/AURORA_BOOT.md)
+        "", // 163: retired (aurora boot variant C, dropped)
+        "", // 164: retired (aurora boot variant D, dropped)
+        "", // 165: retired (aurora boot variant E, dropped)
+        "demo-badapple", // 166 — BAD APPLE!! (R90): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
+        "", // 167: retired (aurora boot variant F, dropped)
+        "", // 168: retired (aurora boot variant G: its pipeline is cart 161 now)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
         const cart_opts = b.addOptions();
         cart_opts.addOption(usize, "index", idx);
         cart_opts.addOption(bool, "racer_music", racer_music);
+        cart_opts.addOption(bool, "badapple_music", badapple_music);
         const cart_mod = b.createModule(.{
             .root_source_file = b.path("apps/zig/cart.zig"),
             .target = wasm_target,

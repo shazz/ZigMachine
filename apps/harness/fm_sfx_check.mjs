@@ -34,7 +34,7 @@ const BREAKS = {
     own: ["vgm/zm_vgm_sfx.c", "static int owns(uint32_t bit) { return bit < 12u && (zs.own >> bit & 1u); }", "static int owns(uint32_t bit) { return bit < 12u; }"],
     late: null, order: null,
 };
-const PINS = { hashes: "b227c3a5", stats: "applied 684 refused 18 late 0 pending 0 pushed 702" }; // --print-pins
+const PINS = { hashes: "6b6bebe4", stats: "applied 684 refused 18 late 0 pending 0 pushed 702" }; // --print-pins (hashes re-pinned M5 step 4: kr_race.vgm is the final tune)
 const bi = process.argv.indexOf("--break"), broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !(broke in BREAKS)) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
 

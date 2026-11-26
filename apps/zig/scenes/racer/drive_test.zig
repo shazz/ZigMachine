@@ -139,7 +139,7 @@ test "the car's polygons join the frame in the far and near views, never the coc
     const t = try trk.parse(data.oval);
     var f = try newFrame(&t, frame.MAXP);
     defer freeFrame(&f);
-    var cache = xf.Cache{ .e = try std.testing.allocator.alloc(xf.Entry, 64) };
+    var cache = xf.Cache{ .e = try std.testing.allocator.alloc(xf.Entry, @import("carmodel.zig").NV) };
     defer std.testing.allocator.free(cache.e);
     @memset(cache.e, std.mem.zeroes(xf.Entry));
     var d = drive.Drive.init(&t);

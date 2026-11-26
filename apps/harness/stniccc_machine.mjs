@@ -6,7 +6,7 @@ import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
 
 const PAGES = 128; // SHARED_PAGES in machine/sdk/memmap.zig
 
-export async function boot(cart, disk) {
+export async function boot(cart, disk, extraEnv = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
@@ -41,6 +41,7 @@ export async function boot(cart, disk) {
             ...rom,
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock, hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
+            ...extraEnv, // a cart's own clock (hostMicros) or other imports the shared set lacks
         },
     })).instance.exports;
     machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);

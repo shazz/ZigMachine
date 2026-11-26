@@ -28,7 +28,7 @@ class ConvertTest(unittest.TestCase):
         self.assertEqual((ASSETS / "oval.ktrk").read_bytes(), self.blob)
 
     def test_committed_city_is_what_the_generator_and_converter_write_today(self) -> None:
-        self.assertEqual((ASSETS / "city.ktrk").read_bytes(), trackc.convert(gen_city.build_city()))
+        self.assertEqual((ASSETS / "city.ktrk").read_bytes(), trackc.convert(gen_city.build_city(), look=gen_city.MOOD))
 
     def test_header_carries_magic_version_size_counts_and_a_crc_of_the_body(self) -> None:
         b = self.blob

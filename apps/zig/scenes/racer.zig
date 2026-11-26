@@ -5,9 +5,11 @@
 // (the benchmark's lap v0), the PVS and a ray DDA pick the tiles, faces are back-face culled,
 // transformed, clipped, bucket-sorted far to near and filled flat. docs/ports/kestrel_racing/.
 //
-//   3-8 draw distance R (tiles)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
-//   g the vertex transform in f32   d decals on / off   t oval / stress city   p pause   o the benchmark OSD
-//   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose
+//   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
+//   g the vertex transform in f32   d decals on / off   t the next track (the oval, then the disk's *.KTR files and C:\RACER\'s: racer/library.zig)   p pause   o the benchmark OSD
+//   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
+//   y the cars' shadow: REAL (one ramp level darker, the default) / the arcade's checkerboard (HUD "/DITHER"; M5.md step 3)
+// M5 step 4 (racer/front.zig): boots on the TITLE; fire / Enter the select, Backspace back; a key above drops to the bench view
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
 // M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
@@ -28,7 +30,6 @@ const game = @import("racer/game.zig");
 const keys = @import("racer/keys.zig");
 const audio = @import("racer/audio.zig");
 const Hud = @import("racer/hud.zig").Hud;
-const data = @import("racer/data.zig");
 const minimap = @import("racer/minimap.zig");
 const palette = @import("racer/palette.zig");
 const present = @import("racer/present.zig");
@@ -36,11 +37,17 @@ const report = @import("racer/report.zig");
 const setup = @import("racer/setup.zig");
 const sinks = @import("racer/sinks.zig");
 const trk = @import("racer/trk.zig");
+const ts = @import("racer/trackset.zig");
+const library = @import("racer/library.zig");
 const xf = @import("racer/xform.zig");
+const front = @import("racer/front.zig");
+const frontdraw = @import("racer/frontdraw.zig");
 
 extern fn hostMicros() u32;
-const BLOBS = [_][]align(4) const u8{ data.oval, data.city };
-const GROUND_RAMP = [_]usize{ 1, 8 }; // the ramp the ground beyond R takes: grass, plaza
+// Draw distance (tiles). 8 by default (Matt, 24 Nov: it avoids the far-view cut; the oval holds 60 fps there on the board).
+// The benchmark laps (b, x) pin 5, as every earlier CRC list and board number was taken, whatever the default is.
+pub const PLAY_R: u32 = 8;
+pub const BENCH_R: u32 = 5;
 
 var sky_tbl: [2][1]zg.copper.Table = undefined;
 
@@ -49,7 +56,8 @@ fn micros() u32 {
 }
 pub const Demo = struct {
     os: *zg.ZigOS = undefined,
-    tracks: [2]trk.Track = undefined,
+    tracks: [2]trk.Track = undefined, // the built-in oval, the library buffer's track (trackset.zig)
+    lib: library.Library = .{},
     which: usize = 0,
     f: frame.Frame = undefined,
     drive: drive.Drive = undefined,
@@ -59,7 +67,8 @@ pub const Demo = struct {
     p: draw.Painter = undefined,
     hud: Hud = .{},
     bench: bench.Bench = .{ .now = micros },
-    r: u32 = 5,
+    r: u32 = PLAY_R, // the draw distance in force (the benchmark laps pin BENCH_R while they run)
+    play_r: u32 = PLAY_R, // the one the player picked: what drive / race / the free view use, restored after a bench lap
     decals: bool = true,
     osd: bool = false,
     uncapped: bool = false,
@@ -70,32 +79,38 @@ pub const Demo = struct {
     rep: report.Reporter = .{},
     wants_quit: bool = false,
     audio: audio.Audio = .{}, // M4: music + effects on the BARD queue's FM device (racer/audio.zig; z, h, j)
+    front: front.Front = .{}, // M5 step 4: the title, the track select, the results (racer/front.zig)
+    recs: [library.MAX]@import("racer/records.zig").Records = @splat(.{}), // the session's records, a track each
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
         self.* = .{};
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
-        for (BLOBS, 0..) |b, i| self.tracks[i] = trk.parse(b) catch |e| @panic(@errorName(e));
-        const nv = @max(self.tracks[0].verts.len, self.tracks[1].verts.len);
-        const nf = @max(self.tracks[0].faces.len, self.tracks[1].faces.len);
-        self.f = setup.frameFor(nv, nf);
+        self.tracks[0] = library.builtin();
+        self.tracks[1] = self.tracks[0]; // the buffer's view: nothing loaded yet
+        self.f = setup.frameFor(library.MAX_VERTS, library.MAX_FACES);
         self.caches = .{ setup.carCache(), setup.skidCache() };
         self.drive = drive.Drive.init(&self.tracks[0]);
         self.drive.now = micros;
         self.game = game.Game.init(&self.tracks[0], micros) catch |e| @panic(@errorName(e));
         self.map = minimap.Map.init(&self.tracks[0]);
-        self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK) } };
+        self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK), .os = zigos } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
-            palette.install(fb, &self.tracks[0], GROUND_RAMP[0]);
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
-            palette.skyFill(zg.copper.visible(fb, 0));
             fb.is_enabled = p == 0;
         }
+        ts.look(self);
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);
-        zg.Console.log("racer: oval {} faces, city {} faces, cart RAM free {} KB", .{ self.tracks[0].faces.len, self.tracks[1].faces.len, zg.mem.free() / 1024 });
+        self.lib.scan(); // last: its buffers take what the RAM window has left (library.RESERVE kept)
+        self.lib.report();
+        front.boot(self);
+    }
+
+    pub fn cur(self: *Demo) *const trk.Track {
+        return &self.tracks[ts.slotOf(self.which)];
     }
 
     pub fn ownsKeyboard(self: *Demo) u32 {
@@ -109,6 +124,7 @@ pub const Demo = struct {
 
     /// The arrows and the board's joystick (0 up, 1 down, 2 left, 3 right, 5 fire).
     pub fn input(self: *Demo, dir: u8) void {
+        if (front.input(self, dir)) return;
         self.drive.press(dir, true);
         self.game.press(dir, true);
     }
@@ -118,33 +134,30 @@ pub const Demo = struct {
         self.game.press(dir, false);
     }
 
-    /// Driving needs the oval (the physics fixtures and the car's grid are its).
+    /// Driving needs a racing line: any track but a benchmark-only one (the city); lap v1 (its stream) the oval.
     pub fn setDrive(self: *Demo, m: drive.Mode) void {
-        if (m != .off and self.which != 0) self.setTrack(0);
+        if (m != .off and ts.needsOval(self.cur(), self.which, m == .bench) and self.which != 0) self.setTrack(0);
         self.pose = null;
         self.game.setMode(.off);
         self.drive.setMode(m);
+        self.r = if (m == .bench) BENCH_R else self.play_r;
         self.rep = .{ .crc_on = self.rep.crc_on };
         self.bench.resetLap();
     }
 
-    /// The race (M3), likewise on the oval; it replaces driving.
+    /// The race (M3), likewise; it replaces driving.
     pub fn setGame(self: *Demo, m: game.Mode) void {
-        if (m != .off and self.which != 0) self.setTrack(0);
+        if (m != .off and ts.needsOval(self.cur(), self.which, false) and self.which != 0) self.setTrack(0);
         self.pose = null;
         self.drive.setMode(.off);
         self.game.setMode(m);
+        self.r = if (m == .bench) BENCH_R else self.play_r;
         self.rep = .{ .crc_on = self.rep.crc_on };
         self.bench.resetLap();
     }
 
     pub fn setTrack(self: *Demo, w: usize) void {
-        self.which = w;
-        self.script = 0;
-        self.f.seen_stamp = 0;
-        @memset(self.f.seen, 0);
-        for (self.f.cache.e) |*e| e.stamp = 0;
-        for (0..2) |p| palette.install(&self.os.lfbs[p], &self.tracks[w], GROUND_RAMP[w]);
+        ts.setTrack(self, w, micros);
     }
 
     pub fn update(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
@@ -155,17 +168,15 @@ pub const Demo = struct {
         self.drive.update();
         self.game.update();
         audio.frame(self);
+        front.update(self);
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = dt;
         self.bench.frameStart();
-        const done = self.back;
-        zigos.lfbs[done].is_enabled = true;
-        zigos.lfbs[done ^ 1].is_enabled = false;
-        self.back = done ^ 1;
-        const fb = &zigos.lfbs[self.back];
-        const t = &self.tracks[self.which];
+        const fb = present.flip(self, zigos);
+        if (front.menu(self)) return frontdraw.menuFrame(self, zigos, fb); // the select, the results: no 3D under them
+        const t = self.cur();
         const racing = self.game.mode != .off;
         const pose = if (self.pose) |k| cam.fixedPose(t, k) else if (racing) self.game.pose() else if (self.drive.mode != .off) self.drive.pose() else cam.lapPose(t, self.script, cam.povAt(self.script));
         clip.near = if (self.pose != null) clip.NEAR else if (racing) self.game.near() else self.drive.near();
@@ -183,7 +194,7 @@ pub const Demo = struct {
         const counts = self.p.fill(fb, &self.f);
         self.bench.lap(.fill);
         present.finish(self, zigos, fb, counts);
+        frontdraw.overlay(self, zigos, fb); // the title over the flyby (after the view's CRC)
     }
 };
 
-const std = @import("std");

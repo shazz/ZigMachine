@@ -17,25 +17,39 @@ const cam = @import("cam.zig");
 const drive = @import("drive.zig");
 const fx = @import("fx.zig");
 const game = @import("game.zig");
+const project = @import("project.zig");
+const shadow = @import("shadow.zig");
 const race = @import("race.zig");
 const racehud = @import("racehud.zig");
 const session = @import("session.zig");
 const standings = @import("standings.zig");
+const front = @import("front.zig");
 
-const TRACKS = [_][]const u8{ "OVAL", "CITY" };
+fn trackName(d: anytype) []const u8 {
+    return d.lib.list[d.which].label();
+}
 
 pub fn mulName() []const u8 {
     return if (fx.use_f32) "F32" else if (fx.use_zmx) "MULSH" else "PLAIN";
 }
 
 pub fn knobs(d: anytype) bench.Knobs {
-    return .{ .track = TRACKS[d.which], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName() };
+    return .{ .track = trackName(d), .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName() };
 }
 
 fn povName(d: anytype) []const u8 {
     if (d.pose == null and d.game.mode != .off) return @tagName(d.game.pov);
     if (d.pose == null and d.drive.mode != .off) return d.drive.label();
     return @tagName(if (d.pose) |k| @as(cam.Pov, @enumFromInt(k % 3)) else cam.povAt(d.script));
+}
+
+/// The page flip: the page drawn last frame on show, the other one this frame's.
+pub fn flip(d: anytype, zigos: *zg.ZigOS) *zg.LogicalFB {
+    const done = d.back;
+    zigos.lfbs[done].is_enabled = true;
+    zigos.lfbs[done ^ 1].is_enabled = false;
+    d.back = done ^ 1;
+    return &zigos.lfbs[d.back];
 }
 
 /// Push the skidmarks and the cars (the race's eight, or driving's one) after collect and before sort.
@@ -56,11 +70,11 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     var b1: [48]u8 = undefined;
     const racing = d.game.mode != .off and d.pose == null;
     d.hud.draw(zigos, fb, d.back, .{
-        .track = TRACKS[d.which], .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
+        .track = trackName(d), .shade = project.TAGS[project.shade], .shadow = if (shadow.fake) "/DITHER" else "", .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
         .pov = povName(d), .polys = c.polys, .spans = c.spans, .osd = d.osd,
         .uncapped = d.uncapped, .avg_us = d.bench.avg_us, .fps10 = d.bench.fps10, .stage_us = d.bench.stage_us,
-        .line0 = if (racing) racehud.top(&b0, &d.game) else null,
-        .line1 = if (racing) racehud.bottom(&b1, &d.game) else null,
+        .line0 = if (racing) racehud.top(&b0, &d.game) else front.hudTop(d, &b0),
+        .line1 = if (racing) racehud.bottom(&b1, &d.game) else front.hudBottom(d),
     });
     if (racing) drawMap(d, fb);
     d.bench.lap(.hud);
@@ -68,7 +82,7 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     const driven = d.drive.mode != .off and d.pose == null;
     const lap_frames: u32 = if (racing) game.ROUND_FRAMES else cam.LAP_FRAMES;
     const script = if (racing) d.game.frames else if (driven) d.drive.frames else d.script;
-    const scripted = d.pose == null and !d.paused and (if (racing) d.game.mode == .bench else d.drive.mode != .drive);
+    const scripted = d.pose == null and !d.paused and !front.menu(d) and (if (racing) d.game.mode == .bench else d.drive.mode != .drive);
     d.rep.report(zigos, fb, &d.bench, knobs(d), c, .{ .script = script, .scripted = scripted, .lap_frames = lap_frames });
     if (driven) logPhysics(d);
     if (racing) raceLog(d);

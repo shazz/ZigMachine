@@ -5,15 +5,26 @@
 const car = @import("car.zig");
 const clip = @import("clip.zig");
 const crest = @import("crest.zig");
+const zg = @import("zigos");
 const fx = @import("fx.zig");
 const audio = @import("audio.zig");
 const npc = @import("npc.zig");
+const project = @import("project.zig");
 const poly = @import("poly.zig");
+const ts = @import("trackset.zig");
+const shadow = @import("shadow.zig");
+const front = @import("front.zig");
+const clock = @import("clock.zig");
+const seldraw = @import("seldraw.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
+    if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
     switch (cp) {
         0xE012 => self.wants_quit = true,
-        '3'...'8' => self.r = cp - '0',
+        '3'...'8' => {
+            self.r = cp - '0';
+            if (self.drive.mode != .bench and self.game.mode != .bench) self.play_r = self.r; // a bench lap's knob is its own
+        },
         'f' => self.p.cpu_fill = !self.p.cpu_fill,
         'm' => fx.use_zmx = !fx.use_zmx,
         'g' => fx.use_f32 = !fx.use_f32,
@@ -21,7 +32,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'o' => self.osd = !self.osd,
         'u' => self.uncapped = !self.uncapped,
         'c' => self.rep.crc_on = !self.rep.crc_on,
-        't' => self.setTrack(1 - self.which),
+        't' => self.setTrack(ts.next(self, self.which)),
         'p', ' ' => self.paused = !self.paused,
         'l' => self.setDrive(.off),
         'n' => self.setDrive(if (self.drive.mode == .drive) .off else .drive),
@@ -33,6 +44,11 @@ pub fn handle(self: anytype, cp: u32) void {
         's' => self.game.go(),
         'a' => self.game.toggleAuto(),
         'w' => self.game.toggleWarp(),
+        'i' => nextShade(self),
+        'y' => {
+            shadow.fake = !shadow.fake;
+            zg.Console.log("racer,shadow,{s}", .{if (shadow.fake) "DITHER" else "REAL"});
+        },
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);
@@ -41,8 +57,21 @@ pub fn handle(self: anytype, cp: u32) void {
         'W' => npc.break_pid = !npc.break_pid, // ... and --break pid (racer_race.mjs)
         'X' => poly.break_edge = !poly.break_edge, // the harness' --break switches (see racer_headless.mjs)
         'Y' => clip.break_drop = !clip.break_drop,
+        'S' => shadow.break_two = !shadow.break_two, // racer_car.mjs --break two: the shadow two levels down
+        'Q' => shadow.fake = true, // ... and --break dither: the checkerboard as if it were the default
+        'J' => seldraw.break_refuse = true, // racer_front.mjs --break refuse: the scan's refusals not listed
+        'U' => clock.break_flat = true, // ... --break clock: every computed clock freds72's 75 s + 10 s
+        'V' => front.break_results = true, // ... --break fsm: fire on the results goes to the title
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }
 }
 
+
+/// Key i: the VR tracks' debug shading, FLAT (his stored colours, the default) / LIT (the converter's light, the old look) /
+/// SOFT (a gentle light). The far ground follows (trackset.groundLevel). Our tracks store no alternates: nothing changes there.
+fn nextShade(self: anytype) void {
+    project.shade = (project.shade + 1) % @as(u8, project.SHADES.len);
+    ts.look(self);
+    zg.Console.log("racer,shade,{s}", .{project.SHADES[project.shade]});
+}

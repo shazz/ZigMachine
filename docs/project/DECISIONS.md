@@ -2204,3 +2204,98 @@ effects (twice the BARD load).
 (the racer's held engine note is ~1,800 operators a frame: ~61 % estimated with music, ~69 % on the busiest frames).
 snd.bin grows ~9.6 KB (43 KB left). The PSG noise's phase is not linear (the engine stops its counters while every
 PSG channel is off), so tune + effects differ from the sum of the two only there. A board needs the new system image.
+
+## 2026-11-25 — Kestrel Racing's tracks are files: one buffer, a mood block, no -Dracer_vr
+
+**Status:** accepted
+**Context:** The racer embedded every track in the cart image. With the oval, the stress city and Salt Flats the 2 MiB RAM
+window had 172 KB left, and each new track is 0.4-0.7 MB. Two more original tracks would not fit, and the local Virtua Racing
+cart (-Dracer_vr) already had to drop the city. Matt also wants people to add their own tracks ("even better so people will
+use their own tracks"). The cart also knew each track's look by its index: the city's far ground, Salt Flats' far-ground level
+and the VR tracks' unlit ground. A user's track has no index.
+**Decision:** a track is a FILE, `NAME.KTR` (the converter's v3 binary, raw or ZX0-packed), on the cart's own `.zmd` disk
+(`zg.disk`'s FAT, packed by tools/mkdisks.sh) or in `C:\RACER\` (KOS GEMDOS read-only through the existing ABI). Only the
+oval stays built in, as the fallback and because the recorded button streams are its. The library scans first blocks at init;
+the chosen track is read into ONE buffer sized to the largest file listed, then depacked and parsed. `trk.parse` treats the
+header (outside the CRC) as untrusted: u64 block bounds, ramp, segment, grid and R_BAKE caps, PVS lists in range. A bad file
+is refused by name, never trapped on. What the cart knew by index is now a 32-byte **mood block**, the file's last block
+(header word 25 its offset, 0 = none: tools/racer/mood.py). It holds the far ground's ramp and level, a bench-only flag, the
+sky gradient, and the backdrop's colours and shape. The `-Dracer_vr` build option is removed: the VR tracks are local disk
+files (`RACER_EXTRA` in mkdisks), so every cart is the same build.
+**Alternatives considered:**
+- Keep the blobs embedded and drop tracks per build (the VR cart's way): no room, and no user tracks.
+- Raw files only: simpler, but the shelf disk would grow by ~2.3 MB (the disk is committed with every cart change), and a load
+  reads ~3.5x more blocks.
+- A version-4 format with the look in the header: it would change the oval's bytes and every local VR file. The one spare
+  header word pointing to an optional appended block keeps the oval byte-identical and the city and Salt Flats' bodies unchanged.
+- An index file listing the tracks: one more thing to keep in step. The FAT and C:'s directory are the index.
+**Consequences:** the cart's wasm goes from 1.62 to 0.64 MB, and 158 KB of cart RAM stays free with a 738 KB track buffer and
+a 238 KB stage buffer. Adding a track is adding a file, and the shelf disk is 823 KB. A track change costs a load (node:
+6-15 ms; board estimate ~0.1-0.2 s: the depack and the CRC). The frame's vertex cache and face stamps are sized to fixed caps
+(25,600 / 10,240: the city's size), so a larger track is refused rather than overrunning them. The harnesses mount the disk
+(apps/harness/racer_disk.mjs); without it the cart shows the oval only.
+
+## 2026-11-26 — Kestrel Racing's GT car: a Car Kit file read at compile time, one key a car, a shadow that darkens the plane
+
+**Status:** accepted
+**Context:** M5 step 3 replaces the placeholder car (six boxes built in carmodel.zig) with the GT car. The car is authored in
+Blender like the tracks. The placeholder's faces each took their own depth key at 1/8-unit buckets, which is fine for convex
+boxes. A GT body is not convex: a cabin sits on a deck, a wing stands behind it, and the tyres stand out of the arches. Sorted
+per face, the deck paints over the cabin from some angles. Matt asked for a car shadow that is REAL transparency (a pixel one step
+down its colour ramp), with the arcade's checkerboard on a debug key. The plane is palette-indexed (16 + ramp * 8 + level),
+so "one step down" is an index operation, but it has to READ the plane. CHISEL's minterms can't subtract.
+**Decision:**
+- **The car is a file of the Car Kit.** `tools/racer/carc.py` writes `gt.kcar` from the add-on's `.kcar.json`. The file holds
+  a 64-byte header with the part ranges and a CRC, the vertices, and trk.Face records. carmodel.zig reads it with
+  `@embedFile` at compile time into the arrays the old builder made, so nothing changes at run time.
+- **Parts and order.** The parts are wheels, hull, cabin, wing, the shadow quad, and a far model.
+- **One key a car.** The key is the depth of the car's middle, never below the ground face under the car nor the face under
+  the shadow's corner nearest the eye. The painter's order inside a car is the file's: shadow, wheels, hull, then the cabin and
+  the wing, swapped by the eye's side of the wing.
+- **Two livery shifts.** Body and stripe faces each take a `dc` shift.
+- **The shadow is a flagged polygon** (Rec.n's top bit). The same edge walker emits it, and the sink's `shade` darkens the span
+  in place: word-wise SWAR; a ramp's bottom and entries 0-15 stay. On the AFFINE fill the sink fires its queue and calls
+  `blitSync` before a car's shadow spans.
+**Alternatives considered:**
+- Keep per-face keys and split the model into convex parts sorted apart: still wrong inside a part's neighbourhood, and more
+  keys to sort.
+- A generated .zig source instead of a binary: reviewable, but a second format beside the tracks', and no CRC.
+- The shadow as a fixed dark colour (no read): cheaper on the AFFINE fill, but it is the "separate black" Matt ruled out. It
+  stays the debug key's checkerboard.
+- A palette-remap op in CHISEL: none exists, and the minterms are bitwise.
+- The shadow keyed at the ground face under the car only: the road quad behind the car (nearer to the chase camera) painted
+  over it (15 of the grid's shadow pixels survived).
+**Consequences:**
+- **Correct views.** The car is correct for every eye above its deck, which every POV is. A wall nearer than the car's middle
+  still paints over it, as before.
+- **Frame cost.** In the model the grid costs +0.2-0.3 Mc (60 faces near, the 9-face far model past 6 units).
+- **Board.** Salt Flats stays 60 fps at the grid and mid-race. On the 32X courses the grid drops 3 fps.
+- **The AFFINE fill** pays a sync per visible car's shadow. On the board CPU = AFFINE pixel for pixel.
+- **Pins.** The lap v1 / lap v2 / crest view pins moved; the physics did not.
+- **Ramp bottoms.** On faces already at a ramp's bottom (some of the 32X courses' road), the real shadow does not show.
+
+## 2026-11-26 — Kestrel Racing's front end as race-FSM states, and a race clock per track
+
+**Status:** accepted
+**Context:** M5 step 4 needs a title, a track select and a results screen, and freds72's fixed clock (75 s + 10 s a
+checkpoint) times the pilot out on every 32X course. Twenty-odd gate lines assume the cart boots into the bare attract
+flyby, and the files already converted (the 32X imports take minutes a track) carry no clock.
+**Decision:**
+- The screens are states of the existing table-driven race FSM (title, select; events enter, pick, back), held in the
+  game's session; a track load carries the FSM. Any debug key on the title or the select first drops to the bare bench
+  view, so every earlier harness and board recipe runs as before (no pin moved).
+- The overlays draw into the page already filled, after the benchmark's view CRC; the select and the results skip the 3D
+  pipeline (the copper's sky gradient is their background), so they cost the same on any track. No new plane.
+- The clock: the mood block's two former padding bytes (start, extension in seconds; 0 = computed). Computed at load from
+  the racing line: P = (length + 0.15 x turning) / 10.5 s, start = max(75, 1.5 P), extension = max(10, 0.8 P / checkpoints),
+  freds72's own ratios with his numbers as floors, so the oval is unchanged.
+**Alternatives considered:**
+- A separate front-end state machine at the cart level: two FSMs whose handover would itself be an untested transition.
+- Booting into the title with the harnesses taught to leave it: twenty edits for nothing a debug key does not already do.
+- A clock from the lap length alone: DXBAY is shorter than the oval and its pilot lap is 15 % slower; turning explains it.
+- Baking clocks into the shipped files: the binaries, the disk and the kit tests would all move for a value computable at load.
+**Consequences:**
+- A screen added later is a table row plus a draw function; the all-pairs FSM test covers it.
+- The clock is an estimate: fitted on 11 tracks (DXHIGH: the pilot never laps it) to never be under the AI pilot's lap; a human slower than the AI on a
+  very twisty course may still time out (the Track Kit's `ktrk_clock` overrides it).
+- Moving the select's cursor loads the track under it (~0.1-0.2 s on the board for the biggest, estimate).

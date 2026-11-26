@@ -18,6 +18,7 @@ import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+import { diskHook } from "./racer_disk.mjs";
 import { bootObj, key } from "./obj_machine.mjs";
 import { png } from "./skystrike_zig_frame.mjs";
 
@@ -38,9 +39,10 @@ const LAP_PIN = "6d55d849 bff1c7be a9f66c2b e3bfc562 3ea0fc9b fb56cdc3 0630972a 
 const errors = [];
 const fail = (m) => errors.push(m);
 
-async function boot() {
+async function boot(opts) {
     const log = [];
-    const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s));
+    const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), diskHook());
+    if (!opts?.raw) key(S, "5"); // every pin was taken at R = 5; the cart's default is 8 (racer.zig PLAY_R)
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p));
     const view = () => {
         const vb = S.machine.hwVideoBase(), dv = new DataView(S.memory.buffer, vb, OFF_PAL);
@@ -138,6 +140,22 @@ async function poses(track, pinned) {
     return { B, cpu };
 }
 
+/** The default draw distance is 8 (free view, drive, race) and the benchmark laps pin 5 (Matt, 24 Nov). */
+async function defaultR() {
+    const B = await boot({ raw: true });
+    const r0 = pose(B, 4).counts?.r;
+    if (r0 !== 8) fail(`default R is ${r0}, not 8`);
+    const seen = B.lines("csv").length;
+    key(B.S, "x");
+    B.run(70);
+    const lap = B.lines("csv").slice(seen).map((l) => +l.split(",")[4]);
+    if (!lap.length || lap.some((r) => r !== 5)) fail(`the bench lap v2 ran at R ${[...new Set(lap)]}, not 5`);
+    key(B.S, "l");
+    const r1 = pose(B, 4).counts?.r;
+    if (r1 !== 8) fail(`R after a bench lap is ${r1}, not the default 8`);
+    console.log(`racer default R: pose ${r0}, bench lap 5, back to ${r1}`);
+}
+
 async function counts(B) {
     const polys = [];
     for (const r of [3, 4, 5, 6, 7, 8]) { key(B.S, String(r)); polys.push(pose(B, 4).counts?.polys ?? -1); }
@@ -170,6 +188,7 @@ for (const track of ["oval", "city"]) {
     const c = await counts(B);
     if (track === "oval") var ovalFaces = c.faces; else if (!(c.faces > ovalFaces)) fail(`city R=5 submits ${c.faces} faces, the oval ${ovalFaces}`);
 }
+if (!BREAK) await defaultR();
 const flip = await boot();
 let last = -1;
 for (let f = 0; f < 20; f++) {
