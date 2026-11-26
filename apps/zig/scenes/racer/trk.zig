@@ -27,6 +27,7 @@ pub const MOOD_WORD = 25;
 pub const MOOD_SIZE = 32;
 pub const BACKDROPS = 3; // backdrop.zig's shapes: hills, docks, peaks
 pub const BENCH_ONLY: u8 = 1;
+pub const MAX_CLOCK = [2]u8{ 250, 60 }; // clock.MAX_START, MAX_EXTEND
 
 /// How a track looks beyond its faces (tools/racer/mood.py): the far ground (palette index 4), the sky, the backdrop.
 pub const Mood = extern struct {
@@ -36,7 +37,8 @@ pub const Mood = extern struct {
     backdrop: u8 = 0,
     sky: [2][4]u8 = .{ .{ 28, 60, 150, 0 }, .{ 170, 205, 235, 0 } }, // top, horizon
     hills: [3][4]u8 = .{ .{ 110, 130, 170, 0 }, .{ 70, 100, 90, 0 }, .{ 60, 60, 90, 0 } }, // palette 12, 13, 14
-    pad: [8]u8 = .{0} ** 8,
+    clock: [2]u8 = .{ 0, 0 }, // the race clock: start, extension a checkpoint (s); 0 = computed (clock.zig, M5 step 4)
+    pad: [6]u8 = .{0} ** 6,
 };
 
 pub const FLAG_DUAL: u8 = 1;
@@ -138,7 +140,7 @@ fn mood(b: []align(4) const u8, at: u32, total: u32) Error!Mood {
     const m = (try block(Mood, b, at, 1, total))[0];
     if (at + MOOD_SIZE != total) return error.BadMood; // the file's last block
     if (m.ground_ramp >= word(b, 9) or m.ground_level > 7 or m.flags & ~BENCH_ONLY != 0 or m.backdrop >= BACKDROPS) return error.BadMood;
-    if (!std.mem.allEqual(u8, &m.pad, 0)) return error.BadMood;
+    if (m.clock[0] > MAX_CLOCK[0] or m.clock[1] > MAX_CLOCK[1] or !std.mem.allEqual(u8, &m.pad, 0)) return error.BadMood;
     return m;
 }
 

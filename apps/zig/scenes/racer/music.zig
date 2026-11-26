@@ -35,6 +35,7 @@ pub fn cueFor(c: Ctx) Cue {
     if (!c.racing) return .title; // the attract lap
     return switch (c.state) {
         .grid => .silent,
+        .title, .select => .title, // the front end (M5 step 4): the title tune
         .countdown => .start,
         .race => if (c.ticks >= LOOP_AT) .loop else .start,
         .finish, .results => if (c.outcome == .win) .win else .result,

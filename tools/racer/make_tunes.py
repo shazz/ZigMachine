@@ -1,36 +1,82 @@
-"""Kestrel Racing's three PLACEHOLDER tunes (R82 M4): original loops written by this script (MIT, like the repo;
-no third-party music, nothing derived from any game's soundtrack), replaceable by the final tunes (M5).
+"""Kestrel Racing's three tunes (R82 M5 step 4, replacing M4's placeholders): ORIGINAL music, the scores in
+tools/racer/tunes_score.py (MIT, like the repo; no third-party music, nothing derived from any game's soundtrack).
 
     python3 tools/racer/make_tunes.py site/music        writes kr_title.vgm, kr_race.vgm, kr_results.vgm
     python3 tools/racer/make_tunes.py --check site/music  the committed files = what this script writes
 
 Arranged on FM 1-4 and PSG tones 1-2 only: FM 5-6, PSG tone 3 and the noise are the cart's sound effects
 (zg.bard.fm SFX_DEFAULT), so the tunes never write them and nothing of the tune is lost under the effects.
-No DAC, no LFO: the effects' patches see a quiet global state. libs/c/vgm/make_tune.py's method (vgm_write).
+FM 1 bass, FM 2 lead, FM 3 pad, FM 4 drums (one patch: the kick with operator 1 silent and a pitch drop, the
+snare with operator 1 at full feedback); PSG 1 the arpeggio, PSG 2 the ticks. No DAC, no LFO: the effects'
+patches see a quiet global state. libs/c/vgm/make_tune.py's method (vgm_write).
 """
+
+from __future__ import annotations
+
 import sys
 from pathlib import Path
+from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "libs/c/vgm"))
-from vgm_write import Vgm, freq, key, patch  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tunes_score import TUNES, Section, Tune
+from vgm_write import Vgm, freq, key, patch
 
-SEC = 44100
-YM_CLOCK = 7670453
-PSG_CLOCK = 3579545
+SEC: Final = 44100
+YM_CLOCK: Final = 7670453
+PSG_CLOCK: Final = 3579545
+BASS, LEAD, PAD, DRUM = 0, 1, 2, 3  # FM channels 1-4
 
-BASS = (0, 6, [{"tl": 30, "mul": 1, "dr": 8, "sl": 3}, {"tl": 38, "mul": 2, "dr": 10, "sl": 5},
-               {"tl": 30, "mul": 1, "dr": 6, "sl": 4}, {"tl": 12, "dr": 5, "sl": 6, "rr": 9}])
-LEAD = (4, 4, [{"tl": 36, "mul": 2}, {"tl": 16, "dr": 4, "sl": 3, "rr": 7}, {"tl": 42, "mul": 3},
-               {"tl": 18, "dr": 4, "sl": 3, "rr": 7}])
-PAD = (7, 0, [{"tl": 36, "ar": 14, "rr": 5}, {"tl": 38, "ar": 12, "rr": 5, "dt": 3},
-              {"tl": 38, "ar": 13, "rr": 5, "dt": 7}, {"tl": 36, "ar": 14, "rr": 5}])
-PLUCK = (5, 5, [{"tl": 32, "mul": 1, "dr": 12, "sl": 8}, {"tl": 22, "mul": 2, "dr": 10, "sl": 9},
-                {"tl": 24, "mul": 1, "dr": 10, "sl": 9}, {"tl": 26, "mul": 4, "dr": 12, "sl": 10}])
+PATCHES: Final = (
+    (0, 6, [{"tl": 30, "mul": 1, "dr": 8, "sl": 3}, {"tl": 38, "mul": 2, "dr": 10, "sl": 5},
+            {"tl": 30, "mul": 1, "dr": 6, "sl": 4}, {"tl": 15, "dr": 5, "sl": 6, "rr": 9}]),
+    (4, 5, [{"tl": 34, "mul": 2}, {"tl": 19, "dr": 3, "sl": 2, "rr": 7}, {"tl": 44, "mul": 4},
+            {"tl": 21, "dr": 3, "sl": 2, "rr": 7}]),
+    (7, 0, [{"tl": 40, "ar": 14, "rr": 5}, {"tl": 42, "ar": 12, "rr": 5, "dt": 3},
+            {"tl": 42, "ar": 13, "rr": 5, "dt": 7}, {"tl": 127, "ar": 14, "rr": 5}]),
+    (0, 7, [{"tl": 127, "mul": 1}, {"tl": 28, "mul": 1, "dr": 20, "sl": 15, "rr": 15},
+            {"tl": 24, "mul": 1, "dr": 18, "sl": 15, "rr": 15}, {"tl": 10, "dr": 13, "sl": 15, "rr": 15}]),
+)
+NAMES: Final = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+QUALITY: Final = {"": (0, 4, 7), "m": (0, 3, 7), "dim": (0, 3, 6), "maj7": (0, 4, 7, 11), "m7": (0, 3, 7, 10),
+                  "7": (0, 4, 7, 10)}
+KICK_TL1, SNARE_TL1 = 127, 0  # FM 4 operator 1: silent for the kick, the noise source for the snare
 
 
-def fnum(note):
+def pitch(name: str) -> tuple[int, str]:
+    """'F#' + the rest -> (semitone 0..11, the rest)."""
+    n, rest = NAMES[name[0]], name[1:]
+    if rest[:1] in "#b" and rest:
+        n, rest = (n + (1 if rest[0] == "#" else -1)) % 12, rest[1:]
+    return n, rest
+
+
+def note(text: str) -> int:
+    """'C#5' -> MIDI 73."""
+    n, octave = pitch(text)
+    return 12 * (int(octave) + 1) + n
+
+
+def chord(name: str) -> list[int]:
+    """A chord name -> its tones from the root in octave 3 (MIDI 48..59)."""
+    root, quality = pitch(name)
+    return [48 + root + i for i in QUALITY[quality]]
+
+
+def lead_bar(text: str) -> list[int | None]:
+    """'E5:2 -:2 ...' -> 16 steps: a MIDI note where one starts, 0 a rest, None a hold."""
+    steps: list[int | None] = []
+    for tok in text.split():
+        name, length = tok.split(":")
+        steps += [0 if name == "-" else note(name)] + [None] * (int(length) - 1)
+    if len(steps) != 16:
+        raise ValueError(f"lead bar {text!r}: {len(steps)} sixteenths, not 16")
+    return steps
+
+
+def fnum(midi: int) -> tuple[int, int]:
     """The lowest block whose F-number fits 11 bits (YM2612: hz = fnum x clock / 144 x 2^(block - 1) / 2^20)."""
-    hz = 440 * 2 ** ((note - 69) / 12)
+    hz = 440 * 2 ** ((midi - 69) / 12)
     for block in range(8):
         f = round(hz * (1 << 20) / (YM_CLOCK / 144) / 2 ** (block - 1))
         if f <= 2047:
@@ -38,81 +84,96 @@ def fnum(note):
     return 7, 2047
 
 
-def play(v, ch, note):
+def play(v: Vgm, ch: int, midi: int) -> None:
     key(v, ch, 0)
-    if note:
-        freq(v, ch, *fnum(note))
+    if midi:
+        freq(v, ch, *fnum(midi))
         key(v, ch)
 
 
-def tone(v, c, note, att):
-    """PSG tone c (0 or 1 here: tone 3 is the effects') at a MIDI note, attenuation att (15 off)."""
-    if note:
-        period = min(1023, round(PSG_CLOCK / (32 * 440 * 2 ** ((note - 69) / 12))))
+def tone(v: Vgm, c: int, midi: int, att: int) -> None:
+    """PSG tone c (0 or 1 here: tone 3 is the effects') at a MIDI note (0: keep the pitch), attenuation att (15 off)."""
+    if midi:
+        period = max(1, min(1023, round(PSG_CLOCK / (32 * 440 * 2 ** ((midi - 69) / 12)))))
         v.psg_write(0x80 | c << 5 | (period & 15))
         v.psg_write(period >> 4)
     v.psg_write(0x90 | c << 5 | att)
 
 
-def setup(v, pans=(0xC0, 0xC0, 0xC0, 0xC0)):
+def setup(v: Vgm) -> None:
     v.ym_write(0, 0x22, 0)  # no LFO
     v.ym_write(0, 0x27, 0)
-    for ch, (alg, fb, ops) in enumerate((BASS, LEAD, PAD, PLUCK)):
-        patch(v, ch, alg, fb, ops, pan=pans[ch])
+    for ch, (alg, fb, ops) in enumerate(PATCHES):
+        patch(v, ch, alg, fb, ops, pan=0xC0)
     for c in range(4):  # every PSG channel off; tones 1-2 are the tune's
         v.psg_write(0x90 | c << 5 | 15)
 
 
-# Each tune: (bpm, chords as MIDI triads, a 16-step lead per two bars of chords, bass pattern, bars).
-TUNES = {
-    "kr_title.vgm": dict(bpm=118, bars=16, chords=[(52, 55, 59), (48, 52, 55), (55, 59, 62), (50, 54, 57)],  # Em C G D
-                         lead=[71, 0, 74, 0, 76, 74, 71, 0, 69, 0, 71, 67, 0, 66, 67, 0],
-                         bass=[1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0], pluck_oct=24, psg_oct=12),
-    "kr_race.vgm": dict(bpm=150, bars=16, chords=[(57, 60, 64), (53, 57, 60), (55, 59, 62), (52, 55, 59)],  # Am F G Em
-                        lead=[76, 76, 0, 79, 0, 76, 74, 0, 72, 0, 74, 76, 0, 72, 69, 0],
-                        bass=[1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1], pluck_oct=24, psg_oct=24),
-    "kr_results.vgm": dict(bpm=96, bars=8, chords=[(48, 52, 55, 59), (45, 48, 52, 55), (50, 53, 57, 60), (43, 47, 50, 53)],  # Cmaj7 Am7 Dm7 G7
-                           lead=[64, 0, 67, 0, 71, 0, 72, 0, 71, 0, 67, 0, 64, 0, 62, 0],
-                           bass=[1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0], pluck_oct=12, psg_oct=12),
-}
+def bass(v: Vgm, sec: Section, tones: list[int], s: int) -> None:
+    c = sec.bass[s]
+    if c == "-":
+        play(v, BASS, 0)
+    elif c in "ROF":
+        play(v, BASS, tones[0] - 12 + {"R": 0, "O": 12, "F": 7}[c])
 
 
-def bar(v, t, b, step):
-    chord = t["chords"][b // 2 % len(t["chords"])]
-    for s in range(16):
-        if t["bass"][s]:
-            play(v, 0, chord[0] - 12)
-        if s == 0 and b % 2 == 0:
-            play(v, 2, chord[1])
-        if b % 4 >= 2 or s >= 8:
-            note = t["lead"][s]
-            play(v, 1, note + (0 if b % 8 < 4 else -2) if note else 0)
-        play(v, 3, chord[s % len(chord)] + t["pluck_oct"] if s % 2 == 0 else 0)
-        if s % 4 == 0:
-            tone(v, 0, chord[(s // 4 + b) % len(chord)] + t["psg_oct"], 6)
-        elif s % 4 == 2:
-            tone(v, 0, 0, 11)
-        tone(v, 1, chord[-1] + t["psg_oct"] if s == 0 else 0, 9 if s == 0 else 15 if s == 12 else 12)
-        v.wait(step)
+def drums(v: Vgm, c: str) -> bool:
+    """A drum hit at this step (the kick's pitch drop is due a quarter step later: True)."""
+    if c not in "KS":
+        return False
+    v.ym_write(DRUM // 3, 0x40 + DRUM % 3, KICK_TL1 if c == "K" else SNARE_TL1)  # operator 1's TL
+    play(v, DRUM, 45 if c == "K" else 62)
+    return c == "K"
 
 
-def make(name):
-    t = TUNES[name]
+def arp(v: Vgm, sec: Section, tones: list[int], s: int) -> None:
+    c = sec.arp[s]
+    if c.isdigit():
+        tone(v, 0, tones[int(c) % len(tones)] + 24, 7)
+    else:
+        tone(v, 0, 0, 11)
+
+
+def step(v: Vgm, sec: Section, bar: int, s: int, ticks: int) -> None:
+    """One sixteenth of a bar: every voice's writes at its start, the kick's drop and the tick's end a quarter in."""
+    tones = chord(sec.chords[bar])
+    bass(v, sec, tones, s)
+    lead = lead_bar(sec.lead[bar])[s]
+    if lead is not None:
+        play(v, LEAD, lead)
+    if s == 0:
+        play(v, PAD, tones[1 + bar % 2] + 12)
+    arp(v, sec, tones, s)
+    kick = drums(v, sec.drums[s])
+    if sec.hats[s] == "x":
+        tone(v, 1, 112, 10)
+    q = ticks // 4
+    v.wait(q)
+    if kick:
+        freq(v, DRUM, *fnum(33))
+    tone(v, 1, 0, 15)
+    v.wait(ticks - q)
+
+
+def make(tune: Tune) -> bytes:
     v = Vgm()
     setup(v)
     v.loop_here()
-    step = SEC * 60 // t["bpm"] // 4  # a sixteenth
-    for b in range(t["bars"]):
-        bar(v, t, b, step)
+    ticks = SEC * 60 // tune.bpm // 4  # a sixteenth
+    for name in tune.order:
+        sec = tune.sections[name]
+        for bar in range(8):
+            for s in range(16):
+                step(v, sec, bar, s, ticks)
     return v.bytes()
 
 
-def main():
+def main() -> None:
     check = "--check" in sys.argv
-    out = Path([a for a in sys.argv[1:] if a != "--check"][0])
+    out = Path(next(a for a in sys.argv[1:] if a != "--check"))
     bad = []
-    for name in TUNES:
-        data = make(name)
+    for name, tune in TUNES.items():
+        data = make(tune)
         if check:
             if not (out / name).is_file() or (out / name).read_bytes() != data:
                 bad.append(name)
@@ -122,7 +183,7 @@ def main():
     if bad:
         sys.exit(f"make_tunes --check: {', '.join(bad)} differ from what tools/racer/make_tunes.py writes")
     if check:
-        print("make_tunes --check: the three placeholder tunes are the script's")
+        print("make_tunes --check: the three tunes are the script's")
 
 
 if __name__ == "__main__":

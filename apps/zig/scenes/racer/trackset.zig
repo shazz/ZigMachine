@@ -50,6 +50,17 @@ pub fn show(d: anytype, w: usize, now: *const fn () u32) usize {
     return bindTo(d, w, now);
 }
 
+/// Library entry `w` on show (the Demo's setTrack): loaded, bound, its look installed, the lap script and the frame's caches reset.
+pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
+    d.which = show(d, w, now); // w, or the oval when the file is refused
+    d.script = 0;
+    d.f.seen_stamp = 0;
+    @memset(d.f.seen, 0);
+    for (d.f.cache.e) |*e| e.stamp = 0;
+    look(d);
+    d.r = d.play_r;
+}
+
 /// The next library entry after `w` that is not marked bad (the oval at the end of the list).
 pub fn next(d: anytype, w: usize) usize {
     var i = w;
@@ -62,6 +73,7 @@ pub fn next(d: anytype, w: usize) usize {
 
 fn refused(d: anytype, w: usize, why: []const u8, now: *const fn () u32) usize {
     d.lib.list[w].bad = true;
+    d.lib.list[w].why = why;
     zg.Console.log("racer,track,refused,{s},{s}", .{ d.lib.list[w].label(), why });
     return bindTo(d, 0, now);
 }
@@ -76,8 +88,11 @@ fn bindTo(d: anytype, w: usize, now: *const fn () u32) usize {
     const g = game.Game.init(t, now) catch |err| return if (w == 0) @panic(@errorName(err)) else refused(d, w, @errorName(err), now);
     d.drive = drive.Drive.init(t);
     d.drive.now = now;
+    const keep = d.game.s.fsm;
     d.game = g;
     d.game.pilot = w != 0; // the recorded button streams are the oval's
+    if (keep.front()) d.game.s.fsm = keep; // a load from the title or the select keeps the screen (front.zig)
+    d.game.s.records = d.recs[w]; // the session's records on this track
     d.map = minimap.Map.init(t);
     return w;
 }

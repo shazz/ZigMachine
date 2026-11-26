@@ -30,7 +30,7 @@ test "the FSM: every legal transition in the table is taken, every other event i
             }
         }
     }
-    try std.testing.expectEqual(@as(usize, 8), legal); // 4 forward + 4 restarts
+    try std.testing.expectEqual(@as(usize, 14), legal); // 4 forward + 4 restarts + the front end's 6 (M5 step 4)
 }
 
 test "the FSM walks grid -> countdown -> race -> finish -> results -> grid" {
@@ -151,4 +151,25 @@ test "a race with no input times out: the clock's 75 s are gone, the AI cars sti
     try s.restart();
     try std.testing.expectEqual(fsm.State.grid, s.fsm.state);
     try std.testing.expectEqual(@as(u32, 0), s.race.ticks);
+}
+
+test "the front end (M5 step 4): title -> select -> grid, results -> select or title, grid -> select; the race keys are refused there" {
+    var m = Fsm{ .state = .title };
+    try std.testing.expectError(error.IllegalTransition, m.fire(.pick)); // nothing picked on the title
+    try std.testing.expectError(error.IllegalTransition, m.fire(.start));
+    for ([_]fsm.Event{ .enter, .back, .enter, .pick }) |ev| try m.fire(ev); // title, select, title, select, grid
+    try std.testing.expectEqual(fsm.State.grid, m.state);
+    try m.fire(.back);
+    try std.testing.expectEqual(fsm.State.select, m.state);
+    try std.testing.expectError(error.IllegalTransition, m.fire(.restart)); // no race to abort on the select
+    try std.testing.expect(m.front());
+    m = .{ .state = .results };
+    try m.fire(.enter);
+    try std.testing.expectEqual(fsm.State.select, m.state);
+    m = .{ .state = .results };
+    try m.fire(.back);
+    try std.testing.expectEqual(fsm.State.title, m.state);
+    m = .{ .state = .race };
+    try std.testing.expectError(error.IllegalTransition, m.fire(.back)); // mid-race: abort (restart) first
+    try std.testing.expect(!m.front());
 }

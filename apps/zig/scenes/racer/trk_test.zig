@@ -158,7 +158,7 @@ test "the mood block: Salt Flats' is read (salt far ground at level 7), the oval
     const b = try copy(data.salt);
     defer std.testing.allocator.free(b);
     const m = std.mem.readInt(u32, b[trk.MOOD_WORD * 4 ..][0..4], .little);
-    for ([_][2]u8{ .{ 0, 30 }, .{ 1, 8 }, .{ 2, 2 }, .{ 3, trk.BACKDROPS }, .{ 31, 1 } }) |bad| {
+    for ([_][2]u8{ .{ 0, 30 }, .{ 1, 8 }, .{ 2, 2 }, .{ 3, trk.BACKDROPS }, .{ 24, trk.MAX_CLOCK[0] + 1 }, .{ 25, trk.MAX_CLOCK[1] + 1 }, .{ 26, 1 }, .{ 31, 1 } }) |bad| {
         const keep = b[m + bad[0]];
         b[m + bad[0]] = bad[1];
         refix(b);

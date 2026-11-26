@@ -13,8 +13,12 @@ const project = @import("project.zig");
 const poly = @import("poly.zig");
 const ts = @import("trackset.zig");
 const shadow = @import("shadow.zig");
+const front = @import("front.zig");
+const clock = @import("clock.zig");
+const seldraw = @import("seldraw.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
+    if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
     switch (cp) {
         0xE012 => self.wants_quit = true,
         '3'...'8' => {
@@ -55,6 +59,9 @@ pub fn handle(self: anytype, cp: u32) void {
         'Y' => clip.break_drop = !clip.break_drop,
         'S' => shadow.break_two = !shadow.break_two, // racer_car.mjs --break two: the shadow two levels down
         'Q' => shadow.fake = true, // ... and --break dither: the checkerboard as if it were the default
+        'J' => seldraw.break_refuse = true, // racer_front.mjs --break refuse: the scan's refusals not listed
+        'U' => clock.break_flat = true, // ... --break clock: every computed clock freds72's 75 s + 10 s
+        'V' => front.break_results = true, // ... --break fsm: fire on the results goes to the title
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }
