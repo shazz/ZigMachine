@@ -30,7 +30,7 @@ pub fn wheelsOff(c: *const car.Car) u2 {
     const ax = c.axes();
     var n: u32 = 0;
     for ([4][2]i32{ .{ 1, 1 }, .{ -1, 1 }, .{ 1, -1 }, .{ -1, -1 } }) |k| {
-        const p = vec.add(vec.add(c.pos, ax.right, k[0] * HALF_W), ax.fwd, k[1] * HALF_L);
+        const p = vec.add(vec.add(c.pos, ax.right, k[0] * fix.mul(HALF_W, c.size)), ax.fwd, k[1] * fix.mul(HALF_L, c.size));
         const f = ground.findFace(c.t, p, c.old) orelse {
             n += 1;
             continue;
@@ -48,33 +48,54 @@ pub fn lineYaw(c: *const car.Car, i: i32) i32 {
     return fix.atan2(d[0], d[2]) +% fix.ONE / 4;
 }
 
+fn radius(c: *const car.Car) i32 {
+    _ = c;
+    return RADIUS;
+}
+
 /// A point is free when it has ground and no wall edge of its face within the collider's radius.
 fn free(c: *const car.Car, p: V) bool {
     const f = ground.findFace(c.t, p, c.old) orelse return false;
-    return !ground.faceCollide(c.t, f.face, p, RADIUS).hit;
+    return !ground.faceCollide(c.t, f.face, p, radius(c)).hit;
 }
 
 /// After `update` found the ground: a wall hit rolls back, turns and slows the car (or crashes it). True on a hit.
 pub fn respond(c: *car.Car, prev: V) bool {
     const old = c.old orelse return false;
-    if (c.t.faces[old].borders == 0 or !ground.faceCollide(c.t, old, c.pos, RADIUS).hit) return false;
+    if (c.t.faces[old].borders == 0) return false;
+    const hit = ground.faceCollide(c.t, old, c.pos, radius(c));
+    if (!hit.hit) return false;
     c.hits += 1;
     const s = vec.dot(c.axes().fwd, c.vel);
-    const yaw = lineYaw(c, c.track.segment);
+    const yaw = surfaceYaw(c, hit.n);
     const err = @as(i32, @as(i16, @truncate(c.angle -% yaw))); // -0.5 .. 0.5 of a turn
     if (s > CRASH_SPEED and fix.abs(err) > CRASH_ANGLE) return crash(c);
     c.pos = rollback(c, prev);
     if (ground.findFace(c.t, c.pos, c.old)) |f| c.old = f.face;
+    const h = ground.faceCollide(c.t, c.old.?, c.pos, radius(c));
+    if (h.hit) c.pos = vec.add(c.pos, h.force, fix.ONE); // still within reach (it was, the tick before): out, as freds72's
     c.angle = yaw;
     c.angv = 0;
     c.vel = vec.scale(c.axes().fwd, fix.mul(fix.max(s, 0), fix.max(fix.cos(err), MIN_KEEP)));
     return true;
 }
 
-/// The last free quarter of the tick's motion from `prev` (free, the tick before), or `prev` itself.
+/// The surface's heading where the car hit: the racing line's, or, where that runs into the wall (the outside of a
+/// hairpin), the wall's own direction taken the line's way, so the car always slides on.
+fn surfaceYaw(c: *const car.Car, n: V) i32 {
+    const yaw = lineYaw(c, c.track.segment);
+    const fwd = V{ -fix.sin(yaw), 0, fix.cos(yaw) };
+    if (vec.dot(fwd, n) >= 0) return yaw;
+    var t = V{ n[2], 0, -n[0] }; // along the wall
+    if (vec.dot(t, fwd) < 0) t = .{ -t[0], 0, -t[2] };
+    return fix.atan2(t[0], t[2]) +% fix.ONE / 4;
+}
+
+/// The last free quarter of the step's motion from `prev`; when even the first is not (a car already against the wall,
+/// sliding along it) the whole step, which the caller pushes out of the wall (freds72's slide), or it could never move.
 fn rollback(c: *const car.Car, prev: V) V {
     const d = vec.between(prev, c.pos);
-    var keep = prev;
+    var keep = c.pos;
     for (1..5) |k| {
         const p = vec.add(prev, d, @as(i32, @intCast(k)) << 14);
         if (!free(c, p)) break;

@@ -17,6 +17,8 @@ const ground = @import("ground.zig");
 const seg = @import("seg.zig");
 const trk = @import("trk.zig");
 const vec = @import("vec.zig");
+const arcade = @import("arcade.zig");
+const arcar = @import("arcadecar.zig");
 const V = vec.V;
 const lit = fix.lit;
 
@@ -52,6 +54,12 @@ pub const Car = struct {
     hits: u32 = 0,
     npc: bool = false, // make_npc's steer: the angle is set, not accumulated; braking is harder (0.92)
     brakes: u32 = 0, // NPC steers that braked (a coverage counter for the reference runs)
+    // The ARCADE physics (R82 32X feel, arcadecar.zig); a car is CLASSIC unless its race says otherwise.
+    model: arcade.Model = .classic,
+    eng: arcade.Engine = .{},
+    world: i32 = fix.ONE, // the track's world scale: positions move vel * world (arcade only; trk.Mood.world)
+    size: i32 = fix.ONE, // the car's size against freds72's: colliders and wheels (arcade only; trk.Mood.car)
+    crashes: u32 = 0,
 
     pub fn init(t: *const trk.Track, pos: V, angle: i32, segment: i32) Car {
         return .{ .t = t, .pos = pos, .angle = angle, .track = seg.TrackPos.init(t, segment) };
@@ -73,6 +81,7 @@ pub const Car = struct {
 
     /// make_plyr's control: steering from left / right, rpm up on accelerate, 0 on brake.
     pub fn control(self: *Car, buttons: u8) void {
+        if (self.model == .arcade) arcar.pedals(self, buttons);
         var da: i32 = 0;
         if (buttons & BTN_LEFT != 0) da = 1;
         if (buttons & BTN_RIGHT != 0) da = -1;
@@ -94,11 +103,13 @@ pub const Car = struct {
         const eff = fix.div(fix.mul(30 << 16, vec.dot(ax.fwd, self.vel)), GRIP);
         const rps = fix.mul(fix.mul(30 << 16, rpm), 2 << 16);
         if (rps > 10 << 16) rpm = fix.mul(rpm, fix.lerp(lit(0.63), fix.ONE, fix.div(eff, rps)));
+        const torque = fix.mul(fix.mul(-lit(0.72), sa), self.steer_angle);
+        if (self.model == .arcade) return arcar.steered(self, torque, braking);
         if (braking) {
             self.vel = vec.scale(self.vel, if (self.npc) lit(0.92) else lit(0.95));
             self.brakes += @intFromBool(self.npc);
         }
-        self.applyForceAndTorque(vec.scale(ax.fwd, rpm), fix.mul(fix.mul(-lit(0.72), sa), self.steer_angle));
+        self.applyForceAndTorque(vec.scale(ax.fwd, rpm), torque);
         self.rear_slide = rps > 10 << 16 and fix.div(eff, rps) < lit(0.6);
         return fix.min(rpm, self.max_rpm);
     }
@@ -116,6 +127,7 @@ pub const Car = struct {
     }
 
     pub fn prepare(self: *Car) void {
+        if (self.model == .arcade) return arcar.prepare(self);
         self.vel = vec.add(self.vel, self.forces, DT);
         self.angv +%= fix.div(fix.mul(self.torque, lit(0.5)), 30 << 16);
         self.angv = fix.mul(self.angv, lit(0.8));
@@ -123,6 +135,7 @@ pub const Car = struct {
     }
 
     pub fn integrate(self: *Car) void {
+        if (self.model == .arcade) return arcar.move(self);
         self.pos = vec.add(self.pos, self.vel, fix.ONE);
         self.angv = fix.mid(self.angv, -fix.ONE, fix.ONE);
         self.angle +%= self.angv;
@@ -132,6 +145,7 @@ pub const Car = struct {
 
     /// Ground, walls, track position, wheel turn: the end of a tick.
     pub fn update(self: *Car) void {
+        if (self.model == .arcade) return arcar.finish(self);
         self.steer_angle = fix.mul(self.steer_angle, lit(0.8));
         if (ground.findFace(self.t, self.pos, self.old)) |f| {
             self.pos[1] = f.y;

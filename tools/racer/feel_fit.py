@@ -2,9 +2,9 @@
 the 32X and stays out of git (prototypes/, see FEEL.md); this tool, the method and the fitted curves (ours) are committed.
 
 Targets JSON: {"classes": [{"top": km/h, "accel": {"<km/h>": ticks}, "coast": {"<km/h>": ticks}, "off_full": km/h,
-"off_half": km/h}, ...]} in OUR ticks (30 Hz). The fit keeps the control speeds and each class's top, and moves the
+"off_half": km/h}, ...]} in OUR ticks (30 Hz). The fit keeps the control speeds and each class's top (ours, rounded), and moves the
 acceleration values (net), then the coast-down values (drag), then the off-road constant, by coordinate descent on the
-integer twin (feel.run), minimising the squared relative time error at every target speed (or the speed error off-road).
+integer twin (net never rising with speed, drag never falling) (feel.run), minimising the squared relative time error at every target speed (or the speed error off-road).
 
     python3 tools/racer/feel_fit.py <targets.json>            # the residual table of feel.CLASSES
     python3 tools/racer/feel_fit.py <targets.json> --fit      # ... and the refitted Klass literals to paste into feel.py
@@ -69,6 +69,12 @@ def _nudge(k: feel.Klass, field: str, i: int, d: float) -> feel.Klass:
     return replace(k, **{field: tuple(pts)})
 
 
+def _falling(k: feel.Klass) -> bool:
+    """Our curves stay physical: the net acceleration never rises with speed, the drag never falls."""
+    net, drag = [v for _, v in k.net], [v for _, v in k.drag]
+    return all(a >= b for a, b in zip(net, net[1:], strict=False)) and all(a <= b for a, b in zip(drag, drag[1:], strict=False))
+
+
 def _descend(k: feel.Klass, t: Target, field: str, idx: range, prefix: str) -> feel.Klass:
     for step in STEPS:
         better = True
@@ -77,7 +83,7 @@ def _descend(k: feel.Klass, t: Target, field: str, idx: range, prefix: str) -> f
             for i in idx:
                 for d in (step, -step):
                     c = _nudge(k, field, i, d)
-                    if _cost(c, t, prefix) < _cost(k, t, prefix):
+                    if _falling(c) and _cost(c, t, prefix) < _cost(k, t, prefix):
                         k, better = c, True
     return k
 

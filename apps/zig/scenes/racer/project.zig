@@ -27,7 +27,19 @@ pub const SHADES = [_][]const u8{ "FLAT", "LIT", "SOFT" };
 pub const TAGS = [_][]const u8{ "", "/LIT", "/SOFT" }; // after the track name on the HUD (none in the default)
 pub var shade: u8 = 0;
 
-fn colourOf(f: *const trk.Face) u8 {
+/// The shadow headroom (R82, key 9 / the options' SHADOW row on a track that has it): in the FLAT shading, a face whose
+/// import stored a headroom colour (alt byte 2: the same ramp, never level 0, so the shadow's one-darker always shows;
+/// tools/racer/vr_colours.py --shadow-headroom) is drawn in it. No other track has one.
+pub var headroom: bool = false;
+
+/// True when any face of `t` stored a headroom colour (a scan of the faces: the options screen, on a change only).
+pub fn hasHeadroom(t: *const trk.Track) bool {
+    for (t.faces) |*f| if (f.alt >> 16 & 0xFF != 0) return true;
+    return false;
+}
+
+pub fn colourOf(f: *const trk.Face) u8 {
+    if (shade == 0 and headroom and f.alt >> 16 & 0xFF != 0) return @truncate(f.alt >> 16);
     if (shade == 0 or f.alt == 0) return f.colour;
     return @truncate(f.alt >> @intCast(8 * (shade - 1)));
 }

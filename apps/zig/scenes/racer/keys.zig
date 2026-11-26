@@ -19,6 +19,7 @@ const seldraw = @import("seldraw.zig");
 const options = @import("options.zig");
 const press = @import("press.zig");
 const haze = @import("haze.zig");
+const arcade = @import("arcade.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
@@ -50,6 +51,10 @@ pub fn handle(self: anytype, cp: u32) void {
         'i' => options.setShade(self, (project.shade + 1) % @as(u8, project.SHADES.len)), // the VR tracks' debug shading (M5_VR.md)
         'y' => options.setShadow(!shadow.fake),
         'q' => options.setHaze(self, !haze.on), // M6: the horizon haze on / off (a track whose mood has one)
+        'T' => options.setPhysics(if (arcade.model == .arcade) .classic else .arcade), // R82 32X feel: the PHYSICS option
+        'M' => options.change(self, .class, 1), // ... the CAR CLASS option
+        'L' => self.game.apilot = !self.game.apilot, // ... the AI pilot in the option's physics (the arcade harness' driver)
+        '9' => options.setHeadroom(!project.headroom), // ... the 32X import's shadow headroom (FEEL.md)
         'k' => {
             self.setGame(.race);
             crest.setup(&self.game);

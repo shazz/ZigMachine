@@ -69,11 +69,13 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     var b0: [48]u8 = undefined;
     var b1: [48]u8 = undefined;
     const racing = d.game.mode != .off and d.pose == null;
+    var bo: [48]u8 = undefined;
+    const state = @import("osdline.zig").line(&bo, .{ .cpu = d.p.cpu_fill, .r = d.r, .pov = povName(d), .music = d.audio.player.on });
     d.hud.draw(zigos, fb, d.back, .{
         .track = trackName(d), .shade = project.TAGS[project.shade], .shadow = if (shadow.fake) "/DITHER" else "", .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
         .pov = povName(d), .polys = c.polys, .spans = c.spans, .osd = d.osd,
         .uncapped = d.uncapped, .avg_us = d.bench.avg_us, .fps10 = d.bench.fps10, .stage_us = d.bench.stage_us,
-        .line0 = if (racing) racehud.top(&b0, &d.game) else front.hudTop(d, &b0),
+        .line0 = if (d.osd) state else if (racing) racehud.top(&b0, &d.game) else front.hudTop(d, &b0),
         .line1 = if (racing) racehud.bottom(&b1, &d.game) else front.hudBottom(d),
     });
     if (racing) drawMap(d, fb);

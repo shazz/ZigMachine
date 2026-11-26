@@ -16,6 +16,8 @@ const fix = @import("fix.zig");
 const seg = @import("seg.zig");
 const vec = @import("vec.zig");
 const car = @import("car.zig");
+const arcade = @import("arcade.zig");
+const trk = @import("trk.zig");
 const V = vec.V;
 const lit = fix.lit;
 
@@ -75,5 +77,20 @@ pub fn angleTo(c: *const car.Car, tgt: V) i32 {
 pub fn control(c: *car.Car, pid: *Pid, lens: *const seg.Lens) void {
     const tgt = target(c, lens);
     const steer_to = pid.step(0, lit(0.75) -% angleTo(c, tgt), DT);
-    _ = c.steer(steer_to, NPC_RPM, fix.abs(steer_to) > BRAKE_AT);
+    const braking = fix.abs(steer_to) > BRAKE_AT;
+    if (c.model == .arcade) arcadePedals(c, braking);
+    _ = c.steer(steer_to, NPC_RPM, braking);
+}
+
+/// ARCADE (R82 32X feel): the AI's pedals. On a track with speed cues (trk.cue, baked by the Track Kit) the car holds
+/// SKILL of the cue's speed a segment ahead (more: the brake; less: the throttle); with none, freds72's rule (brake while
+/// steering hard) on our brake pedal.
+pub const SKILL = 250; // x/256 of the cue's speed: the AI a little under the line's limit
+pub fn arcadePedals(c: *car.Car, braking: bool) void {
+    const q = trk.cue(c.t, c.track.segment + 1);
+    if (q == 0) return c.eng.press(!braking, braking);
+    const top = arcade.block().top;
+    const want: i32 = @intCast(@divTrunc(@as(i64, top) * q * SKILL, 256 * 256));
+    const s = vec.dot(c.axes().fwd, c.vel);
+    c.eng.press(s < want, s > want + (want >> 4));
 }

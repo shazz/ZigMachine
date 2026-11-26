@@ -85,7 +85,8 @@ class MoodTest(unittest.TestCase):
     def test_a_block_is_the_files_last_32_bytes_inside_the_crc(self) -> None:
         blob = (ASSETS / "salt.ktrk").read_bytes()
         at = int.from_bytes(blob[100:104], "little")
-        self.assertEqual(at + mood.SIZE, len(blob))
+        self.assertEqual(at + len(mood.unpack(blob).pack()), len(blob))
+        self.assertIn(len(blob) - at, (mood.SIZE, mood.SCALED))
 
     def test_a_track_clock_packs_into_bytes_24_25_and_reads_back_and_the_shipped_tracks_leave_it_to_the_cart(self) -> None:
         d = doc("neon_docks")
