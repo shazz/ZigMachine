@@ -22,7 +22,7 @@ ours; no Sega data ships (the 32X courses and cars are a LOCAL benchmark, never 
 - **The board runs every original track at 60 fps** where it was measured (the oval's flyby and race, the Salt Flats
   race; Neon Docks and Glacier Pass wait for the M5 / M6 cards) and the local 32X courses at 25-40 fps (2.5-4x our faces).
 - **`frame_cost` is ~2x pessimistic on this cart, and M6 found why**: its instruction-cache term is 1.3-1.6 Mc of a
-  race frame's 2.9-3.4 Mc. Without it the estimate is 1.4-1.8 Mc on our tracks (the board: 60 fps) and 3.2-4.8 Mc on
+  race frame's 2.5-3.4 Mc. Without it the estimate is 1.25-1.78 Mc on our tracks (the board: 60 fps) and 2.1-4.5 Mc on
   the 32X courses (the board: 25-33 fps, i.e. 3.3-4 Mc).
 
 ## Architecture

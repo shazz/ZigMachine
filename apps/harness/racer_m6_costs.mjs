@@ -27,10 +27,10 @@ async function cost(n, scene, warmup, frames = FRAMES) {
     return costOf(CART, o);
 }
 
-// the model's total (mean / p95) and, after "|", the same frame without the I$ term (cart + blit + HBL + FRESCO): the board
+// each cell: the frame WITHOUT the model's I$ term (cart + blit + HBL + FRESCO), then the model's total (mean / p95): the board
 // has run this cart near that figure, not the total (M3: 60 fps where the total said 33; M6.md)
 const noI = (r) => r.split.cart + r.split.rom + r.split.blit + r.split.hbl + r.split.fresco;
-const cell = (r) => `${r.mc.avg.toFixed(2)} / ${r.mc.p95.toFixed(2)} | ${noI(r).toFixed(2)}`;
+const cell = (r) => `${noI(r).toFixed(2)} (${r.mc.avg.toFixed(2)} / ${r.mc.p95.toFixed(2)})`;
 
 // --hot <track>:<scene>: the top functions of one view (needs the names twin, tools/perf_names.sh), scene = flyby | grid |
 // mid, then the POV's v taps: e.g. --hot 4:grid0 (Glacier, the grid, far), --hot 5:mid1 (DXFOREST mid-race, near)
@@ -44,7 +44,7 @@ if (HOT) {
     for (const h of r.hot.slice(0, Number(opt("--top-n", 25)))) console.log(`  ${h.mc.toFixed(3)} Mc  ${h.mod}  ${h.func}  ${JSON.stringify(h.src ?? "")} ${h.iters ?? ""}`);
     process.exit(0);
 }
-console.log(`cart ${CART}, R ${R}, ${AFFINE ? "AFFINE" : "CPU"} fill, haze ${HAZE_OFF ? "off" : "on"}; mean / p95 Mc | mean without the I$ term\n`);
+console.log(`cart ${CART}, R ${R}, ${AFFINE ? "AFFINE" : "CPU"} fill, haze ${HAZE_OFF ? "off" : "on"}; Mc without the I$ term (the model's mean / p95)\n`);
 console.log("| track | flyby lap | grid far | grid near | grid cockpit | mid-race far | mid-race near | mid-race cockpit |\n|---|---|---|---|---|---|---|---|");
 for (const n of TRACKS) {
     const row = [cell(await cost(n, [code("l")], 6, 720))];

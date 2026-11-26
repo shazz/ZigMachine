@@ -2300,7 +2300,7 @@ flyby, and the files already converted (the 32X imports take minutes a track) ca
   very twisty course may still time out (the Track Kit's `ktrk_clock` overrides it).
 - Moving the select's cursor loads the track under it (~0.1-0.2 s on the board for the biggest, estimate).
 
-## 2026-11-27 — Kestrel Racing's render and tick: a span emitter with two fills (AFFINE by default), one plane in two pages, a 30 Hz physics tick
+## 2026-11-27 — Kestrel Racing's render and tick: a span emitter with two fills (AFFINE won on the board), one plane in two pages, a 30 Hz physics tick
 
 **Status:** accepted (recorded at M6, R82; the choices date from M1-M2 and the board numbers of 24-26 Nov)
 **Context:** PORT_PLAN left three structural choices open until the board could measure them. (1) The fill path: CHISEL
@@ -2309,10 +2309,11 @@ Neither had a board number. (2) Planes: a sky plane, a HUD plane and a backdrop 
 each enabled plane costs ~0.59 Mc of compositing on KESTREL (+0.11 Mc a frame), a third of a 60 Hz frame. (3) The tick:
 freds72's Lua runs `_update` at 30 Hz with every physics constant per tick, and the port's bar is "the Lua bit for bit".
 **Decision:**
-- **One span emitter, two sinks, AFFINE the default.** `poly.Emitter` (Q4 sub-pixel edges, each edge walked from its
+- **One span emitter, two sinks; AFFINE measured the better on the board, CPU still the boot default.** `poly.Emitter` (Q4 sub-pixel edges, each edge walked from its
   upper end) feeds the CPU sink (aligned word stores) or the AFFINE sink (24-byte records, a 256-index flat texture,
   a half ring of 2,048 spans per CHISEL op). Key `f` switches them; CPU = AFFINE byte for byte is a gate check.
-  Board, M1: equal on the oval (60 fps to R 8 both ways), the dense city's cart cycles -43 % at R 4 on AFFINE. The car
+  Board, M1: equal on the oval (60 fps to R 8 both ways), the dense city's cart cycles -43 % at R 4 on AFFINE (the
+  cart still boots on the CPU fill, `Painter.cpu_fill = true`, and every pin is taken there; flipping the default is open). The car
   shadow (a read-modify-write) stays on the CPU on both paths, after a `blitSync`.
 - **One plane, two pages.** The page drawn is disabled, the shown one enabled. The sky is palette entry 1 rewritten
   per line by `zg.copper` (a real raster), the backdrop one keyed AFFINE op into the same plane, the HUD two text
