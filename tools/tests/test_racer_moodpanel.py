@@ -3,11 +3,12 @@ Blender the add-on's "Add mood properties" operator, tools/racer/blender/moodpan
 
 from __future__ import annotations
 
+import json
 import subprocess
 import unittest
 from pathlib import Path
 
-from racer import mood, mood_props
+from racer import kit, mood, mood_props, trackc
 
 ROOT = Path(__file__).resolve().parents[2]
 BLENDER = Path.home() / ".local/blender/blender"
@@ -54,6 +55,34 @@ class MoodPropsTest(unittest.TestCase):
         self.assertIn("3 numbers", mood_props.problem(by["sun"], "up"))
         self.assertIn("draw_r", mood_props.problem(by["draw_r"], 2))
         self.assertEqual(mood_props.problem(by["draw_r"], 6), "")
+
+    def test_the_defaults_convert_to_the_same_mood_as_absent_properties(self) -> None:
+        doc = json.loads((ROOT / "tools/racer/tracks/salt_flats.ktrk.json").read_text())
+        for k in ("sky", "hills", "backdrop", "clock", "draw_r"):
+            doc["mood"].pop(k, None)
+        bare = kit.look(doc)
+        by = {p.key: p for p in mood_props.PROPS}
+        for k in ("sky", "hills", "backdrop", "clock", "draw_r"):
+            doc["mood"][k] = by[k].default
+        self.assertEqual(kit.look(doc), bare)
+        self.assertEqual(by["sun"].default, (0.0, 0.0, 1.0))  # the add-on's extract() when ktrk_sun is absent
+
+    def test_draw_r_packs_reads_back_and_is_refused_out_of_range(self) -> None:
+        m = mood.Mood(draw_r=6)
+        blob = bytearray(200)
+        blob[4 * mood.WORD:4 * mood.WORD + 4] = (128).to_bytes(4, "little")
+        blob[128:160] = m.pack()
+        self.assertEqual(mood.unpack(bytes(blob)).draw_r, 6)
+        self.assertEqual(m.pack()[26], 6)
+        for bad in (1, 2, 9):
+            with self.assertRaises(ValueError):
+                mood.Mood(draw_r=bad).pack()
+        doc = json.loads((ROOT / "tools/racer/tracks/salt_flats.ktrk.json").read_text())
+        doc["mood"]["draw_r"] = 6
+        self.assertEqual(kit.look(doc).draw_r, 6)
+        doc["mood"]["draw_r"] = 12
+        with self.assertRaises(trackc.ConvertError):
+            kit.look(doc)
 
     @unittest.skipUnless(BLENDER.is_file(), "Blender 5.3 is not installed here")
     def test_blender_operator_adds_the_missing_properties_and_keeps_the_set_ones(self) -> None:

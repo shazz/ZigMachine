@@ -121,7 +121,7 @@ pub fn key(d: anytype, cp: u32) bool {
             .options => nav.leaveOptions(d),
             else => nav.fire(d, .back),
         },
-        'z', 'h', 'j', 'o', 'u', 'c', 'p', ' ', 0xE012, 'J', 'U', 'V', 'R' => return false, // audio, OSD, pause, quit, the --break keys: it stays
+        'z', 'h', 'j', 'o', 'u', 'c', 'p', ' ', 0xE012, 'J', 'U', 'V', 'R', 'K' => return false, // audio, OSD, pause, quit, the --break keys: it stays
         else => {
             if (st != .results) d.game.setMode(.off); // a debug key: the bare benchmark view, then the key's own job
             return false;

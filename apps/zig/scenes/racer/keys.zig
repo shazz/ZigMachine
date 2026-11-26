@@ -62,6 +62,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'U' => clock.break_flat = true, // ... --break clock: every computed clock freds72's 75 s + 10 s
         'V' => front.break_results = true, // ... --break fsm: fire on the results goes to the title
         'R' => press.break_repeat = true, // ... --break repeat: a held key's repeats count as presses
+        'K' => @import("zone.zig").break_zone = true, // racer_zone.mjs --break zone: no camera zone anywhere
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

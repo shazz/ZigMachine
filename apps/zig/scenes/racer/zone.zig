@@ -19,9 +19,11 @@ pub const ROOF: u16 = trk.LINE_ROOF;
 pub const RAMP = 2; // segments of blend each side (~8.5 units on our tracks)
 pub const BEHIND = 2; // segments the zone holds past its last roof segment (the far camera is <= 6 units back)
 const ONE: u32 = 1 << 16;
+pub var break_zone = false; // racer_zone.mjs --break zone (key K): no zone anywhere (the far camera stays far)
 
 /// The weight (Q16: 0 the far camera, 65536 the near one) at line position `s` (Q16 segments, wrapping).
 pub fn weight(t: *const trk.Track, s: u64) u32 {
+    if (break_zone) return 0;
     const n = t.line.len;
     const i: usize = @intCast((s >> 16) % n);
     const fr: u32 = @intCast(s & 0xFFFF);

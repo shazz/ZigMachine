@@ -28,7 +28,7 @@ def add_missing(scene: Any) -> list[str]:  # WHY: bpy scene is untyped
     """Sets every missing ktrk_* property to its default; returns the keys it added."""
     added = []
     for p in mood_props.missing(set(scene.keys())):
-        scene[mood_props.prop_name(p)] = p.default
+        scene[mood_props.prop_name(p)] = scene.name if p.default is None else p.default  # name: the scene's, as the export
         added.append(p.key)
     return added
 

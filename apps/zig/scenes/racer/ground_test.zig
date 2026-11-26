@@ -56,9 +56,12 @@ test "a crossing: a car on the upper deck stays on it, one on the lower deck on 
     try std.testing.expectEqual(@as(u16, 0), ground.findFace(&t, up, null).?.face); // the mutant: the car falls to the lower deck
 }
 
-/// Every 1/2-unit point of the track's ground: under two or more ground faces more than DECK_Y apart (where the two lookups differ)?
-fn decksApart(t: *const trk.Track) usize {
-    var n: usize = 0;
+/// The largest height gap (Q16) between two ground faces over one point, at every half unit of the track. The new lookup can
+/// only pick another face than freds72's where the car is more than DECK_Y from the first face under it and within DECK_Y of a
+/// later one: the gap there is over DECK_Y minus how far the car can be off its ground. The car is put on its ground face every
+/// tick and moves well under 0.1 unit up or down a tick, so a track whose largest gap is under DECK_Y / 4 (0.125) cannot differ.
+fn maxGap(t: *const trk.Track) i32 {
+    var gap: i32 = 0;
     var x: i32 = -128 << 16;
     while (x < 128 << 16) : (x += 1 << 15) {
         var z: i32 = -128 << 16;
@@ -73,17 +76,17 @@ fn decksApart(t: *const trk.Track) usize {
                 lo = @min(lo, y);
                 hi = @max(hi, y);
             }
-            if (hi > lo and hi - lo > ground.DECK_Y) n += 1;
+            if (hi > lo) gap = @max(gap, hi - lo);
         }
     }
-    return n;
+    return gap;
 }
 
 test "the shipped tracks have no ground over ground: the height-aware lookup is freds72's there (oval, city, Salt Flats, Neon Docks, Glacier Pass)" {
     const blobs = [_][]align(4) const u8{ data.oval, data.city, data.salt, embedded("neon.ktrk"), embedded("glacier.ktrk") };
-    for (blobs) |b| {
+    for (blobs) |b| { // measured: the oval 0.07 unit (two non-planar quads meeting at an edge), the others under 1/64
         const t = try trk.parse(b);
-        try std.testing.expectEqual(@as(usize, 0), decksApart(&t));
+        try std.testing.expect(maxGap(&t) < ground.DECK_Y / 4);
     }
 }
 
@@ -93,5 +96,5 @@ test "the sweep sees a crossing (it would catch a shipped track with one)" {
     var tf: [trk.TILES + 1]u32 = undefined;
     var l: [2]u16 = undefined;
     const t = crossing(&v, &f, &tf, &l);
-    try std.testing.expect(decksApart(&t) > 0);
+    try std.testing.expect(maxGap(&t) > ground.DECK_Y);
 }

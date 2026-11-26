@@ -3,7 +3,8 @@ and what its "Add mood properties" operator sets (tools/racer/blender/moodpanel.
 
 The properties stay Blender custom properties on the scene (`ktrk_*`, the conventions in kit_export.py), so a scene made
 before the panel, and every committed export, is unchanged; the panel only draws them as rows and fills in the missing
-ones with the defaults below (the oval's look, mood.Mood's, and the cart's computed clock).
+ones with the defaults below: what the export uses when a property is absent (the scene's name, a sun overhead, the oval's
+look, the cart's computed clock), so adding them changes no converted track.
 """
 
 from __future__ import annotations
@@ -24,9 +25,9 @@ class Prop:
 
 _M = mood.Mood()
 PROPS: Final = (
-    Prop("name", "Name", "my_track", "the track's name (24 characters on the cart)"),
+    Prop("name", "Name", None, "the track's name (24 characters on the cart); unset: the scene's name, as the export"),
     Prop("mood", "Mood", "noon", "a name for the look"),
-    Prop("sun", "Sun", (0.3, -0.4, 1.0), "the baked light's direction, Blender axes (Z up)"),
+    Prop("sun", "Sun", (0.0, 0.0, 1.0), "the baked light's direction, Blender axes (Z up)"),
     Prop("far_ground", "Far ground", "", "the material the ground beyond the draw distance shows"),
     Prop("sky", "Sky top, horizon", [c for rgb in _M.sky for c in rgb], "2 x RGB: the copper's gradient"),
     Prop("hills", "Backdrop far, near, top", [c for rgb in _M.hills for c in rgb], "3 x RGB: the panorama strip"),
