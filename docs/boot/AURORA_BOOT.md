@@ -153,6 +153,67 @@ What each cause contributed (crops at the shot's frames, upper halo, curtain bas
 My pick for Matt: **E** if 1.3 MB is acceptable, else **C** (0.69 MB) with a visible but small edge step.
 The A-vs-the-rest data are from my crops; the final judgement is Matt's, on the board.
 
+## Variants F and G (25 Nov): past the shared palette
+
+Matt on the board (E, ~5 s in, `prototypes/boot_screen/board_shots/SHOT0111.PNG`): lavender patches in the green
+curtain, stair-step blocks along the curtain base, faint banding. Measured against the lab's FLOAT picture
+(`prototypes/aurora_f_re/measure.py`, every 5th frame, the band's rows; dE = CIE76 on the displayed sRGB):
+
+1. **The stair steps and the lavender base are in the float render itself**, not in any quantiser: the lab's
+   Edge sharpness (0.045) cuts each of the three curtains off in a few pixels, at a different screen height per
+   curtain, and the emission ramp is violet at the base. Neither supersampling the march (4 / 8 / 16 offsets)
+   nor 2x2 / 4x4 pixel supersampling changes it. F and G therefore bake **Edge sharpness 0.15** (a soft base, no
+   cliff; `VARIANTS` in `aurora_bake.py`): the steps and the violet base line go. The lab slider is the knob if
+   Matt wants some of the violet back (0.1 keeps a little, with softer steps).
+2. **The shared 256-entry palette adds speckle**: E sits at dE mean 2.75 / p99 8.5 / max 19 where plain 565
+   rounding of the same picture reaches 1.9 / 4.1 / 5.6. One palette for ~2,300 colours of the whole film.
+3. **A per-row hue RAMP is worse than E** (tried first: per row, the principal colour direction of the light,
+   8-bit intensity along it, conditional mean colour per step; dE mean 2.2, worst 5 levels on G, and it loses
+   the lavender): a row mixes curtains at different heights and the bloom halo, one hue line is too few
+   dimensions. Time blocks (4 per-row ramps over the film) did not help either, so drift was not the cause.
+
+| | what | aurora data | dE mean / p99 / max | RGB8 err mean / max | cart RAM free (static) |
+|---|---|---|---|---|---|
+| E (165) | one shared palette, halo lock, edge 0.045 | 1,310 KB | 2.75 / 8.46 / 19.3 | 2.56 / 21 | 1,154 KB |
+| **F (167)** | a 256-entry palette PER ROW (`palette.bin`, 154 rows x 512 B), 8-bit index deltas, edge 0.15 | 1,703 KB | 2.38 / 6.54 / 11.2 | 2.25 / 15 | 754 KB |
+| **G (168)** | no palette: the final picture (sky + aurora, the lab's float compositing) rounded to 565 once, 16-bit wrapping deltas, edge 0.15 | 1,992 KB | 1.85 / 4.13 / 5.56 | 1.73 / 4.1 | 465 KB |
+
+G is the floor of any undithered 565 display of the lab (each channel within half a level). F is between.
+Crops of frame 120 (E's shot time), 4x, lab float 0.045 | E | lab float 0.15 | F | G:
+`prototypes/boot_screen/aurora_compare/efg_{curtain_base,halo_top,right_curtain}_j120.png`.
+
+**F** (`tools/boot/aurora_fg.py` `build_rowpal`): each band row's own median cut + Lloyd palette on its float
+light (`aurora_palette.py`, as E's but per row, sorted by brightness so index deltas still pack), the per-row
+headroom proof (0 fixes: the add stays a plain 16-bit add, equal to a saturating one), the cart reads
+`table[row * 256 + index]` (`blend.Layer.pal_stride`), the table copied to aligned RAM at init (an embedded file
+is byte-aligned; a misaligned u16 load traps on the board). No halo lock: per-row palettes already follow the
+halo's hue, the lock only moved it.
+
+**G** (`build_direct`, `blend.Direct`): two ZX0 containers a frame (the band's top half on the even 60 Hz
+frame, the bottom on the odd), so the delta buffer is half a frame (53 KB), and no sky copy (the sky is unpacked
+straight into the plane, again on a replay): its RAM window is the tight one, ~40 KB spare after its 372 KB of
+star records and the buffer. 16-bit deltas cost twice E's unpack bytes.
+
+Cost through the aurora window (`apps/harness/frame_cost.mjs --warmup 150 --frames 120`, estimate, cart + FRESCO):
+E 3.40 Mc (p95 4.08, ~29.5 fps), F 3.87 Mc (p95 4.81, ~25.8 fps), G 4.22 Mc (p95 5.08, ~23.7 fps); G's top
+region is the ZX0 unpack (0.85 Mc). All three are over the board's 60 fps band (1.75-2.1 Mc) while the aurora
+plays, as E already was; the OSD decides. Disks: E 1.50 MB, F 1.83 MB, G 2.19 MB.
+
+Both F and G draw the **name as a baked image**: "Kestrel" in Matt's script font (Christmas Shine by Fandi, free
+for commercial use; `prototypes/boot_screen/font_christmas_shine/SOURCE.txt`; the .otf stays local, only the
+image ships), drawn 4x and box-filtered to real coverage (`tools/boot/aurora_word.py`, `word.bin`), about 2/3 of
+the falcon's wingspan, centred under it. On the star plane its pixels are entries 128..255 = the ink at alpha
+coverage x name level, so FRESCO blends it over the true-colour sky anti-aliased, no dithering, no 1-bit edge;
+it fades in on the name's beat and follows the end fade. A..E keep the bitmap capitals (`WORDMARK` in the meta).
+
+**The wire fades in by alpha (all variants, A included).** The falcon's lines (and the bitmap name) were opaque
+ramps from the night sky's colour, so over the bright aurora they appeared BLACK first and then turned white.
+FRESCO blends a partial palette alpha, so `look.wire` / `look.ink` now keep their full colour and ramp the alpha
+(the lab's `rgba(150,215,255,0.5*a)`): a faint line is the aurora under it tinted toward the colour, never
+darker. Crop (E, cart frames 312 / 318, before | before | after | after):
+`prototypes/boot_screen/aurora_compare/wire_fadein_before_after.png`. Cart 161 on main has the same code and
+gets the fix when this branch lands.
+
 Star detector (all variants): stars are found only between `bandTop` and `bandBot` percent of the height (the lab's
 two sliders, defaults 0 and 70), because the green airglow near the treeline produced false stars; and a star is
 painted out by a horizontal + vertical linear interpolation of the ring (`aurora_photo.inpaint`) instead of a flat
@@ -193,7 +254,11 @@ not part of the spike.
 zig build                      # installs zig-out/bin/zx0pack
 uv run --with numpy --with pillow python tools/boot/aurora_bake.py     # ~8 min, rewrites apps/zig/assets/screens/aurora_boot/
 ./build.sh --only aurora_boot  # the harness reads the new aurora_ref.json: nothing is pinned by hand
+# F / G render with edge 0.15, so they share their own light cache (~3 min to render, F's palettes ~2 min):
+uv run --with numpy --with pillow python tools/boot/aurora_bake.py --variant g --cache prototypes/boot_screen/aurora_f/light_edge015.npz
+uv run --with numpy --with pillow python tools/boot/aurora_bake.py --variant f --cache prototypes/boot_screen/aurora_f/light_edge015.npz
 ```
+F / G need the wordmark font locally (`aurora_bake.FONT`); a missing font is an error, never a silent blank.
 `--frames N` renders only N aurora frames (the tests use 2). Python tests: `tools/tests/test_aurora_bake.py`.
 
 ## Harness
