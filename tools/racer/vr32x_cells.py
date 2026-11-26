@@ -87,20 +87,23 @@ class Cells:
                             out.add((n[0] + dx, n[1] + dz, k))
         return out
 
+    def _slab(self, n0: Node, hd: tuple[float, float]) -> set[Node]:
+        """The cells across the road at n0: within 0.75 units along hd, 6 units either side, at n0's height."""
+        y0, out, r = self.h[(n0[0], n0[1])][n0[2]], set(), math.ceil(6 / CELL)
+        for dz in range(-r, r + 1):
+            for dx in range(-r, r + 1):
+                if abs((dx * hd[0] + dz * hd[1]) * CELL) <= 0.75:
+                    out |= {(n0[0] + dx, n0[1] + dz, k) for k, h in enumerate(self.h.get((n0[0] + dx, n0[1] + dz), []))
+                            if abs(h - y0) < 1.0}
+        return out
+
     def lap(self, s: Pt, hd: tuple[float, float]) -> list[Pt]:
         """The shortest way round from just ahead of s back to just behind it, through a slab cut across the road at s
         (1.5 units thick, 6 units each side): the lap, as cell centres at their heights. Empty when there is none."""
         n0 = self.node(s)
         if n0 is None:
             return []
-        y0, cut = self.h[(n0[0], n0[1])][n0[2]], set()
-        r = math.ceil(6 / CELL)
-        for dz in range(-r, r + 1):
-            for dx in range(-r, r + 1):
-                along = (dx * hd[0] + dz * hd[1]) * CELL
-                for k, h in enumerate(self.h.get((n0[0] + dx, n0[1] + dz), [])):
-                    if abs(along) <= 0.75 and abs(h - y0) < 1.0:
-                        cut.add((n0[0] + dx, n0[1] + dz, k))
+        y0, cut = self.h[(n0[0], n0[1])][n0[2]], self._slab(n0, hd)
         src = self.node((s[0] + hd[0] * 1.25, y0, s[2] + hd[1] * 1.25))
         goal = self.node((s[0] - hd[0] * 1.25, y0, s[2] - hd[1] * 1.25))
         if src is None or goal is None:

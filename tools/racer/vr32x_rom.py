@@ -17,7 +17,7 @@ Layout, as decoded:
   edge-adjacent for 85-99 % of them, the rest are folds). Flags low byte bits 1-6: unknown (layers / materials).
 - **Palettes.** 256 words of 32X CRAM (bit 15 the through bit, then 5-bit B, G, R) per track, 512 bytes apart, from a table
   of 68000 pointers ($88xxxx = ROM + $880000) in the tracks' order: found here by scanning for that shape. (The race copies
-  a car palette over entries 0x20..0x5F; the tracks only use 0x20 there, white in both.)
+  a car palette over a range of entries; the importer checked that the courses' faces use none that it changes.)
 """
 
 from __future__ import annotations

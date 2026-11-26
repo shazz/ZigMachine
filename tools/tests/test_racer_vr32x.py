@@ -21,25 +21,25 @@ def _model(verts: list[tuple[int, int, int]], polys: list[tuple[int, int, list[i
 class Model(unittest.TestCase):
     def test_a_strip_continuation_reuses_the_named_edge_of_the_previous_polygon(self) -> None:
         verts = [(0, 0, 0), (100, 0, 0), (100, 0, 100), (0, 0, 100), (200, 0, 0), (200, 0, 100)]
-        rom = _model(verts, [(0x0008, 0x0D00, [0, 1, 2, 3]), (0x0608, 0x0E01, [4, 5])])
+        rom = _model(verts, [(0x0008, 0x4200, [0, 1, 2, 3]), (0x0608, 0x4301, [4, 5])])
         _, polys = vr32x_rom._model(rom, 0)
         self.assertEqual(polys[0].ids, [0, 1, 2, 3])
         self.assertEqual(polys[1].ids, [2, 1, 4, 5])  # flags 6: edge 1 (1 -> 2) as [b, a, new...]
-        self.assertEqual((polys[1].colour, polys[1].low), (0x0E, 1))
+        self.assertEqual((polys[1].colour, polys[1].low), (0x43, 1))
 
     def test_a_triangle_continuation_on_the_last_edge_adds_one_vertex(self) -> None:
-        rom = _model([(0, 0, 0), (100, 0, 0), (0, 0, 100), (-100, 0, 0)], [(0x0011, 0x2000, [0, 1, 2]), (0x0211, 0x2000, [3])])
+        rom = _model([(0, 0, 0), (100, 0, 0), (0, 0, 100), (-100, 0, 0)], [(0x0011, 0x4400, [0, 1, 2]), (0x0211, 0x4400, [3])])
         _, polys = vr32x_rom._model(rom, 0)
         self.assertEqual(polys[1].ids, [0, 2, 3])
 
     def test_a_vertex_id_past_the_model_is_refused(self) -> None:
-        rom = _model([(0, 0, 0), (1, 0, 0), (0, 0, 1)], [(0x0011, 0x2000, [0, 1, 7])])
+        rom = _model([(0, 0, 0), (1, 0, 0), (0, 0, 1)], [(0x0011, 0x4400, [0, 1, 7])])
         with self.assertRaises(vr32x_rom.RomError):
             vr32x_rom._model(rom, 0)
 
     def test_a_continuation_without_a_previous_polygon_is_refused(self) -> None:
         with self.assertRaises(vr32x_rom.RomError):
-            vr32x_rom._model(_model([(0, 0, 0), (1, 0, 0)], [(0x0211, 0x2000, [1])]), 0)
+            vr32x_rom._model(_model([(0, 0, 0), (1, 0, 0)], [(0x0211, 0x4400, [1])]), 0)
 
     def test_a_dump_that_is_not_the_game_is_refused(self) -> None:
         with self.assertRaises(vr32x_rom.RomError):
@@ -49,7 +49,7 @@ class Model(unittest.TestCase):
 def _ring() -> vr32x_geom.Mesh:
     """A square ring of grey road, 4 units wide, outer side 40 units, as quads one unit long; up = +y."""
     pal = [(0, 0, 0)] * 256
-    pal[0x0D] = (98, 98, 98)
+    pal[0x42] = (120, 120, 120)  # any neutral grey is asphalt
     verts: list[tuple[int, int, int]] = []
     polys = []
     path = [(x, -20) for x in range(-20, 20)] + [(20, z) for z in range(-20, 20)] + \
@@ -60,7 +60,7 @@ def _ring() -> vr32x_geom.Mesh:
         quad = [(x0 + nx, z0 + nz), (x1 + nx, z1 + nz), (x1 - nx, z1 - nz), (x0 - nx, z0 - nz)]
         base = len(verts)
         verts += [(int(x * 256), 0, int(z * 256)) for x, z in quad]
-        polys.append(Poly([base, base + 1, base + 2, base + 3], 0x0D, 0, 0x08))
+        polys.append(Poly([base, base + 1, base + 2, base + 3], 0x42, 0, 0x08))
     m = vr32x_geom.build([Tile(0, 0, verts, polys)], pal)
     for f in m.faces:  # wind every face up whichever way the path turned
         if ktrk.normal(m.pts(f.v))[1] < 0:
