@@ -46,6 +46,15 @@ pub fn Emitter(comptime Sink: type) type {
         const Self = @This();
 
         pub fn poly(self: *Self, xs: []const i32, ys: []const i32, c: u8) void {
+            self.walk(xs, ys, c, false);
+        }
+
+        /// A car's shadow: the same edges and pixels as poly(), each span darkened in place (Sink.shade) instead of filled.
+        pub fn shadow(self: *Self, xs: []const i32, ys: []const i32) void {
+            self.walk(xs, ys, 0, true);
+        }
+
+        inline fn walk(self: *Self, xs: []const i32, ys: []const i32, c: u8, comptime shade: bool) void {
             const n = xs.len;
             var top: usize = 0;
             var bot: usize = 0;
@@ -73,17 +82,18 @@ pub fn Emitter(comptime Sink: type) type {
                 }
                 const l = @min(a.x, b.x);
                 const r = @max(a.x, b.x);
-                self.row(y, l, r, c);
+                self.row(y, l, r, c, shade);
                 a.x +%= a.dx;
                 b.x +%= b.dx;
             }
         }
 
-        inline fn row(self: *Self, y: i32, l: i32, r: i32, c: u8) void {
+        inline fn row(self: *Self, y: i32, l: i32, r: i32, c: u8, comptime shade: bool) void {
             const bias: i32 = if (break_edge) 0x8000 else 0x7FFF;
             const x0 = @max((l +% 0x7FFF) >> 16, 0);
             const x1 = @min((r +% bias) >> 16, self.w);
-            if (x1 > x0) self.sink.span(y, x0, x1, c);
+            if (x1 <= x0) return;
+            if (shade) self.sink.shade(y, x0, x1) else self.sink.span(y, x0, x1, c);
         }
     };
 }

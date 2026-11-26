@@ -2234,3 +2234,42 @@ a 238 KB stage buffer. Adding a track is adding a file, and the shelf disk is 82
 6-15 ms; board estimate ~0.1-0.2 s: the depack and the CRC). The frame's vertex cache and face stamps are sized to fixed caps
 (25,600 / 10,240: the city's size), so a larger track is refused rather than overrunning them. The harnesses mount the disk
 (apps/harness/racer_disk.mjs); without it the cart shows the oval only.
+
+## 2026-11-26 — Kestrel Racing's GT car: a Car Kit file read at compile time, one key a car, a shadow that darkens the plane
+
+**Status:** accepted
+**Context:** M5 step 3 replaces the placeholder car (six boxes built in carmodel.zig) with the GT car. The car is authored in
+Blender like the tracks. The placeholder's faces each took their own depth key at 1/8-unit buckets, which is fine for convex
+boxes. A GT body is not convex: a cabin sits on a deck, a wing stands behind it, and the tyres stand out of the arches. Sorted
+per face, the deck paints over the cabin from some angles. Matt asked for a car shadow that is REAL transparency (a pixel one step
+down its colour ramp), with the arcade's checkerboard on a debug key. The plane is palette-indexed (16 + ramp * 8 + level),
+so "one step down" is an index operation, but it has to READ the plane. CHISEL's minterms can't subtract.
+**Decision:**
+- **The car is a file of the Car Kit.** `tools/racer/carc.py` writes `gt.kcar` from the add-on's `.kcar.json`. The file holds
+  a 64-byte header with the part ranges and a CRC, the vertices, and trk.Face records. carmodel.zig reads it with
+  `@embedFile` at compile time into the arrays the old builder made, so nothing changes at run time.
+- **Parts and order.** The parts are wheels, hull, cabin, wing, the shadow quad, and a far model.
+- **One key a car.** The key is the depth of the car's middle, never below the ground face under the car nor the face under
+  the shadow's corner nearest the eye. The painter's order inside a car is the file's: shadow, wheels, hull, then the cabin and
+  the wing, swapped by the eye's side of the wing.
+- **Two livery shifts.** Body and stripe faces each take a `dc` shift.
+- **The shadow is a flagged polygon** (Rec.n's top bit). The same edge walker emits it, and the sink's `shade` darkens the span
+  in place: word-wise SWAR; a ramp's bottom and entries 0-15 stay. On the AFFINE fill the sink fires its queue and calls
+  `blitSync` before a car's shadow spans.
+**Alternatives considered:**
+- Keep per-face keys and split the model into convex parts sorted apart: still wrong inside a part's neighbourhood, and more
+  keys to sort.
+- A generated .zig source instead of a binary: reviewable, but a second format beside the tracks', and no CRC.
+- The shadow as a fixed dark colour (no read): cheaper on the AFFINE fill, but it is the "separate black" Matt ruled out. It
+  stays the debug key's checkerboard.
+- A palette-remap op in CHISEL: none exists, and the minterms are bitwise.
+- The shadow keyed at the ground face under the car only: the road quad behind the car (nearer to the chase camera) painted
+  over it (15 of the grid's shadow pixels survived).
+**Consequences:**
+- **Correct views.** The car is correct for every eye above its deck, which every POV is. A wall nearer than the car's middle
+  still paints over it, as before.
+- **Frame cost.** In the model the grid costs +0.2-0.3 Mc (60 faces near, the 9-face far model past 6 units).
+- **Board.** Salt Flats stays 60 fps at the grid and mid-race. On the 32X courses the grid drops 3 fps.
+- **The AFFINE fill** pays a sync per visible car's shadow. On the board CPU = AFFINE pixel for pixel.
+- **Pins.** The lap v1 / lap v2 / crest view pins moved; the physics did not.
+- **Ramp bottoms.** On faces already at a ramp's bottom (some of the 32X courses' road), the real shadow does not show.

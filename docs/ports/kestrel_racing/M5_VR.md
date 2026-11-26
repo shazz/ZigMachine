@@ -152,3 +152,57 @@ for system 1.28; under the build lock; the worktree is removed). The staged card
 (1) `x` on VR1, VR2, VR3: fps and the `racer,csv` stage lines on the serial console; (2) the same at `u` (uncapped) for the cart-only rate;
 (3) `e` and drive by hand on one track (the car on his asphalt / walls: does the physics keep the car on the road, do the borders behave);
 (4) the OSD plane cost with 4 planes enabled as ever.
+
+## Virtua Racing Deluxe (32X): the five courses from Matt's own cartridge (25 Nov, LOCAL ONLY)
+
+Matt owns the cartridge and dumped it himself; the dump stays git-ignored in `prototypes/racer_re/vr_local/32x/`, and so does
+everything decoded from it (`vr32x_<n>.ktrk.json`, `vr32x_<n>.ktrk`, `vr32x_report.txt`). The same rule as above: the committed
+importer is LOGIC only (no geometry, colours, tables, or offsets of data; the two tables it needs are FOUND by scanning for their
+shape), nothing derived is committed or put on a shared card. Deluxe has the arcade three plus Highland and Sand Park; all five go
+through the same code. `python3 -I tools/racer/vr32x_import.py --allow-soft` (default paths), `--tracks 4,5` for a subset.
+
+| piece | what |
+|---|---|
+| `tools/racer/vr32x_rom.py` | the decoder. Per course a 32 x 32 map of tile-model pointers (SH-2 ROM addresses, a 4 KB block found by its shape); a tile model is its vertices (s16 x, y up, z; 2048 to a tile) and polygons in STRIPS (flags bit 0 triangle / quad; a high byte of 2, 4 or 6 reuses edge last / 2 / 1 of the previous polygon); the colour word's high byte is a palette index into the course's 256-entry 32X palette (5-bit RGB), found as a run of five pointers 512 bytes apart. freds72's `32x_dumper.py` only probed the layout; the 68000's tile lookup is described by the sega-vr-disasm project |
+| `tools/racer/vr32x_geom.py` | one welded mesh (1/256 of a model unit = our unit, as his Genesis export), kinds (up-facing = ground, neutral grey = asphalt incl. kerbs to ny 0.3, the rest props; flags bit 6 = dual-sided, a guess from the Genesis layout), decals (a ground face lying in a larger one becomes its `inner`), borders (a ground edge past which no ground continues at the same height) |
+| `tools/racer/vr32x_line.py`, `vr32x_walk.py`, `vr32x_cells.py` | the racing line, SYNTHESISED (the 32X keeps its AI path and collision pages in tables not decoded here): candidates are the shortest lap through a cut across the road at seeds spread over the asphalt (a 0.25-unit cell graph of the asphalt, heights kept apart so an overpass does not join the road below) and a walk that follows the road (it takes a lollipop the shortest lap skips: Acropolis' hook); the longest that does not double back wins, smoothed, resampled every ~3.5 units, edges as new vertices |
+| `tools/racer/vr32x_colours.py` | colours: each face its palette entry, solid and unlit (no dither); the entries (74-99 a course) go on the 23 free ramps: the road and the far ground first, then greedily the entry worst served, weighted by area, the rest on the nearest ramp shade (`vr32x_report.txt` gives the error: ~4-5 RGB area-weighted, a few rare entries 50-180 off) |
+| `tools/racer/vr32x_import.py` | the pipeline and the report: checkpoints (3, a third of the lap apart), the grid (vr_import's, synthesised on segments 0-4), clockwise like freds72's three (the Deluxe-only courses' sense is NOT known), the budget check (SOFT overruns refused unless `--allow-soft`), trackc v3 + a mood block (far ground at level 7) |
+| `tools/tests/test_racer_vr32x.py` | synthetic models (strip edges, bad ids, no table) and a synthetic ring for the lap; no Sega data, runs in the gate |
+
+**What decoded, what did not.** All five courses' tile maps and every model parse with every vertex id in range, the models
+contiguous; the strip rule gives convex, edge-sharing polygons for 85-99 % of the continuations (the rest are folds of the
+terrain). Laps (the delivered, smoothed line): Big Forest 438 units (freds72's Genesis track: 437), Bay Bridge 432 (422),
+Acropolis 547 (556, the hook included): within 0.2-2.4 % of his, so the geometry is the same circuit at the same scale and
+orientation (Big Forest overlays his VR1 without a mirror; his VR2 has the shape of map 2, Acropolis, and his VR3 of map 1,
+Bay Bridge). Highland (a figure-8, the crossing is a bridge) 433, Sand Park (the longest, as reviews say) 661. **Synthesised,
+not decoded:** the racing line, checkpoints, start grid and its place (where the winning seed was), the driving direction of
+Highland and Sand Park (Sand Park forced clockwise like the arcade three; Highland is a figure-8, so that rule decides
+nothing), the borders (the 32X's collision is in tables, not polygons), the face
+kinds. **Unknown and unused:** the model header's second word, the colour word's low byte, flags bits 1-6 (bit 6 used as dual).
+The maps are in the 68000's track order; the two Deluxe courses are Highland and Sand Park (a desert course, the
+longest: map 4 is sand-coloured and the longest lap).
+
+**Budgets.** Every course is over the SOFT budget (a local benchmark, so `--allow-soft`): ~5,100-6,500 faces drawn with their
+decals (soft 3,000), a busiest tile of 119-165 faces (soft 64), up to ~9,200 vertices (soft 8,192: three courses). The HARD limits
+hold (23 ramps, <= 256 segments, ids). Binaries 0.50-0.63 MB: each fits the 738 KB buffer the stress city sizes (and
+`library.MAX_FILE`, 1 MiB), so the disk can carry all five beside VR1-3 (the node check below confirms the cart lists and loads
+them). `build_racer_vr_disk.sh` (local) adds them as `DXFOREST DXBAY DXACRO DXHIGH DXSAND` after VR1-3.
+
+**Node check (25 Nov, the local card `m5all32x`, the browser cart on its disk; `prototypes/cards/racer_32x_check.mjs`, local):**
+the cart lists 13 tracks (OVAL CITY SALT NEON GLACIER VR1-3 DXFOREST DXBAY DXACRO DXHIGH DXSAND), refuses none, keeps the
+738 KB buffer, and has 141 KB of cart RAM left (>= 64); each DX track loads and flies 600 frames of the flyby at R = 8 with no
+trap (at most 668-1,155 polygons a frame, MAXP 6,144). Not tested: driving or racing on the synthesised borders (the race
+benchmark only runs in the cost model below, without a trap).
+
+**Frame cost** (`racer_vr_costs.mjs --tracks 8,9,10,11,12` with RACER_ZMD on that disk; plain multiply twin, CPU fill; the model is
+~2x pessimistic on this cart: it priced VR1-3's R = 8 flyby at 2.55-3.24 Mc and the board ran it at 50-52 fps):
+
+| | DXFOREST | DXBAY | DXACRO | DXHIGH | DXSAND |
+|---|---|---|---|---|---|
+| heaviest flyby pose, R = 5 | 2.94 Mc | 2.93 | 3.36 | 2.96 | 2.14 |
+| the same, R = 8 | 3.54 (~28 fps model) | 4.55 (~22) | 3.79 (~26) | 3.94 (~25) | 2.38 (~42) |
+| lap v2 race, mid-lap, R = 5 | 5.84 | 6.20 | 6.01 | 6.23 | 5.02 |
+
+Against VR1-3 (2.55-3.24 Mc at R = 8) the 32X courses are 1.1-1.4x heavier in the model, except Bay Bridge (1.4-1.8x: its busiest
+tile, 165 faces, is in the bridge's view): with the board's ~2x margin, ~35-45 fps expected on the R = 8 flyby.

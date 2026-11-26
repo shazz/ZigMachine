@@ -1,29 +1,47 @@
 // --------------------------------------------------------------------------
-// RACER: the player's car, ours: a body, a cabin and four wheel blocks, flat-shaded boxes in the
-// car's own space (x right, y up, z forward; Q7 = 1/128 unit; the origin is on the ground between
-// the wheels). Built at compile time in the track binary's face-record layout, so the same
-// transform, back-face test, clip and fill that draw the track draw the car (project.zig).
-// The bottom faces are left out (never seen). Light is baked from the face's own normal (the car
-// turns, the light does not follow: a rotating car is lit as if the sun turned with it, which a
-// flat-shaded box shows least). Ramps 12-14 are the converter's car_body / car_dark / car_glass
-// (tools/racer/trackc.py). No ZigOS import.
+// RACER: the GT car (M5 step 3), ours: a low-poly flat-shaded GT coupe authored in Blender
+// (tools/racer/cars/gt_build.py -> the add-on's Car Kit export -> tools/racer/carc.py) and embedded
+// as gt.kcar, read at COMPILE time into the track binary's face-record layout, so the same
+// transform, back-face test, clip and fill that draw the track draw the car (project.zig). Car
+// space: x right, y up, z forward, Q7 = 1/128 unit, the origin on the ground between the wheels.
+// Each face's colour is baked by the converter from its normal against the car's own sun (the car
+// turns and its light turns with it). Parts, in the file's order: wheels, hull, cabin, wing (the
+// near model), the shadow quad, lod1 (the far model). Liveries: a body face (FLAG_BODY) is
+// recoloured to the livery's body ramp, a stripe face (FLAG_STRIPE) to its stripe ramp, both by
+// project.Key.dc's palette-index shift from ramp 12. No ZigOS import.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const trk = @import("trk.zig");
 
-pub const RAMP_BODY = 12;
+const RAW = @embedFile("../../assets/screens/racer/gt.kcar");
+pub const MAGIC: u32 = 0x5241434B;
+pub const FLAG_SHADOW: u8 = 0x10;
+pub const FLAG_BODY: u8 = 0x40;
+pub const FLAG_STRIPE: u8 = 0x80;
+
+pub const RAMP_BODY = 12; // the player's red (the track file's palette)
 pub const RAMP_DARK = 13;
 pub const RAMP_GLASS = 14;
-/// The AI cars' liveries: body ramps 15..18 (the cart's own, past the track's 15), the player keeps 12.
+/// The AI cars' body ramps 15..18 (the cart's palette, past the track's): blue, yellow, green, white.
 pub const RAMP_LIVERY = 15;
 pub const LIVERIES = 4;
-
-/// The palette-index shift of a body face for AI car `k` (0-based): the livery k % 4's ramp for ramp 12's.
-pub fn liveryShift(k: usize) u8 {
-    return @intCast((RAMP_LIVERY + k % LIVERIES - RAMP_BODY) * 8);
-}
 pub const SKID_COLOUR: u8 = 16 + RAMP_DARK * 8 + 0;
 
-/// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start.
+/// A livery: the body's ramp and the stripe's (the stripe runs over the deck, the roof and the wing).
+pub const Livery = struct { body: u8, stripe: u8 };
+/// Car k's livery: 0 the player (red, white stripe); the AI car k keeps M3's body ramp 15 + (k - 1) % 4 (the minimap's dot)
+/// and a stripe of its own, so the eight cars on the grid all differ.
+pub const LIVERY = [8]Livery{
+    .{ .body = 12, .stripe = 18 }, .{ .body = 15, .stripe = 18 }, .{ .body = 16, .stripe = 13 }, .{ .body = 17, .stripe = 18 },
+    .{ .body = 18, .stripe = 12 }, .{ .body = 15, .stripe = 16 }, .{ .body = 16, .stripe = 12 }, .{ .body = 17, .stripe = 16 },
+};
+
+/// The palette-index shift that recolours ramp 12 to `ramp` (wrapping u8 maths: ramp 13 is +8, ramp 18 +48).
+pub fn shiftTo(ramp: u8) u8 {
+    return (ramp -% RAMP_BODY) *% 8;
+}
+
+/// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start (the GT's tyres sit on them).
 pub const WHEELS = [4][3]i32{
     .{ -9830, 0, 13107 }, // left front
     .{ 9830, 0, 13107 }, // right front
@@ -31,53 +49,42 @@ pub const WHEELS = [4][3]i32{
     .{ 9830, 0, -13107 }, // right rear
 };
 
-const Box = struct { lo: [3]i16, hi: [3]i16, ramp: u8 };
-// Half the size M2 gave it: freds72's car is 0.24 wide on a 6-unit road (Q7: ~31 wide, 41 long, 23 high); ours was 0.47 x 0.9 x 0.36.
-const BOXES = [_]Box{
-    .{ .lo = .{ -15, 4, -29 }, .hi = .{ 15, 15, 29 }, .ramp = RAMP_BODY },
-    .{ .lo = .{ -11, 15, -14 }, .hi = .{ 11, 23, 11 }, .ramp = RAMP_GLASS },
-    .{ .lo = .{ -20, 0, 20 }, .hi = .{ -15, 9, 30 }, .ramp = RAMP_DARK },
-    .{ .lo = .{ 15, 0, 20 }, .hi = .{ 20, 9, 30 }, .ramp = RAMP_DARK },
-    .{ .lo = .{ -20, 0, -30 }, .hi = .{ -15, 9, -20 }, .ramp = RAMP_DARK },
-    .{ .lo = .{ 15, 0, -30 }, .hi = .{ 20, 9, -20 }, .ramp = RAMP_DARK },
-};
-
-/// A box face: the axis, the side, and its corners as (x, y, z) picks of lo (0) or hi (1).
-const Side = struct { axis: u2, hi: bool, light: u8, c: [4][3]u1 };
-const SIDES = [_]Side{
-    .{ .axis = 0, .hi = true, .light = 4, .c = .{ .{ 1, 0, 0 }, .{ 1, 1, 0 }, .{ 1, 1, 1 }, .{ 1, 0, 1 } } },
-    .{ .axis = 0, .hi = false, .light = 2, .c = .{ .{ 0, 0, 0 }, .{ 0, 0, 1 }, .{ 0, 1, 1 }, .{ 0, 1, 0 } } },
-    .{ .axis = 1, .hi = true, .light = 6, .c = .{ .{ 0, 1, 0 }, .{ 0, 1, 1 }, .{ 1, 1, 1 }, .{ 1, 1, 0 } } },
-    .{ .axis = 2, .hi = true, .light = 4, .c = .{ .{ 0, 0, 1 }, .{ 1, 0, 1 }, .{ 1, 1, 1 }, .{ 0, 1, 1 } } },
-    .{ .axis = 2, .hi = false, .light = 2, .c = .{ .{ 0, 0, 0 }, .{ 0, 1, 0 }, .{ 1, 1, 0 }, .{ 1, 0, 0 } } },
-};
-
-pub const NV = BOXES.len * 8;
-pub const NF = BOXES.len * SIDES.len;
-
-fn corner(b: Box, pick: [3]u1) trk.Vert {
-    var v: trk.Vert = undefined;
-    for (0..3) |k| v[k] = if (pick[k] == 1) b.hi[k] else b.lo[k];
-    return v;
+fn word(i: usize) u32 {
+    return std.mem.readInt(u32, RAW[i * 4 ..][0..4], .little);
 }
 
+const NVERT = word(2);
+const NFACE = word(3);
+const VBYTES = (NVERT * 6 + 3) / 4 * 4;
+
+/// The face range of each part: [END[p - 1], END[p]).
+pub const Part = enum(u3) { wheels, hull, cabin, wing, shadow, lod1 };
+pub const END: [6]u16 = blk: {
+    var e: [6]u16 = undefined;
+    for (&e, 0..) |*x, i| x.* = @intCast(word(4 + i));
+    break :blk e;
+};
+pub fn range(p: Part) []const trk.Face {
+    const i = @intFromEnum(p);
+    return faces[if (i == 0) 0 else END[i - 1]..END[i]];
+}
+/// The wing's front edge (Q7 forward): an eye behind it sees the wing over the cabin, an eye in front the cabin over the wing.
+pub const WING_Z: i32 = @bitCast(word(10));
+
+pub const NV = NVERT;
+pub const NF = NFACE;
+
 const BUILT = blk: {
-    var vs: [NV]trk.Vert = undefined;
-    var fs: [NF]trk.Face = undefined;
-    for (BOXES, 0..) |b, bi| {
-        for (0..8) |c| vs[bi * 8 + c] = corner(b, .{ @intCast(c & 1), @intCast((c >> 1) & 1), @intCast((c >> 2) & 1) });
-        for (SIDES, 0..) |s, si| {
-            var f = trk.Face{
-                .v = undefined, .flags = 0, .nv = 4, .colour = @intCast(16 + @as(u32, b.ramp) * 8 + s.light), .inner_n = 0,
-                .n = .{ 0, 0, 0 }, .borders = 0, .cp = 0, .inner_first = 0, .alt = 0,
-            };
-            for (s.c, 0..) |pick, k| f.v[k] = @intCast(bi * 8 + @as(usize, pick[0]) + 2 * @as(usize, pick[1]) + 4 * @as(usize, pick[2]));
-            const sign: i16 = if (s.hi) 16384 else -16384;
-            f.n[s.axis] = sign;
-            f.cp = @as(i32, sign) * vs[f.v[0]][s.axis];
-            fs[bi * SIDES.len + si] = f;
-        }
+    @setEvalBranchQuota(200_000);
+    if (word(0) != MAGIC or word(1) != 1 or word(9) != NFACE) @compileError("gt.kcar: not a v1 KCAR (run tools/racer/carc.py)");
+    if (std.hash.crc.Crc32IsoHdlc.hash(RAW[64..]) != word(11)) @compileError("gt.kcar: bad CRC");
+    if (RAW.len != 64 + VBYTES + NFACE * 32) @compileError("gt.kcar: wrong size");
+    var vs: [NVERT]trk.Vert = undefined;
+    for (&vs, 0..) |*v, i| {
+        for (0..3) |k| v[k] = std.mem.readInt(i16, RAW[64 + i * 6 + k * 2 ..][0..2], .little);
     }
+    var fs: [NFACE]trk.Face = undefined;
+    for (&fs, 0..) |*f, i| f.* = std.mem.bytesToValue(trk.Face, RAW[64 + VBYTES + i * 32 ..][0..32]);
     break :blk .{ .verts = vs, .faces = fs };
 };
 
