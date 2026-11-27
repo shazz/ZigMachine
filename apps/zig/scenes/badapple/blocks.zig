@@ -9,7 +9,9 @@ const zg = @import("zigos");
 const depackers = @import("depackers");
 const container = @import("container.zig");
 
-pub const STEP: u32 = 6144; // raw bytes depacked per pump: ~19 pumps for the largest block, of the 60 a second has
+// Raw bytes depacked per pump. frame_cost measures ~170 cycles a byte on the real film's dense blocks (short matches), so
+// 6 KB a pump was a ~1 Mc frame; 2 KB is ~0.35 Mc, and the largest block (76 KB) still fills in 38 of a block's 60 pumps.
+pub const STEP: u32 = 2048;
 
 pub const Slot = struct { raw: []u8, len: usize = 0, frames: u16 = 0 };
 
