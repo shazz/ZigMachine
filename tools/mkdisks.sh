@@ -168,6 +168,9 @@ for w in "$OUT"/demo-*.wasm; do
         # (prototypes/cards/build_badapple.sh).
         badapple)  pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SPANS.BIN=${BADAPPLE_SPANS:-apps/zig/assets/screens/badapple/test_spans.bin}" ;;
+        # ...the tile-dictionary variant (cart 167): BADAPPLE_TILES=<file> packs the local real film.
+        badapple_tiles) pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                        --file "TILES.BIN=${BADAPPLE_TILES:-apps/zig/assets/screens/badapple/test_tiles.bin}" ;;
         # RACER (Kestrel Racing M5 step 2) reads its tracks off the disk: each NAME.KTR is a converter binary
         # (tools/racer/trackc.py), ZX0-packed here (cached like the carts); the key t order is this order. The cart
         # embeds only the oval. RACER_EXTRA="VR1.KTR=<file> ..." adds LOCAL tracks (the decoded Virtua Racing ones:

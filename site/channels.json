@@ -35,6 +35,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "badapple_tiles",
+  "title": "BAD APPLE!! TILES",
+  "type": "zigmachine"
+ },
+ {
   "tag": "bard_sid",
   "title": "BARD SID",
   "type": "zigmachine"

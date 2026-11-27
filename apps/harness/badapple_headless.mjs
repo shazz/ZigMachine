@@ -1,5 +1,5 @@
-// BAD APPLE!! (cart 166) end to end on the sealed machine + ROM, against a Python REFERENCE decoder
-// (tools/badapple/{zx0,spans}.py: its own ZX0 depacker and format reader, none of the cart's code).
+// BAD APPLE!! (carts 166 spans, 167 tiles) end to end on the sealed machine + ROM, against a Python REFERENCE
+// decoder (tools/badapple/{zx0,spans,tiles}.py: its own ZX0 depacker and format readers, none of the cart's code).
 //   1. the cart's plane = the reference's frame, pixel for pixel, at fixed frames (first, block starts and ends,
 //      the hard cut, the all-white / all-black frames, the last), the film frame following the clock (hostMicros);
 //   2. a long stall (1.5 s in one host frame): the plane = the reference frame the clock owes (deltas skipped
@@ -8,8 +8,9 @@
 //   4. a block whose ZX0 magic is broken: the frames before it play, the picture goes red when it is reached
 //      (fail loud), no exception, no refused zg.mem allocation; the shipped cart asks for no song (silent);
 //   5. Escape asks to leave.
-//   node apps/harness/badapple_headless.mjs [--break] [--spans <stream>]    (--spans: a LOCAL real film, with its
-//   own demo-badapple.zmd built by prototypes/cards/build_badapple.sh; the pins then follow its frame count)
+//   node apps/harness/badapple_headless.mjs [--variant spans|tiles] [--break] [--spans <stream>]
+//   (--spans: a LOCAL real film of that variant, with its own .zmd in BADAPPLE_ZMD, built by
+//   prototypes/cards/build_badapple.sh; the pins then follow its frame count)
 // --break shifts the plane one pixel before every comparison: that must be caught.
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
@@ -19,8 +20,11 @@ import { boot } from "./stniccc_machine.mjs";
 
 const argv = process.argv.slice(2);
 const BRK = argv.includes("--break");
-const SPANS = argv.includes("--spans") ? argv[argv.indexOf("--spans") + 1] : "apps/zig/assets/screens/badapple/test_spans.bin";
-const WASM = "site/carts/demo-badapple.wasm", ZMD = process.env.BADAPPLE_ZMD || "site/carts/demo-badapple.zmd";
+const VARIANT = argv.includes("--variant") ? argv[argv.indexOf("--variant") + 1] : "spans";
+if (!["spans", "tiles"].includes(VARIANT)) { console.error(`badapple: unknown variant ${VARIANT}`); process.exit(2); }
+const TAG = VARIANT === "spans" ? "badapple" : `badapple_${VARIANT}`;
+const SPANS = argv.includes("--spans") ? argv[argv.indexOf("--spans") + 1] : `apps/zig/assets/screens/badapple/test_${VARIANT}.bin`;
+const WASM = `site/carts/demo-${TAG}.wasm`, ZMD = process.env.BADAPPLE_ZMD || `site/carts/demo-${TAG}.zmd`;
 const W = 320, H = 200, FPS = 30, HOST_US = 16667;
 const errors = [];
 const fail = (m) => errors.push(m);
@@ -116,8 +120,8 @@ function expectPlane(m, tag, f) {
 }
 
 if (BRK) {
-    console.log(errors.length ? `badapple: PASS (--break caught: ${errors[0]})` : "badapple: FAIL (--break was NOT caught)");
+    console.log(errors.length ? `${TAG}: PASS (--break caught: ${errors[0]})` : `${TAG}: FAIL (--break was NOT caught)`);
     process.exit(errors.length ? 0 : 1);
 }
-if (errors.length) { for (const e of errors.slice(0, 12)) console.error(`  ${e}`); console.log(`badapple: FAIL (${errors.length} errors)`); process.exit(1); }
-console.log(`badapple: PASS (${total} frames, ${pins.length} pinned, clock / stall / no clock / broken block)`);
+if (errors.length) { for (const e of errors.slice(0, 12)) console.error(`  ${e}`); console.log(`${TAG}: FAIL (${errors.length} errors)`); process.exit(1); }
+console.log(`${TAG}: PASS (${total} frames, ${pins.length} pinned, clock / stall / no clock / broken block)`);
