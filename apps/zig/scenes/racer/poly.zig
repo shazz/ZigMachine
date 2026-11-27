@@ -36,6 +36,9 @@ inline fn edge(px: i32, py: i32, qx: i32, qy: i32, y: i32) Edge {
     return .{ .x = x, .dx = slope, .end = end };
 }
 
+/// What a span does to the plane: fill it, darken it (a shadow), lighten it (smoke).
+pub const Mode = enum { fill, shade, light };
+
 pub fn Emitter(comptime Sink: type) type {
     return struct {
         sink: *Sink,
@@ -46,15 +49,20 @@ pub fn Emitter(comptime Sink: type) type {
         const Self = @This();
 
         pub fn poly(self: *Self, xs: []const i32, ys: []const i32, c: u8) void {
-            self.walk(xs, ys, c, false);
+            self.walk(xs, ys, c, .fill);
         }
 
         /// A car's shadow: the same edges and pixels as poly(), each span darkened in place (Sink.shade) instead of filled.
         pub fn shadow(self: *Self, xs: []const i32, ys: []const i32) void {
-            self.walk(xs, ys, 0, true);
+            self.walk(xs, ys, 0, .shade);
         }
 
-        inline fn walk(self: *Self, xs: []const i32, ys: []const i32, c: u8, comptime shade: bool) void {
+        /// A smoke puff (R82 bug pass): the same edges and pixels, each span LIGHTENED in place (Sink.light).
+        pub fn light(self: *Self, xs: []const i32, ys: []const i32) void {
+            self.walk(xs, ys, 0, .light);
+        }
+
+        inline fn walk(self: *Self, xs: []const i32, ys: []const i32, c: u8, comptime shade: Mode) void {
             const n = xs.len;
             var top: usize = 0;
             var bot: usize = 0;
@@ -88,12 +96,16 @@ pub fn Emitter(comptime Sink: type) type {
             }
         }
 
-        inline fn row(self: *Self, y: i32, l: i32, r: i32, c: u8, comptime shade: bool) void {
+        inline fn row(self: *Self, y: i32, l: i32, r: i32, c: u8, comptime shade: Mode) void {
             const bias: i32 = if (break_edge) 0x8000 else 0x7FFF;
             const x0 = @max((l +% 0x7FFF) >> 16, 0);
             const x1 = @min((r +% bias) >> 16, self.w);
             if (x1 <= x0) return;
-            if (shade) self.sink.shade(y, x0, x1) else self.sink.span(y, x0, x1, c);
+            switch (shade) {
+                .fill => self.sink.span(y, x0, x1, c),
+                .shade => self.sink.shade(y, x0, x1),
+                .light => self.sink.light(y, x0, x1),
+            }
         }
     };
 }

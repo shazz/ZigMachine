@@ -112,5 +112,6 @@ fn bindTo(d: anytype, w: usize, now: *const fn () u32) usize {
     if (keep.front()) d.game.s.fsm = keep; // a load from the title or the select keeps the screen (front.zig)
     d.game.s.records = d.recs[w]; // the session's records on this track
     d.map = minimap.Map.init(t);
+    d.pmap = @import("hudpic.zig").fitMap(t);
     return w;
 }

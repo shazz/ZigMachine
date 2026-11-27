@@ -47,6 +47,11 @@ pub const CpuSink = struct {
         shadow.span(self.base + @as(usize, @intCast(y)) * self.stride, y, x0, x1);
     }
 
+    /// A smoke span: the pixels lightened in place (shadow.lightSpan, R82 bug pass).
+    pub fn light(self: *CpuSink, y: i32, x0: i32, x1: i32) void {
+        shadow.lightSpan(self.base + @as(usize, @intCast(y)) * self.stride, x0, x1);
+    }
+
     pub fn flush(_: *CpuSink) void {}
 };
 
@@ -84,12 +89,21 @@ pub const AffineSink = struct {
     /// A shadow span reads the plane: fire what is queued, wait for CHISEL (once per run of shadow spans), then the CPU
     /// darkens it in place like the CPU path. ~800 cycles of op + the stall a car on the board (docs M5.md step 3).
     pub fn shade(self: *AffineSink, y: i32, x0: i32, x1: i32) void {
-        if (!self.synced) {
-            self.flush();
-            if (self.os) |os| os.blitSync();
-            self.synced = true;
-        }
+        self.sync();
         shadow.span(@intFromPtr(self.fb.fb) + @as(usize, @intCast(y)) * self.fb.stride, y, x0, x1);
+    }
+
+    /// A smoke span reads the plane too: the same sync, then lightened in place.
+    pub fn light(self: *AffineSink, y: i32, x0: i32, x1: i32) void {
+        self.sync();
+        shadow.lightSpan(@intFromPtr(self.fb.fb) + @as(usize, @intCast(y)) * self.fb.stride, x0, x1);
+    }
+
+    fn sync(self: *AffineSink) void {
+        if (self.synced) return;
+        self.flush();
+        if (self.os) |os| os.blitSync();
+        self.synced = true;
     }
 
     /// Fire what this half holds as one op and go on in the other half.

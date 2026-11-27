@@ -11,7 +11,9 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const car = @import("car.zig");
+const carmodel = @import("carmodel.zig");
 const contacts = @import("contacts.zig");
+const pushes = @import("pushes.zig");
 const arcade = @import("arcade.zig");
 const fix = @import("fix.zig");
 const npc = @import("npc.zig");
@@ -55,11 +57,17 @@ pub const Race = struct {
     pub fn setModel(self: *Race, m: arcade.Model) void {
         const world: i32 = @as(i32, self.t.scale.world) << 8;
         const size: i32 = @as(i32, self.t.scale.car) << 8;
-        for (self.cars[0..self.n]) |*c| {
+        for (self.cars[0..self.n], 0..) |*c, k| {
             c.model = m;
             c.world = if (m == .arcade) world else fix.ONE;
             c.size = if (m == .arcade) size else fix.ONE;
+            c.body = if (m == .arcade) bodyOf(carmodel.of(k).foot, size) else .{};
         }
+    }
+
+    /// ARCADE: does car-vs-car on every pair at the drawn size (pushes.zig); CLASSIC (or --break push): freds72's player only.
+    fn arcadePushes(self: *const Race) bool {
+        return self.cars[0].model == .arcade and !pushes.break_push;
     }
 
     /// One 30 Hz tick of every car; `buttons` are the player's.
@@ -69,12 +77,13 @@ pub const Race = struct {
             p.npc = true;
             npc.control(p, &self.ppid, &self.lens);
         } else p.control(buttons);
-        self.contacts += contacts.update(p, self.cars[1..self.n]);
+        if (!self.arcadePushes()) self.contacts += contacts.update(p, self.cars[1..self.n]);
         p.prepare();
         p.integrate();
         p.update();
         const t0 = self.now();
         self.aiTick();
+        if (self.arcadePushes()) self.contacts += pushes.update(self.cars[0..self.n]);
         const us = self.now() -% t0;
         self.ai_us += us;
         self.ai_max = @max(self.ai_max, us);
@@ -124,3 +133,14 @@ pub const Race = struct {
         return w[0 .. o + 3];
     }
 };
+
+/// A model's footprint box (Q7, the model's own size) as the physics' body at car scale `size` (Q16).
+pub fn bodyOf(f: @import("carfile.zig").Foot, size: i32) pushes.Body {
+    const s = @as(i64, size);
+    const q = struct {
+        fn of(v: i32, k: i64) i32 {
+            return @intCast((@as(i64, v) << 9) * k >> 17); // a half, Q7 -> Q16, times the scale
+        }
+    };
+    return .{ .hw = q.of(f.x1 - f.x0, s), .hl = q.of(f.z1 - f.z0, s), .cz = q.of(f.z1 + f.z0, s) };
+}

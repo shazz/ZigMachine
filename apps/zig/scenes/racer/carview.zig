@@ -2,8 +2,8 @@
 // RACER: the car drawn into the frame: the camera's view recomposed for the car's own space (so the
 // model's Q7 vertices go through the very same transform, clip and fill as the track's) and its
 // polygons pushed into the frame's list between collect and sort. Since M5 step 3 (the GT car) every
-// face of a car takes ONE key (its middle's depth, never below the ground face under it, or a long
-// road quad would paint over it) and the painter's order inside the car is the model's: the shadow,
+// face of a car takes ONE key (its middle's depth, never below any ground face under its footprint:
+// under.zig, or a road quad or a decal would paint over it) and the painter's order inside the car is the model's: the shadow,
 // the wheels, the hull, then the cabin and the wing, swapped by which side of the wing the eye is
 // on. A non-convex car sorted per face at 1/8 unit buckets mis-sorts; this order is right for every
 // eye above the deck, which every POV is. Past LOD1_Z a car is the far model. No ZigOS import.
@@ -13,11 +13,12 @@ const carmodel = @import("carmodel.zig");
 const fix = @import("fix.zig");
 const frame = @import("frame.zig");
 const fx = @import("fx.zig");
-const groundmod = @import("ground.zig");
 const project = @import("project.zig");
 const std = @import("std");
+const groundmod = @import("ground.zig");
 const trk = @import("trk.zig");
 const types = @import("types.zig");
+const under = @import("under.zig");
 const xf = @import("xform.zig");
 
 /// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else).
@@ -37,12 +38,11 @@ pub const LOD1_Z: i32 = 6 << 16;
 pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const trk.Track, s: Snap, ground: ?u16, m: *const carmodel.Model, liv: carmodel.Livery) void {
     const mv = modelView(v, s);
     const z = mv.t[2] + fx.mulsh16(mv.r[2][1], m.mid_y);
-    const under: ?u16 = if (ground) |g| fr.faceKey(g) else null;
-    const floor: ?u16 = if (nearCorner(fr, t, m, &mv, s, ground)) |k| @max(k, under orelse 0) else under;
+    const centre: ?u16 = if (ground) |g| fr.faceKey(g) else null;
+    const floor: ?u16 = if (under.break_under) m5Key(fr, t, m, v, s, ground, centre) else footKey(fr, t, m, s, centre);
     const key = @max(project.depthKey(z), floor orelse 0);
     cache.next();
-    const sh = &m.range(.shadow)[0];
-    _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
+    for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
     const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
     if (z > fix.mul(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
     part(fr, cache, m, &mv, .wheels, k);
@@ -54,29 +54,32 @@ pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const tr
 
 const Look = struct { key: u16, body: u8, stripe: u8 };
 
-/// The key of the ground face under the shadow's corner nearest the eye. The shadow lies flat on the road, so a road quad
-/// nearer than the car's own (the one behind it, seen from the chase POV) would paint over it: the shadow and the car take
-/// that quad's key when it is the higher. One face lookup a car, the car's own face tried first (ground.findFace).
-fn nearCorner(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, mv: *const cam.View, s: Snap, ground: ?u16) ?u16 {
-    const sh = &m.range(.shadow)[0];
-    var best: trk.Vert = m.verts[sh.v[0]];
+/// The highest key of the kept ground faces under the car's footprint (under.zig, R82 bug pass): a road decal (the start
+/// line, a skid puff's face) or a road quad nearer than the car's middle never paints over the car standing on it.
+fn footKey(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, s: Snap, centre: ?u16) ?u16 {
+    const f = m.foot;
+    const q = under.corners(s.pos, s.angle, s.size, f.x0, f.x1, f.z0, f.z1);
+    return under.key(fr, t, q, s.pos[1], centre);
+}
+
+/// The M5 rule, kept as the harness' mutant (--break under, key O): the centre's face and the face under the footprint's
+/// corner nearest the eye, nothing else.
+fn m5Key(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, v: *const cam.View, s: Snap, ground: ?u16, centre: ?u16) ?u16 {
+    const f = m.foot;
+    const q = under.corners(s.pos, s.angle, s.size, f.x0, f.x1, f.z0, f.z1);
+    var best = q[0];
     var bd: i64 = std.math.maxInt(i64);
-    for (sh.v) |id| {
-        const p = m.verts[id];
-        const dx: i64 = p[0] - mv.eye7[0];
-        const dz: i64 = p[2] - mv.eye7[2];
+    for (q) |p| {
+        const dx: i64 = p[0] - v.eye7[0];
+        const dz: i64 = p[1] - v.eye7[2];
         if (dx * dx + dz * dz < bd) {
             bd = dx * dx + dz * dz;
             best = p;
         }
     }
-    const c = fix.cos(s.angle);
-    const d = -fix.sin(s.angle);
-    const x: i32 = fix.mul(@as(i32, best[0]) << 9, s.size);
-    const zz: i32 = fix.mul(@as(i32, best[2]) << 9, s.size);
-    const w = [3]i32{ s.pos[0] + fix.mul(c, x) + fix.mul(d, zz), s.pos[1], s.pos[2] - fix.mul(d, x) + fix.mul(c, zz) };
-    const f = groundmod.findFace(t, w, ground) orelse return null;
-    return fr.faceKey(f.face);
+    const g = groundmod.findFace(t, .{ best[0] << 9, s.pos[1], best[1] << 9 }, ground) orelse return centre;
+    const k = fr.faceKey(g.face) orelse return centre;
+    return @max(k, centre orelse 0);
 }
 
 fn part(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, p: carmodel.Part, k: Look) void {
@@ -85,6 +88,29 @@ fn part(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const
         const dc: u8 = if (f.flags & carmodel.FLAG_BODY != 0) k.body else if (f.flags & carmodel.FLAG_STRIPE != 0) k.stripe else 0;
         _ = project.build(fr, cache, m.verts, mv, f, .{ .fixed = k.key, .dc = dc });
     }
+}
+
+/// The race's cars (car 0 the player's; `skip0` in the cockpit) in range, pushed FAR TO NEAR (R82 bug pass): cars on one
+/// ground face now share its key (a footprint raises a car to it), and a tie is drawn in push order, so the farther car
+/// must go first, as the painter's order does for faces.
+pub fn drawRace(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const trk.Track, snaps: []const Snap, under_: []const ?u16, skip0: bool, tiles: u32) void {
+    var order: [16]usize = undefined;
+    var d: [16]i64 = undefined;
+    var n: usize = 0;
+    for (snaps, 0..) |s, k| {
+        if ((k == 0 and skip0) or !inRange(v, s.pos, tiles + 1)) continue;
+        const dx: i64 = v.eye7[0] - (s.pos[0] >> 9);
+        const dz: i64 = v.eye7[2] - (s.pos[2] >> 9);
+        var i = n; // insertion, farthest first
+        while (i > 0 and d[i - 1] < dx * dx + dz * dz) : (i -= 1) {
+            d[i] = d[i - 1];
+            order[i] = order[i - 1];
+        }
+        d[i] = dx * dx + dz * dz;
+        order[i] = k;
+        n += 1;
+    }
+    for (order[0..n]) |k| draw(fr, cache, v, t, snaps[k], under_[k], carmodel.of(k), carmodel.LIVERY[k]);
 }
 
 /// True when the car at `pos` is within `tiles` tiles (8 units each) of the eye: farther cars are not worth transforming.

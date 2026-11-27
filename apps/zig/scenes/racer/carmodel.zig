@@ -26,7 +26,6 @@ pub const RAMP_GLASS = 14;
 /// The AI cars' body ramps 15..18 (the cart's palette, past the track's): blue, yellow, green, white.
 pub const RAMP_LIVERY = 15;
 pub const LIVERIES = 4;
-pub const SKID_COLOUR: u8 = 16 + RAMP_DARK * 8 + 0;
 
 /// A livery: the body's ramp and the stripe's (the stripe runs over the deck, the roof and the wing).
 pub const Livery = struct { body: u8, stripe: u8 };
@@ -42,7 +41,7 @@ pub fn shiftTo(ramp: u8) u8 {
     return (ramp -% RAMP_BODY) *% 8;
 }
 
-/// The wheel contact points in car space, Q16 (right, up, forward): where the skidmarks start. The PHYSICS' points (freds72's
+/// The wheel contact points in car space, Q16 (right, up, forward): where the tyre smoke starts (smoke.zig: times 2). The PHYSICS' points (freds72's
 /// car): since the GT is drawn x2 (M5 step 5) its tyres sit outside them.
 pub const WHEELS = [4][3]i32{
     .{ -9830, 0, 13107 }, // left front
@@ -94,7 +93,11 @@ pub const END: [6]u16 = BUILT.end;
 pub const WING_Z: i32 = @bitCast(word(10));
 
 /// The built-in GT (the fallback when no car file is on the disk, and the gate's car).
-pub const gt = Model{ .verts = &verts, .faces = &faces, .end = END, .wing_z = WING_Z, .mid_y = BUILT.mid_y };
+pub const gt = Model{ .verts = &verts, .faces = &faces, .end = END, .wing_z = WING_Z, .mid_y = BUILT.mid_y, .foot = FOOT };
+const FOOT = blk: {
+    @setEvalBranchQuota(20_000);
+    break :blk carfile.footOf(&verts, faces[END[3]..END[4]]);
+};
 pub const builtin = Set{ .models = .{gt} ++ .{undefined} ** (carfile.MAX_MODELS - 1), .n = 1 };
 
 /// The cars on show: the built-in GT, or a car file's set (cars.zig loads it; its slices point into the car buffer).

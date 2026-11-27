@@ -17,7 +17,7 @@ const data = @import("data.zig");
 const frame = @import("frame.zig");
 const pov = @import("pov.zig");
 const refrun = @import("refrun.zig");
-const skid = @import("skid.zig");
+const smoke = @import("smoke.zig");
 const trk = @import("trk.zig");
 const vec = @import("vec.zig");
 const xf = @import("xform.zig");
@@ -35,7 +35,7 @@ pub const Snap = carview.Snap;
 pub const Drive = struct {
     t: *const trk.Track,
     car: car.Car,
-    skid: skid.Skid = .{},
+    smoke: smoke.Smoke = .{},
     mode: Mode = .off,
     pov: cam.Pov = .far, // (pov.zig has the camera maths)
     from: cam.Pov = .far,
@@ -105,8 +105,8 @@ pub const Drive = struct {
         self.cur = .{ .pos = self.car.pos, .angle = self.car.angle };
         self.ticks += 1;
         self.slides += @intFromBool(self.car.sliding());
-        self.skid.emitCar(self.t, &self.car);
-        self.skid.update();
+        self.smoke.emitCar(&self.car, carmodel.of(0).foot);
+        self.smoke.update();
         const us = self.now() -% t0;
         self.us_sum += us;
         self.us_max = @max(self.us_max, us);

@@ -137,7 +137,7 @@ the SHADOW row's third value REAL HEADROOM (offered only on a track that has it)
 byte test per polygon. FLAT shading only (LIT / SOFT keep their own levels). Default off. Visible effect: the faces that
 were at level 0 are drawn one level brighter (36 % -> 45 % of their ramp's colour), the price of the shadow showing.
 
-## Known gaps
+## Known gaps (the bug pass, BUGPASS.md, closed: the skidmarks on unscaled points and car-vs-car at size > 1)
 
 The oval has no scale tail (ARCADE there changes the acceleration, walls and AI, not the speed); the 32X courses keep
 car scale 1 and the cameras were not compared with a 32X view; the arcade tick's cost is not measured (the cost harnesses

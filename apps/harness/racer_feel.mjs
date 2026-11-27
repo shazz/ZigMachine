@@ -20,7 +20,7 @@ const PRINT = argv.includes("--print-pins");
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100, SALT_TAPS = 2;
-const PINS = { result: "6434df19", grid: "caafab3fc3b7" };
+const PINS = { result: "c68ddac0", grid: "55ed14515f67" }; // R82 bug pass: every pair of cars pushes (result); the footprint shadow (grid)
 const errors = [];
 const fail = (m) => errors.push(m);
 
@@ -36,6 +36,7 @@ async function boot() {
     const lines = (kind) => log.filter((l) => l.startsWith(`racer,${kind},`)).map((l) => l.split(",").slice(2));
     const until = (kind, state, max) => { for (let i = 0; i < max; i++) { S.frame(); if (lines(kind).some((l) => l[0] === state)) return true; } return false; };
     if (BREAK) key(S, "I");
+    key(S, "0"); // the HUD in the bands (the picture HUD: racer_bugpass.mjs)
     for (let i = 0; i < SALT_TAPS; i++) { key(S, "t"); run(3); }
     return { S, log, run, view, lines, until };
 }

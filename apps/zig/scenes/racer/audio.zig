@@ -39,6 +39,8 @@ pub const Audio = struct {
     last_us: u32 = 0,
     frac: u32 = 0, // samples x 10,000 not yet whole
     refused: u32 = 0, // writes the cart's ring or the device refused
+    frames: u32 = 0,
+    logged: [3]u32 = .{ 0xFFFF_FFFF, 0xFFFF_FFFF, 0xFFFF_FFFF }, // owning, anchored, refused: last logged (racer,audio)
 
     fn start(self: *Audio) void {
         self.started = true;
@@ -73,6 +75,9 @@ pub const Audio = struct {
         if (!self.started) self.start();
         const t = if (self.device) self.tick() else 0;
         if (self.player.step(m)) |c| self.ask(c, t);
+        self.frames +%= 1;
+        self.retake();
+        self.report();
         if (!self.owning or !zg.bard.anchored()) return; // nothing taken yet (the page before its sound is on): no effect state to lose
         var out: sfx.Out = .{};
         self.fx.step(s, &out);
@@ -96,6 +101,21 @@ pub const Audio = struct {
             if (!ok) self.refused += 1;
         }
         self.refused += out.dropped;
+    }
+
+    /// Bug pass (Matt 27 Nov, "no engine sound" on the board): the channels were asked for ONCE, at the first frame; one
+    /// refusal there (a queue not ready yet) silenced the effects for the whole session. Ask again once a second.
+    fn retake(self: *Audio) void {
+        if (self.device and self.effects and !self.owning and self.frames % 60 == 0) self.take();
+    }
+
+    /// `racer,audio,<device>,<owning>,<anchored>,<refused>` on the console when the effects' state changes (the board's serial log
+    /// says why it is silent).
+    fn report(self: *Audio) void {
+        const now = [3]u32{ @intFromBool(self.owning), @intFromBool(self.device and zg.bard.anchored()), self.refused };
+        if (now[0] == self.logged[0] and now[1] == self.logged[1] and (now[2] == self.logged[2] or self.frames % 60 != 0)) return;
+        self.logged = now;
+        zg.Console.log("racer,audio,{},{},{},{}", .{ @intFromBool(self.device), now[0], now[1], now[2] });
     }
 
     pub fn toggleMusic(self: *Audio) void {

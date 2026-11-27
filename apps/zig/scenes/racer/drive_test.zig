@@ -8,7 +8,7 @@ const data = @import("data.zig");
 const drive = @import("drive.zig");
 const frame = @import("frame.zig");
 const refrun = @import("refrun.zig");
-const skid = @import("skid.zig");
+const carmodel = @import("carmodel.zig");
 const trk = @import("trk.zig");
 const xf = @import("xform.zig");
 
@@ -158,25 +158,6 @@ test "the car's polygons join the frame in the far and near views, never the coc
     }
     try std.testing.expect(counts[0] >= 3 and counts[1] >= 3);
     try std.testing.expectEqual(@as(u32, 0), counts[2]);
-}
-
-test "a sliding wheel lays marks that live 60 ticks; a gap in the calls starts a new line; the ring never overflows" {
-    const t = try trk.parse(data.oval);
-    var s = skid.Skid{};
-    const g = t.grid[0];
-    const face = ground_face(&t, g.pos);
-    for (0..25) |k| {
-        s.emit(&t, 0, .{ g.pos[0], g.pos[1], g.pos[2] + @as(i32, @intCast(k)) * 4000 }, face);
-        s.update();
-    }
-    try std.testing.expect(s.live() >= 2 and s.live() <= 3); // one at the start, one every 10 ticks
-    for (0..skid.TTL + 1) |_| s.update();
-    try std.testing.expectEqual(@as(usize, 0), s.live());
-    for (0..400) |k| { // every tick on a new face: a mark a tick, the ring recycles its oldest
-        s.emit(&t, 1, .{ g.pos[0], g.pos[1], g.pos[2] + @as(i32, @intCast(k)) * 10 }, @intCast(k % 2));
-        s.update();
-    }
-    try std.testing.expectEqual(@as(usize, skid.MAXM), s.live());
 }
 
 fn ground_face(t: *const trk.Track, p: [3]i32) u16 {

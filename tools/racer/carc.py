@@ -29,12 +29,12 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from racer import bake, carcheck, ktrk
+from racer import bake, carcheck, footprint, ktrk
 from racer.kcar_export import PARTS, loads
 from racer.ktrk import Doc
 
 MAGIC, VERSION, HEADER = 0x5241434B, 1, 64
-MAX_MODELS, RAMPS = 5, 7  # a set (carfile.zig's MAX_MODELS, the car ramps 12..18)
+MAX_MODELS, RAMPS, MAX_VERTS = 5, 7, 256  # a set (carfile.zig's MAX_MODELS, the car ramps 12..18)
 GT_SCALE = 2.0  # the GT is drawn twice its authored size (M5 car scale: the 32X car's size on the 32X's own roads)
 FLAG_SHADOW, FLAG_BODY, FLAG_STRIPE = 0x10, 0x40, 0x80
 # material -> (ramp, flags, fixed level or None = baked). Ramps: 12 the player's body (track palette), 13 dark, 14 glass,
@@ -68,13 +68,38 @@ def scaled(doc: Doc, scale: float) -> Doc:
     return out
 
 
+def with_footprint(doc: Doc) -> Doc:
+    """`doc` with its shadow part replaced by the near model's footprint (footprint.py: 1..16 non-overlapping quads under the
+    car, R82 bug pass); the authored shadow quad only marks that the car has one. New vertices are shared where they repeat."""
+    out = dict(doc)
+    vs = [list(v) for v in doc["vertices"]]
+    index = {tuple(v): i for i, v in enumerate(vs)}
+    near = [f["v"] for p in footprint.NEAR for f in doc["parts"].get(p, [])]
+    shadow = []
+    for q in footprint.quads(footprint.top_view(vs, near)):
+        ids = []
+        for pt in q:
+            if pt not in index:
+                index[pt] = len(vs)
+                vs.append(list(pt))
+            ids.append(index[pt])
+        shadow.append({"v": ids, "mat": "shadow"})
+    if len(vs) > MAX_VERTS:
+        raise CarError(f"the footprint takes the car past {MAX_VERTS} vertices")
+    out["vertices"] = vs
+    out["parts"] = {**doc["parts"], "shadow": shadow}
+    return out
+
+
 def convert(doc: Doc, allow_soft: bool = False, scale: float = 1.0) -> bytes:
-    """`doc` checked at its authored size (the envelope is the authoring one), then written `scale` times as big."""
+    """`doc` checked at its authored size (the envelope is the authoring one), then written `scale` times as big, its shadow
+    the footprint of the scaled near model."""
     bad = [p for p in carcheck.problems(doc) if p.startswith("HARD") or not allow_soft]
     if bad:
         raise CarError("; ".join(bad))
     if scale != 1.0:
         doc = scaled(doc, scale)
+    doc = with_footprint(doc)
     sun = tuple(doc["sun"])
     faces, ends = b"", []
     for p in PARTS:

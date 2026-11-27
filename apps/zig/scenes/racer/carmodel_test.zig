@@ -9,7 +9,7 @@ const testutil = @import("testutil.zig");
 const trk = @import("trk.zig");
 const types = @import("types.zig");
 
-test "the embedded GT car: parts in order, one shadow quad on the ground, every face's colour on its material's ramp" {
+test "the embedded GT car: parts in order, the shadow's footprint faces on the ground, every face's colour on its material's ramp" {
     var last: u16 = 0;
     for (carmodel.END) |e| {
         try std.testing.expect(e >= last);
@@ -17,10 +17,11 @@ test "the embedded GT car: parts in order, one shadow quad on the ground, every 
     }
     try std.testing.expectEqual(@as(u16, carmodel.NF), last);
     const sh = carmodel.range(.shadow);
-    try std.testing.expectEqual(@as(usize, 1), sh.len);
-    try std.testing.expectEqual(@as(u8, 4), sh[0].nv);
-    try std.testing.expectEqual(carmodel.FLAG_SHADOW, sh[0].flags);
-    for (sh[0].v) |id| try std.testing.expect(carmodel.verts[id][1] <= 2);
+    try std.testing.expect(sh.len > 1 and sh.len <= 16); // the footprint (tools/racer/footprint.py, R82 bug pass)
+    for (sh) |f| {
+        try std.testing.expectEqual(carmodel.FLAG_SHADOW, f.flags);
+        for (f.v) |id| try std.testing.expect(carmodel.verts[id][1] <= 2);
+    }
     try std.testing.expect(carmodel.range(.hull).len > 0 and carmodel.range(.lod1).len > 0);
     for (carmodel.faces) |f| {
         if (f.flags & (carmodel.FLAG_BODY | carmodel.FLAG_STRIPE) != 0) try std.testing.expectEqual(@as(u8, carmodel.RAMP_BODY), (f.colour - 16) / 8);
@@ -56,12 +57,13 @@ test "a car in the frame: the shadow first, flagged, then the faces all on one k
     const b = try drawAt(&f, &t, 3 << 16, carmodel.LIVERY[2]);
     const n = f.stats.polys - b;
     try std.testing.expect(n > 12); // near: wheels, hull, cabin, wing
-    try std.testing.expect(f.kept[b].n & types.SHADOW != 0);
+    const ns = carmodel.range(.shadow).len; // the footprint's faces first, all flagged
+    for (f.kept[b .. b + ns]) |r| try std.testing.expect(r.n & types.SHADOW != 0);
     var body = false;
     var stripe = false;
-    for (f.kept[b + 1 .. f.stats.polys], f.key[b + 1 .. f.stats.polys]) |r, k| {
+    for (f.kept[b + ns .. f.stats.polys], f.key[b + ns .. f.stats.polys]) |r, k| {
         try std.testing.expect(r.n & types.SHADOW == 0);
-        try std.testing.expectEqual(f.key[b + 1], k);
+        try std.testing.expectEqual(f.key[b + ns], k);
         body = body or (r.c - 16) / 8 == 16;
         stripe = stripe or (r.c - 16) / 8 == 13;
     }
@@ -77,6 +79,6 @@ test "past LOD1_Z the far model: fewer polygons than the near one" {
     const near = f.stats.polys - b0;
     const b1 = try drawAt(&f, &t, carview.LOD1_Z + (2 << 16), carmodel.LIVERY[0]);
     const far = f.stats.polys - b1;
-    try std.testing.expect(far >= 3 and far <= carmodel.range(.lod1).len + 1);
+    try std.testing.expect(far >= 3 and far <= carmodel.range(.lod1).len + carmodel.range(.shadow).len);
     try std.testing.expect(far < near);
 }

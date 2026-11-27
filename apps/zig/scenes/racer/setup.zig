@@ -7,7 +7,7 @@ const std = @import("std");
 const zg = @import("zigos");
 const carmodel = @import("carmodel.zig");
 const frame = @import("frame.zig");
-const skid = @import("skid.zig");
+const smoke = @import("smoke.zig");
 const xf = @import("xform.zig");
 
 pub fn cache(n: usize) xf.Cache {
@@ -35,6 +35,6 @@ pub fn carCache() xf.Cache {
     return cache(@import("carfile.zig").MAX_VERTS); // any car file's model
 }
 
-pub fn skidCache() xf.Cache {
-    return cache(skid.MAXM * 4);
+pub fn smokeCache() xf.Cache {
+    return cache(smoke.MAXP * smoke.VERTS);
 }

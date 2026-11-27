@@ -11,6 +11,9 @@ pub const MAXV = clip.MAXV;
 pub const Rec = struct { n: u8, c: u8, x: [MAXV]i16, y: [MAXV]i16 }; // n | SHADOW: a car's shadow (frame.emit)
 /// Rec.n's top bit: the polygon is a shadow, drawn by darkening what is under it (shadow.zig), its colour unused.
 pub const SHADOW: u8 = 0x80;
+/// Rec.n's bit 6: a smoke puff, drawn by LIGHTENING what is under it (shadow.lightSpan), its colour unused (R82 bug pass).
+pub const LIGHT: u8 = 0x40;
+pub const COUNT: u8 = 0x3F; // Rec.n's vertex count
 pub const Stats = struct {
     tiles: u32 = 0, // PVS entries drawn
     faces: u32 = 0, // submitted: first sight this frame

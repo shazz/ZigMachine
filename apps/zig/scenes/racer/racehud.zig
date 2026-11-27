@@ -11,6 +11,8 @@ const game = @import("game.zig");
 const rules = @import("rules.zig");
 const session = @import("session.zig");
 const vec = @import("vec.zig");
+const hudpic = @import("hudpic.zig");
+const sfx = @import("sfx.zig");
 
 pub const TOP_COLS = 36; // the minimap owns the band's last four columns
 
@@ -61,6 +63,27 @@ pub fn bottom(buf: []u8, g: *const game.Game) []const u8 {
         .title, .select, .options => std.fmt.bufPrint(buf, "", .{}),
     };
     return out catch "";
+}
+
+/// The picture HUD's numbers (hudpic.zig) for the game's state; `track` the course's name.
+pub fn picture(g: *const game.Game, track: []const u8) hudpic.Info {
+    const s = &g.s;
+    const r = &s.rules;
+    const c = &s.race.cars[0];
+    return .{
+        .state = switch (s.fsm.state) {
+            .grid => .grid,
+            .countdown => .countdown,
+            .race => .race,
+            .finish => .finish,
+            else => .other,
+        },
+        .place = s.playerPlace(), .cars = @intCast(s.race.n), .seconds = r.seconds(), .lap_ticks = r.lap_t,
+        .lap = r.nlaps + 1, .laps = r.goal, .kmh = @intCast(@max(fixMul(vec.len(c.vel), 900), 0)),
+        .rev = @intCast(@min(@max(@divTrunc(@as(i64, c.rpm) * 256, sfx.MAX_RPM), 0), 256)),
+        .count = if (s.fsm.state == .countdown) 3 - @min(s.fsm.ticks * 3 / session.COUNTDOWN_TICKS, 2) else 0, .win = s.outcome == .win,
+        .extend = r.extend_t > 0 and @mod(r.extend_t, 30) < 15, .track = track,
+    };
 }
 
 fn fixMul(a: i32, k: i32) i32 {

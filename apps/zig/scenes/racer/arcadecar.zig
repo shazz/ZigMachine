@@ -34,7 +34,8 @@ pub fn steered(c: *car.Car, torque: i32, braking: bool) i32 {
     c.applyForceAndTorque(.{ 0, 0, 0 }, torque);
     const s = vec.dot(c.axes().fwd, c.vel);
     c.rear_slide = c.eng.thr > 192 and s < SPIN;
-    return arcade.rpm(arcade.block(), s);
+    c.rpm = arcade.rpm(arcade.block(), s); // kept here too (bug pass): npc.control drops steer's result, so a car on the AI
+    return c.rpm; // pilot (key L, the arcade harness' driver) kept a still engine note; the note is all rpm drives in ARCADE
 }
 
 pub fn prepare(c: *car.Car) void {

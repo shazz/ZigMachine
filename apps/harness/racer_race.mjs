@@ -24,10 +24,10 @@ if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const ROUND = 2880, LIVERY = [16 + 15 * 8, 16 + 19 * 8], BODY = [16 + 12 * 8, 16 + 13 * 8];
 const PINS = {
-    lap: "c8250aadab24", // M5 car scale (the GT drawn 2x): re-pinned, the view only (result / HUD pins unchanged)
+    lap: "962c802ae8f6", // R82 bug pass: the footprint shadow, the cars keyed over their footprint and pushed far to near (view only)
     result: "ef4ce056",
     hud: { grid: "4797fa32a488", countdown: "30976b49f7a9", race: "41c20dc562b7", finish: "2a2a37d0c99c", results: "bb3a878d5568" },
-    crest: "2fc426df2093", // M5 car scale: the two cars at the crest drawn 2x
+    crest: "ae1b67f32f4a", // R82 bug pass: the footprint shadow under the two cars at the crest
 };
 const errors = [];
 const fail = (m) => errors.push(m);
@@ -37,6 +37,7 @@ async function boot(opts) {
     const log = [];
     const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), diskHook());
     if (!opts?.raw) key(S, "5"); // every pin was taken at R = 5; the cart's default is 8 (racer.zig PLAY_R)
+    key(S, "0"); // the HUD in the bands (R82 bug pass: the picture HUD is the default in a race; racer_bugpass.mjs checks it)
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p))[0] ?? 0;
     const view = () => {
         const vb = S.machine.hwVideoBase(), dv = new DataView(S.memory.buffer, vb, OFF_PAL);

@@ -83,6 +83,31 @@ pub fn span(row: usize, y: i32, x0: i32, x1: i32) void {
     while (a < e) : (a += 1) realByte(@ptrFromInt(a));
 }
 
+/// One level UP, as the plane's index (smoke, R82 bug pass): a ramp's top, the first 16 entries and the haze's pool stay.
+pub fn lighten(b: u8) u8 {
+    return if (b >= 16 and b & 7 != 7 and b < keep_from) b + 1 else b;
+}
+
+/// lighten() on the four bytes of a word at once (no byte carries: a byte only rises where its level is <= 6).
+pub fn lightenWord(w: u32) u32 {
+    const up = (((w & 0x07070707) ^ 0x07070707) + LO) & TOP; // bit 7 of a byte: level != 7
+    const ramp = (((w >> 4) & 0x0F0F0F0F) + LO) & TOP; // ...: index >= 16
+    const below = (poolTop() -% ((w >> 1) & LO)) & TOP; // ...: index < keep_from
+    return w + ((up & ramp & below) >> 7);
+}
+
+/// Lighten the pixels [x0, x1) of the row at `row`: real transparency, no dither.
+pub fn lightSpan(row: usize, x0: i32, x1: i32) void {
+    var a = row + @as(usize, @intCast(x0));
+    const e = row + @as(usize, @intCast(x1));
+    while (a < e and a & 3 != 0) : (a += 1) @as(*u8, @ptrFromInt(a)).* = lighten(@as(*u8, @ptrFromInt(a)).*);
+    while (a + 4 <= e) : (a += 4) {
+        const p: *u32 = @ptrFromInt(a);
+        p.* = lightenWord(p.*);
+    }
+    while (a < e) : (a += 1) @as(*u8, @ptrFromInt(a)).* = lighten(@as(*u8, @ptrFromInt(a)).*);
+}
+
 const dither4: u32 = @as(u32, DITHER) * 0x01010101;
 
 inline fn fakeByte(a: usize, row: usize, par: usize) void {

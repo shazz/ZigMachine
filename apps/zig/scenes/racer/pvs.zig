@@ -51,10 +51,10 @@ pub fn dda(t: *const trk.Track, tile: u32, bucket: u32, r: u32, out: *[MAX_ENTRI
     if (r >= 1) neighbours(&dist, ox, oz);
     for (t.rays[0][bucket]) |d| walk(&dist, ox, oz, d[0], d[1], r);
     var n: usize = 0;
-    var d: u32 = 8;
+    var d: u32 = @min(@max(r, 8), 63); // 8: the baked lists' depth (R_BAKE); deeper for the far ring (frame.far)
     while (true) : (d -= 1) {
         for (dist, 0..) |dd, i| {
-            if (@as(u32, dd) == d and t.tile_first[i + 1] > t.tile_first[i]) {
+            if (@as(u32, dd) == d and t.tile_first[i + 1] > t.tile_first[i] and n < out.len) {
                 out[n] = @as(u16, @intCast(i)) | @as(u16, @intCast(d)) << 10;
                 n += 1;
             }
@@ -120,5 +120,19 @@ pub fn visible(t: *const trk.Track, tile: u32, bucket: u32, r: u32, scratch: *[M
     }
     var first: usize = 0;
     while (first < list.len and distOf(list[first]) > r) first += 1;
+    if (break_thin) return thinned(list[first..], scratch);
     return list[first..];
+}
+
+/// The harness' --break pvs (key @, R82 bug pass): every other tile 2+ steps out dropped, as a sparse ray fan would.
+pub var break_thin = false;
+
+fn thinned(l: []const u16, out: *[MAX_ENTRIES]u16) []const u16 {
+    var n: usize = 0;
+    for (l) |e| {
+        if (distOf(e) >= 2 and tileOf(e) & 1 == 1) continue;
+        out[n] = e;
+        n += 1;
+    }
+    return out[0..n];
 }

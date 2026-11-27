@@ -19,7 +19,7 @@ const trk = @import("trk.zig");
 const types = @import("types.zig");
 const xf = @import("xform.zig");
 
-pub const Key = struct { fixed: ?u16 = null, dc: u8 = 0, shadow: bool = false }; // fixed: a decal's parent key, a car's own (carview.zig); dc: added to the palette index (a livery); shadow: darkens what is under it (shadow.zig)
+pub const Key = struct { fixed: ?u16 = null, dc: u8 = 0, shadow: bool = false, light: bool = false }; // fixed: a decal's parent key, a car's own (carview.zig); dc: added to the palette index (a livery); shadow: darkens what is under it (shadow.zig)
 
 /// The debug shading (key i): 0 the face's stored colour, 1 / 2 the alternates a VR import stores in `alt` (lit by the
 /// normal as the converter lights the oval; gently lit). A face with no alternates (every committed track, the cars) keeps its colour.
@@ -83,10 +83,11 @@ pub fn build(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, v: *co
     const key = k.fixed orelse depthKey(mean);
     rec.c = colourOf(f) +% k.dc;
     if (haze.active) { // M6: the band's colour; a shadow in a band is washed out (haze.zig)
-        if (k.shadow and haze.band(key) != 0) return NONE;
+        if ((k.shadow or k.light) and haze.band(key) != 0) return NONE;
         rec.c = haze.colour(key, rec.c);
     }
     if (k.shadow) rec.n |= types.SHADOW;
+    if (k.light) rec.n |= types.LIGHT; // a smoke puff (smoke.zig)
     return push(fr, rec, key);
 }
 

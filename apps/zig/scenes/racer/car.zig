@@ -60,6 +60,7 @@ pub const Car = struct {
     world: i32 = fix.ONE, // the track's world scale: positions move vel * world (arcade only; trk.Mood.world)
     size: i32 = fix.ONE, // the car's size against freds72's: colliders and wheels (arcade only; trk.Mood.car)
     crashes: u32 = 0,
+    body: @import("pushes.zig").Body = .{}, // ARCADE car-vs-car: the drawn footprint (pushes.zig); unset (0) in CLASSIC
 
     pub fn init(t: *const trk.Track, pos: V, angle: i32, segment: i32) Car {
         return .{ .t = t, .pos = pos, .angle = angle, .track = seg.TrackPos.init(t, segment) };

@@ -112,3 +112,20 @@ test "a v1 record's counts, part ends and faces are bounded (a right CRC does no
     patched(&b, first + 8, std.mem.readInt(u32, GT[first + 8 ..][0..4], .little) | carfile.FLAG_SHADOW);
     try refused(&b, error.BadParts);
 }
+
+test "the shadow is the footprint (R82 bug pass): several faces, the box around them is the model's foot, an empty shadow refused" {
+    var b align(4) = aligned(GT.len, GT);
+    const m = (try carfile.parse(&b)).of(0);
+    const sh = m.range(.shadow);
+    try std.testing.expect(sh.len > 1 and sh.len <= carfile.MAX_SHADOW);
+    try std.testing.expectEqual(carmodel.gt.foot, m.foot);
+    // the footprint holds the wheels (the near model's extent)
+    for (m.range(.wheels)) |f| for (f.v[0..f.nv]) |id| {
+        try std.testing.expect(m.verts[id][0] >= m.foot.x0 and m.verts[id][0] <= m.foot.x1);
+        try std.testing.expect(m.verts[id][2] >= m.foot.z0 and m.verts[id][2] <= m.foot.z1);
+    };
+    var c: [GT.len]u8 align(4) = undefined;
+    const e3 = std.mem.readInt(u32, GT[16 + 12 ..][0..4], .little);
+    patched(&c, 16 + 16, e3); // the shadow part empty (its faces fall into the far model, flagged there)
+    try refused(&c, error.BadParts);
+}
