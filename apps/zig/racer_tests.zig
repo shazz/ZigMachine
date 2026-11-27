@@ -30,5 +30,6 @@ test {
     _ = @import("scenes/racer/far_test.zig");
     _ = @import("scenes/racer/smoke_test.zig");
     _ = @import("scenes/racer/rescue_test.zig");
+    _ = @import("scenes/racer/pace.zig");
     _ = @import("scenes/racer/panofile_test.zig");
 }

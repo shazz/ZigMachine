@@ -1,7 +1,6 @@
 // --------------------------------------------------------------------------
-// RACER: the race as the cart plays it (M3). Like drive.zig, the physics runs at 30 Hz, a tick every
-// second 60 Hz frame BY COUNT (never the clock); the frame between two ticks shows every car at the
-// midpoint of its last two poses. Modes: `off`; `race` (the player's keys; the grid waits for fire
+// RACER: the race as the cart plays it (M3). The physics runs at 30 Hz: a tick every second 60 Hz frame BY COUNT, plus
+// the ticks the real clock owes under 60 fps (pace.zig); between two ticks every car shows at its last two poses' midpoint. Modes: `off`; `race` (the player's keys; the grid waits for fire
 // or S); `bench` (lap v2: the reference benchmark; the recorded autopilot drives, the race starts by
 // itself after 1 s on the grid, a round is 2,880 frames, then the grid again). Key A / `auto`
 // drives the player from the recorded stream in `race` mode too (the headless race). `warp` runs 16
@@ -23,6 +22,7 @@ const smoke = @import("smoke.zig");
 const trk = @import("trk.zig");
 const xf = @import("xform.zig");
 const arcade = @import("arcade.zig");
+const pace = @import("pace.zig");
 
 pub const Mode = enum { off, race, bench };
 pub const Snap = carview.Snap;
@@ -52,6 +52,7 @@ pub const Game = struct {
     cur: [N]Snap = undefined,
     smoke: smoke.Smoke = .{},
     now: *const fn () u32 = zeroClock,
+    pace: pace.Pace = .{},
     logged: fsm.State = .grid,
 
     pub fn init(t: *const trk.Track, now: *const fn () u32) !Game {
@@ -141,9 +142,8 @@ pub const Game = struct {
     pub fn update(self: *Game) void {
         if (self.mode == .off) return;
         if (self.mode == .bench) self.benchClock();
-        if (self.frames % 2 == 0) {
-            for (0..if (self.warp) WARP else 1) |_| self.tick();
-        }
+        const counted: u32 = if (self.frames % 2 != 0) 0 else if (self.warp) WARP else 1;
+        for (0..counted + self.pace.step(!self.warp, self.now(), counted)) |_| self.tick(); // a harness' clock reads 0: pins hold
         self.frames += 1;
         self.pov_frames = @min(self.pov_frames + 1, pov.FRAMES);
     }
