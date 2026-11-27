@@ -170,9 +170,9 @@ screen) and the name (0.42 of the wingspan, at 0.86 of the height) are where the
 canvas. The star detector finds **729 stars** (G2 214): the photo is scaled 0.577 here against 0.44, and more of
 its stars clear the 0.10 threshold; every one flies into the falcon, so the wire's dots are 3.4x denser.
 
-**The masks ride on the disk.** At 400x280 the aurora's change masks are 2,946,185 bytes (G2 1,757,939: 1.68x,
+**The masks ride on the disk.** At 400x280 the aurora's change masks are 2,946,185 bytes (G2 1,758,059: 1.68x,
 the band is 225 rows of 400 against 166 of 320); with the rest they would not fit the cart's 3 MiB window, and
-no cheap coder closes the gap (the codes' entropy is 3.9 bits against the nibble's 4.6; ZX0 is what cost G1 its
+no cheap coder closes the gap (the codes' entropy is 3.9 bits against the nibble's 4.6; ZX0 is what cost G its
 60 fps). So `aurora.msk` goes on the floppy as `AURORA.MSK` (`tools/mkdisks.sh`), the cart keeps only the
 offsets, and each 60 Hz frame reads the 512-byte blocks that cover its container (at most 19,363 bytes, mean
 9,752) straight into one buffer (`aurora_boot_h/stream.zig`, `zg.readBlock`, no scratch copy). On the board the
@@ -194,7 +194,15 @@ checks at 400x280 with the cart's disk mounted, plus the two modes, a FLICK on a
 lit and every baked star in the borders on plane 1's raster; `--h --break` adds a TC plane back in the window, a
 star plane without its list and a corrupt disk block to cart 161's mutants.
 
-**Board:** not yet measured.
+**Board** (27 Nov, `glass ctl load` + `stats`, 3 whole runs, card `CARTS/tests/demo-aurora_boot_h.zmd` md5 31a3abb5,
+image `KESTREL/progs/by-hash/fcf8ae8b....rv32` md5 c7c6f287): **59.8-61.0 fps, 0 missed** over the two runs without a
+screenshot (the run with two `glass ctl shot` missed 1-2 frames around each shot: the shot is the ARM's, not the
+cart's); loaded in 2,295-2,417 ms; asks to leave at ~8.5 s. `cart_c` 0.37-0.45 Mc through the aurora (G2 0.23-0.25),
+peaks sampled at 0.82 Mc (the aurora's first frames, 1.0-1.5 s) and 0.89 Mc (~5.5 s, the name's beat over the
+aurora), under the ~1.05 Mc where a frame is late: the margin is thinner than G2's. The estimator
+(`frame_cost.mjs --disk`, whole film) says 1.69 Mc mean, p95 2.32, cart 0.39 Mc, and one misaligned access a
+frame (it was ~300 before `overlay.zig`'s volatile high byte). Shots: `prototypes/boot_screen/board_shots/h/`
+(local).
 
 ## Fidelity to the lab, and deviations
 
