@@ -162,7 +162,14 @@ from the end of the load (`splash.since`), so H's bigger disk (its ~2.4 s load) 
 change for H (the disk keeps its name). The sample is the cart's own `samplePlay`, which the board's firmware hands
 to BARD.
 
-On the card: the power-on proof of H as the boot is below (27 Nov).
+On the card (27 Nov): `CARTS/tests/demo-aurora_boot.zmd` is H's fat disk (md5 9d3bee1c, 4.26 MB, its lean image
+built for the card's system 1.28 inside; `KESTREL/progs/by-hash/fcf8ae8b....rv32`, the same wasm's image from cart
+169, md5 c7c6f287, is kept), G2's disk kept as `demo-aurora_boot.zmd.g2` (md5 dd3ac0b9); `KESTREL/glass` unchanged
+(md5 9ae1738a, built at b61a9538). The splash replayed by `glass ctl quit-cart`, `rm /tmp/glass.splashed`,
+`killall glass` (S99glass restarts it: a first start with no cart running): `boot splash: demo-aurora_boot.zmd up
+in 2380 ms`, `play`, `the cart is done after 8425 ms, KOS powers on` (G2: 3086 / 8435 ms). The cart counts its
+frames and leaves after 508, so 8425 ms means it never dropped one (>= 60.3 fps on average). **Not yet verified:
+a power-on by a real power cycle** (the replay runs the same code path from the same mark), and the sound by ear.
 
 Ways back: copy `CARTS/tests/demo-aurora_boot.zmd.g2` over `CARTS/tests/demo-aurora_boot.zmd` (G2, the 320x200 boot;
 its image is still in `KESTREL/progs/by-hash/`), or `splash=0` in `KESTREL/glass.cfg` (no boot screen at all), or,
