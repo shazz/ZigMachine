@@ -5,6 +5,10 @@
 //      paints over a car standing on it (racer/under.zig). This race never puts a car where the old rule failed: the rule's
 //      own sweep and its mutant (--break under, key O) are the native under_test.zig (every decal of Salt and Glacier, 626
 //      cars painted over by the old rule, 0 now).
+//   2. sound: an ARCADE race on Salt Flats on the PUBLIC cart (no -Dracer_music) with a fake BARD queue host (as
+//      racer_audio_check.mjs): the engine keyed on FM 6 and its pitch written as the rpm moves (many fnums), the skid noise
+//      switched on while a tyre slides, the impact keyed on FM 5 at a knock: the three effects of M4 in the default physics.
+//      --break mute (key h before the race: the effects off) must be caught.
 //   node apps/harness/racer_bugpass.mjs [<shot dir>] [--break <mode>]
 import { mkdir, readFile } from "node:fs/promises";
 import { diskHook, ZMD } from "./racer_disk.mjs";
@@ -12,7 +16,7 @@ import { bootObj, key } from "./obj_machine.mjs";
 import { png } from "./skystrike_zig_frame.mjs";
 
 const argv = process.argv.slice(2);
-const MODES = [];
+const MODES = ["mute"];
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !MODES.includes(BREAK)) { console.error(`racer_bugpass: unknown --break ${BREAK}`); process.exit(1); }
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
@@ -22,9 +26,10 @@ const CAR_LO = 16 + 12 * 8, CAR_HI = 16 + 19 * 8; // the car ramps 12..18
 const errors = [], notes = [];
 const fail = (m) => errors.push(m);
 
-export async function bootRacer(taps = SALT_TAPS) {
+export async function bootRacer(taps = SALT_TAPS, host = null) {
     const log = [];
-    const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), diskHook(new Uint8Array(await readFile(ZMD))));
+    const disk = diskHook(new Uint8Array(await readFile(ZMD)));
+    const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), (env) => { disk(env); if (host) host(env); });
     const run = (n) => { for (let i = 0; i < n; i++) S.frame(); };
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p))[0] ?? 0;
     const view = () => {
@@ -73,7 +78,41 @@ async function decals() {
     else notes.push(`decals: ${carpx} car pixels over 900 frames of an ARCADE race on Salt Flats, the same with the decals off`);
 }
 
-await decals();
+/** The effects' writes in an ARCADE race (the fake queue host of racer_audio_check.mjs: drained every frame). */
+async function sound() {
+    const cmds = [];
+    let block = 0;
+    const B = await bootRacer(SALT_TAPS, (env) => { env.hostBardAttach = (b) => { block = b; return b ? 1 : 0; }; });
+    B.S.machine.hwSetCaps(0x7f);
+    const drain = () => {
+        if (!block) return;
+        const u = new Uint32Array(B.S.memory.buffer), h = block >> 2, head = u[h + 4];
+        for (let t = u[h + 5]; t !== head; t = (t + 1) >>> 0) { const c = h + 16 + 4 * (t % 256); cmds.push([u[c + 1], u[c + 2]]); }
+        u[h + 5] = head;
+        u[h + 7] = u[h + 7] + 735; u[h + 8] = 1;
+    };
+    B.S.frame(); drain();
+    if (BREAK === "mute") key(B.S, "h");
+    key(B.S, "e"); B.S.frame(); drain();
+    B.S.demo.input(5); B.S.demo.inputRelease(5);
+    for (let f = 0; f < 240; f++) { B.S.frame(); drain(); } // the countdown
+    B.S.demo.input(5); // a player's race: the throttle held (no AI pilot), straight on into the first bend's wall
+    for (let f = 0; f < 900; f++) { B.S.frame(); drain(); }
+    B.S.demo.inputRelease(5);
+    const driven = new Set(cmds.filter(([a]) => a === 0xc1a2).map(([, v]) => v)).size;
+    key(B.S, "L"); // ... then the AI pilot flies the player (its engine note follows the revs too)
+    for (let f = 0; f < 600; f++) { B.S.frame(); drain(); }
+    const keyOn = (code) => cmds.filter(([a, v]) => a === 0xc028 && v === (0xf0 | code)).length;
+    const fnums = new Set(cmds.filter(([a]) => a === 0xc1a2).map(([, v]) => v));
+    const skid = cmds.filter(([a, v]) => a === 0xc200 && v === 0xf5).length;
+    const piloted = fnums.size - driven;
+    const got = { engine: keyOn(6), driven, piloted, skid, impact: keyOn(5), commands: cmds.length };
+    if (got.engine < 1 || driven < 8 || piloted < 4 || got.skid < 1 || got.impact < 1) fail(`sound: an ARCADE race's effects missing ${JSON.stringify(got)}`);
+    else notes.push(`sound: an ARCADE race on the public cart: the engine keyed on (${got.engine}), ${driven} engine pitches driven, ${piloted} more on the AI pilot, the skid noise on ${got.skid} times, ${got.impact} impacts (${got.commands} queue commands)`);
+}
+
+if (BREAK === "mute") await sound();
+else { await decals(); await sound(); }
 for (const n of notes) console.log(`  ${n}`);
 console.log(errors.length ? `racer_bugpass: FAILED -- ${errors.join("; ")}` : "racer_bugpass: PASS");
 process.exitCode = errors.length ? 1 : 0;
