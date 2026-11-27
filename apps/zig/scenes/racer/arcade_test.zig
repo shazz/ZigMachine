@@ -149,7 +149,7 @@ test "an arcade race on the oval: 8 cars round for 2,400 ticks on the AI's contr
     for (0..2400) |_| r.tick(0);
     for (&r.cars) |*c| try std.testing.expect(c.track.u > 60 << 16); // half a lap at least
     try std.testing.expect(r.cars[0].hits < 400);
-    try std.testing.expectEqual(@as(u32, 0xb3387a6f), r.crc()); // the Zig model is the arcade's oracle (FEEL.md): this pins it
+    try std.testing.expectEqual(@as(u32, 0x970493ab), r.crc()); // the Zig model is the arcade's oracle (FEEL.md): this pins it (bug pass: every pair pushes, pushes.zig)
 }
 
 test "an arcade race on Salt Flats (its world and car scales, its cues): the AI round 3 laps in 100 s without a crash" {

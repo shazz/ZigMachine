@@ -73,6 +73,9 @@ pub fn handle(self: anytype, cp: u32) void {
         'K' => @import("zone.zig").break_zone = true, // racer_zone.mjs --break zone: no camera zone anywhere
         'N' => options.breakHaze(self, &haze.break_absent), // racer_haze.mjs --break absent: the haze built, never applied
         'P' => options.breakHaze(self, &haze.break_near), // ... --break near: every band one nearer (near faces hazed)
+        'O' => @import("under.zig").break_under = true, // racer_bugpass.mjs --break under: a car keyed by its centre's face only
+        '1' => @import("smoke.zig").hidden = !@import("smoke.zig").hidden, // the tyre smoke not drawn (racer_drive.mjs' A/B)
+        '!' =>@import("pushes.zig").break_push = true, // ... --break push: ARCADE back to freds72's player-only contacts
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

@@ -7,7 +7,7 @@ from __future__ import annotations
 import struct
 import unittest
 
-from racer import carc, vr32x_car, vr32x_cargeom
+from racer import carc, footprint, vr32x_car, vr32x_cargeom
 from racer import vr32x_carrom as cr
 from racer.vr32x_rom import RomError
 
@@ -122,7 +122,7 @@ class SetTest(unittest.TestCase):
             nv, nf = struct.unpack_from("<2I", blob, at + 8)
             ends = struct.unpack_from("<6I", blob, at + 16)
             self.assertEqual(ends[5], nf)
-            self.assertEqual(ends[4] - ends[3], 1)  # one shadow quad
+            self.assertTrue(1 <= ends[4] - ends[3] <= footprint.MAX_QUADS)  # the footprint (R82 bug pass)
             at += 64 + (nv * 6 + 3) // 4 * 4 + 32 * nf
             n += 1
         self.assertEqual((at, n), (len(blob), 5))

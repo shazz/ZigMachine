@@ -60,7 +60,8 @@ class GtCarTest(unittest.TestCase):
         b = BLOB.read_bytes()
         w = struct.unpack("<4I6IiI4I", b[:64])
         self.assertEqual(w[:2], (carc.MAGIC, carc.VERSION))
-        sizes = [len(gt()["parts"][p]) for p in kcar_export.PARTS]
+        drawn = carc.with_footprint(carc.scaled(gt(), carc.GT_SCALE))  # the shadow part is the footprint (R82 bug pass)
+        sizes = [len(drawn["parts"][p]) for p in kcar_export.PARTS]
         self.assertEqual(list(w[4:10]), [sum(sizes[: i + 1]) for i in range(6)])
         self.assertEqual(w[10], carc.GT_SCALE * max(gt()["vertices"][i][2] for f in gt()["parts"]["wing"] for i in f["v"]))
         import zlib

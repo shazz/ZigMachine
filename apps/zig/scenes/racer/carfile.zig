@@ -28,9 +28,10 @@ pub const RAMPS = 7; // the car ramps 12..18 a set may recolour
 pub const FIRST_RAMP = 12;
 pub const PALETTE: u32 = 1; // v2 flag: the header holds the ramps' colours
 pub const FLAG_SHADOW: u8 = 0x10;
+pub const MAX_SHADOW = 16; // the shadow's faces: the footprint (tools/racer/footprint.py, R82 bug pass), or one quad (M5)
 pub const Error = error{ Truncated, BadMagic, BadVersion, BadCrc, BadBlock, BadFace, BadParts };
 
-/// The parts, in the file's order: the near model (wheels, hull, cabin, wing), the shadow quad, the far model.
+/// The parts, in the file's order: the near model (wheels, hull, cabin, wing), the shadow (1..MAX_SHADOW faces), the far model.
 pub const Part = enum(u3) { wheels, hull, cabin, wing, shadow, lod1 };
 
 pub const Model = struct {
@@ -39,12 +40,28 @@ pub const Model = struct {
     end: [6]u16,
     wing_z: i32, // Q7 forward: carview swaps the cabin and the wing by the eye's side of it
     mid_y: i32, // Q7: half the hull's height, the depth every face of the car is keyed by
+    foot: Foot = .{}, // the shadow's box: the car's drawn footprint (decals under it, car-vs-car contacts in ARCADE)
 
     pub fn range(self: *const Model, p: Part) []const trk.Face {
         const i = @intFromEnum(p);
         return self.faces[if (i == 0) 0 else self.end[i - 1]..self.end[i]];
     }
 };
+
+/// A model's footprint box, Q7 car space (x right, z forward): the extent of its shadow faces.
+pub const Foot = struct { x0: i32 = 0, x1: i32 = 0, z0: i32 = 0, z1: i32 = 0 };
+
+/// The box around the shadow part's vertices (the footprint, or the one M5 quad).
+pub fn footOf(verts: []const trk.Vert, shadow: []const trk.Face) Foot {
+    var f = Foot{ .x0 = std.math.maxInt(i32), .x1 = std.math.minInt(i32), .z0 = std.math.maxInt(i32), .z1 = std.math.minInt(i32) };
+    for (shadow) |s| for (s.v[0..s.nv]) |id| {
+        f.x0 = @min(f.x0, verts[id][0]);
+        f.x1 = @max(f.x1, verts[id][0]);
+        f.z0 = @min(f.z0, verts[id][2]);
+        f.z1 = @max(f.z1, verts[id][2]);
+    };
+    return f;
+}
 
 pub const Set = struct {
     models: [MAX_MODELS]Model = undefined,
@@ -127,16 +144,19 @@ fn model(b: []align(4) const u8) Error!Rec {
     return .{ .m = m, .len = len };
 }
 
-/// What the cart relies on: a hull and a far model, ONE shadow quad (flagged, and the only flagged face), every face 3-4 ids in range.
+/// What the cart relies on: a hull and a far model, 1..MAX_SHADOW shadow faces (flagged, and the only flagged faces), every
+/// face 3-4 ids in range.
 fn check(m: *Model) Error!void {
     if (m.range(.hull).len == 0 or m.range(.lod1).len == 0) return error.BadParts;
     const sh = m.range(.shadow);
-    if (sh.len != 1 or sh[0].nv != 4 or sh[0].flags & FLAG_SHADOW == 0) return error.BadParts;
+    if (sh.len < 1 or sh.len > MAX_SHADOW) return error.BadParts;
+    const s0 = m.end[@intFromEnum(Part.shadow) - 1];
     for (m.faces, 0..) |f, i| {
         if (f.nv < 3 or f.nv > 4 or f.alt != 0 or f.inner_n != 0) return error.BadFace; // no debug shades, no decals on a car
         for (f.v) |id| if (id >= m.verts.len) return error.BadFace; // the padding ids too: all four are read
-        if ((f.flags & FLAG_SHADOW != 0) != (i == m.end[@intFromEnum(Part.shadow)] - 1)) return error.BadParts;
+        if ((f.flags & FLAG_SHADOW != 0) != (i >= s0 and i < m.end[@intFromEnum(Part.shadow)])) return error.BadParts;
     }
+    m.foot = footOf(m.verts, sh);
     var top: i32 = 0;
     for (m.range(.hull)) |f| for (f.v[0..f.nv]) |id| {
         top = @max(top, m.verts[id][1]);

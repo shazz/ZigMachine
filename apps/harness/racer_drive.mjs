@@ -3,8 +3,9 @@
 //      (racer,phys,<ticks>,<px>,<py>,<pz>,<angle>,<u>,<hits>,<slides>) equals the reference's state at that tick,
 //      bit for bit (the fixture tools/racer/phys_fixture.py wrote from z8lua: apps/zig/assets/screens/racer/phys_lap.bin);
 //      the view's CRC list is the same twice, with the CPU fill and the CHISEL AFFINE fill, and pinned;
-//   2. the car is drawn (its ramps 12-14 are in the view) in the far and near POVs and not in the cockpit's; skidmarks
-//      (palette index 120, the converter's car_dark light 0) appear while the lap slides; the cockpit's view differs;
+//   2. the car is drawn (its ramps 12-14 are in the view) in the far and near POVs and not in the cockpit's; tyre smoke
+//      (R82 bug pass, racer/smoke.zig) appears while the lap slides: against the same lap with the smoke hidden (key 1),
+//      every changed pixel is lighter in its own ramp, one level a puff over it (real transparency: no dither, no colour of its own); the cockpit's view differs;
 //   3. DRIVING (key n): the arrows and the joystick fire move the car, left / right turn it, release slows it, r puts
 //      it back on the grid; consecutive frames are all different (the 60 Hz pose interpolation: no 30 Hz stutter);
 //   4. the --break slip switch (key Z, car.break_slip) moves the slide count off the reference and is caught.
@@ -22,10 +23,10 @@ const PRINT = argv.includes("--print-pins");
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
-const LAP_FRAMES = 720, SKID = 120, CAR = [16 + 12 * 8, 16 + 14 * 8 + 8];
+const LAP_FRAMES = 720, CAR = [16 + 12 * 8, 16 + 14 * 8 + 8];
 // the lap v1 CRC32 list (every 60 frames; oval, R = 5, CPU fill, mulsh, the far POV): the benchmark's proof of sameness
 // M5 car scale (the GT drawn 2x, the far POV shows it every frame): re-pinned; the physics line is unchanged
-const LAP_PIN = "6272c7a6 17fcaa35 fd13524e bd4cbd3f 88a11c20 bf280aed 1c3215d6 a2bfcb18 98a7742e 609ae2b1 5ae98071 e37b3c47";
+const LAP_PIN = "2c92f75b 5b56ddcb 7ab5f9b9 3aea16c8 0f07b7d7 388ea11a 9b94be21 251960ef 654efd27 572aa32e dd4f2b86 64dd97b0"; // R82 bug pass: tyre smoke for the skidmarks, the footprint shadow
 const errors = [];
 const fail = (m) => errors.push(m);
 
@@ -53,20 +54,21 @@ async function boot(opts) {
 const count = (px, lo, hi) => { let n = 0; for (let i = Y0 * W; i < Y1 * W; i++) if (px[i] >= lo && px[i] < hi) n++; return n; };
 const hashOf = (px) => createHash("sha256").update(px.subarray(Y0 * W, Y1 * W)).digest("hex").slice(0, 12);
 
-/** One bench lap: the CRC list, the physics lines, the car's and the skidmarks' pixel counts per sampled frame. */
+/** One bench lap: the CRC list, the physics lines, the car's pixel count and the sampled views. */
 async function lap(opts = {}) {
     const B = await boot();
     if (opts.affine) key(B.S, "f");
     if (BREAK === "slip") key(B.S, "Z");
+    if (opts.nosmoke) key(B.S, "1");
     key(B.S, "b");
     for (let i = 0; i < (opts.cockpit ?? 0); i++) key(B.S, "v");
-    const seen = { car: 0, skid: 0, views: [] };
+    const seen = { car: 0, views: [], px: [] };
     B.run(LAP_FRAMES, (i) => {
         if (i % 10 !== 9) return;
         const px = B.view();
-        seen.car = Math.max(seen.car, count(px, CAR[0], CAR[1]) - count(px, SKID, SKID + 1)); // the skidmarks are ramp 13 index 0: not the body
-        seen.skid = Math.max(seen.skid, count(px, SKID, SKID + 1));
+        seen.car = Math.max(seen.car, count(px, CAR[0], CAR[1]));
         seen.views.push(hashOf(px));
+        seen.px.push(px);
     });
     return { B, crcs: B.lines("crc").map((l) => l[1]), phys: B.lines("phys").map((l) => l.map(Number)), seen };
 }
@@ -98,13 +100,27 @@ async function main() {
     const aff = await lap({ affine: true });
     if (aff.crcs.join(" ") !== base.crcs.join(" ")) fail("lap v1: the AFFINE fill's CRC list differs from the CPU fill's");
     if (base.seen.car < 150) fail(`the car is not drawn in the far POV (${base.seen.car} pixels of its ramps at most)`);
-    if (base.seen.skid < 20) fail(`no skidmarks in a lap that slides 258 ticks (${base.seen.skid} pixels at most)`);
+    smokeChecks(base, await lap({ nosmoke: true }));
     const cock = await lap({ cockpit: 2 });
     if (cock.seen.car > 0) fail(`the cockpit POV draws the car body (${cock.seen.car} pixels)`);
     if (cock.crcs.join(" ") === base.crcs.join(" ")) fail("the cockpit's CRC list equals the far POV's");
     checkPhysics(rows, cock.phys, "lap v1 (cockpit)");
     await driving();
     await shots();
+}
+
+/** The smoke: the lap with it against the lap without (key 1), sampled frames: each changed pixel exactly one level up. */
+function smokeChecks(base, bare) {
+    // one level up a puff (n levels where n puffs overlap: each its own lightening), never out of the ramp, never darker
+    const ok = (a, b) => b >= 16 && a > b && (a - 16) >> 3 === (b - 16) >> 3;
+    let changed = 0, wrong = 0, twice = 0;
+    base.seen.px.forEach((a, k) => {
+        const b = bare.seen.px[k];
+        for (let i = Y0 * W; i < Y1 * W; i++) if (a[i] !== b[i]) { changed++; twice += a[i] - b[i] >= 2; if (!ok(a[i], b[i])) wrong++; }
+    });
+    if (changed < 200) fail(`no tyre smoke in a lap that slides 258 ticks (${changed} lightened pixels over the samples)`);
+    if (wrong) fail(`tyre smoke: ${wrong} of ${changed} changed pixels are not lighter in their own ramp (one level a puff)`);
+    else console.log(`  tyre smoke: ${changed} pixels lightened over the lap's samples (${twice} more than one level, under overlapping puffs), none otherwise changed`);
 }
 
 async function driving() {

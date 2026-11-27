@@ -8,7 +8,11 @@ const data = @import("data.zig");
 const drive = @import("drive.zig");
 const frame = @import("frame.zig");
 const refrun = @import("refrun.zig");
-const skid = @import("skid.zig");
+const carmodel = @import("carmodel.zig");
+const fix = @import("fix.zig");
+const smoke = @import("smoke.zig");
+const testutil = @import("testutil.zig");
+const types = @import("types.zig");
 const trk = @import("trk.zig");
 const xf = @import("xform.zig");
 
@@ -160,23 +164,63 @@ test "the car's polygons join the frame in the far and near views, never the coc
     try std.testing.expectEqual(@as(u32, 0), counts[2]);
 }
 
-test "a sliding wheel lays marks that live 60 ticks; a gap in the calls starts a new line; the ring never overflows" {
+test "tyre smoke (R82 bug pass): a sliding car puffs every EVERY ticks, a puff lives TTL ticks, the ring never overflows" {
     const t = try trk.parse(data.oval);
-    var s = skid.Skid{};
-    const g = t.grid[0];
-    const face = ground_face(&t, g.pos);
-    for (0..25) |k| {
-        s.emit(&t, 0, .{ g.pos[0], g.pos[1], g.pos[2] + @as(i32, @intCast(k)) * 4000 }, face);
+    var s = smoke.Smoke{};
+    var c = car.Car.init(&t, t.grid[0].pos, t.grid[0].yaw, t.grid[0].segment);
+    c.old = ground_face(&t, c.pos);
+    c.rear_slide = true;
+    for (0..10) |_| {
+        s.emitCar(&c);
         s.update();
     }
-    try std.testing.expect(s.live() >= 2 and s.live() <= 3); // one at the start, one every 10 ticks
-    for (0..skid.TTL + 1) |_| s.update();
+    try std.testing.expectEqual(@as(usize, 10), s.live()); // 2 rear wheels x 5 puff ticks
+    c.rear_slide = false;
+    for (0..smoke.TTL) |_| s.update();
     try std.testing.expectEqual(@as(usize, 0), s.live());
-    for (0..400) |k| { // every tick on a new face: a mark a tick, the ring recycles its oldest
-        s.emit(&t, 1, .{ g.pos[0], g.pos[1], g.pos[2] + @as(i32, @intCast(k)) * 10 }, @intCast(k % 2));
+    c.front_slide = true;
+    c.rear_slide = true;
+    for (0..400) |_| {
+        s.emitCar(&c);
         s.update();
     }
-    try std.testing.expectEqual(@as(usize, skid.MAXM), s.live());
+    try std.testing.expect(s.live() <= smoke.MAXP);
+    c.old = null; // off the ground: no puff
+    var e = smoke.Smoke{};
+    e.emitCar(&c);
+    try std.testing.expectEqual(@as(usize, 0), e.live());
+}
+
+test "a puff drawn: two lightened halves on one key, never below its ground face's key; scaled wheel points" {
+    const t = try trk.parse(data.oval);
+    var f = try testutil.newFrame(&t);
+    defer testutil.freeFrame(&f);
+    var cache = try testutil.newCache(smoke.MAXP * smoke.VERTS);
+    defer std.testing.allocator.free(cache.e);
+    var s = smoke.Smoke{};
+    const g = t.grid[0];
+    s.puff(.{ g.pos[0], g.pos[1], g.pos[2] + (3 << 16) }, ground_face(&t, g.pos), fix.ONE);
+    const v = cam.view(.{ .pos = .{ g.pos[0], g.pos[1] + (1 << 16), g.pos[2] }, .yaw = 0, .pitch = 0x0400_0000 });
+    f.visibility(&t, &v, 5);
+    f.collect(&t, &v, true);
+    const b = f.stats.polys;
+    s.draw(&f, &cache, &v);
+    try std.testing.expectEqual(b + 2, f.stats.polys);
+    const under = f.faceKey(ground_face(&t, g.pos)).?;
+    for (f.kept[b .. b + 2], f.key[b .. b + 2]) |r, k| {
+        try std.testing.expect(r.n & types.LIGHT != 0 and r.n & types.SHADOW == 0);
+        try std.testing.expectEqual(f.key[b], k);
+        try std.testing.expect(k >= under);
+    }
+    // the drawn wheels: twice freds72's points, times the car scale
+    var c = car.Car.init(&t, g.pos, 0, g.segment);
+    c.old = ground_face(&t, c.pos);
+    c.rear_slide = true;
+    c.size = 2 << 16;
+    var e = smoke.Smoke{};
+    e.emitCar(&c);
+    const dx = e.puffs[0].pos[0] - c.pos[0];
+    try std.testing.expectEqual(fix.mul(carmodel.WHEELS[2][0] * 2, c.size), dx);
 }
 
 fn ground_face(t: *const trk.Track, p: [3]i32) u16 {

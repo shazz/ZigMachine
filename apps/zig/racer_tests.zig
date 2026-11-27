@@ -24,4 +24,6 @@ test {
     _ = @import("scenes/racer/zone_test.zig");
     _ = @import("scenes/racer/haze_test.zig");
     _ = @import("scenes/racer/arcade_test.zig");
+    _ = @import("scenes/racer/pushes_test.zig");
+    _ = @import("scenes/racer/under_test.zig");
 }

@@ -27,7 +27,7 @@ def faces(blob: bytes) -> list[tuple[int, ...]]:
 class ScaleTest(unittest.TestCase):
     def test_a_scaled_car_has_every_vertex_and_the_wing_edge_times_the_scale_and_the_same_colours(self) -> None:
         one, two = carc.convert(gt()), carc.convert(gt(), scale=2.0)
-        nv = struct.unpack_from("<I", one, 8)[0]
+        nv = len(gt()["vertices"])  # the authored ones: the footprint's (R82 bug pass) follow, on the ground at any scale
         v1 = struct.unpack_from(f"<{3 * nv}h", one, 64)
         v2 = struct.unpack_from(f"<{3 * nv}h", two, 64)
         self.assertEqual([2 * c for c in v1], list(v2))

@@ -26,6 +26,35 @@ test "the word path darkens each of four bytes exactly as the byte rule, whateve
     };
 }
 
+test "smoke (R82 bug pass): one level UP inside a ramp, a ramp's top, the first 16 entries and the haze pool kept; word = byte" {
+    for ([_]u32{ 256, 16 + 8 * 20 }) |kf| {
+        shadow.keep_from = kf;
+        defer shadow.keep_from = 256;
+        for (0..256) |i| {
+            const b: u8 = @intCast(i);
+            const want: u8 = if (b < 16 or (b - 16) % 8 == 7 or b >= kf) b else b + 1;
+            try std.testing.expectEqual(want, shadow.lighten(b));
+        }
+        var prng = std.Random.DefaultPrng.init(83);
+        const r = prng.random();
+        for (0..256) |i| for (0..4) |lane| for (0..4) |_| {
+            var bs: [4]u8 = undefined;
+            r.bytes(&bs);
+            bs[lane] = @intCast(i);
+            var out: [4]u8 = undefined;
+            std.mem.writeInt(u32, &out, shadow.lightenWord(std.mem.readInt(u32, &bs, .little)), .little);
+            for (bs, out) |b, o| try std.testing.expectEqual(shadow.lighten(b), o);
+        };
+        var src: [64]u8 align(4) = undefined;
+        for (&src, 0..) |*b, i| b.* = @intCast(i * 5 % 256);
+        for ([_][2]i32{ .{ 0, 64 }, .{ 1, 2 }, .{ 3, 41 }, .{ 13, 13 } }) |s| {
+            var buf = src;
+            shadow.lightSpan(rowOf(&buf), s[0], s[1]);
+            for (buf, src, 0..) |o, b, x| try std.testing.expectEqual(if (x >= s[0] and x < s[1]) shadow.lighten(b) else b, o);
+        }
+    }
+}
+
 fn rowOf(buf: []u8) usize {
     return @intFromPtr(buf.ptr);
 }

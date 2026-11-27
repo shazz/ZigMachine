@@ -20,7 +20,7 @@ const PRINT = argv.includes("--print-pins");
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100, SALT_TAPS = 2;
-const PINS = { result: "6434df19", grid: "caafab3fc3b7" };
+const PINS = { result: "c68ddac0", grid: "55ed14515f67" }; // R82 bug pass: every pair of cars pushes (result); the footprint shadow (grid)
 const errors = [];
 const fail = (m) => errors.push(m);
 

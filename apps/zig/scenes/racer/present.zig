@@ -52,14 +52,14 @@ pub fn flip(d: anytype, zigos: *zg.ZigOS) *zg.LogicalFB {
     return &zigos.lfbs[d.back];
 }
 
-/// Push the skidmarks and the cars (the race's eight, or driving's one) after collect and before sort.
+/// Push the tyre smoke and the cars (the race's eight, or driving's one) after collect and before sort.
 pub fn addCars(d: anytype, v: *const cam.View) void {
     if (d.pose != null) return;
     if (d.game.mode != .off) {
-        d.game.skid.draw(&d.f, &d.caches[1], v);
+        d.game.smoke.draw(&d.f, &d.caches[1], v);
         d.game.drawCars(&d.f, &d.caches[0], v, d.r);
     } else if (d.drive.mode != .off) {
-        d.drive.skid.draw(&d.f, &d.caches[1], v);
+        d.drive.smoke.draw(&d.f, &d.caches[1], v);
         d.drive.drawCar(&d.f, &d.caches[0], v);
     }
 }

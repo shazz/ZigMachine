@@ -19,7 +19,7 @@ const frame = @import("frame.zig");
 const pov = @import("pov.zig");
 const race = @import("race.zig");
 const session = @import("session.zig");
-const skid = @import("skid.zig");
+const smoke = @import("smoke.zig");
 const trk = @import("trk.zig");
 const xf = @import("xform.zig");
 const arcade = @import("arcade.zig");
@@ -50,7 +50,7 @@ pub const Game = struct {
     frames: u32 = 0,
     prev: [N]Snap = undefined,
     cur: [N]Snap = undefined,
-    skid: skid.Skid = .{},
+    smoke: smoke.Smoke = .{},
     now: *const fn () u32 = zeroClock,
     logged: fsm.State = .grid,
 
@@ -70,7 +70,7 @@ pub const Game = struct {
     pub fn reset(self: *Game) void {
         self.s.reset();
         self.s.race.now = self.now;
-        self.skid = .{};
+        self.smoke = .{};
         self.frames = 0;
         self.snap();
         self.prev = self.cur;
@@ -167,8 +167,8 @@ pub const Game = struct {
         self.snap();
         const st = self.s.fsm.state;
         if (st == .race or st == .finish) {
-            self.skid.emitCar(self.t, &self.s.race.cars[0]);
-            self.skid.update();
+            self.smoke.emitCar(&self.s.race.cars[0]);
+            self.smoke.update();
         }
     }
 
