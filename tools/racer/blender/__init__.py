@@ -4,6 +4,7 @@ Exports the scene as the neutral `.ktrk.json` (and nothing else: the converter, 
 shows a live budget meter in the 3D view's sidebar (N panel, "Track Kit" tab). The conventions are in
 tools/racer/kit_export.py; docs/ports/kestrel_racing/M5.md is the manual.
 
+Packaged (M7): tools/racer/kit_pack.py builds the installable extension zip (docs/ports/kestrel_racing/TRACK_KIT.md).
 From the repo (the add-on imports the pure modules from tools/racer/):
     blender -b scene.blend --python-expr "import sys; sys.path.insert(0, 'tools'); import racer.blender as k; k.export_to('out.ktrk.json')"
 """
@@ -18,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tools/: the add-
 
 from racer import budget, kit_export, ktrk, limits  # noqa: E402
 
-bl_info = {"name": "Kestrel Racing Track Kit", "author": "ZigMachine", "version": (1, 0, 0), "blender": (5, 3, 0),
+bl_info = {"name": "Kestrel Racing Track Kit", "author": "ZigMachine", "version": (1, 1, 0), "blender": (5, 3, 0),
            "location": "View3D > Sidebar > Track Kit", "description": "Export .ktrk.json tracks with a budget meter",
            "category": "Import-Export"}
 
@@ -52,11 +53,11 @@ def extract(scene: Any) -> kit_export.Scene:  # WHY: bpy scene is untyped
 
 
 def _look(scene: Any) -> dict[str, Any]:  # WHY: bpy scene is untyped
-    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop, ktrk_clock, ktrk_draw_r, ktrk_haze*), only what the scene sets."""
+    """The optional mood look (kit_export: ktrk_sky, ktrk_hills, ktrk_backdrop, ktrk_clock, ktrk_draw_r, ktrk_haze*, ktrk_world, ktrk_car), only what the scene sets."""
     out: dict[str, Any] = {k: [int(c) for c in scene[f"ktrk_{k}"]] for k in ("sky", "hills", "clock", "haze") if f"ktrk_{k}" in scene}
     if "ktrk_backdrop" in scene:
         out["backdrop"] = str(scene["ktrk_backdrop"])
-    for k in ("draw_r", "haze_start", "haze_strength"):
+    for k in ("draw_r", "haze_start", "haze_strength", "world", "car"):
         if f"ktrk_{k}" in scene:
             out[k] = int(scene[f"ktrk_{k}"])
     return out
@@ -132,6 +133,7 @@ class KTRK_PT_budget(bpy.types.Panel):
             r.label(text=p)
         col.label(text=f"priced frame: trackc walk, ceiling {limits.FRAME_MC} Mc at R {limits.BENCH_R}")
         col.operator("ktrk.export", icon="EXPORT")
+        col.operator("ktrk.export_ktr", icon="EXPORT")  # the cart's binary (M7: blender/binary.py)
 
 
 CLASSES = (KTRK_OT_export, KTRK_OT_meter, KTRK_PT_budget)
@@ -147,20 +149,22 @@ def _live(scene: Any, depsgraph: Any) -> None:  # WHY: bpy types are untyped
 
 
 def register() -> None:
-    from racer.blender import car, moodpanel  # the Car Kit half (M5 step 3); the mood rows (M5 finish)
+    from racer.blender import binary, car, moodpanel  # the Car Kit half (M5 step 3); the mood rows (M5 finish); .KTR / .KCR (M7)
 
     for c in CLASSES:
         bpy.utils.register_class(c)
     moodpanel.register()
     car.register()
+    binary.register()
     bpy.app.handlers.depsgraph_update_post.append(_live)
 
 
 def unregister() -> None:
     if _live in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(_live)
-    from racer.blender import car, moodpanel
+    from racer.blender import binary, car, moodpanel
 
+    binary.unregister()
     car.unregister()
     moodpanel.unregister()
     for c in reversed(CLASSES):

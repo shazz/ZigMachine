@@ -34,7 +34,7 @@ class MoodPropsTest(unittest.TestCase):
     def test_every_scene_property_the_export_reads_has_a_row(self) -> None:
         self.assertEqual({p.key for p in mood_props.PROPS},
                          {"name", "mood", "sun", "far_ground", "sky", "hills", "backdrop", "clock", "draw_r",
-                          "haze", "haze_start", "haze_strength"})
+                          "haze", "haze_start", "haze_strength", "world", "car"})
 
     def test_defaults_are_the_ovals_look_and_pass_their_own_checks(self) -> None:
         by = {p.key: p for p in mood_props.PROPS}
@@ -46,7 +46,7 @@ class MoodPropsTest(unittest.TestCase):
     def test_missing_lists_only_the_unset_properties(self) -> None:
         got = [p.key for p in mood_props.missing({"ktrk_name", "ktrk_sky", "other"})]
         self.assertEqual(got, ["mood", "sun", "far_ground", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start",
-                               "haze_strength"])
+                               "haze_strength", "world", "car"])
 
     def test_a_value_the_converter_refuses_is_named(self) -> None:
         by = {p.key: p for p in mood_props.PROPS}
@@ -57,10 +57,12 @@ class MoodPropsTest(unittest.TestCase):
         self.assertIn("3 numbers", mood_props.problem(by["sun"], "up"))
         self.assertIn("draw_r", mood_props.problem(by["draw_r"], 2))
         self.assertEqual(mood_props.problem(by["draw_r"], 6), "")
+        self.assertIn("Q8", mood_props.problem(by["world"], 63))
+        self.assertEqual(mood_props.problem(by["car"], 640), "")
 
     def test_the_defaults_convert_to_the_same_mood_as_absent_properties(self) -> None:
         doc = json.loads((ROOT / "tools/racer/tracks/salt_flats.ktrk.json").read_text())
-        keys = ("sky", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start", "haze_strength")
+        keys = ("sky", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start", "haze_strength", "world", "car")
         for k in keys:
             doc["mood"].pop(k, None)
         bare = kit.look(doc)

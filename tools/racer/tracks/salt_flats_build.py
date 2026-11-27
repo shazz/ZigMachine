@@ -24,6 +24,7 @@ def material(name: str, rgb: tuple[int, int, int]) -> bpy.types.Material:
     if name in DUAL:
         mat["ktrk_dual"] = 1
     mat.diffuse_color = (*[(c / 255) ** 2.2 for c in rgb], 1.0)
+    mat.use_fake_user = True  # a material no face uses (the far ground) would be dropped from a saved .blend (M7)
     return mat
 
 
