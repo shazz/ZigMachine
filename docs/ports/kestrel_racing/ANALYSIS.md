@@ -4,7 +4,8 @@ Analysis of the port, written at M6 (R82, 27 Nov 2026). Kestrel Racing is an ORI
 `racer`, `apps/zig/scenes/racer.zig` + `apps/zig/scenes/racer/`) on the engine of freds72's PICO-8 racer (MIT per his
 itch.io page; `LICENSE_NOTE.md`), rewritten in Zig integers. The tracks, car, palette, HUD, front end and FM music are
 ours; no Sega data ships (the 32X courses and cars are a LOCAL benchmark, never committed). The milestone docs are
-`M1.md` .. `M6.md` and `M5_VR.md`; the plan is `prototypes/racer_re/PORT_PLAN.md` (local); the ADRs are in
+`M1.md` .. `M6.md`, `M5_VR.md`, `FEEL.md`, `BUGPASS.md`, `LOOK.md` and, for M7 (the Track Kit as a product: the
+packaged add-on, the sample track, the track pack builder), the authors' manual `TRACK_KIT.md`; the plan is `prototypes/racer_re/PORT_PLAN.md` (local); the ADRs are in
 `docs/project/DECISIONS.md` (25-27 Nov).
 
 ## Short answer

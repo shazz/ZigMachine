@@ -4,6 +4,8 @@ read back from the Zig, every committed file passes, and each corruption is refu
 
 from __future__ import annotations
 
+import contextlib
+import io
 import re
 import struct
 import tempfile
@@ -113,7 +115,9 @@ class PackTest(unittest.TestCase):
     def test_an_hd_pack_lands_in_hd_racer_as_given(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             d = self.files(Path(t), {"SAMPLE.KTR": SAMPLE, "CAR.KCR": gt()})
-            self.assertEqual(trackpack.main([str(d), "--hd", str(Path(t) / "sd")]), 0)
+            with contextlib.redirect_stdout(io.StringIO()) as said:
+                self.assertEqual(trackpack.main([str(d), "--hd", str(Path(t) / "sd")]), 0)
+            self.assertIn("CAR.KCR SAMPLE.KTR", said.getvalue())
             self.assertEqual((Path(t) / "sd/HD/RACER/SAMPLE.KTR").read_bytes(), SAMPLE)
 
     def test_a_zmd_pack_carries_the_cart_and_lists_the_files(self) -> None:

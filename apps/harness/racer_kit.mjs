@@ -8,7 +8,7 @@
 //   2. --zmd: the pack builder's disk (the cart + SAMPLE.KTR + SAMPLE.PAN) as the only disk: OVAL SAMPLE listed, SAMPLE loaded
 //      with its panorama drawn (racer,pan,SAMPLE.PAN).
 //   node apps/harness/racer_kit.mjs [--break hd]     (--break hd: the C: image without SAMPLE.KTR, which must be caught)
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -34,7 +34,7 @@ const listed = (r) => r.log.filter((l) => l.startsWith("racer,track,") && !l.inc
 const tmp = mkdtempSync(join(tmpdir(), "racer_kit-"));
 try {
     const ktr = join(tmp, "in", "SAMPLE.KTR");
-    execFileSync("mkdir", ["-p", join(tmp, "in")]);
+    mkdirSync(join(tmp, "in"));
     py(["tools/racer/trackc.py", "tools/racer/tracks/sample_oval.ktrk.json", "-o", ktr]);
     py(["tools/racer/panc.py", ktr, "-o", join(tmp, "in", "SAMPLE.PAN")]);
     py(["tools/racer/trackpack.py", ktr, "--hd", join(tmp, "sd")]);

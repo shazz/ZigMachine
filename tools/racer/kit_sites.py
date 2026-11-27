@@ -53,7 +53,9 @@ def _returned(v: ast.expr) -> list[str]:
         return [t for e in v.elts for t in _returned(e)]
     if isinstance(v, ast.IfExp):
         return _returned(v.body) + _returned(v.orelse)
-    t = _template(v) if isinstance(v, (ast.JoinedStr, ast.BinOp)) else None
+    if isinstance(v, ast.BinOp) and isinstance(v.left, (ast.List, ast.ListComp, ast.IfExp)):  # [...] + ([] if c else [...])
+        return _returned(v.left) + _returned(v.right)
+    t = _template(v) if isinstance(v, (ast.Constant, ast.JoinedStr, ast.BinOp)) else None
     return [t] if t and " " in t else []
 
 
