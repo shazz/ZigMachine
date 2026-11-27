@@ -105,7 +105,7 @@ pub const Drive = struct {
         self.cur = .{ .pos = self.car.pos, .angle = self.car.angle };
         self.ticks += 1;
         self.slides += @intFromBool(self.car.sliding());
-        self.smoke.emitCar(&self.car);
+        self.smoke.emitCar(&self.car, carmodel.of(0).foot);
         self.smoke.update();
         const us = self.now() -% t0;
         self.us_sum += us;

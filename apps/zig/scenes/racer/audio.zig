@@ -40,7 +40,7 @@ pub const Audio = struct {
     frac: u32 = 0, // samples x 10,000 not yet whole
     refused: u32 = 0, // writes the cart's ring or the device refused
     frames: u32 = 0,
-    logged: [2]u32 = .{ 0xFFFF_FFFF, 0xFFFF_FFFF }, // the owning / refused last logged (racer,audio)
+    logged: [3]u32 = .{ 0xFFFF_FFFF, 0xFFFF_FFFF, 0xFFFF_FFFF }, // owning, anchored, refused: last logged (racer,audio)
 
     fn start(self: *Audio) void {
         self.started = true;
@@ -109,13 +109,13 @@ pub const Audio = struct {
         if (self.device and self.effects and !self.owning and self.frames % 60 == 0) self.take();
     }
 
-    /// `racer,audio,<device>,<owning>,<refused>` on the console when the effects' state changes (the board's serial log
+    /// `racer,audio,<device>,<owning>,<anchored>,<refused>` on the console when the effects' state changes (the board's serial log
     /// says why it is silent).
     fn report(self: *Audio) void {
-        const now = [2]u32{ @intFromBool(self.owning), self.refused };
-        if (now[0] == self.logged[0] and (now[1] == self.logged[1] or self.frames % 60 != 0)) return;
+        const now = [3]u32{ @intFromBool(self.owning), @intFromBool(self.device and zg.bard.anchored()), self.refused };
+        if (now[0] == self.logged[0] and now[1] == self.logged[1] and (now[2] == self.logged[2] or self.frames % 60 != 0)) return;
         self.logged = now;
-        zg.Console.log("racer,audio,{},{},{}", .{ @intFromBool(self.device), now[0], now[1] });
+        zg.Console.log("racer,audio,{},{},{},{}", .{ @intFromBool(self.device), now[0], now[1], now[2] });
     }
 
     pub fn toggleMusic(self: *Audio) void {

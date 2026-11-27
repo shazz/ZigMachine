@@ -4,12 +4,13 @@
 // eye itself, not its tile's centre; the projection's 45 degrees each side) crosses within the PVS' own
 // distance (R steps of the DDA: a Manhattan distance from the camera's tile), and after the fill counts
 // the faces that were kept (in the frustum, on screen) but that no tile of the PVS list holds: the faces
-// the PVS lost. view.zig logs `racer,pvs,<lost>,<kept>,<blinks>` every frame (blinks: faces kept two frames ago and now but not
-// in between) while it is on (racer_bugpass.mjs).
+// the PVS lost. view.zig logs `racer,pvs,<lost>,<kept>,<blinks>,<dropped>,<buried>` every frame (blinks: faces kept two frames ago and now but not
+// in between; buried: kept non-ground faces keyed under the ground face below their foot: the painter's order) while it is on (racer_bugpass.mjs).
 // Debug only: the default frame never runs it. No ZigOS import.
 // --------------------------------------------------------------------------
 const cam = @import("cam.zig");
 const pvs = @import("pvs.zig");
+const ground = @import("ground.zig");
 const trk = @import("trk.zig");
 const under = @import("under.zig");
 
@@ -70,12 +71,15 @@ fn crosses(w: *const [3]under.Pt, x: i32, z: i32) bool {
 
 /// After the frame: faces kept this frame (faceKey non-null) that no tile of `list` (the PVS) holds. Clears those faces'
 /// frame stamps in `seen` to tell them apart, so it must run after everything that reads faceKey.
-pub fn missed(t: *const trk.Track, list: []const u16, seen: []u32, stamp: u32, fr: anytype) [3]u32 {
+pub fn missed(t: *const trk.Track, list: []const u16, seen: []u32, stamp: u32, fr: anytype) [4]u32 {
     var kept: u32 = 0;
     var blinks: u32 = 0;
-    for (t.faces, 0..) |_, fid| {
-        const k = fr.faceKey(@intCast(fid)) != null;
+    var buried: u32 = 0;
+    for (t.faces, 0..) |*f, fid| {
+        const fk = fr.faceKey(@intCast(fid));
+        const k = fk != null;
         kept += @intFromBool(k);
+        if (fk) |key| buried += @intFromBool(buriedFace(t, f, key, fr));
         if (fid >= hist.len) continue;
         blinks += @intFromBool(k and hist[fid] == 2); // kept two frames ago, not last frame, kept now: a face that blinked out
         hist[fid] = (hist[fid] << 1 & 2) | @intFromBool(k);
@@ -85,7 +89,20 @@ pub fn missed(t: *const trk.Track, list: []const u16, seen: []u32, stamp: u32, f
     };
     var lost: u32 = 0;
     for (seen, 0..) |s, fid| lost += @intFromBool(s == stamp and fr.fkey[fid] != 0xFFFF);
-    return .{ lost, kept, blinks };
+    return .{ lost, kept, blinks, buried };
+}
+
+/// A kept face that is not ground, whose key is below the key of the kept ground face under its lowest vertex: that
+/// ground face is drawn after it (the painter's order by mean depth) and may paint over its foot. A count, not a proof.
+fn buriedFace(t: *const trk.Track, f: *const trk.Face, key: u16, fr: anytype) bool {
+    if (f.flags & ground.FLAG_GROUND != 0) return false;
+    var low = t.verts[f.v[0]];
+    for (f.v[1..f.nv]) |id| {
+        if (t.verts[id][1] < low[1]) low = t.verts[id];
+    }
+    const g = ground.findFace(t, .{ @as(i32, low[0]) << 9, @as(i32, low[1]) << 9, @as(i32, low[2]) << 9 }, null) orelse return false;
+    const gk = fr.faceKey(g.face) orelse return false;
+    return gk > key;
 }
 
 const std = @import("std");

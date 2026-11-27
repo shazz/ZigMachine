@@ -167,7 +167,7 @@ pub const Game = struct {
         self.snap();
         const st = self.s.fsm.state;
         if (st == .race or st == .finish) {
-            self.smoke.emitCar(&self.s.race.cars[0]);
+            self.smoke.emitCar(&self.s.race.cars[0], carmodel.of(0).foot);
             self.smoke.update();
         }
     }
@@ -189,11 +189,12 @@ pub const Game = struct {
 
     /// Push every car in range (the player's body not in the cockpit) after collect and before sort.
     pub fn drawCars(self: *const Game, fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, tiles: u32) void {
-        for (self.s.race.cars[0..N], 0..) |*c, k| {
-            if (k == 0 and self.pov == .cockpit) continue;
-            const s = self.shown(k);
-            if (!carview.inRange(v, s.pos, tiles + 1)) continue;
-            carview.draw(fr, cache, v, self.t, s, c.old, carmodel.of(k), carmodel.LIVERY[k]);
+        var snaps: [N]carview.Snap = undefined;
+        var under: [N]?u16 = undefined;
+        for (&snaps, &under, self.s.race.cars[0..N], 0..) |*s, *g, *c, k| {
+            s.* = self.shown(k);
+            g.* = c.old;
         }
+        carview.drawRace(fr, cache, v, self.t, &snaps, &under, self.pov == .cockpit, tiles);
     }
 };

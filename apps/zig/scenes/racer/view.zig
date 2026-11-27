@@ -47,7 +47,7 @@ pub fn render(d: anytype, zigos: *zg.ZigOS) void {
     d.bench.lap(.fill);
     if (oracle.all_tiles) { // key 2 (oracle.zig): the faces the PVS would have lost this frame
         const m = oracle.missed(t, d.f.pvs_list, d.f.seen, d.f.seen_stamp, &d.f);
-        zg.Console.log("racer,pvs,{},{},{},{}", .{ m[0], m[1], m[2], d.f.stats.dropped });
+        zg.Console.log("racer,pvs,{},{},{},{},{}", .{ m[0], m[1], m[2], d.f.stats.dropped, m[3] });
     }
     present.finish(d, zigos, fb, counts);
     frontdraw.overlay(d, zigos, fb); // the title over the flyby (after the view's CRC)

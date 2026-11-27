@@ -14,7 +14,7 @@ const ground = @import("ground.zig");
 const trk = @import("trk.zig");
 
 pub const Pt = [2]i32; // x, z: Q7 world units
-pub var break_under = false; // the harness' --break under: only the face under the centre (M5's rule, without its corner)
+pub var break_under = false; // the native sweep's mutant (key O): the M5 rule, the centre's face and the nearest corner's (carview.m5Key)
 
 /// The footprint's four corners in the world (Q7), from the car's Q16 position, its yaw and its Q7 box at `size` (Q16).
 pub fn corners(pos: [3]i32, angle: i32, size: i32, x0: i32, x1: i32, z0: i32, z1: i32) [4]Pt {

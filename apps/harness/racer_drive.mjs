@@ -26,7 +26,7 @@ const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const LAP_FRAMES = 720, CAR = [16 + 12 * 8, 16 + 14 * 8 + 8];
 // the lap v1 CRC32 list (every 60 frames; oval, R = 5, CPU fill, mulsh, the far POV): the benchmark's proof of sameness
 // M5 car scale (the GT drawn 2x, the far POV shows it every frame): re-pinned; the physics line is unchanged
-const LAP_PIN = "2c92f75b 5b56ddcb 7ab5f9b9 3aea16c8 0f07b7d7 388ea11a 9b94be21 251960ef 654efd27 572aa32e dd4f2b86 64dd97b0"; // R82 bug pass: tyre smoke for the skidmarks, the footprint shadow
+const LAP_PIN = "61ad40b4 af67e289 7ab5f9b9 3aea16c8 0f07b7d7 388ea11a 9b94be21 251960ef 86e58fcd 0a8ffa7c dd4f2b86 64dd97b0"; // R82 bug pass: tyre smoke for the skidmarks, the footprint shadow // R82 bug pass: tyre smoke at the footprint's tyres for the skidmarks, the footprint shadow
 const errors = [];
 const fail = (m) => errors.push(m);
 

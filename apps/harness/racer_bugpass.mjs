@@ -26,7 +26,7 @@ import { png } from "./skystrike_zig_frame.mjs";
 
 const argv = process.argv.slice(2);
 const MODES = ["mute", "pvs", "hud"];
-const PINS = { hud: "300bd1307569" }; // the Salt race frame 660 with the picture HUD
+const PINS = { hud: "e990beea5096" }; // the Salt race frame 660 with the picture HUD
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !MODES.includes(BREAK)) { console.error(`racer_bugpass: unknown --break ${BREAK}`); process.exit(1); }
 const PRINT = argv.includes("--print-pins");
@@ -90,7 +90,7 @@ async function decals() {
 }
 
 /** The effects' writes in an ARCADE race (the fake queue host of racer_audio_check.mjs: drained every frame). */
-async function sound() {
+async function sound(classic = false) {
     const cmds = [];
     let block = 0;
     const B = await bootRacer(SALT_TAPS, (env) => { env.hostBardAttach = (b) => { block = b; return b ? 1 : 0; }; });
@@ -104,6 +104,7 @@ async function sound() {
     };
     B.S.frame(); drain();
     if (BREAK === "mute") key(B.S, "h");
+    if (classic) key(B.S, "T"); // the PHYSICS option CLASSIC (the M5 / M6 cards' only model)
     key(B.S, "e"); B.S.frame(); drain();
     B.S.demo.input(5); B.S.demo.inputRelease(5);
     for (let f = 0; f < 240; f++) { B.S.frame(); drain(); } // the countdown
@@ -118,8 +119,9 @@ async function sound() {
     const skid = cmds.filter(([a, v]) => a === 0xc200 && v === 0xf5).length;
     const piloted = fnums.size - driven;
     const got = { engine: keyOn(6), driven, piloted, skid, impact: keyOn(5), commands: cmds.length };
-    if (got.engine < 1 || driven < 8 || piloted < 4 || got.skid < 1 || got.impact < 1) fail(`sound: an ARCADE race's effects missing ${JSON.stringify(got)}`);
-    else notes.push(`sound: an ARCADE race on the public cart: the engine keyed on (${got.engine}), ${driven} engine pitches driven, ${piloted} more on the AI pilot, the skid noise on ${got.skid} times, ${got.impact} impacts (${got.commands} queue commands)`);
+    const model = classic ? "CLASSIC" : "ARCADE";
+    if (got.engine < 1 || driven < 8 || piloted < 4 || got.skid < 1 || got.impact < 1) fail(`sound: a ${model} race's effects missing ${JSON.stringify(got)}`);
+    else notes.push(`sound: ${classic ? "a" : "an"} ${model} race on the public cart: the engine keyed on (${got.engine}), ${driven} engine pitches driven, ${piloted} more on the AI pilot, the skid noise on ${got.skid} times, ${got.impact} impacts (${got.commands} queue commands)`);
 }
 
 /** The visibility oracle over each committed Kit track's flyby lap (720 frames, its three POVs). */
@@ -171,7 +173,7 @@ async function hud() {
 if (BREAK === "mute") await sound();
 else if (BREAK === "hud") await hud();
 else if (BREAK === "pvs") await visibility();
-else { await decals(); await sound(); await visibility(); await hud(); }
+else { await decals(); await sound(); await sound(true); await visibility(); await hud(); }
 for (const n of notes) console.log(`  ${n}`);
 console.log(errors.length ? `racer_bugpass: FAILED -- ${errors.join("; ")}` : "racer_bugpass: PASS");
 process.exitCode = errors.length ? 1 : 0;

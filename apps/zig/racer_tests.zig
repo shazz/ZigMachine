@@ -28,4 +28,5 @@ test {
     _ = @import("scenes/racer/under_test.zig");
     _ = @import("scenes/racer/hudpic_test.zig");
     _ = @import("scenes/racer/far_test.zig");
+    _ = @import("scenes/racer/smoke_test.zig");
 }

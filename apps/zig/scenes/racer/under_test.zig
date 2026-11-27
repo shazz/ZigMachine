@@ -1,7 +1,7 @@
 // RACER: a car is never painted over by a road decal it stands on (under.zig, R82 bug pass). On Salt Flats and Glacier
 // Pass, a car is put over every decal (its rear, its middle), headed four ways, with the far chase camera behind it at the
 // ARCADE scale; whenever its footprint overlaps the decal, the car's key is at least the decal's parent face's key (the
-// stable sort then draws the decal first). --break under (the centre's face only) must fail somewhere.
+// stable sort then draws the decal first). --break under (the M5 rule: the centre's face and the nearest corner's) paints 66 over.
 // `zig test apps/zig/racer_tests.zig`.
 const std = @import("std");
 const cam = @import("cam.zig");

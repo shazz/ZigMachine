@@ -1,8 +1,8 @@
 // --------------------------------------------------------------------------
 // RACER: tyre smoke (R82 bug pass, Matt 27 Nov: "in the real game braking/skidding makes light smoke
 // puffs, shadow-like, not black traces"). It replaces freds72's skidmarks (M2's skid.zig): a sliding
-// wheel of the player's car puffs every EVERY ticks at its DRAWN place (freds72's wheel points times the
-// GT's 2x and the car scale); a puff lives TTL ticks, grows and rises, and is drawn as a hexagon facing
+// wheel of the player's car puffs every EVERY ticks at its DRAWN place (the tyres placed in the model's
+// footprint box, times the car scale); a puff lives TTL ticks, grows and rises, and is drawn as a hexagon facing
 // the camera (two trapezoids sharing their middle edge, so no pixel is lightened twice) by LIGHTENING
 // what is under it one level up its ramp: the shadow's index trick the other way, real transparency, no
 // dither (shadow.lightSpan). Its key is its own depth, never below the ground face it rose from: behind
@@ -10,7 +10,7 @@
 // --------------------------------------------------------------------------
 const cam = @import("cam.zig");
 const car = @import("car.zig");
-const carmodel = @import("carmodel.zig");
+const carfile = @import("carfile.zig");
 const fix = @import("fix.zig");
 const frame = @import("frame.zig");
 const project = @import("project.zig");
@@ -28,7 +28,13 @@ pub const VERTS = 6; // a hexagon a puff
 const R0 = lit(0.06); // the radius at birth and at the end, freds72 units (times the drawn scale)
 const R1 = lit(0.16);
 const RISE = lit(0.006); // a tick
-const DRAWN = 2; // the GT's tyres are drawn twice freds72's wheel points (carmodel.WHEELS)
+/// The four tyres' contact points (Q7 car space x, z: front left, front right, rear left, rear right) in a footprint box:
+/// a tenth of the width in from each side, a sixth of the length in from each end (the GT's tyres, the 32X formula's).
+pub fn wheels(f: carfile.Foot) [4][2]i32 {
+    const dx = @divTrunc(f.x1 - f.x0, 10);
+    const dz = @divTrunc(f.z1 - f.z0, 6);
+    return .{ .{ f.x0 + dx, f.z1 - dz }, .{ f.x1 - dx, f.z1 - dz }, .{ f.x0 + dx, f.z0 + dz }, .{ f.x1 - dx, f.z0 + dz } };
+}
 
 pub const Puff = struct { pos: V = .{ 0, 0, 0 }, face: u16 = 0, age: u8 = 0, size: i32 = fix.ONE, live: bool = false };
 
@@ -61,14 +67,15 @@ pub const Smoke = struct {
     }
 
     /// The tick's emission of one car: each sliding wheel pair (front, rear) puffs at its drawn wheels, every EVERY ticks.
-    pub fn emitCar(self: *Smoke, c: *const car.Car) void {
+    /// The wheels are placed in the model's footprint `foot` (the shadow's box, any car file's model) at the car's scale.
+    pub fn emitCar(self: *Smoke, c: *const car.Car, foot: carfile.Foot) void {
         const face = c.old orelse return;
         if (self.t % EVERY != 0) return;
         const ax = c.axes();
-        for (carmodel.WHEELS, 0..) |w, k| {
+        for (wheels(foot), 0..) |w, k| {
             if (!(if (k < 2) c.front_slide else c.rear_slide)) continue;
-            const x = fix.mul(w[0] * DRAWN, c.size);
-            const z = fix.mul(w[2] * DRAWN, c.size);
+            const x = fix.mul(w[0] << 9, c.size);
+            const z = fix.mul(w[1] << 9, c.size);
             self.puff(vec.add(vec.add(c.pos, ax.right, x), ax.fwd, z), face, c.size);
         }
     }
