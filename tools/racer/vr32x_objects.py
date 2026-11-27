@@ -23,22 +23,19 @@ What the 68000 does, as read (26 Nov):
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass, field
 
 from racer import vr32x_rom as rom32
+from racer import vr32x_sigs
 from racer.vr32x_rom import RomError
+from racer.vr32x_sigs import Sigs
 
 Vec = tuple[float, float, float]
 WINDOW, SH2 = 0x80000, 0x22000000
 FRAME = 5  # the gantry sign's fully lit model of the six the game cycles
 
-GANTRY = "3238c8a0 43f9........ 22711000 45f9........ 323c0c80 7e.."  # lea list table; 3 records (moveq #2, d7)
-DISPATCH = "3038c8a0 227b0004 4ed1"  # move.w course*4; movea.l (table,pc,d0); jmp (a1)
-PAIR = "357c00020000 25590002 35590006 3559000a 3559000e 25590010 357c00020014"
-LOOP = "25590002 35590006 3559000a 3551000e 25400010"  # 10-byte records, the model in d0
-IMM = "25590002 35590006 3559000a 3551000e 257c........0010"  # one 10-byte record, the model in the code
-ROLL = "25590002 35590006 3559000c 3559000e 25590010"  # one 14-byte record, its yaw word into roll
+# The code shapes (GANTRY, DISPATCH, PAIR, LOOP, IMM, ROLL) are bytes of the cartridge's code: they are in the LOCAL
+# signatures file (vr32x_sigs.py), never here.
 
 
 @dataclass
@@ -51,16 +48,11 @@ class Obj:
     polys: list[tuple[list[Vec], int]] = field(default_factory=list)  # world vertices, course palette index
 
 
-def _pat(code: str) -> re.Pattern[bytes]:
-    toks = re.findall(r"\.\.|[0-9a-f]{2}", code.replace(" ", ""))
-    return re.compile(b"".join(b"." if t == ".." else re.escape(bytes.fromhex(t)) for t in toks), re.DOTALL)
-
-
-def _find(rom: bytes, code: str) -> int:
-    for m in _pat(code).finditer(rom, 0, min(len(rom), WINDOW)):
+def _find(rom: bytes, sigs: Sigs, name: str) -> int:
+    for m in vr32x_sigs.pattern(sigs[name]).finditer(rom, 0, min(len(rom), WINDOW)):
         if m.start() % 2 == 0:
             return m.start()
-    raise RomError(f"no code shape {code!r}")
+    raise RomError(f"no code shape {name} in the dump")
 
 
 def _u16(b: bytes, at: int) -> int:
@@ -109,8 +101,8 @@ def _obj(rom: bytes, kind: str, model: int, pose: tuple[Vec, float, float]) -> O
     return Obj(kind, model, pose[0], pose[1], pose[2], _place(rom, model, pose))
 
 
-def gantries(rom: bytes, course: int) -> list[Obj]:
-    g = _find(rom, GANTRY)
+def gantries(rom: bytes, course: int, sigs: Sigs) -> list[Obj]:
+    g = _find(rom, sigs, "GANTRY")
     table, n = _rom(_u32(rom, _rom(_u32(rom, g + 6)) + 4 * course)), rom[g + 25] + 1
     out = []
     for k in range(n):
@@ -146,16 +138,17 @@ def _call(rom: bytes, kind: str | None, table: int, model: int, count: int) -> t
     return [], 0
 
 
-def _reader(rom: bytes, at: int) -> str | None:
-    if _pat(PAIR).search(rom, at, at + 0x50):
+def _reader(rom: bytes, at: int, sigs: Sigs) -> str | None:
+    if vr32x_sigs.pattern(sigs["PAIR"]).search(rom, at, at + 0x50):
         return "pair"
-    return "loop" if _pat(LOOP).search(rom, at, at + 0x50) else None
+    return "loop" if vr32x_sigs.pattern(sigs["LOOP"]).search(rom, at, at + 0x50) else None
 
 
-def _handler(rom: bytes, h: int) -> list[Obj]:
+def _handler(rom: bytes, h: int, sigs: Sigs) -> list[Obj]:
     """Walk a course's routine (to its first unskipped rts), replaying its table reads."""
     out: list[Obj] = []
     table, model, count, p = 0, 0, 1, h
+    pair, imm, roll = (vr32x_sigs.pattern(sigs[n]) for n in ("PAIR", "IMM", "ROLL"))
     while p < h + 0x200 and not (_u16(rom, p) == 0x4E75 and _u16(rom, p - 2) != 0x6702):
         w, step = _u16(rom, p), 2
         if w == 0x43F9:
@@ -165,23 +158,24 @@ def _handler(rom: bytes, h: int) -> list[Obj]:
         elif w & 0xFFF8 == 0x7E00:
             count = (w & 7) + 1
         elif (t := _target(rom, p)) is not None:
-            got, used = _call(rom, _reader(rom, t), table, model, count)
+            got, used = _call(rom, _reader(rom, t, sigs), table, model, count)
             out, table, step = out + got, table + used, 4 if w in (0x4EBA, 0x6100) else 2
-        elif m := _pat(PAIR).match(rom, p):
+        elif m := pair.match(rom, p):
             out, table, step = [*out, _pair(rom, table)], table + 28, m.end() - p
-        elif m := _pat(IMM).match(rom, p):
+        elif m := imm.match(rom, p):
             out, step = [*out, _obj(rom, "single", _u32(rom, p + 18), _block(rom, table))], m.end() - p
-        elif m := _pat(ROLL).match(rom, p):
+        elif m := roll.match(rom, p):
             out, step = [*out, _obj(rom, "single", _u32(rom, table + 10), _block(rom, table, roll=True))], m.end() - p
         p += step
     return out
 
 
-def specials(rom: bytes, course: int) -> list[Obj]:
-    d = _find(rom, DISPATCH)
+def specials(rom: bytes, course: int, sigs: Sigs) -> list[Obj]:
+    d = _find(rom, sigs, "DISPATCH")
     table = d + 6 + rom[d + 7]  # the (d8, pc, d0) jump table
-    return _handler(rom, _rom(_u32(rom, table + 4 * course)))
+    return _handler(rom, _rom(_u32(rom, table + 4 * course)), sigs)
 
 
-def objects(rom: bytes, course: int) -> list[Obj]:
-    return gantries(rom, course) + specials(rom, course)
+def objects(rom: bytes, course: int, sigs: Sigs) -> list[Obj]:
+    """Course `course`'s placed objects; `sigs` the code shapes (vr32x_sigs.load: the local file)."""
+    return gantries(rom, course, sigs) + specials(rom, course, sigs)

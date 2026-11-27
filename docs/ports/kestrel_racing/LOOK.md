@@ -3,8 +3,10 @@
 Matt's 32X screenshots (32x-1..6: Big Forest, Acropolis, the course select) against our 32X courses after the bug pass:
 a flat sky over the hills, no START / C.P. gantries, a flat blue sea, AI cars pushed off the narrow roads for good, 27-31
 fps. Branch `feat/racer-32x-look` (from `feat/racer-bugpass`). Nothing from the 32X ROM, its decoded data or a shot of it
-is in a committed file: the importer pieces are LOGIC (tables found by the shape of the code that reads them), their tests
-synthetic; the decoded panoramas, objects and tracks live in the git-ignored `prototypes/racer_re/vr_local/32x/`.
+is in a committed file: the importer pieces are LOGIC (tables found by the shape of the code that reads them; those shapes
+are bytes of the cartridge's code, so they live in the LOCAL, git-ignored `signatures.json` beside the dump, read through
+`vr32x_import.py --signatures`, default `prototypes/racer_re/vr_local/32x/signatures.json`, an error naming the path when
+it is missing: `tools/racer/vr32x_sigs.py`), their tests synthetic (synthetic shapes too); the decoded panoramas, objects and tracks live in the git-ignored `prototypes/racer_re/vr_local/32x/`.
 
 ## 1. Panoramas (`<TRACK>.PAN`; racer/panofile.zig, pano.zig, backdrop.zig; tools/racer/panc.py)
 

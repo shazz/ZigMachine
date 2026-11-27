@@ -6,9 +6,10 @@ beyond its tiles: the panorama file (vr32x_pan.py -> panc.py), the water's tones
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 
-from racer import panc, vr32x_colours, vr32x_pan
+from racer import panc, vr32x_colours, vr32x_pan, vr32x_sigs
 from racer.vr32x_rom import RGB
 
 PAN_U0 = 160  # the 32X shows strip column x - heading / 64 at screen column x: the column ahead is 160 + our yaw / 64
@@ -23,6 +24,7 @@ class LookOpts:
     pan_flip: bool = False  # the strip mirrored (the 32X's scroll runs the other way round from our yaw)
     objects: bool = False  # item 2 (vr32x_objects.py): the gantries and landmarks placed outside the tile maps
     near_decals: bool = False  # item 5: mood flag DECAL_NEAR (the cart draws decals within 24 units only)
+    sigs: vr32x_sigs.Sigs = field(default_factory=dict)  # the LOCAL code shapes (--pano / --objects need them)
 
 
 NONE = LookOpts()
@@ -33,7 +35,7 @@ PAN_UP, PAN_LOW = 80, 72  # rows kept above / from the horizon: the cart's level
 def pano(rom: bytes, k: int, opts: LookOpts) -> tuple[bytes, RGB]:
     """Course k's panorama as the cart's .PAN, on the ramps colours(reserve=PAN_RAMPS) left free, and its top row's
     commonest colour (the mood's sky: what a camera pitched up sees over the strip)."""
-    p = vr32x_pan.panoramas(rom)[k]
+    p = vr32x_pan.panoramas(rom, opts.sigs)[k]
     px = p.pixels
     if opts.pan_flip:
         px = b"".join(px[r * p.width:(r + 1) * p.width][::-1] for r in range(p.height))
@@ -51,7 +53,15 @@ def add_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--pan-flip", action="store_true", help="mirror the panorama strip")
     ap.add_argument("--objects", action="store_true", help="add the START / C.P. gantries and the landmarks")
     ap.add_argument("--near-decals", action="store_true", help="mood flag DECAL_NEAR: decals drawn within 24 units only")
+    ap.add_argument("--signatures", default=None, help="the LOCAL code shapes file --pano / --objects find the 68000's "
+                    f"tables by (default: <repo>/{vr32x_sigs.DEFAULT})")
 
 
-def of(args: argparse.Namespace) -> LookOpts:
-    return LookOpts(args.water, args.pano, args.pan_u0, args.pan_flip, args.objects, args.near_decals)
+def of(args: argparse.Namespace, root: Path) -> LookOpts:
+    """The options; the signatures file is read only when --pano or --objects asks for it (a missing one: SigError)."""
+    need = args.pano or args.objects
+    try:
+        sigs = vr32x_sigs.load(Path(args.signatures) if args.signatures else root / vr32x_sigs.DEFAULT) if need else {}
+    except vr32x_sigs.SigError as e:
+        raise SystemExit(f"vr32x_import: {e}") from e
+    return LookOpts(args.water, args.pano, args.pan_u0, args.pan_flip, args.objects, args.near_decals, sigs)

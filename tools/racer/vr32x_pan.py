@@ -27,10 +27,11 @@ Layout, as decoded:
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
+from racer import vr32x_sigs
 from racer.vr32x_mdpack import PackError, enigma, kosinski, signed
+from racer.vr32x_sigs import Sigs
 
 RGB = tuple[int, int, int]
 COURSES = 5
@@ -38,12 +39,8 @@ COLS, ROWS = 128, 28  # plane B's width in cells, and the rows the course load D
 HORIZON = 88
 WINDOW = 0x80000  # the 68000's fixed ROM window at $880000
 
-# The code that reads each table (hex, '..' = any byte); $C8A0 = course * 4, $C89C = course.
-TILE_LIST = "3038c8a0 41fa.... 20300000 4eb9........"  # lea list(pc); move.l (a0,d0); jsr kosinski jobs
-NAME_LIST = "3238c89c e549 41fa.... 22301000 4eb9........"  # lea list(pc); move.l (a0,d1); jsr enigma jobs
-KOS_JOBS = "7403 7200 1200 67.. e749 207b10.. 227b10.."  # movea.l src(pc,d1); movea.l dst(pc,d1): 8-byte records
-ENI_JOBS = "7403 7000 1001 67.. c0fc000a 41fb00.. 3020 2260 2620"  # 10-byte records (src, dst, base) read backwards
-CRAM_LIST = "3038c8a0 41f9........ 21f00000c96c"  # lea table; move.l (a0,d0) -> the fade's source
+# The code that reads each table is found by its shape: the shapes (TILE_LIST, NAME_LIST, KOS_JOBS, ENI_JOBS, CRAM_LIST)
+# are bytes of the cartridge's code, kept in the LOCAL signatures file (vr32x_sigs.py), never here.
 
 
 PanError = PackError  # one error for the decode, its streams included
@@ -68,18 +65,17 @@ def _rom(addr: int) -> int:
     raise PanError(f"address {addr:#x} is not in the cartridge")
 
 
-def _find(rom: bytes, code: str, at: int | None = None) -> int:
-    """The ROM offset of the first (even) match of the code shape, or check it matches exactly at `at`."""
-    toks = re.findall(r"\.\.|[0-9a-f]{2}", code.replace(" ", ""))
-    pat = re.compile(b"".join(b"." if t == ".." else re.escape(bytes.fromhex(t)) for t in toks), re.DOTALL)
+def _find(rom: bytes, sigs: Sigs, name: str, at: int | None = None) -> int:
+    """The ROM offset of the first (even) match of the code shape `name`, or check it matches exactly at `at`."""
+    pat = vr32x_sigs.pattern(sigs[name])
     if at is not None:
         if not pat.match(rom, at):
-            raise PanError(f"no code shape {code!r} at {at:#x}")
+            raise PanError(f"no code shape {name} at {at:#x}")
         return at
     for m in pat.finditer(rom, 0, min(len(rom), WINDOW)):
         if m.start() % 2 == 0:
             return m.start()
-    raise PanError(f"no code shape {code!r}")
+    raise PanError(f"no code shape {name} in the dump")
 
 
 def _u16(b: bytes, at: int) -> int:
@@ -112,13 +108,13 @@ def _md(w: int) -> RGB:
     return ((w >> 1 & 7) * 255 // 7, (w >> 5 & 7) * 255 // 7, (w >> 9 & 7) * 255 // 7)
 
 
-def _jobs(rom: bytes) -> list[tuple[int, int, int, int]]:
+def _jobs(rom: bytes, sigs: Sigs) -> list[tuple[int, int, int, int]]:
     """Per course: (tile stream, nametable stream, nametable base word, CRAM) ROM offsets."""
-    tl, nl = _find(rom, TILE_LIST), _find(rom, NAME_LIST)
-    kd, ed = _find(rom, KOS_JOBS, _rom(_u32(rom, tl + 14))), _find(rom, ENI_JOBS, _rom(_u32(rom, nl + 16)))
+    tl, nl = _find(rom, sigs, "TILE_LIST"), _find(rom, sigs, "NAME_LIST")
+    kd, ed = _find(rom, sigs, "KOS_JOBS", _rom(_u32(rom, tl + 14))), _find(rom, sigs, "ENI_JOBS", _rom(_u32(rom, nl + 16)))
     ktab, etab = kd + 12 + signed(rom[kd + 13], 8), ed + 14 + signed(rom[ed + 15], 8)
     ttab, ntab = tl + 6 + signed(_u16(rom, tl + 6), 16), nl + 8 + signed(_u16(rom, nl + 8), 16)
-    ctab = _rom(_u32(rom, _find(rom, CRAM_LIST) + 6))
+    ctab = _rom(_u32(rom, _find(rom, sigs, "CRAM_LIST") + 6))
     out = []
     for c in range(COURSES):
         kj, ej = _u32(rom, ttab + 4 * c), _u32(rom, ntab + 4 * c)
@@ -136,9 +132,10 @@ def _pan(cells: list[int], cram: list[int]) -> Pan:
     return Pan(COLS * 8, ROWS * 8, pixels, [(0, 0, 0)] + [_md(cram[v]) for v in used], _md(cram[0]), HORIZON)
 
 
-def panoramas(rom: bytes) -> list[Pan]:
+def panoramas(rom: bytes, sigs: Sigs) -> list[Pan]:
+    """Every course's panorama; `sigs` the code shapes (vr32x_sigs.load: the local file)."""
     out = []
-    for tiles_at, names_at, base, cram_at in _jobs(rom):
+    for tiles_at, names_at, base, cram_at in _jobs(rom, sigs):
         cram = [_u16(rom, cram_at + 2 * i) for i in range(64)]
         if any(w & 0xF111 for w in cram):
             raise PanError(f"CRAM at {cram_at:#x}: not MD colour words")

@@ -38,6 +38,8 @@ def _msb(fields: list[tuple[int, int]]) -> bytes:
     return bytes(int(bits[i : i + 8], 2) for i in range(0, len(bits), 8))
 
 
+SIGS = {n: f"{k + 1:02x}" * 4 + " .." for k, n in enumerate(("TILE_LIST", "NAME_LIST", "KOS_JOBS", "ENI_JOBS", "CRAM_LIST"))}
+
 class Kosinski(unittest.TestCase):
     def test_literals_short_long_and_extended_matches_decode(self) -> None:
         toks = _lit(0x41, 0x42, 0x43)
@@ -109,7 +111,7 @@ class Strip(unittest.TestCase):
 class Tables(unittest.TestCase):
     def test_a_dump_without_the_course_load_code_is_refused(self) -> None:
         with self.assertRaises(PanError):
-            vr32x_pan.panoramas(bytes(0x100000))
+            vr32x_pan.panoramas(bytes(0x100000), SIGS)
 
     def test_an_address_outside_the_cartridge_windows_is_refused(self) -> None:
         with self.assertRaises(PanError):

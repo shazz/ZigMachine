@@ -77,10 +77,10 @@ def line(m: vr32x_geom.Mesh, bins: vr32x_geom.Bins, info: dict[str, object]) -> 
     return seg
 
 
-def build(rom: bytes, k: int, dec: vr32x_decoded.Decoded | None, objects: bool = False) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
+def build(rom: bytes, k: int, dec: vr32x_decoded.Decoded | None, sigs: dict[str, str] | None = None) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
     pal = vr32x_rom.palette(rom, k)
     m = vr32x_geom.build(vr32x_rom.tiles(rom, k), pal)
-    polys = [p for o in vr32x_objects.objects(rom, k) for p in o.polys] if objects else []
+    polys = [p for o in vr32x_objects.objects(rom, k, sigs) for p in o.polys] if sigs else []
     info: dict[str, object] = dict(m.stats)
     info["objects"], info["object_colours"] = vr32x_geom.place(m, polys), frozenset(c for _, c in polys)
     bins = vr32x_geom.Bins(m)
@@ -140,7 +140,7 @@ def report(k: int, doc: ktrk.Doc, info: dict[str, object], blob: bytes, cols: vr
 
 def run(rom: bytes, k: int, out: Path, allow_soft: bool, dec: vr32x_decoded.Decoded | None, headroom: bool = False,
         opts: vr32x_look.LookOpts = vr32x_look.NONE) -> list[str]:
-    doc, info, m, pal = build(rom, k, dec, opts.objects)
+    doc, info, m, pal = build(rom, k, dec, opts.sigs if opts.objects else None)
     doc = clockwise(doc) if dec is None else doc  # decoded: the 32X's own direction
     probs = [p for p in budget.problems(doc) if "colour ramps" not in p]  # the entries are merged onto 23 ramps below
     if any(p.startswith("HARD") for p in probs) or (probs and not allow_soft):
@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
                     "too (the cart's shadow headroom toggle, key 9 / the SHADOW row: FEEL.md)")
     vr32x_look.add_args(ap)
     args = ap.parse_args(argv)
-    opts = vr32x_look.of(args)
+    opts = vr32x_look.of(args, root)
     rom, out = vr32x_rom.load(Path(args.rom)), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     decs = None if args.synth else vr32x_find.tracks(rom, len(vr32x_rom.TRACKS))  # raises if a table is not found
