@@ -120,5 +120,19 @@ pub fn visible(t: *const trk.Track, tile: u32, bucket: u32, r: u32, scratch: *[M
     }
     var first: usize = 0;
     while (first < list.len and distOf(list[first]) > r) first += 1;
+    if (break_thin) return thinned(list[first..], scratch);
     return list[first..];
+}
+
+/// The harness' --break pvs (key @, R82 bug pass): every other tile 2+ steps out dropped, as a sparse ray fan would.
+pub var break_thin = false;
+
+fn thinned(l: []const u16, out: *[MAX_ENTRIES]u16) []const u16 {
+    var n: usize = 0;
+    for (l) |e| {
+        if (distOf(e) >= 2 and tileOf(e) & 1 == 1) continue;
+        out[n] = e;
+        n += 1;
+    }
+    return out[0..n];
 }

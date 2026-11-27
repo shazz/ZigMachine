@@ -11,6 +11,7 @@ const fx = @import("fx.zig");
 const frontdraw = @import("frontdraw.zig");
 const front = @import("front.zig");
 const haze = @import("haze.zig");
+const oracle = @import("oracle.zig");
 const present = @import("present.zig");
 
 /// The camera this frame: a fixed pose (A-H), the race's or the drive's chase camera, or the flyby.
@@ -43,6 +44,10 @@ pub fn render(d: anytype, zigos: *zg.ZigOS) void {
     d.bench.lap(.sort);
     const counts = d.p.fill(fb, &d.f);
     d.bench.lap(.fill);
+    if (oracle.all_tiles) { // key 2 (oracle.zig): the faces the PVS would have lost this frame
+        const m = oracle.missed(t, d.f.pvs_list, d.f.seen, d.f.seen_stamp, &d.f);
+        zg.Console.log("racer,pvs,{},{},{},{}", .{ m[0], m[1], m[2], d.f.stats.dropped });
+    }
     present.finish(d, zigos, fb, counts);
     frontdraw.overlay(d, zigos, fb); // the title over the flyby (after the view's CRC)
 }

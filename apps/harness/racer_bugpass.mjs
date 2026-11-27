@@ -9,6 +9,10 @@
 //      racer_audio_check.mjs): the engine keyed on FM 6 and its pitch written as the rpm moves (many fnums), the skid noise
 //      switched on while a tyre slides, the impact keyed on FM 5 at a knock: the three effects of M4 in the default physics.
 //      --break mute (key h before the race: the effects off) must be caught.
+//   3. visibility (item 2, "track faces sometimes disappear"): the oracle (key 2, racer/oracle.zig) on the flyby lap of
+//      Salt Flats, Neon Docks and Glacier Pass: no face kept by the camera's real view wedge is missing from the baked PVS
+//      (racer,pvs lost = 0 every frame), no polygon dropped at the cap. --break pvs (key @: the PVS list thinned) must be
+//      caught.
 //   node apps/harness/racer_bugpass.mjs [<shot dir>] [--break <mode>]
 import { mkdir, readFile } from "node:fs/promises";
 import { diskHook, ZMD } from "./racer_disk.mjs";
@@ -16,7 +20,7 @@ import { bootObj, key } from "./obj_machine.mjs";
 import { png } from "./skystrike_zig_frame.mjs";
 
 const argv = process.argv.slice(2);
-const MODES = ["mute"];
+const MODES = ["mute", "pvs"];
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !MODES.includes(BREAK)) { console.error(`racer_bugpass: unknown --break ${BREAK}`); process.exit(1); }
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
@@ -111,8 +115,25 @@ async function sound() {
     else notes.push(`sound: an ARCADE race on the public cart: the engine keyed on (${got.engine}), ${driven} engine pitches driven, ${piloted} more on the AI pilot, the skid noise on ${got.skid} times, ${got.impact} impacts (${got.commands} queue commands)`);
 }
 
+/** The visibility oracle over each committed Kit track's flyby lap (720 frames, its three POVs). */
+async function visibility() {
+    for (const [taps, name] of [[2, "SALT"], [3, "NEON"], [4, "GLACIER"]]) {
+        const B = await bootRacer(taps);
+        if (BREAK === "pvs") key(B.S, "@");
+        key(B.S, "2"); key(B.S, "l");
+        B.run(720);
+        const rows = B.lines("pvs").map((r) => r.map(Number));
+        const lost = rows.reduce((a, r) => a + r[0], 0), dropped = Math.max(...rows.map((r) => r[3]));
+        const blinks = rows.reduce((a, r) => a + r[2], 0);
+        if (rows.length < 700) fail(`visibility ${name}: ${rows.length} racer,pvs lines (the oracle did not run)`);
+        else if (lost || dropped) fail(`visibility ${name}: the PVS lost ${lost} kept faces over the flyby, ${dropped} polygons dropped at the cap`);
+        else notes.push(`visibility ${name}: the flyby's ${rows.length} frames, no face of the view wedge missing from the PVS, none dropped (${blinks} one-frame blinks: the flyby camera's yaw at the screen edge, edge-on faces)`);
+    }
+}
+
 if (BREAK === "mute") await sound();
-else { await decals(); await sound(); }
+else if (BREAK === "pvs") await visibility();
+else { await decals(); await sound(); await visibility(); }
 for (const n of notes) console.log(`  ${n}`);
 console.log(errors.length ? `racer_bugpass: FAILED -- ${errors.join("; ")}` : "racer_bugpass: PASS");
 process.exitCode = errors.length ? 1 : 0;

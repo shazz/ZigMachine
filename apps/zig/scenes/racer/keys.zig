@@ -75,7 +75,9 @@ pub fn handle(self: anytype, cp: u32) void {
         'P' => options.breakHaze(self, &haze.break_near), // ... --break near: every band one nearer (near faces hazed)
         'O' => @import("under.zig").break_under = true, // racer_bugpass.mjs --break under: a car keyed by its centre's face only
         '1' => @import("smoke.zig").hidden = !@import("smoke.zig").hidden, // the tyre smoke not drawn (racer_drive.mjs' A/B)
-        '!' =>@import("pushes.zig").break_push = true, // ... --break push: ARCADE back to freds72's player-only contacts
+        '2' => @import("oracle.zig").all_tiles = !@import("oracle.zig").all_tiles, // the visibility oracle (oracle.zig: racer,pvs lines)
+        '@' => @import("pvs.zig").break_thin = true, // racer_bugpass.mjs --break pvs: the PVS list thinned (the oracle must see losses)
+        '!' => @import("pushes.zig").break_push = true, // ... --break push: ARCADE back to freds72's player-only contacts
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

@@ -33,6 +33,7 @@ const clip = @import("clip.zig");
 const fx = @import("fx.zig");
 const poly = @import("poly.zig");
 const project = @import("project.zig");
+const oracle = @import("oracle.zig");
 const pvs = @import("pvs.zig");
 const trk = @import("trk.zig");
 const types = @import("types.zig");
@@ -57,11 +58,17 @@ pub const Frame = struct {
     fkey: []u16 = &.{}, // the key a face was kept with (read through faceKey: valid when seen == the stamp)
     seen_stamp: u32 = 0,
     entries: [pvs.MAX_ENTRIES]u16 = undefined,
+    pvs_entries: [pvs.MAX_ENTRIES]u16 = undefined, // the oracle's (key 2) PVS list beside its all-tiles one
+    pvs_list: []const u16 = &.{},
     list: []const u16 = &.{},
     stats: Stats = .{},
 
     pub noinline fn visibility(self: *Frame, t: *const trk.Track, v: *const cam.View, r: u32) void {
         self.list = pvs.visible(t, v.tile, v.bucket, r, &self.entries);
+        if (oracle.all_tiles) { // the bug pass' oracle (oracle.zig): every tile within R, the PVS kept aside
+            self.pvs_list = pvs.visible(t, v.tile, v.bucket, r, &self.pvs_entries);
+            self.list = oracle.allTiles(t, v, r, self.pvs_list, &self.entries);
+        }
         self.stats = .{ .tiles = @intCast(self.list.len) };
     }
 
