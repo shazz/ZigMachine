@@ -168,11 +168,13 @@ built for the card's system 1.28 inside; `KESTREL/progs/by-hash/fcf8ae8b....rv32
 (md5 9ae1738a, built at b61a9538). The splash replayed by `glass ctl quit-cart`, `rm /tmp/glass.splashed`,
 `killall glass` (S99glass restarts it: a first start with no cart running): `boot splash: demo-aurora_boot.zmd up
 in 2380 ms`, `play`, `the cart is done after 8425 ms, KOS powers on` (G2: 3086 / 8435 ms). The cart counts its
-frames and leaves after 508, so 8425 ms means it never dropped one (>= 60.3 fps on average). **Not yet verified:
+frames and leaves after 508: 8425 ms is consistent with 60 fps (G2's splash: 8435 ms); glass's stats reset at the
+cart change, so the splash's own fps was not sampled: the 59.8-61.0 fps, 0 missed are the `glass ctl load` runs of
+the same wasm (under "Data and cost"). **Not yet verified:
 a power-on by a real power cycle** (the replay runs the same code path from the same mark), and the sound by ear.
 
 Ways back: copy `CARTS/tests/demo-aurora_boot.zmd.g2` over `CARTS/tests/demo-aurora_boot.zmd` (G2, the 320x200 boot;
-its image is still in `KESTREL/progs/by-hash/`), or `splash=0` in `KESTREL/glass.cfg` (no boot screen at all), or,
+its lean image is inside that fat disk, which is what glass loads), or `splash=0` in `KESTREL/glass.cfg` (no boot screen at all), or,
 on a PC, copy `KESTREL/glass.pre-aurora` over `KESTREL/glass` (WINDHOVER's splash).
 
 ## History: the variants (24-27 Nov)
@@ -220,7 +222,7 @@ The default bake is the boot's, the whole 400x280 raster, into `apps/zig/assets/
 `--out`). Rendering the light at 400x280 takes ~14 min (the cache, local, skips it: seconds). The wordmark font is local (`aurora_bake.FONT`; a
 worktree passes the main checkout's with `--font`); a missing font is an error before anything renders, never a
 blank name. `--frames N` renders N aurora frames plus the closing dark one (the tests use 2). Python tests:
-`tools/tests/test_aurora_bake.py` (its end-to-end bake runs only where the font is), `test_aurora_direct.py`,
+`tools/tests/test_aurora_bake.py` (its end-to-end bake runs only where the font is), `test_aurora_cli.py` (the default bake is the whole raster, `--window` needs `--out`), `test_aurora_direct.py`,
 `test_aurora_g.py` (the masks and the baked star plane, the cart's loops mirrored in Python).
 
 ## Harness

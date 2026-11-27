@@ -169,23 +169,6 @@ class FontTest(unittest.TestCase):
             bake.bake(SETTINGS, PHOTO, d, ZX0PACK, frames=2, sound=WAV, font=Path(d, "none.otf"))
 
 
-class CliTest(unittest.TestCase):
-    """The CLI bakes the boot's whole raster by default; the 320x200 window never lands in the boot's assets."""
-
-    def tearDown(self):
-        common.set_screen(320, 200)
-
-    def test_the_default_bake_is_the_whole_raster(self):
-        with tempfile.TemporaryDirectory() as d, self.assertRaises(bake.WordError):
-            bake.main(["--font", str(Path(d, "none.otf"))])  # refused at the font, after the screen is chosen
-        self.assertEqual((common.W, common.H), common.FULL)
-
-    def test_the_window_needs_its_own_out_dir(self):
-        with self.assertRaises(SystemExit):
-            bake.main(["--window"])
-        self.assertEqual((common.W, common.H), (320, 200))
-
-
 @unittest.skipUnless(ZX0PACK.exists() and FONT.exists(), f"{ZX0PACK} (zig build) or the local font {FONT}: the end-to-end bake is skipped")
 class BakeTest(unittest.TestCase):
     def test_two_frame_bake_is_deterministic_and_complete(self):
