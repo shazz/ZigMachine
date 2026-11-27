@@ -16,7 +16,7 @@ ours; no Sega data ships (the 32X courses and cars are a LOCAL benchmark, never 
 - **All of it is integer.** Q16 positions, `mulsh16` (one ZM-X instruction on ZIGGY; `fx.zig`), a table reciprocal for
   the projection, PICO-8 16.16 for the physics so the Lua reference runs bit for bit. No float per frame (CLAUDE.md): the
   `g` key's f32 transform is an A/B knob for the FPU, not the default.
-- **One plane, two pages**: sky = a copper palette write per line, backdrop = one AFFINE op, HUD = the plane's bands,
+- **One plane, two pages**: sky = a copper palette write per line, backdrop = one AFFINE op, HUD = drawn over the view in a race (hudpic.zig, the bug pass) or in the plane's bands,
   haze = palette entries. No second plane (each costs ~0.59 Mc of compositing on the board).
 - **Physics, AI and the race tick at 30 Hz** (every second frame, by frame count); frames interpolate between ticks.
 - **The board runs every original track at 60 fps** where it was measured (the oval's flyby and race, the Salt Flats
@@ -58,14 +58,14 @@ physics harness (freds72's Lua under z8lua, local), and the LOCAL 32X importers 
 - **Project.** x = 160 + F x / z through one reciprocal (a 256-entry table + one Newton step) and two `mulsh16`, Q4.
 - **Sort.** The painter's order from a counting sort on the face's MEAN view depth (freds72 sorts by a projected
   distance; the mean keeps decals with their parent and is one add). A face's decals take its key; a car takes one key
-  (its middle, never below the ground face under it) and keeps its model's own order (shadow, wheels, hull, cabin /
+  (its middle, never below any ground face under its footprint: under.zig, the bug pass) and keeps its model's own order (shadow, wheels, hull, cabin /
   wing by the eye's side). 1,024 buckets, stable, far to near.
 - **Visibility.** The converter bakes, per camera tile and 16 yaw buckets, the tiles a DDA of 33 rays reaches within
   R_BAKE steps plus a 3 x 3 neighbourhood; the cart cuts the list at R. Tiles off the baked set use the run-time DDA.
 - **Physics.** PICO-8 16.16 throughout, trig and sqrt tables built from formulas so the integers match the Lua's; the car
   is a velocity, an angle and an angular velocity with front-tyre slip, lateral drag and wheel-spin grip; the ground is
   `find_face` (the previous face first, then the tile's ground faces; since M5 height-aware for crossings); walls are the
-  faces' border edges as 2D planes; contacts are two circles a car. The AI is freds72's PID on the racing line.
+  faces' border edges as 2D planes; contacts are two circles a car (freds72's, CLASSIC); ARCADE pushes every pair at the drawn size (pushes.zig). The AI is freds72's PID on the racing line.
 
 ## The fill paths
 
