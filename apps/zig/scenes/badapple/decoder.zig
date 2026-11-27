@@ -2,63 +2,19 @@
 // Bad Apple!! row-transition span-delta decoder ("BASP").
 // Pure Zig (no ZigOS dependency) so it can be unit-tested natively.
 // --------------------------------------------------------------------------
-const std = @import("std");
+const container = @import("container.zig");
 
-pub const WIDTH: u16 = 320;
-pub const HEIGHT: u16 = 200;
+pub const WIDTH = container.WIDTH;
+pub const HEIGHT = container.HEIGHT;
 pub const MAX_TRANS: usize = 62;
-pub const HEADER_SIZE: usize = 16;
-pub const BLOCK_HDR_SIZE: usize = 10;
+pub const MAGIC = "BASP";
+pub const MAX_PACKED: usize = 48 * 1024; // the real film's largest block is 41 KB
+pub const MAX_RAW: usize = 96 * 1024; // ...and 76 KB raw
 
-pub const Header = struct {
-    width: u16,
-    height: u16,
-    fps: u16,
-    total_frames: u16,
-    block_count: u16,
-    gop_frames: u16,
-};
-
-pub const BlockHeader = struct {
-    packed_len: u32,
-    raw_len: u32,
-    frame_count: u16,
-};
-
-fn readU16Le(b: *const [2]u8) u16 {
-    return @as(u16, b[0]) | (@as(u16, b[1]) << 8);
+pub fn parseHeader(data: []const u8) ?container.Header {
+    return container.parseHeader(data, MAGIC);
 }
-
-fn readU32Le(b: *const [4]u8) u32 {
-    return @as(u32, b[0]) | (@as(u32, b[1]) << 8) | (@as(u32, b[2]) << 16) | (@as(u32, b[3]) << 24);
-}
-
-pub fn parseHeader(data: []const u8) ?Header {
-    if (data.len < HEADER_SIZE) return null;
-    if (!std.mem.eql(u8, data[0..4], "BASP")) return null;
-    const h: Header = .{
-        .width = readU16Le(data[4..6]),
-        .height = readU16Le(data[6..8]),
-        .fps = readU16Le(data[8..10]),
-        .total_frames = readU16Le(data[10..12]),
-        .block_count = readU16Le(data[12..14]),
-        .gop_frames = readU16Le(data[14..16]),
-    };
-    // The decoder is 320x200 only; a stream that says otherwise is refused, never painted skewed.
-    if (h.width != WIDTH or h.height != HEIGHT or h.fps == 0 or h.gop_frames == 0) return null;
-    return h;
-}
-
-pub fn parseBlockHeader(data: []const u8) ?BlockHeader {
-    if (data.len < BLOCK_HDR_SIZE) return null;
-    const b: BlockHeader = .{
-        .packed_len = readU32Le(data[0..4]),
-        .raw_len = readU32Le(data[4..8]),
-        .frame_count = readU16Le(data[8..10]),
-    };
-    if (b.frame_count == 0) return null;
-    return b;
-}
+pub const parseBlockHeader = container.parseBlockHeader;
 
 pub const State = struct {
     counts: [HEIGHT]u8 = [_]u8{0} ** HEIGHT,
@@ -66,6 +22,13 @@ pub const State = struct {
 
     pub fn reset(self: *State) void {
         @memset(&self.counts, 0);
+    }
+
+    /// A block's frames start at its first byte (a spans block has no preamble).
+    pub fn beginBlock(self: *State, raw: []const u8) ?usize {
+        _ = self;
+        _ = raw;
+        return 0;
     }
 
     /// Decode one frame from `frame_bytes` (the raw payload inside a depacked block) and paint the rows it
