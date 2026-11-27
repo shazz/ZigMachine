@@ -1,7 +1,8 @@
 """Kestrel Racing M7: the Track Kit packaged (tools/racer/kit_pack.py). The zip bundles exactly the add-on and what it imports,
 runs WITHOUT the repository (a plain Python with only the unzipped kit on its path converts the sample to the same bytes),
 and, where Blender 5.3 is installed, installs into an empty user directory as an extension and exports the sample's
-generated .blend through its own operators: the committed export and the cart binary, byte for byte."""
+generated .blend through its own operators (the committed export and the cart binary, byte for byte) and the GT car's
+generated .blend through its .KCR button (= carc.py's file)."""
 
 from __future__ import annotations
 
@@ -13,10 +14,12 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from racer import kit, kit_pack, ktrk
+from racer import carc, kit, kit_pack, ktrk
+from racer.kcar_export import loads
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = ROOT / "tools/racer/tracks/sample_oval.ktrk.json"
+GT = ROOT / "tools/racer/cars/gt.kcar.json"
 BLENDER = Path.home() / ".local/blender/blender"
 
 TWIN = """
@@ -35,6 +38,15 @@ assert pathlib.Path(racer.__file__).resolve().is_relative_to(here / "user"), rac
 assert bpy.ops.ktrk.export(filepath=str(here / "out.ktrk.json")) == {"FINISHED"}
 assert bpy.ops.ktrk.export_ktr(filepath=str(here / "OUT.KTR")) == {"FINISHED"}
 print("INSTALLED OK", racer.__file__)
+"""
+
+CAR = """
+import sys, pathlib, bpy
+here = pathlib.Path(sys.argv[sys.argv.index("--") + 1]).resolve()
+import racer
+assert pathlib.Path(racer.__file__).resolve().is_relative_to(here / "user"), racer.__file__
+assert bpy.ops.kcar.export_kcr(filepath=str(here / "OUT.KCR"), scale=2.0) == {"FINISHED"}
+print("CAR OK")
 """
 
 
@@ -78,7 +90,7 @@ class KitPackTest(unittest.TestCase):
         self.assertEqual(got, want)
 
     @unittest.skipUnless(BLENDER.is_file(), "Blender 5.3 is not installed here")
-    def test_blender_installs_the_zip_and_its_operators_export_the_sample_blend(self) -> None:
+    def test_blender_installs_the_zip_and_its_operators_export_the_sample_and_the_gt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             here = Path(tmp)
             env = {k: v for k, v in os.environ.items() if not k.startswith(("BLENDER_", "PYTHON"))}
@@ -93,6 +105,13 @@ class KitPackTest(unittest.TestCase):
             self.assertIn("INSTALLED OK", r.stdout, r.stdout[-2000:] + r.stderr[-2000:])
             self.assertEqual((here / "out.ktrk.json").read_text(), SAMPLE.read_text())
             self.assertEqual((here / "OUT.KTR").read_bytes(), kit.convert(ktrk.loads(SAMPLE.read_text())))
+            gt = here / "gt.blend"  # the GT's generated scene, through the installed Car Kit's .KCR button
+            subprocess.run([str(BLENDER), "-b", "--factory-startup", "--python", str(ROOT / "tools/racer/cars/gt_build.py"), "--",
+                            str(here / "gt.kcar.json"), "--blend", str(gt)], check=True, capture_output=True, timeout=300)
+            (here / "car.py").write_text(CAR)
+            r = blender(["-b", str(gt), "--python", str(here / "car.py"), "--", str(here)], here, env)
+            self.assertIn("CAR OK", r.stdout, r.stdout[-2000:] + r.stderr[-2000:])
+            self.assertEqual((here / "OUT.KCR").read_bytes(), carc.convert(loads(GT.read_text()), scale=2.0))
 
 
 if __name__ == "__main__":

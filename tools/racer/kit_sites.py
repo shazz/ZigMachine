@@ -77,7 +77,7 @@ def _error_set(file: str, name: str) -> set[str]:
 def cart_names() -> set[str]:
     """Every reason the cart logs for a refused file: the parsers' error names, the loaders' and the scan's."""
     names = _error_set("trk.zig", "Error") | _error_set("carfile.zig", "Error") | _error_set("panofile.zig", "Error")
-    names |= {"BadPack", "ReadFailed", "TooBig"}  # library.Fail, cars.Fail, pano.Fail
+    names |= _error_set("library.zig", "Fail") | _error_set("cars.zig", "Fail") | _error_set("pano.zig", "Fail")  # the loaders
     why = re.search(r"pub const Why = enum \{([^}]*?)\n\n", (ZIG / "refusals.zig").read_text())
     names |= {w.split(",")[0].strip() for w in why.group(1).splitlines() if w.strip() and not w.strip().startswith("//")} if why else set()
     return names

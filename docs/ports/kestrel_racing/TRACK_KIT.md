@@ -94,8 +94,10 @@ centred on the origin: keep everything within +-128 units in X and Y. A Kit trac
 
 The *Track Kit budget* panel recounts after every edit (and on its refresh button) and shows one row per limit, red when
 over, then the converter's refusals. **HARD**: the cart cannot hold it; the converter refuses. **SOFT**: over our frame
-budget (60 fps on the board at the bench R); the converter refuses too, so stay under. The "busiest tile" row names the
-tile: the cart draws a tile's faces together, so spread dense scenery out.
+budget (60 fps on the board at the bench R); the converter refuses those rows too, so stay under. The "busiest tile" row
+names the tile: the cart draws a tile's faces together, so spread dense scenery out. The last row, the priced frame, is
+NOT checked by the converter or the add-on: it is the repository's walk over the flyby (`tools/racer/walk.py`, run on
+the shipped tracks by their tests), so an author without the repository checks it on the board (the OSD's fps).
 
 Generated (`budget.rows`, `tools/racer/limits.py`):
 
@@ -177,9 +179,11 @@ draws the built-in GT. A refused file falls through to the next.
 
 ## 8. Testing in the browser
 
-Make a track pack disk (section 9) and drop it on the machine page (the "run your own cart" picker or a drop on the
-page: it boots the racer cart with your files; nothing leaves the browser), or serve it and open `?disk=<url>`. A C:
-image is `?c=<url>` (a FAT image with `HD/RACER/`). Press `t` (or open the track select) and look for your track; a
+Make a track pack disk (section 9) and give it to the machine page: the "run your own cart" picker (or a drop on the
+page) takes a `.zmd` and boots it, nothing leaves the browser; or serve it and open `?disk=<url>`. A C: image is
+`?c=<url>` (a FAT image with `HD/RACER/`). The gate proves the pack's files are read by the cart (racer_kit.mjs mounts
+the pack as the cart's disk); booting the pack through the page itself is the same path as any uploaded disk, not a
+separate test. Press `t` (or open the track select) and look for your track; a
 refused file shows its reason in the select's refusals and in the console (`racer,track,refused,<NAME>,<why>`).
 
 ## 9. Track packs and the SD card
@@ -195,7 +199,9 @@ python3 -I tools/racer/trackpack.py MYTRACKS/ --hd SDCARD/                      
 
 - **On the SD card**: the cart's `C:\RACER\` is the card's `/HD/RACER/`. Copy `.KTR` and `.KCR` files there; they are listed
   after the disk's tracks. Panoramas are refused in an `--hd` pack (the cart reads them from its disk only).
-- **A pack disk** carries the racer cart and the files (up to 23); put it on the card's shelf like any disk.
+- **A pack disk** carries the racer cart and the files (up to 23). On the board a disk runs through its cart's translated
+  program (`KESTREL/progs/by-hash/`, made by the board build for that exact cart): a pack made from the same racer cart as
+  the card's shelf disk should reuse it, but that is NOT tested yet. The proven board path is C:\RACER\.
 - At most 15 tracks besides the built-in oval (disk and C: together); a track over 1 MiB depacked, 25,600 vertices or
   10,240 faces is refused; the cart's RAM holds the largest track listed (it drops the largest when it cannot).
 - ZX0-packed files (`zig-out/bin/zx0pack`) load faster; the `--zmd` pack packs raw files when zx0pack is built.
@@ -392,9 +398,9 @@ Generated (`tools/racer/kit_errors.py`, `kit_errors_car.py`; `...` is the part t
 placeholder `SPDX:LicenseRef-Pending`, and the add-on's older source headers ("ours, MIT") are not a decision. The options:
 **MIT** for the kit's code, like freds72's engine (`pvs_bake.py` follows his engine and keeps his MIT notice whichever is
 chosen); **CC-BY** for the sample track and its export, which are content, not code (with the code under MIT); or
-**proprietary** (shipped with the cart, no redistribution). One constraint for all three: Blender's position is that an
-add-on, which imports `bpy`, falls under Blender's GPL, so the CODE needs a GPL-compatible licence (MIT is; a proprietary
-add-on is not); tracks and cars made with the kit are the author's content either way.
+**proprietary** (shipped with the cart, no redistribution). An open question for the decision, not checked here: how
+Blender's GPL treats an add-on (code that imports `bpy`), which may rule out the proprietary option for the code; tracks
+and cars made with the kit are their authors' content in any case.
 
 ## 12. What is not here yet
 

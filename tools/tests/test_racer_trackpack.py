@@ -4,8 +4,10 @@ read back from the Zig, every committed file passes, and each corruption is refu
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
+import operator
 import re
 import struct
 import tempfile
@@ -24,10 +26,20 @@ ASSETS = ROOT / "apps/zig/assets/screens/racer"
 SAMPLE = kit.convert(ktrk.loads((ROOT / "tools/racer/tracks/sample_oval.ktrk.json").read_text()))
 
 
+def _arith(node: ast.expr) -> int:
+    """An integer expression of literals and + * << only (what the Zig constants use): nothing is executed."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+        return node.value
+    ops = {ast.Add: operator.add, ast.Mult: operator.mul, ast.LShift: operator.lshift}
+    if isinstance(node, ast.BinOp) and type(node.op) in ops:
+        return ops[type(node.op)](_arith(node.left), _arith(node.right))
+    raise ValueError(f"not a constant expression: {ast.dump(node)}")
+
+
 def zig_const(file: str, name: str) -> int:
     m = re.search(rf"pub const {name}(?:: \w+)? = ([^;]+);", (ZIG / file).read_text())
     assert m, (file, name)
-    return int(eval(m.group(1).replace("_", "").split("//")[0], {}))  # [S307] our own Zig constant (ints, + * <<)
+    return _arith(ast.parse(m.group(1).replace("_", ""), mode="eval").body)
 
 
 def reason(fn: object, *args: object) -> str:
