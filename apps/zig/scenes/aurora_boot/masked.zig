@@ -23,10 +23,10 @@ const HIGH: [256]u8 = blk: {
     break :blk t;
 };
 
-/// Cart 161's player: the 320-pixel window.
+/// The 320-pixel window's player (G2, cart 161 until 27 Nov; the tests below use it).
 pub const Masked = MaskedW(W);
 
-/// The player for a plane `width` pixels wide (320: the window, cart 161; 400: the whole raster, variant H).
+/// The player for a plane `width` pixels wide (400: the whole raster, cart 161; 320: the window, G2).
 pub fn MaskedW(comptime width: u32) type {
     if (width % 8 != 0) @compileError("a mask byte is 8 pixels");
     const ROW_BYTES: u32 = width / 8;
@@ -131,7 +131,7 @@ test "a malformed container is refused: short, past the band, a short mask, the 
     try std.testing.expect(!m.apply(c[0..15])); // fewer than 24 nibbles left for a mask byte: refused before one is read
 }
 
-test "the 400-pixel player (variant H) walks 50 mask bytes a row" {
+test "the 400-pixel player (cart 161) walks 50 mask bytes a row" {
     const W4: u32 = 400;
     var plane = [_]u16{0} ** (W4 * 2);
     var deltas = [_]u16{0} ** 256;

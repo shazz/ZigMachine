@@ -1,8 +1,8 @@
 // --------------------------------------------------------------------------
-// AURORA BOOT H: the aurora's containers read off the disk, one 60 Hz frame's at a time.
+// AURORA BOOT: the aurora's containers read off the disk, one 60 Hz frame's at a time.
 //
-// At 400x280 the change masks are ~3 MB, more than the cart's 3 MiB RAM window holds with the rest, so H keeps
-// them on the floppy as AURORA.MSK (cart 161's aurora.msk format, tools/boot/aurora_mask.py) and only the u32
+// At 400x280 the change masks are ~3 MB, more than the cart's 3 MiB RAM window holds with the rest, so the cart
+// keeps them on the floppy as AURORA.MSK (aurora.msk's format, tools/boot/aurora_mask.py) and only the u32
 // offsets in the cart. Each frame reads the 512-byte blocks that cover its container straight into one buffer (no
 // scratch copy) and hands the container's bytes to the player. On the board the disk sits in DDR inside the cart
 // window (fpga/glass/src/map.zig "The disk in the cart window"), so a block is a copy, not an SD access. No ZigOS

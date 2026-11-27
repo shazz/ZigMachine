@@ -1,6 +1,6 @@
-// AURORA BOOT H (cart 169, apps/zig/scenes/aurora_boot_h.zig): what aurora_boot_check.mjs --h adds to cart 161's
-// checks. H puts the picture over the whole 400x280 raster: plane 0 is TRUECOLOR_FULL (FB_MODE 6, borders open with
-// nothing to earn), plane 1 is OVERSCAN (FB_MODE 4) whose borders a copper FLICK on every line opens, and the
+// AURORA BOOT (cart 161, apps/zig/scenes/aurora_boot.zig): what aurora_boot_check.mjs adds for the whole raster
+// (variant H's, the boot since 27 Nov). Plane 0 is TRUECOLOR_FULL (FB_MODE 6, borders open with nothing to earn),
+// plane 1 is OVERSCAN (FB_MODE 4) whose borders a copper FLICK on every line opens, and the
 // aurora's masks are read off the disk (AURORA.MSK). So the harness mounts the cart's disk, checks the modes and
 // the list, that the borders show the sky and the stars that fly through them, and adds three mutants.
 import { readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ import { makeDrive } from "./scene_hash_disk.mjs";
 
 const REG_FB_MODE = 0x54, REG_FB_COPPER = 0x78, OFF_VRAM = 0x1100, FB_MODE_TC_FULL = 6, FB_MODE_OVERSCAN = 4;
 const W = 400, H = 280, BX = 40, BY = 40; // the raster and its borders (the 320x200 window starts at 40, 40)
-export const DISK = "site/carts/demo-aurora_boot_h.zmd";
+export const DISK = "site/carts/demo-aurora_boot.zmd";
 export const MUTANTS = ["window", "shut", "baddisk"];
 
 const inBorder = (x, y) => x < BX || x >= W - BX || y < BY || y >= H - BY;

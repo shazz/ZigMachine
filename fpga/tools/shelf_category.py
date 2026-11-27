@@ -51,7 +51,6 @@ _BY_CATEGORY = {
         # KESTREL's own feature showcases, not converted demos (Matt, 3 Nov)
         "ziggy", "chisel_v2", "blitter", "mpp_truecolor", "polkadots", "raytrace", "shapes",
         "aurora_boot",  # the boot screen glass plays at power-on (R89, docs/boot/AURORA_BOOT.md)
-        "aurora_boot_h",  # its variant H, the background full screen (a test card, R89)
         "kestrel_boot",  # the boot screen prototype (prototypes/boot_screen/STUDY.md)
         "racer",  # Kestrel Racing M1 renderer spike (R82)
         "sb_spike",  # Suicide Barbie mix3 feasibility spike (textured triangles on CHISEL AFFINE)

@@ -15,26 +15,25 @@
 //   sound     ONE sample op (zg.samplePlay) at frame 0: signed 8-bit at the baked rate, the bytes the baker wrote
 //             (md5), not looped, never stopped: it lasts as long as the picture (a frame of slack)
 //   replay    a key restarts: the sky is back at once, the sample is stopped and started again
+//   raster    the picture is the whole 400x280 raster with the masks read off the cart's disk: the planes' modes,
+//             the FLICK list, the borders lit, the stars in the borders (aurora_boot_raster.mjs)
 //   node apps/harness/aurora_boot_check.mjs [cart.wasm]
 //   node apps/harness/aurora_boot_check.mjs --break   each mutant must be caught by the checks
-//   node apps/harness/aurora_boot_check.mjs --h [--break]   cart 169, variant H (400x280, the masks off its disk):
-//             the same checks at its size plus the modes, the FLICK list and the borders (aurora_boot_h.mjs)
 // The pins are the baker's own reference file: a re-bake rewrites it, nothing here is hand-copied.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
-import * as hv from "./aurora_boot_h.mjs";
+import * as hv from "./aurora_boot_raster.mjs";
 
 const PAGES = 128, REG_FB_BASE = 0x44, REG_TC_FADE = 0x0C, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7;
-const HV = process.argv.includes("--h"); // variant H, cart 169
-const TAG = HV ? "aurora_boot_h" : "aurora_boot";
+const TAG = "aurora_boot";
 const DIR = `apps/zig/assets/screens/${TAG}/`;
 const BROKE = process.argv.includes("--break");
 const [cart = `site/carts/demo-${TAG}.wasm`] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const ref = JSON.parse(await readFile(DIR + "aurora_ref.json", "utf8"));
 const metaSrc = await readFile(DIR + "aurora_meta.zig", "utf8");
 const meta = Object.fromEntries([...metaSrc.matchAll(/pub const (\w+): (?:u32|i32) = (\d+);/g)].map((m) => [m[1], +m[2]]));
-const W = ref.width, H = ref.height; // 320x200, or the whole 400x280 raster for H
+const W = ref.width, H = ref.height; // the whole 400x280 raster
 const STAR_FRAMES = new Set(Object.keys(ref.stars_xy).map((r) => 2 * +r));
 const LAST = (meta.STAR_FRAMES - 1) * 2; // the last cart frame: black, asks to leave
 const md5 = (b) => createHash("md5").update(b).digest("hex");
@@ -53,7 +52,7 @@ async function boot(brk) {
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile(cart);
     const env = { memory, ...rom };
-    if (HV) env.diskReadBlock = await hv.drive(memory, brk);
+    env.diskReadBlock = await hv.drive(memory, brk);
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -75,7 +74,7 @@ function frame(m, f, brk) {
     if (!skip) demo.frame(1000 / 60);
     const dv = new DataView(memory.buffer);
     if (brk === "nofade") dv.setUint8(m.video + REG_TC_FADE, 0);
-    if (HV) hv.mutate(dv, m.video, brk);
+    hv.mutate(dv, m.video, brk);
     const tc = Uint8Array.from(plane(m, 0, W * H * 2));
     const st = Uint8Array.from(plane(m, 1, W * H));
     if (brk === "badaurora" && f === 60 + 2 * 75 + 2) tc[2 * (80 * W + 100)] ^= 0x20; // a flipped bit in the add
@@ -87,9 +86,9 @@ function frame(m, f, brk) {
         fx.push({ op: dv.getUint8(o), a: dv.getUint8(o + 1), ptr: dv.getUint32(o + 4, true), len: dv.getUint32(o + 8, true), rate: dv.getUint32(o + 12, true) });
     }
     const sample = fx.filter((e) => e.op === FX_SAMPLE).map((e) => ({ ...e, md5: md5(new Uint8Array(memory.buffer, e.ptr, e.len)) }));
-    const keep = HV && STAR_FRAMES.has(f - 1) ? [] : null; // plane 1's own raster, only where stars are probed
+    const keep = STAR_FRAMES.has(f - 1) ? [] : null; // plane 1's own raster, only where stars are probed
     const comp = compose(m, keep);
-    const h = HV ? hv.look(m, dv, comp, keep?.[0]) : null;
+    const h = hv.look(m, dv, comp, keep?.[0]);
     const req = brk === "stays" ? 0 : demo.pollCartRequest();
     return { tc, st, fx: brk === "nosound" ? [] : fx.filter((e) => e.op === FX_SAMPLE_STOP), sample: brk === "nosound" ? [] : sample, comp, req, fade: dv.getUint8(m.video + REG_TC_FADE) & 31, h };
 }
@@ -176,7 +175,7 @@ function checks({ shots, replay }) {
     const asked = shots.findIndex((s) => s.req === -1);
     need(asked === LAST && shots.slice(asked).every((s) => s.req === -1), `end: asks to leave from frame ${asked} (${LAST} expected, then every frame)`);
     sound(shots, need);
-    if (HV) hv.checks(shots, ref, need);
+    hv.checks(shots, ref, need);
     need(replay[0].tcmd5 === ref.sky_md5 && replay[0].stops.length === 1 && replay[0].sample.length === 1 && replay[0].sample[0].md5 === ref.pcm_md5, "replay: the key did not restore the sky, stop and restart the sound");
     return bad;
 }
@@ -190,7 +189,7 @@ function sound(shots, need) {
     need(!!e && Math.abs(e.len / e.rate - LAST / 60) < 0.05, `sound: lasts ${e ? (e.len / e.rate).toFixed(3) : "?"} s, the picture ${(LAST / 60).toFixed(3)} s`);
 }
 
-const MUTANTS = ["nofade", "nosound", "slow", "frozen", "stays", "badaurora", "nostars", "nowire", ...(HV ? hv.MUTANTS : [])];
+const MUTANTS = ["nofade", "nosound", "slow", "frozen", "stays", "badaurora", "nostars", "nowire", ...hv.MUTANTS];
 if (BROKE) {
     let missed = 0;
     for (const b of MUTANTS) {

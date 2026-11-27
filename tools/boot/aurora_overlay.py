@@ -7,7 +7,7 @@ modified". Stars are one pixel each (Matt, 26 Nov: no glint cross). The wire and
 entries (LINE, 128..255): their fade is still the entry's alpha, rewritten by the cart (colours.zig).
 
 overlay.bin: for each 60 Hz frame 0..last and each 64 K SECTION of the plane (one for the 320 x 200 window, two for the
-400 x 280 raster of variant H), u16 LE count, then count x (u16 LE offset within the section, u8 entry).
+400 x 280 raster of cart 161), u16 LE count, then count x (u16 LE offset within the section, u8 entry).
 """
 import numpy as np
 

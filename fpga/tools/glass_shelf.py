@@ -74,8 +74,6 @@ SHELF = (
     "c-bench",
     # The boot screen glass plays at power-on (glass/src/app_splash.zig DISK, docs/boot/AURORA_BOOT.md).
     "aurora_boot",
-    # Its variant H, the background full screen (a test card for Matt's pick, docs/boot/AURORA_BOOT.md "H").
-    "aurora_boot_h",
 )  # fmt: skip
 OS_CART = "gem"  # KOS's desktop: what the browser boots for a data disk or an empty drive
 DESKTOP_FILE = "kos/desktop.rv32"  # glass/src/app_drive.zig DESKTOP

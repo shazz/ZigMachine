@@ -3,8 +3,8 @@
 //
 // The baker drew every 60 Hz frame of the star plane (the stars as one dot each, the falcon's wire, the name) with
 // the cart's own integer drawing and kept, per frame, only the bytes that change: u16 LE count, then count x
-// (u16 LE offset, u8 palette entry), once per 64 K SECTION of the plane (one for the 320x200 window, two for
-// variant H's 400x280 raster: an offset is u16 within its section). The cart writes them and nothing else: no clear, no lines, no seek. The
+// (u16 LE offset, u8 palette entry), once per 64 K SECTION of the plane (two for cart 161's 400x280 raster, one
+// for a 320x200 window: an offset is u16 within its section). The cart writes them and nothing else: no clear, no lines, no seek. The
 // colours (the wire's and the name's alpha, the fade) stay palette writes (colours.zig), from SCALARS.
 // Byte loads only (embedded data is not aligned). No ZigOS import: it tests natively.
 // --------------------------------------------------------------------------
@@ -20,7 +20,7 @@ inline fn le16(d: []const u8, i: u32) u32 {
     return @as(u32, d[i]) | @as(u32, hi.*) << 8;
 }
 
-/// Cart 161's player: the 320x200 window.
+/// The 320x200 window's player (G2, cart 161 until 27 Nov; the tests below use it).
 pub const Overlay = OverlayFor(PLANE);
 
 /// The player for a plane of `plane_len` bytes: ceil(plane_len / 64 K) sections a frame.
@@ -94,7 +94,7 @@ test "a list that overruns the data or leaves the plane is refused" {
     try std.testing.expect(!odd.play(&plane, 1));
 }
 
-test "a two-section plane (variant H's 400x280): the second list's offsets start at 64 K" {
+test "a two-section plane (cart 161's 400x280): the second list's offsets start at 64 K" {
     const BIG: u32 = 400 * 280;
     var plane = [_]u8{0} ** BIG;
     // f0: section 0 [5]=7, section 1 [65536 + 3]=9; f1: nothing, then section 1 [65536 + 46463 = BIG - 1]=1

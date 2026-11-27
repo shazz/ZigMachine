@@ -8,8 +8,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-W, H = 320, 200  # the screen being baked: the window (cart 161); set_screen(*FULL) for variant H. Read as ac.W / ac.H
-FULL = (400, 280)  # the whole raster, borders included (variant H, the true-colour plane's FB_MODE 6)
+W, H = 320, 200  # the screen being baked: the window (G2); the boot's CLI sets FULL (aurora_bake.py). Read as ac.W / ac.H
+FULL = (400, 280)  # the whole raster, borders included (cart 161 since variant H, the true-colour plane's FB_MODE 6)
 FPS = 30  # the baked rate; the cart runs at 60 Hz and shows each baked frame twice (stars: interpolated)
 
 # aurora_lab.html PRESETS, copied exactly
