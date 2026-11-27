@@ -8,6 +8,7 @@
 //   racer,state,<state>,<race ticks>                                          on every FSM change
 //   racer,result,<win|timeout>,<hash>,<finish ticks x8>,<order x8>            when the results show
 //   racer,watch,<longest off-asphalt run x8>,<longest wall run x8>            ... and with them
+//   racer,rescues,<AI cars put back on the line after STUCK_TICKS off it>     ... and with them (rescue.zig)
 //   racer,aius,<ticks>,<avg us a tick>,<max us>                               the AI half of a tick (0 headless)
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -147,6 +148,7 @@ fn logResult(g: *const game.Game) void {
     var b: [4][96]u8 = undefined;
     zg.Console.log("racer,result,{s},{x:0>8},{s},{s}", .{ @tagName(s.outcome), s.resultHash(), csv(u32, &b[0], &s.finish), csv(u8, &b[1], o) });
     zg.Console.log("racer,watch,{s},{s}", .{ csv(u32, &b[2], &s.watch.off_max), csv(u32, &b[3], &s.watch.wall_max) });
+    zg.Console.log("racer,rescues,{}", .{s.race.rescues});
 }
 
 /// `xs` as "a,b,c" (no spaces: the harness splits the line on commas).

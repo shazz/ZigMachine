@@ -14,7 +14,8 @@ const poly = @import("poly.zig");
 const sinks = @import("sinks.zig");
 const xf = @import("xform.zig");
 
-var bd_spans: [backdrop.H]zg.chisel_v2.Span = undefined;
+var bd_spans: [xf.Y1 - xf.Y0]zg.chisel_v2.Span = undefined;
+var bd_lower: [xf.Y1 - xf.Y0]zg.chisel_v2.Span = undefined;
 
 pub const Painter = struct {
     os: *zg.ZigOS,
@@ -31,7 +32,7 @@ pub const Painter = struct {
             skyRows(&self.aff, v.horizon);
             self.aff.flush();
         }
-        backdrop.draw(fb, backdrop.spans(&bd_spans, yaw, v.horizon, xf.Y0));
+        backdrop.draw(fb, backdrop.spans(&bd_spans, &bd_lower, yaw, v.horizon, xf.Y0, xf.Y1));
         self.aff.begin(fb);
     }
 
@@ -57,6 +58,10 @@ pub const Painter = struct {
 };
 
 fn skyRows(sink: anytype, hz: i32) void {
+    const skip = backdrop.covers(hz); // an opaque panorama's rows: it paints them whole (R82 32X look)
     var y: i32 = xf.Y0;
-    while (y < xf.Y1) : (y += 1) sink.span(y, 0, 320, if (y < hz) palette.SKY else palette.GROUND);
+    while (y < xf.Y1) : (y += 1) {
+        if (y >= skip[0] and y < skip[1]) continue;
+        sink.span(y, 0, 320, if (y < hz) palette.SKY else palette.GROUND);
+    }
 }

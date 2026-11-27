@@ -106,7 +106,13 @@ fn rollback(c: *const car.Car, prev: V) V {
 
 /// A hard crash: the car back on the racing line one segment on, on its heading, stopped.
 fn crash(c: *car.Car) bool {
-    const i = c.track.segment + 1;
+    putBack(c, c.track.segment + 1);
+    c.crashes += 1;
+    return true;
+}
+
+/// The car on the racing line's middle at segment i, on its heading, stopped (a crash, rescue.zig's stuck car).
+pub fn putBack(c: *car.Car, i: i32) void {
     const a = seg.corners(c.t, i);
     c.pos = vec.lerp(a.l, a.r, fix.ONE / 2);
     c.old = null;
@@ -120,6 +126,4 @@ fn crash(c: *car.Car) bool {
     c.eng = .{};
     c.track = seg.TrackPos.init(c.t, i);
     c.track.update(c.pos);
-    c.crashes += 1;
-    return true;
 }

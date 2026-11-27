@@ -16,6 +16,7 @@ const drive = @import("drive.zig");
 const game = @import("game.zig");
 const haze = @import("haze.zig");
 const minimap = @import("minimap.zig");
+const pano = @import("pano.zig");
 const project = @import("project.zig");
 const trk = @import("trk.zig");
 
@@ -26,7 +27,10 @@ pub fn slotOf(w: usize) usize {
 /// The track on show's look on both pages: its palette and mood (far ground, sky rows, backdrop colours, M6 the haze), its
 /// backdrop strip.
 pub fn look(d: anytype) void {
-    for (0..2) |p| palette.install(&d.os.lfbs[p], d.cur(), groundLevel(d.cur()));
+    for (0..2) |p| {
+        palette.install(&d.os.lfbs[p], d.cur(), groundLevel(d.cur()));
+        pano.paint(d.os.lfbs[p].palette); // the track's panorama's own colours (R82 32X look), if it has one
+    }
     const h = haze.build(d.os.lfbs[0].palette, d.cur(), project.shade);
     for (0..2) |p| haze.paint(d.os.lfbs[p].palette);
     if (h != .none) zg.Console.log("racer,haze,{s},{},{}", .{ @tagName(h), haze.used, 256 - haze.pool_lo });
@@ -70,6 +74,7 @@ pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
     @memset(d.f.seen, 0);
     for (d.f.cache.e) |*e| e.stamp = 0;
     cars(d);
+    pano.forTrack(d.lib.list[d.which].label(), d.cur(), d.lib.stage, &d.lib.rej);
     look(d);
     d.r = playR(d);
 }

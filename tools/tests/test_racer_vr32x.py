@@ -18,6 +18,19 @@ def _model(verts: list[tuple[int, int, int]], polys: list[tuple[int, int, list[i
     return out + struct.pack(">H", vr32x_rom.END)
 
 
+class Place(unittest.TestCase):
+    def test_placed_objects_are_dual_sided_props_welded_to_the_mesh_and_slivers_dropped(self) -> None:
+        m = vr32x_geom.Mesh()
+        ground = m.vert((0, 0, 0))
+        up = [(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0), (1.0, 0.0, 0.0)]  # a banner standing up
+        flat = [(0.0, 2.0, 0.0), (1.0, 2.0, 0.0), (1.0, 2.0, 1.0)]  # its top: facing up, still not ground
+        sliver = [(0.0, 0.0, 5.0), (1.0, 0.0, 5.0), (2.0, 0.0, 5.0)]
+        n = vr32x_geom.place(m, [(up, 0x81), (flat, 0x82), (sliver, 0x83)])
+        self.assertEqual(n, 2)
+        self.assertEqual([(f.kind, f.dual, f.colour) for f in m.faces], [("prop", True, 0x81), ("prop", True, 0x82)])
+        self.assertEqual(m.faces[0].v[0], ground)  # (0, 0, 0) is the tile mesh's vertex
+
+
 class Model(unittest.TestCase):
     def test_a_strip_continuation_reuses_the_named_edge_of_the_previous_polygon(self) -> None:
         verts = [(0, 0, 0), (100, 0, 0), (100, 0, 100), (0, 0, 100), (200, 0, 0), (200, 0, 100)]

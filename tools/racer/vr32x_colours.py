@@ -18,8 +18,9 @@ At = dict[int, tuple[int, int]]  # palette index -> (ramp, level)
 Cols = tuple[At, dict[int, RGB]]  # ... and ramp -> RGB
 
 
-def colours(m: Mesh, pal: list[RGB]) -> tuple[At, dict[int, RGB], dict[int, float]]:
-    """palette index -> (ramp, level), ramp -> RGB, and each index's area (for the report's error)."""
+def colours(m: Mesh, pal: list[RGB], reserve: int = 0) -> tuple[At, dict[int, RGB], dict[int, float]]:
+    """palette index -> (ramp, level), ramp -> RGB, and each index's area (for the report's error). The last `reserve`
+    free ramps are left to the panorama's colours (R82 32X look: `reserved`)."""
     area: dict[int, float] = {}
     for f in m.faces:
         area[f.colour] = area.get(f.colour, 0.0) + _area2(m.pts(f.v))
@@ -29,7 +30,7 @@ def colours(m: Mesh, pal: list[RGB]) -> tuple[At, dict[int, RGB], dict[int, floa
 
     def err(c: int) -> float:
         return min(math.dist(pal[c], tuple(vr_colours.lit(x, lv) for x in pal[o])) for o in own for lv in range(8))
-    while len(own) < len(limits.FREE_RAMPS):
+    while len(own) < len(limits.FREE_RAMPS) - reserve:
         rest = [c for c in area if c not in own]
         if not rest:
             break
@@ -48,8 +49,15 @@ def errors(pal: list[RGB], at: At, rgb: dict[int, RGB]) -> dict[int, float]:
     return {c: math.dist(pal[c], tuple(vr_colours.lit(x, lv) for x in rgb[r])) for c, (r, lv) in at.items()}
 
 
-def mats(rgb: dict[int, RGB]) -> dict[str, tuple[int, RGB]]:
+def reserved(n: int) -> list[int]:
+    """The ramps `colours(reserve=n)` leaves free: the panorama's (its entries 16 + 8 x ramp ..)."""
+    return list(limits.FREE_RAMPS[len(limits.FREE_RAMPS) - n:]) if n else []
+
+
+def mats(rgb: dict[int, RGB], reserve: int = 0) -> dict[str, tuple[int, RGB]]:
     mats = dict(vr_import.CAR)
+    for ramp in reserved(reserve):  # placeholders: the cart puts the panorama's colours there
+        mats[f"pan{ramp}"] = (ramp, (128, 128, 128))
     for ramp, c in rgb.items():
         mats[f"vr{ramp}"] = (ramp, c)
     for ramp in range(15, 19):
