@@ -120,7 +120,7 @@ async function sound(classic = false) {
     const piloted = fnums.size - driven;
     const got = { engine: keyOn(6), driven, piloted, skid, impact: keyOn(5), commands: cmds.length };
     const model = classic ? "CLASSIC" : "ARCADE";
-    if (got.engine < 1 || driven < 8 || piloted < 4 || got.skid < 1 || got.impact < 1) fail(`sound: a ${model} race's effects missing ${JSON.stringify(got)}`);
+    if (got.engine < 1 || driven < 8 || piloted < 4 || got.skid < 1 || got.impact < 1) fail(`sound: ${classic ? "a" : "an"} ${model} race's effects missing ${JSON.stringify(got)}`);
     else notes.push(`sound: ${classic ? "a" : "an"} ${model} race on the public cart: the engine keyed on (${got.engine}), ${driven} engine pitches driven, ${piloted} more on the AI pilot, the skid noise on ${got.skid} times, ${got.impact} impacts (${got.commands} queue commands)`);
 }
 
@@ -174,6 +174,11 @@ if (BREAK === "mute") await sound();
 else if (BREAK === "hud") await hud();
 else if (BREAK === "pvs") await visibility();
 else { await decals(); await sound(); await sound(true); await visibility(); await hud(); }
+if (BREAK) { // a mutant must be caught: the harness passes when its checks fail
+    if (errors.length === 0) { console.error(`racer_bugpass --break ${BREAK}: NOT caught`); process.exit(1); }
+    console.log(`racer_bugpass --break ${BREAK}: caught (${errors[0]})`);
+    process.exit(0);
+}
 for (const n of notes) console.log(`  ${n}`);
 console.log(errors.length ? `racer_bugpass: FAILED -- ${errors.join("; ")}` : "racer_bugpass: PASS");
 process.exitCode = errors.length ? 1 : 0;
