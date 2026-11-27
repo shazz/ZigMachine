@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from racer import mood
+from racer import kit, mood
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,8 @@ PROPS: Final = (
     Prop("haze", "Haze colour", [0, 0, 0], "RGB: what far faces blend toward (M6; usually the sky's horizon)"),
     Prop("haze_start", "Haze start", 0, "x/256 of the draw distance: nearer faces are untouched"),
     Prop("haze_strength", "Haze strength", 0, "x/255: the blend at the draw distance; 0 = no haze"),
+    Prop("world", "World scale", kit.KIT_WORLD, f"Q8: the ground's speed x freds72's at the same km/h ({mood.SCALE_MIN}..{mood.SCALE_MAX})"),
+    Prop("car", "Car scale", kit.KIT_CAR, f"Q8: the car drawn x the GT's size ({mood.SCALE_MIN}..{mood.SCALE_MAX})"),
 )
 
 
@@ -56,6 +58,9 @@ def problem(p: Prop, value: object) -> str:
     if p.key == "draw_r":
         ok = isinstance(value, int) and (value == 0 or mood.R_MIN <= value <= mood.R_MAX)
         return "" if ok else f"draw_r {value!r}: 0 or {mood.R_MIN}..{mood.R_MAX}"
+    if p.key in ("world", "car"):
+        ok = isinstance(value, int) and mood.SCALE_MIN <= value <= mood.SCALE_MAX
+        return "" if ok else f"{p.key} {value!r}: {mood.SCALE_MIN}..{mood.SCALE_MAX} (Q8)"
     if p.key in ("haze_start", "haze_strength"):
         return "" if isinstance(value, int) and 0 <= value <= 255 else f"{p.key} {value!r}: 0..255"
     n = {"sky": 6, "hills": 9, "clock": 2, "sun": 3, "haze": 3}.get(p.key)

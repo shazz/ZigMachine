@@ -17,7 +17,8 @@ document. Authoring conventions (freds72's, PORT_PLAN 3.5, rewritten for our for
   `ktrk_backdrop` (its shape: hills, docks, peaks); the oval's look where absent; `ktrk_clock` [start, extension] (the
   race clock in seconds; absent or 0: the cart computes it from the racing line, M5 step 4); `ktrk_draw_r` (the track's
   draw distance cap, tiles 3..8, for a track too heavy at R 8 on the board; absent or 0: none, M5 finish); `ktrk_haze`
-  [r, g, b], `ktrk_haze_start` (x/256 of R) and `ktrk_haze_strength` (x/255; absent or 0: none): the horizon haze (M6). The add-on's
+  [r, g, b], `ktrk_haze_start` (x/256 of R) and `ktrk_haze_strength` (x/255; absent or 0: none): the horizon haze (M6);
+  `ktrk_world` / `ktrk_car` (Q8): the ARCADE world and car scales (FEEL.md; absent: kit.KIT_WORLD / KIT_CAR, M7). The add-on's
   "Track Kit mood" panel shows them as rows (tools/racer/mood_props.py).
 Blender is Z-up, the engine y-up: (x, y, z) -> (x, z, y), a reflection, so a face wound counter-clockwise seen from outside
 in Blender keeps its outward normal under the engine's (last - first) x (second - first). Every non-ground face is checked.
@@ -185,7 +186,7 @@ def export(sc: Scene) -> Doc:
     doc = b.document(meta["name"], {"kind": "blender", "tool": "ktrk add-on 1"}, line, _checkpoints(ls, groups), _grid(sc, b, line))
     doc["palette"] = {m: list(v["rgb"]) for m, v in sorted(sc["materials"].items()) if m in doc["materials"] or m == meta["far_ground"]}
     doc["mood"] = {"name": meta["mood"], "sun": list(to_engine(meta["sun"]))}
-    for k in ("sky", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start", "haze_strength"):  # the optional look (kit.look): sky top + horizon, the strip's 3 colours, its shape
+    for k in ("sky", "hills", "backdrop", "clock", "draw_r", "haze", "haze_start", "haze_strength", "world", "car"):  # the optional look (kit.look): sky top + horizon, the strip's 3 colours, its shape
         if k in meta:
             doc["mood"][k] = meta[k]
     doc["far_ground"] = meta["far_ground"]

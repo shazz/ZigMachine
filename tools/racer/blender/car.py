@@ -91,6 +91,7 @@ class KCAR_PT_budget(bpy.types.Panel):
             r.alert = True
             r.label(text=p)
         col.operator("kcar.export", icon="EXPORT")
+        col.operator("kcar.export_kcr", icon="EXPORT")  # the cart's binary (M7: blender/binary.py)
 
 
 CLASSES = (KCAR_OT_export, KCAR_OT_meter, KCAR_PT_budget)
