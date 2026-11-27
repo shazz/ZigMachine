@@ -17,23 +17,30 @@
 //   replay    a key restarts: the sky is back at once, the sample is stopped and started again
 //   node apps/harness/aurora_boot_check.mjs [cart.wasm]
 //   node apps/harness/aurora_boot_check.mjs --break   each mutant must be caught by the checks
+//   node apps/harness/aurora_boot_check.mjs --h [--break]   cart 169, variant H (400x280, the masks off its disk):
+//             the same checks at its size plus the modes, the FLICK list and the borders (aurora_boot_h.mjs)
 // The pins are the baker's own reference file: a re-bake rewrites it, nothing here is hand-copied.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../../site/js/wasm_hiwater.js";
+import * as hv from "./aurora_boot_h.mjs";
 
 const PAGES = 128, REG_FB_BASE = 0x44, REG_TC_FADE = 0x0C, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7;
-const DIR = "apps/zig/assets/screens/aurora_boot/";
+const HV = process.argv.includes("--h"); // variant H, cart 169
+const TAG = HV ? "aurora_boot_h" : "aurora_boot";
+const DIR = `apps/zig/assets/screens/${TAG}/`;
 const BROKE = process.argv.includes("--break");
-const [cart = "site/carts/demo-aurora_boot.wasm"] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const [cart = `site/carts/demo-${TAG}.wasm`] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const ref = JSON.parse(await readFile(DIR + "aurora_ref.json", "utf8"));
 const metaSrc = await readFile(DIR + "aurora_meta.zig", "utf8");
 const meta = Object.fromEntries([...metaSrc.matchAll(/pub const (\w+): (?:u32|i32) = (\d+);/g)].map((m) => [m[1], +m[2]]));
+const W = ref.width, H = ref.height; // 320x200, or the whole 400x280 raster for H
+const STAR_FRAMES = new Set(Object.keys(ref.stars_xy).map((r) => 2 * +r));
 const LAST = (meta.STAR_FRAMES - 1) * 2; // the last cart frame: black, asks to leave
 const md5 = (b) => createHash("md5").update(b).digest("hex");
 const FRAMES = LAST + 60;
 
-async function boot() {
+async function boot(brk) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("site/machine-video.wasm"), {
@@ -46,6 +53,7 @@ async function boot() {
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile(cart);
     const env = { memory, ...rom };
+    if (HV) env.diskReadBlock = await hv.drive(memory, brk);
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -67,9 +75,10 @@ function frame(m, f, brk) {
     if (!skip) demo.frame(1000 / 60);
     const dv = new DataView(memory.buffer);
     if (brk === "nofade") dv.setUint8(m.video + REG_TC_FADE, 0);
-    const tc = Uint8Array.from(plane(m, 0, 320 * 200 * 2));
-    const st = Uint8Array.from(plane(m, 1, 320 * 200));
-    if (brk === "badaurora" && f === 60 + 2 * 75 + 2) tc[2 * (80 * 320 + 100)] ^= 0x20; // a flipped bit in the add
+    if (HV) hv.mutate(dv, m.video, brk);
+    const tc = Uint8Array.from(plane(m, 0, W * H * 2));
+    const st = Uint8Array.from(plane(m, 1, W * H));
+    if (brk === "badaurora" && f === 60 + 2 * 75 + 2) tc[2 * (80 * W + 100)] ^= 0x20; // a flipped bit in the add
     if (brk === "nostars") st.fill(0);
     if (brk === "nowire") for (let i = 0; i < st.length; i++) if (st[i] === 16) st[i] = 0;
     const n = demo.pollSfx(), at = demo.sfxEntriesPtr(), fx = [];
@@ -78,12 +87,14 @@ function frame(m, f, brk) {
         fx.push({ op: dv.getUint8(o), a: dv.getUint8(o + 1), ptr: dv.getUint32(o + 4, true), len: dv.getUint32(o + 8, true), rate: dv.getUint32(o + 12, true) });
     }
     const sample = fx.filter((e) => e.op === FX_SAMPLE).map((e) => ({ ...e, md5: md5(new Uint8Array(memory.buffer, e.ptr, e.len)) }));
-    const comp = compose(m);
+    const keep = HV && STAR_FRAMES.has(f - 1) ? [] : null; // plane 1's own raster, only where stars are probed
+    const comp = compose(m, keep);
+    const h = HV ? hv.look(m, dv, comp, keep?.[0]) : null;
     const req = brk === "stays" ? 0 : demo.pollCartRequest();
-    return { tc, st, fx: brk === "nosound" ? [] : fx.filter((e) => e.op === FX_SAMPLE_STOP), sample: brk === "nosound" ? [] : sample, comp, req, fade: dv.getUint8(m.video + REG_TC_FADE) & 31 };
+    return { tc, st, fx: brk === "nosound" ? [] : fx.filter((e) => e.op === FX_SAMPLE_STOP), sample: brk === "nosound" ? [] : sample, comp, req, fade: dv.getUint8(m.video + REG_TC_FADE) & 31, h };
 }
 
-function compose(m) {
+function compose(m, keep) {
     const { machine, demo, memory } = m;
     const size = machine.hwPhysWidth() * machine.hwPhysHeight();
     const comp = new Uint32Array(size);
@@ -92,6 +103,7 @@ function compose(m) {
         machine.hwRenderPlane(p);
         const snap = new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size);
         for (let i = 0; i < size; i++) if (snap[i] >>> 24) comp[i] = snap[i];
+        if (keep && p === 1) keep.push(Uint8Array.from(snap, (v) => v >>> 24));
     }
     return comp;
 }
@@ -101,11 +113,11 @@ const litRgb = (a) => { let n = 0; for (const v of a) n += (v & 0xFFFFFF) !== 0;
 const count = (a, v) => { let n = 0; for (const x of a) n += x === v; return n; };
 
 async function run(brk) {
-    const m = await boot();
+    const m = await boot(brk);
     const shots = [];
     for (let f = 0; f < FRAMES; f++) {
         const r = frame(m, f + 1, brk);
-        shots[f] = { tcmd5: md5(r.tc), st: r.st, stmd5: md5(r.st), lit: litRgb(r.comp), req: r.req, fade: r.fade, sample: r.sample, stops: r.fx };
+        shots[f] = { tcmd5: md5(r.tc), st: r.st, stmd5: md5(r.st), lit: litRgb(r.comp), req: r.req, fade: r.fade, sample: r.sample, stops: r.fx, h: r.h };
     }
     const replay = await runReplay();
     return { shots, replay };
@@ -134,7 +146,7 @@ function checks({ shots, replay }) {
     need(ref.planes_md5[String(meta.AURORA_FRAMES - 1)] === ref.sky_md5, "gone: the reference's last aurora frame is not the sky");
     for (const [rec, xy] of Object.entries(ref.stars_xy)) {
         const s = at(shots, 2 * +rec).st;
-        const miss = xy.filter(([x, y]) => x >= 0 && x < 320 && y >= 0 && y < 200 && s[y * 320 + x] === 0).length;
+        const miss = xy.filter(([x, y]) => x >= 0 && x < W && y >= 0 && y < H && s[y * W + x] === 0).length;
         need(miss === 0, `stars: record ${rec}: ${miss} baked star pixels are not lit on plane 1`);
     }
     // The star plane is baked per 60 Hz frame (tools/boot/aurora_overlay.py): the plane at its probes is the baker's, byte for byte.
@@ -164,6 +176,7 @@ function checks({ shots, replay }) {
     const asked = shots.findIndex((s) => s.req === -1);
     need(asked === LAST && shots.slice(asked).every((s) => s.req === -1), `end: asks to leave from frame ${asked} (${LAST} expected, then every frame)`);
     sound(shots, need);
+    if (HV) hv.checks(shots, ref, need);
     need(replay[0].tcmd5 === ref.sky_md5 && replay[0].stops.length === 1 && replay[0].sample.length === 1 && replay[0].sample[0].md5 === ref.pcm_md5, "replay: the key did not restore the sky, stop and restart the sound");
     return bad;
 }
@@ -177,17 +190,17 @@ function sound(shots, need) {
     need(!!e && Math.abs(e.len / e.rate - LAST / 60) < 0.05, `sound: lasts ${e ? (e.len / e.rate).toFixed(3) : "?"} s, the picture ${(LAST / 60).toFixed(3)} s`);
 }
 
-const MUTANTS = ["nofade", "nosound", "slow", "frozen", "stays", "badaurora", "nostars", "nowire"];
+const MUTANTS = ["nofade", "nosound", "slow", "frozen", "stays", "badaurora", "nostars", "nowire", ...(HV ? hv.MUTANTS : [])];
 if (BROKE) {
     let missed = 0;
     for (const b of MUTANTS) {
         const bad = checks(await run(b));
-        console.log(`aurora_boot --break ${b}: ${bad.length ? `caught (${bad[0]})` : "NOT CAUGHT"}`);
+        console.log(`${TAG} --break ${b}: ${bad.length ? `caught (${bad[0]})` : "NOT CAUGHT"}`);
         if (!bad.length) missed++;
     }
     process.exit(missed ? 1 : 0);
 }
 const bad = checks(await run(null));
-for (const b of bad.slice(0, 20)) console.log(`aurora_boot: ${b}`);
-console.log(`aurora_boot: ${bad.length ? `FAIL (${bad.length})` : "OK"}: sky + ${Object.keys(ref.planes_md5).length} aurora frames = the Python reference, stars lit, wire/name beats, fade, black + asks to leave at ${LAST}, one sample at frame 0 (${meta.SAMPLE_LEN} B at ${meta.SAMPLE_RATE} Hz), replay`);
+for (const b of bad.slice(0, 20)) console.log(`${TAG}: ${b}`);
+console.log(`${TAG}: ${bad.length ? `FAIL (${bad.length})` : "OK"}: sky + ${Object.keys(ref.planes_md5).length} aurora frames = the Python reference, stars lit, wire/name beats, fade, black + asks to leave at ${LAST}, one sample at frame 0 (${meta.SAMPLE_LEN} B at ${meta.SAMPLE_RATE} Hz), replay`);
 process.exit(bad.length ? 1 : 0);

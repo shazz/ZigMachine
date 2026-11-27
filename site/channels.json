@@ -25,6 +25,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "aurora_boot_h",
+  "title": "AURORA H",
+  "type": "zigmachine"
+ },
+ {
   "tag": "automation442",
   "title": "AUTOMATION 442",
   "type": "atari st"

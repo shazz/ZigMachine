@@ -7,7 +7,8 @@ the shader's per-pixel jitter hash is kept (`jitter="grain"`) or replaced by the
 """
 import numpy as np
 
-from aurora_common import H, W, smooth
+import aurora_common as ac
+from aurora_common import smooth
 
 F = np.float32
 H1_MIN, H1_N = -4096, 8192
@@ -48,10 +49,10 @@ def smoothstep(a, b, x):
 
 def camera(p):
     """Per-pixel ray directions (H, W, 3), rows top-down; GL's y runs bottom-up."""
-    gx = np.arange(W, dtype=F) + F(.5)
-    gy = (H - 1 - np.arange(H, dtype=F)) + F(.5)
-    ux = (gx[None, :] - F(.5 * W)) / F(H)
-    uy = (gy[:, None] - F(.5 * H)) / F(H)
+    gx = np.arange(ac.W, dtype=F) + F(.5)
+    gy = (ac.H - 1 - np.arange(ac.H, dtype=F)) + F(.5)
+    ux = (gx[None, :] - F(.5 * ac.W)) / F(ac.H)
+    uy = (gy[:, None] - F(.5 * ac.H)) / F(ac.H)
     ux, uy = np.broadcast_arrays(ux, uy)
     d = np.stack([ux * F(p["fov"]), uy * F(p["fov"]), np.ones_like(ux)], -1)
     d /= np.linalg.norm(d, axis=-1, keepdims=True)
@@ -63,8 +64,8 @@ def camera(p):
 
 def sky_mask(p):
     """The photo branch of the shader: `sky = v.y > uHorizon`, v.y bottom-up."""
-    vy = ((H - 1 - np.arange(H)) + .5) / H
-    return np.broadcast_to((vy > p["horizon"])[:, None], (H, W))
+    vy = ((ac.H - 1 - np.arange(ac.H)) + .5) / ac.H
+    return np.broadcast_to((vy > p["horizon"])[:, None], (ac.H, ac.W))
 
 
 def curtain_z(x, k, t, p):
@@ -114,11 +115,11 @@ def march(p, ta, rays, sky, jitter="grain"):
     ok = sky & (rays[..., 1] > .002) & (rays[..., 2] > .02)
     ys, xs = np.nonzero(ok)
     d = rays[ys, xs]
-    jit = _jitter(xs.astype(F) + F(.5), (H - 1 - ys).astype(F) + F(.5), time, jitter)
+    jit = _jitter(xs.astype(F) + F(.5), (ac.H - 1 - ys).astype(F) + F(.5), time, jitter)
     acc = np.zeros((len(ys), 3), dtype=F)
     for k in range(int(p["curtains"])):
         _march_curtain(k, d, jit, time, p, acc)
-    out = np.zeros((H, W, 3), dtype=F)
+    out = np.zeros((ac.H, ac.W, 3), dtype=F)
     out[ys, xs] = acc
     return out
 

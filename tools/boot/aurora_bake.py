@@ -2,7 +2,9 @@
 """Bake the Aurora boot screen's data (cart 161 `aurora_boot`, the board's power-on boot). See docs/boot/AURORA_BOOT.md.
 
   uv run --with numpy --with pillow python tools/boot/aurora_bake.py [--cache FILE] [--out DIR] [--font FILE]
-      [--zx0pack zig-out/bin/zx0pack] [--frames N]     (--frames: N aurora frames + the closing dark one, for tests)
+      [--zx0pack zig-out/bin/zx0pack] [--frames N] [--full]
+      (--frames: N aurora frames + the closing dark one, for tests; --full: variant H, the whole 400x280 raster,
+       written to apps/zig/assets/screens/aurora_boot_h/ unless --out says otherwise)
 
 Writes the whole asset set to apps/zig/assets/screens/aurora_boot/ (aurora_set.py lists the files). Two deviations
 from Matt's tuned lab settings are applied here, both his calls: the curtains' Edge sharpness 0.15 (the lab's 0.045
@@ -22,6 +24,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import aurora_set as aset  # noqa: E402
+import aurora_common as ac  # noqa: E402
 from aurora_common import load_settings  # noqa: E402
 from aurora_frames import render_frames  # noqa: E402
 from aurora_photo import extract, resize_cover  # noqa: E402
@@ -63,13 +66,17 @@ def main(argv=None):
     ap.add_argument("--settings", default=str(HERE / "aurora_settings.json"))
     ap.add_argument("--photo", default=str(ASSETS / "aurora_boot/stars2.jpg"))
     ap.add_argument("--sound", default=str(ASSETS / "aurora_boot/boot_northern_lights_8s5.wav"))
-    ap.add_argument("--out", default=str(ASSETS / "aurora_boot"))
+    ap.add_argument("--out", default=None, help="default: the assets dir aurora_boot (aurora_boot_h, --full)")
+    ap.add_argument("--full", action="store_true", help="variant H: the whole 400x280 raster")
     ap.add_argument("--zx0pack", default=str(ROOT / "zig-out/bin/zx0pack"))
     ap.add_argument("--frames", type=int, default=None, help="aurora frames to render (default: all)")
     ap.add_argument("--font", default=str(FONT), help="the wordmark's font (local only; a worktree passes the main checkout's)")
     ap.add_argument("--cache", default=None, help="a .npz of the rendered light (edge 0.15): reused if present, else written")
     a = ap.parse_args(argv)
-    ref = bake(a.settings, a.photo, a.out, a.zx0pack, a.frames, a.sound, a.cache, a.font)
+    if a.full:
+        ac.set_screen(*ac.FULL)
+    out = a.out or str(ASSETS / ("aurora_boot_h" if a.full else "aurora_boot"))
+    ref = bake(a.settings, a.photo, out, a.zx0pack, a.frames, a.sound, a.cache, a.font)
     print(json.dumps(dict(sizes=ref["sizes"], stats=ref["stats"]), indent=1))
     return 0
 

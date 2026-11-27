@@ -6,8 +6,8 @@ entropy coder at all. Only ~18 % of the band's pixels change a frame, and only 9
 (within 2 levels a channel for 98.6 % of them), so:
 
   container = row0 u8, rows u8, mask_len u16 LE, mask (mask_len bytes), codes (the rest)
-  mask      rows x 40 bytes, one bit a pixel (MSB = leftmost), a changed pixel = 1; a run of zero bytes is written
-            0x00, n (n = 1..255 zero bytes)
+  mask      rows x W/8 bytes (40 at 320, 50 at 400), one bit a pixel (MSB = leftmost), a changed pixel = 1; a run
+            of zero bytes is written 0x00, n (n = 1..255 zero bytes)
   codes     a nibble per changed pixel in mask order, low nibble first: 0..14 = DELTAS[code]; 15 = escape, the next
             two nibbles (low, high) are the index into DELTAS (>= 15); then PAD zero bytes, so the cart checks the
             stream's end once per mask byte (8 pixels, at most 24 nibbles) instead of once per nibble
@@ -20,7 +20,6 @@ import numpy as np
 
 ESC = 15
 PAD = 12  # zero bytes after the codes: 24 nibbles, the most one mask byte can read
-ROW_BYTES = 40  # 320 pixels, a bit each
 
 
 class MaskError(ValueError):
@@ -82,7 +81,7 @@ def container(d, changed, row0, code_of):
 
 
 def encode(d, table):
-    """(blob, offsets u32 LE (2n + 1), split rows): two containers per frame of u16 deltas d (n, rows, 320)."""
+    """(blob, offsets u32 LE (2n + 1), split rows): two containers per frame of u16 deltas d (n, rows, W)."""
     code_of = np.zeros(65536, np.uint16)
     code_of[table] = np.arange(len(table))
     parts, splits = [], []
@@ -96,7 +95,8 @@ def encode(d, table):
 
 
 def apply(plane, c, table, band_rows):
-    """The cart's loop (masked.zig) in Python: add container `c` to `plane` (band rows x 320 u16, in place)."""
+    """The cart's loop (masked.zig) in Python: add container `c` to `plane` (band rows x W u16, in place)."""
+    row_bytes = plane.shape[1] // 8
     if len(c) < 4:
         raise MaskError("short container")
     row0, rows, mlen = c[0], c[1], int.from_bytes(c[2:4], "little")
@@ -111,8 +111,8 @@ def apply(plane, c, table, band_rows):
         else:
             bits.append(mask[i])
             i += 1
-    if len(bits) != rows * ROW_BYTES:
-        raise MaskError(f"mask is {len(bits)} bytes, {rows * ROW_BYTES} expected")
+    if len(bits) != rows * row_bytes:
+        raise MaskError(f"mask is {len(bits)} bytes, {rows * row_bytes} expected")
     nib = np.stack([np.frombuffer(codes, np.uint8) & 15, np.frombuffer(codes, np.uint8) >> 4], 1).ravel()
     at = np.nonzero(np.unpackbits(np.frombuffer(bytes(bits), np.uint8)))[0]
     n = 0

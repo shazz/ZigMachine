@@ -7,7 +7,8 @@ import math
 
 import numpy as np
 
-from aurora_common import H, W, beats, smooth
+import aurora_common as ac
+from aurora_common import beats, smooth
 
 
 def _build():
@@ -89,8 +90,8 @@ def project(pt, ps):
     y, z = y * ct - z * st, y * st + z * ct
     y += ps["lift"]
     zz = z + ps["dist"]
-    f = H * 0.95
-    return (W * 0.5 + f * x / zz, H * 0.44 - f * y / zz)
+    f = ac.H * 0.95
+    return (ac.W * 0.5 + f * x / zz, ac.H * 0.44 - f * y / zz)
 
 
 def projected(t, p, b):
@@ -125,7 +126,7 @@ def assign(stars, p):
     b = beats(p)
     ds = dots(len(stars))
     proj = projected(b.m1, p, b)
-    cx, cy = W * 0.5, H * 0.44
+    cx, cy = ac.W * 0.5, ac.H * 0.44
     d_ang = sorted(range(len(ds)), key=lambda i: _ang(dot_xy(ds[i], proj), cx, cy))
     s_ang = sorted(range(len(stars)), key=lambda i: math.atan2(stars[i][1] - cy, stars[i][0] - cx))
     rmax = max(1.0, *(math.hypot(s[1] - cy, s[0] - cx) for s in stars))

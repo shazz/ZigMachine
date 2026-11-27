@@ -236,6 +236,7 @@ NATIVE_TESTS="
     apps/zig/scenes/aurora_boot/look.zig
     apps/zig/scenes/aurora_boot/masked.zig
     apps/zig/scenes/aurora_boot/overlay.zig
+    apps/zig/scenes/aurora_boot_h/stream.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig
@@ -606,6 +607,9 @@ gate kestrel_boot node apps/harness/kestrel_boot_check.mjs --break   # ...and a 
 gate aurora_boot node apps/harness/scene_hash.mjs site/carts/demo-aurora_boot.wasm 520 30 --composite   # AURORA BOOT (cart 161, docs/boot/AURORA_BOOT.md): the composed boot screen runs 520 frames with no zg.mem refusal
 gate aurora_boot node apps/harness/aurora_boot_check.mjs   # ...the baked sequence: sky + 5 aurora frames (change masks + nibble codes added) = the Python reference's plane byte for byte, every baked star lit on plane 1, plane 1 = the baked one at 4 probes, no wire before the falcon forms and one at the hold, the name only from its beat, TC_FADE 0 then 31, black + asks to leave at the last record, ONE 8-bit sample at frame 0 (the baker's bytes, its rate, never stopped, as long as the picture), a key replays
 gate aurora_boot node apps/harness/aurora_boot_check.mjs --break   # ...and a fade that never reaches black, no sound, a half-speed cart, a frozen one, a cart that never leaves, a flipped bit in the aurora add, no stars and no wire are each caught
+gate aurora_boot_h node apps/harness/scene_hash.mjs site/carts/demo-aurora_boot_h.wasm 520 30 --composite --disk site/carts/demo-aurora_boot_h.zmd   # AURORA BOOT H (cart 169, docs/boot/AURORA_BOOT.md "H"): the whole-raster variant runs 520 frames off its disk with no zg.mem refusal
+gate aurora_boot_h node apps/harness/aurora_boot_check.mjs --h   # ...the same baked-sequence checks at 400x280 with the masks read off the disk (AURORA.MSK), plus: plane 0 is TRUECOLOR_FULL and plane 1 OVERSCAN with a FLICK on all 280 lines, the sky's border columns and rows are the photo's
+gate aurora_boot_h node apps/harness/aurora_boot_check.mjs --h --break   # ...and the cart 161 mutants plus a TC plane back in the window, a plane-1 list that leaves the borders shut and a corrupt disk block are each caught
 gate aurora_bake uv run --with numpy --with pillow python -m unittest tools.tests.test_aurora_bake tools.tests.test_aurora_direct tools.tests.test_aurora_g   # the baker (tools/boot/): settings, photo + star extraction, falcon dots, 8-bit sound, the final-picture deltas, change masks + nibble codes, the baked star plane, the wordmark (a missing font refused), a deterministic 2-frame bake (local only: it needs the font)
 gate ziggy node apps/harness/ziggy_check.mjs   # ZIGGY (cart 115): ZM-X on and off draw the SAME picture (ROTO at 64/128/256 and VOXEL, frame 40), the picture area is the mode's own, frames move, the texture size changes the pixels, VOXEL has sky on top and ground at the bottom, the HUD is drawn and follows the mode, Escape leaves; P swaps ROTO's texture for the parrot photo at 64/128/256 (ZM-X on = off, photo indices and palette, HUD says PHOTO)
 gate ziggy node apps/harness/ziggy_check.mjs --break   # ...and ZM-X off compared a frame later is caught

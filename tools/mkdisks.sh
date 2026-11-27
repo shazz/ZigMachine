@@ -157,6 +157,11 @@ for w in "$OUT"/demo-*.wasm; do
         # which sealed-loader.js's unpackCart passes straight through.
         aurora_boot)
                    repack "$OUT/demo-$tag.zmd" "$w" --title "$tag" --author "$AUTHOR" ;;
+        # AURORA BOOT H (variant H, the whole raster): its ~3 MB of change masks outgrow the cart's RAM, so they
+        # ride on the disk and the cart reads them a container at a time (apps/zig/scenes/aurora_boot_h/stream.zig).
+        aurora_boot_h)
+                   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                        --file "AURORA.MSK=apps/zig/assets/screens/aurora_boot_h/aurora.msk" ;;
         notepad)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
         # GEMTEST too (docs/os/GEMTEST.md): a data disk, BOOT.WSM shows every GEM 5 component.
         gemtest)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;

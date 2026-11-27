@@ -149,6 +149,53 @@ gone (in git history up to the merge of `feat/aurora-boot`). The cart's look is 
 composite hashes of 161 equal G2's (`scene_hash.mjs`, 520 frames). The variants' board shots and crops stay local
 (`prototypes/boot_screen/aurora_compare/`, `board_shots/`, `prototypes/aurora_f_re/`).
 
+## H (full screen): a test card, not the boot
+
+Matt, 27 Nov: "can we show the background in full screen? ... try an aurora H to test". Cart 169
+`aurora_boot_h` (`apps/zig/scenes/aurora_boot_h.zig`, the shelf's "AURORA H") is G2's film baked for the
+whole 400x280 raster, borders included, beside cart 161, which stays the boot until Matt picks.
+
+**The planes.** The true-colour plane has a full-raster mode (`setTruecolorPlane(.full)`, FB_MODE 6,
+HW_API.md "True-colour planes"): 400x280 RGB565 from x 0, the borders open with nothing to earn, one plane pass
+a line as before, twice the bytes fetched. The star plane is an 8-bit OVERSCAN plane (400x280): its borders ARE
+earned, by a FLICK on each of the 280 lines of a copper list written once at init (replicants_emlyn's way: no HBL
+handler, nothing per frame). Same pair of planes as WINDHOVER (cart 131).
+
+**The crop.** The photo is 728x485 (1.50), the raster 1.43: at full width it would need 510 rows, so H covers the
+raster with the photo's WHOLE height (the treeline and the horizon included) and its middle 693 columns (17.5
+lost at each side, no stretch); G2 kept the whole width and lost 15 rows at the top and bottom. The lab is
+resolution independent and the baker follows it at the new size (`aurora_common.set_screen`): the camera's
+vertical field, the falcon (centred at 0.5 / 0.44 of the raster, its size follows the height: 1.4x G2's on the
+screen) and the name (0.42 of the wingspan, at 0.86 of the height) are where the lab puts them on a 400x280
+canvas. The star detector finds **729 stars** (G2 214): the photo is scaled 0.577 here against 0.44, and more of
+its stars clear the 0.10 threshold; every one flies into the falcon, so the wire's dots are 3.4x denser.
+
+**The masks ride on the disk.** At 400x280 the aurora's change masks are 2,946,185 bytes (G2 1,757,939: 1.68x,
+the band is 225 rows of 400 against 166 of 320); with the rest they would not fit the cart's 3 MiB window, and
+no cheap coder closes the gap (the codes' entropy is 3.9 bits against the nibble's 4.6; ZX0 is what cost G1 its
+60 fps). So `aurora.msk` goes on the floppy as `AURORA.MSK` (`tools/mkdisks.sh`), the cart keeps only the
+offsets, and each 60 Hz frame reads the 512-byte blocks that cover its container (at most 19,363 bytes, mean
+9,752) straight into one buffer (`aurora_boot_h/stream.zig`, `zg.readBlock`, no scratch copy). On the board the
+disk sits in DDR inside the cart window, so a block is a copy, not an SD access. The star plane's lists gain a
+second 64 K section a frame (offsets past 65,535: `OverlayFor`, one section for cart 161, whose bytes are
+unchanged); `masked.zig` is `MaskedW(400)`.
+
+| | bytes |
+|---|---|
+| sky (565, ZX0) | 50,793 |
+| aurora (on the disk, `AURORA.MSK`) | 2,944,973 + 1,212 of offsets in the cart |
+| star plane (`overlay.bin`) | 657,605 |
+| sound | 186,690 (the same) |
+
+Re-bake: `uv run --with numpy --with pillow python tools/boot/aurora_bake.py --full --cache
+prototypes/boot_screen/aurora_h/light_h.npz` (writes `apps/zig/assets/screens/aurora_boot_h/`; rendering the light
+at this size takes ~14 min). Harness: `aurora_boot_check.mjs --h` (`apps/harness/aurora_boot_h.mjs`): cart 161's
+checks at 400x280 with the cart's disk mounted, plus the two modes, a FLICK on all 280 lines, the border pixels
+lit and every baked star in the borders on plane 1's raster; `--h --break` adds a TC plane back in the window, a
+star plane without its list and a corrupt disk block to cart 161's mutants.
+
+**Board:** not yet measured.
+
 ## Fidelity to the lab, and deviations
 
 Close: same shader constants, camera, noise, march, ramp, bloom, ACES, gamma, same falcon, dots, flights and timeline.

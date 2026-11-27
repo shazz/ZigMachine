@@ -75,6 +75,18 @@ class PhotoTest(unittest.TestCase):
         self.assertGreater(int(rgb[y, x].max()), int(cleaned[y, x].max()))  # the star's own pixel is no longer the peak
         self.assertGreater(len(stars), len(photo.extract(cleaned, 0.10)[0]))
 
+    def test_the_full_raster_keeps_the_whole_height_and_crops_the_sides(self):
+        common.set_screen(*common.FULL)
+        try:
+            rgb = photo.resize_cover(PHOTO)  # 728x485 into 1.43: the photo's whole height, 693 of its 728 columns
+        finally:
+            common.set_screen(320, 200)
+        self.assertEqual(rgb.shape, (280, 400, 3))
+        win = photo.resize_cover(PHOTO)  # the window crops the height instead
+        self.assertEqual(win.shape, (200, 320, 3))
+        # the same middle of the sky in both: the centre pixel's colour agrees within resampling error
+        self.assertLess(np.abs(rgb[140, 200].astype(int) - win[100, 160].astype(int)).max(), 40)
+
 
 class StarBandTest(unittest.TestCase):
     def _sky(self):

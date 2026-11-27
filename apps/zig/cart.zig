@@ -148,6 +148,7 @@ const scene = switch (opts.index) {
     161 => @import("scenes/aurora_boot.zig"), // AURORA BOOT (R89): the KESTREL boot screen glass plays at power-on: night sky, aurora, stars flying into a wireframe falcon; baked offline (docs/boot/AURORA_BOOT.md). 162-165, 167-168 retired (the aurora variants)
     160 => @import("scenes/racer.zig"), // RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer on freds72's engine, benchmark lap v0
     166 => @import("scenes/badapple.zig"), // BAD APPLE!! (R89): a 1-bit film as row-transition edits, ZX0 blocks streamed off the disk; the shelf carries our synthetic test film, the real one is local-only
+    169 => @import("scenes/aurora_boot_h.zig"), // AURORA BOOT H (R89): the boot's variant H, the background over the whole raster, borders included; a test card (docs/boot/AURORA_BOOT.md "H")
     else => @compileError("bad cart index"),
 };
 

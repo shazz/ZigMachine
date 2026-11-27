@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from aurora_common import H, W
+import aurora_common as ac
 
 
 def meta_source(m):
@@ -49,4 +49,4 @@ def reference_planes(planes, sky, rec_rows, meta, probes):
     n = meta["n_stars"]
     stars = {str(i): [[int(rec_rows[i][k]), int(rec_rows[i][n + k])] for k in range(n)] for i in probes["stars"]}
     return dict(planes_md5={str(j): md5(p.astype("<u2")) for j, p in planes.items()}, stars_xy=stars, sky_md5=md5(sky.astype("<u2")),
-                sizes=meta["sizes"], aurora_frames=meta["aurora_frames"], width=W, height=H)
+                sizes=meta["sizes"], aurora_frames=meta["aurora_frames"], width=ac.W, height=ac.H)
