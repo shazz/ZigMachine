@@ -8,7 +8,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-W, H = 320, 200
+W, H = 320, 200  # the screen being baked: the window (G2); the boot's CLI sets FULL (aurora_bake.py). Read as ac.W / ac.H
+FULL = (400, 280)  # the whole raster, borders included (cart 161 since variant H, the true-colour plane's FB_MODE 6)
 FPS = 30  # the baked rate; the cart runs at 60 Hz and shows each baked frame twice (stars: interpolated)
 
 # aurora_lab.html PRESETS, copied exactly
@@ -26,6 +27,15 @@ REQUIRED = ("preset curtains dist foldAmp foldFreq foldSpeed thick base height e
 
 class SettingsError(ValueError):
     pass
+
+
+def set_screen(w, h):
+    """Bake for a w x h screen from now on: every stage reads ac.W / ac.H when it runs (the lab is resolution
+    independent: the camera's vertical field, the falcon's size and the name scale with the height)."""
+    global W, H
+    if (w, h) not in ((320, 200), FULL):
+        raise SettingsError(f"screen {w}x{h}: the cart has a 320x200 window or the 400x280 raster")
+    W, H = w, h
 
 
 def load_settings(path):

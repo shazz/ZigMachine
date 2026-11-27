@@ -6,7 +6,7 @@ aurora, and keeps the difference in RGB565 levels (`diff_levels`): base565 + dif
 """
 import numpy as np
 
-from aurora_common import H, W
+import aurora_common as ac
 
 F = np.float32
 TAPS = (.227, .195, .122, .054, .016)
@@ -27,13 +27,13 @@ def bilinear(img, u, v):
 
 def blur(scene):
     """The lab's glow: two passes into an (H/4, W/4) target, 5 taps each, sampled with bilinear filtering."""
-    bh, bw = H // 4, W // 4
+    bh, bw = ac.H // 4, ac.W // 4
     jj, rr = np.meshgrid(np.arange(bw), np.arange(bh))
-    u0, v0 = (jj + .5) * (W / bw) - .5, (rr + .5) * (H / bh) - .5
+    u0, v0 = (jj + .5) * (ac.W / bw) - .5, (rr + .5) * (ac.H / bh) - .5
     a = scene * 0 + 0
     pass1 = TAPS[0] * bilinear(scene, u0, v0)
     for i in range(1, 5):
-        off = i * 1.5 * (4 / W) * W  # uDir * i * 1.5 in uv, in scene texels
+        off = i * 1.5 * (4 / ac.W) * ac.W  # uDir * i * 1.5 in uv, in scene texels
         pass1 = pass1 + TAPS[i] * (bilinear(scene, u0 + off, v0) + bilinear(scene, u0 - off, v0))
     del a
     ju, jv = jj.astype(float), rr.astype(float)
@@ -45,7 +45,7 @@ def blur(scene):
 
 
 def upsample(glow):
-    xs, ys = np.meshgrid(np.arange(W), np.arange(H))
+    xs, ys = np.meshgrid(np.arange(ac.W), np.arange(ac.H))
     return bilinear(glow, (xs + .5) / 4 - .5, (ys + .5) / 4 - .5)
 
 

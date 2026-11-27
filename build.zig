@@ -692,7 +692,7 @@ pub fn build(b: *std.Build) void {
         "", // 158: reserved (the Rift part agents' local carts, other branches)
         "", // 159: reserved (the Rift part agents' local carts, other branches)
         "demo-racer", // 160 — RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer (freds72's MIT PICO-8 engine, our own track), Q16 + mulsh on ZIGGY, CPU spans vs CHISEL AFFINE fill, benchmark lap v0
-        "demo-aurora_boot", // 161 — AURORA BOOT (R89): the KESTREL boot screen glass plays at power-on: a night photo, a baked aurora added on the true-colour plane, every star flying into a wireframe falcon, a CC0 pad; all computed offline (tools/boot/aurora_bake.py, docs/boot/AURORA_BOOT.md)
+        "demo-aurora_boot", // 161 — AURORA BOOT (R89): the KESTREL boot screen glass plays at power-on: a night photo over the WHOLE 400x280 raster (true-colour FULL + an overscan star plane opened by a copper FLICK), a baked aurora added from change masks streamed off the disk, every star flying into a wireframe falcon, a CC0 pad; all computed offline (tools/boot/aurora_bake.py, docs/boot/AURORA_BOOT.md)
         "", // 162: retired (aurora boot variant B, compared on the board 25 Nov, dropped when G became the boot, docs/boot/AURORA_BOOT.md)
         "", // 163: retired (aurora boot variant C, dropped)
         "", // 164: retired (aurora boot variant D, dropped)
@@ -700,6 +700,7 @@ pub fn build(b: *std.Build) void {
         "demo-badapple", // 166 — BAD APPLE!! (R90): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
         "", // 167: retired (aurora boot variant F, dropped)
         "", // 168: retired (aurora boot variant G: its pipeline is cart 161 now)
+        "", // 169: retired (aurora boot variant H, the full screen: its pipeline and data are cart 161 since 27 Nov)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

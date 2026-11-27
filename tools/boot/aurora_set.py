@@ -15,6 +15,7 @@ import aurora_overlay as ov
 import aurora_pack as pk
 import aurora_sound as snd
 import aurora_word as word
+import aurora_common as ac
 from aurora_common import FPS, beats
 from aurora_falcon import EDGES
 from aurora_frames import base_scene
@@ -38,7 +39,7 @@ def word_file(rec, nv, n_stars, p, font, scale):
     """word.bin: the name `scale` of the falcon's wingspan at the hold, centred where the lab centres it (0.86 of H)."""
     k = min(len(rec) - 1, int(round(beats(p).e1 * FPS)))
     vx = rec[k, 3 * n_stars:3 * n_stars + nv] / 16.0  # Q4 pixels
-    blob, *_ = word.bake(font, float(vx.max() - vx.min()) * scale, 160, 0.86 * 200)
+    blob, *_ = word.bake(font, float(vx.max() - vx.min()) * scale, ac.W / 2, 0.86 * ac.H, (ac.W, ac.H))
     return blob
 
 

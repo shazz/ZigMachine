@@ -1022,7 +1022,8 @@ as an unknown key: `glass.cfg: bad line 7` on its status line, every other setti
 ## Boot splash (`app_splash.zig`)
 
 The first glass after a power cycle plays AURORA BOOT (cart 161, `demo-aurora_boot.zmd` anywhere on
-the shelf; docs/boot/AURORA_BOOT.md; until 26 Nov it was KESTREL BOOT, WINDHOVER, cart 131) as a plain
+the shelf, the whole 400x280 raster since 27 Nov, its aurora read off that disk; docs/boot/AURORA_BOOT.md;
+until 26 Nov it was KESTREL BOOT, WINDHOVER, cart 131) as a plain
 cart load (no KOS boot words), then powers KOS on exactly as without it (drive A, the POST). Its 8.5 s
 pad is the cart's own `samplePlay`, on BARD.
 
@@ -1055,8 +1056,11 @@ missing, broken, `--no-splash`, a running cart, key / cap / trap, a ctl load ove
 at once held to `MIN_MS`, no OSD bit written from the decision to the end, the overlay back after,
 a skip that opens nothing);
 `apps/harness/aurora_boot_check.mjs` checks the cart asks to leave at 508 and never before
-(`--break stays`). The way back: `splash=0`, or (on a PC) the previous glass kept on the card as
-`KESTREL/glass.pre-aurora` (WINDHOVER's splash) copied over `KESTREL/glass`.
+(`--break stays`). The way back: `splash=0`; the 320x200 boot (G2) kept on the card as
+`CARTS/tests/demo-aurora_boot.zmd.g2` (not a `.zmd`, so off the shelf) copied over the disk; or (on a PC)
+the previous glass kept as `KESTREL/glass.pre-aurora` (WINDHOVER's splash) copied over `KESTREL/glass`.
+A replay without a power cycle (a test): `glass ctl quit-cart` (a RUNNING cart means no splash),
+`rm /tmp/glass.splashed`, `killall glass`.
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
   is reported, as nothing is wrong.

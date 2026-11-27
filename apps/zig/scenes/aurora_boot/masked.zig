@@ -12,7 +12,6 @@
 const std = @import("std");
 
 pub const W: u32 = 320;
-const ROW_BYTES: u32 = W / 8;
 const ESC: u32 = 15;
 const PAD_NIBBLES: u32 = 24; // the baker pads the codes with 12 zero bytes: the most one mask byte (8 pixels) reads
 
@@ -24,60 +23,69 @@ const HIGH: [256]u8 = blk: {
     break :blk t;
 };
 
-pub const Masked = struct {
-    plane: [*]u16, // the displayed plane, stride W
-    y0: u32, // the band's first screen row
-    rows: u32, // the band's rows
-    deltas: *const [256]u16, // padded with zeros: every escape byte indexes inside it
+/// The 320-pixel window's player (G2, cart 161 until 27 Nov; the tests below use it).
+pub const Masked = MaskedW(W);
 
-    pub fn apply(self: *const Masked, c: []const u8) bool {
-        if (c.len < 4) return false;
-        const row0: u32 = c[0];
-        const rows: u32 = c[1];
-        const mlen: u32 = @as(u32, c[2]) | @as(u32, c[3]) << 8;
-        if (row0 + rows > self.rows or 4 + mlen > c.len) return false;
-        const codes = c[4 + mlen ..];
-        const nmax: u32 = @intCast(2 * codes.len);
-        const px = self.plane + (self.y0 + row0) * W;
-        const total = rows * ROW_BYTES;
-        const mask = c[4..][0..mlen];
-        var n: u32 = 0; // nibble cursor
-        var at: u32 = 0; // mask byte = 8 pixels
-        var i: u32 = 0;
-        while (i < mlen) {
-            const b: u8 = mask[i];
-            i += 1;
-            if (b == 0) {
-                if (i >= mlen) return false;
-                at += mask[i];
+/// The player for a plane `width` pixels wide (400: the whole raster, cart 161; 320: the window, G2).
+pub fn MaskedW(comptime width: u32) type {
+    if (width % 8 != 0) @compileError("a mask byte is 8 pixels");
+    const ROW_BYTES: u32 = width / 8;
+    return struct {
+        const Self = @This();
+        plane: [*]u16, // the displayed plane, stride `width`
+        y0: u32, // the band's first screen row
+        rows: u32, // the band's rows
+        deltas: *const [256]u16, // padded with zeros: every escape byte indexes inside it
+
+        pub fn apply(self: *const Self, c: []const u8) bool {
+            if (c.len < 4) return false;
+            const row0: u32 = c[0];
+            const rows: u32 = c[1];
+            const mlen: u32 = @as(u32, c[2]) | @as(u32, c[3]) << 8;
+            if (row0 + rows > self.rows or 4 + mlen > c.len) return false;
+            const codes = c[4 + mlen ..];
+            const nmax: u32 = @intCast(2 * codes.len);
+            const px = self.plane + (self.y0 + row0) * width;
+            const total = rows * ROW_BYTES;
+            const mask = c[4..][0..mlen];
+            var n: u32 = 0; // nibble cursor
+            var at: u32 = 0; // mask byte = 8 pixels
+            var i: u32 = 0;
+            while (i < mlen) {
+                const b: u8 = mask[i];
                 i += 1;
-                continue;
+                if (b == 0) {
+                    if (i >= mlen) return false;
+                    at += mask[i];
+                    i += 1;
+                    continue;
+                }
+                if (at >= total or n + PAD_NIBBLES > nmax) return false; // checked once per 8 pixels
+                n = self.addByte(px + at * 8, b, codes, n);
+                at += 1;
             }
-            if (at >= total or n + PAD_NIBBLES > nmax) return false; // checked once per 8 pixels
-            n = self.addByte(px + at * 8, b, codes, n);
-            at += 1;
+            return at == total;
         }
-        return at == total;
-    }
 
-    /// The 8 pixels at `p`: one delta per set bit of `b`, highest bit = leftmost; returns the nibble cursor.
-    inline fn addByte(self: *const Masked, p: [*]u16, mask_byte: u8, codes: []const u8, n0: u32) u32 {
-        var b = mask_byte;
-        var n = n0;
-        while (b != 0) {
-            const k = HIGH[b];
-            b ^= @as(u8, 0x80) >> @intCast(k);
-            var v: u32 = nibble(codes, n);
-            n += 1;
-            if (v == ESC) {
-                v = nibble(codes, n) | nibble(codes, n + 1) << 4;
-                n += 2;
+        /// The 8 pixels at `p`: one delta per set bit of `b`, highest bit = leftmost; returns the nibble cursor.
+        inline fn addByte(self: *const Self, p: [*]u16, mask_byte: u8, codes: []const u8, n0: u32) u32 {
+            var b = mask_byte;
+            var n = n0;
+            while (b != 0) {
+                const k = HIGH[b];
+                b ^= @as(u8, 0x80) >> @intCast(k);
+                var v: u32 = nibble(codes, n);
+                n += 1;
+                if (v == ESC) {
+                    v = nibble(codes, n) | nibble(codes, n + 1) << 4;
+                    n += 2;
+                }
+                p[k] +%= self.deltas[v];
             }
-            p[k] +%= self.deltas[v];
+            return n;
         }
-        return n;
-    }
-};
+    };
+}
 
 inline fn nibble(src: []const u8, n: u32) u32 {
     return (src[n >> 1] >> @intCast((n & 1) << 2)) & 15;
@@ -121,4 +129,18 @@ test "a malformed container is refused: short, past the band, a short mask, the 
     try std.testing.expect(!m.apply(c));
     c = sample(&buf);
     try std.testing.expect(!m.apply(c[0..15])); // fewer than 24 nibbles left for a mask byte: refused before one is read
+}
+
+test "the 400-pixel player (cart 161) walks 50 mask bytes a row" {
+    const W4: u32 = 400;
+    var plane = [_]u16{0} ** (W4 * 2);
+    var deltas = [_]u16{0} ** 256;
+    deltas[0] = 5;
+    const head = [_]u8{ 0, 2, 3, 0, 0x00, 99, 0x01 }; // 99 zero bytes, then the last pixel (bit 0 of byte 99)
+    var c: [7 + 1 + 12]u8 = [_]u8{0} ** 20;
+    @memcpy(c[0..7], &head);
+    const m = MaskedW(W4){ .plane = &plane, .y0 = 0, .rows = 2, .deltas = &deltas };
+    try std.testing.expect(m.apply(&c));
+    try std.testing.expectEqual(@as(u16, 5), plane[2 * W4 - 1]);
+    try std.testing.expect(!(Masked{ .plane = &plane, .y0 = 0, .rows = 2, .deltas = &deltas }).apply(&c)); // 100 bytes are not 80
 }

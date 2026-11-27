@@ -6,7 +6,8 @@ ta = i / FPS seconds; the cart shows it at 60 Hz / 2.
 """
 import numpy as np
 
-from aurora_common import FPS, H, W
+import aurora_common as ac
+from aurora_common import FPS
 from aurora_march import camera, envelope, march, sky_mask
 from aurora_post import diff_levels, picture
 
@@ -21,7 +22,7 @@ def render_frames(p, cleaned_rgb, jitter="centre", n=None, progress=None):
     n = int(round(p["dur"] * FPS)) + 1 if n is None else n  # + the last, env = 0 frame: the aurora is gone
     scene = base_scene(cleaned_rgb, p)
     rays, sky = camera(p), sky_mask(p)
-    light = np.zeros((n, H, W, 3), dtype=np.float32)
+    light = np.zeros((n, ac.H, ac.W, 3), dtype=np.float32)
     for i in range(n):
         ta = i / FPS
         acc = march(p, ta, rays, sky, jitter)

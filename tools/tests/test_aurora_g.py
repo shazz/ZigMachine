@@ -14,6 +14,7 @@ except ImportError as e:
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "boot"))
+import aurora_common as ac  # noqa: E402
 import aurora_direct as fg  # noqa: E402
 import aurora_mask as mk  # noqa: E402
 import aurora_overlay as ov  # noqa: E402
@@ -95,19 +96,45 @@ class OverlayTest(unittest.TestCase):
         word = (200, 150, np.full((2, 3), 200, np.uint8))
         last = (len(rec) - 1) * 2
         blob, shots = ov.bake(rec, n, nv, [(0, 1)], word, last, probes=range(last + 1))
-        plane, at = np.zeros(ov.W * ov.H, np.uint8), 0
+        plane, at = np.zeros(ac.W * ac.H, np.uint8), 0
         for f in range(last + 1):
             cnt = int.from_bytes(blob[at:at + 2], "little")
             rows = np.frombuffer(blob[at + 2:at + 2 + 3 * cnt], [("o", "<u2"), ("v", "u1")])
             plane[rows["o"]] = rows["v"]
             at += 2 + 3 * cnt
-            self.assertTrue(np.array_equal(plane.reshape(ov.H, ov.W), shots[f]), f)
+            self.assertTrue(np.array_equal(plane.reshape(ac.H, ac.W), shots[f]), f)
         self.assertEqual(at, len(blob))
         first = shots[0]
         self.assertEqual(int((first != 0).sum()), 3)  # three dots, no cross
         self.assertEqual(int(shots[1][20, 10]), 15)  # odd frame: halfway (+1 >> 1 = 0) toward the next record
         self.assertEqual(int((shots[4] == ov.LINE).sum()), 41)  # the wire from record 2: x 100..140
         self.assertEqual(int((shots[8] == 200).sum()), 6)  # the name from record 4
+
+    def test_the_full_raster_splits_each_frame_into_two_64k_sections(self):
+        ac.set_screen(*ac.FULL)
+        try:
+            rec, n, nv = records()
+            rec[:, n + 2] = 270  # star 2 low on the raster: offset 270 * 400 + x > 65535, the second section
+            last = (len(rec) - 1) * 2
+            blob, shots = ov.bake(rec, n, nv, [(0, 1)], None, last, probes=range(last + 1))
+            plane, at = np.zeros(ac.W * ac.H, np.uint8), 0
+            for f in range(last + 1):
+                for s in range(ov.sections()):
+                    cnt = int.from_bytes(blob[at:at + 2], "little")
+                    rows = np.frombuffer(blob[at + 2:at + 2 + 3 * cnt], [("o", "<u2"), ("v", "u1")])
+                    plane[rows["o"].astype(np.int64) + s * ov.SECTION] = rows["v"]
+                    at += 2 + 3 * cnt
+                self.assertTrue(np.array_equal(plane.reshape(ac.H, ac.W), shots[f]), f)
+            self.assertEqual(ov.sections(), 2)
+            self.assertEqual(at, len(blob))
+            self.assertEqual(int(shots[0][270, 300]), 3)  # the low star is on the plane
+        finally:
+            ac.set_screen(320, 200)
+
+    def test_only_the_window_and_the_full_raster_are_screens(self):
+        with self.assertRaises(ac.SettingsError):
+            ac.set_screen(640, 480)
+        self.assertEqual((ac.W, ac.H), (320, 200))
 
     def test_a_bad_word_file_and_an_out_of_range_scalar_are_refused(self):
         with self.assertRaises(ov.OverlayError):

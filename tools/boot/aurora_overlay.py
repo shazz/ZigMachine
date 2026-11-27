@@ -6,11 +6,14 @@ the pixels that differ from the frame before. The cart writes them (overlay.zig)
 modified". Stars are one pixel each (Matt, 26 Nov: no glint cross). The wire and the name keep their palette
 entries (LINE, 128..255): their fade is still the entry's alpha, rewritten by the cart (colours.zig).
 
-overlay.bin: for each 60 Hz frame 0..last, u16 LE count, then count x (u16 LE offset into the 320 x 200 plane, u8 entry).
+overlay.bin: for each 60 Hz frame 0..last and each 64 K SECTION of the plane (one for the 320 x 200 window, two for the
+400 x 280 raster of cart 161), u16 LE count, then count x (u16 LE offset within the section, u8 entry).
 """
 import numpy as np
 
-W, H = 320, 200
+import aurora_common as ac
+
+SECTION = 1 << 16  # the plane offsets one u16 reaches
 LINE = 16  # look.zig LINE
 
 
@@ -18,8 +21,14 @@ class OverlayError(ValueError):
     pass
 
 
+def sections():
+    """The plane's u16-addressable sections: 1 at 320 x 200 (64,000 bytes), 2 at 400 x 280 (112,000)."""
+    return -(-ac.W * ac.H // SECTION)
+
+
 def _put(pl, x, y, c):
-    if 0 <= x < W and 0 <= y < H:
+    h, w = pl.shape
+    if 0 <= x < w and 0 <= y < h:
         pl[y, x] = c
 
 
@@ -51,7 +60,7 @@ def raster(rec, f, n, nv, edges, word):
     odd = f & 1 == 1 and r + 1 < len(rec)
     nxt = (rec[r + 1].astype(np.int64) - cur) >> 1 if odd else np.zeros_like(cur)  # half the next delta (arith. shift)
     at = cur + nxt
-    pl = np.zeros((H, W), np.uint8)
+    pl = np.zeros((ac.H, ac.W), np.uint8)
     s = 3 * n + 2 * nv
     if cur[s] > 0:
         for a, b in edges:
@@ -71,28 +80,33 @@ def raster(rec, f, n, nv, edges, word):
 def parse_word(blob):
     """word.bin -> (x0, y0, image)."""
     x0, y0, w, h = np.frombuffer(blob[:8], "<u2").astype(int)
-    if len(blob) != 8 + w * h or x0 + w > W or y0 + h > H:
+    if len(blob) != 8 + w * h or x0 + w > ac.W or y0 + h > ac.H:
         raise OverlayError("word.bin does not match its header or leaves the screen")
     return x0, y0, np.frombuffer(blob[8:], np.uint8).reshape(h, w)
 
 
 def bake(rec, n, nv, edges, word, last, probes=()):
     """(overlay.bin, {frame: md5-able plane}) for 60 Hz frames 0..last."""
-    prev = np.zeros((H, W), np.uint8)
+    prev = np.zeros((ac.H, ac.W), np.uint8)
     out, shots = bytearray(), {}
     for f in range(last + 1):
         pl = raster(rec, f, n, nv, edges, word)
         at = np.nonzero((pl != prev).ravel())[0]
-        if len(at) > 0xFFFF:
-            raise OverlayError(f"frame {f}: {len(at)} changes")
-        out += len(at).to_bytes(2, "little")
-        rows = np.zeros(len(at), [("o", "<u2"), ("v", "u1")])
-        rows["o"], rows["v"] = at, pl.ravel()[at]
-        out += rows.tobytes()
+        for s in range(sections()):
+            out += _section(at[(at >> 16) == s], pl.ravel(), s, f)
         if f in probes:
             shots[f] = pl
         prev = pl
     return bytes(out), shots
+
+
+def _section(at, flat, s, f):
+    """Section s's list: u16 count, then (u16 offset - s * 64 K, u8 entry) per changed byte."""
+    if len(at) > 0xFFFF:
+        raise OverlayError(f"frame {f}: {len(at)} changes in section {s}")
+    rows = np.zeros(len(at), [("o", "<u2"), ("v", "u1")])
+    rows["o"], rows["v"] = at - s * SECTION, flat[at]
+    return len(at).to_bytes(2, "little") + rows.tobytes()
 
 
 def scalars(rec, n, nv):
