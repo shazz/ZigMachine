@@ -57,6 +57,13 @@ the cause, the fix, the test. Nothing from the 32X ROM, its decoded data or a lo
   a width are apart and no longer closing after one tick; a 1,500-tick race on Salt keeps every pair under 1/8 of a half
   width of overlap, and `--break push` (key !: freds72's contacts in ARCADE) lets them overlap by more than half a width.
 
+- **On the 32X courses (local, the re-made cars, scale 1; a piloted ARCADE race each, headless).** Before: the cars drove
+  through each other (DXFOREST's whole field finished within 2 s, overlapping); the pilot timed out on DXBAY and DXHIGH.
+  Now: DXFOREST and DXSAND every car apart and finishing (one DNF on DXFOREST), DXBAY and DXHIGH the pilot wins, but one AI
+  car a race is pushed off the narrow road and never gets back (2,395 / 2,683 ticks off the asphalt: the 32X courses' AI
+  cannot recover there), and the pilot timed out on DXACRO. Open: a stuck-car respawn (as the hard crash does) for cars
+  off the asphalt too long; and a softer push on the 32X roads (3 units wide) if the pack still spills.
+
 ## 4. No engine sound
 
 - **Checked on the PUBLIC cart** (no `-Dracer_music`): an ARCADE race keys the engine on FM 6 and moves its pitch with the
