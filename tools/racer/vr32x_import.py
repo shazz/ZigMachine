@@ -19,14 +19,15 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from racer import (  # noqa: E402
-    budget, ktrk, limits, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_feel, vr32x_find, vr32x_geom,
-    vr32x_line, vr32x_rom, vr32x_walk, vr_colours, vr_import,
+    budget, ktrk, limits, mood, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_feel, vr32x_find, vr32x_geom,
+    vr32x_line, vr32x_look, vr32x_objects, vr32x_rom, vr32x_walk, vr32x_water, vr_colours, vr_import,
 )
 
 WALK_SEEDS = 6  # seeds the walk starts from, each way (the shortest laps use them all)
@@ -76,11 +77,13 @@ def line(m: vr32x_geom.Mesh, bins: vr32x_geom.Bins, info: dict[str, object]) -> 
     return seg
 
 
-def build(rom: bytes, k: int, dec: vr32x_decoded.Decoded | None) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
+def build(rom: bytes, k: int, dec: vr32x_decoded.Decoded | None, sigs: dict[str, str] | None = None) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
     pal = vr32x_rom.palette(rom, k)
     m = vr32x_geom.build(vr32x_rom.tiles(rom, k), pal)
-    bins = vr32x_geom.Bins(m)
+    polys = [p for o in vr32x_objects.objects(rom, k, sigs) for p in o.polys] if sigs else []
     info: dict[str, object] = dict(m.stats)
+    info["objects"], info["object_colours"] = vr32x_geom.place(m, polys), frozenset(c for _, c in polys)
+    bins = vr32x_geom.Bins(m)
     info["decals"] = vr32x_geom.decals(m, bins)
     if dec is not None:
         seg, cps, grid = vr32x_decoded.apply(m, bins, info, dec)
@@ -126,7 +129,7 @@ def report(k: int, doc: ktrk.Doc, info: dict[str, object], blob: bytes, cols: vr
             f"at {m.busiest_at}, {len(ktrk.tile_faces(doc))} tiles used, {len(doc['racing_line'])} segments ({how}), "
             f"checkpoints {doc['checkpoints']}, grid ({how}) on segments {sorted({g['segment'] for g in doc['start_grid']})}",
             f"  geometry: {info['split_quads']} non-flat/concave quads split, {info['dropped_degenerate']} degenerate dropped, "
-            f"{info['decals']} decals attached, {info['borders']} border edges; line: {info['line']}",
+            f"{info['decals']} decals attached, {info['borders']} border edges, {info['objects']} object faces; line: {info['line']}",
             f"  colours: {len(at)} palette entries -> {len({r for r, _ in at.values()})} ramps; area-weighted RGB error "
             f"{sum(errs[c] * area[c] for c in at) / total:.1f}, worst {max(errs.values()):.0f}; shaded on a ramp (by area): "
             + ", ".join(f"{c:02x}(err {errs[c]:.0f})" for c in shaded[:10])
@@ -135,20 +138,30 @@ def report(k: int, doc: ktrk.Doc, info: dict[str, object], blob: bytes, cols: vr
             + ("; ".join(p for p in budget.problems(doc) if "colour ramps" not in p) or "within every limit")]
 
 
-def run(rom: bytes, k: int, out: Path, allow_soft: bool, dec: vr32x_decoded.Decoded | None, headroom: bool = False) -> list[str]:
-    doc, info, m, pal = build(rom, k, dec)
+def run(rom: bytes, k: int, out: Path, allow_soft: bool, dec: vr32x_decoded.Decoded | None, headroom: bool = False,
+        opts: vr32x_look.LookOpts = vr32x_look.NONE) -> list[str]:
+    doc, info, m, pal = build(rom, k, dec, opts.sigs if opts.objects else None)
     doc = clockwise(doc) if dec is None else doc  # decoded: the 32X's own direction
     probs = [p for p in budget.problems(doc) if "colour ramps" not in p]  # the entries are merged onto 23 ramps below
     if any(p.startswith("HARD") for p in probs) or (probs and not allow_soft):
         raise trackc.ConvertError("; ".join(probs) + ("" if allow_soft else " (--allow-soft converts past SOFT limits)"))
     if any(len(f.get("inner", [])) > 255 for f in doc["faces"]):
         raise trackc.ConvertError("a face has more than 255 decals (a u8 in the face record)")
-    at, rgb, area = vr32x_colours.colours(m, pal)
+    reserve = vr32x_look.PAN_RAMPS if opts.pano else 0
+    at, rgb, area = vr32x_colours.colours(m, pal, reserve, info["object_colours"])
+    sky = None
+    if opts.pano:
+        pan, sky = vr32x_look.pano(rom, k, opts)
+        (out / f"vr32x_{k + 1}.pan").write_bytes(pan)
+    water = vr32x_water.alternate(doc, pal, at) if opts.water else 0
     (out / f"vr32x_{k + 1}.ktrk.json").write_text(ktrk.dumps(doc))
     look = vr32x_feel.apply(doc, dec[0] if dec else None)  # R82 32X feel: the arcade scales and the AI's cues
-    blob = trackc.convert(doc, vr32x_colours.mats(rgb), validate=False, shade=vr_colours.shader(at, headroom), look=look)
+    look = replace(look, sky=(sky, sky)) if sky else look  # R82 32X look: the panorama's sky above it
+    look = replace(look, flags=look.flags | mood.DECAL_NEAR) if opts.near_decals else look
+    blob = trackc.convert(doc, vr32x_colours.mats(rgb, reserve), validate=False, shade=vr_colours.shader(at, headroom), look=look)
     (out / f"vr32x_{k + 1}.ktrk").write_bytes(blob)
-    return report(k, doc, info, blob, (at, rgb), pal, area)
+    lines = report(k, doc, info, blob, ({c: s for c, s in at.items() if c < vr32x_water.ALT}, rgb), pal, area)
+    return [*lines[:1], lines[1] + f"; water faces on the alternate tone {water}", *lines[2:]]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -163,14 +176,16 @@ def main(argv: list[str] | None = None) -> int:
                     "(the old way) instead of decoding the 68000's course tables")
     ap.add_argument("--shadow-headroom", action="store_true", help="store each face's colour kept off its ramp's bottom "
                     "too (the cart's shadow headroom toggle, key 9 / the SHADOW row: FEEL.md)")
+    vr32x_look.add_args(ap)
     args = ap.parse_args(argv)
+    opts = vr32x_look.of(args, root)
     rom, out = vr32x_rom.load(Path(args.rom)), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     decs = None if args.synth else vr32x_find.tracks(rom, len(vr32x_rom.TRACKS))  # raises if a table is not found
     lines: list[str] = []
     for k in (int(t) - 1 for t in args.tracks.split(",")):
         try:
-            got = run(rom, k, out, args.allow_soft, decs[k] if decs else None, args.shadow_headroom)
+            got = run(rom, k, out, args.allow_soft, decs[k] if decs else None, args.shadow_headroom, opts)
         except (trackc.ConvertError, vr32x_line.LineError, vr32x_rom.RomError, vr32x_course.CourseError,
                 vr32x_decoded.DecodeError) as e:
             got = [f"vr32x_{k + 1} {vr32x_rom.TRACKS[k]}: NOT CONVERTED: {e}"]

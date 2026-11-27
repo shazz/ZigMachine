@@ -41,6 +41,8 @@ const trk = @import("racer/trk.zig");
 const ts = @import("racer/trackset.zig");
 const library = @import("racer/library.zig");
 const xf = @import("racer/xform.zig");
+const backdrop = @import("racer/backdrop.zig");
+const pano = @import("racer/pano.zig");
 const front = @import("racer/front.zig");
 const view = @import("racer/view.zig");
 
@@ -115,6 +117,7 @@ pub const Demo = struct {
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
             fb.is_enabled = p == 0;
         }
+        backdrop.init(pano.largest()); // before the library: the disk's largest panorama, or the shapes' 64 KB
         ts.look(self);
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         zigos.blitAsync(true);

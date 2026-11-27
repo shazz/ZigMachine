@@ -14,6 +14,7 @@ pub const Why = enum {
     too_big,
     no_ram,
     bad_car, // a car file (cars.zig) the parser refused: the built-in GT is drawn
+    bad_pan, // a panorama (pano.zig) refused: the mood's backdrop shape is drawn
 
     /// The console's reason (step 2's words: racer_library.mjs and the board logs read them).
     pub fn long(self: Why) []const u8 {
@@ -22,6 +23,7 @@ pub const Why = enum {
             .too_big => "over the 1 MiB track buffer",
             .no_ram => "no cart RAM left for it",
             .bad_car => "not a car (carfile.parse refused it): the built-in GT is drawn",
+            .bad_pan => "not a panorama for this track (panofile refused it): the backdrop shape is drawn",
         };
     }
 
@@ -32,6 +34,7 @@ pub const Why = enum {
             .too_big => "TOO BIG",
             .no_ram => "NO RAM",
             .bad_car => "BAD CAR",
+            .bad_pan => "BAD PAN",
         };
     }
 };
@@ -50,7 +53,7 @@ pub const Refusals = struct {
     n: usize = 0,
 
     pub fn add(self: *Refusals, name: []const u8, why: Why) void {
-        if (why != .bad_car) zg.Console.log("racer,track,refused,{s},{s}", .{ name, why.long() });
+        if (why != .bad_car and why != .bad_pan) zg.Console.log("racer,track,refused,{s},{s}", .{ name, why.long() });
         var r = Refusal{ .why = why };
         const stem = name[0 .. std.mem.indexOfScalar(u8, name, '.') orelse name.len]; // the list shows 8.3 stems
         const k = @min(stem.len, r.name.len);

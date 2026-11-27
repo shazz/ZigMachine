@@ -14,6 +14,7 @@ file's last, 32 bytes, inside the CRC:
                                                                                world) and sizes it x car; absent = 256, 256
 
 flags bit 0 BENCH_ONLY: no racing line worth driving (the stress city): drive and race modes go back to the oval.
+flags bit 1 DECAL_NEAR (R82 32X look): the cart draws a face's decals only within 24 units (frame.DECAL_KEY).
 backdrop: the panorama strip's shape (apps/zig/scenes/racer/backdrop.zig, tools/racer/ref_sky.py): 0 hills, 1 docks, 2 peaks.
 The cart refuses a block with a ramp past the palette, a level over 7, unknown flags, an unknown backdrop, a clock over
 MAX_CLOCK, a draw distance cap outside 3..8 (but 0) or a haze colour or start without a strength.
@@ -31,6 +32,7 @@ SCALED: Final = 36  # with the optional world / car scales
 SCALE_ONE, SCALE_MIN, SCALE_MAX = 256, 64, 4096  # Q8: 1, 1/4, 16 (apps/zig/scenes/racer/trk.zig)
 WORD: Final = 25
 BENCH_ONLY: Final = 1
+DECAL_NEAR: Final = 2  # decals only on faces nearer than 24 units (a heavy local import: the cart's frame.DECAL_KEY)
 BACKDROPS: Final = ("hills", "docks", "peaks")
 R_MIN, R_MAX = 3, 8  # the cart's draw distances (keys 3-8)
 MAX_CLOCK: Final = (250, 60)  # the start and the extension, seconds (apps/zig/scenes/racer/trk.zig MAX_CLOCK)
@@ -63,8 +65,8 @@ class Mood:
         return struct.pack("<2H", self.world, self.car)
 
     def _base(self) -> bytes:
-        if not (0 <= self.ground_level <= 7 and self.backdrop < len(BACKDROPS) and self.flags & ~BENCH_ONLY == 0):
-            raise ValueError(f"mood {self}: level 0..7, backdrop < {len(BACKDROPS)}, flags {BENCH_ONLY} only")
+        if not (0 <= self.ground_level <= 7 and self.backdrop < len(BACKDROPS) and self.flags & ~(BENCH_ONLY | DECAL_NEAR) == 0):
+            raise ValueError(f"mood {self}: level 0..7, backdrop < {len(BACKDROPS)}, flags {BENCH_ONLY | DECAL_NEAR} only")
         if not all(0 <= c <= m for c, m in zip(self.clock, MAX_CLOCK, strict=True)):
             raise ValueError(f"mood clock {self.clock}: start 0..{MAX_CLOCK[0]} s, extension 0..{MAX_CLOCK[1]} s")
         if self.draw_r != 0 and not R_MIN <= self.draw_r <= R_MAX:

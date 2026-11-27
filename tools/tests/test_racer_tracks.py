@@ -101,7 +101,7 @@ class MoodTest(unittest.TestCase):
                 self.assertEqual(mood.unpack((ASSETS / f"{blob}.ktrk").read_bytes()).clock, (0, 0))  # computed (clock.zig)
 
     def test_bad_moods_are_refused_by_the_converter(self) -> None:
-        for bad in (mood.Mood(ground_level=8), mood.Mood(backdrop=3), mood.Mood(flags=2), mood.Mood(sky=((0, 0, 256), (0, 0, 0))),
+        for bad in (mood.Mood(ground_level=8), mood.Mood(backdrop=3), mood.Mood(flags=4), mood.Mood(sky=((0, 0, 256), (0, 0, 0))),
                     mood.Mood(clock=(251, 0)), mood.Mood(clock=(0, 61))):
             with self.subTest(bad), self.assertRaises(ValueError):
                 bad.pack()

@@ -14,6 +14,7 @@ const car = @import("car.zig");
 const carmodel = @import("carmodel.zig");
 const contacts = @import("contacts.zig");
 const pushes = @import("pushes.zig");
+const rescue = @import("rescue.zig");
 const arcade = @import("arcade.zig");
 const fix = @import("fix.zig");
 const npc = @import("npc.zig");
@@ -42,6 +43,8 @@ pub const Race = struct {
     now: *const fn () u32 = zeroClock, // the host's microsecond clock on the board (0 headless): times the AI half of a tick
     ai_us: u64 = 0,
     ai_max: u32 = 0,
+    stuck: [NCARS]rescue.Watch = [_]rescue.Watch{.{}} ** NCARS, // ARCADE: each AI car's stuck watch (rescue.zig)
+    rescues: u32 = 0, // AI cars put back on the line (off the asphalt or without progress too long)
 
     pub fn init(t: *const trk.Track, n: usize) error{ NoGrid, TooManySegments }!Race {
         if (n < 1 or n > NCARS or t.grid.len < n) return error.NoGrid;
@@ -49,6 +52,7 @@ pub const Race = struct {
         for (r.cars[0..n], t.grid[0..n], 0..) |*c, g, k| {
             c.* = car.Car.init(t, g.pos, g.yaw, g.segment);
             c.npc = k > 0;
+            r.stuck[k] = .{ .mark = c.track.u };
         }
         return r;
     }
@@ -81,6 +85,10 @@ pub const Race = struct {
         p.prepare();
         p.integrate();
         p.update();
+        if (self.pilot and rescue.tick(p, &self.stuck[0])) { // a player flown by the AI's controller is rescued as the AI is
+            self.rescues += 1;
+            self.ppid = .{};
+        }
         const t0 = self.now();
         self.aiTick();
         if (self.arcadePushes()) self.contacts += pushes.update(self.cars[0..self.n]);
@@ -96,6 +104,10 @@ pub const Race = struct {
             c.prepare();
             c.integrate();
             c.update();
+            if (rescue.tick(c, &self.stuck[k + 1])) {
+                self.rescues += 1;
+                pid.* = .{};
+            }
         }
     }
 

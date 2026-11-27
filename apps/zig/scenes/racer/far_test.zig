@@ -1,5 +1,6 @@
 // RACER: the far ring (frame.far, R82 bug pass item 7, key +): off, nothing; on, only TALL faces, only from tiles past R
-// within R + ring DDA steps, each at most once; deeper ring, at least as many. `zig test apps/zig/racer_tests.zig`.
+// within R + ring DDA steps, each at most once; deeper ring, at least as many. DECAL_NEAR (R82 32X look item 5): far faces
+// drop their decals, near ones keep them. `zig test apps/zig/racer_tests.zig`.
 const std = @import("std");
 const cam = @import("cam.zig");
 const frame = @import("frame.zig");
@@ -57,4 +58,32 @@ test "the far ring adds tall faces past R only, more with a deeper ring, nothing
         }
         try std.testing.expect(hi - lo >= frame.TALL);
     }
+}
+
+test "DECAL_NEAR (R82 32X look): a face keyed farther than DECAL_KEY drops its decals, nearer ones keep theirs" {
+    var t = try trk.parse(embedded("salt.ktrk"));
+    var fr = try testutil.newFrame(&t);
+    defer testutil.freeFrame(&fr);
+    var cut: u32 = 0;
+    for (0..cam.POSES) |k| {
+        var polys = [2]u32{ 0, 0 };
+        var near = [2]u32{ 0, 0 }; // polygons keyed at or past the cut: the same with and without the flag
+        var far_decals: u32 = 0; // the decals the flag may drop: those of faces kept farther than the cut
+        for (0..2) |on| {
+            t.mood.flags = if (on == 1) trk.DECAL_NEAR else 0;
+            const v = cam.view(cam.fixedPose(&t, @intCast(k)));
+            fr.visibility(&t, &v, 8);
+            fr.collect(&t, &v, true);
+            polys[on] = fr.stats.polys;
+            for (fr.key[0..fr.stats.polys]) |key| near[on] += @intFromBool(key >= frame.DECAL_KEY);
+            if (on == 1) for (t.faces, 0..) |f, fid| {
+                const key = fr.faceKey(@intCast(fid)) orelse continue;
+                if (key < frame.DECAL_KEY) far_decals += f.inner_n;
+            };
+        }
+        try std.testing.expectEqual(near[0], near[1]);
+        try std.testing.expect(polys[1] <= polys[0] and polys[0] - polys[1] <= far_decals);
+        cut += polys[0] - polys[1];
+    }
+    try std.testing.expect(cut > 0);
 }

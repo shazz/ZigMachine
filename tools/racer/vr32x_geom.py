@@ -93,6 +93,26 @@ def build(tiles: list[Tile], pal: list[RGB]) -> Mesh:
     return m
 
 
+def place(m: Mesh, polys: list[tuple[list[Vec], int]]) -> int:
+    """R82 32X look: the objects the 68000 places outside the tile maps (vr32x_objects.py: gantries, landmarks), world
+    polygons in our units, as dual-sided props (never ground: nothing drives on a banner). Returns the faces added."""
+    n = 0
+    for pts, colour in polys:
+        v = []
+        for p in pts:
+            key = tuple(ktrk.q(c) for c in p)
+            if key not in m._at:
+                m._at[key] = len(m.verts)
+                m.verts.append(list(key))
+            v.append(m._at[key])
+        parts = [v] if len(v) == 3 or _good_quad(m.pts(v)) else [[v[0], v[1], v[2]], [v[0], v[2], v[3]]]
+        for part in parts:
+            if len(set(part)) == len(part) and _area2(m.pts(part)) >= 1e-3:
+                m.faces.append(Face(part, colour, kind="prop", dual=True))
+                n += 1
+    return n
+
+
 def _classify(m: Mesh, f: Face, pal: list[RGB]) -> Face:
     ny = ktrk.normal(m.pts(f.v))[1]
     r, g, b = pal[f.colour]

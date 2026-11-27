@@ -80,6 +80,8 @@ pub fn handle(self: anytype, cp: u32) void {
         '2' => @import("oracle.zig").all_tiles = !@import("oracle.zig").all_tiles, // the visibility oracle (oracle.zig: racer,pvs lines)
         '@' => @import("pvs.zig").break_thin = true, // racer_bugpass.mjs --break pvs: the PVS list thinned (the oracle must see losses)
         '!' => @import("pushes.zig").break_push = true, // ... --break push: ARCADE back to freds72's player-only contacts
+        '^' => @import("panofile.zig").break_crc = true, // racer_look.mjs --break crc: a corrupted panorama accepted
+        '%' => @import("rescue.zig").break_rescue = true, // R82 32X look: no stuck-car rescue (the A/B of rescue.zig)
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

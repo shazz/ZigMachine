@@ -44,6 +44,9 @@ const xf = @import("xform.zig");
 pub const BUCKETS = 1024;
 pub const TALL: i32 = 128; // Q7: a face this tall (1 unit) or taller is drawn in the far ring
 pub var ring: u32 = 0; // key +: the far ring's depth past R, in tiles (0 = off, the default)
+/// A track flagged DECAL_NEAR (trk.Mood) draws a face's decals only when the face is nearer than this key: 24 units (the
+/// road markings past it are a pixel or two; R82 32X look, LOOK.md item 5).
+pub const DECAL_KEY: u16 = BUCKETS - 1 - 24 * 8;
 
 fn tall(t: *const trk.Track, f: *const trk.Face) bool {
     var lo: i32 = t.verts[f.v[0]][1];
@@ -159,7 +162,7 @@ pub const Frame = struct {
         if (kept == project.NONE) return;
         const key: u16 = @intCast(kept);
         if (self.fkey.len != 0) self.fkey[fid] = key;
-        if (!decals) return;
+        if (!decals or (t.mood.flags & trk.DECAL_NEAR != 0 and key < DECAL_KEY)) return;
         for (t.inner[f.inner_first..][0..f.inner_n]) |*d| _ = project.build(self, &self.cache, t.verts, v, d, .{ .fixed = key });
     }
 
