@@ -31,7 +31,7 @@ ours; no Sega data ships (the 32X courses and cars are a LOCAL benchmark, never 
 |---|---|---|
 | the cart | `racer.zig` (Demo), `view.zig`, `present.zig`, `keys.zig` | page flip, camera pick, the stages, HUD and logs; every key |
 | camera | `cam.zig`, `zone.zig` | lap v0's script (flyby), fixed poses A-H, the race's chase cameras (far / near / cockpit); roofs pull the far camera near |
-| geometry | `pvs.zig`, `frame.zig`, `xform.zig`, `clip.zig`, `project.zig`, `types.zig` | the five stages; cars and skidmarks push into the same list (`carview.zig`, `skid.zig`) |
+| geometry | `pvs.zig`, `frame.zig`, `xform.zig`, `clip.zig`, `project.zig`, `types.zig` | the five stages; cars and the tyre smoke push into the same list (`carview.zig`, `smoke.zig`) |
 | fill | `poly.zig`, `sinks.zig`, `draw.zig`, `shadow.zig`, `backdrop.zig` | the span emitter; CPU and AFFINE sinks; the shadow's read-modify-write; the panorama strip |
 | colour | `palette.zig`, `haze.zig` | 16 fixed entries + 30 ramps of 8; the copper sky; the haze pool (M6) |
 | simulation | `car.zig`, `npc.zig`, `contacts.zig`, `ground.zig`, `race.zig`, `rules.zig`, `session.zig`, `fsm.zig`, `game.zig`, `drive.zig` | freds72's `make_car`, `make_npc`, `find_face`, `face_collide`; the race rules; the table-driven FSM (front end included) |
