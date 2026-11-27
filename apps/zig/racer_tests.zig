@@ -27,4 +27,5 @@ test {
     _ = @import("scenes/racer/pushes_test.zig");
     _ = @import("scenes/racer/under_test.zig");
     _ = @import("scenes/racer/hudpic_test.zig");
+    _ = @import("scenes/racer/far_test.zig");
 }

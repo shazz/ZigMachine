@@ -132,8 +132,9 @@ pub fn gauge(p: menu.Px, rev: u32, x: i32, y: i32) void {
 /// The minimap over the picture: the line in white on a dark one-pixel shadow, the AI cars in their liveries, the player
 /// 2 x 2 in the highlight colour. No background: the view shows through.
 fn mapOver(p: menu.Px, map: *const minimap.Map, cars: []const [3]i32) void {
-    for (map.pts[0..map.n]) |q| p.rect(MAP[0] + q[0] + 1, MAP[1] + q[1] + 1, 1, 1, menu.SHADE);
-    for (map.pts[0..map.n]) |q| p.rect(MAP[0] + q[0], MAP[1] + q[1], 1, 1, palette.INK);
+    const at: usize = @as(usize, MAP[1]) * p.stride + MAP[0]; // the box is on screen: direct stores, no clip a point
+    for (map.pts[0..map.n]) |q| p.px[at + (@as(usize, q[1]) + 1) * p.stride + q[0] + 1] = menu.SHADE;
+    for (map.pts[0..map.n]) |q| p.px[at + @as(usize, q[1]) * p.stride + q[0]] = palette.INK;
     for (cars[1..], 0..) |c, k| {
         const q = map.to(c);
         p.rect(MAP[0] + q[0], MAP[1] + q[1], 2, 2, @intCast(16 + (carmodel.RAMP_LIVERY + k % carmodel.LIVERIES) * 8 + 6));

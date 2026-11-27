@@ -31,8 +31,8 @@ pub fn corners(pos: [3]i32, angle: i32, size: i32, x0: i32, x1: i32, z0: i32, z1
     return out;
 }
 
-/// The highest key of a kept ground face the footprint `q` overlaps within DECK_Y of height `y` (Q16), or null.
-pub fn key(fr: *const frame.Frame, t: *const trk.Track, q: [4]Pt, y: i32) ?u16 {
+/// The highest key of a kept ground face the footprint `q` overlaps within DECK_Y of height `y` (Q16), at least `floor`.
+pub fn key(fr: *const frame.Frame, t: *const trk.Track, q: [4]Pt, y: i32, floor: ?u16) ?u16 {
     var lo = q[0];
     var hi = q[0];
     for (q[1..]) |p| {
@@ -43,7 +43,7 @@ pub fn key(fr: *const frame.Frame, t: *const trk.Track, q: [4]Pt, y: i32) ?u16 {
     const tx1 = tile(hi[0]);
     const tz0 = tile(lo[1]);
     const tz1 = tile(hi[1]);
-    var best: ?u16 = null;
+    var best: ?u16 = floor; // a face at or under it needs no test (the centre face's key, known already)
     var tz = tz0;
     while (tz <= tz1) : (tz += 1) {
         var tx = tx0;

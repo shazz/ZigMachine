@@ -38,6 +38,7 @@ pub fn render(d: anytype, zigos: *zg.ZigOS) void {
     d.f.visibility(t, &v, d.r);
     d.bench.lap(.vis);
     d.f.collect(t, &v, d.decals);
+    d.f.far(t, &v, d.r, @import("frame.zig").ring); // R82 bug pass: tall faces past R (key +, off by default)
     present.addCars(d, &v);
     d.bench.lap(.collect);
     d.f.sort();

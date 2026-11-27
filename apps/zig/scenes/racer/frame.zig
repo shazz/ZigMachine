@@ -42,6 +42,18 @@ const offScreen = types.offScreen;
 const xf = @import("xform.zig");
 
 pub const BUCKETS = 1024;
+pub const TALL: i32 = 128; // Q7: a face this tall (1 unit) or taller is drawn in the far ring
+pub var ring: u32 = 0; // key +: the far ring's depth past R, in tiles (0 = off, the default)
+
+fn tall(t: *const trk.Track, f: *const trk.Face) bool {
+    var lo: i32 = t.verts[f.v[0]][1];
+    var hi: i32 = lo;
+    for (f.v[1..f.nv]) |id| {
+        lo = @min(lo, t.verts[id][1]);
+        hi = @max(hi, t.verts[id][1]);
+    }
+    return hi - lo >= TALL;
+}
 pub const MAXP = 6144; // polygons kept a frame (the stress city at R = 8 stays under it); past it they are dropped, counted
 pub const MAXV = types.MAXV;
 const NO_KEY: u16 = 0xFFFF;
@@ -95,6 +107,27 @@ pub const Frame = struct {
             }
         }
         self.stats.verts = self.cache.touched;
+    }
+
+    /// The far ring (R82 bug pass, item 7; key +, `ring` tiles past R): from the tiles the run-time DDA reaches between R
+    /// and R + ring steps, only the TALL faces (a vertical extent of at least TALL: trees, buildings, hills, walls), never
+    /// the flat ground, which the far ground's colour already stands in for. Things on the horizon rise in earlier
+    /// instead of popping in at R; the cost is those faces only. After collect, before the cars.
+    pub noinline fn far(self: *Frame, t: *const trk.Track, v: *const cam.View, r: u32, extra: u32) void {
+        if (extra == 0) return;
+        var scratch: [pvs.MAX_ENTRIES]u16 = undefined;
+        const n = pvs.dda(t, v.tile, v.bucket, r + extra, &scratch);
+        for (scratch[0..n]) |e| {
+            if (pvs.distOf(e) <= r) break; // far to near: the rest is the PVS' own
+            for (t.tileFaces(pvs.tileOf(e))) |fid| {
+                if (self.seen[fid] == self.seen_stamp or !tall(t, &t.faces[fid])) continue;
+                self.seen[fid] = self.seen_stamp;
+                if (self.fkey.len != 0) self.fkey[fid] = NO_KEY;
+                const f = &t.faces[fid];
+                if (f.flags & trk.FLAG_DUAL == 0 and facing(f, v) <= f.cp) continue;
+                self.face(t, v, fid, false);
+            }
+        }
     }
 
     pub noinline fn sort(self: *Frame) void {

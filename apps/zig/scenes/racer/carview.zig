@@ -58,8 +58,7 @@ const Look = struct { key: u16, body: u8, stripe: u8 };
 fn footKey(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, s: Snap, centre: ?u16) ?u16 {
     const f = m.foot;
     const q = under.corners(s.pos, s.angle, s.size, f.x0, f.x1, f.z0, f.z1);
-    const k = under.key(fr, t, q, s.pos[1]) orelse return centre;
-    return @max(k, centre orelse 0);
+    return under.key(fr, t, q, s.pos[1], centre);
 }
 
 fn part(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, p: carmodel.Part, k: Look) void {

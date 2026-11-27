@@ -74,6 +74,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'N' => options.breakHaze(self, &haze.break_absent), // racer_haze.mjs --break absent: the haze built, never applied
         'P' => options.breakHaze(self, &haze.break_near), // ... --break near: every band one nearer (near faces hazed)
         'O' => @import("under.zig").break_under = true, // racer_bugpass.mjs --break under: a car keyed by its centre's face only
+        '+' => @import("frame.zig").ring = (@import("frame.zig").ring + 2) % 6, // the far ring: off, 2, 4 tiles past R
         '0' => @import("hudpic.zig").on = !@import("hudpic.zig").on, // the race HUD over the picture / the two bands
         '1' => @import("smoke.zig").hidden = !@import("smoke.zig").hidden, // the tyre smoke not drawn (racer_drive.mjs' A/B)
         '2' => @import("oracle.zig").all_tiles = !@import("oracle.zig").all_tiles, // the visibility oracle (oracle.zig: racer,pvs lines)
