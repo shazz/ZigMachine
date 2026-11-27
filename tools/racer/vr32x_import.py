@@ -26,7 +26,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from racer import (  # noqa: E402
-    budget, ktrk, limits, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_feel, vr32x_find, vr32x_geom,
+    budget, ktrk, limits, mood, trackc, vr32x_cells, vr32x_colours, vr32x_course, vr32x_decoded, vr32x_feel, vr32x_find, vr32x_geom,
     vr32x_line, vr32x_look, vr32x_objects, vr32x_rom, vr32x_walk, vr32x_water, vr_colours, vr_import,
 )
 
@@ -80,10 +80,10 @@ def line(m: vr32x_geom.Mesh, bins: vr32x_geom.Bins, info: dict[str, object]) -> 
 def build(rom: bytes, k: int, dec: vr32x_decoded.Decoded | None, objects: bool = False) -> tuple[ktrk.Doc, dict[str, object], vr32x_geom.Mesh, list[RGB]]:
     pal = vr32x_rom.palette(rom, k)
     m = vr32x_geom.build(vr32x_rom.tiles(rom, k), pal)
-    placed = vr32x_geom.place(m, [p for o in vr32x_objects.objects(rom, k) for p in o.polys]) if objects else 0
-    bins = vr32x_geom.Bins(m)
+    polys = [p for o in vr32x_objects.objects(rom, k) for p in o.polys] if objects else []
     info: dict[str, object] = dict(m.stats)
-    info["objects"] = placed
+    info["objects"], info["object_colours"] = vr32x_geom.place(m, polys), frozenset(c for _, c in polys)
+    bins = vr32x_geom.Bins(m)
     info["decals"] = vr32x_geom.decals(m, bins)
     if dec is not None:
         seg, cps, grid = vr32x_decoded.apply(m, bins, info, dec)
@@ -148,7 +148,7 @@ def run(rom: bytes, k: int, out: Path, allow_soft: bool, dec: vr32x_decoded.Deco
     if any(len(f.get("inner", [])) > 255 for f in doc["faces"]):
         raise trackc.ConvertError("a face has more than 255 decals (a u8 in the face record)")
     reserve = vr32x_look.PAN_RAMPS if opts.pano else 0
-    at, rgb, area = vr32x_colours.colours(m, pal, reserve)
+    at, rgb, area = vr32x_colours.colours(m, pal, reserve, info["object_colours"])
     sky = None
     if opts.pano:
         pan, sky = vr32x_look.pano(rom, k, opts)
@@ -157,6 +157,7 @@ def run(rom: bytes, k: int, out: Path, allow_soft: bool, dec: vr32x_decoded.Deco
     (out / f"vr32x_{k + 1}.ktrk.json").write_text(ktrk.dumps(doc))
     look = vr32x_feel.apply(doc, dec[0] if dec else None)  # R82 32X feel: the arcade scales and the AI's cues
     look = replace(look, sky=(sky, sky)) if sky else look  # R82 32X look: the panorama's sky above it
+    look = replace(look, flags=look.flags | mood.DECAL_NEAR) if opts.near_decals else look
     blob = trackc.convert(doc, vr32x_colours.mats(rgb, reserve), validate=False, shade=vr_colours.shader(at, headroom), look=look)
     (out / f"vr32x_{k + 1}.ktrk").write_bytes(blob)
     lines = report(k, doc, info, blob, ({c: s for c, s in at.items() if c < vr32x_water.ALT}, rgb), pal, area)

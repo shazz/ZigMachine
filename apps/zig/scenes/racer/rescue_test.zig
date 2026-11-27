@@ -66,13 +66,19 @@ test "a short trip off the asphalt is not rescued: the counter restarts when the
     var r = try offRoad(&t, .arcade);
     const c = &r.cars[K];
     var w = rescue.Watch{ .mark = c.track.u };
-    for (0..rescue.STUCK_TICKS - 1) |_| try std.testing.expect(!rescue.tick(c, &w));
+    const S = struct { // the car crawls on along the line (a segment every 60 ticks): only the off-asphalt rule counts
+        fn step(car: anytype, watch: *rescue.Watch, k: usize) bool {
+            if (k % 60 == 59) car.track.u += fix.ONE;
+            return rescue.tick(car, watch);
+        }
+    };
+    for (0..rescue.STUCK_TICKS - 1) |k| try std.testing.expect(!S.step(c, &w, k));
     c.eng.off = arcade.OFF_HALF; // back on with two wheels
-    try std.testing.expect(!rescue.tick(c, &w));
+    try std.testing.expect(!S.step(c, &w, 0));
     try std.testing.expectEqual(@as(u16, 0), w.off);
     c.eng.off = arcade.OFF_FULL;
-    for (0..rescue.STUCK_TICKS - 1) |_| try std.testing.expect(!rescue.tick(c, &w));
-    try std.testing.expect(rescue.tick(c, &w));
+    for (0..rescue.STUCK_TICKS - 1) |k| try std.testing.expect(!S.step(c, &w, k));
+    try std.testing.expect(S.step(c, &w, 0));
 }
 
 test "a car on the asphalt that gains no segment for STILL_TICKS is put back; one that drives on is not" {

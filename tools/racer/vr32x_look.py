@@ -22,6 +22,7 @@ class LookOpts:
     pan_u0: int = PAN_U0  # the panorama's texel straight ahead at yaw 0
     pan_flip: bool = False  # the strip mirrored (the 32X's scroll runs the other way round from our yaw)
     objects: bool = False  # item 2 (vr32x_objects.py): the gantries and landmarks placed outside the tile maps
+    near_decals: bool = False  # item 5: mood flag DECAL_NEAR (the cart draws decals within 24 units only)
 
 
 NONE = LookOpts()
@@ -49,7 +50,8 @@ def add_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--pan-u0", type=int, default=PAN_U0, help="the panorama's texel straight ahead at yaw 0")
     ap.add_argument("--pan-flip", action="store_true", help="mirror the panorama strip")
     ap.add_argument("--objects", action="store_true", help="add the START / C.P. gantries and the landmarks")
+    ap.add_argument("--near-decals", action="store_true", help="mood flag DECAL_NEAR: decals drawn within 24 units only")
 
 
 def of(args: argparse.Namespace) -> LookOpts:
-    return LookOpts(args.water, args.pano, args.pan_u0, args.pan_flip, args.objects)
+    return LookOpts(args.water, args.pano, args.pan_u0, args.pan_flip, args.objects, args.near_decals)

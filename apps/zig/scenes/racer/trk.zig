@@ -27,6 +27,7 @@ pub const MOOD_WORD = 25;
 pub const MOOD_SIZE = 32;
 pub const BACKDROPS = 3; // backdrop.zig's shapes: hills, docks, peaks
 pub const BENCH_ONLY: u8 = 1;
+pub const DECAL_NEAR: u8 = 2; // R82 32X look: decals only on faces nearer than frame.DECAL_KEY (a heavy local import)
 pub const MAX_CLOCK = [2]u8{ 250, 60 }; // clock.MAX_START, MAX_EXTEND
 
 /// How a track looks beyond its faces (tools/racer/mood.py): the far ground (palette index 4), the sky, the backdrop.
@@ -165,7 +166,7 @@ fn mood(b: []align(4) const u8, at: u32, total: u32) Error!Mood {
     if (at == 0) return .{};
     const m = (try block(Mood, b, at, 1, total))[0];
     if (at + MOOD_SIZE != total and at + MOOD_SIZE + @sizeOf(Scale) != total) return error.BadMood; // the file's last block
-    if (m.ground_ramp >= word(b, 9) or m.ground_level > 7 or m.flags & ~BENCH_ONLY != 0 or m.backdrop >= BACKDROPS) return error.BadMood;
+    if (m.ground_ramp >= word(b, 9) or m.ground_level > 7 or m.flags & ~(BENCH_ONLY | DECAL_NEAR) != 0 or m.backdrop >= BACKDROPS) return error.BadMood;
     if (m.clock[0] > MAX_CLOCK[0] or m.clock[1] > MAX_CLOCK[1]) return error.BadMood;
     if (m.haze_strength == 0 and (m.haze_start != 0 or !std.mem.allEqual(u8, &m.haze, 0))) return error.BadMood; // M6: 0 = none
     if (m.draw_r != 0 and (m.draw_r < 3 or m.draw_r > MAX_RBAKE)) return error.BadMood;

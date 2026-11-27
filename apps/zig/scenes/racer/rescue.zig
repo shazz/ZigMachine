@@ -11,8 +11,8 @@ const car = @import("car.zig");
 const fix = @import("fix.zig");
 const wall = @import("wall.zig");
 
-pub const STUCK_TICKS: u16 = 90; // 3 s of the 30 Hz tick off the asphalt
-pub const STILL_TICKS: u16 = 180; // 6 s without a segment of progress
+pub const STUCK_TICKS: u16 = 150; // 5 s of the 30 Hz tick off the asphalt (cars that find the road again do in < 4 s)
+pub const STILL_TICKS: u16 = 240; // 8 s without a segment of progress
 pub var break_rescue = false; // --break rescue: never rescued (rescue_test.zig; key % in the cart, the A/B)
 
 /// A car's watch: ticks off the asphalt, ticks since it last gained a segment, and the track position it gained it at.

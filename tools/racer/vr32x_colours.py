@@ -14,13 +14,16 @@ from racer import limits, vr_colours, vr_import
 from racer.vr32x_geom import Mesh, _area2
 from racer.vr32x_rom import RGB
 
+BOOST = 50
 At = dict[int, tuple[int, int]]  # palette index -> (ramp, level)
 Cols = tuple[At, dict[int, RGB]]  # ... and ramp -> RGB
 
 
-def colours(m: Mesh, pal: list[RGB], reserve: int = 0) -> tuple[At, dict[int, RGB], dict[int, float]]:
+def colours(m: Mesh, pal: list[RGB], reserve: int = 0,
+            boost: frozenset[int] = frozenset()) -> tuple[At, dict[int, RGB], dict[int, float]]:
     """palette index -> (ramp, level), ramp -> RGB, and each index's area (for the report's error). The last `reserve`
-    free ramps are left to the panorama's colours (R82 32X look: `reserved`)."""
+    free ramps are left to the panorama's colours (R82 32X look: `reserved`). `boost`: entries weighed as if BOOST times
+    their area (the placed objects' colours: a banner's text is small but must not take the nearest grass shade)."""
     area: dict[int, float] = {}
     for f in m.faces:
         area[f.colour] = area.get(f.colour, 0.0) + _area2(m.pts(f.v))
@@ -34,7 +37,7 @@ def colours(m: Mesh, pal: list[RGB], reserve: int = 0) -> tuple[At, dict[int, RG
         rest = [c for c in area if c not in own]
         if not rest:
             break
-        own.append(max(rest, key=lambda c: math.sqrt(area[c]) * err(c)))
+        own.append(max(rest, key=lambda c: math.sqrt(area[c] * (BOOST if c in boost else 1)) * err(c)))
     rgb = {r: pal[c] for r, c in zip(limits.FREE_RAMPS, own, strict=False)}
     at = {c: (r, vr_colours.FLAT) for r, c in zip(limits.FREE_RAMPS, own, strict=False)}
     for c in area:
