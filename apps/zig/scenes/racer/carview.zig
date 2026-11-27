@@ -20,7 +20,15 @@ const trk = @import("trk.zig");
 const types = @import("types.zig");
 const xf = @import("xform.zig");
 
-pub const Snap = struct { pos: [3]i32, angle: i32 };
+/// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else).
+pub const Snap = struct { pos: [3]i32, angle: i32, size: i32 = fix.ONE };
+
+/// The pose half way from a to b (the 60 Hz frame between two 30 Hz ticks).
+pub fn midway(a: Snap, b: Snap) Snap {
+    const turn: i32 = @as(i16, @truncate(b.angle -% a.angle));
+    const p = [3]i32{ a.pos[0] + ((b.pos[0] - a.pos[0]) >> 1), a.pos[1] + ((b.pos[1] - a.pos[1]) >> 1), a.pos[2] + ((b.pos[2] - a.pos[2]) >> 1) };
+    return .{ .pos = p, .angle = a.angle +% (turn >> 1), .size = b.size };
+}
 /// The view depth (Q16) past which a car is drawn with the far model: 6 units, where the GT (drawn x2 since M5 step 5) is
 /// ~26 pixels long (it was ~13; the switch was kept at 6 units: docs M5.md step 5).
 pub const LOD1_Z: i32 = 6 << 16;
@@ -36,7 +44,7 @@ pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const tr
     const sh = &m.range(.shadow)[0];
     _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
     const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
-    if (z > LOD1_Z) return part(fr, cache, m, &mv, .lod1, k);
+    if (z > fix.mul(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
     part(fr, cache, m, &mv, .wheels, k);
     part(fr, cache, m, &mv, .hull, k);
     const behind = mv.eye7[2] < m.wing_z;
@@ -64,8 +72,8 @@ fn nearCorner(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Mo
     }
     const c = fix.cos(s.angle);
     const d = -fix.sin(s.angle);
-    const x: i32 = @as(i32, best[0]) << 9;
-    const zz: i32 = @as(i32, best[2]) << 9;
+    const x: i32 = fix.mul(@as(i32, best[0]) << 9, s.size);
+    const zz: i32 = fix.mul(@as(i32, best[2]) << 9, s.size);
     const w = [3]i32{ s.pos[0] + fix.mul(c, x) + fix.mul(d, zz), s.pos[1], s.pos[2] - fix.mul(d, x) + fix.mul(c, zz) };
     const f = groundmod.findFace(t, w, ground) orelse return null;
     return fr.faceKey(f.face);
@@ -101,8 +109,17 @@ pub fn modelView(v: *const cam.View, s: Snap) cam.View {
     const dx = v.eye7[0] - (s.pos[0] >> 9);
     const dz = v.eye7[2] - (s.pos[2] >> 9);
     m.eye7 = .{ fx.mulsh16(c, dx) + fx.mulsh16(-d, dz), v.eye7[1] - (s.pos[1] >> 9), fx.mulsh16(d, dx) + fx.mulsh16(c, dz) };
+    if (s.size != fix.ONE) sized(&m, s.size);
     if (fx.use_f32) cam.floatView(&m);
     return m;
+}
+
+/// A model drawn `size` times bigger: the rows scaled, the eye brought into the model's own (smaller) space.
+fn sized(m: *cam.View, size: i32) void {
+    for (&m.r) |*r| {
+        for (r) |*e| e.* = @truncate((@as(i64, e.*) * size) >> 16);
+    }
+    for (&m.eye7) |*e| e.* = fix.div(e.*, size);
 }
 
 /// (a * b) >> 16 kept in 64 bits: a Q25 row times a Q16 position passes 2^31 once the car is 64 units out (the oval is 90 long).

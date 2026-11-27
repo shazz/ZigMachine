@@ -85,15 +85,18 @@ def _level(n: tuple[float, float, float], base: float) -> int:
     return min(7, int((base + (1.0 - base) * lam) * 8))
 
 
-def shader(at: dict[int, tuple[int, int]]) -> Callable[[str, tuple[float, float, float]], tuple[int, int]]:
+def shader(at: dict[int, tuple[int, int]], headroom: bool = False) -> Callable[[str, tuple[float, float, float]], tuple[int, int]]:
     """trackc's `shade`: material "c<byte>" -> (the flat colour, the debug key's alternates: byte 0 lit as the converter
-    lights (the old look), byte 1 a gentle light, levels 5..7)."""
+    lights (the old look), byte 1 a gentle light, levels 5..7). `headroom` (R82, the shadow headroom): byte 2 is the flat
+    colour kept one level off its ramp's bottom (level 0 -> 1), so the cars' one-darker shadow shows on it; the cart draws
+    it with the toggle on (project.headroom), the plain colour otherwise."""
 
     def shade(mat: str, n: tuple[float, float, float]) -> tuple[int, int]:
         ramp, level = at[int(mat[1:], 16)]
         base = 16 + ramp * 8
         drop = FLAT - level
         old, soft = max(0, _level(n, 0.25) - drop), max(0, _level(n, 0.65) - drop)
-        return base + level, (base + old) | (base + soft) << 8
+        room = (base + max(1, level)) << 16 if headroom else 0
+        return base + level, (base + old) | (base + soft) << 8 | room
 
     return shade

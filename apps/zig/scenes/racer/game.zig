@@ -22,6 +22,7 @@ const session = @import("session.zig");
 const skid = @import("skid.zig");
 const trk = @import("trk.zig");
 const xf = @import("xform.zig");
+const arcade = @import("arcade.zig");
 
 pub const Mode = enum { off, race, bench };
 pub const Snap = carview.Snap;
@@ -44,6 +45,7 @@ pub const Game = struct {
     held: u8 = 0,
     auto: bool = false, // the player follows the recorded stream
     pilot: bool = false, // ... or, on a local VR track (no stream), the AI's controller flies the player
+    apilot: bool = false, // key L: the AI's controller flies the player in the PHYSICS option's model (the arcade harness' driver)
     warp: bool = false,
     frames: u32 = 0,
     prev: [N]Snap = undefined,
@@ -61,7 +63,7 @@ pub const Game = struct {
     }
 
     fn snap(self: *Game) void {
-        for (self.s.race.cars[0..N], &self.cur) |*c, *o| o.* = .{ .pos = c.pos, .angle = c.angle };
+        for (self.s.race.cars[0..N], &self.cur) |*c, *o| o.* = .{ .pos = c.pos, .angle = c.angle, .size = c.size };
     }
 
     /// A fresh race on the grid (the records and the camera stay).
@@ -152,9 +154,15 @@ pub const Game = struct {
         if (f == GRID_FRAMES) self.s.start() catch {}; // WHY: as go()
     }
 
+    /// A tick's physics (R82 32X feel): the reference's drivers (bench, `a`) CLASSIC, so their pins hold; else the option.
+    pub fn physics(self: *const Game) arcade.Model {
+        return if (self.mode == .race and !self.auto) arcade.model else .classic;
+    }
+
     fn tick(self: *Game) void {
         self.prev = self.cur;
-        self.s.race.pilot = self.pilot and self.auto;
+        self.s.race.setModel(self.physics());
+        self.s.race.pilot = (self.pilot and self.auto) or (self.apilot and !self.auto);
         self.s.tick(self.buttons());
         self.snap();
         const st = self.s.fsm.state;
@@ -165,16 +173,14 @@ pub const Game = struct {
     }
 
     pub fn shown(self: *const Game, k: usize) Snap {
-        if (self.frames % 2 == 0) return self.cur[k];
-        const a = self.prev[k];
-        const b = self.cur[k];
-        const turn: i32 = @as(i16, @truncate(b.angle -% a.angle));
-        return .{ .pos = mid(a.pos, b.pos), .angle = a.angle +% (turn >> 1) };
+        return if (self.frames % 2 == 0) self.cur[k] else carview.midway(self.prev[k], self.cur[k]);
     }
 
+    /// The race camera: the POV's offsets (zoned under a roof), grown with an ARCADE car's size (FEEL.md).
     pub fn pose(self: *const Game) cam.Pose {
         const s = self.shown(0);
-        return pov.pose(s.pos, s.angle, pov.zoned(self.t, self.pov, pov.offsets(self.pov, self.from, self.pov_frames), self.s.race.cars[0].track.u));
+        const o = pov.zoned(self.t, self.pov, pov.offsets(self.pov, self.from, self.pov_frames), self.s.race.cars[0].track.u);
+        return pov.pose(s.pos, s.angle, pov.sized(o, s.size));
     }
 
     pub fn near(self: *const Game) i32 {
@@ -191,7 +197,3 @@ pub const Game = struct {
         }
     }
 };
-
-fn mid(a: [3]i32, b: [3]i32) [3]i32 {
-    return .{ a[0] + ((b[0] - a[0]) >> 1), a[1] + ((b[1] - a[1]) >> 1), a[2] + ((b[2] - a[2]) >> 1) };
-}

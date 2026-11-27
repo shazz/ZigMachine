@@ -4,6 +4,7 @@ mood block every track file carries (tools/racer/mood.py; the cart reads it in a
 from __future__ import annotations
 
 import json
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -85,14 +86,16 @@ class MoodTest(unittest.TestCase):
     def test_a_block_is_the_files_last_32_bytes_inside_the_crc(self) -> None:
         blob = (ASSETS / "salt.ktrk").read_bytes()
         at = int.from_bytes(blob[100:104], "little")
-        self.assertEqual(at + mood.SIZE, len(blob))
+        self.assertEqual(at + len(mood.unpack(blob).pack()), len(blob))
+        self.assertIn(len(blob) - at, (mood.SIZE, mood.SCALED))
 
     def test_a_track_clock_packs_into_bytes_24_25_and_reads_back_and_the_shipped_tracks_leave_it_to_the_cart(self) -> None:
         d = doc("neon_docks")
         d["mood"]["clock"] = [120, 18]
         m = kit.look(d)
         self.assertEqual(m.pack()[24:26], bytes([120, 18]))
-        self.assertEqual(m.pack()[26:], bytes(6))
+        self.assertEqual(m.pack()[26:32], bytes(6))  # the scale tail (R82 32X feel) follows: the Kit default
+        self.assertEqual(m.pack()[32:], struct.pack("<2H", kit.KIT_WORLD, kit.KIT_CAR))
         for blob in ("salt", "neon", "glacier", "city"):
             with self.subTest(blob):
                 self.assertEqual(mood.unpack((ASSETS / f"{blob}.ktrk").read_bytes()).clock, (0, 0))  # computed (clock.zig)

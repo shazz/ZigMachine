@@ -63,3 +63,30 @@ test "a FAKE span is the checkerboard: (x + y) even is DITHER, odd is untouched,
         }
     };
 }
+
+test "the shadow headroom (R82): on, a face's headroom colour (alt byte 2) is drawn and the shadow then darkens it; off, or none stored, the colour" {
+    const project = @import("project.zig");
+    const trk = @import("trk.zig");
+    var f = std.mem.zeroes(trk.Face);
+    f.colour = 16 + 3 * 8; // a ramp's bottom: no darker level for the shadow
+    f.alt = (16 + 3 * 8 + 1) << 16; // the import's headroom: one level up
+    try std.testing.expectEqual(f.colour, project.colourOf(&f));
+    project.headroom = true;
+    defer project.headroom = false;
+    try std.testing.expectEqual(@as(u8, 16 + 3 * 8 + 1), project.colourOf(&f));
+    try std.testing.expectEqual(f.colour, shadow.darken(project.colourOf(&f))); // the shadow shows now
+    f.alt = 0;
+    try std.testing.expectEqual(f.colour, project.colourOf(&f)); // a face with none keeps its colour
+}
+
+test "the OSD's state line (R82): every option in 40 columns, the defaults and a changed set" {
+    const osd = @import("osdline.zig");
+    var b: [48]u8 = undefined;
+    const a = osd.line(&b, .{ .cpu = true, .r = 8, .pov = "far", .music = true });
+    try std.testing.expectEqualStrings("CPU MS FL RL H1 R8 ARCF far M1 L3", a);
+    @import("project.zig").headroom = true;
+    defer @import("project.zig").headroom = false;
+    const c = osd.line(&b, .{ .cpu = false, .r = 3, .pov = "cockpit", .music = false });
+    try std.testing.expectEqualStrings("AFF MS FL HR H1 R3 ARCF coc M0 L3", c);
+    try std.testing.expect(c.len <= 40);
+}

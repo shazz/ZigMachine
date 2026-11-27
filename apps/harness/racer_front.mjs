@@ -33,7 +33,7 @@ const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const INK = 3, LOGO = [5, 6, 7], PANEL = 9, HILITE = 10, ALERT = 11; // palette.zig / menu.zig
-const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "fe183b3700e0" }; // select: M5 finish (its footer names RIGHT OPTS); options: M6 (the HAZE row, a taller box)
+const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "d5ce3046faf9" }; // select: M5 finish (its footer names RIGHT OPTS); options: R82 32X feel (PHYSICS + CAR CLASS rows, 14 px apart)
 const FONT = new Uint8Array(await readFile("libs/zig/assets/fonts/system_font_atari_1bit.raw"));
 const errors = [];
 const fail = (m) => errors.push(m);
@@ -208,7 +208,9 @@ async function optionsScreen(B, race3) {
     for (const want of ["racer,option,laps,5", "racer,shadow,DITHER", "racer,shade,LIT", "racer,option,distance,7", "racer,option,music,OFF", "racer,hazeopt,OFF"])
         if (!logged(B, want)) fail(`options: no ${want} line`);
     if (!onScreen(px, " SHADOW        < CHECKERBOARD >", INK) || !onScreen(px, " MUSIC         < OFF >", INK)) fail("options: the changed values are not on screen");
-    B.tap(1); B.tap(5); // BACK: the select (it came from there)
+    B.tap(1); B.tap(5); B.tap(5); // R82 32X feel: PHYSICS to CLASSIC and back to ARCADE (each logged)
+    if (!logged(B, "racer,physics,CLASSIC") || !logged(B, "racer,physics,ARCADE")) fail("options: the PHYSICS row did not switch the model both ways");
+    B.tap(1); B.tap(1); B.tap(5); // past CAR CLASS to BACK: the select (it came from there)
     if (B.fronts().slice(-2).join(" ") !== "options select") return fail(`BACK on the options: ${B.fronts().slice(-2)}, want the select`);
     if (!onScreen(B.view(), "LAP 684 M  5 LAPS", INK)) fail("select after the options: SALT's laps do not say 5");
     B.press("\b"); // the title

@@ -105,6 +105,10 @@ pub fn keyUp(d: anytype, cp: u32) void {
 pub fn key(d: anytype, cp: u32) bool {
     if (press.ofCode(cp)) |k| if (!d.front.held.press(k, d.front.ticks)) return true;
     const st = screen(d) orelse {
+        if (cp == 8 and (d.game.mode == .bench or d.drive.mode == .bench)) { // a running bench lap: Backspace aborts it
+            d.setGame(.off); // both benches stopped, the session back on its grid (from where Backspace is the select)
+            return nav.toSelect(d, .back);
+        }
         if (cp != 8 or d.drive.mode != .off or d.game.s.fsm.state != .grid or d.game.mode == .bench) return false;
         d.pose = null; // a race's grid, or the bench view (its idle session sits on the grid): back to the select
         return nav.toSelect(d, .back);

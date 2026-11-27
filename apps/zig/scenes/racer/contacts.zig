@@ -26,8 +26,8 @@ pub fn update(me: *car.Car, others: []const car.Car) u32 {
     const fwd = me.axes().fwd;
     var n: u32 = 0;
     for (others) |*a| {
-        if (vec.len(vec.between(me.pos, a.pos)) >= RANGE) continue;
-        for (OFFSETS) |off| n += @intFromBool(collide(me, a, fwd, off));
+        if (vec.len(vec.between(me.pos, a.pos)) >= fix.mul(RANGE, me.size)) continue;
+        for (OFFSETS) |off| n += @intFromBool(collide(me, a, fwd, fix.mul(off, me.size)));
         break;
     }
     return n;
@@ -36,7 +36,7 @@ pub fn update(me: *car.Car, others: []const car.Car) u32 {
 fn collide(me: *car.Car, a: *const car.Car, fwd: vec.V, off: i32) bool {
     var axis = vec.between(a.pos, vec.add(me.pos, fwd, off));
     const depth = vec.len(axis);
-    if (depth >= RADIUS) return false;
+    if (depth >= fix.mul(RADIUS, me.size)) return false; // size: the ARCADE car's scale (fix.ONE, exact, in CLASSIC)
     const spin: vec.V = .{ fix.mul(0 -% me.angv, off), 0, 0 }; // v2_ortho({0, 0, off}, angularv)
     const relv = vec.between(a.vel, vec.add(me.vel, spin, fix.ONE));
     if (vec.dot(axis, relv) >= 0) return false;

@@ -63,6 +63,13 @@ pub const Face = extern struct {
 
 pub const Seg = extern struct { pos: [3]i32, yaw: u16, segment: u16 }; // segment: the racing-line index (a start-grid pose); on the line, flags
 pub const LINE_ROOF: u16 = 1; // a line entry's flag: a roof over the segment (zone.zig: the far camera goes near; M5 finish)
+/// The high byte of a line entry's flags (R82 32X feel): the AI's speed cue, x/256 of the class's top speed; 0 = none.
+pub const LINE_CUE: u16 = 0xFF00;
+
+/// The AI's speed cue at line segment i (any integer: it wraps): 0 = none.
+pub fn cue(t: *const Track, i: i32) u8 {
+    return @truncate(t.line[@intCast(@mod(i, @as(i32, @intCast(t.line.len))))].segment >> 8);
+}
 pub const Vert = [3]i16; // 1/128 unit
 
 pub const Track = struct {
@@ -82,6 +89,7 @@ pub const Track = struct {
     checkpoints: []const u32, // racing-line segment indices, in lap order (the race rules)
     rbake: u32,
     mood: Mood,
+    scale: Scale = .{},
 
     pub fn tileFaces(self: *const Track, tile: usize) []const u16 {
         return self.tile_faces[self.tile_first[tile]..self.tile_first[tile + 1]];
@@ -119,6 +127,7 @@ pub fn parse(b: []align(4) const u8) Error!Track {
     var t: Track = undefined;
     t.rbake = word(b, 10);
     t.mood = try mood(b, mood_at, total);
+    t.scale = try scale(b, mood_at, total);
     @memcpy(&t.name, b[104..128]);
     t.palette = try block([4]u8, b, word(b, 12), nramps, word(b, 13));
     t.verts = try block(Vert, b, word(b, 13), nv, word(b, 14));
@@ -139,10 +148,23 @@ pub fn parse(b: []align(4) const u8) Error!Track {
     return t;
 }
 
+/// The optional tail of the mood block (R82 32X feel, a 36-byte block; FEEL.md): the ARCADE physics' world and car scales, Q8.
+pub const Scale = extern struct { world: u16 = SCALE_ONE, car: u16 = SCALE_ONE };
+pub const SCALE_ONE: u16 = 256;
+const SCALE_LIM = [2]u16{ 64, 4096 }; // tools/racer/mood.py SCALE_MIN, SCALE_MAX
+
+fn scale(b: []align(4) const u8, at: u32, total: u32) Error!Scale {
+    if (at == 0 or total - at == MOOD_SIZE) return .{};
+    if (total - at != MOOD_SIZE + @sizeOf(Scale)) return error.BadMood;
+    const s = (try block(Scale, b, at + MOOD_SIZE, 1, total))[0];
+    for ([2]u16{ s.world, s.car }) |v| if (v < SCALE_LIM[0] or v > SCALE_LIM[1]) return error.BadMood;
+    return s;
+}
+
 fn mood(b: []align(4) const u8, at: u32, total: u32) Error!Mood {
     if (at == 0) return .{};
     const m = (try block(Mood, b, at, 1, total))[0];
-    if (at + MOOD_SIZE != total) return error.BadMood; // the file's last block
+    if (at + MOOD_SIZE != total and at + MOOD_SIZE + @sizeOf(Scale) != total) return error.BadMood; // the file's last block
     if (m.ground_ramp >= word(b, 9) or m.ground_level > 7 or m.flags & ~BENCH_ONLY != 0 or m.backdrop >= BACKDROPS) return error.BadMood;
     if (m.clock[0] > MAX_CLOCK[0] or m.clock[1] > MAX_CLOCK[1]) return error.BadMood;
     if (m.haze_strength == 0 and (m.haze_start != 0 or !std.mem.allEqual(u8, &m.haze, 0))) return error.BadMood; // M6: 0 = none
@@ -161,7 +183,7 @@ fn check(t: *const Track) Error!void {
     for (t.tile_faces) |f| if (f >= t.faces.len) return error.BadBlock;
     for (t.tile_first[1..], t.tile_first[0..TILES]) |hi, lo| if (hi < lo) return error.BadBlock;
     if (t.line.len < 3) return error.BadBlock;
-    for (t.line) |s| if (s.segment & ~LINE_ROOF != 0) return error.BadBlock; // a flag this cart does not know
+    for (t.line) |s| if (s.segment & ~(LINE_ROOF | LINE_CUE) != 0) return error.BadBlock; // a flag this cart does not know
     for (t.pvs_index) |at| if (at != NOT_BAKED and (at >= t.pvs.len or t.pvs[at] > t.pvs.len - at - 1)) return error.BadBlock;
     for (t.lr) |s| if (s[0] >= t.verts.len or s[1] >= t.verts.len) return error.BadBlock;
     for (t.checkpoints, 0..) |c, i| if (c >= t.line.len or (i > 0 and c <= t.checkpoints[i - 1])) return error.BadBlock;

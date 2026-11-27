@@ -113,7 +113,10 @@ def _line(doc: Doc) -> tuple[bytes, list[tuple[int, int]]]:
     for i, c in enumerate(cs):
         nx = cs[(i + 1) % len(cs)]
         yaw = int(round((math.atan2(nx[0] - c[0], nx[2] - c[2]) / (2 * math.pi)) % 1.0 * 65536)) & 0xFFFF
-        out += struct.pack("<3iHH", *c, yaw, LINE_ROOF if doc["racing_line"][i].get("roof") else 0)
+        cue = doc["racing_line"][i].get("cue", 0)  # R82 32X feel: the AI's speed cue, x/256 of the top (cues.py); 0 = none
+        if not (isinstance(cue, int) and 0 <= cue <= 255):
+            raise ConvertError(f"racing line {i}: cue {cue!r} is not 0..255")
+        out += struct.pack("<3iHH", *c, yaw, (LINE_ROOF if doc["racing_line"][i].get("roof") else 0) | cue << 8)
         tiles.append((int(c[0] // 65536 // ktrk.TILE) + 16, int(c[2] // 65536 // ktrk.TILE) + 16))
     return out, tiles
 
