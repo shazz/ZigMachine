@@ -13,16 +13,23 @@
 //      Salt Flats, Neon Docks and Glacier Pass: no face kept by the camera's real view wedge is missing from the baked PVS
 //      (racer,pvs lost = 0 every frame), no polygon dropped at the cap. --break pvs (key @: the PVS list thinned) must be
 //      caught.
+//   4. the race HUD over the picture (item 5, racer/hudpic.zig): an ARCADE race on Salt Flats, the default (picture) against
+//      key 0 (the two bands): in the race the bands are blank and every pixel that differs is in the HUD's places (the top
+//      and bottom strips of the view, the map's box); during the countdown the digit is in the middle; the view with the HUD
+//      is the same on the CPU and AFFINE fills; pinned. --break hud (key 0 on the default machine) must be caught.
 //   node apps/harness/racer_bugpass.mjs [<shot dir>] [--break <mode>]
+import { createHash } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { diskHook, ZMD } from "./racer_disk.mjs";
 import { bootObj, key } from "./obj_machine.mjs";
 import { png } from "./skystrike_zig_frame.mjs";
 
 const argv = process.argv.slice(2);
-const MODES = ["mute", "pvs"];
+const MODES = ["mute", "pvs", "hud"];
+const PINS = { hud: "300bd1307569" }; // the Salt race frame 660 with the picture HUD
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !MODES.includes(BREAK)) { console.error(`racer_bugpass: unknown --break ${BREAK}`); process.exit(1); }
+const PRINT = argv.includes("--print-pins");
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100, SALT_TAPS = 2;
@@ -131,9 +138,40 @@ async function visibility() {
     }
 }
 
+/** The race HUD over the picture against the bands, and on both fills. */
+async function hud() {
+    const pic = await pilotRace((B) => { if (BREAK === "hud") key(B.S, "0"); });
+    const bands = await pilotRace((B) => key(B.S, "0"));
+    const aff = await pilotRace((B) => { if (BREAK === "hud") key(B.S, "0"); key(B.S, "f"); });
+    const step = (n) => { for (let i = 0; i < n; i++) { pic.S.frame(); bands.S.frame(); aff.S.frame(); } };
+    const MAP = [250, 44, 64, 56];
+    const inMid = (x, y) => y >= 62 && y < 102 && x >= 64 && x < 256; // the middle's messages: EXTEND TIME, FINISH
+    const inHud = (x, y) => y < 46 || y >= 150 || inMid(x, y) || (x >= MAP[0] - 2 && x < MAP[0] + MAP[2] + 3 && y >= MAP[1] - 2 && y < MAP[1] + MAP[3] + 3);
+    step(60); // the countdown
+    let a = pic.view(), b = bands.view(), mid = 0;
+    for (let i = Y0 * W; i < Y1 * W; i++) if (a[i] !== b[i] && inMid(i % W, (i / W) | 0)) mid++;
+    if (mid < 100) fail(`hud: no countdown digit in the middle of the view (${mid} pixels)`);
+    step(600);
+    a = pic.view(); b = bands.view();
+    const c = aff.view();
+    let diff = 0, stray = 0, ink = 0;
+    for (let i = Y0 * W; i < Y1 * W; i++) if (a[i] !== b[i]) { diff++; if (!inHud(i % W, (i / W) | 0)) stray++; }
+    for (let i = 0; i < W * H; i++) if ((i < Y0 * W || i >= Y1 * W) && a[i] !== 2 && a[i] !== 0) ink++; // PAPER or index 0: black
+    await shot("bugpass_hud.png", pic, a);
+    if (diff < 1500) fail(`hud: the picture HUD draws ${diff} pixels in the race (none?)`);
+    if (stray) fail(`hud: ${stray} pixels changed outside the HUD's places`);
+    if (ink) fail(`hud: ${ink} band pixels not blank under the picture HUD`);
+    if (c.some((v, i) => v !== a[i])) fail("hud: the view with the HUD differs between the CPU and AFFINE fills");
+    const h = createHash("sha256").update(a).digest("hex").slice(0, 12);
+    if (PRINT) console.log(`PIN hud "${h}"`);
+    else if (!BREAK && h !== PINS.hud) fail(`hud: the race frame's hash ${h} != the pin ${PINS.hud}`);
+    notes.push(`hud: ${diff} pixels of HUD over the race's picture, all in its places, the bands blank, CPU = AFFINE; the countdown's digit ${mid} pixels in the middle`);
+}
+
 if (BREAK === "mute") await sound();
+else if (BREAK === "hud") await hud();
 else if (BREAK === "pvs") await visibility();
-else { await decals(); await sound(); await visibility(); }
+else { await decals(); await sound(); await visibility(); await hud(); }
 for (const n of notes) console.log(`  ${n}`);
 console.log(errors.length ? `racer_bugpass: FAILED -- ${errors.join("; ")}` : "racer_bugpass: PASS");
 process.exitCode = errors.length ? 1 : 0;

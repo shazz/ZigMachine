@@ -37,6 +37,7 @@ async function boot(opts) {
     const log = [];
     const S = await bootObj("site/carts/demo-racer.wasm", (s) => log.push(s), diskHook());
     if (!opts?.raw) key(S, "5"); // every pin was taken at R = 5; the cart's default is 8 (racer.zig PLAY_R)
+    key(S, "0"); // the HUD in the bands (R82 bug pass: the picture HUD is the default in a race; racer_bugpass.mjs checks it)
     const shown = () => [0, 1].filter((p) => S.demo.isPlaneEnabled(p))[0] ?? 0;
     const view = () => {
         const vb = S.machine.hwVideoBase(), dv = new DataView(S.memory.buffer, vb, OFF_PAL);

@@ -31,6 +31,7 @@ const keys = @import("racer/keys.zig");
 const audio = @import("racer/audio.zig");
 const Hud = @import("racer/hud.zig").Hud;
 const minimap = @import("racer/minimap.zig");
+const hudpic = @import("racer/hudpic.zig");
 const palette = @import("racer/palette.zig");
 const present = @import("racer/present.zig");
 const report = @import("racer/report.zig");
@@ -73,6 +74,7 @@ pub const Demo = struct {
     drive: drive.Drive = undefined,
     game: game.Game = undefined,
     map: minimap.Map = undefined,
+    pmap: minimap.Map = undefined, // the picture HUD's bigger map (racer/hudpic.zig)
     caches: [2]xf.Cache = undefined, // the car's and the skidmarks' vertex caches
     p: draw.Painter = undefined,
     hud: Hud = .{},
@@ -106,6 +108,7 @@ pub const Demo = struct {
         self.drive.now = micros;
         self.game = game.Game.init(&self.tracks[0], micros) catch |e| @panic(@errorName(e));
         self.map = minimap.Map.init(&self.tracks[0]);
+        self.pmap = hudpic.fitMap(&self.tracks[0]);
         self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK), .os = zigos } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];

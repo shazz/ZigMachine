@@ -21,6 +21,7 @@ const project = @import("project.zig");
 const shadow = @import("shadow.zig");
 const race = @import("race.zig");
 const racehud = @import("racehud.zig");
+const hudpic = @import("hudpic.zig");
 const session = @import("session.zig");
 const standings = @import("standings.zig");
 const front = @import("front.zig");
@@ -69,16 +70,18 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     var b0: [48]u8 = undefined;
     var b1: [48]u8 = undefined;
     const racing = d.game.mode != .off and d.pose == null;
+    const picture = racing and hudpic.shows(d.game.mode == .race, d.game.s.fsm.state); // R82 bug pass: the HUD over the picture
     var bo: [48]u8 = undefined;
     const state = @import("osdline.zig").line(&bo, .{ .cpu = d.p.cpu_fill, .r = d.r, .pov = povName(d), .music = d.audio.player.on });
     d.hud.draw(zigos, fb, d.back, .{
         .track = trackName(d), .shade = project.TAGS[project.shade], .shadow = if (shadow.fake) "/DITHER" else "", .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
         .pov = povName(d), .polys = c.polys, .spans = c.spans, .osd = d.osd,
         .uncapped = d.uncapped, .avg_us = d.bench.avg_us, .fps10 = d.bench.fps10, .stage_us = d.bench.stage_us,
-        .line0 = if (d.osd) state else if (racing) racehud.top(&b0, &d.game) else front.hudTop(d, &b0),
-        .line1 = if (racing) racehud.bottom(&b1, &d.game) else front.hudBottom(d),
+        .line0 = if (d.osd) state else if (picture) "" else if (racing) racehud.top(&b0, &d.game) else front.hudTop(d, &b0),
+        .line1 = if (picture and !d.osd) "" else if (racing) racehud.bottom(&b1, &d.game) else front.hudBottom(d),
     });
-    if (racing) drawMap(d, fb);
+    if (racing and !picture) drawMap(d, fb);
+    if (picture) clearMap(fb); // the band's minimap from the grid's frames: the bands are blank under the picture HUD
     d.bench.lap(.hud);
     const closed = d.bench.frameEnd();
     const driven = d.drive.mode != .off and d.pose == null;
@@ -86,9 +89,23 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     const script = if (racing) d.game.frames else if (driven) d.drive.frames else d.script;
     const scripted = d.pose == null and !d.paused and !front.menu(d) and (if (racing) d.game.mode == .bench else d.drive.mode != .drive);
     d.rep.report(zigos, fb, &d.bench, knobs(d), c, .{ .script = script, .scripted = scripted, .lap_frames = lap_frames });
+    if (picture) drawPicture(d, zigos, fb); // after the view's CRC: the lap pins are the bare view's
     if (driven) logPhysics(d);
     if (racing) raceLog(d);
     if (closed) d.bench.resetWindow();
+}
+
+fn drawPicture(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB) void {
+    zigos.blitSync(); // WHY: the AFFINE fill's spans are CHISEL ops: the HUD lands after them
+    var pos: [race.NCARS][3]i32 = undefined;
+    for (&pos, 0..) |*p, k| p.* = d.game.shown(k).pos;
+    const p = @import("frontdraw.zig").px(fb);
+    hudpic.draw(p, zigos.system_font, racehud.picture(&d.game, trackName(d)), &d.pmap, pos[0..d.game.s.race.n]);
+}
+
+fn clearMap(fb: *zg.LogicalFB) void {
+    const m = @import("minimap.zig");
+    for (m.Y0..m.Y0 + m.H) |y| @memset(fb.fb[y * fb.stride + m.X0 ..][0..m.W], @import("palette.zig").PAPER);
 }
 
 fn drawMap(d: anytype, fb: *zg.LogicalFB) void {

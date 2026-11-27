@@ -36,6 +36,7 @@ async function boot() {
     const lines = (kind) => log.filter((l) => l.startsWith(`racer,${kind},`)).map((l) => l.split(",").slice(2));
     const until = (kind, state, max) => { for (let i = 0; i < max; i++) { S.frame(); if (lines(kind).some((l) => l[0] === state)) return true; } return false; };
     if (BREAK) key(S, "I");
+    key(S, "0"); // the HUD in the bands (the picture HUD: racer_bugpass.mjs)
     for (let i = 0; i < SALT_TAPS; i++) { key(S, "t"); run(3); }
     return { S, log, run, view, lines, until };
 }
