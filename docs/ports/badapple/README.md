@@ -46,12 +46,16 @@ The cart refuses a header that is not 320x200 and any frame that is out of range
 - Sync: the frame is `elapsed x 30 / 1e6 + 1` from the first update; a late picture decodes every frame it owes
   (they are deltas) and shows the last. With the MP3 (`badapple/song.zig`) the music is the clock: SONG.MP3 is read
   a 32 KiB disk read at a time and fed as the player's 64 KiB ring has room (mp3_player's flow control), and the
-  elapsed time (hostMicros, smooth) is pulled to within 40 ms of the MP3's position, `mp3Status(.frames)` x the
+  elapsed time is set to the MP3's position at its first trusted reading, then (hostMicros, smooth) pulled to within
+  40 ms of it, the position being `mp3Status(.frames)` x the
   frame size the cart reads off the file's first header (`mp3clock.zig`: 576 samples at 22.05 kHz, so 26 ms
   steps; the status rate field only says "other" for MPEG-2). A cart-asked XM has no audio position to read
   (zg.bard.position() is the BARD FM queue's, not the song engine's), so with the XM it is hostMicros alone. No
   clock (a host answering 0, no MP3): 30 fps from the 60 Hz VBLs. Checked locally (not a gate: the gate builds
-  the public carts): a fake MP3 player at half the host's speed, and the film follows the song within a frame.
+  the public carts): with a fake MP3 player at the host's rate the film is within one frame of the song, at half
+  the host's rate it follows the song. `.frames` counts DECODED frames, a little ahead of what is heard: the
+  residual offset is for the ear on the board. Leaving the cart: the host's cart swap resets the sound side,
+  which stops the MP3 (site/js/sealed-loader.js); the cart has no stop of its own.
 - No float per frame (the only maths is a u64 multiply-divide once a frame).
 
 ## The real film (prototypes/badapple_local/spans.bin)
@@ -88,9 +92,11 @@ All three real films are encoded from the same pictures: the tile and polygon st
 `spans.bin` painted back (`gen_film.py <format> --film spans.bin OUT`), so they show what cart 166 shows (tiles
 exactly; polygons within the simplification). Mc is `apps/harness/frame_cost.mjs`'s ESTIMATE over the whole
 film in VBL mode (no clock, 13,160 frames), cart + ROM only: FRESCO's ~0.7 Mc for the one enabled plane is the
-same for all three and left out; the worst spans / tiles frames are read-ahead pumps. The polygon cart's worst
+same for all three and left out (`frame_cost.mjs site/carts/demo-<tag>.wasm --disk <real .zmd> --frames 13160 --json`:
+`series` minus `split.fresco`); the worst spans / tiles frames are read-ahead pumps. The polygon cart's worst
 (1.09 Mc) is a hard cut (193 rows repainted) landing on a pump: with FRESCO that frame is ~1.8 Mc
-estimated, over the 1.67 Mc of a 60 Hz frame, so one VBL may slip there (16 ms on a 33 ms film frame).
+estimated, at the bottom of the band (~1.75-2.1 Mc) where the board starts to miss 60 Hz, so one VBL may slip
+there (16 ms on a 33 ms film frame): the board's OSD decides.
 
 ### The polygon stream (cart 168, `BAPO`, `tools/badapple/poly.py` has the byte layout)
 
