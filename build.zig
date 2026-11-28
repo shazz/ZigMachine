@@ -702,7 +702,7 @@ pub fn build(b: *std.Build) void {
         "", // 165: retired (aurora boot variant E, dropped)
         "demo-badapple", // 166 — BAD APPLE!! (R90): a 1-bit film as row-transition span edits, ZX0 blocks streamed off the disk (our synthetic test film on the shelf; the real film and song are a local build)
         "demo-badapple_tiles", // 167 (was aurora boot variant F, dropped) — BAD APPLE!! TILES (R91): the same film as a per-block 8x8 tile dictionary, only the changed slots a frame, ZX0 blocks off the disk (synthetic test film on the shelf)
-        "", // 168: retired (aurora boot variant G: its pipeline is cart 161 now)
+        "demo-badapple_poly", // 168 (was aurora boot variant G, retired) — BAD APPLE!! POLYGONS (R92): the same film as traced, simplified contours filled even-odd each frame, ZX0 blocks off the disk (synthetic test film on the shelf)
         "", // 169: retired (aurora boot variant H, the full screen: its pipeline and data are cart 161 since 27 Nov)
     };
     for (cart_names, 0..) |name, idx| {

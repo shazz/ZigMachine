@@ -1,5 +1,5 @@
-// BAD APPLE!! (carts 166 spans, 167 tiles) end to end on the sealed machine + ROM, against a Python REFERENCE
-// decoder (tools/badapple/{zx0,spans,tiles}.py: its own ZX0 depacker and format readers, none of the cart's code).
+// BAD APPLE!! (carts 166 spans, 167 tiles, 168 polygons) end to end on the sealed machine + ROM, against a Python REFERENCE
+// decoder (tools/badapple/{zx0,spans,tiles,poly*}.py: its own ZX0 depacker and format readers, none of the cart's code).
 //   1. the cart's plane = the reference's frame, pixel for pixel, at fixed frames (first, block starts and ends,
 //      the hard cut, the all-white / all-black frames, the last), the film frame following the clock (hostMicros);
 //   2. a long stall (1.5 s in one host frame): the plane = the reference frame the clock owes (deltas skipped
@@ -8,7 +8,7 @@
 //   4. a block whose ZX0 magic is broken: the frames before it play, the picture goes red when it is reached
 //      (fail loud), no exception, no refused zg.mem allocation; the shipped cart asks for no song (silent);
 //   5. Escape asks to leave.
-//   node apps/harness/badapple_headless.mjs [--variant spans|tiles] [--break] [--spans <stream>]
+//   node apps/harness/badapple_headless.mjs [--variant spans|tiles|poly] [--break] [--spans <stream>]
 //   (--spans: a LOCAL real film of that variant, with its own .zmd in BADAPPLE_ZMD, built by
 //   prototypes/cards/build_badapple.sh; the pins then follow its frame count)
 // --break shifts the plane one pixel before every comparison: that must be caught.
@@ -21,7 +21,7 @@ import { boot } from "./stniccc_machine.mjs";
 const argv = process.argv.slice(2);
 const BRK = argv.includes("--break");
 const VARIANT = argv.includes("--variant") ? argv[argv.indexOf("--variant") + 1] : "spans";
-if (!["spans", "tiles"].includes(VARIANT)) { console.error(`badapple: unknown variant ${VARIANT}`); process.exit(2); }
+if (!["spans", "tiles", "poly"].includes(VARIANT)) { console.error(`badapple: unknown variant ${VARIANT}`); process.exit(2); }
 const TAG = VARIANT === "spans" ? "badapple" : `badapple_${VARIANT}`;
 const SPANS = argv.includes("--spans") ? argv[argv.indexOf("--spans") + 1] : `apps/zig/assets/screens/badapple/test_${VARIANT}.bin`;
 const WASM = `site/carts/demo-${TAG}.wasm`, ZMD = process.env.BADAPPLE_ZMD || `site/carts/demo-${TAG}.zmd`;

@@ -87,4 +87,5 @@ test {
     _ = @import("scenes/badapple/decoder_test.zig");
     _ = @import("scenes/badapple/tiles_test.zig");
     _ = @import("scenes/badapple/mp3clock_test.zig");
+    _ = @import("scenes/badapple/poly_test.zig");
 }

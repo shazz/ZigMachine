@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The reference decoder: ref_decode.py STREAM OUT [i,j,k]  writes frames i,j,k (default all), 64,000 bytes of 0/1 each,
-concatenated. Any of the Bad Apple formats, told apart by the magic ("BASP" spans, "BATL" tiles). ZX0 and the formats
+concatenated. Any of the Bad Apple formats, told apart by the magic ("BASP" spans, "BATL" tiles, "BAPO" polygons). ZX0 and the formats
 are decoded by tools/badapple/*.py, not by the cart's code."""
 from __future__ import annotations
 
@@ -9,12 +9,14 @@ from collections.abc import Iterator
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from badapple import spans, tiles  # noqa: E402
+from badapple import poly, poly_decode, spans, tiles  # noqa: E402
 
 
 def pictures(data: bytes) -> Iterator[bytes]:
     if data[:4] == tiles.MAGIC:
         return tiles.iter_frames(data)
+    if data[:4] == poly.MAGIC:
+        return poly_decode.iter_frames(data)
     return (spans.paint(rows) for rows in spans.iter_rows(data))
 
 

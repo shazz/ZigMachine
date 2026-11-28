@@ -77,17 +77,39 @@ a packed block (up to 41 KB) is one hiccup a second whose size on the board's SD
 | unit | per row, the x of each colour change; deltas as nibble dx | 40x25 slots of 8x8 1-bit tiles, a dictionary per block | closed contours on the pixel-corner lattice, even-odd fill |
 | a frame carries | the changed rows | the changed slots (row mask, slot masks, a code each) | every contour (NEW, or KEEP / DELTA of last frame's) |
 | exact? | rows over 62 changes cut (rare) | lossless (`--hold N` lossy option) | lossy: Douglas-Peucker 0.75 px, 1 px specks vanish |
-| synthetic film (git, 90 frames) | 7,753 B | 15,766 B | (R92) |
-| real film (LOCAL, 6,573 frames) | 2,455,092 B (373 B a frame) | 2,827,011 B (430 B a frame); `--hold 2`: 2,556,485 | (R92) |
-| largest block, raw / packed | 75,643 / 41,472 | 56,297 / 35,444 | (R92) |
-| cart Mc a 60 Hz frame, synthetic: avg / worst | 0.037 / 0.23 | 0.038 / 0.33 | (R92) |
-| cart Mc a 60 Hz frame, real film: avg / p99 / worst | 0.097 / 0.46 / 0.56 | 0.093 / 0.43 / 0.67 | (R92) |
+| synthetic film (git, 90 frames) | 7,753 B | 15,766 B | 3,677 B (52 px a frame off the film, 74 at worst) |
+| real film (LOCAL, 6,573 frames) | 2,455,092 B (373 B a frame) | 2,827,011 B (430 B a frame); `--hold 2`: 2,556,485 | **1,369,354 B (208 B a frame)**; 84 px a frame off (0.13 %), 443 at worst (0.69 %) |
+| largest block, raw / packed | 75,643 / 41,472 | 56,297 / 35,444 | 31,079 / 24,882 |
+| cart Mc a 60 Hz frame, synthetic: avg / worst | 0.037 / 0.23 | 0.038 / 0.33 | 0.080 / 0.34 |
+| cart Mc a 60 Hz frame, real film: avg / p99 / worst | 0.097 / 0.46 / 0.56 | 0.093 / 0.43 / 0.67 | 0.122 / 0.63 / 1.09 |
+| real-film disk (`.zmd`), silent / with SONG.MP3 (+-1 KB: the MP3 cart is a little bigger) | 2,465,792 / 3,781,120 | 2,837,504 / 4,152,832 | 1,380,864 / 2,696,192 |
 
 All three real films are encoded from the same pictures: the tile and polygon streams are made from cart 166's
 `spans.bin` painted back (`gen_film.py <format> --film spans.bin OUT`), so they show what cart 166 shows (tiles
 exactly; polygons within the simplification). Mc is `apps/harness/frame_cost.mjs`'s ESTIMATE over the whole
 film in VBL mode (no clock, 13,160 frames), cart + ROM only: FRESCO's ~0.7 Mc for the one enabled plane is the
-same for all three and left out; the worst frames are read-ahead pumps, the second-worst key frames.
+same for all three and left out; the worst spans / tiles frames are read-ahead pumps. The polygon cart's worst
+(1.09 Mc) is a hard cut (193 rows repainted) landing on a pump: with FRESCO that frame is ~1.8 Mc
+estimated, over the 1.67 Mc of a 60 Hz frame, so one VBL may slip there (16 ms on a 33 ms film frame).
+
+### The polygon stream (cart 168, `BAPO`, `tools/badapple/poly.py` has the byte layout)
+
+- Offline (`poly_trace.py`): each frame's foreground (the colour the border is NOT mostly) is traced along the pixel
+  boundaries, so the vertices are integer corners (x 0..320, y 0..200) and the unsimplified contours fill back to the
+  exact picture (a unit test checks it on saddles, holes, the border and the synthetic film). Each contour has the
+  foreground on its right and turns right at a saddle. Douglas-Peucker 0.75 px, in integers (16 cross^2 <= (4 eps)^2
+  len^2): staircases become slanted edges, 1-pixel specks vanish; a frame over the cart's pools (6,000 vertices,
+  1,500 contours; the real film peaks at 1,233 / 109) is simplified 0.25 px harder until it fits.
+- A contour with the same vertex count as one of the last frame's, every vertex within 7 px, goes as KEEP or DELTA
+  (a nibble pair a vertex); the rest are NEW (a first vertex, then nibble steps, escaped zigzag varints past 7 px).
+  On the real film: 78 % NEW, 20 % DELTA, 1.5 % KEEP. A block's first frame is all NEW.
+- The cart (`badapple/polyfill.zig`) fills all of a frame's contours in ONE even-odd scan: edges bucketed by top row,
+  an active list kept sorted by insertion, 16.16 X stepped per row (one divide an edge), change points
+  (X + 0x7FFF) >> 16, colours alternating from the background. That rule is `poly.raster()` exactly, so the harness
+  compares the plane with the Python rasteriser byte for byte. A row whose change points equal the last frame's is
+  not repainted. CPU spans only: CHISEL's ~800 cycles a blit would cost more than the whole worst frame's fills.
+- STNICCC's `polyfill.zig` fills one polygon in one colour (painter's order); here holes are contours, so the parity
+  of all of them decides each pixel, and it could not be reused as is.
 
 ## Gate
 
@@ -97,7 +119,10 @@ pinned frames while the clock runs, after a 1.5 s stall across a block change an
 block goes red, silent, Escape; `--break` shifts the plane one pixel and must be caught. Native: the decoder tests in
 `scene_tests.zig`; Python: `tools/tests/test_badapple_spans.py`. The tile cart has the same three gate lines under the
 tag `badapple_tiles` (`gen_film.py tiles --synth ... --check`, the harness with `--variant tiles`, and its `--break`);
-`tiles_test.zig` and `tools/tests/test_badapple_tiles.py` are its unit tests.
+`tiles_test.zig` and `tools/tests/test_badapple_tiles.py` are its unit tests. The polygon cart likewise under
+`badapple_poly` (`gen_film.py poly ... --check`, `--variant poly`, its `--break`; `poly_test.zig`, `mp3clock_test.zig`,
+`tools/tests/test_badapple_poly.py`). Its harness compares with the Python RASTERISER, so it is exact although the
+format is lossy against the film.
 
 ## Board to-do
 

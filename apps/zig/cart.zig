@@ -149,6 +149,7 @@ const scene = switch (opts.index) {
     160 => @import("scenes/racer.zig"), // RACER (R82 Kestrel Racing M1): the renderer spike, an original flat-shaded racer on freds72's engine, benchmark lap v0
     166 => @import("scenes/badapple.zig"), // BAD APPLE!! (R90): a 1-bit film as row-transition edits, ZX0 blocks streamed off the disk; the shelf carries our synthetic test film, the real one is local-only
     167 => @import("scenes/badapple_tiles.zig"), // BAD APPLE!! TILES (R91): the same film as a per-block 8x8 tile dictionary (badapple/tiles.zig)
+    168 => @import("scenes/badapple_poly.zig"), // BAD APPLE!! POLYGONS (R92): the same film as a polygon stream, an even-odd fill a frame (badapple/poly.zig)
     else => @compileError("bad cart index"),
 };
 

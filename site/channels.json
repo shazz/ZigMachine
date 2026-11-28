@@ -35,6 +35,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "badapple_poly",
+  "title": "BAD APPLE!! POLYGONS",
+  "type": "zigmachine"
+ },
+ {
   "tag": "badapple_tiles",
   "title": "BAD APPLE!! TILES",
   "type": "zigmachine"

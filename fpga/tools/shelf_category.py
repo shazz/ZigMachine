@@ -58,6 +58,7 @@ _BY_CATEGORY = {
     "demos": (  # the "zigmachine" screens that are shows, not tests
         "badapple",  # Bad Apple!! as row-span edits streamed off the disk (R90, docs/ports/badapple/README.md)
         "badapple_tiles",  # ...as a tile dictionary (R91)
+        "badapple_poly",  # ...as a polygon stream (R92)
         "scroll", "obj", "fullscreen", "maxi", "medium_overscan", "res_switch",
         "mandelbrot", "fuji_hobbytronic", "anima", "leonard_spirit",
     ),

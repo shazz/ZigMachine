@@ -171,6 +171,9 @@ for w in "$OUT"/demo-*.wasm; do
         # ...the tile-dictionary variant (cart 167): BADAPPLE_TILES=<file> packs the local real film.
         badapple_tiles) pack "$OUT/demo-$tag.zmd" "$tag" "$w" ${BADAPPLE_MP3:+--file} ${BADAPPLE_MP3:+SONG.MP3=$BADAPPLE_MP3} \
                         --file "TILES.BIN=${BADAPPLE_TILES:-apps/zig/assets/screens/badapple/test_tiles.bin}" ;;
+        # ...the polygon-stream variant (cart 168): BADAPPLE_POLY=<file> packs the local real film.
+        badapple_poly) pack "$OUT/demo-$tag.zmd" "$tag" "$w" ${BADAPPLE_MP3:+--file} ${BADAPPLE_MP3:+SONG.MP3=$BADAPPLE_MP3} \
+                        --file "POLY.BIN=${BADAPPLE_POLY:-apps/zig/assets/screens/badapple/test_poly.bin}" ;;
         # RACER (Kestrel Racing M5 step 2) reads its tracks off the disk: each NAME.KTR is a converter binary
         # (tools/racer/trackc.py), ZX0-packed here (cached like the carts); the key t order is this order. The cart
         # embeds only the oval. RACER_EXTRA="VR1.KTR=<file> ..." adds LOCAL tracks (the decoded Virtua Racing ones:

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from badapple import gen_spans, stream, synth, tiles  # noqa: E402
+from badapple import gen_spans, poly, stream, synth, tiles  # noqa: E402
 
 
 def frames(a: argparse.Namespace):  # noqa: ANN201 (an iterator of 0/1 pictures from whichever source was named)
@@ -27,7 +27,7 @@ def frames(a: argparse.Namespace):  # noqa: ANN201 (an iterator of 0/1 pictures 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("format", choices=("tiles",))
+    ap.add_argument("format", choices=("tiles", "poly"))
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--synth", type=Path, metavar="OUT")
     src.add_argument("--film", nargs=2, type=Path, metavar=("SPANS", "OUT"))
@@ -36,8 +36,12 @@ def main() -> int:
     ap.add_argument("--zx0pack", type=Path, default=Path("zig-out/bin/zx0pack"))
     ap.add_argument("--duration", type=float, default=0.0)
     ap.add_argument("--hold", type=int, default=0, help="tiles: leave a slot alone when at most this many pixels differ")
+    ap.add_argument("--eps", type=float, default=poly.EPS, help="poly: the Douglas-Peucker tolerance in pixels")
     a = ap.parse_args()
-    data, stats = tiles.encode(frames(a), a.zx0pack, a.hold)
+    if a.format == "tiles":
+        data, stats = tiles.encode(frames(a), a.zx0pack, a.hold)
+    else:
+        data, stats = poly.encode(frames(a), a.zx0pack, a.eps)
     out = a.synth or (a.film or a.video)[1]
     if a.check:
         ok = out.read_bytes() == data
