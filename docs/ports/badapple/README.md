@@ -1,7 +1,10 @@
-# BAD APPLE!! (cart 166, R90)
+# BAD APPLE!! (cart 166, R90; variants 167 tiles R91, 168 polygons R92)
 
 A 1-bit film played from a stream of row-transition edits. The design is `HINTS.md` (the lead's brief, written
-before any code); this is what was built and what it costs.
+before any code); this is what was built and what it costs. Two more carts play the SAME film from other
+compressions so they can be compared on the board (see "The three variants"): they share the player
+(`badapple/film.zig`: clock, read-ahead, palette, song) and the block container (`badapple/container.zig`,
+`tools/badapple/stream.py`); only the format differs.
 
 ## Licence: what is committed and what is not
 
@@ -53,9 +56,29 @@ than a nibble holds); 754 bytes raw a frame on average, 4,228 at most.
 
 ZIGGY: a store ~2.3 cycles, so a 320-byte row repaint is ~185 cycles; 148 rows = 27 kcycles (0.03 Mc), 200 rows
 37 kcycles; decoding ~754 bytes ~40 kcycles. A frame is 0.05-0.10 Mc against the board's 1.67 Mc a 60 Hz frame; the
-read-ahead depack adds ~0.04 Mc a frame for ~19 frames a second (75 KB at 6 KB a frame, ~10 cycles a byte). One
+read-ahead depack was estimated at ~10 cycles a byte; frame_cost measured ~170 on the real film's dense blocks (short
+matches), so a 6 KB pump was a ~1.1 Mc frame: it is 2 KB a frame now (~0.35 Mc, 38 pumps for the largest block). One
 enabled plane (~0.59 Mc compositing, +0.11 a frame) is the dominant cost and cannot go lower. The disk call for
 a packed block (up to 41 KB) is one hiccup a second whose size on the board's SD is the unknown.
+
+## The three variants
+
+| | 166 spans (`BASP`) | 167 tiles (`BATL`) | 168 polygons (`BAPO`) |
+|---|---|---|---|
+| unit | per row, the x of each colour change; deltas as nibble dx | 40x25 slots of 8x8 1-bit tiles, a dictionary per block | closed contours on the pixel-corner lattice, even-odd fill |
+| a frame carries | the changed rows | the changed slots (row mask, slot masks, a code each) | every contour (NEW, or KEEP / DELTA of last frame's) |
+| exact? | rows over 62 changes cut (rare) | lossless (`--hold N` lossy option) | lossy: Douglas-Peucker 0.75 px, 1 px specks vanish |
+| synthetic film (git, 90 frames) | 7,753 B | 15,766 B | (R92) |
+| real film (LOCAL, 6,573 frames) | 2,455,092 B (373 B a frame) | 2,827,011 B (430 B a frame); `--hold 2`: 2,556,485 | (R92) |
+| largest block, raw / packed | 75,643 / 41,472 | 56,297 / 35,444 | (R92) |
+| cart Mc a 60 Hz frame, synthetic: avg / worst | 0.037 / 0.23 | 0.038 / 0.33 | (R92) |
+| cart Mc a 60 Hz frame, real film: avg / p99 / worst | 0.097 / 0.46 / 0.56 | 0.093 / 0.43 / 0.67 | (R92) |
+
+All three real films are encoded from the same pictures: the tile and polygon streams are made from cart 166's
+`spans.bin` painted back (`gen_film.py <format> --film spans.bin OUT`), so they show what cart 166 shows (tiles
+exactly; polygons within the simplification). Mc is `apps/harness/frame_cost.mjs`'s ESTIMATE over the whole
+film in VBL mode (no clock, 13,160 frames), cart + ROM only: FRESCO's ~0.7 Mc for the one enabled plane is the
+same for all three and left out; the worst frames are read-ahead pumps, the second-worst key frames.
 
 ## Gate
 
@@ -63,7 +86,9 @@ a packed block (up to 41 KB) is one hiccup a second whose size on the board's SD
 the cart's plane equals `tools/badapple/ref_decode.py`'s frame (its own ZX0 depacker, none of the cart's code) at 17
 pinned frames while the clock runs, after a 1.5 s stall across a block change and the cut, with no clock, a broken
 block goes red, silent, Escape; `--break` shifts the plane one pixel and must be caught. Native: the decoder tests in
-`scene_tests.zig`; Python: `tools/tests/test_badapple_spans.py`.
+`scene_tests.zig`; Python: `tools/tests/test_badapple_spans.py`. The tile cart has the same three gate lines under the
+tag `badapple_tiles` (`gen_film.py tiles --synth ... --check`, the harness with `--variant tiles`, and its `--break`);
+`tiles_test.zig` and `tools/tests/test_badapple_tiles.py` are its unit tests.
 
 ## Board to-do
 
