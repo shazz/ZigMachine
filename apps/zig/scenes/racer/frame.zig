@@ -31,6 +31,7 @@
 const cam = @import("cam.zig");
 const clip = @import("clip.zig");
 const fx = @import("fx.zig");
+const hide = @import("hide.zig");
 const poly = @import("poly.zig");
 const project = @import("project.zig");
 const oracle = @import("oracle.zig");
@@ -102,6 +103,7 @@ pub const Frame = struct {
                 if (self.fkey.len != 0) self.fkey[fid] = NO_KEY;
                 self.stats.faces += 1;
                 const f = &t.faces[fid];
+                if (hide.skipFace(f)) continue; // the board A/B (hide.zig): off by default
                 if (f.flags & trk.FLAG_DUAL == 0 and facing(f, v) <= f.cp) {
                     self.stats.back += 1;
                     continue;

@@ -26,6 +26,7 @@ const hudpic = @import("hudpic.zig");
 const session = @import("session.zig");
 const standings = @import("standings.zig");
 const front = @import("front.zig");
+const hide = @import("hide.zig");
 
 fn trackName(d: anytype) []const u8 {
     return d.lib.list[d.which].label();
@@ -56,7 +57,7 @@ pub fn flip(d: anytype, zigos: *zg.ZigOS) *zg.LogicalFB {
 
 /// Push the tyre smoke and the cars (the race's eight, or driving's one) after collect and before sort.
 pub fn addCars(d: anytype, v: *const cam.View) void {
-    if (d.pose != null) return;
+    if (d.pose != null or hide.on(hide.CARS)) return;
     if (d.game.mode != .off) {
         d.game.smoke.draw(&d.f, &d.caches[1], v);
         d.game.drawCars(&d.f, &d.caches[0], v, d.r);
@@ -90,7 +91,7 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     const script = if (racing) d.game.frames else if (driven) d.drive.frames else d.script;
     const scripted = d.pose == null and !d.paused and !front.menu(d) and (if (racing) d.game.mode == .bench else d.drive.mode != .drive);
     d.rep.report(zigos, fb, &d.bench, knobs(d), c, .{ .script = script, .scripted = scripted, .lap_frames = lap_frames });
-    if (picture) drawPicture(d, zigos, fb); // after the view's CRC: the lap pins are the bare view's
+    if (picture and !hide.on(hide.HUD)) drawPicture(d, zigos, fb); // after the view's CRC: the lap pins are the bare view's
     if (driven) logPhysics(d);
     if (racing) raceLog(d);
     if (closed) d.bench.resetWindow();

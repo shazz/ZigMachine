@@ -17,6 +17,7 @@ test {
     _ = @import("scenes/racer/sfx_psg_test.zig");
     _ = @import("scenes/racer/wheelspin_test.zig");
     _ = @import("scenes/racer/benchround.zig");
+    _ = @import("scenes/racer/hide.zig");
     _ = @import("scenes/racer/coursemesh_test.zig");
     _ = @import("scenes/racer/shadow_test.zig");
     _ = @import("scenes/racer/carmodel_test.zig");

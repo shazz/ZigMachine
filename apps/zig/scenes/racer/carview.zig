@@ -52,7 +52,9 @@ pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const tr
     const floor: ?u16 = if (under.break_under) m5Key(fr, t, m, v, s, ground, centre) else footKey(fr, t, m, s, centre);
     const key = @max(project.depthKey(z), floor orelse 0);
     cache.next();
-    for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
+    if (!@import("hide.zig").on(@import("hide.zig").SHADOWS)) {
+        for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
+    }
     const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
     if (z > fix.mul(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
     wheels(fr, cache, m, &mv, s, k);

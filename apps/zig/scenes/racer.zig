@@ -185,6 +185,8 @@ pub const Demo = struct {
         _ = zigos;
         _ = dt;
         if (self.paused) return audio.pause(self);
+        self.bench.tickStart();
+        defer self.bench.tickEnd();
         if (self.pose == null and self.drive.mode == .off and self.game.mode == .off) self.script +%= 1;
         self.drive.update();
         self.game.update();

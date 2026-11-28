@@ -14,8 +14,10 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const Stage = enum(u3) { vis, collect, sort, sky, fill, hud };
-pub const NSTAGE = 6;
+/// car (the cars and smoke pushed, split from collect) and tick (the game's update before render) since the board
+/// optimisation (OPTIMIZE.md): the OSD shows them, the CSV keeps its six columns.
+pub const Stage = enum(u3) { vis, collect, sort, sky, fill, hud, car, tick };
+pub const NSTAGE = 8;
 pub const WINDOW = 32;
 pub const CRC_EVERY = 60;
 
@@ -39,11 +41,24 @@ pub const Bench = struct {
     avg_us: u32 = 0, // the last window, for the OSD
     fps10: u32 = 0,
     stage_us: [NSTAGE]u32 = [_]u32{0} ** NSTAGE,
+    tick_us: u32 = 0, // the update's time before this frame's render (tickStart / tickEnd)
+    tick_t0: u32 = 0,
 
+    pub fn tickStart(self: *Bench) void {
+        self.tick_t0 = self.now();
+    }
+
+    pub fn tickEnd(self: *Bench) void {
+        self.tick_us = self.now() -% self.tick_t0;
+    }
+
+    /// The frame starts at the update's start: its time is billed to `tick` and counts in the frame's total.
     pub fn frameStart(self: *Bench) void {
-        self.start = self.now();
-        self.mark = self.start;
+        self.mark = self.now();
+        self.start = self.mark -% self.tick_us;
         self.cur = [_]u32{0} ** NSTAGE;
+        self.cur[@intFromEnum(Stage.tick)] = self.tick_us;
+        self.tick_us = 0;
     }
 
     /// Bill the time since the last mark to `s`.
