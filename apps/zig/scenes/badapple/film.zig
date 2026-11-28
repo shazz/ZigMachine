@@ -103,11 +103,13 @@ pub fn Film(comptime Codec: type) type {
 
         /// Feeds the MP3 and pulls the film's time to its position (the position alone when there is no host clock).
         fn followSong(self: *Self) void {
-            const s = &(self.mp3 orelse return);
+            const s: *song.Song = if (self.mp3) |*m| m else return;
             s.pump();
             const pos = s.position() orelse return;
+            // The first reading sets the film's time (the host clock ran ahead while the status was not trusted
+            // yet); after it the host clock only gets pulled back within the slack.
+            self.elapsed_us = if (self.use_clock and self.song_clock) mp3clock.pull(self.elapsed_us, pos, SLACK_US) else pos;
             self.song_clock = true;
-            self.elapsed_us = if (self.use_clock) mp3clock.pull(self.elapsed_us, pos, SLACK_US) else pos;
         }
 
         /// The film frame the clock says is on screen now (0-based, one past the last frame shown when due).
