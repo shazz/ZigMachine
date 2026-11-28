@@ -24,7 +24,8 @@ New switches (hide.zig, off by default, no pin moves): `(` cars, `)` picture HUD
 scenery, `$` ground. The OSD (o) now reads `T V C A S K F H = frame fps`, in units of 100 us: T the game's update (the
 race ticks), A the cars (split from C, collect). Key `` ` `` shows probe timers (prof.zig) instead of the state line:
 page 1 the tick (P0 player physics, P1 AI steering, P2 AI physics, P3 car pushes, P4 snapshots + smoke, P5 the session
-tick), page 2 the cars (P6 model view + footprint key, P8 faces + shadows, P9 wheel posing, P10 smoke, P11 picture HUD).
+tick), page 2 the cars (6 every car's prep: model view, cull, footprint key; 7 the player's car; 8 every car's faces + shadow;
+9 wheel posing; 10 the shadows; 11 the picture HUD). The line reads `k:v`, v in units of 10 us a frame.
 
 ## Where the time went (DXBAY race, batch card, 18 fps, cart 5.2 Mc)
 

@@ -74,7 +74,9 @@ fn emit(fr: *frame.Frame, cache: *xf.Cache, s: Snap, m: *const carmodel.Model, l
     const mv = &p.mv;
     cache.next();
     if (!@import("hide.zig").on(@import("hide.zig").SHADOWS) and !carlod.noShadow(p.z, s.size)) {
+        prof.begin(10);
         for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, mv, sh, .{ .fixed = p.floor orelse p.key, .shadow = true });
+        prof.end(10);
     }
     const k = Look{ .key = p.key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
     if (p.z > carlod.farZ(LOD1_Z, s.size)) return part(fr, cache, m, mv, .lod1, k);
@@ -140,7 +142,9 @@ pub fn drawRace(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *cons
     defer carlod.ai = false;
     for (order[0..n]) |k| {
         carlod.ai = k != 0;
+        if (k == 0) prof.begin(7); // the player's car alone (probe 7; 8 is every car's emit)
         if (preps[k]) |*q| emit(fr, cache, snaps[k], carmodel.of(k), carmodel.LIVERY[k], q);
+        if (k == 0) prof.end(7);
     }
 }
 

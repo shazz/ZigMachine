@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // RACER: probe timers for the board (R82 board optimisation, OPTIMIZE.md). Up to SLOTS named spans of code are
 // timed on env.hostMicros (begin / end around them, summed over the bench's 32-frame window); key ` shows the window's
-// averages a frame, in units of 10 us, on the OSD's top line ("P0 12 P1 3 ..."), instead of the state line (a second press the probes 6..11, a third off). The
+// averages a frame, in units of 10 us, on the OSD's top line ("0:12 1:3 ...": probe 0, 120 us), instead of the state line (a second press the probes 6..11, a third off). The
 // probes cost two clock reads each: they stay in the code only where a measurement asked for them. No ZigOS import.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -45,7 +45,7 @@ pub fn nextPage() void {
 pub fn line(buf: []u8) []const u8 {
     var n: usize = 0;
     const first: usize = if (page == 2) PAGE else 0;
-    for (avg[first..][0..PAGE], first..) |a, k| n += (std.fmt.bufPrint(buf[n..], "P{} {} ", .{ k, a / 10 }) catch return buf[0..n]).len;
+    for (avg[first..][0..PAGE], first..) |a, k| n += (std.fmt.bufPrint(buf[n..], "{}:{} ", .{ k, a / 10 }) catch return buf[0..n]).len;
     return buf[0..n];
 }
 
@@ -55,8 +55,8 @@ test "a window's averages, in the line" {
     window(10);
     try std.testing.expectEqual(@as(u32, 200), avg[1]);
     var b: [64]u8 = undefined;
-    try std.testing.expectEqualStrings("P0 1 P1 20 P2 0 P3 0 P4 0 P5 0 ", line(&b));
+    try std.testing.expectEqualStrings("0:1 1:20 2:0 3:0 4:0 5:0 ", line(&b));
     page = 2;
-    try std.testing.expectEqualStrings("P6 0 P7 0 P8 0 P9 0 P10 0 P11 0 ", line(&b));
+    try std.testing.expectEqualStrings("6:0 7:0 8:0 9:0 10:0 11:0 ", line(&b));
     page = 0;
 }
