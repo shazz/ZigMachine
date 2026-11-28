@@ -101,6 +101,7 @@ pub fn label(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32) void {
 }
 
 fn glyphs(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32, c: u8) void {
+    if (!menu.break_direct and p.onScreen(x, y, @as(i32, @intCast(s.len)) * 8, 8)) return direct(p, font, s, x, y, c);
     for (s, 0..) |ch, n| {
         const g = font[@as(usize, ch) * 64 ..][0..64];
         const gx = x + @as(i32, @intCast(n)) * 8;
@@ -115,6 +116,20 @@ fn glyphs(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32, c: u8) vo
                 while (col < 8 and g[r * 8 + col] != 0) col += 1;
                 p.rect(gx + @as(i32, @intCast(a)), y + @as(i32, @intCast(r)), @intCast(col - a), 1, c);
             }
+        }
+    }
+}
+
+/// glyphs for a string wholly on screen: each set font pixel stored directly (board optimisation; the same bytes).
+fn direct(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32, c: u8) void {
+    for (s, 0..) |ch, n| {
+        const g = font[@as(usize, ch) * 64 ..][0..64];
+        var at = @as(usize, @intCast(y)) * p.stride + @as(usize, @intCast(x)) + n * 8;
+        for (0..8) |r| {
+            for (0..8) |col| {
+                if (g[r * 8 + col] != 0) p.px[at + col] = c;
+            }
+            at += p.stride;
         }
     }
 }

@@ -16,6 +16,8 @@ pub const PANEL: u8 = 9;
 pub const HILITE: u8 = 10; // the cursor row, the headings
 pub const ALERT: u8 = 11; // a refused file
 
+pub var break_direct = false; // the native test's A/B: the run-by-run rects everywhere
+
 pub const Px = struct {
     px: []u8,
     stride: usize,
@@ -39,6 +41,32 @@ pub const Px = struct {
         }
     }
 
+    /// True when the w x h box at (x, y) is wholly on the 320 x 200 screen (no clipping needed).
+    pub fn onScreen(self: Px, x: i32, y: i32, w: i32, h: i32) bool {
+        _ = self;
+        return x >= 0 and y >= 0 and x + w <= W and y + h <= H;
+    }
+
+    /// glyphs' pixels for a string wholly on screen: each set font pixel an s x s block, stored directly (board
+    /// optimisation: the run-by-run rects cost the picture HUD ~2 ms a frame). The same bytes as the runs.
+    fn glyphsDirect(self: Px, font: []const u8, text: []const u8, x: i32, y: i32, s: i32, shadow: bool) void {
+        const su: usize = @intCast(s);
+        for (text, 0..) |ch, i| {
+            const g = font[@as(usize, ch) * 64 ..][0..64];
+            const gx: usize = @intCast(x + @as(i32, @intCast(i)) * 8 * s);
+            for (0..8) |r| {
+                const c = if (shadow) SHADE else LOGO[@min(r * 3 / 8, 2)];
+                const top = (@as(usize, @intCast(y)) + r * su) * self.stride + gx;
+                for (0..8) |col| {
+                    if (g[r * 8 + col] == 0) continue;
+                    for (0..su) |dy| for (0..su) |dx| {
+                        self.px[top + dy * self.stride + col * su + dx] = c;
+                    };
+                }
+            }
+        }
+    }
+
     /// A panel: a filled box with a one-pixel border.
     pub fn panel(self: Px, x: i32, y: i32, w: i32, h: i32) void {
         self.rect(x, y, w, h, SHADE);
@@ -53,6 +81,7 @@ pub const Px = struct {
     }
 
     fn glyphs(self: Px, font: []const u8, text: []const u8, x: i32, y: i32, s: i32, shadow: bool) void {
+        if (!break_direct and self.onScreen(x, y, @as(i32, @intCast(text.len)) * 8 * s, 8 * s)) return self.glyphsDirect(font, text, x, y, s, shadow);
         for (text, 0..) |ch, i| {
             const g = font[@as(usize, ch) * 64 ..][0..64];
             const gx = x + @as(i32, @intCast(i)) * 8 * s;
