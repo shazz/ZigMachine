@@ -38,30 +38,31 @@ cars' far model past 3 units / always, `=` no wheel turning past 3 units, `;` no
 
 ## Results
 
-32X card (RACER BATCH 32X -> RACER OPT 32X: the FORMULA set on every track, ours included), fps race / x bench:
+The installed cards are e7d93c58 (measured 28 Nov 03:15-03:45). 32X card (RACER BATCH 32X -> RACER OPT 32X: the FORMULA
+set on every track, ours included), fps race / x bench:
 
 | track | batch race | batch bench | opt race | opt bench |
 |---|---|---|---|---|
 | OVAL | 35.2 | 40.7 | 43.8 | 47.8 |
-| SALT | 23.8 | 38.2 | 35.4 | 45.8 |
-| NEON | 24.4 | 41.3 | 35.8 | 48.8 |
-| GLACIER | (not on the card) | | 35.0 | 49.3 |
-| DXFOREST | 17.7 | 24.0 | 25.0 | 29.5 |
+| SALT | 23.8 | 38.2 | 35.2 | 45.8 |
+| NEON | 24.4 | 41.3 | 35.8 | 48.4 |
+| GLACIER | (not on the card) | | 35.0 | 49.2 |
+| DXFOREST | 17.7 | 24.0 | 25.0 | 29.7 |
 | DXBAY | 18.1 | 23.6 | 25.4 | 30.1 |
 | DXACRO | 18.9 | 23.2 | 26.5 | 29.7 |
-| DXHIGH | 16.1 | 20.9 | 24.0 | 26.8 |
-| DXSAND | 20.9 | 28.3 | 30.7 | 35.4 |
+| DXHIGH | 16.1 | 20.9 | 24.2 | 26.8 |
+| DXSAND | 20.9 | 28.3 | 30.5 | 35.4 |
 
 Public card (RACER BATCH -> RACER OPT: our tracks, the GT), race / bench:
 
 | track | batch race | batch bench | opt race | opt bench |
 |---|---|---|---|---|
-| OVAL | 45.2 | 53.9 | 55.4 | 60.0 |
-| SALT | 37.1 | 51.7 | 47.5 | 58.6 |
-| NEON | 31.8 | 55.2 | 42.8 | 60.3 |
-| GLACIER | 30.5 | 55.6 | 41.3 | 60.3 |
+| OVAL | 45.2 | 53.9 | 55.8 | 59.8 |
+| SALT | 37.1 | 51.7 | 47.5 | 58.8 |
+| NEON | 31.8 | 55.2 | 43.0 | 60.2 |
+| GLACIER | 30.5 | 55.6 | 41.5 | 60.2 |
 
-Flyby (l): CITY (public) 19.5 -> 31 fps (its OSD reads ~58: the frame waits on something outside the cart, open); DXBAY
+Later in the race (25-30 s in, the pack strung out) DXBAY reads 18.1 -> 28.4. Flyby (l): CITY (public) 19.5 -> 31 fps (its OSD reads ~58: the frame waits on something outside the cart, open); DXBAY
 34.2 -> 40.1. CITY is not raceable (its race rows are the oval's).
 
 **Targets:** missed. The 32X courses race at 24-26.5 fps (DXSAND 30.7); our tracks race at 41-55 on the public card and
@@ -81,6 +82,7 @@ slower frame owes).
 | opt8 | ..fbc75aec | 23.0 | 3.7 | AI tick a phase at a time; car prep phase |
 | opt10 | ..8f28c89b | 24.8 | 3.5 | AFFINE fill by default (board-checked byte-identical to the CPU's); clz in compares |
 | opt11 | ..82b6c7e8 | 25.4 | 3.4 | HUD text pixel by pixel (picture HUD 2.0 -> 1.1 ms); AFFINE records three stores |
+| opt12 (installed) | ..e7d93c58 | 25.4 | 3.4 | a shadow in a haze band not transformed; file sizes |
 
 Where a DXBAY race frame goes now (OSD, ms): T 4.0, C 7.5, A 9.4 (prep 1.5, the player's car 1.9, shadows 1.8, wheel
 posing 1.2), F 8.8, H 1.6, K 0.6, S 0.3; ~1.4 more in the cart outside the OSD; FRESCO ~4.3. Hiding each item (opt10):
