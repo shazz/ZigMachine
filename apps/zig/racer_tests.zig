@@ -21,6 +21,7 @@ test {
     _ = @import("scenes/racer/prof.zig");
     _ = @import("scenes/racer/carcull.zig");
     _ = @import("scenes/racer/tilecull_test.zig");
+    _ = @import("scenes/racer/carlod.zig");
     _ = @import("scenes/racer/coursemesh_test.zig");
     _ = @import("scenes/racer/shadow_test.zig");
     _ = @import("scenes/racer/carmodel_test.zig");

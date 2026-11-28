@@ -24,6 +24,7 @@ const arcade = @import("arcade.zig");
 pub fn handle(self: anytype, cp: u32) void {
     if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
     if (@import("hide.zig").key(cp)) return; // the board A/B switches ( ) { } # $ (hide.zig)
+    if (@import("carlod.zig").key(cp)) return; // the opt-in cheaper far cars - = ; (carlod.zig)
     switch (cp) {
         0xE012 => self.wants_quit = true,
         '3'...'8' => {

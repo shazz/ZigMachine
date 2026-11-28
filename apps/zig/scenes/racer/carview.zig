@@ -23,6 +23,7 @@ const xf = @import("xform.zig");
 const wheelspin = @import("wheelspin.zig");
 const prof = @import("prof.zig");
 const carcull = @import("carcull.zig");
+const carlod = @import("carlod.zig");
 
 /// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else); spin, steer:
 /// the drawn wheels' turn and steer (u32 turns, wheelspin.zig; 0 = as modelled).
@@ -59,12 +60,12 @@ pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const tr
     if (!carcull.break_cull and carcull.outOfView(&mv, fix.mul(m.rad7 << 9, s.size))) return; // all faces would be rejected
     prof.begin(8);
     defer prof.end(8);
-    if (!@import("hide.zig").on(@import("hide.zig").SHADOWS)) {
+    if (!@import("hide.zig").on(@import("hide.zig").SHADOWS) and !carlod.noShadow(z, s.size)) {
         for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
     }
     const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
-    if (z > fix.mul(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
-    wheels(fr, cache, m, &mv, s, k);
+    if (z > carlod.farZ(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
+    if (carlod.stillWheels(z, s.size)) part(fr, cache, m, &mv, .wheels, k) else wheels(fr, cache, m, &mv, s, k);
     part(fr, cache, m, &mv, .hull, k);
     const behind = mv.eye7[2] < m.wing_z;
     part(fr, cache, m, &mv, if (behind) .cabin else .wing, k);
@@ -147,7 +148,11 @@ pub fn drawRace(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *cons
         order[i] = k;
         n += 1;
     }
-    for (order[0..n]) |k| draw(fr, cache, v, t, snaps[k], under_[k], carmodel.of(k), carmodel.LIVERY[k]);
+    defer carlod.ai = false;
+    for (order[0..n]) |k| {
+        carlod.ai = k != 0;
+        draw(fr, cache, v, t, snaps[k], under_[k], carmodel.of(k), carmodel.LIVERY[k]);
+    }
 }
 
 /// True when the car at `pos` is within `tiles` tiles (8 units each) of the eye: farther cars are not worth transforming.

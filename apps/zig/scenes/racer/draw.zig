@@ -26,8 +26,7 @@ pub const Painter = struct {
 
     pub fn sky(self: *Painter, fb: *zg.LogicalFB, v: *const cam.View, yaw: u32) void {
         if (self.cpu_fill) {
-            self.cpu.begin(fb);
-            skyRows(&self.cpu, v.horizon);
+            skyFills(fb, v.horizon); // CHISEL fills, async: the CPU path syncs before its first span
         } else {
             self.aff.begin(fb);
             skyRows(&self.aff, v.horizon);
@@ -57,6 +56,24 @@ pub const Painter = struct {
         return c;
     }
 };
+
+/// skyRows' pixels as at most three CHISEL fills (sky, ground, around an opaque panorama's rows) instead of 176 CPU row
+/// spans (board optimisation: ~0.6 ms of the K stage). LogicalFB.fillRect falls back to the CPU where CHISEL can't.
+fn skyFills(fb: *zg.LogicalFB, hz: i32) void {
+    const skip = if (hide.on(hide.BACKDROP)) [2]i32{ 0, 0 } else backdrop.covers(hz);
+    var y: i32 = xf.Y0;
+    while (y < xf.Y1) {
+        if (y >= skip[0] and y < skip[1]) {
+            y = skip[1];
+            continue;
+        }
+        var e: i32 = xf.Y1;
+        if (y < skip[0]) e = @min(e, skip[0]);
+        if (y < hz) e = @min(e, hz);
+        fb.fillRect(0, y, 320, @intCast(e - y), if (y < hz) palette.SKY else palette.GROUND);
+        y = e;
+    }
+}
 
 fn skyRows(sink: anytype, hz: i32) void {
     const skip = if (hide.on(hide.BACKDROP)) [2]i32{ 0, 0 } else backdrop.covers(hz); // an opaque panorama's rows: it paints them whole (R82 32X look)

@@ -23,6 +23,7 @@ fn shadowTag() []const u8 {
 }
 
 var hide_buf: [4]u8 = undefined;
+var lod_buf: [8]u8 = undefined;
 
 /// " Z<hex>" while a board A/B switch hides something (hide.zig), else nothing (the default line is unchanged).
 fn hideTag() []const u8 {
@@ -36,9 +37,9 @@ pub fn line(buf: []u8, t: Toggles) []const u8 {
     const shade = SHADES[project.shade];
     const phys = if (arcade.model == .arcade) "ARC" else "CLA";
     const pov = t.pov[0..@min(t.pov.len, 3)];
-    return std.fmt.bufPrint(buf, "{s} {s} {s} {s} H{d} R{d} {s}{c} {s} M{d} L{d}{s}", .{
+    return std.fmt.bufPrint(buf, "{s} {s} {s} {s} H{d} R{d} {s}{c} {s} M{d} L{d}{s}{s}", .{
         if (t.cpu) "CPU" else "AFF",   mul,          shade,                                    shadowTag(),
         @intFromBool(haze.on),         t.r,          phys,                                     params.CLASSES[arcade.class].name[0],
-        pov,                           @intFromBool(t.music), rules.race_laps, hideTag(),
+        pov,                           @intFromBool(t.music), rules.race_laps, hideTag(), @import("carlod.zig").tag(&lod_buf),
     }) catch "";
 }
