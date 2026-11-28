@@ -148,16 +148,12 @@ pub const Frame = struct {
     }
 
     pub noinline fn emit(self: *Frame, comptime Sink: type, em: *poly.Emitter(Sink)) void {
-        var xs: [MAXV]i32 = undefined;
-        var ys: [MAXV]i32 = undefined;
         for (self.order[0..self.stats.polys]) |i| {
             const r = &self.kept[i];
             const n = r.n & types.COUNT;
-            for (0..n) |j| {
-                xs[j] = r.x[j];
-                ys[j] = r.y[j];
-            }
-            if (r.n & types.SHADOW != 0) em.shadow(xs[0..n], ys[0..n]) else if (r.n & types.LIGHT != 0) em.light(xs[0..n], ys[0..n]) else em.poly(xs[0..n], ys[0..n], r.c);
+            const xs = r.x[0..n]; // the record's i16s as they are (no i32 copy a polygon: board optimisation)
+            const ys = r.y[0..n];
+            if (r.n & types.SHADOW != 0) em.shadow(xs, ys) else if (r.n & types.LIGHT != 0) em.light(xs, ys) else em.poly(xs, ys, r.c);
         }
     }
 
