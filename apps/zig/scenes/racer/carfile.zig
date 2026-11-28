@@ -44,12 +44,25 @@ pub const Model = struct {
     mid_y: i32, // Q7: half the hull's height, the depth every face of the car is keyed by
     foot: Foot = .{}, // the shadow's box: the car's drawn footprint (decals under it, car-vs-car contacts in ARCADE)
     spin: wheelspin.Groups = .{}, // the wheels' groups and axles: the drawn wheels turn (board batch, wheelspin.zig)
+    rad7: i32 = 0x7fff, // Q7: no vertex farther from the model's origin (radiusOf; carview culls a car out of the view by it)
 
     pub fn range(self: *const Model, p: Part) []const trk.Face {
         const i = @intFromEnum(p);
         return self.faces[if (i == 0) 0 else self.end[i - 1]..self.end[i]];
     }
 };
+
+/// The model's bounding radius (Q7, rounded up) around its origin: a vertex is never farther (board optimisation).
+pub fn radiusOf(verts: []const trk.Vert) i32 {
+    var m: u64 = 0;
+    for (verts) |v| {
+        const x: i64 = v[0];
+        const y: i64 = v[1];
+        const z: i64 = v[2];
+        m = @max(m, @as(u64, @intCast(x * x + y * y + z * z)));
+    }
+    return @as(i32, @intCast(std.math.sqrt(m))) + 1;
+}
 
 /// A model's footprint box, Q7 car space (x right, z forward): the extent of its shadow faces.
 pub const Foot = struct { x0: i32 = 0, x1: i32 = 0, z0: i32 = 0, z1: i32 = 0 };
@@ -178,6 +191,7 @@ fn check(m: *Model) Error!void {
     }
     m.foot = footOf(m.verts, sh);
     m.spin = wheelspin.groups(m.verts, m.range(.wheels));
+    m.rad7 = radiusOf(m.verts);
     var top: i32 = 0;
     for (m.range(.hull)) |f| for (f.v[0..f.nv]) |id| {
         top = @max(top, m.verts[id][1]);

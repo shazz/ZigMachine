@@ -98,3 +98,20 @@ test "the sweep sees a crossing (it would catch a shipped track with one)" {
     const t = crossing(&v, &f, &tf, &l);
     try std.testing.expect(maxGap(&t) > ground.DECK_Y);
 }
+
+test "the remembered normals (groundmemo.zig) are the computed ones, on a cold table and a warm one" {
+    const memo = @import("groundmemo.zig");
+    const vec = @import("vec.zig");
+    const t = try @import("trk.zig").parse(@import("data.zig").oval);
+    for (0..2) |pass| {
+        if (pass == 0) memo.clear();
+        for (t.faces, 0..) |f, id| {
+            if (f.flags & ground.FLAG_GROUND == 0) continue;
+            const g = ground.poly(&t, @intCast(id));
+            const want = vec.normz(vec.cross(vec.between(g.p[0], g.p[g.ni - 1]), vec.between(g.p[0], g.p[1])));
+            try std.testing.expectEqual(want, g.n);
+            for (0..g.ni) |k| try std.testing.expectEqual(ground.borderNormal(&g, k), memo.border(&g, k));
+        }
+    }
+    try std.testing.expect(memo.hits > 0);
+}

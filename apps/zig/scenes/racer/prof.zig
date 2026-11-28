@@ -19,11 +19,11 @@ fn zero() u32 {
 }
 
 pub inline fn begin(k: usize) void {
-    t0[k] = now();
+    if (page != 0) t0[k] = now(); // no clock read while the probes are not shown
 }
 
 pub inline fn end(k: usize) void {
-    sum[k] +%= now() -% t0[k];
+    if (page != 0) sum[k] +%= now() -% t0[k];
 }
 
 /// The bench's window closed (`frames` frames): the averages kept, the sums restarted.

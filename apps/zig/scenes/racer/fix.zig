@@ -29,8 +29,11 @@ pub inline fn mul(a: i32, b: i32) i32 {
     return @truncate((@as(i64, a) * b) >> 16);
 }
 
+/// The same integer as the 64-bit formula; |a| < 0.5 takes one 32-bit divide (ZIGGY's divide unit: the 64-bit one is a
+/// libgcc call on rv32, ~150 cycles; board optimisation, fix_test.zig compares both on random and edge operands).
 pub fn div(a: i32, b: i32) i32 {
     if (b == ONE) return a;
+    if (a > -0x8000 and a < 0x8000 and b != 0) return @divTrunc(a << 16, b); // |a << 16| < 2^31: no overflow, |q| <= MAX
     if (b != 0) {
         const r = @divTrunc(@as(i64, a) * 65536, b);
         if (r <= MAX and r >= -MAX) return @intCast(r);
@@ -71,22 +74,26 @@ pub fn lerp(a: i32, b: i32, t: i32) i32 {
     return mul(a, ONE - t) +% mul(b, t);
 }
 
-/// floor(sqrt(x << 16)), the PICO-8 abacus root. A negative input gives 0.
+/// floor(sqrt(x << 16)), the PICO-8 abacus root. A negative input gives 0. Digit by digit, two bits of x a step, in
+/// 32-bit words (board optimisation: the 64-bit abacus cost ~700 cycles on rv32; the remainder stays under 2^27):
+/// the same floor root, pinned by fix_test.zig's CRC and a comparison with the 64-bit loop.
 pub fn sqrt(a: i32) i32 {
-    var x: i64 = @as(i64, a) << 16;
-    var root: i64 = 0;
-    if (x <= 0) return 0;
-    var bit: i64 = 1 << 46;
-    while (bit != 0) : ({
-        bit >>= 2;
-        root >>= 1;
-    }) {
-        if (x >= bit + root) {
-            x -= bit + root;
-            root += bit << 1;
+    if (a <= 0) return 0;
+    const ua: u32 = @intCast(a);
+    var rem: u32 = 0;
+    var root: u32 = 0;
+    var i: u5 = 0;
+    while (i < 24) : (i += 1) { // x = a << 16: bit pairs 47..16 are a's, the last eight pairs zero
+        const pair: u32 = if (i < 16) (ua >> (30 - 2 * @as(u5, @intCast(i)))) & 3 else 0;
+        rem = (rem << 2) | pair;
+        root <<= 1;
+        const t = (root << 1) | 1;
+        if (rem >= t) {
+            rem -= t;
+            root |= 1;
         }
     }
-    return @truncate(root);
+    return @intCast(root);
 }
 
 const SIN_N = 4097;

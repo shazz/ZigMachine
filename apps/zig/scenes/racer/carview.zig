@@ -22,6 +22,7 @@ const under = @import("under.zig");
 const xf = @import("xform.zig");
 const wheelspin = @import("wheelspin.zig");
 const prof = @import("prof.zig");
+const carcull = @import("carcull.zig");
 
 /// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else); spin, steer:
 /// the drawn wheels' turn and steer (u32 turns, wheelspin.zig; 0 = as modelled).
@@ -55,6 +56,7 @@ pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const tr
     const key = @max(project.depthKey(z), floor orelse 0);
     cache.next();
     prof.end(6);
+    if (!carcull.break_cull and carcull.outOfView(&mv, fix.mul(m.rad7 << 9, s.size))) return; // all faces would be rejected
     prof.begin(8);
     defer prof.end(8);
     if (!@import("hide.zig").on(@import("hide.zig").SHADOWS)) {

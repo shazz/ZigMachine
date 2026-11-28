@@ -26,13 +26,14 @@ pub const STEER_SHIFT: u5 = 15; // steer_angle (Q16 turns) << 15 = half of it as
 
 /// Group g: bit 0 the right side (x >= 0), bit 1 the front axle (z above the wheels' middle). Small (a car set holds
 /// five models and the cart's RAM window is tight): a vertex's group is found from its position when posed.
+/// i32 fields (board optimisation): a [3]i16 element at a 2-mod-4 address was read as one 32-bit load and trapped.
 pub const Groups = struct {
-    centre: [4][3]i16 = @splat(.{ 0, 0, 0 }),
-    zmid: i16 = 0,
+    centre: [4][3]i32 = @splat(.{ 0, 0, 0 }),
+    zmid: i32 = 0,
     any: bool = false,
 
-    pub fn of(self: *const Groups, v: trk.Vert) u8 {
-        return @as(u8, @intFromBool(v[0] >= 0)) | @as(u8, @intFromBool(v[2] > self.zmid)) << 1;
+    pub fn of(self: *const Groups, v: anytype) u8 { // a trk.Vert or a [3]i32 (vert())
+        return @as(u8, @intFromBool(@as(i32, v[0]) >= 0)) | @as(u8, @intFromBool(@as(i32, v[2]) > self.zmid)) << 1;
     }
 };
 
@@ -46,7 +47,7 @@ pub fn groups(verts: []const trk.Vert, wheels: []const trk.Face) Groups {
         zlo = @min(zlo, verts[id][2]);
         zhi = @max(zhi, verts[id][2]);
     };
-    g.zmid = @intCast((zlo + zhi) >> 1);
+    g.zmid = (zlo + zhi) >> 1;
     var lo: [4][3]i32 = @splat(@splat(std.math.maxInt(i32)));
     var hi: [4][3]i32 = @splat(@splat(std.math.minInt(i32)));
     for (wheels) |f| for (f.v[0..f.nv]) |id| {
@@ -59,7 +60,7 @@ pub fn groups(verts: []const trk.Vert, wheels: []const trk.Face) Groups {
     };
     for (&g.centre, lo, hi) |*c, l, h| {
         if (l[0] > h[0]) continue; // an empty group (a three-wheeler, an axle drawn as one piece)
-        for (0..3) |a| c[a] = @intCast((l[a] + h[a]) >> 1);
+        for (0..3) |a| c[a] = (l[a] + h[a]) >> 1;
     }
     g.any = true;
     return g;
@@ -86,20 +87,27 @@ pub fn pose(g: *const Groups, verts: []const trk.Vert, wheels: []const trk.Face,
     for (wheels) |f| for (f.v[0..f.nv]) |id| {
         if (done[id >> 3] & (@as(u8, 1) << @intCast(id & 7)) != 0) continue;
         done[id >> 3] |= @as(u8, 1) << @intCast(id & 7);
-        const v = verts[id];
+        const v = vert(verts, id);
         const k = g.of(v);
         const c = g.centre[k];
-        const t = turn(.{ @as(i32, v[0]) - c[0], @as(i32, v[1]) - c[1], @as(i32, v[2]) - c[2] }, r, k & 2 != 0);
+        const t = turn(.{ v[0] - c[0], v[1] - c[1], v[2] - c[2] }, r, k & 2 != 0);
         for (0..3) |a| vs[id][a] = @intCast(std.math.clamp(t[a] + c[a], -32768, 32767));
     };
-    for (wheels, fs[0..wheels.len]) |f, *o| {
-        o.* = f;
-        const n = turn(.{ f.n[0], f.n[1], f.n[2] }, r, g.of(verts[f.v[0]]) & 2 != 0);
+    @memcpy(fs[0..wheels.len], wheels); // WHY: a struct copy `o.* = f` was lowered to i64 loads at offsets 2 and 18 (traps)
+    for (wheels, fs[0..wheels.len]) |*f, *o| {
+        const n = turn(.{ f.n[0], f.n[1], f.n[2] }, r, g.of(vert(verts, f.v[0])) & 2 != 0);
         for (0..3) |a| o.n[a] = @intCast(std.math.clamp(n[a], -32768, 32767));
-        const p = vs[f.v[0]];
+        const p = vert(vs, f.v[0]);
         o.cp = @truncate(@as(i64, o.n[0]) * p[0] + @as(i64, o.n[1]) * p[1] + @as(i64, o.n[2]) * p[2]);
     }
     return fs[0..wheels.len];
+}
+
+/// Vertex `id` read one i16 at a time through volatile pointers: a [3]i16 copy at a 2-mod-4 address became a 32-bit load
+/// LLVM merged (wasm allows it; ZIGGY's aligned translation traps on it, ~210 cycles: perf_audit's misaligned probe).
+pub inline fn vert(vs: []const trk.Vert, id: u16) [3]i32 {
+    const p: [*]const volatile i16 = @ptrCast(&vs[id]);
+    return .{ p[0], p[1], p[2] };
 }
 
 /// A car's spin and steer as drawn (game.zig's snapshot): its wheel turns and its steer angle, both Q16 turns.
