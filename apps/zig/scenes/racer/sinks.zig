@@ -14,7 +14,9 @@ const row = @import("../stniccc/span.zig").row;
 const shadow = @import("shadow.zig");
 
 pub const Span = zg.chisel_v2.Span;
-pub const CHUNK = 2048; // spans a half: 48 KB
+/// Spans a half (12 KB): CHISEL starts on a half while the CPU fills the other (each hwBlit waits for the previous op), so
+/// a shadow's sync waits for at most one half; 2,048 left CHISEL idle until a half filled (board optimisation).
+pub const CHUNK = 512;
 
 /// Texel i = i: a span of colour c reads the one texel c of row 0.
 pub const palette_row: [256]u8 align(16) = blk: {
