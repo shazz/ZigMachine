@@ -103,8 +103,8 @@ test "the 32-bit sqrt and div fast path equal the 64-bit ones (random, powers of
         for (edges) |b| try std.testing.expectEqual(div64(a, b), fix.div(a, b));
     }
     for (0..31) |s| try std.testing.expectEqual(sqrt64(@as(i32, 1) << @intCast(s)), fix.sqrt(@as(i32, 1) << @intCast(s)));
-    for (0..200_000) |_| {
-        const a = r.int(i32);
+    for (0..1_000_000) |_| {
+        const a = r.int(i32) >> r.intRangeAtMost(u5, 0, 31);
         const small = r.intRangeAtMost(i32, -0x8000, 0x8000);
         const b = r.int(i32) >> r.intRangeAtMost(u5, 0, 31);
         try std.testing.expectEqual(sqrt64(a), fix.sqrt(a));

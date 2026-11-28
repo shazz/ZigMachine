@@ -67,14 +67,27 @@ pub fn overlap(a: *const car.Car, b: *const car.Car) Overlap {
     var cb: [3]V = undefined;
     const r = a.body.hw + b.body.hw;
     var o = Overlap{};
+    const far2 = clear2(r);
     for (circles(a, &ca)) |p| for (circles(b, &cb)) |q| {
         var d = vec.between(p, q);
         d[1] = 0;
+        if (!break_skip and @as(i64, d[0]) * d[0] + @as(i64, d[2]) * d[2] > far2) continue; // vec.len would be >= r: no overlap here
         const l = vec.len(d);
         if (r - l > o.depth) o = .{ .depth = r - l, .axis = if (l == 0) a.axes().right else vec.scale(d, fix.div(fix.ONE, l)) };
     };
     return o;
 }
+
+/// The squared distance (Q32) past which two circles of summed radius r (Q16) cannot overlap even after vec.len's
+/// rounding (board optimisation: vec.len is three divides and a sqrt, and most circle pairs of two close cars are apart).
+/// vec.len is within ~1/4,000 of the true length; the margin is an eighth of r plus a unit's 1/256: a pair skipped here
+/// would have given l >= r, so the result is the same integers (pushes_test.zig compares it with every pair measured).
+pub fn clear2(r: i32) i64 {
+    const m: i64 = @as(i64, r) + (r >> 3) + 256;
+    return m * m;
+}
+
+pub var break_skip = false; // the native test's A/B: every pair measured
 
 fn separate(a: *car.Car, b: *car.Car, n: V, depth: i32) void {
     a.pos = vec.add(a.pos, n, -(depth >> 1));

@@ -117,7 +117,7 @@ fn newFrame(nv: usize, nf: usize, cap: usize) !frame.Frame {
     const count = try a.create([frame.BUCKETS + 1]u32);
     const e = try a.alloc(xf.Entry, nv);
     @memset(e, std.mem.zeroes(xf.Entry));
-    const seen = try a.alloc(u32, nf);
+    const seen = try a.alloc(frame.Stamp, nf);
     @memset(seen, 0);
     return .{
         .cache = .{ .e = e },

@@ -70,3 +70,24 @@ test "a race on Salt Flats (8 cars, the AI): no two cars ever drawn inside each 
     try std.testing.expect(w[0] < hw >> 3); // under an eighth of a half width: pixels, not a car inside another
     try std.testing.expect(w[1] > hw >> 1); // the mutant: freds72's player-only contacts let the AI cars overlap
 }
+
+test "the far-pair skip (board optimisation) changes nothing: a whole ARCADE race on Salt, every overlap measured both ways" {
+    const t = try trk.parse(data.salt);
+    var r = try arcadeRace(&t);
+    var skipped: u32 = 0;
+    var touching: u32 = 0;
+    for (0..1800) |_| {
+        for (r.cars[0..r.n], 0..) |*a, i| for (r.cars[i + 1 .. r.n]) |*b| {
+            const fast = pushes.overlap(a, b);
+            pushes.break_skip = true;
+            const all = pushes.overlap(a, b);
+            pushes.break_skip = false;
+            try std.testing.expectEqual(all.depth, fast.depth);
+            try std.testing.expectEqual(all.axis, fast.axis);
+            skipped += @intFromBool(fast.depth == 0);
+            touching += @intFromBool(fast.depth > 0);
+        };
+        r.tick(0);
+    }
+    try std.testing.expect(skipped > 0 and touching > 0); // both kinds of pair met
+}

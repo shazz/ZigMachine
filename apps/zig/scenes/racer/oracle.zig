@@ -71,7 +71,7 @@ fn crosses(w: *const [3]under.Pt, x: i32, z: i32) bool {
 
 /// After the frame: faces kept this frame (faceKey non-null) that no tile of `list` (the PVS) holds. Clears those faces'
 /// frame stamps in `seen` to tell them apart, so it must run after everything that reads faceKey.
-pub fn missed(t: *const trk.Track, list: []const u16, seen: []u32, stamp: u32, fr: anytype) [4]u32 {
+pub fn missed(t: *const trk.Track, list: []const u16, seen: []u16, stamp: u16, fr: anytype) [4]u32 {
     var kept: u32 = 0;
     var blinks: u32 = 0;
     var buried: u32 = 0;

@@ -35,18 +35,19 @@ pub const F4: i32 = 160 * 16;
 pub const Y0: i32 = 12; // the 3D viewport's rows: [Y0, Y1), HUD bands above and below
 pub const Y1: i32 = 188;
 
+/// 20 bytes (board optimisation: was 24 with a u32 stamp; the frame's cache holds 25,600 of them, ~100 KB given back).
 pub const Entry = struct {
     v: clip.V3,
-    stamp: u32,
-    sx: i16,
-    sy: i16,
+    stamp: u16,
     rej: u8, // frustum: bit 0 near, 1 left, 2 right, 3 below, 4 above
     guard: u8, // clip.outside()
+    sx: i16,
+    sy: i16,
 };
 
 pub const Cache = struct {
     e: []Entry,
-    stamp: u32 = 0,
+    stamp: u16 = 0,
     touched: u32 = 0, // vertices transformed since next()
 
     pub fn next(self: *Cache) void {

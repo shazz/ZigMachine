@@ -58,6 +58,9 @@ fn tall(t: *const trk.Track, f: *const trk.Face) bool {
     }
     return hi - lo >= TALL;
 }
+/// A frame stamp (seen, the vertex caches): u16 since the board optimisation (cart RAM: the 25,600-entry cache and the
+/// face stamps gave back ~70 KB, GLACIER fits again); the wrap to 0 resets every stamp, as before.
+pub const Stamp = u16;
 pub const MAXP = 6144; // polygons kept a frame (the stress city at R = 8 stays under it); past it they are dropped, counted
 pub const MAXV = types.MAXV;
 const NO_KEY: u16 = 0xFFFF;
@@ -70,9 +73,9 @@ pub const Frame = struct {
     key: []u16, // MAXP
     order: []u16, // MAXP, far to near
     count: *[BUCKETS + 1]u32,
-    seen: []u32, // a face's frame stamp
+    seen: []Stamp, // a face's frame stamp
     fkey: []u16 = &.{}, // the key a face was kept with (read through faceKey: valid when seen == the stamp)
-    seen_stamp: u32 = 0,
+    seen_stamp: Stamp = 0,
     entries: [pvs.MAX_ENTRIES]u16 = undefined,
     pvs_entries: [pvs.MAX_ENTRIES]u16 = undefined, // the oracle's (key 2) PVS list beside its all-tiles one
     pvs_list: []const u16 = &.{},

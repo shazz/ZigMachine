@@ -18,7 +18,7 @@ pub fn cache(n: usize) xf.Cache {
 
 /// The frame for tracks of at most `nv` vertices and `nf` faces.
 pub fn frameFor(nv: usize, nf: usize) frame.Frame {
-    const seen = zg.mem.mustAlloc(u32, nf);
+    const seen = zg.mem.mustAlloc(frame.Stamp, nf);
     @memset(seen, 0);
     return .{
         .cache = cache(nv),

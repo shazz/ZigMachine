@@ -46,9 +46,9 @@ test "a vertex is transformed once a frame: touched counts first sights, next() 
 
 test "the stamp wrapping to zero clears the cache instead of trusting stale entries" {
     var e = [_]xf.Entry{std.mem.zeroes(xf.Entry)};
-    var c = xf.Cache{ .e = &e, .stamp = 0xFFFF_FFFF };
+    var c = xf.Cache{ .e = &e, .stamp = 0xFFFF };
     e[0].stamp = 7;
     c.next();
-    try std.testing.expectEqual(@as(u32, 1), c.stamp);
-    try std.testing.expectEqual(@as(u32, 0), e[0].stamp);
+    try std.testing.expectEqual(@as(u16, 1), c.stamp);
+    try std.testing.expectEqual(@as(u16, 0), e[0].stamp);
 }
