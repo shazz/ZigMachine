@@ -54,11 +54,12 @@ host-audio: memmap $(HOST)/$(CART)/host_audio
 # --- the native SNDH replays' oracle (tests/test_sndh_native.py): one song, no cart, a digest of
 # the writes a frame; run once with ZM_SNDH_MUSASHI=1 (the reference) and once without.
 #   make sndh-oracle && ZM_AUDIO_DIGEST=/dev/shm/n.d build/host/oracle/sndh_oracle union/beat_dis.sndh 0 600
-# (host.h wants a cart's header for its types: tutorial's.)
+# (host.h wants a cart's header for its types: tutorial's, and machine.h / rom.h, which wasm2c writes with machine.c / rom.c: without
+# that prerequisite a fresh gate tree failed with "'machine.h' (then rom.h) file not found" when no earlier job had made it.)
 ORACLE_SRC := host/sndh_oracle.c $(AUD_SRC) host/audio_soft.c host/audio_scope_check.c
 ORACLE_RT  := $(addprefix $(HOST)/common/,rt.o rt-mem.o rt-exc.o)
 $(HOST)/oracle/sndh_oracle: $(ORACLE_SRC) $(AUD_HDRS) host/audio_queue.h host/haudio_soft.h $(ORACLE_RT) \
-		$(HOST)/common/aplayer.o $(HOST)/common/maud.o $(HOST)/tutorial/cart.h
+		$(HOST)/common/aplayer.o $(HOST)/common/maud.o $(HOST)/tutorial/cart.h $(HOST)/common/machine.c $(HOST)/common/rom.c
 	@mkdir -p $(@D)/o
 	for s in $(ORACLE_SRC); do \
 		$(HOST_CC) $(HOST_AUD_CFLAGS) -I$(HOST)/tutorial -c $$s -o $(@D)/o/$$(basename $$s .c).o || exit 1; done
@@ -103,7 +104,8 @@ $(HCYC)/songs/%.c: $(ROOT)/site/carts/demo-%.wasm $(HOST)/%/host_audio tools/son
 # --- the players' cost alone (cycles/baudio_bench.c), on the board SoC sim: no cart.
 #   make audio-bench SONG=union/wow_scroller.sndh [TUNE=0] [ZM_FRAMES=60]
 #   ZM_SOC=$PWD/build/soc_hp ZM_INIT=sim_zm_ddr.init tools/cycles_sim.sh build/hcycles/abench/zm_ddr.init /dev/shm/ab
-# (host.h wants a cart's header for its types: tutorial's.)
+# (host.h wants a cart's header for its types: tutorial's, and machine.h / rom.h, which wasm2c writes with machine.c / rom.c: without
+# that prerequisite a fresh gate tree failed with "'machine.h' (then rom.h) file not found" when no earlier job had made it.)
 SONG ?= sos.sndh
 TUNE ?= 0
 ABENCH := $(HCYC)/abench
