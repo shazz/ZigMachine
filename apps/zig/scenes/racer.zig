@@ -5,7 +5,7 @@
 // (the benchmark's lap v0), the PVS and a ray DDA pick the tiles, faces are back-face culled,
 // transformed, clipped, bucket-sorted far to near and filled flat. docs/ports/kestrel_racing/.
 //
-//   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
+//   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CHISEL AFFINE spans (the default) / CPU word stores   m mulsh / plain twin
 //   g the vertex transform in f32   d decals on / off   t the next track (the oval, then the disk's *.KTR files and C:\RACER\'s: racer/library.zig)   p pause   o the benchmark OSD
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 //   y the cars' shadow: REAL (one ramp level darker, the default) / the arcade's checkerboard (HUD "/DITHER"; M5.md step 3)

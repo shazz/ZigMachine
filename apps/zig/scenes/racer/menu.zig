@@ -26,7 +26,17 @@ pub const Px = struct {
         const x1: usize = @intCast(@min(x + w, W));
         if (x1 <= x0) return;
         var r: i32 = @max(y, 0);
-        while (r < @min(y + h, H)) : (r += 1) @memset(self.px[@as(usize, @intCast(r)) * self.stride + x0 ..][0 .. x1 - x0], c);
+        while (r < @min(y + h, H)) : (r += 1) {
+            const row = self.px[@as(usize, @intCast(r)) * self.stride + x0 ..][0 .. x1 - x0];
+            if (row.len > 8) {
+                @memset(row, c);
+                continue;
+            }
+            // A glyph run of the picture HUD's big font: a few bytes, stored here (volatile: LLVM would turn the loop back
+            // into a memset, a libc call each on ZIGGY; board optimisation, the same bytes).
+            const p: [*]volatile u8 = @ptrCast(row.ptr);
+            for (0..row.len) |i| p[i] = c;
+        }
     }
 
     /// A panel: a filled box with a one-pixel border.

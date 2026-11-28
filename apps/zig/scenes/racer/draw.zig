@@ -22,7 +22,7 @@ pub const Painter = struct {
     os: *zg.ZigOS,
     cpu: sinks.CpuSink = .{},
     aff: sinks.AffineSink,
-    cpu_fill: bool = true,
+    cpu_fill: bool = false, // CHISEL AFFINE by default since the board optimisation (~1.3 ms a 32X race frame); key f the CPU's
 
     pub fn sky(self: *Painter, fb: *zg.LogicalFB, v: *const cam.View, yaw: u32) void {
         if (self.cpu_fill) {
