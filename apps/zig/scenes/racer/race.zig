@@ -103,16 +103,22 @@ pub const Race = struct {
         self.ticks += 1;
     }
 
+    /// The AI cars a phase at a time, every car through one function before the next (board optimisation: a car's whole
+    /// tick is more code than ZIGGY's 16 KB I$, so car after car re-fetched it). No AI car reads another in these phases
+    /// (the pushes come after), so each car's integers are the same as car by car (race_test's reference CRCs).
     fn aiTick(self: *Race) void {
-        for (self.cars[1..self.n], self.pids[0 .. self.n - 1], 0..) |*c, *pid, k| {
-            prof.begin(1);
+        const cars = self.cars[1..self.n];
+        prof.begin(1);
+        for (cars, self.pids[0 .. self.n - 1], 0..) |*c, *pid, k| {
             if (self.parked >> @intCast(k) & 1 == 0) npc.control(c, pid, &self.lens);
-            prof.end(1);
-            prof.begin(2);
-            c.prepare();
-            c.integrate();
-            c.update();
-            prof.end(2);
+        }
+        prof.end(1);
+        prof.begin(2);
+        for (cars) |*c| c.prepare();
+        for (cars) |*c| c.integrate();
+        for (cars) |*c| c.update();
+        prof.end(2);
+        for (cars, self.pids[0 .. self.n - 1], 0..) |*c, *pid, k| {
             if (rescue.tick(c, &self.stuck[k + 1])) {
                 self.rescues += 1;
                 pid.* = .{};

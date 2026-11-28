@@ -36,20 +36,24 @@ tick), page 2 the cars (P6 model view + footprint key, P8 faces + shadows, P9 wh
 | F fill | 11.8 | CPU spans (6.6 with the cars hidden); the AFFINE path is no cheaper (the CPU walks the edges either way) |
 | H HUD | 0.5 | the picture HUD is NOT the problem: hiding it moves cart_c by noise |
 
-## Results (fps, glass ctl stats, in race / x bench)
+## Results (fps, glass ctl stats, in race / x bench; rows by the track name on the HUD)
 
-| track | batch race | batch bench | opt1 race | opt1 bench |
+| track | batch race | batch bench | opt2 race | opt2 bench |
 |---|---|---|---|---|
-| OVAL | 35.2 | 40.7 | 39.5 | 43.3 |
-| SALT | 23.8 | 38.2 | 30.9 | 41.7 |
-| NEON | 24.4 | 41.3 | 31.1 | 44.4 |
-| DXFOREST | 17.7 | 24.0 | 21.4 | 25.8 |
-| DXBAY | 18.1 | 23.6 | 21.4 | 26.0 |
-| DXACRO | 18.9 | 23.2 | 20.7 | 24.0 |
-| DXHIGH | 16.1 | 20.9 | 26.3 | 31.5 |
-| DXSAND | 20.9 | 28.3 | 31.8 | 45.2 |
+| OVAL | 35.2 | 40.7 | 39.1 | 42.5 |
+| SALT | 23.8 | 38.2 | 31.4 | 41.1 |
+| NEON | 24.4 | 41.3 | 31.6 | 43.3 |
+| GLACIER | (not listed: no RAM) | | 30.9 | 44.0 |
+| DXFOREST | 17.7 | 24.0 | 21.6 | 25.6 |
+| DXBAY | 18.1 | 23.6 | 21.8 | 26.0 |
+| DXACRO | 18.9 | 23.2 | 23.0 | 26.0 |
+| DXHIGH | 16.1 | 20.9 | 20.9 | 23.8 |
+| DXSAND | 20.9 | 28.3 | 26.5 | 31.1 |
 
-opt1 = commit 3 (misaligned traps, sqrt / div, ground normals, car cull). Single 5 s samples: +-2 fps of race noise.
+The 32X card (RACER BATCH 32X / RACER OPT 32X) races its FORMULA set (CAR.KCR: 143 faces for the player, ~71 for an AI
+car) on EVERY track, ours included; the public card races the GT. CITY is not raceable (its race and bench rows are the
+oval's). opt2 = 6ba5bfcf (gated green). A configuration repeats to ~0.2 fps; between cards, the race's own course (pace
+gives more ticks to a slower frame) moves a track by up to ~2 fps.
 
 ## What each change bought
 
