@@ -164,12 +164,12 @@ for w in "$OUT"/demo-*.wasm; do
         stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;
         # BAD APPLE streams its film off the disk, a 1 s ZX0 block at a time. The shelf disk carries OUR synthetic test
-        # film (tools/badapple/synth.py); BADAPPLE_SPANS=<file> packs the real, local-only one instead
-        # (prototypes/cards/build_badapple.sh).
-        badapple)  pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+        # film (tools/badapple/synth.py); BADAPPLE_SPANS=<file> packs the real, local-only one instead, and
+        # BADAPPLE_MP3=<file> adds the local song as SONG.MP3 to every Bad Apple disk (prototypes/cards/build_badapple.sh).
+        badapple)  pack "$OUT/demo-$tag.zmd" "$tag" "$w" ${BADAPPLE_MP3:+--file} ${BADAPPLE_MP3:+SONG.MP3=$BADAPPLE_MP3} \
                         --file "SPANS.BIN=${BADAPPLE_SPANS:-apps/zig/assets/screens/badapple/test_spans.bin}" ;;
         # ...the tile-dictionary variant (cart 167): BADAPPLE_TILES=<file> packs the local real film.
-        badapple_tiles) pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+        badapple_tiles) pack "$OUT/demo-$tag.zmd" "$tag" "$w" ${BADAPPLE_MP3:+--file} ${BADAPPLE_MP3:+SONG.MP3=$BADAPPLE_MP3} \
                         --file "TILES.BIN=${BADAPPLE_TILES:-apps/zig/assets/screens/badapple/test_tiles.bin}" ;;
         # RACER (Kestrel Racing M5 step 2) reads its tracks off the disk: each NAME.KTR is a converter binary
         # (tools/racer/trackc.py), ZX0-packed here (cached like the carts); the key t order is this order. The cart

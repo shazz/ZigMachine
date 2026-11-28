@@ -47,6 +47,9 @@ pub fn build(b: *std.Build) void {
     // BAD APPLE's LOCAL song (apps/zig/scenes/badapple.zig): an XM of unknown licence, git-ignored as
     // apps/zig/assets/screens/badapple/local.xm, never committed. Off by default: the cart is silent.
     const badapple_music = b.option(bool, "badapple_music", "BAD APPLE: embed the local song (apps/zig/assets/screens/badapple/local.xm, gitignored; never ship that cart).") orelse false;
+    // ...or its LOCAL MP3 (Matt 27 Nov): the carts stream SONG.MP3 off their disk (BADAPPLE_MP3=<file> tools/mkdisks.sh)
+    // and clock the film from its play position. Off by default: no MP3 import in the public carts.
+    const badapple_mp3 = b.option(bool, "badapple_mp3", "BAD APPLE: play SONG.MP3 off the disk and clock the film from it (local only; never ship that cart).") orelse false;
     const gem_engine_new = b.option(bool, "gem_engine", "GEM: the desk mode starts on the GEM 5 engine (default: the old ZigGEM path).") orelse false;
 
     if (!build_wasm) return;
@@ -708,6 +711,7 @@ pub fn build(b: *std.Build) void {
         cart_opts.addOption(usize, "index", idx);
         cart_opts.addOption(bool, "racer_music", racer_music);
         cart_opts.addOption(bool, "badapple_music", badapple_music);
+        cart_opts.addOption(bool, "badapple_mp3", badapple_mp3);
         const cart_mod = b.createModule(.{
             .root_source_file = b.path("apps/zig/cart.zig"),
             .target = wasm_target,

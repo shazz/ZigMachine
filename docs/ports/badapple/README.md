@@ -16,9 +16,13 @@ compressions so they can be compared on the board (see "The three variants"): th
   XM of unknown licence). They live in `prototypes/badapple_local/` (git-ignored). A second cart Gemini
   ported from github.com/braheezy/gbadapp (no licence) was dropped; a copy of everything it left is in
   `prototypes/badapple_local/gemini_snapshot/`.
-- Local build, as RACER's `-Dracer_music`: `prototypes/cards/build_badapple.sh [rev]` builds with
-  `-Dbadapple_music=true` (embeds the git-ignored `apps/zig/assets/screens/badapple/local.xm`) and packs the real
-  stream into the disk through `BADAPPLE_SPANS=<file> tools/mkdisks.sh`. Without the option the cart is silent.
+- Local build, as RACER's `-Dracer_music`: `prototypes/cards/build_badapple.sh [rev]` (outside git) builds the three
+  carts with **`-Dbadapple_mp3=true`** (Matt 27 Nov, the default song: `prototypes/badapple_local/bad_apple_48k.mp3`,
+  MPEG-2 Layer III 48 kbps mono 22.05 kHz, 1,315,317 B) and packs each real film into its disk with
+  `BADAPPLE_{SPANS,TILES,POLY}=<file> BADAPPLE_MP3=<mp3> tools/mkdisks.sh`: the MP3 rides on the disk as SONG.MP3, it
+  is never embedded in the wasm. `MUSIC=xm` keeps the old `-Dbadapple_music=true` (the git-ignored
+  `apps/zig/assets/screens/badapple/local.xm` embedded); both at once is a compile error. Without either option the
+  carts are silent and import no MP3 call at all.
 
 ## Format ("BASP", `tools/badapple/spans.py` has the byte layout)
 
@@ -39,10 +43,15 @@ The cart refuses a header that is not 320x200 and any frame that is out of range
   plane 0's 8-bit buffer). A row repaint rewrites the unchanged parts of that row too (a per-edge repaint was
   not worth its overlap cases: see Costs).
 - One plane, palette 0 black, 1 white (a fade or tint is a palette write), 2 red = failure.
-- Sync: the frame is `elapsed hostMicros x 30 / 1e6 + 1` from the first update. A cart-asked XM has no audio
-  position to read (zg.bard.position() is the BARD FM queue's, not the song engine's), so the clock starts when
-  the song is requested; a late picture decodes every frame it owes (they are deltas) and shows the last. No
-  clock (a host answering 0): 30 fps from the 60 Hz VBLs.
+- Sync: the frame is `elapsed x 30 / 1e6 + 1` from the first update; a late picture decodes every frame it owes
+  (they are deltas) and shows the last. With the MP3 (`badapple/song.zig`) the music is the clock: SONG.MP3 is read
+  a 32 KiB disk read at a time and fed as the player's 64 KiB ring has room (mp3_player's flow control), and the
+  elapsed time (hostMicros, smooth) is pulled to within 40 ms of the MP3's position, `mp3Status(.frames)` x the
+  frame size the cart reads off the file's first header (`mp3clock.zig`: 576 samples at 22.05 kHz, so 26 ms
+  steps; the status rate field only says "other" for MPEG-2). A cart-asked XM has no audio position to read
+  (zg.bard.position() is the BARD FM queue's, not the song engine's), so with the XM it is hostMicros alone. No
+  clock (a host answering 0, no MP3): 30 fps from the 60 Hz VBLs. Checked locally (not a gate: the gate builds
+  the public carts): a fake MP3 player at half the host's speed, and the film follows the song within a frame.
 - No float per frame (the only maths is a u64 multiply-divide once a frame).
 
 ## The real film (prototypes/badapple_local/spans.bin)
