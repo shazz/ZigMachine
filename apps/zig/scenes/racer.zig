@@ -21,10 +21,11 @@
 // Board batch (BATCH.md): ] / [ the next / previous car (the garage: the disk's and C:'s *.KCR, then the GT), _ the effects'
 //   PSG layout; the select's fire opens the CAR SELECT; --break & (wheels still) ~ (old near camera) * (models still)
 //   < (no bench HUD) > (tag class ignored) | (panorama PIXEL ignored)
+// Board optimisation (OPTIMIZE.md): ( ) { } # $ hide cars, picture HUD, panorama, shadows, scenery, ground (A/B, off by
+//   default); ` the probe timers (two OSD pages); - = ; opt-in cheaper far cars (they change the picture: off by default)
 // One plane in two pages (the shown one is enabled), the sky a per-line palette entry on the copper, the
 // backdrop one AFFINE op. No float. Benchmark lines go to the console: racer/bench.zig, racer/drive.zig.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
 const draw = @import("racer/draw.zig");
 const bench = @import("racer/bench.zig");
@@ -116,9 +117,7 @@ pub const Demo = struct {
         self.game = game.Game.init(&self.tracks[0], micros) catch |e| @panic(@errorName(e));
         self.map = minimap.Map.init(&self.tracks[0]);
         self.pmap = hudpic.fitMap(&self.tracks[0]);
-        const spans = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK);
-        @memset(spans, std.mem.zeroes(sinks.Span)); // WHY: AffineSink.span writes only the words a flat span sets
-        self.p = .{ .os = zigos, .aff = .{ .buf = spans, .os = zigos } };
+        self.p = .{ .os = zigos, .aff = .{ .buf = sinks.spanBuffer(), .os = zigos } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});

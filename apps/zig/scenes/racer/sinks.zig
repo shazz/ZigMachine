@@ -57,6 +57,13 @@ pub const CpuSink = struct {
     pub fn flush(_: *CpuSink) void {}
 };
 
+/// The AffineSink's two halves, zeroed once: AffineSink.span writes only the three words a flat span sets.
+pub fn spanBuffer() []Span {
+    const b = zg.mem.mustAlloc(Span, 2 * CHUNK);
+    @memset(b, @import("std").mem.zeroes(Span));
+    return b;
+}
+
 pub const AffineSink = struct {
     buf: []Span, // 2 * CHUNK
     fb: *zg.LogicalFB = undefined,
@@ -80,7 +87,7 @@ pub const AffineSink = struct {
     }
 
     /// Three of the record's six words: v0, du and dv are zero in every flat span, and the buffer was zeroed once at init
-    /// (racer.zig) and is written by nothing else (board optimisation: 15,000 stores a 32X race frame fewer).
+    /// (spanBuffer) and is written by nothing else (board optimisation: 15,000 stores a 32X race frame fewer).
     pub inline fn span(self: *AffineSink, y: i32, x0: i32, x1: i32, c: u8) void {
         if (self.cur == self.end) self.flush();
         const s: *[6]u32 = @ptrCast(&self.cur[0]);

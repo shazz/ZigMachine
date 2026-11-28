@@ -23,6 +23,7 @@ const prof = @import("prof.zig");
 const carcull = @import("carcull.zig");
 const carlod = @import("carlod.zig");
 const carfloor = @import("carfloor.zig");
+const haze = @import("haze.zig");
 
 /// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else); spin, steer:
 /// the drawn wheels' turn and steer (u32 turns, wheelspin.zig; 0 = as modelled).
@@ -73,7 +74,8 @@ fn emit(fr: *frame.Frame, cache: *xf.Cache, s: Snap, m: *const carmodel.Model, l
     defer prof.end(8);
     const mv = &p.mv;
     cache.next();
-    if (!@import("hide.zig").on(@import("hide.zig").SHADOWS) and !carlod.noShadow(p.z, s.size)) {
+    const washed = haze.active and haze.band(p.floor orelse p.key) != 0; // build would drop every shadow face (after its vertices)
+    if (!washed and !@import("hide.zig").on(@import("hide.zig").SHADOWS) and !carlod.noShadow(p.z, s.size)) {
         prof.begin(10);
         for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, mv, sh, .{ .fixed = p.floor orelse p.key, .shadow = true });
         prof.end(10);
