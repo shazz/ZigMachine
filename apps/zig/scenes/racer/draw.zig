@@ -46,6 +46,7 @@ pub const Painter = struct {
             c.spans = self.cpu.spans;
             c.pixels = self.cpu.pixels;
         } else {
+            self.aff.begin(fb); // WHY: the course and car selects fill without sky(), which began the sink on the 3D view's page
             var e = poly.Emitter(sinks.AffineSink){ .sink = &self.aff, .y_min = xf.Y0, .y_max = xf.Y1, .w = 320 };
             f.emit(sinks.AffineSink, &e);
             self.aff.flush();
