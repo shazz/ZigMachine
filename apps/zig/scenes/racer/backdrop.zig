@@ -44,6 +44,7 @@ const hills: [W * ROWS]u8 align(16) = blk: {
 var strip: *[W * ROWS]u8 = undefined; // the buffer's first 64 KB (init): no 64 KB of zeros in the image
 var mem: []u8 = &.{}; // the shapes' strip or a panorama file (pano.zig): sized by init to the larger
 var shown: ?Shape = null;
+pub var break_pixel = false; // racer_look.mjs --break pixel (key |): flag PIXEL ignored (the stretched strip)
 pub var pan: ?panofile.Pan = null; // the track's panorama on show (pano.zig), else the mood's shape
 
 /// The buffer, carved once before the track library: the shapes' 64 KB or the disk's largest panorama (pano.largest).
@@ -156,7 +157,7 @@ const Geometry = struct { rows: u32, lower: u32, horizon: u32, shift: u5, du: u3
 /// quarter turn is the 90 degree view: width / 4 texels over 320 pixels) and a line's (Q16), the texel ahead at yaw 0.
 fn geometry() Geometry {
     const p = pan orelse return .{ .rows = H, .lower = 0, .horizon = H, .shift = 6, .du = DU, .dv = 1 << 16, .u0 = 0 };
-    const du = if (p.pixel) 65536 else p.width * 65536 / 1280; // PIXEL (the 32X's plane B): no 5:4 resample of its dither
+    const du = if (p.pixel and !break_pixel) 65536 else p.width * 65536 / 1280; // PIXEL (the 32X's plane B): no 5:4 resample of its dither
     return .{ .rows = p.rows, .lower = p.lower_rows, .horizon = p.horizon, .shift = @intCast(16 - std.math.log2_int(u32, p.width)), .du = du, .dv = du, .u0 = p.u0 }; // square texels: dv = du
 }
 

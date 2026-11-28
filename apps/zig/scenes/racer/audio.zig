@@ -32,6 +32,7 @@ pub const Audio = struct {
     device: bool = false, // the FM device is open
     effects: bool = true,
     owning: bool = false,
+    layout: sfx.Layout = .fm, // the layout the channels were taken for (key _ switches the effects' to PSG: retaken)
     bench_audio: bool = true,
     t: u32 = 0, // the cart's sample clock: this frame's stamp
     now: *const fn () u32 = zeroClock, // microseconds (racer.zig gives hostMicros)
@@ -51,6 +52,7 @@ pub const Audio = struct {
     }
 
     fn take(self: *Audio) void {
+        self.layout = self.fx.layout;
         if (self.fx.layout == .psg) {
             self.owning = fm.own(self.t, psgfx.MASK);
         } else self.owning = fm.own(self.t, fm.SFX_DEFAULT) and fm.patch(self.t, sfx.ENGINE, &voices.ENGINE) and
@@ -104,10 +106,9 @@ pub const Audio = struct {
         self.refused += out.dropped;
     }
 
-    /// Bug pass (Matt 27 Nov, "no engine sound" on the board): the channels were asked for ONCE, at the first frame; one
-    /// refusal there (a queue not ready yet) silenced the effects for the whole session. Ask again once a second.
+    /// Bug pass ("no engine sound": one refusal at the first frame silenced the session): ask again once a second; also when the layout changed.
     fn retake(self: *Audio) void {
-        if (self.device and self.effects and !self.owning and self.frames % 60 == 0) self.take();
+        if (self.device and self.effects and self.frames % 60 == 0 and (!self.owning or self.fx.layout != self.layout)) self.take();
     }
 
     /// `racer,audio,<device>,<owning>,<anchored>,<refused>` on the console when the effects' state changes (the board's serial log
@@ -140,7 +141,6 @@ pub const Audio = struct {
 fn zeroClock() u32 {
     return 0;
 }
-
 /// The pause: what the effects sound is silenced (the music plays on); they start again with the race.
 pub fn pause(self: anytype) void {
     const a = &self.audio;
@@ -195,6 +195,7 @@ pub fn key(self: anytype, cp: u32) bool {
         'z' => self.audio.toggleMusic(),
         'h' => self.audio.toggleEffects(),
         'j' => self.audio.bench_audio = !self.audio.bench_audio,
+        '_' => self.audio.fx = .{ .layout = .psg }, // the PSG layout on any cart (racer_batch.mjs): the next retake owns its mask
         else => return false,
     }
     return true;

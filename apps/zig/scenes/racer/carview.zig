@@ -104,12 +104,12 @@ fn faces(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, mv: *const
     }
 }
 
-var posed_vs: [wheelspin.MAX_VERTS]trk.Vert = undefined; // one car's posed wheels at a time (wheelspin.pose)
-var posed_fs: [wheelspin.MAX_FACES]trk.Face = undefined;
+pub var posed_vs: []trk.Vert = &.{}; // one car's posed wheels at a time (wheelspin.pose); carved at init (setup.zig)
+pub var posed_fs: []trk.Face = &.{};
 
 /// The wheels turned by the car's spin and steer (wheelspin.zig); a pose at rest draws the model's own faces.
 fn wheels(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, s: Snap, k: Look) void {
-    const fs = wheelspin.pose(&m.spin, m.verts, m.range(.wheels), s.spin, s.steer, &posed_vs, &posed_fs) orelse return part(fr, cache, m, mv, .wheels, k);
+    const fs = wheelspin.pose(&m.spin, m.verts, m.range(.wheels), s.spin, s.steer, posed_vs, posed_fs) orelse return part(fr, cache, m, mv, .wheels, k);
     cache.next(); // WHY: the posed vertices share the model's ids: no transform cached from the model's may be reused
     faces(fr, cache, posed_vs[0..m.verts.len], mv, fs, k);
     cache.next(); // ... nor theirs by the hull after them

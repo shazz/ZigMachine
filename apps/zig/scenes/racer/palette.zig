@@ -19,7 +19,7 @@ pub const INK: u8 = 3;
 pub const GROUND: u8 = 4;
 
 /// Light level l (0..7) of an 8-bit channel: 36% .. 99%.
-fn lit(c: u8, l: u32) u8 {
+pub fn lit(c: u8, l: u32) u8 {
     return @intCast((@as(u32, c) * (92 + l * 23)) >> 8);
 }
 

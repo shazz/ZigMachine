@@ -8,27 +8,29 @@
 // title; select -back-> title; grid -back-> select. The M5 finish adds the options screen, reached
 // from the title or the select (-options->) and left for either: options -back-> title, options
 // -enter-> select (front.zig fires the one it came from). An event that is not in the table is
-// refused and the state does not change. `restart` is legal from every race state but the grid (it
+// refused and the state does not change. The board batch adds the car select, `garage`: select -car-> garage
+// -pick-> grid, garage -back-> select (the track is loaded on the way in, the car chosen there). `restart` is legal from every race state but the grid (it
 // is the abort key, and the results' "again"). New states and events are appended, so the old ones
 // keep their numbers. No ZigOS import.
 // --------------------------------------------------------------------------
-pub const State = enum(u8) { grid, countdown, race, finish, results, title, select, options };
-pub const Event = enum(u8) { start, go, finish, done, restart, enter, pick, back, options };
-pub const NSTATE = 8;
-pub const NEVENT = 9;
+pub const State = enum(u8) { grid, countdown, race, finish, results, title, select, options, garage };
+pub const Event = enum(u8) { start, go, finish, done, restart, enter, pick, back, options, car };
+pub const NSTATE = 9;
+pub const NEVENT = 10;
 pub const Error = error{IllegalTransition};
 
 /// TABLE[state][event]: the next state, or null when the event is illegal in that state.
 pub const TABLE = [NSTATE][NEVENT]?State{
-    //   start       go     finish   done      restart enter    pick   back    options
-    .{ .countdown, null, null, null, null, null, null, .select, null }, // grid
-    .{ null, .race, null, null, .grid, null, null, null, null }, // countdown
-    .{ null, null, .finish, null, .grid, null, null, null, null }, // race
-    .{ null, null, null, .results, .grid, null, null, null, null }, // finish
-    .{ null, null, null, null, .grid, .select, null, .title, null }, // results
-    .{ null, null, null, null, null, .select, null, null, .options }, // title
-    .{ null, null, null, null, null, null, .grid, .title, .options }, // select
-    .{ null, null, null, null, null, .select, null, .title, null }, // options
+    //   start       go     finish   done      restart enter    pick   back    options   car
+    .{ .countdown, null, null, null, null, null, null, .select, null, null }, // grid
+    .{ null, .race, null, null, .grid, null, null, null, null, null }, // countdown
+    .{ null, null, .finish, null, .grid, null, null, null, null, null }, // race
+    .{ null, null, null, .results, .grid, null, null, null, null, null }, // finish
+    .{ null, null, null, null, .grid, .select, null, .title, null, null }, // results
+    .{ null, null, null, null, null, .select, null, null, .options, null }, // title
+    .{ null, null, null, null, null, null, .grid, .title, .options, .garage }, // select
+    .{ null, null, null, null, null, .select, null, .title, null, null }, // options
+    .{ null, null, null, null, null, null, .grid, .select, null, null }, // garage (board batch: the car select)
 };
 
 pub const Fsm = struct {
@@ -52,7 +54,7 @@ pub const Fsm = struct {
 
     /// The front end's states: no race runs in them.
     pub fn front(self: *const Fsm) bool {
-        return self.state == .title or self.state == .select or self.state == .options;
+        return self.state == .title or self.state == .select or self.state == .options or self.state == .garage;
     }
 
     pub fn name(s: State) []const u8 {

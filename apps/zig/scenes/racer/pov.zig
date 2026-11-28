@@ -24,8 +24,12 @@ const BACK = [3]i32{ 157286, 88474, 0 }; // 2.4, 1.35, 0
 const HEIGHT = [3]i32{ 78643, 20972, 10486 }; // 1.2, 0.32, 0.16
 const PITCH = [3]u32{ 0x0600_0000, 0x0200_0000, 0x0100_0000 }; // 8.4, 2.8, 1.4 degrees
 
+/// racer_batch.mjs --break near (key ~): the near chase camera before the board batch (1.2 back, 0.45 up, 5.6 degrees).
+pub var break_near = false;
+
 fn params(p: cam.Pov) [3]i32 {
     const k = @intFromEnum(p);
+    if (break_near and p == .near) return .{ 78643, 29491, 0x0400_0000 };
     return .{ BACK[k], HEIGHT[k], @bitCast(PITCH[k]) };
 }
 

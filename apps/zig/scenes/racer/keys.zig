@@ -82,6 +82,17 @@ pub fn handle(self: anytype, cp: u32) void {
         '!' => @import("pushes.zig").break_push = true, // ... --break push: ARCADE back to freds72's player-only contacts
         '^' => @import("panofile.zig").break_crc = true, // racer_look.mjs --break crc: a corrupted panorama accepted
         '%' => @import("rescue.zig").break_rescue = true, // R82 32X look: no stuck-car rescue (the A/B of rescue.zig)
+        ']' => ts.switchCar(self, 1), // board batch: the next car in the garage, live (FORMULA STOCK PROTO ... GT)
+        '[' => ts.switchCar(self, -1), // ... the previous one
+        '&' => @import("wheelspin.zig").break_still = true, // racer_batch.mjs --break still: the wheels never turn
+        '~' => @import("pov.zig").break_near = true, // ... --break near: the pre-batch near chase camera
+        '*' => {
+            @import("coursedraw.zig").break_still = true; // ... --break turn: the course and car models never turn
+            @import("garagedraw.zig").break_still = true;
+        },
+        '<' => @import("hudpic.zig").break_bench = true, // ... --break hud: the x bench without the picture HUD
+        '>' => @import("garage.zig").break_tag = true, // ... --break tag: a tagged car set's class not taken
+        '|' => @import("backdrop.zig").break_pixel = true, // racer_look.mjs --break pixel: flag PIXEL ignored
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

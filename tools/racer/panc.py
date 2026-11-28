@@ -149,10 +149,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("track", help="the track's .ktrk (its free palette entries are looked up)")
     ap.add_argument("-o", "--out", required=True)
     ap.add_argument("--corrupt", action="store_true", help="flip a texel after the CRC (the harness' refusal case)")
+    ap.add_argument("--pixel", action="store_true", help="flag PIXEL: drawn a texel a pixel (the 32X's way)")
     a = ap.parse_args(argv)
     rows, px, pal, hz = test_strip()
     first = free_entries(Path(a.track).read_bytes(), len(pal) - 1)
-    b = bytearray(encode(256, rows, px, pal, hz, first, colours=len(pal) - 1))
+    b = bytearray(encode(256, rows, px, pal, hz, first, colours=len(pal) - 1, pixel=a.pixel))
     if a.corrupt:
         b[-1] ^= 1
     Path(a.out).write_bytes(bytes(b))

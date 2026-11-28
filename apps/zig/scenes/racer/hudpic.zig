@@ -23,6 +23,7 @@ const minimap = @import("minimap.zig");
 const palette = @import("palette.zig");
 
 pub var on = true; // key 0: the picture HUD (default) or the two bands
+pub var break_bench = false; // racer_batch.mjs --break hud (key <): the x bench without it (the pre-batch bench)
 pub const MAP = [4]i32{ 250, 44, 64, 56 }; // the minimap's box: x, y, w, h
 pub const GAUGE_SEGS = 12;
 

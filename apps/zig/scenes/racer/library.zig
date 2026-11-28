@@ -2,10 +2,9 @@
 // RACER: the track library (M5 step 2). The oval is built in (the gate's fallback, and the recorded
 // button streams are its); every other track is a FILE: each `*.KTR` on the cart's own disk (zg.disk's
 // FAT, in the FAT's order) and in C:\RACER\ (KOS GEMDOS: a user's own tracks on the SD card's /HD).
-// A file is the converter's v3 binary (tools/racer/trackc.py), raw or ZX0-packed (tools/mkdisks.sh
-// packs the disk's). The scan reads each file's first block only; a track is read into ONE buffer
-// when it is chosen and parsed there (trk.parse bounds every count and offset), and a bad file is
-// refused by name with the reason, never trapped on. docs/ports/kestrel_racing/M5.md.
+// A file is the converter's v3 binary (tools/racer/trackc.py), raw or ZX0-packed (tools/mkdisks.sh packs the disk's).
+// The scan reads each file's first block only; a track is read into ONE buffer when it is chosen and parsed there
+// (trk.parse bounds every count and offset); a bad file is refused by name, never trapped on. M5.md.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -15,8 +14,10 @@ const data = @import("data.zig");
 const refusals = @import("refusals.zig");
 const trk = @import("trk.zig");
 const Preview = @import("preview.zig").Preview;
-// The select's previews: a module variable, not a field, so no `self.* = .{}` copies a 9 KB default blob (the struct-default trap).
-var previews: [MAX]Preview = undefined;
+const courses = @import("courses.zig");
+// The select's previews: one a listed track, carved at the scan before the track buffers (board batch: 16 static ones
+// were 9 KB, as much as the five courses' previews and models together; no `self.* = .{}` default blob either).
+var previews: []Preview = &.{};
 
 pub const MAX = 16; // tracks listed, the oval included
 pub const MAX_FILE: u32 = 1 << 20; // a track's bytes once depacked (the stress city: 755,720)
@@ -65,7 +66,10 @@ pub const Library = struct {
         self.list[0].raw = @intCast(data.oval.len);
         if (zg.disk.mount()) |lay| self.scanDisk(lay);
         self.scanHd();
+        previews = zg.mem.mustAlloc(Preview, self.n);
+        courses.carve(self.n); // board batch: the course select's models (coursemesh.zig)
         self.cars.init();
+        self.cars.garage.scan(); // board batch: every car file, for the car select and key ]
         self.size();
         self.cars.share(self.stage); // a car file stages in the track stage (a track is loaded before its cars)
         self.previewAll(now);
@@ -90,6 +94,7 @@ pub const Library = struct {
                 continue;
             };
             previews[i] = Preview.of(&t);
+            courses.bake(i, &t);
         }
         zg.Console.log("racer,scan,{},{}", .{ self.n, now() -% t0 }); // the boot's cost of the previews (us)
     }

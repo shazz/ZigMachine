@@ -20,15 +20,20 @@ const trk = @import("trk.zig");
 
 pub const MAX_VERTS = 256; // carfile.MAX_VERTS
 pub const MAX_FACES = 256; // carfile.MAX_FACES
-pub const NONE: u8 = 0xFF;
 pub const SPIN_SHIFT: u5 = 10; // total_r (Q16 turns) << 10 = (total_r / 64) as a u32 turn
+pub var break_still = false; // racer_batch.mjs --break still (key &): the wheels never posed (the pre-batch cars)
 pub const STEER_SHIFT: u5 = 15; // steer_angle (Q16 turns) << 15 = half of it as a u32 turn
 
-/// Group g: bit 0 the right side (x >= 0), bit 1 the front axle (z above the part's middle).
+/// Group g: bit 0 the right side (x >= 0), bit 1 the front axle (z above the wheels' middle). Small (a car set holds
+/// five models and the cart's RAM window is tight): a vertex's group is found from its position when posed.
 pub const Groups = struct {
-    of: [MAX_VERTS]u8 = @splat(NONE), // a vertex id's group, NONE: not a wheel vertex
-    centre: [4][3]i32 = @splat(.{ 0, 0, 0 }),
+    centre: [4][3]i16 = @splat(.{ 0, 0, 0 }),
+    zmid: i16 = 0,
     any: bool = false,
+
+    pub fn of(self: *const Groups, v: trk.Vert) u8 {
+        return @as(u8, @intFromBool(v[0] >= 0)) | @as(u8, @intFromBool(v[2] > self.zmid)) << 1;
+    }
 };
 
 /// The four groups of a model's wheel faces (comptime-capable: the built-in GT's are made at compile time).
@@ -41,13 +46,12 @@ pub fn groups(verts: []const trk.Vert, wheels: []const trk.Face) Groups {
         zlo = @min(zlo, verts[id][2]);
         zhi = @max(zhi, verts[id][2]);
     };
-    const zmid = (zlo + zhi) >> 1;
+    g.zmid = @intCast((zlo + zhi) >> 1);
     var lo: [4][3]i32 = @splat(@splat(std.math.maxInt(i32)));
     var hi: [4][3]i32 = @splat(@splat(std.math.minInt(i32)));
     for (wheels) |f| for (f.v[0..f.nv]) |id| {
         const v = verts[id];
-        const k: u8 = @as(u8, @intFromBool(v[0] >= 0)) | @as(u8, @intFromBool(v[2] > zmid)) << 1;
-        g.of[id] = k;
+        const k = g.of(v);
         for (0..3) |a| {
             lo[k][a] = @min(lo[k][a], v[a]);
             hi[k][a] = @max(hi[k][a], v[a]);
@@ -55,7 +59,7 @@ pub fn groups(verts: []const trk.Vert, wheels: []const trk.Face) Groups {
     };
     for (&g.centre, lo, hi) |*c, l, h| {
         if (l[0] > h[0]) continue; // an empty group (a three-wheeler, an axle drawn as one piece)
-        c.* = .{ (l[0] + h[0]) >> 1, (l[1] + h[1]) >> 1, (l[2] + h[2]) >> 1 };
+        for (0..3) |a| c[a] = @intCast((l[a] + h[a]) >> 1);
     }
     g.any = true;
     return g;
@@ -72,22 +76,25 @@ fn turn(d: [3]i32, r: Rot, front: bool) [3]i32 {
 }
 
 /// The wheels posed into `vs` (a copy of every vertex, the wheel ones turned) and `fs` (the wheel faces, normals turned,
-/// plane constants recomputed): the faces to draw with `vs`. Null: draw the model's own (no spin, no steer, no groups).
-pub fn pose(g: *const Groups, verts: []const trk.Vert, wheels: []const trk.Face, spin: u32, steer: u32, vs: *[MAX_VERTS]trk.Vert, fs: *[MAX_FACES]trk.Face) ?[]const trk.Face {
-    if (!g.any or (spin == 0 and steer == 0) or wheels.len > MAX_FACES) return null;
+/// plane constants recomputed): the faces to draw with `vs`. Null: draw the model's own (no spin, no steer, no groups, or
+/// scratch too small: carview's is carved at init, MAX_VERTS and MAX_FACES).
+pub fn pose(g: *const Groups, verts: []const trk.Vert, wheels: []const trk.Face, spin: u32, steer: u32, vs: []trk.Vert, fs: []trk.Face) ?[]const trk.Face {
+    if (break_still or !g.any or (spin == 0 and steer == 0) or wheels.len > fs.len or verts.len > vs.len) return null;
     const r = Rot{ .sc = fx.cos(spin), .ss = fx.sin(spin), .tc = fx.cos(steer), .ts = fx.sin(steer) };
     @memcpy(vs[0..verts.len], verts);
-    for (verts, 0..) |v, id| {
-        const k = g.of[id];
-        if (k == NONE) continue;
+    var done: [MAX_VERTS / 8]u8 = @splat(0);
+    for (wheels) |f| for (f.v[0..f.nv]) |id| {
+        if (done[id >> 3] & (@as(u8, 1) << @intCast(id & 7)) != 0) continue;
+        done[id >> 3] |= @as(u8, 1) << @intCast(id & 7);
+        const v = verts[id];
+        const k = g.of(v);
         const c = g.centre[k];
-        const t = turn(.{ v[0] - c[0], v[1] - c[1], v[2] - c[2] }, r, k & 2 != 0);
+        const t = turn(.{ @as(i32, v[0]) - c[0], @as(i32, v[1]) - c[1], @as(i32, v[2]) - c[2] }, r, k & 2 != 0);
         for (0..3) |a| vs[id][a] = @intCast(std.math.clamp(t[a] + c[a], -32768, 32767));
-    }
+    };
     for (wheels, fs[0..wheels.len]) |f, *o| {
         o.* = f;
-        const k = g.of[f.v[0]];
-        const n = turn(.{ f.n[0], f.n[1], f.n[2] }, r, k != NONE and k & 2 != 0);
+        const n = turn(.{ f.n[0], f.n[1], f.n[2] }, r, g.of(verts[f.v[0]]) & 2 != 0);
         for (0..3) |a| o.n[a] = @intCast(std.math.clamp(n[a], -32768, 32767));
         const p = vs[f.v[0]];
         o.cp = @truncate(@as(i64, o.n[0]) * p[0] + @as(i64, o.n[1]) * p[1] + @as(i64, o.n[2]) * p[2]);

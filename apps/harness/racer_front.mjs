@@ -5,7 +5,8 @@
 //      track, refused at the scan) is ON SCREEN by name with its reason, in red; down to GLACIER (its file corrupted here):
 //      the loader refuses it, and the screen names it with REFUSED and the loader's reason; CITY says NO RACE (bench only);
 //   3. SALT: its outline, its lap length and its own race clock (computed from its line: CLOCK 107S +15S) on screen,
-//      the screen pinned; fire races it: grid, then (recorded pilot, warp) countdown ... results;
+//      the screen pinned; fire opens the CAR SELECT (board batch), whose fire races it: grid, then (recorded pilot, warp)
+//      countdown ... results; (board batch) the select shows five courses a page: MYTRACK is on the second;
 //   4. the RESULTS screen: RESULTS SALT, the player's row, pinned; fire: the select again, with SALT's best lap now set;
 //      Backspace: the title; from a grid or the bare benchmark view, Backspace: the select;
 //   5. (M5 finish) a HELD Enter (its repeats, no keyUp) on the select picks nothing: only a fresh press counts; moving the
@@ -33,7 +34,7 @@ const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 if (OUT) await mkdir(OUT, { recursive: true });
 const W = 320, H = 200, Y0 = 12, Y1 = 188, REG_FB_BASE = 0x44, OFF_PAL = 0x0100;
 const INK = 3, LOGO = [5, 6, 7], PANEL = 9, HILITE = 10, ALERT = 11; // palette.zig / menu.zig
-const PINS = { title: "467ce13b116a", select: "cf0c6b1f39c5", results: "78b10ba937c6", options: "d5ce3046faf9" }; // select: M5 finish (its footer names RIGHT OPTS); options: R82 32X feel (PHYSICS + CAR CLASS rows, 14 px apart)
+const PINS = { title: "467ce13b116a", select: "993f83dbd632", results: "78b10ba937c6", options: "d5ce3046faf9" }; // select: board batch (the course select: the turning model, the outlines strip); options: R82 32X feel (PHYSICS + CAR CLASS rows, 14 px apart)
 const FONT = new Uint8Array(await readFile("libs/zig/assets/fonts/system_font_atari_1bit.raw"));
 const errors = [];
 const fail = (m) => errors.push(m);
@@ -124,7 +125,7 @@ async function select(B) {
     const loads = () => B.log.filter((l) => l.startsWith("racer,load,")).length;
     const loaded = loads();
     let px = B.view();
-    for (const n of ["OVAL", "CITY", "SALT", "NEON", "MYTRACK"]) if (!onScreen(px, n, n === "OVAL" ? HILITE : INK)) fail(`select: ${n} is not listed on screen`);
+    for (const n of ["OVAL", "CITY", "SALT", "NEON"]) if (!onScreen(px, n, n === "OVAL" ? HILITE : INK)) fail(`select: ${n} is not listed on screen`);
     if (!onScreen(px, "NOTES", ALERT) || !onScreen(px, "INVALID", ALERT)) fail("select: NOTES.KTR (refused at the scan) is not named on screen with its reason");
     B.tap(1); // CITY: loaded, benchmark only
     if (!onScreen(B.view(), "NO RACE HERE", ALERT)) fail("select: CITY does not say it cannot be raced");
@@ -136,7 +137,9 @@ async function select(B) {
     px = B.view();
     if (!B.log.some((l) => l.startsWith("racer,track,refused,GLACIER")) || !onScreen(px, "REFUSED:", ALERT) || !onScreen(px, "GLACIER", ALERT))
         fail("select: the corrupted GLACIER is not refused on screen by name");
-    B.tap(0); B.tap(0); // back to SALT
+    B.tap(1); // MYTRACK (C:): the strip's second page (board batch: five courses a page)
+    if (!onScreen(B.view(), "MYTRACK", HILITE)) fail("select: MYTRACK (C:\\RACER\\) is not listed on screen");
+    B.tap(0); B.tap(0); B.tap(0); // back to SALT
     if (loads() !== loaded) fail(`select: moving the cursor loaded a track (${loads() - loaded} racer,load lines): the preview should show it`);
     px = B.view();
     if (!onScreen(px, "CLOCK 107S +15S", INK)) fail("select: SALT's own race clock (107 s + 15 s) is not on screen");
@@ -147,7 +150,8 @@ async function select(B) {
 
 /** Race the select's cursor track on the recorded pilot with warp to the results; the race tick of the finish. */
 function raceToResults(B) {
-    B.tap(5); // pick: the grid
+    B.tap(5); // pick: the car select (board batch)
+    B.tap(5); // its fire: the grid
     if (B.fronts().at(-1) !== "off") return fail(`fire on the select: ${B.fronts().slice(-2)}, want the race (off)`);
     key(B.S, "a"); key(B.S, "w");
     B.tap(5); // fire on the grid starts the countdown
@@ -158,8 +162,10 @@ function raceToResults(B) {
 
 async function race(B) {
     const n = B.log.filter((l) => l.startsWith("racer,load,SALT")).length;
-    B.tap(5); // pick SALT: the grid
-    if (B.fronts().at(-1) !== "off") return fail(`fire on SALT: ${B.fronts()}, want the race (off)`);
+    B.tap(5); // pick SALT: the car select (board batch)
+    if (B.fronts().at(-1) !== "garage") return fail(`fire on SALT: ${B.fronts()}, want the car select (garage)`);
+    B.tap(5); // its fire: the grid
+    if (B.fronts().at(-1) !== "off") return fail(`fire on the car select: ${B.fronts()}, want the race (off)`);
     if (B.log.filter((l) => l.startsWith("racer,load,SALT")).length !== n + 1) fail("pick: SALT was not loaded at the pick");
     key(B.S, "a"); key(B.S, "w");
     B.tap(5); // fire on the grid starts the countdown
@@ -176,7 +182,7 @@ async function race(B) {
     if (onScreen(B.view(), "BEST LAP -:--.-", INK)) fail("select after the race: SALT's best lap was not kept");
     B.press("\b");
     if (B.fronts().at(-1) !== "title") fail(`Backspace on the select: ${B.fronts().at(-1)}, want the title`);
-    B.tap(5); B.tap(5); // the select, then race the cursor's track (SALT): its grid
+    B.tap(5); B.tap(5); B.tap(5); // the select, the car select, then race the cursor's track (SALT): its grid
     B.press("\b");
     if (B.fronts().slice(-2).join(" ") !== "off select") fail(`Backspace on a grid: ${B.fronts().slice(-3)}, want the select`);
     key(B.S, "t"); B.run(2);

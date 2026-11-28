@@ -26,7 +26,7 @@ import { png } from "./skystrike_zig_frame.mjs";
 
 const argv = process.argv.slice(2);
 const MODES = ["mute", "pvs", "hud"];
-const PINS = { hud: "e990beea5096" }; // the Salt race frame 660 with the picture HUD
+const PINS = { hud: "c069b8d91754" }; // the Salt race frame 660 with the picture HUD (board batch: the wheels turn)
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !MODES.includes(BREAK)) { console.error(`racer_bugpass: unknown --break ${BREAK}`); process.exit(1); }
 const PRINT = argv.includes("--print-pins");
