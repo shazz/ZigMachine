@@ -14,8 +14,6 @@ const fix = @import("fix.zig");
 const frame = @import("frame.zig");
 const fx = @import("fx.zig");
 const project = @import("project.zig");
-const std = @import("std");
-const groundmod = @import("ground.zig");
 const trk = @import("trk.zig");
 const types = @import("types.zig");
 const under = @import("under.zig");
@@ -24,6 +22,7 @@ const wheelspin = @import("wheelspin.zig");
 const prof = @import("prof.zig");
 const carcull = @import("carcull.zig");
 const carlod = @import("carlod.zig");
+const carfloor = @import("carfloor.zig");
 
 /// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else); spin, steer:
 /// the drawn wheels' turn and steer (u32 turns, wheelspin.zig; 0 = as modelled).
@@ -47,60 +46,46 @@ pub fn midway(a: Snap, b: Snap) Snap {
 /// ~26 pixels long (it was ~13; the switch was kept at 6 units: docs M5.md step 5).
 pub const LOD1_Z: i32 = 6 << 16;
 
+/// A car's per-frame setup (board optimisation: every car's set up before any is drawn, so this code and the drawing's
+/// each stay in the I$ across the eight cars): its model view, depth, floor key and key. Null: out of the view.
+pub const Prep = struct { mv: cam.View, z: i32, floor: ?u16, key: u16 };
+
+pub fn prep(fr: *const frame.Frame, v: *const cam.View, t: *const trk.Track, s: Snap, ground: ?u16, m: *const carmodel.Model) ?Prep {
+    const mv = modelView(v, s);
+    if (!carcull.break_cull and carcull.outOfView(&mv, fix.mul(m.rad7 << 9, s.size))) return null; // all faces would be rejected
+    const z = mv.t[2] + fx.mulsh16(mv.r[2][1], m.mid_y);
+    const centre: ?u16 = if (ground) |g| fr.faceKey(g) else null;
+    const floor: ?u16 = if (under.break_under) carfloor.m5Key(fr, t, m, v, s, ground, centre) else carfloor.footKey(fr, t, m, s, centre);
+    return .{ .mv = mv, .z = z, .floor = floor, .key = @max(project.depthKey(z), floor orelse 0) };
+}
+
 /// Draw one car of track `t`: model `m` (carmodel.of(k)) in livery `liv` (carmodel.LIVERY: 0 is the player's).
 pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const trk.Track, s: Snap, ground: ?u16, m: *const carmodel.Model, liv: carmodel.Livery) void {
     prof.begin(6);
-    const mv = modelView(v, s);
-    const z = mv.t[2] + fx.mulsh16(mv.r[2][1], m.mid_y);
-    const centre: ?u16 = if (ground) |g| fr.faceKey(g) else null;
-    const floor: ?u16 = if (under.break_under) m5Key(fr, t, m, v, s, ground, centre) else footKey(fr, t, m, s, centre);
-    const key = @max(project.depthKey(z), floor orelse 0);
-    cache.next();
+    const p = prep(fr, v, t, s, ground, m);
     prof.end(6);
-    if (!carcull.break_cull and carcull.outOfView(&mv, fix.mul(m.rad7 << 9, s.size))) return; // all faces would be rejected
+    if (p) |*q| emit(fr, cache, s, m, liv, q);
+}
+
+/// The car's faces pushed: the shadow, then the near model's parts in the painter's order, or the far model.
+fn emit(fr: *frame.Frame, cache: *xf.Cache, s: Snap, m: *const carmodel.Model, liv: carmodel.Livery, p: *const Prep) void {
     prof.begin(8);
     defer prof.end(8);
-    if (!@import("hide.zig").on(@import("hide.zig").SHADOWS) and !carlod.noShadow(z, s.size)) {
-        for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
+    const mv = &p.mv;
+    cache.next();
+    if (!@import("hide.zig").on(@import("hide.zig").SHADOWS) and !carlod.noShadow(p.z, s.size)) {
+        for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, mv, sh, .{ .fixed = p.floor orelse p.key, .shadow = true });
     }
-    const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
-    if (z > carlod.farZ(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
-    if (carlod.stillWheels(z, s.size)) part(fr, cache, m, &mv, .wheels, k) else wheels(fr, cache, m, &mv, s, k);
-    part(fr, cache, m, &mv, .hull, k);
+    const k = Look{ .key = p.key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
+    if (p.z > carlod.farZ(LOD1_Z, s.size)) return part(fr, cache, m, mv, .lod1, k);
+    if (carlod.stillWheels(p.z, s.size)) part(fr, cache, m, mv, .wheels, k) else wheels(fr, cache, m, mv, s, k);
+    part(fr, cache, m, mv, .hull, k);
     const behind = mv.eye7[2] < m.wing_z;
-    part(fr, cache, m, &mv, if (behind) .cabin else .wing, k);
-    part(fr, cache, m, &mv, if (behind) .wing else .cabin, k);
+    part(fr, cache, m, mv, if (behind) .cabin else .wing, k);
+    part(fr, cache, m, mv, if (behind) .wing else .cabin, k);
 }
 
 const Look = struct { key: u16, body: u8, stripe: u8 };
-
-/// The highest key of the kept ground faces under the car's footprint (under.zig, R82 bug pass): a road decal (the start
-/// line, a skid puff's face) or a road quad nearer than the car's middle never paints over the car standing on it.
-fn footKey(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, s: Snap, centre: ?u16) ?u16 {
-    const f = m.foot;
-    const q = under.corners(s.pos, s.angle, s.size, f.x0, f.x1, f.z0, f.z1);
-    return under.key(fr, t, q, s.pos[1], centre);
-}
-
-/// The M5 rule, kept as the harness' mutant (--break under, key O): the centre's face and the face under the footprint's
-/// corner nearest the eye, nothing else.
-fn m5Key(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, v: *const cam.View, s: Snap, ground: ?u16, centre: ?u16) ?u16 {
-    const f = m.foot;
-    const q = under.corners(s.pos, s.angle, s.size, f.x0, f.x1, f.z0, f.z1);
-    var best = q[0];
-    var bd: i64 = std.math.maxInt(i64);
-    for (q) |p| {
-        const dx: i64 = p[0] - v.eye7[0];
-        const dz: i64 = p[1] - v.eye7[2];
-        if (dx * dx + dz * dz < bd) {
-            bd = dx * dx + dz * dz;
-            best = p;
-        }
-    }
-    const g = groundmod.findFace(t, .{ best[0] << 9, s.pos[1], best[1] << 9 }, ground) orelse return centre;
-    const k = fr.faceKey(g.face) orelse return centre;
-    return @max(k, centre orelse 0);
-}
 
 fn part(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, p: carmodel.Part, k: Look) void {
     faces(fr, cache, m.verts, mv, m.range(p), k);
@@ -148,10 +133,14 @@ pub fn drawRace(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *cons
         order[i] = k;
         n += 1;
     }
+    var preps: [16]?Prep = undefined;
+    prof.begin(6);
+    for (order[0..n]) |k| preps[k] = prep(fr, v, t, snaps[k], under_[k], carmodel.of(k));
+    prof.end(6);
     defer carlod.ai = false;
     for (order[0..n]) |k| {
         carlod.ai = k != 0;
-        draw(fr, cache, v, t, snaps[k], under_[k], carmodel.of(k), carmodel.LIVERY[k]);
+        if (preps[k]) |*q| emit(fr, cache, snaps[k], carmodel.of(k), carmodel.LIVERY[k], q);
     }
 }
 
