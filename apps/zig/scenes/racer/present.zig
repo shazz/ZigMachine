@@ -59,7 +59,9 @@ pub fn flip(d: anytype, zigos: *zg.ZigOS) *zg.LogicalFB {
 pub fn addCars(d: anytype, v: *const cam.View) void {
     if (d.pose != null or hide.on(hide.CARS)) return;
     if (d.game.mode != .off) {
+        @import("prof.zig").begin(10);
         d.game.smoke.draw(&d.f, &d.caches[1], v);
+        @import("prof.zig").end(10);
         d.game.drawCars(&d.f, &d.caches[0], v, d.r);
     } else if (d.drive.mode != .off) {
         d.drive.smoke.draw(&d.f, &d.caches[1], v);
@@ -74,7 +76,7 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     const racing = d.game.mode != .off and d.pose == null;
     const picture = racing and hudpic.shows(d.game.mode == .race or !hudpic.break_bench, d.game.s.fsm.state); // the HUD over the picture: a race and (board batch) the x bench
     var bo: [48]u8 = undefined;
-    const state = @import("osdline.zig").line(&bo, .{ .cpu = d.p.cpu_fill, .r = d.r, .pov = povName(d), .music = d.audio.player.on });
+    const state = if (@import("prof.zig").shown()) @import("prof.zig").line(&bo) else @import("osdline.zig").line(&bo, .{ .cpu = d.p.cpu_fill, .r = d.r, .pov = povName(d), .music = d.audio.player.on });
     d.hud.draw(zigos, fb, d.back, .{
         .track = trackName(d), .shade = project.TAGS[project.shade], .shadow = if (shadow.fake) "/DITHER" else "", .r = d.r, .cpu = d.p.cpu_fill, .mul = mulName(), .decals = d.decals,
         .pov = povName(d), .polys = c.polys, .spans = c.spans, .osd = d.osd,
@@ -91,10 +93,15 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     const script = if (racing) d.game.frames else if (driven) d.drive.frames else d.script;
     const scripted = d.pose == null and !d.paused and !front.menu(d) and (if (racing) d.game.mode == .bench else d.drive.mode != .drive);
     d.rep.report(zigos, fb, &d.bench, knobs(d), c, .{ .script = script, .scripted = scripted, .lap_frames = lap_frames });
-    if (picture and !hide.on(hide.HUD)) drawPicture(d, zigos, fb); // after the view's CRC: the lap pins are the bare view's
+    @import("prof.zig").begin(11);
+    if (picture and !hide.on(hide.HUD)) drawPicture(d, zigos, fb);
+    @import("prof.zig").end(11); // after the view's CRC: the lap pins are the bare view's
     if (driven) logPhysics(d);
     if (racing) raceLog(d);
-    if (closed) d.bench.resetWindow();
+    if (closed) {
+        d.bench.resetWindow();
+        @import("prof.zig").window(bench.WINDOW);
+    }
 }
 
 fn drawPicture(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB) void {

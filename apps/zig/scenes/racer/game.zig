@@ -21,6 +21,7 @@ const trk = @import("trk.zig");
 const xf = @import("xform.zig");
 const arcade = @import("arcade.zig");
 const pace = @import("pace.zig");
+const prof = @import("prof.zig");
 
 pub const Mode = enum { off, race, bench };
 pub const Snap = carview.Snap;
@@ -166,13 +167,17 @@ pub const Game = struct {
         self.prev = self.cur;
         self.s.race.setModel(self.physics());
         self.s.race.pilot = (self.pilot and self.auto) or (self.apilot and !self.auto);
+        prof.begin(5);
         self.s.tick(self.buttons());
+        prof.end(5);
+        prof.begin(4);
         self.snap();
         const st = self.s.fsm.state;
         if (st == .race or st == .finish) {
             self.smoke.emitCar(&self.s.race.cars[0], carmodel.of(0).foot);
             self.smoke.update();
         }
+        prof.end(4);
     }
 
     pub fn shown(self: *const Game, k: usize) Snap {

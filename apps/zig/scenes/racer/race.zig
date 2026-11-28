@@ -9,6 +9,7 @@
 // at the back; slots 1..7 the AI cars, two a row ahead). The race's own clock and rules are in
 // rules.zig, the grid / countdown / finish states in fsm.zig. Integer only. No ZigOS import.
 // --------------------------------------------------------------------------
+const prof = @import("prof.zig");
 const std = @import("std");
 const car = @import("car.zig");
 const carmodel = @import("carmodel.zig");
@@ -81,17 +82,21 @@ pub const Race = struct {
             p.npc = true;
             npc.control(p, &self.ppid, &self.lens);
         } else p.control(buttons);
+        prof.begin(0);
         if (!self.arcadePushes()) self.contacts += contacts.update(p, self.cars[1..self.n]);
         p.prepare();
         p.integrate();
         p.update();
+        prof.end(0);
         if (self.pilot and rescue.tick(p, &self.stuck[0])) { // a player flown by the AI's controller is rescued as the AI is
             self.rescues += 1;
             self.ppid = .{};
         }
         const t0 = self.now();
         self.aiTick();
+        prof.begin(3);
         if (self.arcadePushes()) self.contacts += pushes.update(self.cars[0..self.n]);
+        prof.end(3);
         const us = self.now() -% t0;
         self.ai_us += us;
         self.ai_max = @max(self.ai_max, us);
@@ -100,10 +105,14 @@ pub const Race = struct {
 
     fn aiTick(self: *Race) void {
         for (self.cars[1..self.n], self.pids[0 .. self.n - 1], 0..) |*c, *pid, k| {
+            prof.begin(1);
             if (self.parked >> @intCast(k) & 1 == 0) npc.control(c, pid, &self.lens);
+            prof.end(1);
+            prof.begin(2);
             c.prepare();
             c.integrate();
             c.update();
+            prof.end(2);
             if (rescue.tick(c, &self.stuck[k + 1])) {
                 self.rescues += 1;
                 pid.* = .{};

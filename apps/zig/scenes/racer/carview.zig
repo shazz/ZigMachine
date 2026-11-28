@@ -21,6 +21,7 @@ const types = @import("types.zig");
 const under = @import("under.zig");
 const xf = @import("xform.zig");
 const wheelspin = @import("wheelspin.zig");
+const prof = @import("prof.zig");
 
 /// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else); spin, steer:
 /// the drawn wheels' turn and steer (u32 turns, wheelspin.zig; 0 = as modelled).
@@ -46,12 +47,16 @@ pub const LOD1_Z: i32 = 6 << 16;
 
 /// Draw one car of track `t`: model `m` (carmodel.of(k)) in livery `liv` (carmodel.LIVERY: 0 is the player's).
 pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const trk.Track, s: Snap, ground: ?u16, m: *const carmodel.Model, liv: carmodel.Livery) void {
+    prof.begin(6);
     const mv = modelView(v, s);
     const z = mv.t[2] + fx.mulsh16(mv.r[2][1], m.mid_y);
     const centre: ?u16 = if (ground) |g| fr.faceKey(g) else null;
     const floor: ?u16 = if (under.break_under) m5Key(fr, t, m, v, s, ground, centre) else footKey(fr, t, m, s, centre);
     const key = @max(project.depthKey(z), floor orelse 0);
     cache.next();
+    prof.end(6);
+    prof.begin(8);
+    defer prof.end(8);
     if (!@import("hide.zig").on(@import("hide.zig").SHADOWS)) {
         for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
     }
@@ -111,7 +116,10 @@ pub var posed_fs: []trk.Face = &.{};
 
 /// The wheels turned by the car's spin and steer (wheelspin.zig); a pose at rest draws the model's own faces.
 fn wheels(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, s: Snap, k: Look) void {
-    const fs = wheelspin.pose(&m.spin, m.verts, m.range(.wheels), s.spin, s.steer, posed_vs, posed_fs) orelse return part(fr, cache, m, mv, .wheels, k);
+    prof.begin(9);
+    const posed = wheelspin.pose(&m.spin, m.verts, m.range(.wheels), s.spin, s.steer, posed_vs, posed_fs);
+    prof.end(9);
+    const fs = posed orelse return part(fr, cache, m, mv, .wheels, k);
     cache.next(); // WHY: the posed vertices share the model's ids: no transform cached from the model's may be reused
     faces(fr, cache, posed_vs[0..m.verts.len], mv, fs, k);
     cache.next(); // ... nor theirs by the hull after them
