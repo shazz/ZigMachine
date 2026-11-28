@@ -105,6 +105,7 @@ pub const Demo = struct {
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
+        @import("racer/prof.zig").now = micros;
         self.tracks[0] = library.builtin();
         self.tracks[1] = self.tracks[0]; // the buffer's view: nothing loaded yet
         self.f = setup.frameFor(library.MAX_VERTS, library.MAX_FACES);
