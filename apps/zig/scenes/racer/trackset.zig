@@ -71,6 +71,7 @@ pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
     d.which = show(d, w, now); // w, or the oval when the file is refused
     d.script = 0;
     d.f.seen_stamp = 0;
+    @import("tilecull.zig").forget();
     @memset(d.f.seen, 0);
     for (d.f.cache.e) |*e| e.stamp = 0;
     cars(d);

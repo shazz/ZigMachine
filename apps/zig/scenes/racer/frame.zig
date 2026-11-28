@@ -32,6 +32,7 @@ const cam = @import("cam.zig");
 const clip = @import("clip.zig");
 const fx = @import("fx.zig");
 const hide = @import("hide.zig");
+const tilecull = @import("tilecull.zig");
 const poly = @import("poly.zig");
 const project = @import("project.zig");
 const oracle = @import("oracle.zig");
@@ -99,7 +100,9 @@ pub const Frame = struct {
             self.seen_stamp = 1;
         }
         @memset(self.count, 0);
+        tilecull.ensure(t);
         for (self.list) |e| {
+            if (tilecull.outside(v, pvs.tileOf(e))) continue; // all its faces past one plane (tilecull.zig)
             for (t.tileFaces(pvs.tileOf(e))) |fid| {
                 if (self.seen[fid] == self.seen_stamp) continue;
                 self.seen[fid] = self.seen_stamp;

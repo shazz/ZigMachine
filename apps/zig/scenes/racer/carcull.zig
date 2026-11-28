@@ -14,10 +14,16 @@ pub var break_cull = false; // the native test's A/B: every car transformed
 /// radius grows by a quarter for the posed wheels (a vertex turned about its axle may end a little farther out) and the
 /// side planes' normals are taken at 1.5 (>= sqrt 2) and 23 (>= |(20, 11)|): conservative, so no pixel changes.
 pub fn outOfView(mv: *const cam.View, r16: i32) bool {
-    const r: i64 = r16 + (r16 >> 2);
-    const x: i64 = mv.t[0];
-    const y: i64 = mv.t[1];
-    const z: i64 = mv.t[2];
+    return sphereOut(mv.t, r16 + (r16 >> 2));
+}
+
+/// The test itself: a sphere at view-space centre c (Q16), radius r16 (Q16), wholly past one plane. 16 more for the
+/// rounding of the centre's own transform (three floored products) against its vertices'.
+pub fn sphereOut(c: [3]i32, r16: i32) bool {
+    const r: i64 = @as(i64, r16) + 16;
+    const x: i64 = c[0];
+    const y: i64 = c[1];
+    const z: i64 = c[2];
     if (z + r < clip.near) return true;
     if (x + z + r + (r >> 1) < 0 or x - z - r - (r >> 1) > 0) return true;
     return 20 * y + 11 * z + 23 * r < 0 or 11 * z - 20 * y + 23 * r < 0;
