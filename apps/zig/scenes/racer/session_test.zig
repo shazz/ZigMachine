@@ -30,7 +30,7 @@ test "the FSM: every legal transition in the table is taken, every other event i
             }
         }
     }
-    try std.testing.expectEqual(@as(usize, 18), legal); // 4 forward + 4 restarts + the front end's 6 (M5 step 4) + the options' 4 (M5 finish)
+    try std.testing.expectEqual(@as(usize, 21), legal); // 4 forward + 4 restarts + the front end's 6 (M5 step 4) + the options' 4 (M5 finish) + the car select's 3 (board batch)
 }
 
 test "the FSM walks grid -> countdown -> race -> finish -> results -> grid" {

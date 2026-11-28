@@ -16,6 +16,7 @@ const fix = @import("fix.zig");
 const trk = @import("trk.zig");
 const vec = @import("vec.zig");
 const V = vec.V;
+const memo = @import("groundmemo.zig");
 
 pub const FLAG_ASPHALT: u8 = 4;
 pub const FLAG_GROUND: u8 = 0x10;
@@ -31,23 +32,37 @@ pub fn vertex(t: *const trk.Track, id: u16) V {
 }
 
 pub fn poly(t: *const trk.Track, id: u16) Poly {
+    var r = corners(t, id);
+    r.n = memo.normal(&r).*; // v_normz(v_cross(last - first, second - first)), remembered (groundmemo.zig)
+    return r;
+}
+
+/// A face's vertices, its normal not computed yet (the side tests need none: board optimisation).
+fn corners(t: *const trk.Track, id: u16) Poly {
     const f = &t.faces[id];
     var r = Poly{ .p = undefined, .ni = f.nv, .n = undefined };
     for (0..f.nv) |i| r.p[i] = vertex(t, f.v[i]);
-    r.n = vec.normz(vec.cross(vec.between(r.p[0], r.p[f.nv - 1]), vec.between(r.p[0], r.p[1])));
     return r;
+}
+
+fn within(f: *const Poly, p: V) bool {
+    var p0 = f.p[f.ni - 1];
+    for (f.p[0..f.ni]) |p1| {
+        const side = fix.mul(p0[2] -% p1[2], p[0] -% p0[0]) +% fix.mul(p1[0] -% p0[0], p[2] -% p0[2]);
+        if (side < 0) return false;
+        p0 = p1;
+    }
+    return true;
+}
+
+fn height(f: *const Poly, p: V) i32 {
+    const t = fix.div(-vec.dot(vec.between(f.p[0], p), f.n), f.n[1]);
+    return p[1] +% t;
 }
 
 /// The point-in-polygon test of is_inside (x/z, every edge on its inner side); the ground height below `p`.
 pub fn isInside(f: *const Poly, p: V) ?i32 {
-    var p0 = f.p[f.ni - 1];
-    for (f.p[0..f.ni]) |p1| {
-        const side = fix.mul(p0[2] -% p1[2], p[0] -% p0[0]) +% fix.mul(p1[0] -% p0[0], p[2] -% p0[2]);
-        if (side < 0) return null;
-        p0 = p1;
-    }
-    const t = fix.div(-vec.dot(vec.between(f.p[0], p), f.n), f.n[1]);
-    return p[1] +% t;
+    return if (within(f, p)) height(f, p) else null;
 }
 
 fn tileOf(p: V) ?usize {
@@ -58,8 +73,10 @@ fn tileOf(p: V) ?usize {
 }
 
 fn test1(t: *const trk.Track, id: u16, p: V) ?Found {
-    const y = isInside(&poly(t, id), p) orelse return null;
-    return .{ .face = id, .y = y };
+    var f = corners(t, id);
+    if (!within(&f, p)) return null; // most candidates end here: no normal (a sqrt and three divides) for them
+    f.n = memo.normal(&f).*;
+    return .{ .face = id, .y = height(&f, p) };
 }
 
 /// A ground face more than this above or below the car is another deck (M5 finish; the 32X DXHIGH's figure-8 decks are
@@ -96,12 +113,12 @@ pub fn borderNormal(f: *const Poly, k: usize) V {
 
 /// face_collide: how far `p` (radius r) is pushed back by the face's walls, and the last wall's normal.
 pub fn faceCollide(t: *const trk.Track, id: u16, p: V, r: i32) Hit {
-    const f = poly(t, id);
+    const f = corners(t, id); // the plane normal unused here
     const mask = t.faces[id].borders;
     var h = Hit{};
     for (0..f.ni) |k| {
         if (mask & (@as(u16, 1) << @intCast(k)) == 0) continue;
-        const n = borderNormal(&f, k);
+        const n = memo.border(&f, k); // borderNormal, remembered
         const dist = vec.dot(vec.between(f.p[k], p), n);
         if (dist >= r) continue;
         h.hit = true;

@@ -43,7 +43,7 @@ def pano(rom: bytes, k: int, opts: LookOpts) -> tuple[bytes, RGB]:
     rows, px, hz = panc.crop(p.width, p.height, px, p.horizon, PAN_UP, PAN_LOW)
     top = px[:p.width]
     sky = p.palette[max(set(top), key=top.count)]
-    return panc.encode(p.width, rows, px, p.palette, hz, first, opts.pan_u0, 8 * PAN_RAMPS), sky
+    return panc.encode(p.width, rows, px, p.palette, hz, first, opts.pan_u0, 8 * PAN_RAMPS, pixel=True), sky  # 1:1, as the 32X
 
 
 def add_args(ap: argparse.ArgumentParser) -> None:

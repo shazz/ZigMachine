@@ -105,7 +105,7 @@ async function poses(track, pinned) {
         if (BREAK === "pin" && k === 3) r.px[100 * W + 160] ^= 0x40;
         const zeros = r.px.subarray(Y0 * W, Y1 * W).filter((v) => v === 0).length;
         if (zeros > 0.005 * W * (Y1 - Y0)) fail(`${track} pose ${POSE_KEYS[k]}: ${zeros} view pixels of index 0 (sky, ground and backdrop should cover it)`);
-        if (!r.counts || r.counts.track !== track.toUpperCase() || r.counts.fill !== "cpu" || r.counts.polys === 0 || r.counts.spans === 0)
+        if (!r.counts || r.counts.track !== track.toUpperCase() || r.counts.fill !== "affine" || r.counts.polys === 0 || r.counts.spans === 0)
             fail(`${track} pose ${POSE_KEYS[k]}: counts ${JSON.stringify(r.counts)}`);
         else if (r.counts.polys + 0 > 6000) fail(`${track} pose ${POSE_KEYS[k]}: ${r.counts.polys} polygons, the buffer is 6144`);
         cpu.push(r);
@@ -115,11 +115,12 @@ async function poses(track, pinned) {
     await refCheck(track, cpu);
     if (PRINT) console.log(`${track}: [${hashes.map((h) => `"${h}"`).join(", ")}],`);
     else if (pinned.length === 8) hashes.forEach((h, k) => { if (h !== pinned[k]) fail(`${track} pose ${POSE_KEYS[k]}: view ${h} != pin ${pinned[k]}`); });
-    // the same poses through CHISEL AFFINE (F), then with the plain multiply twin (M)
+    // the same poses through the CPU spans (F: the AFFINE fill is the default since the board optimisation), then with
+    // the plain multiply twin (M)
     key(B.S, "f");
     for (let k = 0; k < 8; k++) {
         const r = pose(B, k);
-        if (r.counts?.fill !== "affine") fail(`${track}: key F did not select the AFFINE path (${r.counts?.fill})`);
+        if (r.counts?.fill !== "cpu") fail(`${track}: key F did not select the CPU path (${r.counts?.fill})`);
         if (!same(r.px, cpu[k].px)) fail(`${track} pose ${POSE_KEYS[k]}: AFFINE fill differs from the CPU fill`);
     }
     key(B.S, "f");
@@ -178,7 +179,7 @@ async function lap(fillKey, noCrc = false) {
     const crc = B.lines("crc").map((l) => l.split(",")[3]);
     const sum = B.lines("lap");
     if (noCrc && crc.length !== 0) fail(`key c: ${crc.length} CRC lines with the CRC off`);
-    if (!noCrc && crc.length !== 12) fail(`lap (${fillKey ? "affine" : "cpu"}): ${crc.length} CRC lines, want 12`);
+    if (!noCrc && crc.length !== 12) fail(`lap (${fillKey ? "cpu" : "affine"}): ${crc.length} CRC lines, want 12`);
     if (sum.length < 1 || !sum[0].startsWith("racer,lap,720,")) fail(`lap summary missing or wrong: ${sum[0]}`);
     return crc;
 }

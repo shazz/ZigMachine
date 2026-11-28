@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------
 const fsm = @import("fsm.zig");
 const options = @import("options.zig");
+const ts = @import("trackset.zig");
 
 pub fn fire(d: anytype, ev: fsm.Event) bool {
     d.game.s.fsm.fire(ev) catch return false; // WHY: an event the table refuses leaves the screen as it is
@@ -63,16 +64,35 @@ pub fn move(d: anytype, step: usize) void {
     d.front.msg = "";
 }
 
-/// Fire on the select: the cursor's track loaded (only now) and raced, or the reason it cannot be.
+/// Fire on the select: the cursor's track loaded (only now), then the car select (board batch), or the reason it cannot be.
 pub fn pick(d: anytype) bool {
     const f = &d.front;
     if (d.lib.list[f.cursor].bad) return refuse(f, "REFUSED FILE");
     if (d.lib.preview(f.cursor).bench_only) return refuse(f, "NO RACE HERE");
     if (f.cursor != d.which) d.setTrack(f.cursor); // a refusal here (a file that passed the scan) marks it bad
     if (f.cursor != d.which) return refuse(f, "REFUSED FILE");
-    if (!fire(d, .pick)) return false;
-    d.setGame(.race); // a fresh session on the grid: the state pick leads to
+    if (!fire(d, .car)) return false;
+    ts.look(d); // the select's course colours (coursedraw.zig) off the palette: the track's and the car's back
     return true;
+}
+
+/// Fire on the car select: the race, a fresh session on the grid (the state pick leads to).
+pub fn race(d: anytype) bool {
+    if (!fire(d, .pick)) return false;
+    d.setGame(.race);
+    return true;
+}
+
+/// The car select's arrows: up / down the garage's cars (each shown at once), left / right the car class.
+pub fn garageInput(d: anytype, dir: u8) void {
+    switch (dir) {
+        0 => ts.switchCar(d, -1),
+        1 => ts.switchCar(d, 1),
+        2 => options.change(d, .class, -1),
+        3 => options.change(d, .class, 1),
+        5 => _ = race(d),
+        else => {},
+    }
 }
 
 pub fn refuse(f: anytype, why: []const u8) bool {

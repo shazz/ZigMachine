@@ -7,10 +7,13 @@
 //   beeps     PSG tone 3: the countdown (3 low, go high), the checkpoint chime, the lap and finish jingles,
 //             the time-out phrase; a new phrase replaces the one playing
 // `step` is one frame: it compares the race's state with the last frame's and says what changed, a few
-// writes at most (none on a quiet frame). Integer only. No ZigOS import (audio.zig sends the writes).
+// writes at most (none on a quiet frame). Layout .psg (sfx_psg.zig) moves the engine, the impact and the skid
+// onto the PSG, for the local 32X tunes, which use every FM channel. Integer only. No ZigOS import.
 // --------------------------------------------------------------------------
 const fsm = @import("fsm.zig");
 const rules = @import("rules.zig");
+const psg = @import("sfx_psg.zig");
+const cues = @import("sfx_cue.zig");
 
 pub const ENGINE: u3 = 5; // FM 6
 pub const IMPACT: u3 = 4; // FM 5
@@ -48,7 +51,7 @@ pub const Out = struct {
     n: u32 = 0,
     dropped: u32 = 0,
 
-    fn put(self: *Out, w: Write) void {
+    pub fn put(self: *Out, w: Write) void {
         if (self.n == CAP) {
             self.dropped += 1;
             return;
@@ -70,12 +73,17 @@ pub const LAP = [_]Note{ .{ .period = 214, .frames = 6 }, .{ .period = 170, .fra
 pub const WIN = [_]Note{ .{ .period = 143, .frames = 8 }, .{ .period = 107, .frames = 8 }, .{ .period = 85, .frames = 8 }, .{ .period = 0, .frames = 4 }, .{ .period = 85, .frames = 8 }, .{ .period = 71, .frames = 40 } };
 pub const LOSE = [_]Note{ .{ .period = 286, .frames = 14 }, .{ .period = 340, .frames = 14 }, .{ .period = 428, .frames = 40 } }; // G4 E4 C4
 
+pub const cue = cues.cue;
+
 pub fn engineFnum(rpm: i32) u32 {
     const r: u32 = @intCast(@max(0, @min(rpm, MAX_RPM)));
     return IDLE_FNUM + r * (TOP_FNUM - IDLE_FNUM) / @as(u32, MAX_RPM);
 }
 
+pub const Layout = enum { fm, psg };
+
 pub const Sfx = struct {
+    layout: Layout = .fm,
     prev: Snap = .{},
     engine: bool = false,
     fnum: u32 = 0,
@@ -86,20 +94,27 @@ pub const Sfx = struct {
     left: u32 = 0, // its frames left
 
     pub fn step(self: *Sfx, s: Snap, out: *Out) void {
-        self.engineStep(s, out);
-        self.skidStep(s, out);
-        self.impactStep(s, out);
+        if (self.layout == .psg) {
+            psg.engine(self, s, out);
+            psg.noise(self, s, out);
+        } else {
+            self.engineStep(s, out);
+            self.skidStep(s, out);
+            self.impactStep(s, out);
+        }
         if (cue(self.prev, s)) |p| self.play(p, out) else self.advance(out);
         self.prev = s;
     }
 
     /// Everything the cart owns silent (a mode change, the effects switched off).
     pub fn quiet(self: *Sfx, out: *Out) void {
-        if (self.engine) key(out, ENGINE, 0);
-        if (self.impact_left > 0) key(out, IMPACT, 0);
-        if (self.skid) out.put(.{ .kind = .psg, .val = 0xF0 | 15 });
+        if (self.layout == .psg) psg.quiet(self, out) else {
+            if (self.engine) key(out, ENGINE, 0);
+            if (self.impact_left > 0) key(out, IMPACT, 0);
+            if (self.skid) out.put(.{ .kind = .psg, .val = 0xF0 | 15 });
+        }
         if (self.left > 0) out.put(.{ .kind = .psg, .val = 0x90 | @as(u8, BEEP) << 5 | 15 });
-        self.* = .{};
+        self.* = .{ .layout = self.layout };
     }
 
     fn engineStep(self: *Sfx, s: Snap, out: *Out) void {
@@ -175,22 +190,4 @@ fn key(out: *Out, ch: u3, slots: u8) void {
 fn impact(out: *Out) void {
     key(out, IMPACT, 0);
     key(out, IMPACT, 0xF);
-}
-
-/// The phrase a change of the race's state starts, or null.
-pub fn cue(a: Snap, b: Snap) ?[]const Note {
-    if (b.outcome != a.outcome) return switch (b.outcome) {
-        .win => &WIN,
-        .timeout => &LOSE,
-        else => null,
-    };
-    if (b.state == .countdown and (a.state != .countdown or crossed(a.ticks, b.ticks, 30) or crossed(a.ticks, b.ticks, 60))) return &COUNT;
-    if (b.state == .race and a.state == .countdown) return &GO;
-    if (b.laps > a.laps) return &LAP;
-    if (b.gates > a.gates) return &CHIME;
-    return null;
-}
-
-fn crossed(a: u32, b: u32, at: u32) bool {
-    return a < at and b >= at;
 }

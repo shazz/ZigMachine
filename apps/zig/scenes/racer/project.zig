@@ -19,7 +19,9 @@ const trk = @import("trk.zig");
 const types = @import("types.zig");
 const xf = @import("xform.zig");
 
-pub const Key = struct { fixed: ?u16 = null, dc: u8 = 0, shadow: bool = false, light: bool = false }; // fixed: a decal's parent key, a car's own (carview.zig); dc: added to the palette index (a livery); shadow: darkens what is under it (shadow.zig)
+/// Each field on its own word (board optimisation): with byte fields side by side LLVM wrote two of them as one i16 store at
+/// an odd stack offset, which traps on ZIGGY (perf_audit's misaligned probe, ~210 cycles a car face).
+pub const Key = struct { fixed: ?u16 align(4) = null, dc: u8 align(4) = 0, shadow: bool align(4) = false, light: bool align(4) = false }; // fixed: a decal's parent key, a car's own (carview.zig); dc: added to the palette index (a livery); shadow: darkens what is under it (shadow.zig)
 
 /// The debug shading (key i): 0 the face's stored colour, 1 / 2 the alternates a VR import stores in `alt` (lit by the
 /// normal as the converter lights the oval; gently lit). A face with no alternates (every committed track, the cars) keeps its colour.

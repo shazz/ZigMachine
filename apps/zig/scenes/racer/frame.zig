@@ -31,6 +31,8 @@
 const cam = @import("cam.zig");
 const clip = @import("clip.zig");
 const fx = @import("fx.zig");
+const hide = @import("hide.zig");
+const tilecull = @import("tilecull.zig");
 const poly = @import("poly.zig");
 const project = @import("project.zig");
 const oracle = @import("oracle.zig");
@@ -57,6 +59,9 @@ fn tall(t: *const trk.Track, f: *const trk.Face) bool {
     }
     return hi - lo >= TALL;
 }
+/// A frame stamp (seen, the vertex caches): u16 since the board optimisation (cart RAM: the 25,600-entry cache and the
+/// face stamps gave back ~70 KB, GLACIER fits again); the wrap to 0 resets every stamp, as before.
+pub const Stamp = u16;
 pub const MAXP = 6144; // polygons kept a frame (the stress city at R = 8 stays under it); past it they are dropped, counted
 pub const MAXV = types.MAXV;
 const NO_KEY: u16 = 0xFFFF;
@@ -69,9 +74,9 @@ pub const Frame = struct {
     key: []u16, // MAXP
     order: []u16, // MAXP, far to near
     count: *[BUCKETS + 1]u32,
-    seen: []u32, // a face's frame stamp
+    seen: []Stamp, // a face's frame stamp
     fkey: []u16 = &.{}, // the key a face was kept with (read through faceKey: valid when seen == the stamp)
-    seen_stamp: u32 = 0,
+    seen_stamp: Stamp = 0,
     entries: [pvs.MAX_ENTRIES]u16 = undefined,
     pvs_entries: [pvs.MAX_ENTRIES]u16 = undefined, // the oracle's (key 2) PVS list beside its all-tiles one
     pvs_list: []const u16 = &.{},
@@ -95,13 +100,16 @@ pub const Frame = struct {
             self.seen_stamp = 1;
         }
         @memset(self.count, 0);
+        tilecull.ensure(t);
         for (self.list) |e| {
+            if (tilecull.outside(v, pvs.tileOf(e))) continue; // all its faces past one plane (tilecull.zig)
             for (t.tileFaces(pvs.tileOf(e))) |fid| {
                 if (self.seen[fid] == self.seen_stamp) continue;
                 self.seen[fid] = self.seen_stamp;
                 if (self.fkey.len != 0) self.fkey[fid] = NO_KEY;
                 self.stats.faces += 1;
                 const f = &t.faces[fid];
+                if (hide.skipFace(f)) continue; // the board A/B (hide.zig): off by default
                 if (f.flags & trk.FLAG_DUAL == 0 and facing(f, v) <= f.cp) {
                     self.stats.back += 1;
                     continue;
@@ -143,16 +151,12 @@ pub const Frame = struct {
     }
 
     pub noinline fn emit(self: *Frame, comptime Sink: type, em: *poly.Emitter(Sink)) void {
-        var xs: [MAXV]i32 = undefined;
-        var ys: [MAXV]i32 = undefined;
         for (self.order[0..self.stats.polys]) |i| {
             const r = &self.kept[i];
             const n = r.n & types.COUNT;
-            for (0..n) |j| {
-                xs[j] = r.x[j];
-                ys[j] = r.y[j];
-            }
-            if (r.n & types.SHADOW != 0) em.shadow(xs[0..n], ys[0..n]) else if (r.n & types.LIGHT != 0) em.light(xs[0..n], ys[0..n]) else em.poly(xs[0..n], ys[0..n], r.c);
+            const xs = r.x[0..n]; // the record's i16s as they are (no i32 copy a polygon: board optimisation)
+            const ys = r.y[0..n];
+            if (r.n & types.SHADOW != 0) em.shadow(xs, ys) else if (r.n & types.LIGHT != 0) em.light(xs, ys) else em.poly(xs, ys, r.c);
         }
     }
 

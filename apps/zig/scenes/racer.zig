@@ -5,7 +5,7 @@
 // (the benchmark's lap v0), the PVS and a ray DDA pick the tiles, faces are back-face culled,
 // transformed, clipped, bucket-sorted far to near and filled flat. docs/ports/kestrel_racing/.
 //
-//   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CPU word stores / CHISEL AFFINE spans   m mulsh / plain twin
+//   3-8 draw distance R (tiles; 8 by default, the bench laps b and x pin 5)   f the fill path: CHISEL AFFINE spans (the default) / CPU word stores   m mulsh / plain twin
 //   g the vertex transform in f32   d decals on / off   t the next track (the oval, then the disk's *.KTR files and C:\RACER\'s: racer/library.zig)   p pause   o the benchmark OSD
 //   u the cart-only rate   c the lap CRC on / off   l back to the lap   A-H a fixed pose   i the VR shading (M5_VR.md)
 //   y the cars' shadow: REAL (one ramp level darker, the default) / the arcade's checkerboard (HUD "/DITHER"; M5.md step 3)
@@ -13,11 +13,16 @@
 // M5 finish: right on the title / select = the OPTIONS (laps, shadow, shading, R, music: racer/options.zig); Enter, Backspace, fire once a press
 // M2 (oval only): n drive (arrows or joystick, fire = accelerate)   b bench lap v1 (the Lua reference's buttons)
 //   v the POV (far, near, cockpit)   r / Enter the car back on the grid        (keys.zig: all of them, and X Y Z)
-// M4 audio (racer/audio.zig): z the music, h the effects, j the benchmark laps' audio (silent by default); -Dracer_music: local tunes
+// M4 audio (racer/audio.zig): z the music, h the effects (both on by default), j the bench laps' audio (on); -Dracer_music: local tunes
 // M3 (oval only): e the race (8 cars, 3 laps; fire or s starts the countdown, r / Enter aborts or goes again)
 //   x bench lap v2 (the reference benchmark)   a the recorded driver   w warp (16 ticks a frame)   k the crest test pose
 // R82 32X feel (FEEL.md): T physics ARCADE / CLASSIC   M car class   L the AI pilot in the option's physics   9 the shadow headroom
 //   I --break feel   Backspace leaves a running bench lap for the select
+// Board batch (BATCH.md): ] / [ the next / previous car (the garage: the disk's and C:'s *.KCR, then the GT), _ the effects'
+//   PSG layout; the select's fire opens the CAR SELECT; --break & (wheels still) ~ (old near camera) * (models still)
+//   < (no bench HUD) > (tag class ignored) | (panorama PIXEL ignored)
+// Board optimisation (OPTIMIZE.md): ( ) { } # $ hide cars, picture HUD, panorama, shadows, scenery, ground (A/B, off by
+//   default); ` the probe timers (two OSD pages); - = ; opt-in cheaper far cars (they change the picture: off by default)
 // One plane in two pages (the shown one is enabled), the sky a per-line palette entry on the copper, the
 // backdrop one AFFINE op. No float. Benchmark lines go to the console: racer/bench.zig, racer/drive.zig.
 // --------------------------------------------------------------------------
@@ -102,6 +107,7 @@ pub const Demo = struct {
         self.os = zigos;
         self.bench = .{ .now = micros };
         self.audio.now = micros;
+        @import("racer/prof.zig").now = micros;
         self.tracks[0] = library.builtin();
         self.tracks[1] = self.tracks[0]; // the buffer's view: nothing loaded yet
         self.f = setup.frameFor(library.MAX_VERTS, library.MAX_FACES);
@@ -111,7 +117,7 @@ pub const Demo = struct {
         self.game = game.Game.init(&self.tracks[0], micros) catch |e| @panic(@errorName(e));
         self.map = minimap.Map.init(&self.tracks[0]);
         self.pmap = hudpic.fitMap(&self.tracks[0]);
-        self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK), .os = zigos } };
+        self.p = .{ .os = zigos, .aff = .{ .buf = sinks.spanBuffer(), .os = zigos } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
@@ -182,6 +188,8 @@ pub const Demo = struct {
         _ = zigos;
         _ = dt;
         if (self.paused) return audio.pause(self);
+        self.bench.tickStart();
+        defer self.bench.tickEnd();
         if (self.pose == null and self.drive.mode == .off and self.game.mode == .off) self.script +%= 1;
         self.drive.update();
         self.game.update();

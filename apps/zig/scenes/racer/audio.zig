@@ -1,24 +1,23 @@
 // --------------------------------------------------------------------------
 // RACER: the cart's audio (M4): the music (music.zig) and the sound effects (sfx.zig) on the BARD
 // queue's FM device (zg.bard.fm). Works on any Demo with `game`, `drive` and `audio` fields.
-//   - The device is asked for (zg.caps .bard_fm) and opened at the first frame; it owns FM 5-6, PSG
-//     tone 3 and the noise (SFX_DEFAULT) and its two FM voices get their patches. Without it (an older
-//     system, a host with no queue) the music plays alone and stops by zg.stopSong.
-//   - The music: SHIPPED's tunes (ours: M5 step 4's final tunes); with `-Dracer_music` the LOCAL tunes win (they use every
-//     channel, so the effects start OFF there: key h takes the channels, muting those parts).
-//   - Stamps: the cart's own sample clock, moved on by the real time between two frames (hostMicros), so
-//     the queue's anchor keeps every write ~LEAD (70 ms) ahead whatever the cart's frame rate; if the
-//     clock falls within MIN_AHEAD of the sound side's position (drift, a stall, no clock on a harness
-//     machine) it jumps ahead to it. The device needs a write ~430 samples ahead to land on its stamp.
-//   - The benchmark laps (b, x) are silent unless key j switches their audio on (music + effects), so
-//     the earlier silent pins stay comparable; the audio never touches a pixel or a physics tick.
-// Keys: z the music, h the effects, j the benchmark's audio.
+//   - The device is asked for (zg.caps .bard_fm) and opened at the first frame; it owns FM 5-6, PSG tone 3 and the noise
+//     (SFX_DEFAULT), its two FM voices patched. Without it (an older system, no queue) the music plays alone. Keys z h j.
+//   - The music: SHIPPED's tunes (ours: M5 step 4's final tunes); with `-Dracer_music` the LOCAL tunes win. Those use
+//     every FM channel (FM 6 the DAC's drums) and no PSG, so there the effects take the PSG layout (sfx_psg.zig: PSG 1,
+//     3 and the noise): music AND effects are on by default on both carts, and no part of a tune is muted (board batch).
+//   - Stamps: the cart's own sample clock, moved on by the real time between two frames (hostMicros): every write ~LEAD
+//     (70 ms) ahead at any frame rate; within MIN_AHEAD of the sound side's position (drift, a stall, a harness with no
+//     clock) it jumps ahead to it. The device needs a write ~430 samples ahead to land on its stamp.
+//   - The benchmark laps (b, x) sound like a race (board batch, item 8: "no reason in benchmark mode to have different
+//     behavior"): key j silences them (the old default); the audio never touches a pixel or a physics tick.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const opts = @import("cart_opts");
 const music = @import("music.zig");
 const sfx = @import("sfx.zig");
 const voices = @import("voices.zig");
+const psgfx = @import("sfx_psg.zig");
 
 pub const local: bool = opts.racer_music;
 pub const LEAD: u32 = 3072; // the queue's lead, samples
@@ -28,12 +27,13 @@ const fm = zg.bard.fm;
 
 pub const Audio = struct {
     player: music.Player = .{ .songs = if (local) &music.SONGS else &music.SHIPPED },
-    fx: sfx.Sfx = .{},
+    fx: sfx.Sfx = .{ .layout = if (local) .psg else .fm },
     started: bool = false,
     device: bool = false, // the FM device is open
-    effects: bool = !local,
+    effects: bool = true,
     owning: bool = false,
-    bench_audio: bool = false,
+    layout: sfx.Layout = .fm, // the layout the channels were taken for (key _ switches the effects' to PSG: retaken)
+    bench_audio: bool = true,
     t: u32 = 0, // the cart's sample clock: this frame's stamp
     now: *const fn () u32 = zeroClock, // microseconds (racer.zig gives hostMicros)
     last_us: u32 = 0,
@@ -52,7 +52,10 @@ pub const Audio = struct {
     }
 
     fn take(self: *Audio) void {
-        self.owning = fm.own(self.t, fm.SFX_DEFAULT) and fm.patch(self.t, sfx.ENGINE, &voices.ENGINE) and
+        self.layout = self.fx.layout;
+        if (self.fx.layout == .psg) {
+            self.owning = fm.own(self.t, psgfx.MASK);
+        } else self.owning = fm.own(self.t, fm.SFX_DEFAULT) and fm.patch(self.t, sfx.ENGINE, &voices.ENGINE) and
             fm.patch(self.t, sfx.IMPACT, &voices.IMPACT) and fm.freq(self.t, sfx.IMPACT, 2, 700);
         if (!self.owning) self.refused += 1;
     }
@@ -103,10 +106,9 @@ pub const Audio = struct {
         self.refused += out.dropped;
     }
 
-    /// Bug pass (Matt 27 Nov, "no engine sound" on the board): the channels were asked for ONCE, at the first frame; one
-    /// refusal there (a queue not ready yet) silenced the effects for the whole session. Ask again once a second.
+    /// Bug pass ("no engine sound": one refusal at the first frame silenced the session): ask again once a second; also when the layout changed.
     fn retake(self: *Audio) void {
-        if (self.device and self.effects and !self.owning and self.frames % 60 == 0) self.take();
+        if (self.device and self.effects and self.frames % 60 == 0 and (!self.owning or self.fx.layout != self.layout)) self.take();
     }
 
     /// `racer,audio,<device>,<owning>,<anchored>,<refused>` on the console when the effects' state changes (the board's serial log
@@ -139,7 +141,6 @@ pub const Audio = struct {
 fn zeroClock() u32 {
     return 0;
 }
-
 /// The pause: what the effects sound is silenced (the music plays on); they start again with the race.
 pub fn pause(self: anytype) void {
     const a = &self.audio;
@@ -194,6 +195,7 @@ pub fn key(self: anytype, cp: u32) bool {
         'z' => self.audio.toggleMusic(),
         'h' => self.audio.toggleEffects(),
         'j' => self.audio.bench_audio = !self.audio.bench_audio,
+        '_' => self.audio.fx = .{ .layout = .psg }, // the PSG layout on any cart (racer_batch.mjs): the next retake owns its mask
         else => return false,
     }
     return true;

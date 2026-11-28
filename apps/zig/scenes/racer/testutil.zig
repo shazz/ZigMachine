@@ -8,7 +8,7 @@ pub fn newFrame(t: *const trk.Track) !frame.Frame {
     const a = std.testing.allocator;
     const e = try a.alloc(xf.Entry, t.verts.len);
     @memset(e, std.mem.zeroes(xf.Entry));
-    const seen = try a.alloc(u32, t.faces.len);
+    const seen = try a.alloc(frame.Stamp, t.faces.len);
     @memset(seen, 0);
     return .{
         .cache = .{ .e = e }, .kept = try a.alloc(frame.Rec, frame.MAXP), .key = try a.alloc(u16, frame.MAXP),

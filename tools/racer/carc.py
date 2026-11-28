@@ -14,7 +14,8 @@ then the vertices (i16 x3, Q7, car space: x right, y up, z forward; padded to 4)
 A face of material `fixed` names its own `ramp` (12..18) and `level` (0..7): an imported car's own colours, unlit.
 
 A SET (version 2, `pack_set`): a 64-byte header (magic, 2, the model count, flags: 1 = the palette follows, the 7 car ramps
-12..18 as RGBX in words 4..10, word 11 the CRC-32 of the rest) then the models' v1 records back to back. Model 0 is the
+12..18 as RGBX in words 4..10, word 11 the CRC-32 of the rest; byte 48 the car class + 1 or 0, bytes 52..63 the set's name,
+the TAG) then the models' v1 records back to back. Model 0 is the
 player's car, the rest the AI cars' in turn; the palette recolours ramps 12..18 while the set is on show (carfile.zig).
 """
 
@@ -114,13 +115,20 @@ def convert(doc: Doc, allow_soft: bool = False, scale: float = 1.0) -> bytes:
     return head + body
 
 
-def pack_set(models: list[bytes], palette: list[tuple[int, int, int]] | None) -> bytes:
-    """A version-2 car file: the v1 `models` (1..5; 0 the player's) and, when given, the 7 car ramps' colours."""
+CLASSES = ("FORMULA", "STOCK", "PROTO")  # the cart's car classes (racer/feel_params.zig), in the tag's order
+
+
+def pack_set(models: list[bytes], palette: list[tuple[int, int, int]] | None, name: str = "", cls: int | None = None) -> bytes:
+    """A version-2 car file: the v1 `models` (1..5; 0 the player's), when given the 7 car ramps' colours, and the tag: the
+    set's `name` (up to 12 of A-Z 0-9 space) and its car class (an index into CLASSES; None: the player's class stays)."""
     if not 1 <= len(models) <= MAX_MODELS or (palette is not None and len(palette) != RAMPS):
         raise CarError(f"a set holds 1..{MAX_MODELS} models and {RAMPS} ramp colours")
+    if len(name) > 12 or any(not (c.isupper() or c.isdigit() or c == " ") for c in name) or (cls is not None and not 0 <= cls < len(CLASSES)):
+        raise CarError(f"a set's name is up to 12 of A-Z 0-9 space and its class one of {CLASSES}")
     body = b"".join(models)
     pal = b"".join(struct.pack("<4B", *c, 0) for c in palette or [(0, 0, 0)] * RAMPS)
-    return struct.pack("<4I", MAGIC, 2, len(models), 1 if palette else 0) + pal + struct.pack("<5I", zlib.crc32(body), 0, 0, 0, 0) + body
+    tag = bytes([0 if cls is None else cls + 1, 0, 0, 0]) + name.encode().ljust(12, b"\0")
+    return struct.pack("<4I", MAGIC, 2, len(models), 1 if palette else 0) + pal + struct.pack("<I", zlib.crc32(body)) + tag + body
 
 
 def main(argv: list[str] | None = None) -> int:

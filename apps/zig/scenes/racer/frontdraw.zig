@@ -46,6 +46,7 @@ pub fn overlay(d: anytype, os: *zg.ZigOS, fb: *zg.LogicalFB) void {
         .select => seldraw.draw(d, os, fb, p),
         .results => resdraw.draw(d, os, fb, p),
         .options => @import("optdraw.zig").draw(d, os, fb, p),
+        .garage => @import("garagedraw.zig").draw(d, os, fb, p),
         else => {},
     }
 }

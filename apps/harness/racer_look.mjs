@@ -7,8 +7,11 @@
 //      over it are untouched), the panorama shows, the CPU and AFFINE fills agree, the view is pinned;
 //   2. the corrupted file is refused by name (racer,pan,refused,SALT.PAN,BadCrc) and the view is the no-panorama one
 //      byte for byte (the mood's backdrop shape);
-//   --break crc (key ^: the CRC not checked, so the corrupted file is drawn) must be caught.
-//   node apps/harness/racer_look.mjs [<shot dir>] [--break crc] [--print-pins]
+//   3. (board batch, item 5) the same strip with flag PIXEL (panc.py --pixel, as the 32X courses' are written) is drawn a
+//      texel a pixel: every panorama row repeats every 256 pixels (its width), where the stretched strip repeats every 1,280;
+//   --break crc (key ^: the CRC not checked, so the corrupted file is drawn) and --break pixel (key |: the flag ignored)
+//   must be caught.
+//   node apps/harness/racer_look.mjs [<shot dir>] [--break crc|pixel] [--print-pins]
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
@@ -20,7 +23,7 @@ import { png } from "./skystrike_zig_frame.mjs";
 
 const argv = process.argv.slice(2);
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
-if (BREAK !== null && BREAK !== "crc") { console.error(`racer_look: unknown --break ${BREAK}`); process.exit(1); }
+if (BREAK !== null && BREAK !== "crc" && BREAK !== "pixel") { console.error(`racer_look: unknown --break ${BREAK}`); process.exit(1); }
 const PRINT = argv.includes("--print-pins");
 const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
 const PINS = { pan: "4fb4fc7eb950" }; // Salt pose A with the test panorama
@@ -44,12 +47,14 @@ const disk = async (name, files) => {
 };
 run("python3", ["-I", "tools/racer/panc.py", SALT, "-o", join(dir, "good.pan")]);
 run("python3", ["-I", "tools/racer/panc.py", SALT, "-o", join(dir, "bad.pan"), "--corrupt"]);
+run("python3", ["-I", "tools/racer/panc.py", SALT, "-o", join(dir, "pixel.pan"), "--pixel"]);
 const first = Number(run("python3", ["-I", "-c", `import sys; sys.path.insert(0, "tools/racer"); import panc
 print(panc.free_entries(open("${SALT}", "rb").read(), ${NCOL}))`]));
 const disks = {
     good: await disk("good.zmd", [`SALT.KTR=${SALT}`, `SALT.PAN=${join(dir, "good.pan")}`]),
     bad: await disk("bad.zmd", [`SALT.KTR=${SALT}`, `SALT.PAN=${join(dir, "bad.pan")}`]),
     none: await disk("none.zmd", [`SALT.KTR=${SALT}`]),
+    pixel: await disk("pixel.zmd", [`SALT.KTR=${SALT}`, `SALT.PAN=${join(dir, "pixel.pan")}`]),
 };
 await rm(dir, { recursive: true });
 
@@ -67,12 +72,13 @@ async function view(img, keys = []) {
 }
 const Y0 = 12, Y1 = 188; // the 3D view (the HUD bands above and below name the fill path)
 const hash = (px) => createHash("sha256").update(px.subarray(Y0 * W, Y1 * W)).digest("hex").slice(0, 12);
-const pre = BREAK === "crc" ? ["^"] : [];
+const pre = BREAK === "crc" ? ["^"] : BREAK === "pixel" ? ["|"] : [];
 
 const none = await view(disks.none);
 const good = await view(disks.good, pre);
 const goodAff = await view(disks.good, [...pre, "f"]);
 const bad = await view(disks.bad, pre);
+const pixel = await view(disks.pixel, pre);
 
 // 1. the good file: loaded, drawn only where the backdrop was (sky 1, far ground 4, the shape 12-14), the faces untouched
 if (!good.log.includes(`racer,pan,SALT.PAN,256,28,${NCOL}`)) fail(`the good panorama: ${good.log.join(" ") || "no racer,pan line"}`);
@@ -91,6 +97,17 @@ else if (pin !== PINS.pan) fail(`the panorama view ${pin}, pinned ${PINS.pan}`);
 // 2. the corrupted file: refused by name, the mood's shape drawn
 if (!bad.log.includes("racer,pan,refused,SALT.PAN,BadCrc")) fail(`the corrupted panorama: ${bad.log.join(" ") || "not refused"}`);
 if (hash(bad.px) !== hash(none.px)) fail("the corrupted panorama: the view is not the no-panorama one");
+// 3. PIXEL: a texel a pixel, so each panorama row repeats every 256 pixels (the strip's width): checked on the rows where
+// the strip varies (a uniform row repeats at any scale), over the columns both pixels of a pair show the strip
+let rows = 0, periodic = 0;
+for (let y = Y0; y < Y1; y++) {
+    const r = pixel.px.subarray(y * W, y * W + W);
+    const pairs = [...Array(W - 256).keys()].filter((x) => owns(r[x]) && owns(r[x + 256]));
+    if (pairs.length < 32 || new Set(pairs.map((x) => r[x])).size < 2) continue;
+    rows++;
+    if (pairs.every((x) => r[x] === r[x + 256])) periodic++;
+}
+if (rows < 2 || periodic !== rows) fail(`the PIXEL panorama: ${periodic} of ${rows} varied rows repeat every 256 pixels`);
 if (OUT) {
     await mkdir(OUT, { recursive: true });
     for (const [n, v] of [["look_pan.png", good], ["look_nopan.png", none]]) {

@@ -8,7 +8,8 @@
 //   20 horizon u16 (the strip row on the horizon line: rows above it are above, the rest below), 22 u0 u16 (the
 //      texel straight ahead at yaw 0, < width)
 //   24 colours u8 (1..MAX_COLOURS), 25 first u8 (the palette entry of colour 1), 26 flags u8 (bit 0 OPAQUE: no
-//      texel is 0, the sky fill under it can be skipped), 27 0
+//      texel is 0, the sky fill under it can be skipped; bit 1 PIXEL: a texel a pixel, as the 32X shows its plane B,
+//      instead of the strip stretched over the view's turn: board batch, item 5), 27 0
 //   28 lower width u16, 30 lower rows u16: the strip's LOWER part (the sea or the plain below the skyline), rows that
 //      repeat every `lower width` texels (a power of two, MIN_LOWER..width), stored once: 0, 0 = none
 //   32 the colours, RGB0 x colours; then the texels, rows x width bytes, then the lower part's, lower rows x lower
@@ -31,6 +32,7 @@ pub const MAX_LOWER = 160; // the lower part's rows
 pub const MIN_LOWER = 8; // ... and its narrowest period
 pub const MAX_COLOURS = 64;
 pub const OPAQUE: u8 = 1;
+pub const PIXEL: u8 = 2;
 pub const CAR_LO = 16 + 12 * 8; // the car ramps 12..18 (carmodel: liveries and car files)
 pub const CAR_HI = 16 + 19 * 8;
 pub var break_crc = false; // racer_look.mjs --break crc (key ^): the CRC not checked, a corrupted file accepted
@@ -44,6 +46,7 @@ pub const Pan = struct {
     first: u8,
     colours: []const [4]u8,
     opaque_: bool,
+    pixel: bool = false, // flag PIXEL: drawn a texel a pixel (backdrop.geometry)
     texels: []const u8, // rows x width
     lower_w: u32 = 0, // the lower part (0 = none): lower_rows x lower_w texels, below the upper part, repeating across
     lower_rows: u32 = 0,
@@ -76,7 +79,7 @@ pub fn parse(b: []const u8) Error!Pan {
     if (w < MIN_W or w > MAX_W or !std.math.isPowerOfTwo(w) or rows < 1 or rows > MAX_ROWS) return error.BadSize;
     const lw = half(b, 28);
     const lr = half(b, 30);
-    if (half(b, 20) > rows + lr or half(b, 22) >= w or b[26] & ~OPAQUE != 0 or b[27] != 0) return error.BadSize;
+    if (half(b, 20) > rows + lr or half(b, 22) >= w or b[26] & ~(OPAQUE | PIXEL) != 0 or b[27] != 0) return error.BadSize;
     if ((lw == 0) != (lr == 0) or lr > MAX_LOWER) return error.BadSize;
     if (lw != 0 and (lw < MIN_LOWER or lw > w or !std.math.isPowerOfTwo(lw))) return error.BadSize;
     if (n < 1 or n > MAX_COLOURS or first < 16 or first + n > 256) return error.BadColours;
@@ -90,6 +93,7 @@ pub fn parse(b: []const u8) Error!Pan {
         .first = @intCast(first),
         .colours = @as([*]const [4]u8, @ptrCast(b[HEADER..].ptr))[0..n],
         .opaque_ = b[26] & OPAQUE != 0,
+        .pixel = b[26] & PIXEL != 0,
         .texels = b[HEADER + 4 * n ..][0 .. w * rows],
         .lower_w = lw,
         .lower_rows = lr,

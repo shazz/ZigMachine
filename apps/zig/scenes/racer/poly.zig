@@ -48,21 +48,22 @@ pub fn Emitter(comptime Sink: type) type {
 
         const Self = @This();
 
-        pub fn poly(self: *Self, xs: []const i32, ys: []const i32, c: u8) void {
+        /// xs / ys: any integer slices (the frame's kept i16 records directly: board optimisation, no copy a polygon).
+        pub fn poly(self: *Self, xs: anytype, ys: anytype, c: u8) void {
             self.walk(xs, ys, c, .fill);
         }
 
         /// A car's shadow: the same edges and pixels as poly(), each span darkened in place (Sink.shade) instead of filled.
-        pub fn shadow(self: *Self, xs: []const i32, ys: []const i32) void {
+        pub fn shadow(self: *Self, xs: anytype, ys: anytype) void {
             self.walk(xs, ys, 0, .shade);
         }
 
         /// A smoke puff (R82 bug pass): the same edges and pixels, each span LIGHTENED in place (Sink.light).
-        pub fn light(self: *Self, xs: []const i32, ys: []const i32) void {
+        pub fn light(self: *Self, xs: anytype, ys: anytype) void {
             self.walk(xs, ys, 0, .light);
         }
 
-        inline fn walk(self: *Self, xs: []const i32, ys: []const i32, c: u8, comptime shade: Mode) void {
+        inline fn walk(self: *Self, xs: anytype, ys: anytype, c: u8, comptime shade: Mode) void {
             const n = xs.len;
             var top: usize = 0;
             var bot: usize = 0;
@@ -79,12 +80,12 @@ pub fn Emitter(comptime Sink: type) type {
             var y = ya;
             while (y < yc) : (y += 1) {
                 while (a.end <= y) {
-                    const ja = (ia + 1) % n;
+                    const ja = if (ia + 1 == n) 0 else ia + 1; // not `% n`: a divide an edge (board optimisation)
                     a = edge(xs[ia], ys[ia], xs[ja], ys[ja], y);
                     ia = ja;
                 }
                 while (b.end <= y) {
-                    const jb = (ib + n - 1) % n;
+                    const jb = if (ib == 0) n - 1 else ib - 1;
                     b = edge(xs[ib], ys[ib], xs[jb], ys[jb], y);
                     ib = jb;
                 }

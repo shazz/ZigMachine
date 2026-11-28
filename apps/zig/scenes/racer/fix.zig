@@ -29,13 +29,42 @@ pub inline fn mul(a: i32, b: i32) i32 {
     return @truncate((@as(i64, a) * b) >> 16);
 }
 
+/// The same integer as trunc(a * 65536 / b) through 64 bits, saturated; in 32-bit divides (ZIGGY's divide unit; the
+/// 64-bit divide is a libgcc call on rv32. Board optimisation: fix_test.zig compares it with the 64-bit formula).
 pub fn div(a: i32, b: i32) i32 {
     if (b == ONE) return a;
-    if (b != 0) {
-        const r = @divTrunc(@as(i64, a) * 65536, b);
-        if (r <= MAX and r >= -MAX) return @intCast(r);
+    if (b == 0) return if (a >= 0) MAX else -MAX;
+    if (a > -0x8000 and a < 0x8000) return @divTrunc(a << 16, b); // |a << 16| < 2^31: no overflow, |q| <= MAX
+    const neg = (a < 0) != (b < 0);
+    const q = udiv16(@abs(a), @abs(b)) orelse return if (neg) -MAX else MAX;
+    return if (neg) -q else q;
+}
+
+/// floor(a * 2^16 / b) for b > 0, or null past MAX: long division, the high part then the 16 low bits in one, two or
+/// sixteen steps as b leaves room in a word.
+fn udiv16(a: u32, b: u32) ?i32 {
+    const qh = a / b;
+    if (qh >= 0x8000) return null; // q >= 2^31
+    var r = a - qh * b;
+    var lo: u32 = 0;
+    if (b <= 0xFFFF) {
+        lo = (r << 16) / b; // r < b < 2^16
+    } else if (b <= 0xFF_FFFF) {
+        const n1 = r << 8; // r < 2^24: two base-256 digits
+        const d1 = n1 / b;
+        r = n1 - d1 * b;
+        lo = d1 << 8 | (r << 8) / b;
+    } else {
+        for (0..16) |_| { // r < b < 2^32 and r < 2^31 after the high part: r << 1 fits
+            r <<= 1;
+            lo <<= 1;
+            if (r >= b) {
+                r -= b;
+                lo |= 1;
+            }
+        }
     }
-    return if ((a ^ b) >= 0) MAX else -MAX;
+    return @intCast(qh << 16 | lo);
 }
 
 pub fn abs(a: i32) i32 {
@@ -71,22 +100,26 @@ pub fn lerp(a: i32, b: i32, t: i32) i32 {
     return mul(a, ONE - t) +% mul(b, t);
 }
 
-/// floor(sqrt(x << 16)), the PICO-8 abacus root. A negative input gives 0.
+/// floor(sqrt(x << 16)), the PICO-8 abacus root. A negative input gives 0. Digit by digit, two bits of x a step, in
+/// 32-bit words (board optimisation: the 64-bit abacus cost ~700 cycles on rv32; the remainder stays under 2^27):
+/// the same floor root, pinned by fix_test.zig's CRC and a comparison with the 64-bit loop.
 pub fn sqrt(a: i32) i32 {
-    var x: i64 = @as(i64, a) << 16;
-    var root: i64 = 0;
-    if (x <= 0) return 0;
-    var bit: i64 = 1 << 46;
-    while (bit != 0) : ({
-        bit >>= 2;
-        root >>= 1;
-    }) {
-        if (x >= bit + root) {
-            x -= bit + root;
-            root += bit << 1;
+    if (a <= 0) return 0;
+    const ua: u32 = @intCast(a);
+    var rem: u32 = 0;
+    var root: u32 = 0;
+    var i: u5 = 0;
+    while (i < 24) : (i += 1) { // x = a << 16: bit pairs 47..16 are a's, the last eight pairs zero
+        const pair: u32 = if (i < 16) (ua >> (30 - 2 * @as(u5, @intCast(i)))) & 3 else 0;
+        rem = (rem << 2) | pair;
+        root <<= 1;
+        const t = (root << 1) | 1;
+        if (rem >= t) {
+            rem -= t;
+            root |= 1;
         }
     }
-    return @truncate(root);
+    return @intCast(root);
 }
 
 const SIN_N = 4097;

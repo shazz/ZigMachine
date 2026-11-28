@@ -67,3 +67,61 @@ test "literals truncate toward zero like the PICO-8 lexer" {
     try std.testing.expectEqual(@as(i32, -0x2666), fix.lit(-0.15));
     try std.testing.expectEqual(@as(i32, 1092), fix.lit(0.5 / 30.0));
 }
+
+fn sqrt64(a: i32) i32 { // the 64-bit abacus fix.sqrt replaced (board optimisation): the reference
+    var x: i64 = @as(i64, a) << 16;
+    var root: i64 = 0;
+    if (x <= 0) return 0;
+    var bit: i64 = 1 << 46;
+    while (bit != 0) : ({
+        bit >>= 2;
+        root >>= 1;
+    }) {
+        if (x >= bit + root) {
+            x -= bit + root;
+            root += bit << 1;
+        }
+    }
+    return @truncate(root);
+}
+
+fn div64(a: i32, b: i32) i32 { // the 64-bit formula fix.div keeps for |a| >= 0.5: the reference of its fast path
+    if (b == fix.ONE) return a;
+    if (b != 0) {
+        const r = @divTrunc(@as(i64, a) * 65536, b);
+        if (r <= fix.MAX and r >= -fix.MAX) return @intCast(r);
+    }
+    return if ((a ^ b) >= 0) fix.MAX else -fix.MAX;
+}
+
+test "the 32-bit sqrt and div fast path equal the 64-bit ones (random, powers of two and edges)" {
+    var rng = std.Random.DefaultPrng.init(0x5eed);
+    const r = rng.random();
+    const edges = [_]i32{ 0, 1, -1, 2, 3, 0x7fff, -0x7fff, 0x8000, -0x8000, 0x7fff_ffff, -0x7fff_ffff, std.math.minInt(i32), 0xffff, 0x10000, 0x10001 };
+    for (edges) |a| {
+        try std.testing.expectEqual(sqrt64(a), fix.sqrt(a));
+        for (edges) |b| try std.testing.expectEqual(div64(a, b), fix.div(a, b));
+    }
+    for (0..31) |s| try std.testing.expectEqual(sqrt64(@as(i32, 1) << @intCast(s)), fix.sqrt(@as(i32, 1) << @intCast(s)));
+    for (0..1_000_000) |_| {
+        const a = r.int(i32) >> r.intRangeAtMost(u5, 0, 31);
+        const small = r.intRangeAtMost(i32, -0x8000, 0x8000);
+        const b = r.int(i32) >> r.intRangeAtMost(u5, 0, 31);
+        try std.testing.expectEqual(sqrt64(a), fix.sqrt(a));
+        try std.testing.expectEqual(div64(a, b), fix.div(a, b));
+        try std.testing.expectEqual(div64(small, b), fix.div(small, b));
+    }
+}
+
+test "fx.clz32 is @clz on every power of two and its neighbours, and on random words" {
+    const fx = @import("fx.zig");
+    for (0..32) |s| {
+        const p = @as(u32, 1) << @intCast(s);
+        for ([_]u32{ p, p | 1, p | (p >> 1), p + (p -| 1) }) |x| if (x != 0) try std.testing.expectEqual(@as(u5, @intCast(@clz(x))), fx.clz32(x));
+    }
+    var rng = std.Random.DefaultPrng.init(7);
+    for (0..100_000) |_| {
+        const x = rng.random().int(u32) | 1;
+        try std.testing.expectEqual(@as(u5, @intCast(@clz(x))), fx.clz32(x));
+    }
+}

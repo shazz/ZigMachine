@@ -340,6 +340,7 @@ Generated (`tools/racer/kit_errors.py`, `kit_errors_car.py`; `...` is the part t
 |---|---|
 | `the footprint takes the car past ... vertices` | the shadow footprint adds vertices: fewer vertices on the hull |
 | `a set holds 1..... models and ... ramp colours` | a car set file holds 1..5 cars and a palette of 7 colours |
+| `a set's name is up to 12 of A-Z 0-9 space and its class one of ...` | a car set's tag: name it with up to 12 capitals, digits or spaces, and give it FORMULA, STOCK or PROTO (or no class) |
 
 **The panorama writer** (`tools/racer/panc.py`)
 

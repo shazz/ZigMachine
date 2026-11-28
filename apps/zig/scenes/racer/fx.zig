@@ -30,6 +30,52 @@ pub inline fn mulsh16(a: i32, b: i32) i32 {
     return @truncate((@as(i64, a) * b) >> 16);
 }
 
+/// mulsh16 with the knob read once by the caller (board optimisation: `use_zmx` is a global, reloaded at each of a
+/// vertex's fifteen multiplies; xform.get reads it once). The same integer either way.
+pub inline fn mulshK(zmx: bool, a: i32, b: i32) i32 {
+    if (comptime builtin.cpu.arch == .wasm32) {
+        if (zmx) return zmMulsh16(a, b);
+    }
+    return @truncate((@as(i64, a) * b) >> 16);
+}
+
+/// @clz of a non-zero word in five compares (board optimisation: rv32im has no clz, so @clz is a libgcc call, one a
+/// vertex through rcp). The same count; fix_test.zig compares it with @clz.
+pub inline fn clz32(x: u32) u5 {
+    var v = x;
+    var n: u32 = 0;
+    if (v <= 0x0000_FFFF) {
+        n += 16;
+        v <<= 16;
+    }
+    if (v <= 0x00FF_FFFF) {
+        n += 8;
+        v <<= 8;
+    }
+    if (v <= 0x0FFF_FFFF) {
+        n += 4;
+        v <<= 4;
+    }
+    if (v <= 0x3FFF_FFFF) {
+        n += 2;
+        v <<= 2;
+    }
+    if (v <= 0x7FFF_FFFF) n += 1;
+    return @intCast(n);
+}
+
+/// rcp with the knob read once (mulshK).
+pub inline fn rcpK(zmx: bool, d: u32) u32 {
+    if (d < 2) return 0xFFFF_FFFF;
+    const n: u5 = clz32(d);
+    const m = d << n;
+    const y0: i32 = RCP[(m >> 23) & 255];
+    const t = mulshK(zmx, @intCast(m >> 15), y0);
+    const y1: u32 = @intCast(mulshK(zmx, y0, (2 << 16) - t));
+    const r = (@as(u64, y1) << (@as(u6, n) + 1)) >> 16;
+    return @intCast(@min(r, 0xFFFF_FFFF));
+}
+
 const RCP: [256]u16 = blk: {
     var t: [256]u16 = undefined;
     for (&t, 0..) |*e, i| {
@@ -41,14 +87,7 @@ const RCP: [256]u16 = blk: {
 
 /// ~2^32 / d for d >= 2 (the Q16 of 1 / z when d is a Q16 z), 14+ bits good.
 pub fn rcp(d: u32) u32 {
-    if (d < 2) return 0xFFFF_FFFF;
-    const n: u5 = @intCast(@clz(d));
-    const m = d << n;
-    const y0: i32 = RCP[(m >> 23) & 255];
-    const t = mulsh16(@intCast(m >> 15), y0);
-    const y1: u32 = @intCast(mulsh16(y0, (2 << 16) - t));
-    const r = (@as(u64, y1) << (@as(u6, n) + 1)) >> 16;
-    return @intCast(@min(r, 0xFFFF_FFFF));
+    return rcpK(use_zmx, d);
 }
 
 const N = 1024;

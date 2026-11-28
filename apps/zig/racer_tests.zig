@@ -14,6 +14,15 @@ test {
     _ = @import("scenes/racer/game_test.zig");
     _ = @import("scenes/racer/music_test.zig");
     _ = @import("scenes/racer/sfx_test.zig");
+    _ = @import("scenes/racer/sfx_psg_test.zig");
+    _ = @import("scenes/racer/wheelspin_test.zig");
+    _ = @import("scenes/racer/benchround.zig");
+    _ = @import("scenes/racer/hide.zig");
+    _ = @import("scenes/racer/prof.zig");
+    _ = @import("scenes/racer/carcull.zig");
+    _ = @import("scenes/racer/tilecull_test.zig");
+    _ = @import("scenes/racer/carlod.zig");
+    _ = @import("scenes/racer/coursemesh_test.zig");
     _ = @import("scenes/racer/shadow_test.zig");
     _ = @import("scenes/racer/carmodel_test.zig");
     _ = @import("scenes/racer/carfile_test.zig");
@@ -30,5 +39,6 @@ test {
     _ = @import("scenes/racer/far_test.zig");
     _ = @import("scenes/racer/smoke_test.zig");
     _ = @import("scenes/racer/rescue_test.zig");
+    _ = @import("scenes/racer/pace.zig");
     _ = @import("scenes/racer/panofile_test.zig");
 }

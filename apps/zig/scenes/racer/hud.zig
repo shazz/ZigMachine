@@ -1,7 +1,8 @@
 // --------------------------------------------------------------------------
 // RACER: two text lines in the viewport's bands (top rows 1..8, bottom rows 191..198), no plane
 // of their own. Each page of the flip remembers what it shows and a line is redrawn only when its
-// text changed for that page. The bench band (key O) is the OSD of PORT_PLAN 2.5: stage
+// text changed for that page. The bench band (key o) is the OSD of PORT_PLAN 2.5: T V C A S K F H (tick, visibility,
+// collect, cars, sort, sky, fill, HUD) in units of 100 us, then the frame and the fps x10; before that, stage
 // microseconds, the counts, fps, and the cart-only rate (1e6 / avg_us: the frame rate if only the cart's own work counted: it
 // leaves out FRESCO's ~0.7 Mc, which the board frame waits for; a cart cannot skip the VBL wait today).
 // --------------------------------------------------------------------------
@@ -27,7 +28,7 @@ pub const Info = struct {
     uncapped: bool,
     avg_us: u32,
     fps10: u32,
-    stage_us: [6]u32,
+    stage_us: [8]u32,
     line0: ?[]const u8 = null, // the race's lines (racehud.zig) replace the benchmark's two
     line1: ?[]const u8 = null,
 };
@@ -56,7 +57,7 @@ pub const Hud = struct {
 
 fn bufStages(b: []u8, i: Info) []const u8 {
     const s = i.stage_us;
-    return std.fmt.bufPrint(b, "V{} C{} S{} K{} F{} H{} = {}US {}.{}FPS", .{ s[0], s[1], s[2], s[3], s[4], s[5], i.avg_us, i.fps10 / 10, i.fps10 % 10 }) catch "";
+    return std.fmt.bufPrint(b, "T{} V{} C{} A{} S{} K{} F{} H{}={} {}.{}", .{ s[7] / 100, s[0] / 100, s[1] / 100, s[6] / 100, s[2] / 100, s[3] / 100, s[4] / 100, s[5] / 100, i.avg_us / 100, i.fps10 / 10, i.fps10 % 10 }) catch "";
 }
 
 fn bufUncapped(b: []u8, i: Info) []const u8 {

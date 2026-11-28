@@ -58,7 +58,7 @@ test "a bad panorama file is refused by name: magic, version, CRC, length, size,
         .{ .at = 19, .v = 1, .want = error.BadSize }, // 264 rows
         .{ .at = 21, .v = 1, .want = error.BadSize }, // the horizon past the rows
         .{ .at = 23, .v = 1, .want = error.BadSize }, // u0 past the width
-        .{ .at = 26, .v = 2, .want = error.BadSize }, // an unknown flag
+        .{ .at = 26, .v = 4, .want = error.BadSize }, // an unknown flag (1 OPAQUE and 2 PIXEL are known)
         .{ .at = 24, .v = 0, .want = error.BadColours },
         .{ .at = 25, .v = 120, .want = error.BadColours }, // on the car ramps
         .{ .at = 25, .v = 254, .want = error.BadColours }, // past entry 255
@@ -99,4 +99,14 @@ test "a panorama whose entries the track's faces use, or past its ramps, clashes
         } else |_| {}
     }
     try std.testing.expect(free != null);
+}
+
+test "flag PIXEL (board batch item 5: the 32X's plane B a texel a pixel) is read; the default stays the stretched strip" {
+    var buf: [LEN]u8 = undefined;
+    try std.testing.expect(!(try pf.parse(make(&buf, 200, false))).pixel);
+    _ = make(&buf, 200, false);
+    buf[26] = pf.PIXEL;
+    try std.testing.expect((try pf.parse(seal(&buf))).pixel);
+    buf[26] = pf.PIXEL | 4;
+    try std.testing.expectError(error.BadSize, pf.parse(seal(&buf)));
 }

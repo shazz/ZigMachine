@@ -80,3 +80,23 @@ test "the rev gauge: no segment lit at rest, all at the top, the last three red"
     }
     try std.testing.expect(red > 0 and lit > 0);
 }
+
+test "the direct glyph path (board optimisation) writes the run path's bytes: labels and big text at scales 1-4" {
+    var font: [256 * 64]u8 = undefined;
+    var rng = std.Random.DefaultPrng.init(11);
+    for (&font) |*b| b.* = @intFromBool(rng.random().int(u8) < 100);
+    var a: [320 * 200]u8 = @splat(0);
+    var b: [320 * 200]u8 = @splat(0);
+    const pa = menu.Px{ .px = &a, .stride = 320 };
+    const pb = menu.Px{ .px = &b, .stride = 320 };
+    for (1..5) |s| {
+        hudpic.label(pa, &font, "POS 8/8 KM/H", 3, @intCast(s * 20));
+        pa.big(&font, "0:12.3", @intCast(10 * s), @intCast(100 + s * 3), @intCast(s));
+        menu.break_direct = true;
+        hudpic.label(pb, &font, "POS 8/8 KM/H", 3, @intCast(s * 20));
+        pb.big(&font, "0:12.3", @intCast(10 * s), @intCast(100 + s * 3), @intCast(s));
+        menu.break_direct = false;
+    }
+    try std.testing.expectEqualSlices(u8, &b, &a);
+    try std.testing.expect(std.mem.indexOfNone(u8, &a, &.{0}) != null);
+}

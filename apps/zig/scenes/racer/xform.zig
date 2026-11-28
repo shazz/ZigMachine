@@ -35,18 +35,19 @@ pub const F4: i32 = 160 * 16;
 pub const Y0: i32 = 12; // the 3D viewport's rows: [Y0, Y1), HUD bands above and below
 pub const Y1: i32 = 188;
 
+/// 20 bytes (board optimisation: was 24 with a u32 stamp; the frame's cache holds 25,600 of them, ~100 KB given back).
 pub const Entry = struct {
     v: clip.V3,
-    stamp: u32,
-    sx: i16,
-    sy: i16,
+    stamp: u16,
     rej: u8, // frustum: bit 0 near, 1 left, 2 right, 3 below, 4 above
     guard: u8, // clip.outside()
+    sx: i16,
+    sy: i16,
 };
 
 pub const Cache = struct {
     e: []Entry,
-    stamp: u32 = 0,
+    stamp: u16 = 0,
     touched: u32 = 0, // vertices transformed since next()
 
     pub fn next(self: *Cache) void {
@@ -63,10 +64,14 @@ pub const Screen = struct { x: i32, y: i32 };
 
 /// View-space (z >= NEAR) to Q4 screen.
 pub inline fn project(v: clip.V3) Screen {
-    const inv: i32 = @intCast(fx.rcp(@intCast(v[2])));
+    return projectK(fx.use_zmx, v);
+}
+
+inline fn projectK(z: bool, v: clip.V3) Screen {
+    const inv: i32 = @intCast(fx.rcpK(z, @intCast(v[2])));
     return .{
-        .x = CX16 + fx.mulsh16(fx.mulsh16(v[0], inv), F4),
-        .y = CY16 - fx.mulsh16(fx.mulsh16(v[1], inv), F4),
+        .x = CX16 + fx.mulshK(z, fx.mulshK(z, v[0], inv), F4),
+        .y = CY16 - fx.mulshK(z, fx.mulshK(z, v[1], inv), F4),
     };
 }
 
@@ -101,18 +106,19 @@ pub inline fn get(c: *Cache, view: *const cam.View, verts: []const trk.Vert, id:
     const vx: i32 = s[0];
     const vy: i32 = s[1];
     const vz: i32 = s[2];
+    const z = fx.use_zmx; // read once, not at each multiply (fx.mulshK)
     if (fx.use_f32) {
         e.v = viewF32(view, vx, vy, vz);
     } else e.v = .{
-        fx.mulsh16(view.r[0][0], vx) + fx.mulsh16(view.r[0][1], vy) + fx.mulsh16(view.r[0][2], vz) + view.t[0],
-        fx.mulsh16(view.r[1][0], vx) + fx.mulsh16(view.r[1][1], vy) + fx.mulsh16(view.r[1][2], vz) + view.t[1],
-        fx.mulsh16(view.r[2][0], vx) + fx.mulsh16(view.r[2][1], vy) + fx.mulsh16(view.r[2][2], vz) + view.t[2],
+        fx.mulshK(z, view.r[0][0], vx) + fx.mulshK(z, view.r[0][1], vy) + fx.mulshK(z, view.r[0][2], vz) + view.t[0],
+        fx.mulshK(z, view.r[1][0], vx) + fx.mulshK(z, view.r[1][1], vy) + fx.mulshK(z, view.r[1][2], vz) + view.t[1],
+        fx.mulshK(z, view.r[2][0], vx) + fx.mulshK(z, view.r[2][1], vy) + fx.mulshK(z, view.r[2][2], vz) + view.t[2],
     };
     e.stamp = c.stamp;
     e.rej = rejectCodes(e.v);
     e.guard = clip.outside(e.v);
     if (e.guard == 0) {
-        const p = project(e.v);
+        const p = projectK(z, e.v);
         e.sx = @intCast(p.x);
         e.sy = @intCast(p.y);
     }

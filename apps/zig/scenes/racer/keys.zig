@@ -23,6 +23,8 @@ const arcade = @import("arcade.zig");
 
 pub fn handle(self: anytype, cp: u32) void {
     if (front.key(self, cp)) return; // the title, the select, the results (M5 step 4)
+    if (@import("hide.zig").key(cp)) return; // the board A/B switches ( ) { } # $ (hide.zig)
+    if (@import("carlod.zig").key(cp)) return; // the opt-in cheaper far cars - = ; (carlod.zig)
     switch (cp) {
         0xE012 => self.wants_quit = true,
         '3'...'8' => {
@@ -75,6 +77,7 @@ pub fn handle(self: anytype, cp: u32) void {
         'P' => options.breakHaze(self, &haze.break_near), // ... --break near: every band one nearer (near faces hazed)
         'O' => @import("under.zig").break_under = true, // racer_bugpass.mjs --break under: a car keyed by its centre's face only
         '+' => @import("frame.zig").ring = (@import("frame.zig").ring + 2) % 6, // the far ring: off, 2, 4 tiles past R
+        '`' => @import("prof.zig").nextPage(), // the probe timers on the OSD (prof.zig)
         '0' => @import("hudpic.zig").on = !@import("hudpic.zig").on, // the race HUD over the picture / the two bands
         '1' => @import("smoke.zig").hidden = !@import("smoke.zig").hidden, // the tyre smoke not drawn (racer_drive.mjs' A/B)
         '2' => @import("oracle.zig").all_tiles = !@import("oracle.zig").all_tiles, // the visibility oracle (oracle.zig: racer,pvs lines)
@@ -82,6 +85,17 @@ pub fn handle(self: anytype, cp: u32) void {
         '!' => @import("pushes.zig").break_push = true, // ... --break push: ARCADE back to freds72's player-only contacts
         '^' => @import("panofile.zig").break_crc = true, // racer_look.mjs --break crc: a corrupted panorama accepted
         '%' => @import("rescue.zig").break_rescue = true, // R82 32X look: no stuck-car rescue (the A/B of rescue.zig)
+        ']' => ts.switchCar(self, 1), // board batch: the next car in the garage, live (FORMULA STOCK PROTO ... GT)
+        '[' => ts.switchCar(self, -1), // ... the previous one
+        '&' => @import("wheelspin.zig").break_still = true, // racer_batch.mjs --break still: the wheels never turn
+        '~' => @import("pov.zig").break_near = true, // ... --break near: the pre-batch near chase camera
+        '*' => {
+            @import("coursedraw.zig").break_still = true; // ... --break turn: the course and car models never turn
+            @import("garagedraw.zig").break_still = true;
+        },
+        '<' => @import("hudpic.zig").break_bench = true, // ... --break hud: the x bench without the picture HUD
+        '>' => @import("garage.zig").break_tag = true, // ... --break tag: a tagged car set's class not taken
+        '|' => @import("backdrop.zig").break_pixel = true, // racer_look.mjs --break pixel: flag PIXEL ignored
         'A'...'H' => self.pose = cp - 'A',
         else => _ = audio.key(self, cp), // z, h, j: the music, the effects, the benchmark's audio
     }

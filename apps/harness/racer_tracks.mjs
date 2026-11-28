@@ -94,7 +94,7 @@ async function attract() {
         B.run(34);
         const px = B.view(), c = B.csv();
         if (BREAK === "pin" && k === 5) px[90 * W + 200] ^= 0x40;
-        if (!c || c.track !== TRACK || c.fill !== "cpu" || c.polys === 0) fail(`pose ${"ABCDEFGH"[k]}: counts ${JSON.stringify(c)}`);
+        if (!c || c.track !== TRACK || c.fill !== "affine" || c.polys === 0) fail(`pose ${"ABCDEFGH"[k]}: counts ${JSON.stringify(c)}`);
         const zeros = px.subarray(Y0 * W, Y1 * W).filter((v) => v === 0).length;
         if (zeros > 0.005 * W * (Y1 - Y0)) fail(`pose ${"ABCDEFGH"[k]}: ${zeros} view pixels of index 0`);
         cpu.push(px);

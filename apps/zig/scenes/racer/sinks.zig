@@ -14,7 +14,9 @@ const row = @import("../stniccc/span.zig").row;
 const shadow = @import("shadow.zig");
 
 pub const Span = zg.chisel_v2.Span;
-pub const CHUNK = 2048; // spans a half: 48 KB
+/// Spans a half (12 KB): CHISEL starts on a half while the CPU fills the other (each hwBlit waits for the previous op), so
+/// a shadow's sync waits for at most one half; 2,048 left CHISEL idle until a half filled (board optimisation).
+pub const CHUNK = 512;
 
 /// Texel i = i: a span of colour c reads the one texel c of row 0.
 pub const palette_row: [256]u8 align(16) = blk: {
@@ -55,6 +57,13 @@ pub const CpuSink = struct {
     pub fn flush(_: *CpuSink) void {}
 };
 
+/// The AffineSink's two halves, zeroed once: AffineSink.span writes only the three words a flat span sets.
+pub fn spanBuffer() []Span {
+    const b = zg.mem.mustAlloc(Span, 2 * CHUNK);
+    @memset(b, @import("std").mem.zeroes(Span));
+    return b;
+}
+
 pub const AffineSink = struct {
     buf: []Span, // 2 * CHUNK
     fb: *zg.LogicalFB = undefined,
@@ -65,25 +74,28 @@ pub const AffineSink = struct {
     ops: u32 = 0,
     spans: u32 = 0,
     pixels: u32 = 0,
-    synced: bool = false, // no op fired since the last sync: a car's next shadow spans need none
+    fired: bool = false, // an op fired since the last sync (a span still in the half is seen by cur)
 
     pub fn begin(self: *AffineSink, fb: *zg.LogicalFB) void {
         self.fb = fb;
         self.ops = 0;
         self.spans = 0;
         self.pixels = 0;
-        self.synced = false;
+        self.fired = true; // WHY: a fresh begin may follow ops of another frame: the first shadow syncs, as before
         self.cur = self.buf[self.half * CHUNK ..].ptr;
         self.end = self.cur + CHUNK;
     }
 
+    /// Three of the record's six words: v0, du and dv are zero in every flat span, and the buffer was zeroed once at init
+    /// (spanBuffer) and is written by nothing else (board optimisation: 15,000 stores a 32X race frame fewer).
     pub inline fn span(self: *AffineSink, y: i32, x0: i32, x1: i32, c: u8) void {
         if (self.cur == self.end) self.flush();
         const s: *[6]u32 = @ptrCast(&self.cur[0]);
         self.cur += 1;
         self.pixels +%= @intCast(x1 - x0);
-        s.* = .{ @as(u32, @bitCast(x0)) | @as(u32, @bitCast(x1)) << 16, @bitCast(y), @as(u32, c) << 16, 0, 0, 0 };
-        self.synced = false;
+        s[0] = @as(u32, @bitCast(x0)) | @as(u32, @bitCast(x1)) << 16;
+        s[1] = @bitCast(y);
+        s[2] = @as(u32, c) << 16;
     }
 
     /// A shadow span reads the plane: fire what is queued, wait for CHISEL (once per run of shadow spans), then the CPU
@@ -99,11 +111,12 @@ pub const AffineSink = struct {
         shadow.lightSpan(@intFromPtr(self.fb.fb) + @as(usize, @intCast(y)) * self.fb.stride, x0, x1);
     }
 
+    /// Wait for CHISEL once per run of shadow / smoke spans: only when a span was queued or an op fired since the last wait.
     fn sync(self: *AffineSink) void {
-        if (self.synced) return;
+        if (!self.fired and self.cur == self.buf[self.half * CHUNK ..].ptr) return;
         self.flush();
         if (self.os) |os| os.blitSync();
-        self.synced = true;
+        self.fired = false;
     }
 
     /// Fire what this half holds as one op and go on in the other half.
@@ -114,6 +127,7 @@ pub const AffineSink = struct {
             zg.chisel_v2.affine(self.fb, TEX, start[0..n], .{});
             self.ops += 1;
             self.spans += @intCast(n);
+            self.fired = true;
         }
         self.half ^= 1;
         self.cur = self.buf[self.half * CHUNK ..].ptr;

@@ -12,7 +12,8 @@
 //
 // The countdown, GO, the finish and EXTEND TIME show big in the middle. The 3D repaints the whole view
 // every frame, so the overlay is drawn every frame too (a few thousand bytes of runs: ~0.01-0.02 Mc).
-// The old two bands stay as an option (key 0, and the benchmark laps always: their lines are the bench's).
+// The old two bands stay as an option (key 0). Since the board batch the x bench shows it too (item 8: the bench
+// behaves as a race; key 0 is its A/B), drawn after the view's CRC so the lap pins are the bare view's.
 // No ZigOS import: the pixels and the font are parameters (hudpic_test.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -22,6 +23,7 @@ const minimap = @import("minimap.zig");
 const palette = @import("palette.zig");
 
 pub var on = true; // key 0: the picture HUD (default) or the two bands
+pub var break_bench = false; // racer_batch.mjs --break hud (key <): the x bench without it (the pre-batch bench)
 pub const MAP = [4]i32{ 250, 44, 64, 56 }; // the minimap's box: x, y, w, h
 pub const GAUGE_SEGS = 12;
 
@@ -41,8 +43,8 @@ pub const Info = struct {
     track: []const u8 = "",
 };
 
-/// The picture HUD is on (key 0) in a race (never a benchmark lap: its lines are the bench's) from the countdown to the
-/// finish; the grid's prompt and the results stay in the bands.
+/// The picture HUD is on (key 0) in a race or the x bench from the countdown to the finish; the grid's prompt and the
+/// results stay in the bands. `race`: a race or the bench runs (the game's mode is not off).
 pub fn shows(race: bool, st: @import("fsm.zig").State) bool {
     return on and race and (st == .countdown or st == .race or st == .finish);
 }
@@ -99,6 +101,7 @@ pub fn label(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32) void {
 }
 
 fn glyphs(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32, c: u8) void {
+    if (!menu.break_direct and p.onScreen(x, y, @as(i32, @intCast(s.len)) * 8, 8)) return direct(p, font, s, x, y, c);
     for (s, 0..) |ch, n| {
         const g = font[@as(usize, ch) * 64 ..][0..64];
         const gx = x + @as(i32, @intCast(n)) * 8;
@@ -113,6 +116,20 @@ fn glyphs(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32, c: u8) vo
                 while (col < 8 and g[r * 8 + col] != 0) col += 1;
                 p.rect(gx + @as(i32, @intCast(a)), y + @as(i32, @intCast(r)), @intCast(col - a), 1, c);
             }
+        }
+    }
+}
+
+/// glyphs for a string wholly on screen: each set font pixel stored directly (board optimisation; the same bytes).
+fn direct(p: menu.Px, font: []const u8, s: []const u8, x: i32, y: i32, c: u8) void {
+    for (s, 0..) |ch, n| {
+        const g = font[@as(usize, ch) * 64 ..][0..64];
+        var at = @as(usize, @intCast(y)) * p.stride + @as(usize, @intCast(x)) + n * 8;
+        for (0..8) |r| {
+            for (0..8) |col| {
+                if (g[r * 8 + col] != 0) p.px[at + col] = c;
+            }
+            at += p.stride;
         }
     }
 }

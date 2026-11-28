@@ -21,6 +21,7 @@ MAGIC = b"KPAN"
 VERSION = 1
 HEADER = 32
 OPAQUE = 1
+PIXEL = 2  # a texel a pixel, as the 32X shows its plane B (racer/backdrop.zig)
 MIN_W, MAX_W, MAX_ROWS, MAX_LOWER, MIN_LOWER, MAX_COLOURS = 256, 1024, 128, 160, 8, 64
 CAR_LO, CAR_HI = 16 + 12 * 8, 16 + 19 * 8
 RGB = tuple[int, int, int]
@@ -91,7 +92,7 @@ def crop(width: int, rows: int, pixels: bytes, horizon: int, up: int, low: int) 
 
 
 def encode(width: int, rows: int, pixels: bytes, palette: list[RGB], horizon: int, first: int, u0: int = 0,
-           colours: int = 24) -> bytes:
+           colours: int = 24, pixel: bool = False) -> bytes:
     if width < MIN_W or width > MAX_W or width & (width - 1) or len(pixels) != width * rows or not 0 <= u0 < width:
         raise PanError(f"a {width} x {rows} strip ({len(pixels)} texels, u0 {u0}): width a power of two 256..1024")
     if not 1 <= colours <= MAX_COLOURS or first < 16 or first + colours > 256 or (first < CAR_HI and first + colours > CAR_LO):
@@ -102,7 +103,7 @@ def encode(width: int, rows: int, pixels: bytes, palette: list[RGB], horizon: in
     lower_rows = rows - up
     lower = b"".join(tex[r * width:r * width + period] for r in range(up, rows))
     body = b"".join(bytes(c) + b"\0" for c in cols) + tex[:up * width] + lower
-    flags = OPAQUE if 0 not in tex else 0
+    flags = (OPAQUE if 0 not in tex else 0) | (PIXEL if pixel else 0)
     head = struct.pack("<4sII", MAGIC, VERSION, HEADER + len(body))
     head += struct.pack("<IHHHHBBBBHH", zlib.crc32(body), width, up, horizon, u0, len(cols), first, flags, 0,
                         period if lower_rows else 0, lower_rows)
@@ -148,10 +149,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("track", help="the track's .ktrk (its free palette entries are looked up)")
     ap.add_argument("-o", "--out", required=True)
     ap.add_argument("--corrupt", action="store_true", help="flip a texel after the CRC (the harness' refusal case)")
+    ap.add_argument("--pixel", action="store_true", help="flag PIXEL: drawn a texel a pixel (the 32X's way)")
     a = ap.parse_args(argv)
     rows, px, pal, hz = test_strip()
     first = free_entries(Path(a.track).read_bytes(), len(pal) - 1)
-    b = bytearray(encode(256, rows, px, pal, hz, first, colours=len(pal) - 1))
+    b = bytearray(encode(256, rows, px, pal, hz, first, colours=len(pal) - 1, pixel=a.pixel))
     if a.corrupt:
         b[-1] ^= 1
     Path(a.out).write_bytes(bytes(b))

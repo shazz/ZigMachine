@@ -7,7 +7,8 @@
 // parsed there (carfile.parse bounds every count and offset). A bad file is refused by name with its
 // reason (the console and the track select's refusals) and the next one is tried (a bad track's own file
 // falls back to CAR.KCR, then the built-in GT): never a trap.
-// docs/ports/kestrel_racing/M5.md (car scale + car files).
+// Board batch: the garage (garage.zig) lists every car file; once the player picks one (the car select, key ]) it is
+// drawn on every track instead, and a tagged set's class becomes the car class. docs/ports/kestrel_racing/M5.md, BATCH.md.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -16,6 +17,8 @@ const carfile = @import("carfile.zig");
 const carmodel = @import("carmodel.zig");
 const library = @import("library.zig");
 const refusals = @import("refusals.zig");
+const garage = @import("garage.zig");
+const arcade = @import("arcade.zig");
 
 pub const Fail = error{ ReadFailed, TooBig, BadPack } || carfile.Error;
 
@@ -23,6 +26,7 @@ pub const Cars = struct {
     buf: []align(4) u8 = &.{}, // the car file's bytes, depacked: the active set's slices point here
     stage: []u8 = &.{}, // the file as stored (packed or raw): the track library's stage, shared (library.scan)
     shown: [12]u8 = .{0} ** 12, // the file on show ("" = the built-in GT)
+    garage: garage.Garage = .{},
 
     /// The buffer, carved once at init (before the track library takes what the RAM window has left).
     pub fn init(self: *Cars) void {
@@ -33,29 +37,64 @@ pub const Cars = struct {
     /// the library has none big enough (no packed track listed).
     pub fn share(self: *Cars, stage: []u8) void {
         self.stage = if (stage.len >= carfile.MAX_FILE) stage else std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, carfile.MAX_FILE / 4));
+        @import("setup.zig").scratch(self.stage); // the board batch's per-frame scratch shares it too
     }
 
-    /// The cars for track `track` (its label): its own file, the global one, or the built-in GT.
+    /// The cars for track `track` (its label): the player's pick, else its own file, the global one, or the built-in GT.
     pub fn forTrack(self: *Cars, track: []const u8, rej: *refusals.Refusals) void {
+        if (self.garage.pick) |i| if (self.choose(i, rej)) return;
         carmodel.active = carmodel.builtin; // the buffer is about to change under the old set
         self.shown = .{0} ** 12;
         var own: [12]u8 = undefined;
         const names = [2][]const u8{ std.fmt.bufPrint(&own, "{s}.KCR", .{track[0..@min(track.len, 8)]}) catch "", "CAR.KCR" };
-        for (names) |name| {
-            const got = self.fetch(name) catch |err| {
-                refuse(name, err, rej);
-                continue; // a bad track's own file: the global one, else the GT
-            };
-            const raw = got orelse continue;
-            carmodel.active = carfile.parse(@alignCast(self.buf[0..raw])) catch |err| {
-                refuse(name, err, rej);
-                continue;
-            };
-            @memcpy(self.shown[0..name.len], name);
-            zg.Console.log("racer,car,{s},{},{}", .{ name, carmodel.active.n, raw });
-            return;
-        }
+        for (names) |name| if (self.load(name, rej)) return; // a bad track's own file: the global one, else the GT
         zg.Console.log("racer,car,GT,1,0", .{}); // the built-in
+    }
+
+    /// Garage entry `i` on show (the GT, or its file): false when the file is missing or refused
+    /// (the set on show is the GT then).
+    pub fn choose(self: *Cars, i: usize, rej: *refusals.Refusals) bool {
+        self.garage.pick = i;
+        carmodel.active = carmodel.builtin;
+        self.shown = .{0} ** 12;
+        if (self.garage.isGt(i)) {
+            zg.Console.log("racer,car,GT,1,0", .{});
+            return true;
+        }
+        return self.load(self.garage.file(i), rej);
+    }
+
+    /// The garage entry on show (the pick, else the file the track's rule found, else the GT).
+    pub fn current(self: *const Cars) usize {
+        return self.garage.pick orelse self.garage.indexOf(std.mem.sliceTo(&self.shown, 0));
+    }
+
+    /// The name of the cars on show: a set's tag, its file's name, or the GT's.
+    pub fn label(self: *const Cars) []const u8 {
+        const tag = std.mem.sliceTo(&carmodel.active.name, 0);
+        if (tag.len != 0) return tag;
+        const f = std.mem.sliceTo(&self.shown, 0);
+        return if (f.len == 0) garage.GT_LABEL else f[0 .. std.mem.indexOfScalar(u8, f, '.') orelse f.len];
+    }
+
+    /// File `name` read, parsed and on show (a tagged set's class taken); false when it is not there or refused (named, with its reason).
+    fn load(self: *Cars, name: []const u8, rej: *refusals.Refusals) bool {
+        const got = self.fetch(name) catch |err| {
+            refuse(name, err, rej);
+            return false;
+        };
+        const raw = got orelse return false;
+        carmodel.active = carfile.parse(@alignCast(self.buf[0..raw])) catch |err| {
+            carmodel.active = carmodel.builtin;
+            refuse(name, err, rej);
+            return false;
+        };
+        @memcpy(self.shown[0..name.len], name);
+        if (carmodel.active.class) |c| if (!garage.break_tag) { // a tagged set (a 32X class's cars): its class
+            arcade.class = c;
+        };
+        zg.Console.log("racer,car,{s},{},{}", .{ name, carmodel.active.n, raw });
+        return true;
     }
 
     /// `name` read whole and depacked into the buffer: its length, or null when no such file is on the disk or in C:.

@@ -49,8 +49,8 @@ pub fn key(fr: *const frame.Frame, t: *const trk.Track, q: [4]Pt, y: i32, floor:
         var tx = tx0;
         while (tx <= tx1) : (tx += 1) {
             for (t.tileFaces(@intCast(tx | tz << 5))) |id| {
+                const k = fr.faceKey(id) orelse continue; // first: the stamps are small arrays, a face is 32 bytes
                 if (t.faces[id].flags & ground.FLAG_GROUND == 0) continue;
-                const k = fr.faceKey(id) orelse continue;
                 if (best != null and k <= best.?) continue;
                 if (overlaps(t, &t.faces[id], q, lo, hi, y >> 9)) best = k;
             }

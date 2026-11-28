@@ -20,6 +20,7 @@ PALETTE, FLAG_SHADOW, MAX_SHADOW = 1, 0x10, 16
 SHADOW, LOD1 = 4, 5  # carfile.Part: wheels, hull, cabin, wing, shadow, lod1
 KPAN: Final = 0x4E41504B
 PAN_HEADER, MIN_W, MAX_W, MAX_ROWS, MAX_LOWER, MIN_LOWER, MAX_COLOURS, OPAQUE = 32, 256, 1024, 128, 160, 8, 64, 1
+PIXEL = 2  # panofile.PIXEL: a texel a pixel
 CAR_LO, CAR_HI = 16 + 12 * 8, 16 + 19 * 8
 
 
@@ -93,6 +94,8 @@ def car(b: bytes) -> None:
         raise Refused("BadBlock")
     if zlib.crc32(b[CAR_HEADER:]) != _w(b, 11):
         raise Refused("BadCrc")
+    if b[48] > 3 or b[49] | b[50] | b[51] or any(x and not (chr(x).isupper() or chr(x).isdigit() or x == 32) for x in b[52:64]):
+        raise Refused("BadBlock")  # carfile.tag: the class + 1, padding, the name
     at = CAR_HEADER
     for _ in range(n):
         at += _model(b[at:])
@@ -106,7 +109,7 @@ def _pan_size(b: bytes) -> tuple[int, int, int, int, int, int]:
     lw, lr = struct.unpack_from("<2H", b, 28)
     if not (MIN_W <= w <= MAX_W and _pow2(w) and 1 <= rows <= MAX_ROWS):
         raise Refused("BadSize")
-    if hz > rows + lr or u0 >= w or flags & ~OPAQUE or pad != 0:
+    if hz > rows + lr or u0 >= w or flags & ~(OPAQUE | PIXEL) or pad != 0:
         raise Refused("BadSize")
     if (lw == 0) != (lr == 0) or lr > MAX_LOWER or (lw != 0 and not (MIN_LOWER <= lw <= w and _pow2(lw))):
         raise Refused("BadSize")

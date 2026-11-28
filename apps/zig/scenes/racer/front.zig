@@ -11,6 +11,8 @@
 //            benchmark-only track); right: the options; Backspace: the title.
 //   options  up / down: the row; left / right (or fire / Enter): its value; BACK, or Backspace: the
 //            screen it came from (options.zig).
+//   garage   (board batch, the car select, after a pick) up / down: the cars (garage.zig); left / right: the car class;
+//            fire / Enter: the race; Backspace: the select.
 //   grid     (a race's) Backspace: back to the select; so does Backspace in the bare benchmark view.
 //   results  fire: the select; Backspace: the title; Enter / r: again (keys.zig, as in M3).
 // Enter, Backspace and fire count once a press (press.zig: a held key's auto-repeat is dropped until
@@ -55,6 +57,7 @@ pub fn hudTop(d: anytype, buf: []u8) ?[]const u8 {
     const what = switch (st) {
         .title => d.lib.list[d.which].label(),
         .options => "OPTIONS",
+        .garage => "CAR SELECT",
         else => "TRACK SELECT",
     };
     return std.fmt.bufPrint(buf, "KESTREL RACING  {s}", .{what}) catch null;
@@ -64,7 +67,7 @@ pub fn hudBottom(d: anytype) ?[]const u8 {
     const st = screen(d) orelse return null;
     return switch (st) {
         .title => "FIRE: TRACKS  RIGHT: OPTIONS  T: BENCH",
-        .select, .options => "",
+        .select, .options, .garage => "",
         else => null,
     };
 }
@@ -88,6 +91,7 @@ pub fn update(d: anytype) void {
     const st = screen(d);
     if (st != f.logged) {
         zg.Console.log("racer,front,{s}", .{if (st) |s| @tagName(s) else "off"});
+        if (f.logged == .select) @import("trackset.zig").look(d); // the course model's colours (coursedraw.zig) off the palette
         f.logged = st;
         f.frames = 0;
     }
@@ -118,14 +122,16 @@ pub fn key(d: anytype, cp: u32) bool {
             .title => nav.toSelect(d, .enter),
             .select => nav.pick(d),
             .options => nav.optFire(d),
+            .garage => nav.race(d),
             else => false, // the results: Enter is "again" (keys.zig)
         },
         8 => return switch (st) {
             .results => nav.toTitle(d),
             .options => nav.leaveOptions(d),
+            .garage => nav.toSelect(d, .back),
             else => nav.fire(d, .back),
         },
-        'z', 'h', 'j', 'o', 'u', 'c', 'p', ' ', 0xE012, 'J', 'U', 'V', 'R', 'K' => return false, // audio, OSD, pause, quit, the --break keys: it stays
+        'z', 'h', 'j', '_', 'o', 'u', 'c', 'p', ' ', 0xE012, 'J', 'U', 'V', 'R', 'K', '[', ']', '&', '~', '*', '<', '>', '|' => return false, // audio, OSD, pause, quit, the car, the --break keys: it stays
         else => {
             if (st != .results) d.game.setMode(.off); // a debug key: the bare benchmark view, then the key's own job
             return false;
@@ -151,6 +157,7 @@ pub fn input(d: anytype, dir: u8) bool {
             else => {},
         },
         .options => nav.optInput(d, dir),
+        .garage => nav.garageInput(d, dir),
         .results => return dir == 5 and (if (break_results) nav.toTitle(d) else nav.toSelect(d, .enter)),
         else => return false,
     }

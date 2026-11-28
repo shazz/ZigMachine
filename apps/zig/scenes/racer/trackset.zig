@@ -71,6 +71,7 @@ pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
     d.which = show(d, w, now); // w, or the oval when the file is refused
     d.script = 0;
     d.f.seen_stamp = 0;
+    @import("tilecull.zig").forget();
     @memset(d.f.seen, 0);
     for (d.f.cache.e) |*e| e.stamp = 0;
     cars(d);
@@ -82,6 +83,20 @@ pub fn setTrack(d: anytype, w: usize, now: *const fn () u32) void {
 /// The cars for the track on show: its `<TRACK>.KCR`, the disk's `CAR.KCR`, or the built-in GT (cars.zig; the palette follows).
 pub fn cars(d: anytype) void {
     d.lib.cars.forTrack(d.lib.list[d.which].label(), &d.lib.rej);
+}
+
+/// Garage entry `i` on show (the car select, key [ / ]: board batch), live in a race too: its set read (a refused file
+/// falls back to the GT, named in the refusals), its ramps installed, a tagged set's class taken (cars.choose).
+pub fn chooseCar(d: anytype, i: usize) void {
+    const c = &d.lib.cars;
+    if (!c.choose(i, &d.lib.rej)) _ = c.choose(c.garage.n, &d.lib.rej);
+    look(d);
+    zg.Console.log("racer,carpick,{s},{s}", .{ c.label(), @import("feel_params.zig").CLASSES[@import("arcade.zig").class].name });
+}
+
+/// The next (+1) / previous (-1) car in the garage from the one on show.
+pub fn switchCar(d: anytype, dir: i32) void {
+    chooseCar(d, d.lib.cars.garage.step(d.lib.cars.current(), dir));
 }
 
 /// The next library entry after `w` that is not marked bad (the oval at the end of the list).
