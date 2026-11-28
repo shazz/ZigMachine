@@ -112,3 +112,16 @@ test "the 32-bit sqrt and div fast path equal the 64-bit ones (random, powers of
         try std.testing.expectEqual(div64(small, b), fix.div(small, b));
     }
 }
+
+test "fx.clz32 is @clz on every power of two and its neighbours, and on random words" {
+    const fx = @import("fx.zig");
+    for (0..32) |s| {
+        const p = @as(u32, 1) << @intCast(s);
+        for ([_]u32{ p, p | 1, p | (p >> 1), p + (p -| 1) }) |x| if (x != 0) try std.testing.expectEqual(@as(u5, @intCast(@clz(x))), fx.clz32(x));
+    }
+    var rng = std.Random.DefaultPrng.init(7);
+    for (0..100_000) |_| {
+        const x = rng.random().int(u32) | 1;
+        try std.testing.expectEqual(@as(u5, @intCast(@clz(x))), fx.clz32(x));
+    }
+}

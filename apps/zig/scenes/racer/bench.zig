@@ -43,6 +43,7 @@ pub const Bench = struct {
     stage_us: [NSTAGE]u32 = [_]u32{0} ** NSTAGE,
     tick_us: u32 = 0, // the update's time before this frame's render (tickStart / tickEnd)
     tick_t0: u32 = 0,
+    post_us: u32 = 0, // the picture HUD's, drawn after frameEnd (postStart / postEnd): billed to the next frame's H
 
     pub fn tickStart(self: *Bench) void {
         self.tick_t0 = self.now();
@@ -52,13 +53,23 @@ pub const Bench = struct {
         self.tick_us = self.now() -% self.tick_t0;
     }
 
+    pub fn postStart(self: *Bench) void {
+        self.tick_t0 = self.now(); // WHY: shares the tick's mark: the update and the HUD never overlap
+    }
+
+    pub fn postEnd(self: *Bench) void {
+        self.post_us = self.now() -% self.tick_t0;
+    }
+
     /// The frame starts at the update's start: its time is billed to `tick` and counts in the frame's total.
     pub fn frameStart(self: *Bench) void {
         self.mark = self.now();
-        self.start = self.mark -% self.tick_us;
+        self.start = self.mark -% self.tick_us -% self.post_us;
         self.cur = [_]u32{0} ** NSTAGE;
         self.cur[@intFromEnum(Stage.tick)] = self.tick_us;
+        self.cur[@intFromEnum(Stage.hud)] = self.post_us;
         self.tick_us = 0;
+        self.post_us = 0;
     }
 
     /// Bill the time since the last mark to `s`.

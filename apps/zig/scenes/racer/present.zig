@@ -92,8 +92,10 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     const scripted = d.pose == null and !d.paused and !front.menu(d) and (if (racing) d.game.mode == .bench else d.drive.mode != .drive);
     d.rep.report(zigos, fb, &d.bench, knobs(d), c, .{ .script = script, .scripted = scripted, .lap_frames = lap_frames });
     @import("prof.zig").begin(11);
-    if (picture and !hide.on(hide.HUD)) drawPicture(d, zigos, fb);
-    @import("prof.zig").end(11); // after the view's CRC: the lap pins are the bare view's
+    d.bench.postStart();
+    if (picture and !hide.on(hide.HUD)) drawPicture(d, zigos, fb); // after the view's CRC: the lap pins are the bare view's
+    d.bench.postEnd(); // its time goes in the next frame's H (bench.zig)
+    @import("prof.zig").end(11);
     if (driven) logPhysics(d);
     if (racing) raceLog(d);
     if (closed) {
