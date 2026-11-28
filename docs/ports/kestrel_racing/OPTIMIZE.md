@@ -2,7 +2,12 @@
 
 Branch `perf/racer-board` (from `feat/racer-board-batch` 68a1a3e6, not merged). Goal (Matt, 27 Nov): every course >= 30
 fps IN A RACE with the HUD on, 60 on our light tracks, as close to 60 as possible on the 32X ones, without changing the
-look. Every commit keeps the pixels (the gate's pins are unchanged; `./build.sh --only racer` green at every card).
+look. The pixels are kept: the gate's pins are unchanged (`./build.sh --only racer` green at 6ba5bfcf, 4ce24117,
+3d6c9dc8, 3a63c4b7, ed9c308b, 82b6c7e8, e7d93c58; 480de6d2 is known-bad: with AFFINE the default its course and car
+selects drew on the wrong page, the gate caught it, 3a63c4b7 fixed it), and on the 32X data the batch cart and the
+installed one give the same `racer,crc` lists (the x lap on DXBAY and DXSAND at R 5, DXBAY and DXACRO at R 8) and the same
+`racer,cars` lines (an ARCADE race on the AI pilot, 2,400 frames, DXBAY, DXSAND, DXFOREST): node, crcrun.mjs in
+prototypes/cards/racer_opt_tools.
 Cards: `prototypes/cards/build_racer_opt.sh <rev>` stages `opt` (public: our tracks, the GT) and `optx` (LOCAL ONLY: the
 32X courses and cars + `-Dracer_music`; `ONLY_X=1` builds it alone); `install_racer_opt.sh` retires the card already on
 the shelf to `/mnt/sd/CARTS/retired/` first. On the board: RACER OPT, RACER OPT 32X.
@@ -62,7 +67,10 @@ Public card (RACER BATCH -> RACER OPT: our tracks, the GT), race / bench:
 | NEON | 31.8 | 55.2 | 43.0 | 60.2 |
 | GLACIER | 30.5 | 55.6 | 41.5 | 60.2 |
 
-Later in the race (25-30 s in, the pack strung out) DXBAY reads 18.1 -> 28.4. Flyby (l): CITY (public) 19.5 -> 31 fps (its OSD reads ~58: the frame waits on something outside the cart, open); DXBAY
+Later in the race (25-30 s in, the pack strung out) DXBAY reads 18.1 -> 28.4. The baseline's own procedure (x, stats
+straight after the switch: the grid and countdown, the pack bunched near the camera) gives DXFOREST 24.8 -> 26.1 and
+DXBAY 26.7 -> 28.3 here; the 36.6 / 34.4 of the 27 Nov list could not be reproduced. Flyby (l, not like-for-like: the lap
+script is elsewhere after 9 s at another fps): CITY (public) 19.5 -> 31 fps (its OSD reads ~58: the frame waits on something outside the cart, open); DXBAY
 34.2 -> 40.1. CITY is not raceable (its race rows are the oval's).
 
 **Targets:** missed. The 32X courses race at 24-26.5 fps (DXSAND 30.7); our tracks race at 41-55 on the public card and
