@@ -24,6 +24,7 @@
 // One plane in two pages (the shown one is enabled), the sky a per-line palette entry on the copper, the
 // backdrop one AFFINE op. No float. Benchmark lines go to the console: racer/bench.zig, racer/drive.zig.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const draw = @import("racer/draw.zig");
 const bench = @import("racer/bench.zig");
@@ -115,7 +116,9 @@ pub const Demo = struct {
         self.game = game.Game.init(&self.tracks[0], micros) catch |e| @panic(@errorName(e));
         self.map = minimap.Map.init(&self.tracks[0]);
         self.pmap = hudpic.fitMap(&self.tracks[0]);
-        self.p = .{ .os = zigos, .aff = .{ .buf = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK), .os = zigos } };
+        const spans = zg.mem.mustAlloc(sinks.Span, 2 * sinks.CHUNK);
+        @memset(spans, std.mem.zeroes(sinks.Span)); // WHY: AffineSink.span writes only the words a flat span sets
+        self.p = .{ .os = zigos, .aff = .{ .buf = spans, .os = zigos } };
         for (0..2) |p| {
             const fb = &zigos.lfbs[p];
             zg.copper.install(fb, &.{palette.SKY}, &sky_tbl[p], .{});
