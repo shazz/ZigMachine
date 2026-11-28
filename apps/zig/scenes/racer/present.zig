@@ -71,7 +71,7 @@ pub fn finish(d: anytype, zigos: *zg.ZigOS, fb: *zg.LogicalFB, c: bench.Counts) 
     var b0: [48]u8 = undefined;
     var b1: [48]u8 = undefined;
     const racing = d.game.mode != .off and d.pose == null;
-    const picture = racing and hudpic.shows(d.game.mode == .race, d.game.s.fsm.state); // R82 bug pass: the HUD over the picture
+    const picture = racing and hudpic.shows(true, d.game.s.fsm.state); // the HUD over the picture: a race and (board batch) the x bench
     var bo: [48]u8 = undefined;
     const state = @import("osdline.zig").line(&bo, .{ .cpu = d.p.cpu_fill, .r = d.r, .pov = povName(d), .music = d.audio.player.on });
     d.hud.draw(zigos, fb, d.back, .{

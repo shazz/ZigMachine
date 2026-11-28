@@ -20,15 +20,25 @@ const trk = @import("trk.zig");
 const types = @import("types.zig");
 const under = @import("under.zig");
 const xf = @import("xform.zig");
+const wheelspin = @import("wheelspin.zig");
 
-/// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else).
-pub const Snap = struct { pos: [3]i32, angle: i32, size: i32 = fix.ONE };
+/// size: the car drawn this many times its model (Q16; an ARCADE track's car scale, FEEL.md; 1 everywhere else); spin, steer:
+/// the drawn wheels' turn and steer (u32 turns, wheelspin.zig; 0 = as modelled).
+pub const Snap = struct { pos: [3]i32, angle: i32, size: i32 = fix.ONE, spin: u32 = 0, steer: u32 = 0 };
+
+/// A race car's drawn pose (game.zig's snapshot of a tick): its position, heading, size, and its wheels' spin and steer.
+pub fn snapOf(c: anytype) Snap {
+    const w = wheelspin.ofCar(c.total_r, c.steer_angle);
+    return .{ .pos = c.pos, .angle = c.angle, .size = c.size, .spin = w[0], .steer = w[1] };
+}
 
 /// The pose half way from a to b (the 60 Hz frame between two 30 Hz ticks).
 pub fn midway(a: Snap, b: Snap) Snap {
     const turn: i32 = @as(i16, @truncate(b.angle -% a.angle));
     const p = [3]i32{ a.pos[0] + ((b.pos[0] - a.pos[0]) >> 1), a.pos[1] + ((b.pos[1] - a.pos[1]) >> 1), a.pos[2] + ((b.pos[2] - a.pos[2]) >> 1) };
-    return .{ .pos = p, .angle = a.angle +% (turn >> 1), .size = b.size };
+    const spin: i32 = @bitCast(b.spin -% a.spin);
+    const steer: i32 = @bitCast(b.steer -% a.steer);
+    return .{ .pos = p, .angle = a.angle +% (turn >> 1), .size = b.size, .spin = a.spin +% @as(u32, @bitCast(spin >> 1)), .steer = a.steer +% @as(u32, @bitCast(steer >> 1)) };
 }
 /// The view depth (Q16) past which a car is drawn with the far model: 6 units, where the GT (drawn x2 since M5 step 5) is
 /// ~26 pixels long (it was ~13; the switch was kept at 6 units: docs M5.md step 5).
@@ -45,7 +55,7 @@ pub fn draw(fr: *frame.Frame, cache: *xf.Cache, v: *const cam.View, t: *const tr
     for (m.range(.shadow)) |*sh| _ = project.build(fr, cache, m.verts, &mv, sh, .{ .fixed = floor orelse key, .shadow = true });
     const k = Look{ .key = key, .body = carmodel.shiftTo(liv.body), .stripe = carmodel.shiftTo(liv.stripe) };
     if (z > fix.mul(LOD1_Z, s.size)) return part(fr, cache, m, &mv, .lod1, k);
-    part(fr, cache, m, &mv, .wheels, k);
+    wheels(fr, cache, m, &mv, s, k);
     part(fr, cache, m, &mv, .hull, k);
     const behind = mv.eye7[2] < m.wing_z;
     part(fr, cache, m, &mv, if (behind) .cabin else .wing, k);
@@ -83,11 +93,26 @@ fn m5Key(fr: *const frame.Frame, t: *const trk.Track, m: *const carmodel.Model, 
 }
 
 fn part(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, p: carmodel.Part, k: Look) void {
-    for (m.range(p)) |*f| {
+    faces(fr, cache, m.verts, mv, m.range(p), k);
+}
+
+fn faces(fr: *frame.Frame, cache: *xf.Cache, verts: []const trk.Vert, mv: *const cam.View, fs: []const trk.Face, k: Look) void {
+    for (fs) |*f| {
         if (types.facing(f, mv) <= f.cp) continue;
         const dc: u8 = if (f.flags & carmodel.FLAG_BODY != 0) k.body else if (f.flags & carmodel.FLAG_STRIPE != 0) k.stripe else 0;
-        _ = project.build(fr, cache, m.verts, mv, f, .{ .fixed = k.key, .dc = dc });
+        _ = project.build(fr, cache, verts, mv, f, .{ .fixed = k.key, .dc = dc });
     }
+}
+
+var posed_vs: [wheelspin.MAX_VERTS]trk.Vert = undefined; // one car's posed wheels at a time (wheelspin.pose)
+var posed_fs: [wheelspin.MAX_FACES]trk.Face = undefined;
+
+/// The wheels turned by the car's spin and steer (wheelspin.zig); a pose at rest draws the model's own faces.
+fn wheels(fr: *frame.Frame, cache: *xf.Cache, m: *const carmodel.Model, mv: *const cam.View, s: Snap, k: Look) void {
+    const fs = wheelspin.pose(&m.spin, m.verts, m.range(.wheels), s.spin, s.steer, &posed_vs, &posed_fs) orelse return part(fr, cache, m, mv, .wheels, k);
+    cache.next(); // WHY: the posed vertices share the model's ids: no transform cached from the model's may be reused
+    faces(fr, cache, posed_vs[0..m.verts.len], mv, fs, k);
+    cache.next(); // ... nor theirs by the hull after them
 }
 
 /// The race's cars (car 0 the player's; `skip0` in the cockpit) in range, pushed FAR TO NEAR (R82 bug pass): cars on one

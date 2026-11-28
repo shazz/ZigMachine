@@ -1,11 +1,9 @@
 // --------------------------------------------------------------------------
-// RACER: the race as the cart plays it (M3). The physics runs at 30 Hz: a tick every second 60 Hz frame BY COUNT, plus
-// the ticks the real clock owes under 60 fps (pace.zig); between two ticks every car shows at its last two poses' midpoint. Modes: `off`; `race` (the player's keys; the grid waits for fire
-// or S); `bench` (lap v2: the reference benchmark; the recorded autopilot drives, the race starts by
-// itself after 1 s on the grid, a round is 2,880 frames, then the grid again). Key A / `auto`
-// drives the player from the recorded stream in `race` mode too (the headless race). `warp` runs 16
-// ticks a frame (the headless harness' 3 laps in a few hundred frames). A race runs rules.race_laps (the options
-// screen), the bench the reference's LAPS. No ZigOS import.
+// RACER: the race as the cart plays it (M3). The physics runs at 30 Hz: a tick every second 60 Hz frame BY COUNT, plus the
+// ticks the real clock owes under 60 fps (pace.zig); between two ticks a car shows at its last two poses' midpoint. Modes:
+// `off`; `race` (the player's keys; the grid waits for fire or S); `bench` (lap v2: the recorded autopilot, the race starts
+// itself after 30 ticks on the grid, a round is 1,440 ticks: benchround.zig). Key A / `auto` drives the player from the
+// recorded stream in `race` too; `warp` runs 16 ticks a frame. A race runs rules.race_laps, the bench LAPS. No ZigOS import.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const cam = @import("cam.zig");
@@ -48,6 +46,7 @@ pub const Game = struct {
     apilot: bool = false, // key L: the AI's controller flies the player in the PHYSICS option's model (the arcade harness' driver)
     warp: bool = false,
     frames: u32 = 0,
+    ticks: u32 = 0, // since the last reset (the bench's round: benchround.zig)
     prev: [N]Snap = undefined,
     cur: [N]Snap = undefined,
     smoke: smoke.Smoke = .{},
@@ -64,7 +63,7 @@ pub const Game = struct {
     }
 
     fn snap(self: *Game) void {
-        for (self.s.race.cars[0..N], &self.cur) |*c, *o| o.* = .{ .pos = c.pos, .angle = c.angle, .size = c.size };
+        for (self.s.race.cars[0..N], &self.cur) |*c, *o| o.* = carview.snapOf(c);
     }
 
     /// A fresh race on the grid (the records and the camera stay).
@@ -73,6 +72,7 @@ pub const Game = struct {
         self.s.race.now = self.now;
         self.smoke = .{};
         self.frames = 0;
+        self.ticks = 0;
         self.snap();
         self.prev = self.cur;
     }
@@ -148,10 +148,12 @@ pub const Game = struct {
         self.pov_frames = @min(self.pov_frames + 1, pov.FRAMES);
     }
 
-    fn benchClock(self: *Game) void {
-        const f = self.frames % ROUND_FRAMES;
-        if (f == 0 and self.frames != 0) self.reset();
-        if (f == GRID_FRAMES) self.s.start() catch {}; // WHY: as go()
+    fn benchClock(self: *Game) void { // the round in ticks (benchround.zig: the recorded driver never runs out when paced)
+        switch (@import("benchround.zig").act(self.frames, self.ticks, self.s.fsm.state == .grid)) {
+            .reset => self.reset(),
+            .start => self.s.start() catch {}, // WHY: as go()
+            .none => {},
+        }
     }
 
     /// A tick's physics (R82 32X feel): the reference's drivers (bench, `a`) CLASSIC, so their pins hold; else the option.
@@ -160,6 +162,7 @@ pub const Game = struct {
     }
 
     fn tick(self: *Game) void {
+        self.ticks += 1;
         self.prev = self.cur;
         self.s.race.setModel(self.physics());
         self.s.race.pilot = (self.pilot and self.auto) or (self.apilot and !self.auto);

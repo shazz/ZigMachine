@@ -20,9 +20,9 @@ pub const FRAMES = 60;
 // ground flowed past at a third to a fifth of the speed. These are about his, with our steeper pitch (our view is 64 degrees
 // tall, his 90). Ground flow at the bottom row at 332 km/h (11 units/s): far 337 -> 723 px/s, near 491 -> 1589, cockpit 779 -> 3663
 // (docs/ports/kestrel_racing/M2.md, Speed feel). The benchmark flyby (lap v0) and the fixed poses keep cam.zig's, so their pins stay.
-const BACK = [3]i32{ 157286, 78643, 0 }; // 2.4, 1.2, 0
-const HEIGHT = [3]i32{ 78643, 29491, 10486 }; // 1.2, 0.45, 0.16
-const PITCH = [3]u32{ 0x0600_0000, 0x0400_0000, 0x0100_0000 }; // 8.4, 5.6, 1.4 degrees
+const BACK = [3]i32{ 157286, 88474, 0 }; // 2.4, 1.35, 0
+const HEIGHT = [3]i32{ 78643, 20972, 10486 }; // 1.2, 0.32, 0.16
+const PITCH = [3]u32{ 0x0600_0000, 0x0200_0000, 0x0100_0000 }; // 8.4, 2.8, 1.4 degrees
 
 fn params(p: cam.Pov) [3]i32 {
     const k = @intFromEnum(p);

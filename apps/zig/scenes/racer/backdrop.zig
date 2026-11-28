@@ -127,7 +127,8 @@ pub const Lists = struct { up: []const zg.chisel_v2.Span, low: []const zg.chisel
 
 /// The spans of the strip for a camera looking along `yaw`, the horizon on row `hz`, rows in [y_min, y_max) only: the
 /// upper part's in `up`, a panorama's lower part's in `low`. A panorama's texel is as tall as it is wide (1.25 pixels both
-/// ways at 1,024 a turn: dv = du), so the art keeps its aspect; the shapes keep a row a line.
+/// ways at 1,024 a turn: dv = du), so the art keeps its aspect; a PIXEL one (the 32X's) is a pixel both ways, as the 32X
+/// shows it (a 5:4 resample beat its 1-pixel dither into clumps: board batch, item 5); the shapes keep a row a line.
 pub fn spans(up: []zg.chisel_v2.Span, low: []zg.chisel_v2.Span, yaw: u32, hz: i32, y_min: i32, y_max: i32) Lists {
     const g = geometry();
     const ustart: u32 = (yaw >> g.shift) +% (g.u0 << 16) -% g.du *% 160;
@@ -155,7 +156,7 @@ const Geometry = struct { rows: u32, lower: u32, horizon: u32, shift: u5, du: u3
 /// quarter turn is the 90 degree view: width / 4 texels over 320 pixels) and a line's (Q16), the texel ahead at yaw 0.
 fn geometry() Geometry {
     const p = pan orelse return .{ .rows = H, .lower = 0, .horizon = H, .shift = 6, .du = DU, .dv = 1 << 16, .u0 = 0 };
-    const du = p.width * 65536 / 1280;
+    const du = if (p.pixel) 65536 else p.width * 65536 / 1280; // PIXEL (the 32X's plane B): no 5:4 resample of its dither
     return .{ .rows = p.rows, .lower = p.lower_rows, .horizon = p.horizon, .shift = @intCast(16 - std.math.log2_int(u32, p.width)), .du = du, .dv = du, .u0 = p.u0 }; // square texels: dv = du
 }
 

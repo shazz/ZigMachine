@@ -34,6 +34,9 @@ class Encode(unittest.TestCase):
         self.assertEqual((up, lw, lr), (6, 16, 5))  # the sea repeats every 16 texels: stored 16 wide
         self.assertEqual(len(b), panc.HEADER + 4 * n + W * up + lw * lr)
 
+    def test_pixel_sets_flag_2_beside_opaque(self) -> None:  # the 32X's strips, drawn a texel a pixel (board batch)
+        self.assertEqual(_head(panc.encode(W, 11, _strip(), PAL, 6, 232, u0=17, colours=8, pixel=True))[10], 1 | panc.PIXEL)
+
     def test_colours_dark_to_light_on_their_entries_and_clear_stays_zero(self) -> None:
         px = bytes([0, 1, 2, 3] * (W // 4))
         b = panc.encode(W, 1, px, PAL, 1, 100, colours=3)

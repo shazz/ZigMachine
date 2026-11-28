@@ -9,14 +9,16 @@
 //       faces, the wing's front edge, CRC-32 of the rest), the vertices (i16 x3 Q7, padded to 4),
 //       the faces (trk.Face's 32-byte records). The built-in GT (carmodel.zig) is one.
 //   v2  a SET: a 64-byte header (magic, version 2, models 1..MAX_MODELS, flags, the palette's 7 ramps
-//       12..18 as RGBX when flag PALETTE, CRC-32 of the rest), then that many v1 records. Model 0 is
-//       the player's car, models 1.. the AI cars' in turn (each its own colours: a set replaces the
-//       liveries' recolour by its own models and ramps).
+//       12..18 as RGBX when flag PALETTE, CRC-32 of the rest, then (board batch) the TAG: byte 48 the car
+//       class + 1 (0: none; FORMULA STOCK PROTO, feel_params.CLASSES), bytes 49-51 zero, 52-63 the set's
+//       name (A-Z 0-9 space, zero padded)), then that many v1 records. Model 0 is the player's car,
+//       models 1.. the AI cars' in turn (each its own colours: a set replaces the liveries' recolour).
 //
 // No ZigOS import: carfile_test.zig runs it natively.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const trk = @import("trk.zig");
+const wheelspin = @import("wheelspin.zig");
 
 pub const MAGIC: u32 = 0x5241434B;
 pub const HEADER = 64;
@@ -41,6 +43,7 @@ pub const Model = struct {
     wing_z: i32, // Q7 forward: carview swaps the cabin and the wing by the eye's side of it
     mid_y: i32, // Q7: half the hull's height, the depth every face of the car is keyed by
     foot: Foot = .{}, // the shadow's box: the car's drawn footprint (decals under it, car-vs-car contacts in ARCADE)
+    spin: wheelspin.Groups = .{}, // the wheels' groups and axles: the drawn wheels turn (board batch, wheelspin.zig)
 
     pub fn range(self: *const Model, p: Part) []const trk.Face {
         const i = @intFromEnum(p);
@@ -63,10 +66,15 @@ pub fn footOf(verts: []const trk.Vert, shadow: []const trk.Face) Foot {
     return f;
 }
 
+pub const CLASSES = 3; // the tag's classes (feel_params.CLASSES)
+pub const NAME = 12;
+
 pub const Set = struct {
     models: [MAX_MODELS]Model = undefined,
     n: usize = 0,
     palette: ?[RAMPS][3]u8 = null,
+    class: ?u8 = null, // the tag's car class (a 32X class's set), or none: the player's class stays
+    name: [NAME]u8 = @splat(0), // the tag's name, or zeros (cars.zig names it by its file)
 
     /// Car k's model: 0 the player's; the AI car k takes the AI models in turn (the player's when the set has one model).
     pub fn of(self: *const Set, k: usize) *const Model {
@@ -100,6 +108,7 @@ fn set(b: []align(4) const u8, s: *Set) Error!void {
     const n = word(b, 2);
     if (n < 1 or n > MAX_MODELS or word(b, 3) & ~PALETTE != 0) return error.BadBlock;
     if (std.hash.crc.Crc32IsoHdlc.hash(b[HEADER..]) != word(b, 11)) return error.BadCrc;
+    try tag(b, s);
     if (word(b, 3) & PALETTE != 0) {
         var pal: [RAMPS][3]u8 = undefined;
         for (&pal, 0..) |*c, i| c.* = b[16 + i * 4 ..][0..3].*;
@@ -114,6 +123,17 @@ fn set(b: []align(4) const u8, s: *Set) Error!void {
     }
     if (at != b.len) return error.Truncated;
     s.n = n;
+}
+
+/// The set's tag (header bytes 48-63): a class past CLASSES, padding not zero, or a name byte outside A-Z 0-9 space is refused.
+fn tag(b: []const u8, s: *Set) Error!void {
+    const c = b[48];
+    if (c > CLASSES or b[49] | b[50] | b[51] != 0) return error.BadBlock;
+    if (c != 0) s.class = c - 1;
+    for (b[52..64], &s.name) |x, *o| {
+        if (x != 0 and x != ' ' and !std.ascii.isUpper(x) and !std.ascii.isDigit(x)) return error.BadBlock;
+        o.* = x;
+    }
 }
 
 const Rec = struct { m: Model, len: usize };
@@ -157,6 +177,7 @@ fn check(m: *Model) Error!void {
         if ((f.flags & FLAG_SHADOW != 0) != (i >= s0 and i < m.end[@intFromEnum(Part.shadow)])) return error.BadParts;
     }
     m.foot = footOf(m.verts, sh);
+    m.spin = wheelspin.groups(m.verts, m.range(.wheels));
     var top: i32 = 0;
     for (m.range(.hull)) |f| for (f.v[0..f.nv]) |id| {
         top = @max(top, m.verts[id][1]);

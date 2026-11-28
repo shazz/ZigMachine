@@ -93,7 +93,11 @@ pub const END: [6]u16 = BUILT.end;
 pub const WING_Z: i32 = @bitCast(word(10));
 
 /// The built-in GT (the fallback when no car file is on the disk, and the gate's car).
-pub const gt = Model{ .verts = &verts, .faces = &faces, .end = END, .wing_z = WING_Z, .mid_y = BUILT.mid_y, .foot = FOOT };
+pub const gt = Model{ .verts = &verts, .faces = &faces, .end = END, .wing_z = WING_Z, .mid_y = BUILT.mid_y, .foot = FOOT, .spin = SPIN };
+const SPIN = blk: {
+    @setEvalBranchQuota(100_000);
+    break :blk @import("wheelspin.zig").groups(&verts, faces[0..END[0]]);
+};
 const FOOT = blk: {
     @setEvalBranchQuota(20_000);
     break :blk carfile.footOf(&verts, faces[END[3]..END[4]]);

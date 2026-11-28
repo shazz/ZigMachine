@@ -68,5 +68,29 @@ class SetTest(unittest.TestCase):
                 carc.pack_set(models, pal)
 
 
+class TagTest(unittest.TestCase):
+    """The set's tag (R82 board batch): its car class and name, which the cart's car switch and car select show."""
+
+    def test_the_tag_holds_the_class_plus_one_and_the_name_and_the_crc_skips_it(self) -> None:
+        m = carc.convert(gt())
+        s = carc.pack_set([m], None, "STOCK", 1)
+        self.assertEqual(s[48:52], bytes((2, 0, 0, 0)))
+        self.assertEqual(s[52:64], b"STOCK".ljust(12, b"\0"))
+        self.assertEqual(struct.unpack_from("<I", s, 44)[0], zlib.crc32(s[64:]))
+        self.assertEqual(carc.pack_set([m], None)[48:64], bytes(16))  # untagged: the class stays the player's
+
+    def test_a_bad_name_or_class_is_refused_and_the_twin_refuses_a_hand_edited_tag(self) -> None:
+        from racer import twin_files
+        m = carc.convert(gt())
+        for name, cls in (("stock", 0), ("A" * 13, 0), ("GT", 3), ("GT", -1)):
+            with self.assertRaises(carc.CarError):
+                carc.pack_set([m], None, name, cls)
+        s = bytearray(carc.pack_set([m], None, "GT", 2))
+        twin_files.car(bytes(s))
+        s[48] = 9
+        with self.assertRaises(twin_files.Refused):
+            twin_files.car(bytes(s))
+
+
 if __name__ == "__main__":
     unittest.main()

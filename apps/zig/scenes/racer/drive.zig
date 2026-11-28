@@ -102,7 +102,7 @@ pub const Drive = struct {
         const t0 = self.now();
         self.prev = self.cur;
         self.car.tick(b);
-        self.cur = .{ .pos = self.car.pos, .angle = self.car.angle };
+        self.cur = carview.snapOf(&self.car); // board batch: the wheels turn in free drive too
         self.ticks += 1;
         self.slides += @intFromBool(self.car.sliding());
         self.smoke.emitCar(&self.car, carmodel.of(0).foot);

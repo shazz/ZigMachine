@@ -12,7 +12,8 @@
 //
 // The countdown, GO, the finish and EXTEND TIME show big in the middle. The 3D repaints the whole view
 // every frame, so the overlay is drawn every frame too (a few thousand bytes of runs: ~0.01-0.02 Mc).
-// The old two bands stay as an option (key 0, and the benchmark laps always: their lines are the bench's).
+// The old two bands stay as an option (key 0). Since the board batch the x bench shows it too (item 8: the bench
+// behaves as a race; key 0 is its A/B), drawn after the view's CRC so the lap pins are the bare view's.
 // No ZigOS import: the pixels and the font are parameters (hudpic_test.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -41,8 +42,8 @@ pub const Info = struct {
     track: []const u8 = "",
 };
 
-/// The picture HUD is on (key 0) in a race (never a benchmark lap: its lines are the bench's) from the countdown to the
-/// finish; the grid's prompt and the results stay in the bands.
+/// The picture HUD is on (key 0) in a race or the x bench from the countdown to the finish; the grid's prompt and the
+/// results stay in the bands. `race`: a race or the bench runs (the game's mode is not off).
 pub fn shows(race: bool, st: @import("fsm.zig").State) bool {
     return on and race and (st == .countdown or st == .race or st == .finish);
 }

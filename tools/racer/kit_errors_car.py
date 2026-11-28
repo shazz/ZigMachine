@@ -34,6 +34,7 @@ MORE: Final[dict[str, dict[str, str]]] = {
     "carc": {  # the car file writer
         "the footprint takes the car past {} vertices": "the shadow footprint adds vertices: fewer vertices on the hull",
         "a set holds 1..{} models and {} ramp colours": "a car set file holds 1..5 cars and a palette of 7 colours",
+        "a set's name is up to 12 of A-Z 0-9 space and its class one of {}": "a car set's tag: name it with up to 12 capitals, digits or spaces, and give it FORMULA, STOCK or PROTO (or no class)",
     },
     "panc": {  # the panorama writer (<TRACK>.PAN)
         "no {} free entries on the track's {} ramps": "the track's ramps have too few unused entries: fewer track materials, or fewer strip colours",

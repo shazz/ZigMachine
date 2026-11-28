@@ -154,7 +154,7 @@ def car_class(rom: bytes, cls: int, course: list[RGB], allow_soft: bool) -> tupl
              f"{sum(err.values()) / len(err):.1f}, the player's mean {sum(err[c] for c in mine) / len(mine):.1f}")]
     lines += [f"  {d['name']}: near {len(d['parts']['wheels']) + len(d['parts']['hull'])} faces, far {len(d['parts']['lod1'])}, "
               f"{len(d['vertices'])} vertices, {b.dropped} faces without area dropped" for d, b in docs]
-    return carc.pack_set(blobs, [ramps[r] for r in range(12, 19)]), lines
+    return carc.pack_set(blobs, [ramps[r] for r in range(12, 19)], carc.CLASSES[cls], cls), lines  # the tag: a 32X class's set
 
 
 def main(argv: list[str] | None = None) -> int:
